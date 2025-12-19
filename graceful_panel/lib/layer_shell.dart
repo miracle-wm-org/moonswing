@@ -1055,10 +1055,26 @@ class _FlWindowMonitor extends _GObject {
 class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
   LayershellWindowController createLayerShellWindowController({
     required LayershellWindowControllerDelegate delegate,
+    GtkLayerShellLayer layer = GtkLayerShellLayer.top,
+    List<GtkLayerShellEdge> anchorEdges = const [
+      GtkLayerShellEdge.top,
+      GtkLayerShellEdge.left,
+      GtkLayerShellEdge.right
+    ],
+    GtkLayerShellKeyboardMode keyboardMode = GtkLayerShellKeyboardMode.onDemand,
+    int? width,
+    int? height,
+    int? exclusiveZone,
   }) {
     return LayershellWindowController(
       owner: this,
       delegate: delegate,
+      layer: layer,
+      anchorEdges: anchorEdges,
+      keyboardMode: keyboardMode,
+      width: width,
+      height: height,
+      exclusiveZone: exclusiveZone,
     );
   }
 }
@@ -1072,9 +1088,20 @@ class LayershellWindowControllerDelegate {
 }
 
 class LayershellWindowController extends ChangeNotifier {
+  /// Create a new LayershellWindowController.
   LayershellWindowController({
     required ExtendedWindowingOwnerLinux owner,
     required LayershellWindowControllerDelegate delegate,
+    GtkLayerShellLayer layer = GtkLayerShellLayer.top,
+    List<GtkLayerShellEdge> anchorEdges = const [
+      GtkLayerShellEdge.top,
+      GtkLayerShellEdge.left,
+      GtkLayerShellEdge.right
+    ],
+    GtkLayerShellKeyboardMode keyboardMode = GtkLayerShellKeyboardMode.onDemand,
+    int? width,
+    int? height,
+    int? exclusiveZone,
   })  : _owner = owner,
         _delegate = delegate,
         _window = _GtkWindow() {
@@ -1106,16 +1133,16 @@ class LayershellWindowController extends ChangeNotifier {
     );
 
     _window.layerInitForWindow();
-    _window.layerAutoExclusiveZoneEnable();
-    const int PANEL_SIZE_PX = 48;
-    _window.layerSetExclusiveZone(PANEL_SIZE_PX);
-    _window.layerSetAnchor(GtkLayerShellEdge.top, true);
-    _window.layerSetAnchor(GtkLayerShellEdge.left, true);
-    _window.layerSetAnchor(GtkLayerShellEdge.right, true);
-    _window.layerSetAnchor(GtkLayerShellEdge.bottom, false);
-    _window.layerSetLayer(GtkLayerShellLayer.top);
-    _window.setSizeRequest(1920, PANEL_SIZE_PX);
-    _window.setDefaultSize(1920, PANEL_SIZE_PX);
+    if (exclusiveZone != null) {
+      _window.layerAutoExclusiveZoneEnable();
+      _window.layerSetExclusiveZone(exclusiveZone);
+    }
+    for (final edge in anchorEdges) {
+      _window.layerSetAnchor(edge, true);
+    }
+    _window.layerSetLayer(layer);
+    _window.setSizeRequest(width ?? -1, height ?? -1);
+    _window.setDefaultSize(width ?? -1, height ?? -1);
     _window.add(view);
     _window.present();
     view.show();

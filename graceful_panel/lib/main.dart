@@ -2,11 +2,21 @@ import 'package:flutter/material.dart';
 import 'layer_shell.dart';
 
 void main() {
+  const int kPanelSizePx = 32;
+
   WidgetsFlutterBinding.ensureInitialized();
   final windowingOwner = ExtendedWindowingOwnerLinux();
   WidgetsBinding.instance.windowingOwner = windowingOwner;
   final bar = windowingOwner.createLayerShellWindowController(
-      delegate: LayershellWindowControllerDelegate());
+      delegate: LayershellWindowControllerDelegate(),
+      height: kPanelSizePx,
+      layer: GtkLayerShellLayer.top,
+      anchorEdges: [
+        GtkLayerShellEdge.top,
+        GtkLayerShellEdge.left,
+        GtkLayerShellEdge.right
+      ],
+      exclusiveZone: kPanelSizePx);
   runWidget(LayerShellWindow(controller: bar, child: const MyApp()));
 }
 
@@ -15,13 +25,12 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final view = View.of(context);
-    print(view.physicalSize);
     return Directionality(
       textDirection: TextDirection.ltr,
-      child: ColoredBox(
-        color: Colors.red,
-        child: SizedBox(width: 1920, height: 48),
+      child: SizedBox.expand(
+        child: Container(
+          color: Colors.transparent,
+        ),
       ),
     );
   }
