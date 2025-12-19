@@ -29,7 +29,7 @@ class MyApp extends StatelessWidget {
       textDirection: TextDirection.ltr,
       child: SizedBox.expand(
         child: Container(
-          color: Colors.transparent,
+          color: Colors.red.withOpacity(0.5),
         ),
       ),
     );

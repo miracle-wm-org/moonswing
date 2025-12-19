@@ -229,6 +229,25 @@ final class _GdkGeometry extends ffi.Struct {
   external int winGravity;
 }
 
+/// Wraps GdkRGBA
+final class _GdkRGBA extends ffi.Struct {
+  factory _GdkRGBA() {
+    return ffi.Struct.create();
+  }
+
+  @ffi.Double()
+  external double red;
+
+  @ffi.Double()
+  external double green;
+
+  @ffi.Double()
+  external double blue;
+
+  @ffi.Double()
+  external double alpha;
+}
+
 // GTK Layer Shell enums
 
 /// GtkLayerShellLayer - Stacking layers for layer shell surfaces.
@@ -407,6 +426,10 @@ class _GtkWindow extends _GtkContainer {
     return _gtkWindowIsActive(instance);
   }
 
+  void setAppPaintable(bool appPaintable) {
+    _gtkWidgetSetAppPaintable(instance, appPaintable);
+  }
+
   @ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Int)>(
       symbol: 'gtk_window_new')
   external static ffi.Pointer<ffi.NativeType> _gtkWindowNew(int type);
@@ -518,6 +541,11 @@ class _GtkWindow extends _GtkContainer {
   @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.NativeType>)>(
       symbol: 'gtk_window_is_active')
   external static bool _gtkWindowIsActive(ffi.Pointer<ffi.NativeType> widget);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Bool)>(
+      symbol: 'gtk_widget_set_app_paintable')
+  external static void _gtkWidgetSetAppPaintable(
+      ffi.Pointer<ffi.NativeType> widget, bool appPaintable);
 
   // GTK Layer Shell methods
 
@@ -958,6 +986,20 @@ class _FlView extends _GtkWidget {
     return _flViewGetId(instance);
   }
 
+  /// Set the background color of the FlView.
+  void setBackgroundColor(String colorString) {
+    final ffi.Pointer<_GdkRGBA> color = _gMalloc0(
+      ffi.sizeOf<_GdkRGBA>(),
+    ).cast<_GdkRGBA>();
+
+    final ffi.Pointer<ffi.Uint8> colorBuffer = _stringToNative(colorString);
+    _gdkRgbaParse(color, colorBuffer);
+    _gFree(colorBuffer);
+
+    _flViewSetBackgroundColor(instance, color);
+    _gFree(color);
+  }
+
   @ffi.Native<
       ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
     symbol: 'fl_view_new_for_engine',
@@ -969,6 +1011,17 @@ class _FlView extends _GtkWidget {
   @ffi.Native<ffi.Int64 Function(ffi.Pointer<ffi.NativeType>)>(
       symbol: 'fl_view_get_id')
   external static int _flViewGetId(ffi.Pointer<ffi.NativeType> view);
+
+  @ffi.Native<ffi.Bool Function(ffi.Pointer<_GdkRGBA>, ffi.Pointer<ffi.Uint8>)>(
+      symbol: 'gdk_rgba_parse')
+  external static bool _gdkRgbaParse(
+      ffi.Pointer<_GdkRGBA> rgba, ffi.Pointer<ffi.Uint8> spec);
+
+  @ffi.Native<
+      ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+          ffi.Pointer<_GdkRGBA>)>(symbol: 'fl_view_set_background_color')
+  external static void _flViewSetBackgroundColor(
+      ffi.Pointer<ffi.NativeType> view, ffi.Pointer<_GdkRGBA> color);
 }
 
 /// Wraps FlWindowMonitor (helper object for handling signals from GtkWindow).
@@ -1127,6 +1180,7 @@ class LayershellWindowController extends ChangeNotifier {
       _delegate.onWindowDestroyed,
     );
     final view = _FlView();
+    view.setBackgroundColor('#00000000');
     final int viewId = view.getId();
     _view = WidgetsBinding.instance.platformDispatcher.views.firstWhere(
       (FlutterView view) => view.viewId == viewId,
@@ -1143,6 +1197,7 @@ class LayershellWindowController extends ChangeNotifier {
     _window.layerSetLayer(layer);
     _window.setSizeRequest(width ?? -1, height ?? -1);
     _window.setDefaultSize(width ?? -1, height ?? -1);
+    _window.setAppPaintable(true);
     _window.add(view);
     _window.present();
     view.show();
