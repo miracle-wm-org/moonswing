@@ -1,0 +1,1179 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// Do not import this file in production applications or packages published
+// to pub.dev. Flutter will make breaking changes to this file, even in patch
+// versions.
+//
+// All APIs in this file must be private or must:
+//
+// 1. Have the `` attribute.
+// 2. Throw an `UnsupportedError` if `isWindowingEnabled`
+//    is `false`.
+//
+// See: https://github.com/flutter/flutter/issues/30701.
+
+// ignore_for_file: implementation_imports
+// ignore_for_file: invalid_use_of_internal_member
+
+import 'dart:convert';
+import 'dart:ffi' as ffi;
+import 'dart:io';
+import 'dart:ui' show Display, FlutterView;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/src/foundation/_features.dart';
+import 'package:flutter/src/widgets/_window.dart';
+import 'package:flutter/src/widgets/_window_linux.dart';
+import 'package:flutter/src/widgets/binding.dart';
+
+// Load the GTK Layer Shell library
+final ffi.DynamicLibrary _gtkLayerShell = () {
+  try {
+    // Try to open the library from the system
+    return ffi.DynamicLibrary.open('libgtk-layer-shell.so.0');
+  } catch (e) {
+    // Fallback: try without version suffix
+    try {
+      return ffi.DynamicLibrary.open('libgtk-layer-shell.so');
+    } catch (e) {
+      // Last resort: use the process itself (symbols should be available via linking)
+      return ffi.DynamicLibrary.process();
+    }
+  }
+}();
+
+// TODO: The beginning of this file (minus the GTK layer shell specific code)
+// is taken directly from the Linux windowing implementation in Flutter. Once
+// that code is made public we should remove the duplicated code.
+
+// Maximum width and height a window can be.
+// In C this would be INT_MAX, but since we can't determine that from Dart let's assume it's 32 bit signed. In any case this is far beyond any reasonable window size.
+const int _kMaxWindowDimensions = 0x7fffffff;
+
+const String _kWindowingDisabledErrorMessage = '''
+Windowing APIs are not enabled.
+
+Windowing APIs are currently experimental. Do not use windowing APIs in
+production applications or plugins published to pub.dev.
+
+To try experimental windowing APIs:
+1. Switch to Flutter's main release channel.
+2. Turn on the windowing feature flag.
+
+See: https://github.com/flutter/flutter/issues/30701.
+''';
+
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Int)>(symbol: 'g_malloc0')
+external ffi.Pointer<ffi.NativeType> _gMalloc0(int count);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(symbol: 'g_free')
+external void _gFree(ffi.Pointer<ffi.NativeType> value);
+
+ffi.Pointer<ffi.Uint8> _stringToNative(String value) {
+  final Uint8List units = utf8.encode(value);
+  final ffi.Pointer<ffi.Uint8> buffer =
+      _gMalloc0(units.length + 1).cast<ffi.Uint8>();
+  final Uint8List nativeString = buffer.asTypedList(units.length + 1);
+  nativeString.setAll(0, units);
+  nativeString[units.length] = 0;
+  return buffer;
+}
+
+String _nativeToString(ffi.Pointer<ffi.Uint8> value) {
+  var length = 0;
+  while (value[length] != 0) {
+    length++;
+  }
+  return utf8.decode(value.asTypedList(length));
+}
+
+/// Wraps GObject
+class _GObject {
+  const _GObject(this.instance);
+
+  final ffi.Pointer<ffi.NativeType> instance;
+
+  /// Drop reference to this object.
+  void unref() {
+    _unref(instance);
+  }
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'g_object_unref')
+  external static void _unref(ffi.Pointer<ffi.NativeType> widget);
+}
+
+/// Wraps GtkContainer
+class _GtkContainer extends _GtkWidget {
+  const _GtkContainer(super.instance);
+
+  /// Adds [child] widget to this container.
+  void add(_GtkWidget child) {
+    _gtkContainerAdd(instance, child.instance);
+  }
+
+  @ffi.Native<
+      ffi.Void Function(
+          ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gtk_container_add',
+  )
+  external static void _gtkContainerAdd(
+    ffi.Pointer<ffi.NativeType> container,
+    ffi.Pointer<ffi.NativeType> child,
+  );
+}
+
+/// Wraps GtkWidget
+class _GtkWidget extends _GObject {
+  const _GtkWidget(super.instance);
+
+  /// Show the widget (defaults to hidden).
+  void show() {
+    _gtkWidgetShow(instance);
+  }
+
+  /// Get the low level window backing this widget.
+  _GdkWindow getWindow() {
+    return _GdkWindow(_gtkWidgetGetWindow(instance));
+  }
+
+  /// Destroy the widget.
+  void destroy() {
+    _gtkWindowDestroy(instance);
+  }
+
+  void setSizeRequest(int width, int height) {
+    _gtkWidgetSetSizeRequest(instance, width, height);
+  }
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_widget_show')
+  external static void _gtkWidgetShow(ffi.Pointer<ffi.NativeType> widget);
+
+  @ffi.Native<
+      ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gtk_widget_get_window',
+  )
+  external static ffi.Pointer<ffi.NativeType> _gtkWidgetGetWindow(
+    ffi.Pointer<ffi.NativeType> widget,
+  );
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_widget_destroy')
+  external static void _gtkWindowDestroy(ffi.Pointer<ffi.NativeType> widget);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Int, ffi.Int)>(
+    symbol: 'gtk_widget_set_size_request',
+  )
+  external static void _gtkWidgetSetSizeRequest(
+    ffi.Pointer<ffi.NativeType> window,
+    int width,
+    int height,
+  );
+}
+
+/// Wraps GdkWindow
+class _GdkWindow extends _GObject {
+  const _GdkWindow(super.instance);
+
+  /// Gets the window state bitfield (_GDK_WINDOW_STATE_*).
+  int getState() {
+    return _gdkWindowGetState(instance);
+  }
+
+  @ffi.Native<ffi.Int Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gdk_window_get_state')
+  external static int _gdkWindowGetState(ffi.Pointer<ffi.NativeType> window);
+}
+
+/// Wrapds GdkGeometry
+final class _GdkGeometry extends ffi.Struct {
+  factory _GdkGeometry() {
+    return ffi.Struct.create();
+  }
+
+  @ffi.Int()
+  external int minWidth;
+
+  @ffi.Int()
+  external int minHeight;
+
+  @ffi.Int()
+  external int maxWidth;
+
+  @ffi.Int()
+  external int maxHeight;
+
+  @ffi.Int()
+  external int baseWidth;
+
+  @ffi.Int()
+  external int baseHeight;
+
+  @ffi.Int()
+  external int widthInc;
+
+  @ffi.Int()
+  external int heightInc;
+
+  @ffi.Double()
+  external double minAspect;
+
+  @ffi.Double()
+  external double maxAspect;
+
+  @ffi.Int()
+  external int winGravity;
+}
+
+// GTK Layer Shell enums
+
+/// GtkLayerShellLayer - Stacking layers for layer shell surfaces.
+///
+/// These values indicate which layer a surface is in. Higher layers are drawn
+/// above lower layers.
+enum GtkLayerShellLayer {
+  /// The background layer.
+  background(0),
+
+  /// The bottom layer.
+  bottom(1),
+
+  /// The top layer.
+  top(2),
+
+  /// The overlay layer.
+  overlay(3);
+
+  const GtkLayerShellLayer(this.value);
+  final int value;
+}
+
+/// GtkLayerShellEdge - Edges of the screen.
+///
+/// Used to specify which edge(s) of the screen a surface should be anchored to
+/// or have margins/exclusive zones on.
+enum GtkLayerShellEdge {
+  /// The left edge of the screen.
+  left(0),
+
+  /// The right edge of the screen.
+  right(1),
+
+  /// The top edge of the screen.
+  top(2),
+
+  /// The bottom edge of the screen.
+  bottom(3);
+
+  const GtkLayerShellEdge(this.value);
+  final int value;
+}
+
+/// GtkLayerShellKeyboardMode - How keyboard events are handled.
+///
+/// Determines whether and how a layer surface receives keyboard input.
+enum GtkLayerShellKeyboardMode {
+  /// This window should not receive keyboard events.
+  none(0),
+
+  /// This window should have exclusive focus if it is on the top or overlay layer.
+  exclusive(1),
+
+  /// The user should be able to focus and unfocus this window (requires protocol version 4+).
+  onDemand(2);
+
+  const GtkLayerShellKeyboardMode(this.value);
+  final int value;
+}
+
+/// Wraps GtkWindow
+class _GtkWindow extends _GtkContainer {
+  /// Create a new GtkWindow
+  _GtkWindow() : super(_gtkWindowNew(0));
+
+  /// Make window visible and grab focus.
+  void present() {
+    _gtkWindowPresent(instance);
+  }
+
+  /// Sets the parent window.
+  void setTransientFor(_GtkWindow parent) {
+    _gtkWindowSetTransientFor(instance, parent.instance);
+  }
+
+  /// Set if this window is modal to its parent.
+  void setModal(bool modal) {
+    _gtkWindowSetModal(instance, modal);
+  }
+
+  /// Set the type of this window.
+  void setTypeHint(int hint) {
+    _gtkWindowSetTypeHint(instance, hint);
+  }
+
+  /// Sets the title of the window.
+  void setTitle(String title) {
+    final ffi.Pointer<ffi.Uint8> titleBuffer = _stringToNative(title);
+    _gtkWindowSetTitle(instance, titleBuffer);
+    _gFree(titleBuffer);
+  }
+
+  /// Gets the current title of the window.
+  String getTitle() {
+    return _nativeToString(_gtkWindowGetTitle(instance));
+  }
+
+  /// Set the default size of the window.
+  void setDefaultSize(int width, int height) {
+    _gtkWindowSetDefaultSize(instance, width, height);
+  }
+
+  /// Set minimum and maximum size of the window.
+  void setGeometryHints(
+      {int? minWidth, int? minHeight, int? maxWidth, int? maxHeight}) {
+    final ffi.Pointer<_GdkGeometry> geometry = _gMalloc0(
+      ffi.sizeOf<_GdkGeometry>(),
+    ).cast<_GdkGeometry>();
+    final _GdkGeometry g = geometry.ref;
+    var geometryMask = 0;
+    if (minWidth != null || minHeight != null) {
+      g.minWidth = minWidth ?? 0;
+      g.minHeight = minHeight ?? 0;
+      geometryMask |= 2; // GDK_HINT_MIN_SIZE
+    }
+    if (maxWidth != null || maxHeight != null) {
+      g.maxWidth = maxWidth ?? _kMaxWindowDimensions;
+      g.maxHeight = maxHeight ?? _kMaxWindowDimensions;
+      geometryMask |= 4; // GDK_HINT_MAX_SIZE
+    }
+    _gtkWindowSetGeometryHints(instance, ffi.nullptr, geometry, geometryMask);
+    _gFree(geometry);
+  }
+
+  /// Resize to [width]x[height].
+  void resize(int width, int height) {
+    _gtkWindowResize(instance, width, height);
+  }
+
+  /// Maximize window.
+  void maximize() {
+    _gtkWindowMaximize(instance);
+  }
+
+  /// Unaximize window.
+  void unmaximize() {
+    _gtkWindowUnmaximize(instance);
+  }
+
+  /// Iconify (minimize) window.
+  void iconify() {
+    _gtkWindowIconify(instance);
+  }
+
+  /// Deconify (unminimize) window.
+  void deiconify() {
+    _gtkWindowDeiconify(instance);
+  }
+
+  /// Make window fullscreen.
+  void fullscreen() {
+    _gtkWindowFullscreen(instance);
+  }
+
+  /// Leave fullscreen.
+  void unfullscreen() {
+    _gtkWindowUnfullscreen(instance);
+  }
+
+  /// Get the current size of the window.
+  Size getSize() {
+    final ffi.Pointer<ffi.Int> width =
+        _gMalloc0(ffi.sizeOf<ffi.Int>()).cast<ffi.Int>();
+    final ffi.Pointer<ffi.Int> height =
+        _gMalloc0(ffi.sizeOf<ffi.Int>()).cast<ffi.Int>();
+    _gtkWindowGetSize(instance, width, height);
+    final result = Size(width.value.toDouble(), height.value.toDouble());
+    _gFree(width);
+    _gFree(height);
+    return result;
+  }
+
+  /// true if this window has keyboard focus.
+  bool isActive() {
+    return _gtkWindowIsActive(instance);
+  }
+
+  @ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Int)>(
+      symbol: 'gtk_window_new')
+  external static ffi.Pointer<ffi.NativeType> _gtkWindowNew(int type);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_present')
+  external static void _gtkWindowPresent(ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Bool)>(
+    symbol: 'gtk_window_set_modal',
+  )
+  external static void _gtkWindowSetModal(
+      ffi.Pointer<ffi.NativeType> window, bool modal);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Int)>(
+    symbol: 'gtk_window_set_type_hint',
+  )
+  external static void _gtkWindowSetTypeHint(
+      ffi.Pointer<ffi.NativeType> window, int hint);
+
+  @ffi.Native<
+      ffi.Void Function(
+          ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gtk_window_set_transient_for',
+  )
+  external static void _gtkWindowSetTransientFor(
+    ffi.Pointer<ffi.NativeType> window,
+    ffi.Pointer<ffi.NativeType> parent,
+  );
+
+  @ffi.Native<
+      ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.Uint8>)>(
+    symbol: 'gtk_window_set_title',
+  )
+  external static void _gtkWindowSetTitle(
+    ffi.Pointer<ffi.NativeType> window,
+    ffi.Pointer<ffi.Uint8> title,
+  );
+
+  @ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gtk_window_get_title',
+  )
+  external static ffi.Pointer<ffi.Uint8> _gtkWindowGetTitle(
+      ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Int, ffi.Int)>(
+    symbol: 'gtk_window_set_default_size',
+  )
+  external static void _gtkWindowSetDefaultSize(
+    ffi.Pointer<ffi.NativeType> window,
+    int width,
+    int height,
+  );
+
+  @ffi.Native<
+      ffi.Void Function(
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<_GdkGeometry>,
+        ffi.Int,
+      )>(symbol: 'gtk_window_set_geometry_hints')
+  external static void _gtkWindowSetGeometryHints(
+    ffi.Pointer<ffi.NativeType> window,
+    ffi.Pointer<ffi.NativeType> geometryWidget,
+    ffi.Pointer<_GdkGeometry> geometry,
+    int geometryMask,
+  );
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Int, ffi.Int)>(
+    symbol: 'gtk_window_resize',
+  )
+  external static void _gtkWindowResize(
+      ffi.Pointer<ffi.NativeType> window, int width, int height);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_maximize')
+  external static void _gtkWindowMaximize(ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_unmaximize')
+  external static void _gtkWindowUnmaximize(ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_iconify')
+  external static void _gtkWindowIconify(ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_deiconify')
+  external static void _gtkWindowDeiconify(ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_fullscreen')
+  external static void _gtkWindowFullscreen(ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_unfullscreen')
+  external static void _gtkWindowUnfullscreen(
+      ffi.Pointer<ffi.NativeType> window);
+
+  @ffi.Native<
+      ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.Int>,
+          ffi.Pointer<ffi.Int>)>(symbol: 'gtk_window_get_size')
+  external static void _gtkWindowGetSize(
+    ffi.Pointer<ffi.NativeType> window,
+    ffi.Pointer<ffi.Int> width,
+    ffi.Pointer<ffi.Int> height,
+  );
+
+  @ffi.Native<ffi.Bool Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gtk_window_is_active')
+  external static bool _gtkWindowIsActive(ffi.Pointer<ffi.NativeType> widget);
+
+  // GTK Layer Shell methods
+
+  /// Get the major version number of the GTK Layer Shell library.
+  static int layerGetMajorVersion() {
+    return _gtkLayerGetMajorVersion();
+  }
+
+  /// Get the minor version number of the GTK Layer Shell library.
+  static int layerGetMinorVersion() {
+    return _gtkLayerGetMinorVersion();
+  }
+
+  /// Get the micro version number of the GTK Layer Shell library.
+  static int layerGetMicroVersion() {
+    return _gtkLayerGetMicroVersion();
+  }
+
+  /// Check if the layer shell is supported on this system.
+  static bool layerIsSupported() {
+    return _gtkLayerIsSupported();
+  }
+
+  /// Get the Wayland layer shell protocol version.
+  static int layerGetProtocolVersion() {
+    return _gtkLayerGetProtocolVersion();
+  }
+
+  /// Initialize this window as a layer shell window.
+  void layerInitForWindow() {
+    _gtkLayerInitForWindow(instance);
+  }
+
+  /// Check if this window is a layer shell window.
+  bool layerIsLayerWindow() {
+    return _gtkLayerIsLayerWindow(instance);
+  }
+
+  /// Get the underlying zwlr_layer_surface_v1 pointer.
+  ffi.Pointer<ffi.NativeType> layerGetZwlrLayerSurfaceV1() {
+    return _gtkLayerGetZwlrLayerSurfaceV1(instance);
+  }
+
+  /// Set the namespace for this layer shell window.
+  void layerSetNamespace(String namespace) {
+    final ffi.Pointer<ffi.Uint8> namespaceBuffer = _stringToNative(namespace);
+    _gtkLayerSetNamespace(instance, namespaceBuffer);
+    _gFree(namespaceBuffer);
+  }
+
+  /// Get the namespace of this layer shell window.
+  String layerGetNamespace() {
+    return _nativeToString(_gtkLayerGetNamespace(instance));
+  }
+
+  /// Set which layer this window appears on (background, bottom, top, overlay).
+  void layerSetLayer(GtkLayerShellLayer layer) {
+    _gtkLayerSetLayer(instance, layer.value);
+  }
+
+  /// Get which layer this window is on.
+  GtkLayerShellLayer layerGetLayer() {
+    final int value = _gtkLayerGetLayer(instance);
+    return GtkLayerShellLayer.values[value];
+  }
+
+  /// Set which monitor this window appears on.
+  void layerSetMonitor(ffi.Pointer<ffi.NativeType> monitor) {
+    _gtkLayerSetMonitor(instance, monitor);
+  }
+
+  /// Get which monitor this window is on.
+  ffi.Pointer<ffi.NativeType> layerGetMonitor() {
+    return _gtkLayerGetMonitor(instance);
+  }
+
+  /// Set whether this window is anchored to an edge.
+  void layerSetAnchor(GtkLayerShellEdge edge, bool anchorToEdge) {
+    _gtkLayerSetAnchor(instance, edge.value, anchorToEdge);
+  }
+
+  /// Get whether this window is anchored to an edge.
+  bool layerGetAnchor(GtkLayerShellEdge edge) {
+    return _gtkLayerGetAnchor(instance, edge.value);
+  }
+
+  /// Set the margin from an edge.
+  void layerSetMargin(GtkLayerShellEdge edge, int marginSize) {
+    _gtkLayerSetMargin(instance, edge.value, marginSize);
+  }
+
+  /// Get the margin from an edge.
+  int layerGetMargin(GtkLayerShellEdge edge) {
+    return _gtkLayerGetMargin(instance, edge.value);
+  }
+
+  /// Set the exclusive zone (space reserved for this window).
+  void layerSetExclusiveZone(int exclusiveZone) {
+    _gtkLayerSetExclusiveZone(instance, exclusiveZone);
+  }
+
+  /// Get the exclusive zone.
+  int layerGetExclusiveZone() {
+    return _gtkLayerGetExclusiveZone(instance);
+  }
+
+  /// Enable automatic exclusive zone calculation.
+  void layerAutoExclusiveZoneEnable() {
+    _gtkLayerAutoExclusiveZoneEnable(instance);
+  }
+
+  /// Check if automatic exclusive zone is enabled.
+  bool layerAutoExclusiveZoneIsEnabled() {
+    return _gtkLayerAutoExclusiveZoneIsEnabled(instance);
+  }
+
+  /// Set the keyboard mode.
+  void layerSetKeyboardMode(GtkLayerShellKeyboardMode mode) {
+    _gtkLayerSetKeyboardMode(instance, mode.value);
+  }
+
+  /// Get the keyboard mode.
+  GtkLayerShellKeyboardMode layerGetKeyboardMode() {
+    final int value = _gtkLayerGetKeyboardMode(instance);
+    return GtkLayerShellKeyboardMode.values[value];
+  }
+
+  /// Set keyboard interactivity (deprecated, use layerSetKeyboardMode instead).
+  void layerSetKeyboardInteractivity(bool interactivity) {
+    _gtkLayerSetKeyboardInteractivity(instance, interactivity);
+  }
+
+  /// Get keyboard interactivity (deprecated, use layerGetKeyboardMode instead).
+  bool layerGetKeyboardInteractivity() {
+    return _gtkLayerGetKeyboardInteractivity(instance);
+  }
+
+  /// Try to force commit changes to the compositor.
+  void layerTryForceCommit() {
+    _gtkLayerTryForceCommit(instance);
+  }
+
+  /// Set whether to respect compositor close requests.
+  void layerSetRespectClose(bool respectClose) {
+    _gtkLayerSetRespectClose(instance, respectClose);
+  }
+
+  /// Get whether the window respects compositor close requests.
+  bool layerGetRespectClose() {
+    return _gtkLayerGetRespectClose(instance);
+  }
+
+  // FFI bindings for GTK Layer Shell
+
+  static final _gtkLayerGetMajorVersionPtr = _gtkLayerShell
+      .lookup<ffi.NativeFunction<ffi.UnsignedInt Function()>>(
+          'gtk_layer_get_major_version')
+      .asFunction<int Function()>();
+  static int _gtkLayerGetMajorVersion() => _gtkLayerGetMajorVersionPtr();
+
+  static final _gtkLayerGetMinorVersionPtr = _gtkLayerShell
+      .lookup<ffi.NativeFunction<ffi.UnsignedInt Function()>>(
+          'gtk_layer_get_minor_version')
+      .asFunction<int Function()>();
+  static int _gtkLayerGetMinorVersion() => _gtkLayerGetMinorVersionPtr();
+
+  static final _gtkLayerGetMicroVersionPtr = _gtkLayerShell
+      .lookup<ffi.NativeFunction<ffi.UnsignedInt Function()>>(
+          'gtk_layer_get_micro_version')
+      .asFunction<int Function()>();
+  static int _gtkLayerGetMicroVersion() => _gtkLayerGetMicroVersionPtr();
+
+  static final _gtkLayerIsSupportedPtr = _gtkLayerShell
+      .lookup<ffi.NativeFunction<ffi.Bool Function()>>('gtk_layer_is_supported')
+      .asFunction<bool Function()>();
+  static bool _gtkLayerIsSupported() => _gtkLayerIsSupportedPtr();
+
+  static final _gtkLayerGetProtocolVersionPtr = _gtkLayerShell
+      .lookup<ffi.NativeFunction<ffi.UnsignedInt Function()>>(
+          'gtk_layer_get_protocol_version')
+      .asFunction<int Function()>();
+  static int _gtkLayerGetProtocolVersion() => _gtkLayerGetProtocolVersionPtr();
+
+  static final _gtkLayerInitForWindowPtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_init_for_window')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>)>();
+  static void _gtkLayerInitForWindow(ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerInitForWindowPtr(window);
+
+  static final _gtkLayerIsLayerWindowPtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Bool Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_is_layer_window')
+      .asFunction<bool Function(ffi.Pointer<ffi.NativeType>)>();
+  static bool _gtkLayerIsLayerWindow(ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerIsLayerWindowPtr(window);
+
+  static final _gtkLayerGetZwlrLayerSurfaceV1Ptr = _gtkLayerShell
+      .lookup<
+              ffi.NativeFunction<
+                  ffi.Pointer<ffi.NativeType> Function(
+                      ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_get_zwlr_layer_surface_v1')
+      .asFunction<
+          ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>();
+  static ffi.Pointer<ffi.NativeType> _gtkLayerGetZwlrLayerSurfaceV1(
+          ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetZwlrLayerSurfaceV1Ptr(window);
+
+  static final _gtkLayerSetNamespacePtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Pointer<ffi.Uint8>)>>('gtk_layer_set_namespace')
+      .asFunction<
+          void Function(ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.Uint8>)>();
+  static void _gtkLayerSetNamespace(ffi.Pointer<ffi.NativeType> window,
+          ffi.Pointer<ffi.Uint8> namespace) =>
+      _gtkLayerSetNamespacePtr(window, namespace);
+
+  static final _gtkLayerGetNamespacePtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<ffi.Uint8> Function(
+                  ffi.Pointer<ffi.NativeType>)>>('gtk_layer_get_namespace')
+      .asFunction<
+          ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>();
+  static ffi.Pointer<ffi.Uint8> _gtkLayerGetNamespace(
+          ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetNamespacePtr(window);
+
+  static final _gtkLayerSetLayerPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                  ffi.Pointer<ffi.NativeType>, ffi.Int)>>('gtk_layer_set_layer')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>, int)>();
+  static void _gtkLayerSetLayer(
+          ffi.Pointer<ffi.NativeType> window, int layer) =>
+      _gtkLayerSetLayerPtr(window, layer);
+
+  static final _gtkLayerGetLayerPtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Int Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_get_layer')
+      .asFunction<int Function(ffi.Pointer<ffi.NativeType>)>();
+  static int _gtkLayerGetLayer(ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetLayerPtr(window);
+
+  static final _gtkLayerSetMonitorPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Pointer<ffi.NativeType>)>>('gtk_layer_set_monitor')
+      .asFunction<
+          void Function(
+              ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.NativeType>)>();
+  static void _gtkLayerSetMonitor(ffi.Pointer<ffi.NativeType> window,
+          ffi.Pointer<ffi.NativeType> monitor) =>
+      _gtkLayerSetMonitorPtr(window, monitor);
+
+  static final _gtkLayerGetMonitorPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<ffi.NativeType> Function(
+                  ffi.Pointer<ffi.NativeType>)>>('gtk_layer_get_monitor')
+      .asFunction<
+          ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>();
+  static ffi.Pointer<ffi.NativeType> _gtkLayerGetMonitor(
+          ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetMonitorPtr(window);
+
+  static final _gtkLayerSetAnchorPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Int,
+                  ffi.Bool)>>('gtk_layer_set_anchor')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>, int, bool)>();
+  static void _gtkLayerSetAnchor(
+          ffi.Pointer<ffi.NativeType> window, int edge, bool anchorToEdge) =>
+      _gtkLayerSetAnchorPtr(window, edge, anchorToEdge);
+
+  static final _gtkLayerGetAnchorPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Bool Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Int)>>('gtk_layer_get_anchor')
+      .asFunction<bool Function(ffi.Pointer<ffi.NativeType>, int)>();
+  static bool _gtkLayerGetAnchor(
+          ffi.Pointer<ffi.NativeType> window, int edge) =>
+      _gtkLayerGetAnchorPtr(window, edge);
+
+  static final _gtkLayerSetMarginPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Int,
+                  ffi.Int)>>('gtk_layer_set_margin')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>, int, int)>();
+  static void _gtkLayerSetMargin(
+          ffi.Pointer<ffi.NativeType> window, int edge, int marginSize) =>
+      _gtkLayerSetMarginPtr(window, edge, marginSize);
+
+  static final _gtkLayerGetMarginPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Int Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Int)>>('gtk_layer_get_margin')
+      .asFunction<int Function(ffi.Pointer<ffi.NativeType>, int)>();
+  static int _gtkLayerGetMargin(ffi.Pointer<ffi.NativeType> window, int edge) =>
+      _gtkLayerGetMarginPtr(window, edge);
+
+  static final _gtkLayerSetExclusiveZonePtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Int)>>('gtk_layer_set_exclusive_zone')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>, int)>();
+  static void _gtkLayerSetExclusiveZone(
+          ffi.Pointer<ffi.NativeType> window, int exclusiveZone) =>
+      _gtkLayerSetExclusiveZonePtr(window, exclusiveZone);
+
+  static final _gtkLayerGetExclusiveZonePtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Int Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_get_exclusive_zone')
+      .asFunction<int Function(ffi.Pointer<ffi.NativeType>)>();
+  static int _gtkLayerGetExclusiveZone(ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetExclusiveZonePtr(window);
+
+  static final _gtkLayerAutoExclusiveZoneEnablePtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_auto_exclusive_zone_enable')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>)>();
+  static void _gtkLayerAutoExclusiveZoneEnable(
+          ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerAutoExclusiveZoneEnablePtr(window);
+
+  static final _gtkLayerAutoExclusiveZoneIsEnabledPtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Bool Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_auto_exclusive_zone_is_enabled')
+      .asFunction<bool Function(ffi.Pointer<ffi.NativeType>)>();
+  static bool _gtkLayerAutoExclusiveZoneIsEnabled(
+          ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerAutoExclusiveZoneIsEnabledPtr(window);
+
+  static final _gtkLayerSetKeyboardModePtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Int)>>('gtk_layer_set_keyboard_mode')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>, int)>();
+  static void _gtkLayerSetKeyboardMode(
+          ffi.Pointer<ffi.NativeType> window, int mode) =>
+      _gtkLayerSetKeyboardModePtr(window, mode);
+
+  static final _gtkLayerGetKeyboardModePtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Int Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_get_keyboard_mode')
+      .asFunction<int Function(ffi.Pointer<ffi.NativeType>)>();
+  static int _gtkLayerGetKeyboardMode(ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetKeyboardModePtr(window);
+
+  static final _gtkLayerSetKeyboardInteractivityPtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Bool)>>('gtk_layer_set_keyboard_interactivity')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>, bool)>();
+  static void _gtkLayerSetKeyboardInteractivity(
+          ffi.Pointer<ffi.NativeType> window, bool interactivity) =>
+      _gtkLayerSetKeyboardInteractivityPtr(window, interactivity);
+
+  static final _gtkLayerGetKeyboardInteractivityPtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Bool Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_get_keyboard_interactivity')
+      .asFunction<bool Function(ffi.Pointer<ffi.NativeType>)>();
+  static bool _gtkLayerGetKeyboardInteractivity(
+          ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetKeyboardInteractivityPtr(window);
+
+  static final _gtkLayerTryForceCommitPtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_try_force_commit')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>)>();
+  static void _gtkLayerTryForceCommit(ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerTryForceCommitPtr(window);
+
+  static final _gtkLayerSetRespectClosePtr = _gtkLayerShell
+      .lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+                  ffi.Bool)>>('gtk_layer_set_respect_close')
+      .asFunction<void Function(ffi.Pointer<ffi.NativeType>, bool)>();
+  static void _gtkLayerSetRespectClose(
+          ffi.Pointer<ffi.NativeType> window, bool respectClose) =>
+      _gtkLayerSetRespectClosePtr(window, respectClose);
+
+  static final _gtkLayerGetRespectClosePtr = _gtkLayerShell
+      .lookup<
+              ffi
+              .NativeFunction<ffi.Bool Function(ffi.Pointer<ffi.NativeType>)>>(
+          'gtk_layer_get_respect_close')
+      .asFunction<bool Function(ffi.Pointer<ffi.NativeType>)>();
+  static bool _gtkLayerGetRespectClose(ffi.Pointer<ffi.NativeType> window) =>
+      _gtkLayerGetRespectClosePtr(window);
+}
+
+/// Wraps FlView
+class _FlView extends _GtkWidget {
+  /// Create a new FlView widget.
+  _FlView()
+      : super(
+          _flViewNewForEngine(
+            ffi.Pointer<ffi.NativeType>.fromAddress(
+              WidgetsBinding.instance.platformDispatcher.engineId!,
+            ),
+          ),
+        );
+
+  /// Get the ID for the Flutter view being shown in this widget.
+  int getId() {
+    return _flViewGetId(instance);
+  }
+
+  @ffi.Native<
+      ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'fl_view_new_for_engine',
+  )
+  external static ffi.Pointer<ffi.NativeType> _flViewNewForEngine(
+    ffi.Pointer<ffi.NativeType> engine,
+  );
+
+  @ffi.Native<ffi.Int64 Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'fl_view_get_id')
+  external static int _flViewGetId(ffi.Pointer<ffi.NativeType> view);
+}
+
+/// Wraps FlWindowMonitor (helper object for handling signals from GtkWindow).
+class _FlWindowMonitor extends _GObject {
+  /// Create a new FlWindowMonitor.
+  factory _FlWindowMonitor(
+    _GtkWindow window,
+    void Function() onConfigure,
+    void Function() onStateChanged,
+    void Function() onIsActiveNotify,
+    void Function() onTitleNotify,
+    void Function() onClose,
+    void Function() onDestroy,
+  ) {
+    return _FlWindowMonitor._internal(
+      window.instance,
+      ffi.NativeCallable<ffi.Void Function()>.isolateLocal(onConfigure),
+      ffi.NativeCallable<ffi.Void Function()>.isolateLocal(onStateChanged),
+      ffi.NativeCallable<ffi.Void Function()>.isolateLocal(onIsActiveNotify),
+      ffi.NativeCallable<ffi.Void Function()>.isolateLocal(onTitleNotify),
+      ffi.NativeCallable<ffi.Void Function()>.isolateLocal(onClose),
+      ffi.NativeCallable<ffi.Void Function()>.isolateLocal(onDestroy),
+    );
+  }
+
+  _FlWindowMonitor._internal(
+    ffi.Pointer<ffi.NativeType> window,
+    this._onConfigureFunction,
+    this._onStateChangedFunction,
+    this._onIsActiveNotifyFunction,
+    this._onTitleNotifyFunction,
+    this._onCloseFunction,
+    this._onDestroyFunction,
+  ) : super(
+          _flWindowMonitorNew(
+            window,
+            _onConfigureFunction.nativeFunction,
+            _onStateChangedFunction.nativeFunction,
+            _onIsActiveNotifyFunction.nativeFunction,
+            _onTitleNotifyFunction.nativeFunction,
+            _onCloseFunction.nativeFunction,
+            _onDestroyFunction.nativeFunction,
+          ),
+        );
+
+  final ffi.NativeCallable<ffi.Void Function()> _onConfigureFunction;
+  final ffi.NativeCallable<ffi.Void Function()> _onStateChangedFunction;
+  final ffi.NativeCallable<ffi.Void Function()> _onIsActiveNotifyFunction;
+  final ffi.NativeCallable<ffi.Void Function()> _onTitleNotifyFunction;
+  final ffi.NativeCallable<ffi.Void Function()> _onCloseFunction;
+  final ffi.NativeCallable<ffi.Void Function()> _onDestroyFunction;
+
+  /// Close all FFI resources used in the monitor.
+  void close() {
+    _onConfigureFunction.close();
+    _onStateChangedFunction.close();
+    _onIsActiveNotifyFunction.close();
+    _onTitleNotifyFunction.close();
+    _onCloseFunction.close();
+    _onDestroyFunction.close();
+  }
+
+  @ffi.Native<
+      ffi.Pointer<ffi.NativeType> Function(
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>,
+        ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>>,
+      )>(symbol: 'fl_window_monitor_new')
+  external static ffi.Pointer<ffi.NativeType> _flWindowMonitorNew(
+    ffi.Pointer<ffi.NativeType> window,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onConfigure,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onStateChanged,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onIsActiveNotify,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onTitleNotify,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onClose,
+    ffi.Pointer<ffi.NativeFunction<ffi.Void Function()>> onDestroy,
+  );
+}
+
+class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
+  LayershellWindowController createLayerShellWindowController({
+    required LayershellWindowControllerDelegate delegate,
+  }) {
+    return LayershellWindowController(
+      owner: this,
+      delegate: delegate,
+    );
+  }
+}
+
+class LayershellWindowControllerDelegate {
+  /// Called when the window is requested to close.
+  void onWindowCloseRequested(LayershellWindowController controller) {}
+
+  /// Called when the window is destroyed.
+  void onWindowDestroyed() {}
+}
+
+class LayershellWindowController extends ChangeNotifier {
+  LayershellWindowController({
+    required ExtendedWindowingOwnerLinux owner,
+    required LayershellWindowControllerDelegate delegate,
+  })  : _owner = owner,
+        _delegate = delegate,
+        _window = _GtkWindow() {
+    if (!isWindowingEnabled) {
+      throw UnsupportedError(_kWindowingDisabledErrorMessage);
+    }
+
+    _windowMonitor = _FlWindowMonitor(
+      _window,
+      // onConfigure
+      notifyListeners,
+      // onStateChanged
+      notifyListeners,
+      // onIsActiveNotify
+      notifyListeners,
+      // onTitleNotify
+      notifyListeners,
+      // onClose
+      () {
+        _delegate.onWindowCloseRequested(this);
+      },
+      // onDestroy
+      _delegate.onWindowDestroyed,
+    );
+    final view = _FlView();
+    final int viewId = view.getId();
+    _view = WidgetsBinding.instance.platformDispatcher.views.firstWhere(
+      (FlutterView view) => view.viewId == viewId,
+    );
+
+    _window.layerInitForWindow();
+    _window.layerAutoExclusiveZoneEnable();
+    const int PANEL_SIZE_PX = 48;
+    _window.layerSetExclusiveZone(PANEL_SIZE_PX);
+    _window.layerSetAnchor(GtkLayerShellEdge.top, true);
+    _window.layerSetAnchor(GtkLayerShellEdge.left, true);
+    _window.layerSetAnchor(GtkLayerShellEdge.right, true);
+    _window.layerSetAnchor(GtkLayerShellEdge.bottom, false);
+    _window.layerSetLayer(GtkLayerShellLayer.top);
+    _window.setSizeRequest(1920, PANEL_SIZE_PX);
+    _window.setDefaultSize(1920, PANEL_SIZE_PX);
+    _window.add(view);
+    _window.present();
+    view.show();
+  }
+
+  FlutterView get rootView => _view;
+  late final FlutterView _view;
+  final ExtendedWindowingOwnerLinux _owner;
+  final LayershellWindowControllerDelegate _delegate;
+  final _GtkWindow _window;
+  late final _FlWindowMonitor _windowMonitor;
+  bool _destroyed = false;
+
+  Size get contentSize => _window.getSize();
+
+  void destroy() {
+    if (_destroyed) {
+      return;
+    }
+    _window.destroy();
+    _windowMonitor.close();
+    _windowMonitor.unref();
+    _destroyed = true;
+  }
+
+  bool get isActivated => _window.isActive();
+
+  void setSize(Size size) {
+    _window.resize(size.width.toInt(), size.height.toInt());
+  }
+
+  void activate() {
+    _window.present();
+  }
+}
+
+class LayerShellWindow extends StatelessWidget {
+  @internal
+  LayerShellWindow({super.key, required this.controller, required this.child}) {
+    if (!isWindowingEnabled) {
+      throw UnsupportedError(_kWindowingDisabledErrorMessage);
+    }
+  }
+
+  @internal
+  final LayershellWindowController controller;
+
+  @internal
+  final Widget child;
+
+  /// {@macro flutter.widgets.windowing.experimental}
+  @internal
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (BuildContext context, Widget? widget) =>
+          View(view: controller.rootView, child: child),
+    );
+  }
+}
