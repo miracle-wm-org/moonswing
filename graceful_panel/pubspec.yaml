@@ -9,6 +9,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  miracle:
+    git:
+      url: https://github.com/miracle-wm-org/miracle.dart.git
+  wayland:
+    git:
+      url: https://github.com/robert-ancell/wayland.dart.git
 
 dev_dependencies:
   flutter_test:

@@ -1,7 +1,20 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:graceful_panel/modules/workspaces.dart';
 import 'layer_shell.dart';
+import 'package:miracle/miracle.dart';
+import 'package:wayland/wayland.dart';
 
-void main() {
+void main() async {
+  final MiracleConnection connection = MiracleConnection();
+  await connection.connect();
+  await connection.subscribe([SubscriptionType.workspace]);
+
+  final monitors = listMonitors();
+  print(monitors.first);
+
+  final WaylandClient waylandClient = WaylandClient();
+  await waylandClient.connect();
+
   const int kPanelSizePx = 32;
 
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,22 +29,52 @@ void main() {
         GtkLayerShellEdge.left,
         GtkLayerShellEdge.right
       ],
-      exclusiveZone: kPanelSizePx);
-  runWidget(LayerShellWindow(controller: bar, child: const MyApp()));
+      exclusiveZone: kPanelSizePx,
+      monitor: monitors.first.gdkMonitor);
+  runWidget(LayerShellWindow(
+      controller: bar, child: PanelMain(connection: connection)));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class PanelMain extends StatefulWidget {
+  const PanelMain({super.key, required this.connection});
+
+  final MiracleConnection connection;
 
   @override
+  _PanelMainState createState() => _PanelMainState();
+}
+
+class _PanelMainState extends State<PanelMain> {
+  @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: SizedBox.expand(
-        child: Container(
-          color: Colors.red.withOpacity(0.5),
+    return DefaultTextStyle(
+        style: const TextStyle(
+          fontFamily: 'Ubuntu Sans',
+          fontSize: 12,
+          color: Color(0xFF000000),
         ),
-      ),
-    );
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox.expand(
+              child: Container(
+            child: Row(
+              children: [
+                Container(
+                  color: const Color(0x11000000),
+                  child: Workspaces(connection: widget.connection),
+                ),
+                Expanded(
+                  child: Container(
+                    color: const Color(0x111A1A1A),
+                  ),
+                ),
+                Container(
+                  color: const Color(0x11FF0000),
+                  width: 100,
+                ),
+              ],
+            ),
+          )),
+        ));
   }
 }

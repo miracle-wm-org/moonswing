@@ -189,6 +189,92 @@ class _GdkWindow extends _GObject {
   external static int _gdkWindowGetState(ffi.Pointer<ffi.NativeType> window);
 }
 
+/// Wraps GdkDisplay
+class _GdkDisplay extends _GObject {
+  const _GdkDisplay(super.instance);
+
+  /// Get the default display.
+  static _GdkDisplay getDefault() {
+    return _GdkDisplay(_gdkDisplayGetDefault());
+  }
+
+  /// Get the number of monitors for this display.
+  int getNMonitors() {
+    return _gdkDisplayGetNMonitors(instance);
+  }
+
+  /// Get the monitor at the specified index.
+  _GdkMonitor getMonitor(int index) {
+    return _GdkMonitor(_gdkDisplayGetMonitor(instance, index));
+  }
+
+  @ffi.Native<ffi.Pointer<ffi.NativeType> Function()>(
+      symbol: 'gdk_display_get_default')
+  external static ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefault();
+
+  @ffi.Native<ffi.Int Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gdk_display_get_n_monitors')
+  external static int _gdkDisplayGetNMonitors(
+      ffi.Pointer<ffi.NativeType> display);
+
+  @ffi.Native<
+      ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>,
+          ffi.Int)>(symbol: 'gdk_display_get_monitor')
+  external static ffi.Pointer<ffi.NativeType> _gdkDisplayGetMonitor(
+      ffi.Pointer<ffi.NativeType> display, int monitorNum);
+}
+
+/// Wraps GdkMonitor
+class _GdkMonitor extends _GObject {
+  const _GdkMonitor(super.instance);
+
+  /// Get the model name of the monitor.
+  String getModel() {
+    try {
+      final ptr = _gdkMonitorGetModel(instance);
+      return ptr.address == 0 ? '' : _nativeToString(ptr);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// Get the connector name of the monitor (GDK 3.22+).
+  String getConnector() {
+    try {
+      final lookup = ffi.DynamicLibrary.process().lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<ffi.Uint8> Function(
+                  ffi.Pointer<ffi.NativeType>)>>('gdk_monitor_get_connector');
+      final func = lookup.asFunction<
+          ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>();
+      final ptr = func(instance);
+      return ptr.address == 0 ? '' : _nativeToString(ptr);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  /// Get the manufacturer name of the monitor.
+  String getManufacturer() {
+    try {
+      final ptr = _gdkMonitorGetManufacturer(instance);
+      return ptr.address == 0 ? '' : _nativeToString(ptr);
+    } catch (e) {
+      return '';
+    }
+  }
+
+  @ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gdk_monitor_get_model')
+  external static ffi.Pointer<ffi.Uint8> _gdkMonitorGetModel(
+      ffi.Pointer<ffi.NativeType> monitor);
+
+  @ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
+      symbol: 'gdk_monitor_get_manufacturer')
+  external static ffi.Pointer<ffi.Uint8> _gdkMonitorGetManufacturer(
+      ffi.Pointer<ffi.NativeType> monitor);
+}
+
 /// Wrapds GdkGeometry
 final class _GdkGeometry extends ffi.Struct {
   factory _GdkGeometry() {
@@ -1105,6 +1191,44 @@ class _FlWindowMonitor extends _GObject {
   );
 }
 
+/// Monitor information returned by [listMonitors].
+class MonitorInfo {
+  const MonitorInfo({
+    required this.connector,
+    required this.model,
+    required this.manufacturer,
+    required this.gdkMonitor,
+  });
+
+  final String connector;
+  final String model;
+  final String manufacturer;
+  final ffi.Pointer<ffi.NativeType> gdkMonitor;
+
+  @override
+  String toString() =>
+      'MonitorInfo(connector: $connector, model: $model, manufacturer: $manufacturer)';
+}
+
+/// List all available monitors using GDK.
+List<MonitorInfo> listMonitors() {
+  final display = _GdkDisplay.getDefault();
+  final nMonitors = display.getNMonitors();
+  final monitors = <MonitorInfo>[];
+
+  for (var i = 0; i < nMonitors; i++) {
+    final monitor = display.getMonitor(i);
+    monitors.add(MonitorInfo(
+      connector: monitor.getConnector(),
+      model: monitor.getModel(),
+      manufacturer: monitor.getManufacturer(),
+      gdkMonitor: monitor.instance,
+    ));
+  }
+
+  return monitors;
+}
+
 class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
   LayershellWindowController createLayerShellWindowController({
     required LayershellWindowControllerDelegate delegate,
@@ -1118,6 +1242,7 @@ class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
     int? width,
     int? height,
     int? exclusiveZone,
+    ffi.Pointer<ffi.NativeType>? monitor,
   }) {
     return LayershellWindowController(
       owner: this,
@@ -1128,6 +1253,7 @@ class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
       width: width,
       height: height,
       exclusiveZone: exclusiveZone,
+      monitor: monitor,
     );
   }
 }
@@ -1155,6 +1281,7 @@ class LayershellWindowController extends ChangeNotifier {
     int? width,
     int? height,
     int? exclusiveZone,
+    ffi.Pointer<ffi.NativeType>? monitor,
   })  : _owner = owner,
         _delegate = delegate,
         _window = _GtkWindow() {
@@ -1187,6 +1314,12 @@ class LayershellWindowController extends ChangeNotifier {
     );
 
     _window.layerInitForWindow();
+
+    // Set monitor if specified
+    if (monitor != null && monitor.address != 0) {
+      _window.layerSetMonitor(monitor);
+    }
+
     if (exclusiveZone != null) {
       _window.layerAutoExclusiveZoneEnable();
       _window.layerSetExclusiveZone(exclusiveZone);
