@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:graceful_panel/modules/clock.dart';
 import 'package:graceful_panel/modules/workspaces.dart';
 import 'layer_shell.dart';
 import 'package:miracle/miracle.dart';
@@ -57,6 +58,8 @@ class _PanelMainState extends State<PanelMain> {
           textDirection: TextDirection.ltr,
           child: SizedBox.expand(
               child: Container(
+                  child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
             child: Row(
               children: [
                 Container(
@@ -69,12 +72,12 @@ class _PanelMainState extends State<PanelMain> {
                   ),
                 ),
                 Container(
-                  color: const Color(0x11FF0000),
-                  width: 100,
+                  color: const Color(0x001A1A1A),
+                  child: Clock(),
                 ),
               ],
             ),
-          )),
+          ))),
         ));
   }
 }
