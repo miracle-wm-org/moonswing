@@ -2,11 +2,9 @@ import 'package:flutter/widgets.dart';
 
 class PanelBackgroundPainter extends CustomPainter {
   const PanelBackgroundPainter({
-    this.backgroundColor = const Color(0xFF2B2B2B),
     this.cornerRadius = 12.0,
   });
 
-  final Color backgroundColor;
   final double cornerRadius;
 
   @override
@@ -17,7 +15,18 @@ class PanelBackgroundPainter extends CustomPainter {
     final double r = cornerRadius;
 
     final paint = Paint()
-      ..color = backgroundColor
+      ..shader = const LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          Color(0xEE222222),
+          Color(0xEE2B2B2B),
+          Color(0xEE383838),
+          Color(0xEE4A4A4A),
+          Color(0xEE3D3D3D),
+        ],
+        stops: [0.0, 0.15, 0.4, 0.7, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
       ..style = PaintingStyle.fill;
 
     final path = Path();
@@ -58,7 +67,6 @@ class PanelBackgroundPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(PanelBackgroundPainter oldDelegate) {
-    return oldDelegate.backgroundColor != backgroundColor ||
-        oldDelegate.cornerRadius != cornerRadius;
+    return oldDelegate.cornerRadius != cornerRadius;
   }
 }
