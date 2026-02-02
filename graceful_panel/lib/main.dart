@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_panel/modules/clock.dart';
+import 'package:graceful_panel/modules/weather.dart';
 import 'package:graceful_panel/modules/workspaces.dart';
 import 'layer_shell.dart';
 import 'package:miracle/miracle.dart';
@@ -11,7 +12,6 @@ void main() async {
   await connection.subscribe([SubscriptionType.workspace]);
 
   final monitors = listMonitors();
-  print(monitors.first);
 
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
@@ -73,7 +73,14 @@ class _PanelMainState extends State<PanelMain> {
                 ),
                 Container(
                   color: const Color(0x001A1A1A),
-                  child: Clock(),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Weather(),
+                      const SizedBox(width: 8),
+                      Clock(),
+                    ],
+                  ),
                 ),
               ],
             ),

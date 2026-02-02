@@ -48,6 +48,7 @@ class WorkspacesState extends State<Workspaces> {
           spacing: 4,
           children: _workspaces.map((workspace) {
             return _WorkspaceButton(
+              key: ValueKey(workspace.num ?? workspace.name),
               backgroundColor:
                   workspace.focused ? _focusedColor : const Color(0xFF3A3A3A),
               onPressed: () {
