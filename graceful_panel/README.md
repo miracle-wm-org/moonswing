@@ -7,4 +7,5 @@ flutter config --enable-windowing
 ```
 
 ## Dependencies
+- libgtk3
 - gtk-layer-shell

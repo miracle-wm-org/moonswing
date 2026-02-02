@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/widgets.dart';
 import 'package:miracle/miracle.dart';
 
+final Color _focusedColor = const Color(0xFF4A90E2);
+
 class Workspaces extends StatefulWidget {
   const Workspaces({super.key, required this.connection});
 
@@ -18,6 +20,14 @@ class WorkspacesState extends State<Workspaces> {
   @override
   void initState() {
     super.initState();
+    widget.connection.subscribe(  [SubscriptionType.workspace]);
+    widget.connection.listen((Event event) {
+      if (event is EventWorkspace) {
+        widget.connection.getWorkspaces().then((workspaces) {
+          _updateWorkspaces(workspaces);
+        });
+      }
+    });
 
     widget.connection.getWorkspaces().then((workspaces) {
       _updateWorkspaces(workspaces);
@@ -38,6 +48,7 @@ class WorkspacesState extends State<Workspaces> {
           spacing: 4,
           children: _workspaces.map((workspace) {
             return _WorkspaceButton(
+              backgroundColor: workspace.focused ? _focusedColor : const Color(0xFF3A3A3A),
               onPressed: () {
                 final String command = workspace.num != null
                     ? 'workspace ${workspace.num}'
