@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:graceful_panel/modules/battery.dart';
 import 'package:graceful_panel/modules/clock.dart';
 import 'package:graceful_panel/modules/weather.dart';
 import 'package:graceful_panel/modules/workspaces.dart';
@@ -76,6 +77,8 @@ class _PanelMainState extends State<PanelMain> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      Battery(),
+                      const SizedBox(width: 8),
                       Weather(),
                       const SizedBox(width: 8),
                       Clock(),
