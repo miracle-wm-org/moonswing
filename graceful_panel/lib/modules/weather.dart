@@ -24,7 +24,7 @@ class WeatherState extends State<Weather> {
   void initState() {
     super.initState();
     _fetchWeather();
-    _refreshTimer = Timer.periodic(const Duration(hours: 1), (_) {
+    _refreshTimer = Timer.periodic(const Duration(minutes: 10), (_) {
       _fetchWeather();
     });
   }
