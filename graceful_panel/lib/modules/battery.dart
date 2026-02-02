@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
+import 'package:udev/udev.dart';
 
 class Battery extends StatefulWidget {
   const Battery({super.key});
@@ -14,6 +15,7 @@ class BatteryState extends State<Battery> {
   bool _hasBattery = false;
   final List<String> _batteryPaths = [];
   Timer? _refreshTimer;
+  StreamSubscription<UdevDevice>? _udevSubscription;
 
   @override
   void initState() {
@@ -27,6 +29,7 @@ class BatteryState extends State<Battery> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _udevSubscription?.cancel();
     super.dispose();
   }
 
@@ -47,10 +50,23 @@ class BatteryState extends State<Battery> {
 
       if (_batteryPaths.isNotEmpty) {
         _hasBattery = true;
+        _monitorPowerSupply();
         _readBattery();
       }
     } catch (_) {
       // No battery available
+    }
+  }
+
+  void _monitorPowerSupply() {
+    try {
+      final context = UdevContext();
+      _udevSubscription =
+          context.monitorDevices(subsystems: ['power_supply']).listen((_) {
+        _readBattery();
+      });
+    } catch (_) {
+      // udev monitoring unavailable, fall back to polling only
     }
   }
 
