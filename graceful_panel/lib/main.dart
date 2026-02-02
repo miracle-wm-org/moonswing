@@ -3,6 +3,7 @@ import 'package:graceful_panel/modules/battery.dart';
 import 'package:graceful_panel/modules/clock.dart';
 import 'package:graceful_panel/modules/weather.dart';
 import 'package:graceful_panel/modules/workspaces.dart';
+import 'package:graceful_panel/panel_background.dart';
 import 'layer_shell.dart';
 import 'package:miracle/miracle.dart';
 import 'package:wayland/wayland.dart';
@@ -50,31 +51,25 @@ class _PanelMainState extends State<PanelMain> {
   @override
   Widget build(BuildContext context) {
     return DefaultTextStyle(
-        style: const TextStyle(
-          fontFamily: 'Ubuntu Sans',
-          fontSize: 12,
-          color: Color(0xFF000000),
-        ),
-        child: Directionality(
-          textDirection: TextDirection.ltr,
-          child: SizedBox.expand(
-              child: Container(
-                  child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-            child: Row(
-              children: [
-                Container(
-                  color: const Color(0x11000000),
-                  child: Workspaces(connection: widget.connection),
-                ),
-                Expanded(
-                  child: Container(
-                    color: const Color(0x111A1A1A),
-                  ),
-                ),
-                Container(
-                  color: const Color(0x001A1A1A),
-                  child: Row(
+      style: const TextStyle(
+        fontFamily: 'Ubuntu Sans',
+        fontSize: 12,
+        color: Color(0xFFE0E0E0),
+      ),
+      child: Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox.expand(
+          child: CustomPaint(
+            painter: const PanelBackgroundPainter(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(40, 0, 40, 0),
+              child: Row(
+                children: [
+                  Workspaces(connection: widget.connection),
+                  const _PanelDivider(),
+                  const Expanded(child: SizedBox()),
+                  const _PanelDivider(),
+                  Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Battery(),
@@ -84,10 +79,27 @@ class _PanelMainState extends State<PanelMain> {
                       Clock(),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ))),
-        ));
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PanelDivider extends StatelessWidget {
+  const _PanelDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+      child: Container(
+        width: 1,
+        color: const Color(0x33FFFFFF),
+      ),
+    );
   }
 }
