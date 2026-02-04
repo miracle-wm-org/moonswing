@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_panel/modules/battery.dart';
 import 'package:graceful_panel/modules/clock.dart';
+import 'package:graceful_panel/modules/media_player.dart';
 import 'package:graceful_panel/modules/weather.dart';
 import 'package:graceful_panel/modules/workspaces.dart';
 import 'package:graceful_panel/panel_background.dart';
@@ -67,7 +68,7 @@ class _PanelMainState extends State<PanelMain> {
                 children: [
                   Workspaces(connection: widget.connection),
                   const _PanelDivider(),
-                  const Expanded(child: SizedBox()),
+                  const Expanded(child: Center(child: MediaPlayer())),
                   const _PanelDivider(),
                   Row(
                     mainAxisSize: MainAxisSize.min,

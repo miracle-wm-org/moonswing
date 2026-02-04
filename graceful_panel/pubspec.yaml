@@ -17,6 +17,8 @@ dependencies:
       url: https://github.com/robert-ancell/wayland.dart.git
   http: ^1.2.0
   udev: ^0.0.3
+  dbus: ^0.7.11
+  font_awesome_flutter: ^10.12.0
 
 dev_dependencies:
   flutter_test:
