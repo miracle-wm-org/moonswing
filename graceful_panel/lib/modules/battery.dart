@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
+import 'package:graceful_panel/config.dart';
 import 'package:udev/udev.dart';
 
 class Battery extends StatefulWidget {
-  const Battery({super.key});
+  const Battery({super.key, required this.config});
+
+  final BatteryConfig config;
 
   @override
   BatteryState createState() => BatteryState();
@@ -21,7 +24,7 @@ class BatteryState extends State<Battery> {
   void initState() {
     super.initState();
     _detectBatteries();
-    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+    _refreshTimer = Timer.periodic(Duration(seconds: widget.config.pollSeconds), (_) {
       _readBattery();
     });
   }

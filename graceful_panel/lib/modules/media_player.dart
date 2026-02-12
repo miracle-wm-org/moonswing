@@ -2,12 +2,12 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_panel/config.dart';
 
 const String _mprisPrefix = 'org.mpris.MediaPlayer2.';
 const String _playerInterface = 'org.mpris.MediaPlayer2.Player';
 const String _mprisPath = '/org/mpris/MediaPlayer2';
 const int _marqueeThreshold = 32;
-const double _maxTextWidth = 200.0;
 const double _marqueeGap = 40.0;
 const double _marqueePixelsPerMs = 0.033;
 
@@ -26,7 +26,9 @@ class _PlayerState {
 }
 
 class MediaPlayer extends StatefulWidget {
-  const MediaPlayer({super.key});
+  const MediaPlayer({super.key, required this.config});
+
+  final MediaPlayerConfig config;
 
   @override
   MediaPlayerState createState() => MediaPlayerState();
@@ -280,7 +282,7 @@ class MediaPlayerState extends State<MediaPlayer>
     }
 
     return SizedBox(
-      width: _maxTextWidth,
+      width: widget.config.maxTextWidth,
       height: 16,
       child: ClipRect(
         child: AnimatedBuilder(

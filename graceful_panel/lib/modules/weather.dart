@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/widgets.dart';
+import 'package:graceful_panel/config.dart';
 import 'package:http/http.dart' as http;
 
 enum TemperatureUnit { celsius, fahrenheit }
 
 class Weather extends StatefulWidget {
-  const Weather({super.key, this.unit = TemperatureUnit.fahrenheit});
+  const Weather({super.key, required this.config});
 
-  final TemperatureUnit unit;
+  final WeatherConfig config;
+
+  TemperatureUnit get unit =>
+      config.unit == 'celsius' ? TemperatureUnit.celsius : TemperatureUnit.fahrenheit;
 
   @override
   WeatherState createState() => WeatherState();
@@ -24,7 +28,7 @@ class WeatherState extends State<Weather> {
   void initState() {
     super.initState();
     _fetchWeather();
-    _refreshTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+    _refreshTimer = Timer.periodic(Duration(minutes: widget.config.refreshMinutes), (_) {
       _fetchWeather();
     });
   }
