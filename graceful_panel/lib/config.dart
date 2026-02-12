@@ -86,6 +86,31 @@ class MediaPlayerConfig {
   }
 }
 
+class ModulesConfig {
+  final WeatherConfig weather;
+  final BatteryConfig battery;
+  final ClockConfig clock;
+  final MediaPlayerConfig mediaPlayer;
+
+  const ModulesConfig({
+    this.weather = const WeatherConfig(),
+    this.battery = const BatteryConfig(),
+    this.clock = const ClockConfig(),
+    this.mediaPlayer = const MediaPlayerConfig(),
+  });
+
+  factory ModulesConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const ModulesConfig();
+    return ModulesConfig(
+      weather: WeatherConfig.fromMap(map['weather'] as Map<String, dynamic>?),
+      battery: BatteryConfig.fromMap(map['battery'] as Map<String, dynamic>?),
+      clock: ClockConfig.fromMap(map['clock'] as Map<String, dynamic>?),
+      mediaPlayer: MediaPlayerConfig.fromMap(
+          map['media_player'] as Map<String, dynamic>?),
+    );
+  }
+}
+
 class LayoutConfig {
   final List<ModuleName> left;
   final List<ModuleName> center;
@@ -125,30 +150,52 @@ class LayoutConfig {
 }
 
 class PanelConfig {
+  final String name;
   final int height;
   final int paddingHorizontal;
+  final String anchor;
+  final String layer;
   final LayoutConfig layout;
-  final WeatherConfig weather;
-  final BatteryConfig battery;
-  final ClockConfig clock;
-  final MediaPlayerConfig mediaPlayer;
 
   const PanelConfig({
+    this.name = 'default',
     this.height = 32,
     this.paddingHorizontal = 40,
+    this.anchor = 'top',
+    this.layer = 'top',
     this.layout = const LayoutConfig(),
-    this.weather = const WeatherConfig(),
-    this.battery = const BatteryConfig(),
-    this.clock = const ClockConfig(),
-    this.mediaPlayer = const MediaPlayerConfig(),
+  });
+
+  factory PanelConfig.fromMap(String name, Map<String, dynamic> map) {
+    final layoutMap = map['layout'] as Map<String, dynamic>?;
+    return PanelConfig(
+      name: name,
+      height: map['height'] as int? ?? 32,
+      paddingHorizontal: map['padding_horizontal'] as int? ?? 40,
+      anchor: map['anchor'] as String? ?? 'top',
+      layer: map['layer'] as String? ?? 'top',
+      layout: LayoutConfig.fromMap(layoutMap),
+    );
+  }
+}
+
+class AppConfig {
+  final Map<String, PanelConfig> panels;
+  final ModulesConfig modules;
+
+  const AppConfig({
+    this.panels = const {'default': PanelConfig()},
+    this.modules = const ModulesConfig(),
   });
 
   static const _defaultConfig = '''
-[panel]
+[panels.top]
 height = 32
 padding_horizontal = 40
+anchor = "top"
+layer = "top"
 
-[layout]
+[panels.top.layout]
 left = ["workspaces"]
 center = ["media_player"]
 right = ["sound_control", "battery", "weather", "clock"]
@@ -167,7 +214,7 @@ show_date = true
 max_text_width = 200.0
 ''';
 
-  static Future<PanelConfig> load() async {
+  static Future<AppConfig> load() async {
     final configHome = Platform.environment['XDG_CONFIG_HOME'] ??
         '${Platform.environment['HOME']}/.config';
     final configPath = '$configHome/graceful-panel/config.toml';
@@ -180,35 +227,37 @@ max_text_width = 200.0
       } catch (_) {
         // Could not write default config; proceed with defaults
       }
-      return const PanelConfig();
+      return const AppConfig();
     }
 
     try {
       final document = await TomlDocument.load(configPath);
       final map = document.toMap();
-      return PanelConfig._fromMap(map);
+      return AppConfig._fromMap(map);
     } catch (_) {
-      return const PanelConfig();
+      return const AppConfig();
     }
   }
 
-  factory PanelConfig._fromMap(Map<String, dynamic> map) {
-    final panelMap = map['panel'] as Map<String, dynamic>?;
-    final layoutMap = map['layout'] as Map<String, dynamic>?;
+  factory AppConfig._fromMap(Map<String, dynamic> map) {
     final modulesMap = map['modules'] as Map<String, dynamic>?;
+    final modules = ModulesConfig.fromMap(modulesMap);
 
-    return PanelConfig(
-      height: panelMap?['height'] as int? ?? 32,
-      paddingHorizontal: panelMap?['padding_horizontal'] as int? ?? 40,
-      layout: LayoutConfig.fromMap(layoutMap),
-      weather:
-          WeatherConfig.fromMap(modulesMap?['weather'] as Map<String, dynamic>?),
-      battery:
-          BatteryConfig.fromMap(modulesMap?['battery'] as Map<String, dynamic>?),
-      clock:
-          ClockConfig.fromMap(modulesMap?['clock'] as Map<String, dynamic>?),
-      mediaPlayer: MediaPlayerConfig.fromMap(
-          modulesMap?['media_player'] as Map<String, dynamic>?),
+    final panels = <String, PanelConfig>{};
+
+    if (map.containsKey('panels')) {
+      final panelsMap = map['panels'] as Map<String, dynamic>;
+      for (final entry in panelsMap.entries) {
+        panels[entry.key] = PanelConfig.fromMap(
+          entry.key,
+          entry.value as Map<String, dynamic>,
+        );
+      }
+    }
+
+    return AppConfig(
+      panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
+      modules: modules,
     );
   }
 }

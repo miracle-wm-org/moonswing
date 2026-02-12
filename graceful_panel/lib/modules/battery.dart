@@ -24,7 +24,8 @@ class BatteryState extends State<Battery> {
   void initState() {
     super.initState();
     _detectBatteries();
-    _refreshTimer = Timer.periodic(Duration(seconds: widget.config.pollSeconds), (_) {
+    _refreshTimer =
+        Timer.periodic(Duration(seconds: widget.config.pollSeconds), (_) {
       _readBattery();
     });
   }

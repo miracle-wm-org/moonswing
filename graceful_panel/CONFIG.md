@@ -12,47 +12,75 @@ The panel works out of the box with no configuration file. All settings have sen
 
 If the config file is missing or contains errors, the panel falls back to defaults silently.
 
-## Example Configuration
+## Panels
+
+The application supports multiple panels, each anchored to a different edge of the screen. Panels are defined under `[panels.<name>]` sections, where `<name>` is an arbitrary identifier (e.g., `top`, `bottom`, `dock`).
+
+Each panel has its own height, padding, anchor position, layer, and module layout.
+
+### Example: Single Panel
 
 ```toml
-[panel]
+[panels.top]
 height = 32
 padding_horizontal = 40
+anchor = "top"
+layer = "top"
 
-[layout]
+[panels.top.layout]
+left   = ["workspaces"]
+center = ["media_player"]
+right  = ["sound_control", "battery", "weather", "clock"]
+```
+
+### Example: Two Panels (Top and Bottom)
+
+```toml
+[panels.top]
+height = 32
+padding_horizontal = 40
+anchor = "top"
+layer = "top"
+
+[panels.top.layout]
 left   = ["workspaces"]
 center = ["media_player"]
 right  = ["sound_control", "battery", "weather", "clock"]
 
-[modules.weather]
-unit = "fahrenheit"
-refresh_minutes = 10
+[panels.bottom]
+height = 32
+padding_horizontal = 20
+anchor = "bottom"
+layer = "top"
 
-[modules.battery]
-poll_seconds = 30
-
-[modules.clock]
-show_date = true
-
-[modules.media_player]
-max_text_width = 200.0
+[panels.bottom.layout]
+left   = []
+center = ["clock"]
+right  = ["weather"]
 ```
 
-## Panel Settings
+### Panel Settings
 
-The `[panel]` section controls global panel appearance.
+| Key                  | Type   | Default | Description                                       |
+|----------------------|--------|---------|---------------------------------------------------|
+| `height`             | int    | `32`    | Panel thickness in pixels (height for top/bottom, width for left/right) |
+| `padding_horizontal` | int    | `40`    | Left and right padding in pixels                  |
+| `anchor`             | string | `"top"` | Screen edge: `"top"`, `"bottom"`, `"left"`, or `"right"` |
+| `layer`              | string | `"top"` | Layer shell layer: `"background"`, `"bottom"`, `"top"`, or `"overlay"` |
 
-| Key                    | Type | Default | Description                     |
-|------------------------|------|---------|---------------------------------|
-| `height`               | int  | `32`    | Panel height in pixels          |
-| `padding_horizontal`   | int  | `40`    | Left and right padding in pixels|
+The `anchor` value determines which edges the panel is attached to:
+
+- `"top"` — anchored to the top, left, and right edges (horizontal bar at top)
+- `"bottom"` — anchored to the bottom, left, and right edges (horizontal bar at bottom)
+- `"left"` — anchored to the left, top, and bottom edges (vertical bar on left)
+- `"right"` — anchored to the right, top, and bottom edges (vertical bar on right)
 
 ## Layout
 
-The `[layout]` section controls which modules appear and where. The panel has three sections arranged horizontally: **left**, **center**, and **right**. The center section expands to fill available space.
+Each panel has a `[panels.<name>.layout]` section that controls which modules appear and where. The panel has three sections arranged horizontally: **left**, **center**, and **right**. The center section expands to fill available space.
 
 ```toml
-[layout]
+[panels.top.layout]
 left   = ["workspaces"]
 center = ["media_player"]
 right  = ["sound_control", "battery", "weather", "clock"]
@@ -67,33 +95,13 @@ Each key is an ordered array of module names. Valid module names are:
 - `"weather"` - Weather display
 - `"clock"` - Date and time
 
-A module omitted from all three sections is disabled entirely. You can place any module in any section and in any order.
+A module omitted from all sections of all panels is disabled entirely. You can place any module in any section and in any order. The same module can appear in multiple panels.
 
-**Note:** When the `[layout]` section is present, all three keys (`left`, `center`, `right`) should be specified. An omitted key defaults to an empty list, not to the default modules.
-
-### Examples
-
-Move the clock to the left, disable battery:
-
-```toml
-[layout]
-left   = ["workspaces", "clock"]
-center = ["media_player"]
-right  = ["sound_control", "weather"]
-```
-
-Minimal panel with only clock and weather:
-
-```toml
-[layout]
-left   = []
-center = []
-right  = ["weather", "clock"]
-```
+**Note:** When a layout section is present, all three keys (`left`, `center`, `right`) should be specified. An omitted key defaults to an empty list, not to the default modules.
 
 ## Module Settings
 
-Per-module settings live under `[modules.<name>]`. Only modules present in the layout are instantiated; settings for disabled modules are ignored.
+Per-module settings live under `[modules.<name>]`. These are global and shared across all panels.
 
 ### Weather
 
@@ -148,3 +156,42 @@ No configurable settings.
 ### Sound Control
 
 No configurable settings.
+
+## Full Example
+
+```toml
+[panels.top]
+height = 32
+padding_horizontal = 40
+anchor = "top"
+layer = "top"
+
+[panels.top.layout]
+left   = ["workspaces"]
+center = ["media_player"]
+right  = ["sound_control", "battery", "weather", "clock"]
+
+[panels.bottom]
+height = 32
+padding_horizontal = 20
+anchor = "bottom"
+layer = "top"
+
+[panels.bottom.layout]
+left   = []
+center = []
+right  = ["clock"]
+
+[modules.weather]
+unit = "fahrenheit"
+refresh_minutes = 10
+
+[modules.battery]
+poll_seconds = 30
+
+[modules.clock]
+show_date = true
+
+[modules.media_player]
+max_text_width = 200.0
+```

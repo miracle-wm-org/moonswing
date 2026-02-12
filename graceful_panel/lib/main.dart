@@ -12,14 +12,11 @@ import 'package:miracle/miracle.dart';
 import 'package:wayland/wayland.dart';
 
 void main() async {
-  final config = await PanelConfig.load();
+  final appConfig = await AppConfig.load();
 
-  MiracleConnection? connection;
-  if (config.layout.enabledModules.contains(ModuleName.workspaces)) {
-    connection = MiracleConnection();
-    await connection.connect();
-    await connection.subscribe([SubscriptionType.workspace]);
-  }
+  MiracleConnection connection = MiracleConnection();
+  await connection.connect();
+  await connection.subscribe([SubscriptionType.workspace]);
 
   final monitors = listMonitors();
 
@@ -29,27 +26,58 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final windowingOwner = ExtendedWindowingOwnerLinux();
   WidgetsBinding.instance.windowingOwner = windowingOwner;
-  final bar = windowingOwner.createLayerShellWindowController(
+
+  final controllers = <String, LayershellWindowController>{};
+  for (final entry in appConfig.panels.entries) {
+    final panelConfig = entry.value;
+    final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
+    final layer = layerFromString(panelConfig.layer);
+
+    int? width;
+    int? height;
+    if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
+      width = panelConfig.height;
+    } else {
+      height = panelConfig.height;
+    }
+
+    controllers[entry.key] = windowingOwner.createLayerShellWindowController(
       delegate: LayershellWindowControllerDelegate(),
-      height: config.height,
-      layer: GtkLayerShellLayer.top,
-      anchorEdges: [
-        GtkLayerShellEdge.top,
-        GtkLayerShellEdge.left,
-        GtkLayerShellEdge.right
-      ],
-      exclusiveZone: config.height,
-      monitor: monitors.first.gdkMonitor);
-  runWidget(LayerShellWindow(
-      controller: bar,
-      child: PanelMain(config: config, connection: connection)));
+      width: width,
+      height: height,
+      layer: layer,
+      anchorEdges: anchorEdges,
+      exclusiveZone: panelConfig.height,
+      monitor: monitors.first.gdkMonitor,
+    );
+  }
+
+  runWidget(ViewCollection(
+    views: [
+      for (final entry in appConfig.panels.entries)
+        LayerShellWindow(
+          controller: controllers[entry.key]!,
+          child: PanelMain(
+            panelConfig: entry.value,
+            modulesConfig: appConfig.modules,
+            connection: connection,
+          ),
+        ),
+    ],
+  ));
 }
 
 class PanelMain extends StatefulWidget {
-  const PanelMain({super.key, required this.config, this.connection});
+  const PanelMain({
+    super.key,
+    required this.panelConfig,
+    required this.modulesConfig,
+    required this.connection,
+  });
 
-  final PanelConfig config;
-  final MiracleConnection? connection;
+  final PanelConfig panelConfig;
+  final ModulesConfig modulesConfig;
+  final MiracleConnection connection;
 
   @override
   _PanelMainState createState() => _PanelMainState();
@@ -59,18 +87,17 @@ class _PanelMainState extends State<PanelMain> {
   Widget _buildModule(ModuleName name) {
     switch (name) {
       case ModuleName.workspaces:
-        if (widget.connection == null) return const SizedBox.shrink();
-        return Workspaces(connection: widget.connection!);
+        return Workspaces(connection: widget.connection);
       case ModuleName.mediaPlayer:
-        return MediaPlayer(config: widget.config.mediaPlayer);
+        return MediaPlayer(config: widget.modulesConfig.mediaPlayer);
       case ModuleName.soundControl:
         return const SoundControl();
       case ModuleName.battery:
-        return Battery(config: widget.config.battery);
+        return Battery(config: widget.modulesConfig.battery);
       case ModuleName.weather:
-        return Weather(config: widget.config.weather);
+        return Weather(config: widget.modulesConfig.weather);
       case ModuleName.clock:
-        return Clock(config: widget.config.clock);
+        return Clock(config: widget.modulesConfig.clock);
     }
   }
 
@@ -90,7 +117,7 @@ class _PanelMainState extends State<PanelMain> {
 
   @override
   Widget build(BuildContext context) {
-    final layout = widget.config.layout;
+    final layout = widget.panelConfig.layout;
 
     final sections = <Widget>[];
 
@@ -100,7 +127,8 @@ class _PanelMainState extends State<PanelMain> {
 
     if (layout.center.isNotEmpty) {
       if (sections.isNotEmpty) sections.add(const _PanelDivider());
-      sections.add(Expanded(child: Center(child: _buildSection(layout.center))));
+      sections
+          .add(Expanded(child: Center(child: _buildSection(layout.center))));
     } else {
       sections.add(const Expanded(child: SizedBox.shrink()));
     }
@@ -122,11 +150,15 @@ class _PanelMainState extends State<PanelMain> {
         textDirection: TextDirection.ltr,
         child: SizedBox.expand(
           child: CustomPaint(
-            painter: const PanelBackgroundPainter(),
+            painter: PanelBackgroundPainter(
+              anchor: widget.panelConfig.anchor,
+            ),
             child: Padding(
               padding: EdgeInsets.fromLTRB(
-                  widget.config.paddingHorizontal.toDouble(), 0,
-                  widget.config.paddingHorizontal.toDouble(), 0),
+                  widget.panelConfig.paddingHorizontal.toDouble(),
+                  0,
+                  widget.panelConfig.paddingHorizontal.toDouble(),
+                  0),
               child: Row(children: sections),
             ),
           ),

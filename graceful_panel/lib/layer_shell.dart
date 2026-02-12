@@ -1229,6 +1229,48 @@ List<MonitorInfo> listMonitors() {
   return monitors;
 }
 
+List<GtkLayerShellEdge> anchorEdgesForPosition(String anchor) {
+  switch (anchor) {
+    case 'bottom':
+      return [
+        GtkLayerShellEdge.bottom,
+        GtkLayerShellEdge.left,
+        GtkLayerShellEdge.right
+      ];
+    case 'left':
+      return [
+        GtkLayerShellEdge.left,
+        GtkLayerShellEdge.top,
+        GtkLayerShellEdge.bottom
+      ];
+    case 'right':
+      return [
+        GtkLayerShellEdge.right,
+        GtkLayerShellEdge.top,
+        GtkLayerShellEdge.bottom
+      ];
+    default: // 'top'
+      return [
+        GtkLayerShellEdge.top,
+        GtkLayerShellEdge.left,
+        GtkLayerShellEdge.right
+      ];
+  }
+}
+
+GtkLayerShellLayer layerFromString(String s) {
+  switch (s) {
+    case 'background':
+      return GtkLayerShellLayer.background;
+    case 'bottom':
+      return GtkLayerShellLayer.bottom;
+    case 'overlay':
+      return GtkLayerShellLayer.overlay;
+    default: // 'top'
+      return GtkLayerShellLayer.top;
+  }
+}
+
 class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
   LayershellWindowController createLayerShellWindowController({
     required LayershellWindowControllerDelegate delegate,

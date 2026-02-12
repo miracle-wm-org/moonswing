@@ -12,8 +12,9 @@ class Weather extends StatefulWidget {
 
   final WeatherConfig config;
 
-  TemperatureUnit get unit =>
-      config.unit == 'celsius' ? TemperatureUnit.celsius : TemperatureUnit.fahrenheit;
+  TemperatureUnit get unit => config.unit == 'celsius'
+      ? TemperatureUnit.celsius
+      : TemperatureUnit.fahrenheit;
 
   @override
   WeatherState createState() => WeatherState();
@@ -28,7 +29,8 @@ class WeatherState extends State<Weather> {
   void initState() {
     super.initState();
     _fetchWeather();
-    _refreshTimer = Timer.periodic(Duration(minutes: widget.config.refreshMinutes), (_) {
+    _refreshTimer =
+        Timer.periodic(Duration(minutes: widget.config.refreshMinutes), (_) {
       _fetchWeather();
     });
   }
