@@ -19,6 +19,7 @@ dependencies:
   udev: ^0.0.3
   dbus: ^0.7.11
   font_awesome_flutter: ^10.12.0
+  pulseaudio: ^0.0.8
 
 dev_dependencies:
   flutter_test:
