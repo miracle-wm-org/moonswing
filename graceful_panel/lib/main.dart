@@ -61,6 +61,7 @@ void main() async {
             panelConfig: entry.value,
             modulesConfig: appConfig.modules,
             connection: connection,
+            anchor: entry.value.anchor,
           ),
         ),
     ],
@@ -68,22 +69,41 @@ void main() async {
 }
 
 class PanelMain extends StatefulWidget {
-  const PanelMain({
-    super.key,
-    required this.panelConfig,
-    required this.modulesConfig,
-    required this.connection,
-  });
+  const PanelMain(
+      {super.key,
+      required this.panelConfig,
+      required this.modulesConfig,
+      required this.connection,
+      required this.anchor});
 
   final PanelConfig panelConfig;
   final ModulesConfig modulesConfig;
   final MiracleConnection connection;
+  final String anchor;
 
   @override
   _PanelMainState createState() => _PanelMainState();
 }
 
-class _PanelMainState extends State<PanelMain> {
+class _PanelMainState extends State<PanelMain>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _bgAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _bgAnimation = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 30),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _bgAnimation.dispose();
+    super.dispose();
+  }
+
   Widget _buildModule(ModuleName name) {
     switch (name) {
       case ModuleName.workspaces:
@@ -104,15 +124,28 @@ class _PanelMainState extends State<PanelMain> {
   Widget _buildSection(List<ModuleName> modules) {
     if (modules.isEmpty) return const SizedBox.shrink();
 
+    final bool vertical =
+        widget.anchor == 'left' || widget.anchor == 'right';
     final children = <Widget>[];
     for (int i = 0; i < modules.length; i++) {
-      if (i > 0) children.add(const SizedBox(width: 8));
+      if (i > 0) {
+        children.add(vertical
+            ? const SizedBox(height: 8)
+            : const SizedBox(width: 8));
+      }
       children.add(_buildModule(modules[i]));
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: children,
-    );
+    if (vertical) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      );
+    } else {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
+      );
+    }
   }
 
   @override
@@ -125,8 +158,12 @@ class _PanelMainState extends State<PanelMain> {
       sections.add(_buildSection(layout.left));
     }
 
+    final bool vertical =
+        widget.panelConfig.anchor == 'left' ||
+        widget.panelConfig.anchor == 'right';
+
     if (layout.center.isNotEmpty) {
-      if (sections.isNotEmpty) sections.add(const _PanelDivider());
+      if (sections.isNotEmpty) sections.add(_PanelDivider(vertical: vertical));
       sections
           .add(Expanded(child: Center(child: _buildSection(layout.center))));
     } else {
@@ -135,10 +172,11 @@ class _PanelMainState extends State<PanelMain> {
 
     if (layout.right.isNotEmpty) {
       if (layout.center.isNotEmpty || layout.left.isNotEmpty) {
-        sections.add(const _PanelDivider());
+        sections.add(_PanelDivider(vertical: vertical));
       }
       sections.add(_buildSection(layout.right));
     }
+    final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
     return DefaultTextStyle(
       style: const TextStyle(
@@ -149,17 +187,24 @@ class _PanelMainState extends State<PanelMain> {
       child: Directionality(
         textDirection: TextDirection.ltr,
         child: SizedBox.expand(
-          child: CustomPaint(
-            painter: PanelBackgroundPainter(
-              anchor: widget.panelConfig.anchor,
-            ),
+          child: AnimatedBuilder(
+            animation: _bgAnimation,
+            builder: (context, child) {
+              return CustomPaint(
+                painter: PanelBackgroundPainter(
+                  anchor: widget.panelConfig.anchor,
+                  animationValue: _bgAnimation.value,
+                ),
+                child: child,
+              );
+            },
             child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                  widget.panelConfig.paddingHorizontal.toDouble(),
-                  0,
-                  widget.panelConfig.paddingHorizontal.toDouble(),
-                  0),
-              child: Row(children: sections),
+              padding: vertical
+                  ? EdgeInsets.fromLTRB(0, pad, 0, pad)
+                  : EdgeInsets.fromLTRB(pad, 0, pad, 0),
+              child: vertical
+                  ? Column(children: sections)
+                  : Row(children: sections),
             ),
           ),
         ),
@@ -169,14 +214,17 @@ class _PanelMainState extends State<PanelMain> {
 }
 
 class _PanelDivider extends StatelessWidget {
-  const _PanelDivider();
+  const _PanelDivider({this.vertical = false});
+
+  final bool vertical;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       child: Container(
-        width: 1,
+        width: vertical ? null : 1,
+        height: vertical ? 1 : null,
         color: const Color(0x33FFFFFF),
       ),
     );

@@ -160,7 +160,7 @@ class PanelConfig {
   const PanelConfig({
     this.name = 'default',
     this.height = 32,
-    this.paddingHorizontal = 40,
+    this.paddingHorizontal = 12,
     this.anchor = 'top',
     this.layer = 'top',
     this.layout = const LayoutConfig(),
