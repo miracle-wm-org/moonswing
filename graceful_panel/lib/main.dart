@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_panel/config.dart';
 import 'package:graceful_panel/modules/battery.dart';
+import 'package:graceful_panel/modules/dock.dart';
 import 'package:graceful_panel/modules/sound_control.dart';
 import 'package:graceful_panel/modules/clock.dart';
 import 'package:graceful_panel/modules/media_player.dart';
@@ -118,6 +119,8 @@ class _PanelMainState extends State<PanelMain>
         return Weather(config: widget.modulesConfig.weather);
       case ModuleName.clock:
         return Clock(config: widget.modulesConfig.clock);
+      case ModuleName.dock:
+        return Dock(config: widget.modulesConfig.dock);
     }
   }
 

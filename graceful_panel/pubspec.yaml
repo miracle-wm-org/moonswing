@@ -21,6 +21,7 @@ dependencies:
   font_awesome_flutter: ^10.12.0
   pulseaudio: ^0.0.8
   toml: ^0.18.0
+  xdg_icons: ^0.1.2
 
 dev_dependencies:
   flutter_test:

@@ -7,7 +7,8 @@ enum ModuleName {
   soundControl,
   battery,
   weather,
-  clock;
+  clock,
+  dock;
 
   static ModuleName? fromString(String s) {
     switch (s) {
@@ -23,6 +24,8 @@ enum ModuleName {
         return ModuleName.weather;
       case 'clock':
         return ModuleName.clock;
+      case 'dock':
+        return ModuleName.dock;
       default:
         return null;
     }
@@ -86,17 +89,40 @@ class MediaPlayerConfig {
   }
 }
 
+class DockConfig {
+  final List<String> apps;
+  final int iconSize;
+
+  const DockConfig({
+    this.apps = const [],
+    this.iconSize = 24,
+  });
+
+  factory DockConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const DockConfig();
+    return DockConfig(
+      apps: (map['apps'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList() ??
+          const [],
+      iconSize: map['icon_size'] as int? ?? 24,
+    );
+  }
+}
+
 class ModulesConfig {
   final WeatherConfig weather;
   final BatteryConfig battery;
   final ClockConfig clock;
   final MediaPlayerConfig mediaPlayer;
+  final DockConfig dock;
 
   const ModulesConfig({
     this.weather = const WeatherConfig(),
     this.battery = const BatteryConfig(),
     this.clock = const ClockConfig(),
     this.mediaPlayer = const MediaPlayerConfig(),
+    this.dock = const DockConfig(),
   });
 
   factory ModulesConfig.fromMap(Map<String, dynamic>? map) {
@@ -107,6 +133,7 @@ class ModulesConfig {
       clock: ClockConfig.fromMap(map['clock'] as Map<String, dynamic>?),
       mediaPlayer: MediaPlayerConfig.fromMap(
           map['media_player'] as Map<String, dynamic>?),
+      dock: DockConfig.fromMap(map['dock'] as Map<String, dynamic>?),
     );
   }
 }

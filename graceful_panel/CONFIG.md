@@ -94,6 +94,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"battery"` - Battery status monitor
 - `"weather"` - Weather display
 - `"clock"` - Date and time
+- `"dock"` - Application launcher dock
 
 A module omitted from all sections of all panels is disabled entirely. You can place any module in any section and in any order. The same module can appear in multiple panels.
 
@@ -153,6 +154,23 @@ max_text_width = 200.0
 
 No configurable settings.
 
+### Dock
+
+```toml
+[modules.dock]
+apps = ["firefox", "org.gnome.Nautilus", "kitty", "code"]
+icon_size = 24
+```
+
+| Key         | Type         | Default | Description                                         |
+|-------------|--------------|---------|-----------------------------------------------------|
+| `apps`      | string array | `[]`    | Desktop entry IDs of apps to show in the dock       |
+| `icon_size` | int          | `24`    | Icon size in pixels (should fit within panel height) |
+
+Each entry in `apps` is a desktop file ID (the filename without `.desktop`). For example, `"firefox"` corresponds to `firefox.desktop`, and `"org.gnome.Nautilus"` corresponds to `org.gnome.Nautilus.desktop`.
+
+Desktop files are looked up from standard XDG application directories. Apps with missing desktop files are silently skipped.
+
 ### Sound Control
 
 No configurable settings.
@@ -167,7 +185,7 @@ anchor = "top"
 layer = "top"
 
 [panels.top.layout]
-left   = ["workspaces"]
+left   = ["workspaces", "dock"]
 center = ["media_player"]
 right  = ["sound_control", "battery", "weather", "clock"]
 
@@ -194,4 +212,8 @@ show_date = true
 
 [modules.media_player]
 max_text_width = 200.0
+
+[modules.dock]
+apps = ["firefox", "org.gnome.Nautilus", "kitty"]
+icon_size = 24
 ```
