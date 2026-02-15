@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:ffi' as ffi;
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
@@ -144,6 +145,22 @@ class DockState extends State<Dock> {
     super.dispose();
   }
 
+  Widget _fallbackIcon(String name, int size) {
+    return SizedBox(
+      width: size.toDouble(),
+      height: size.toDouble(),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: TextStyle(
+            fontSize: size * 0.6,
+            color: const Color(0xFFE0E0E0),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _launchApp(_DockApp app) {
     try {
       _gAppInfoLaunch(app.appInfo, ffi.nullptr, ffi.nullptr, ffi.nullptr);
@@ -162,27 +179,25 @@ class DockState extends State<Dock> {
       mainAxisSize: MainAxisSize.min,
       spacing: 4,
       children: _apps.map((app) {
-        return _DockButton(
-          onPressed: () => _launchApp(app),
-          child: XdgIcon(
+        final Widget icon;
+        if (app.iconName.startsWith('/')) {
+          icon = Image.file(
+            File(app.iconName),
+            width: size.toDouble(),
+            height: size.toDouble(),
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, __, ___) => _fallbackIcon(app.name, size),
+          );
+        } else {
+          icon = XdgIcon(
             name: app.iconName,
             size: size,
-            iconNotFoundBuilder: () {
-              return SizedBox(
-                width: size.toDouble(),
-                height: size.toDouble(),
-                child: Center(
-                  child: Text(
-                    app.name.isNotEmpty ? app.name[0].toUpperCase() : '?',
-                    style: TextStyle(
-                      fontSize: size * 0.6,
-                      color: const Color(0xFFE0E0E0),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+            iconNotFoundBuilder: () => _fallbackIcon(app.name, size),
+          );
+        }
+        return _DockButton(
+          onPressed: () => _launchApp(app),
+          child: icon,
         );
       }).toList(),
     );
