@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_panel/config.dart';
+import 'package:graceful_shell/config.dart';
 
 class Clock extends StatefulWidget {
   const Clock({super.key, required this.config});

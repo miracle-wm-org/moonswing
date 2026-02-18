@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_panel/config.dart';
+import 'package:graceful_shell/config.dart';
 
 const String _mprisPrefix = 'org.mpris.MediaPlayer2.';
 const String _playerInterface = 'org.mpris.MediaPlayer2.Player';

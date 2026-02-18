@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_panel/config.dart';
+import 'package:graceful_shell/config.dart';
 import 'package:udev/udev.dart';
 
 class Battery extends StatefulWidget {

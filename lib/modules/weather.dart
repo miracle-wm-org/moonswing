@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_panel/config.dart';
+import 'package:graceful_shell/config.dart';
 import 'package:http/http.dart' as http;
 
 enum TemperatureUnit { celsius, fahrenheit }

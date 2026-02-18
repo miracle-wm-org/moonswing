@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
-import 'package:graceful_panel/config.dart';
+import 'package:graceful_shell/config.dart';
 
 // GIO FFI bindings
 
