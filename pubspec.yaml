@@ -22,6 +22,9 @@ dependencies:
   pulseaudio: ^0.0.8
   toml: ^0.18.0
   xdg_icons: ^0.1.2
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_linux: ^1.0.4
 
 dev_dependencies:
   flutter_test:

@@ -175,6 +175,69 @@ Desktop files are looked up from standard XDG application directories. Apps with
 
 No configurable settings.
 
+## Background
+
+The `[background]` section enables a full-screen wallpaper window displayed behind all other surfaces. It supports images and videos, with optional time-of-day scheduling and animated crossfade transitions between entries.
+
+If this section is absent, no background window is created.
+
+```toml
+[background]
+fit = "fill"
+
+[[background.entries]]
+path = "/home/user/wallpapers/day.jpg"
+time = "08:00"
+
+[[background.entries]]
+path = "/home/user/wallpapers/night.mp4"
+time = "20:00"
+```
+
+### Background Settings
+
+| Key   | Type   | Default  | Description                                      |
+|-------|--------|----------|--------------------------------------------------|
+| `fit` | string | `"fill"` | How the image/video is sized within the screen   |
+
+**`fit` values:**
+
+| Value       | Description                                              |
+|-------------|----------------------------------------------------------|
+| `"fill"`    | Scale to fill the screen, cropping if needed (cover)     |
+| `"contain"` | Scale to fit within the screen, letterboxing if needed   |
+| `"natural"` | Display at original resolution, no scaling               |
+
+### Background Entries
+
+Each `[[background.entries]]` block defines a piece of media and the time of day it becomes active.
+
+| Key    | Type   | Description                                               |
+|--------|--------|-----------------------------------------------------------|
+| `path` | string | Absolute path to an image or video file                   |
+| `time` | string | 24-hour time (`"HH:MM"`) when this entry becomes active   |
+
+Entries are selected by finding the latest entry whose `time` is at or before the current time. If the current time is before all entries' times (e.g., a 3am check with the earliest entry at 6am), the last entry from the previous day wraps around.
+
+Supported image formats: JPEG, PNG, GIF, WebP, BMP, and anything Flutter's `Image` widget can decode.
+
+Supported video formats: MP4, MKV, WebM, MOV, AVI.
+
+Videos loop silently and play without controls.
+
+Transitions between entries use a 1.5-second crossfade animation.
+
+**Single entry (no scheduling):**
+
+```toml
+[background]
+fit = "fill"
+
+[[background.entries]]
+path = "/home/user/wallpapers/wallpaper.jpg"
+time = "00:00"
+```
+
 ## Full Example
 
 ```toml
@@ -216,4 +279,19 @@ max_text_width = 200.0
 [modules.dock]
 apps = ["firefox", "org.gnome.Nautilus", "kitty"]
 icon_size = 24
+
+[background]
+fit = "fill"
+
+[[background.entries]]
+path = "/home/user/wallpapers/morning.jpg"
+time = "07:00"
+
+[[background.entries]]
+path = "/home/user/wallpapers/evening.jpg"
+time = "18:00"
+
+[[background.entries]]
+path = "/home/user/wallpapers/night.mp4"
+time = "21:00"
 ```

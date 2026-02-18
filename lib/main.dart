@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/dock.dart';
@@ -9,10 +10,14 @@ import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'layer_shell.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:miracle/miracle.dart';
 import 'package:wayland/wayland.dart';
 
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
+
   final appConfig = await AppConfig.load();
 
   MiracleConnection connection = MiracleConnection();
@@ -24,9 +29,26 @@ void main() async {
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
 
-  WidgetsFlutterBinding.ensureInitialized();
   final windowingOwner = ExtendedWindowingOwnerLinux();
   WidgetsBinding.instance.windowingOwner = windowingOwner;
+
+  LayershellWindowController? backgroundController;
+  if (appConfig.background != null &&
+      appConfig.background!.entries.isNotEmpty &&
+      monitors.isNotEmpty) {
+    backgroundController = windowingOwner.createLayerShellWindowController(
+      delegate: LayershellWindowControllerDelegate(),
+      layer: GtkLayerShellLayer.background,
+      anchorEdges: [
+        GtkLayerShellEdge.top,
+        GtkLayerShellEdge.bottom,
+        GtkLayerShellEdge.left,
+        GtkLayerShellEdge.right,
+      ],
+      keyboardMode: GtkLayerShellKeyboardMode.none,
+      monitor: monitors.first.gdkMonitor,
+    );
+  }
 
   final controllers = <String, LayershellWindowController>{};
   for (final entry in appConfig.panels.entries) {
@@ -55,6 +77,11 @@ void main() async {
 
   runWidget(ViewCollection(
     views: [
+      if (backgroundController != null)
+        LayerShellWindow(
+          controller: backgroundController,
+          child: BackgroundWindow(config: appConfig.background!),
+        ),
       for (final entry in appConfig.panels.entries)
         LayerShellWindow(
           controller: controllers[entry.key]!,

@@ -13,3 +13,5 @@ fluter build
 
 - libgtk3
 - gtk-layer-shell
+- libasound2-dev
+- libmpv-dev

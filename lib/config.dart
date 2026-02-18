@@ -1,6 +1,71 @@
 import 'dart:io';
 import 'package:toml/toml.dart';
 
+enum BackgroundFit {
+  fill,
+  contain,
+  natural;
+
+  static BackgroundFit fromString(String s) {
+    switch (s) {
+      case 'contain':
+        return BackgroundFit.contain;
+      case 'natural':
+        return BackgroundFit.natural;
+      default:
+        return BackgroundFit.fill;
+    }
+  }
+}
+
+class BackgroundEntry {
+  final String path;
+  final Duration timeOfDay;
+
+  const BackgroundEntry({required this.path, required this.timeOfDay});
+
+  factory BackgroundEntry.fromMap(Map<String, dynamic> map) {
+    final path = map['path'] as String? ?? '';
+    final timeStr = map['time'] as String? ?? '00:00';
+    return BackgroundEntry(
+      path: path,
+      timeOfDay: _parseTime(timeStr),
+    );
+  }
+
+  static Duration _parseTime(String s) {
+    final parts = s.split(':');
+    if (parts.length != 2) return Duration.zero;
+    final hours = int.tryParse(parts[0]) ?? 0;
+    final minutes = int.tryParse(parts[1]) ?? 0;
+    return Duration(hours: hours, minutes: minutes);
+  }
+}
+
+class BackgroundConfig {
+  final BackgroundFit fit;
+  final List<BackgroundEntry> entries;
+
+  const BackgroundConfig({
+    this.fit = BackgroundFit.fill,
+    this.entries = const [],
+  });
+
+  factory BackgroundConfig.fromMap(Map<String, dynamic> map) {
+    final fitStr = map['fit'] as String? ?? 'fill';
+    final rawEntries = map['entries'] as List<dynamic>? ?? [];
+    final entries = rawEntries
+        .whereType<Map<String, dynamic>>()
+        .map(BackgroundEntry.fromMap)
+        .toList()
+      ..sort((a, b) => a.timeOfDay.compareTo(b.timeOfDay));
+    return BackgroundConfig(
+      fit: BackgroundFit.fromString(fitStr),
+      entries: entries,
+    );
+  }
+}
+
 enum ModuleName {
   workspaces,
   mediaPlayer,
@@ -209,10 +274,12 @@ class PanelConfig {
 class AppConfig {
   final Map<String, PanelConfig> panels;
   final ModulesConfig modules;
+  final BackgroundConfig? background;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.modules = const ModulesConfig(),
+    this.background,
   });
 
   static const _defaultConfig = '''
@@ -254,7 +321,7 @@ max_text_width = 200.0
       } catch (_) {
         // Could not write default config; proceed with defaults
       }
-      return const AppConfig();
+      return const AppConfig(background: null);
     }
 
     try {
@@ -282,9 +349,15 @@ max_text_width = 200.0
       }
     }
 
+    final backgroundMap = map['background'] as Map<String, dynamic>?;
+    final background = backgroundMap != null
+        ? BackgroundConfig.fromMap(backgroundMap)
+        : null;
+
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
       modules: modules,
+      background: background,
     );
   }
 }
