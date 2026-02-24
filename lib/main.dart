@@ -10,6 +10,7 @@ import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'layer_shell.dart';
+import 'gtk.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:miracle/miracle.dart';
 import 'package:wayland/wayland.dart';
