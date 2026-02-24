@@ -36,7 +36,8 @@ void main() async {
   if (appConfig.background != null &&
       appConfig.background!.entries.isNotEmpty &&
       monitors.isNotEmpty) {
-    backgroundController = windowingOwner.createLayerShellWindowController(
+    backgroundController = LayershellWindowController(
+      owner: windowingOwner,
       delegate: LayershellWindowControllerDelegate(),
       layer: GtkLayerShellLayer.background,
       anchorEdges: [
@@ -64,7 +65,8 @@ void main() async {
       height = panelConfig.height;
     }
 
-    controllers[entry.key] = windowingOwner.createLayerShellWindowController(
+    controllers[entry.key] = LayershellWindowController(
+      owner: windowingOwner,
       delegate: LayershellWindowControllerDelegate(),
       width: width,
       height: height,
@@ -154,14 +156,12 @@ class _PanelMainState extends State<PanelMain>
   Widget _buildSection(List<ModuleName> modules) {
     if (modules.isEmpty) return const SizedBox.shrink();
 
-    final bool vertical =
-        widget.anchor == 'left' || widget.anchor == 'right';
+    final bool vertical = widget.anchor == 'left' || widget.anchor == 'right';
     final children = <Widget>[];
     for (int i = 0; i < modules.length; i++) {
       if (i > 0) {
-        children.add(vertical
-            ? const SizedBox(height: 8)
-            : const SizedBox(width: 8));
+        children.add(
+            vertical ? const SizedBox(height: 8) : const SizedBox(width: 8));
       }
       children.add(_buildModule(modules[i]));
     }
@@ -188,8 +188,7 @@ class _PanelMainState extends State<PanelMain>
       sections.add(_buildSection(layout.left));
     }
 
-    final bool vertical =
-        widget.panelConfig.anchor == 'left' ||
+    final bool vertical = widget.panelConfig.anchor == 'left' ||
         widget.panelConfig.anchor == 'right';
 
     if (layout.center.isNotEmpty) {

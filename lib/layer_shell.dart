@@ -1272,31 +1272,14 @@ GtkLayerShellLayer layerFromString(String s) {
 }
 
 class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
-  LayershellWindowController createLayerShellWindowController({
-    required LayershellWindowControllerDelegate delegate,
-    GtkLayerShellLayer layer = GtkLayerShellLayer.top,
-    List<GtkLayerShellEdge> anchorEdges = const [
-      GtkLayerShellEdge.top,
-      GtkLayerShellEdge.left,
-      GtkLayerShellEdge.right
-    ],
-    GtkLayerShellKeyboardMode keyboardMode = GtkLayerShellKeyboardMode.onDemand,
-    int? width,
-    int? height,
-    int? exclusiveZone,
-    ffi.Pointer<ffi.NativeType>? monitor,
+  RegularWindowController createRegularWindowController({
+    Size? preferredSize,
+    BoxConstraints? preferredConstraints,
+    String? title,
+    required RegularWindowControllerDelegate delegate,
   }) {
-    return LayershellWindowController(
-      owner: this,
-      delegate: delegate,
-      layer: layer,
-      anchorEdges: anchorEdges,
-      keyboardMode: keyboardMode,
-      width: width,
-      height: height,
-      exclusiveZone: exclusiveZone,
-      monitor: monitor,
-    );
+    throw UnsupportedError(
+        "Layer shell windows are created via the factory constructor in this app.");
   }
 }
 
@@ -1308,9 +1291,9 @@ class LayershellWindowControllerDelegate {
   void onWindowDestroyed() {}
 }
 
-class LayershellWindowController extends ChangeNotifier {
+class LayershellWindowController extends RegularWindowController {
   /// Create a new LayershellWindowController.
-  LayershellWindowController({
+  factory LayershellWindowController({
     required ExtendedWindowingOwnerLinux owner,
     required LayershellWindowControllerDelegate delegate,
     GtkLayerShellLayer layer = GtkLayerShellLayer.top,
@@ -1324,13 +1307,46 @@ class LayershellWindowController extends ChangeNotifier {
     int? height,
     int? exclusiveZone,
     ffi.Pointer<ffi.NativeType>? monitor,
-  })  : _owner = owner,
-        _delegate = delegate,
-        _window = _GtkWindow() {
+  }) {
     if (!isWindowingEnabled) {
       throw UnsupportedError(_kWindowingDisabledErrorMessage);
     }
 
+    final controller = LayershellWindowController._internal(
+      owner: owner,
+      delegate: delegate,
+    );
+
+    controller._setup(
+      layer: layer,
+      anchorEdges: anchorEdges,
+      keyboardMode: keyboardMode,
+      width: width,
+      height: height,
+      exclusiveZone: exclusiveZone,
+      monitor: monitor,
+    );
+
+    return controller;
+  }
+
+  LayershellWindowController._internal({
+    required ExtendedWindowingOwnerLinux owner,
+    required LayershellWindowControllerDelegate delegate,
+  })  : _owner = owner,
+        _delegate = delegate,
+        _window = _GtkWindow(),
+        super.empty();
+
+  void _setup({
+    required GtkLayerShellLayer layer,
+    required List<GtkLayerShellEdge> anchorEdges,
+    required GtkLayerShellKeyboardMode keyboardMode,
+    int? width,
+    int? height,
+    int? exclusiveZone,
+    ffi.Pointer<ffi.NativeType>? monitor,
+  }) {
     _windowMonitor = _FlWindowMonitor(
       _window,
       // onConfigure
@@ -1407,6 +1423,34 @@ class LayershellWindowController extends ChangeNotifier {
   void activate() {
     _window.present();
   }
+
+  @override
+  bool get isFullscreen => false;
+
+  @override
+  bool get isMaximized => false;
+
+  @override
+  // TODO: implement isMinimized
+  bool get isMinimized => false;
+
+  @override
+  void setConstraints(BoxConstraints constraints) {}
+
+  @override
+  void setFullscreen(bool fullscreen, {Display? display}) {}
+
+  @override
+  void setMaximized(bool maximized) {}
+
+  @override
+  void setMinimized(bool minimized) {}
+
+  @override
+  void setTitle(String title) {}
+
+  @override
+  String get title => "";
 }
 
 class LayerShellWindow extends StatelessWidget {
