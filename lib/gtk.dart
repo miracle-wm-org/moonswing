@@ -429,6 +429,11 @@ class GtkWindow extends GtkContainer {
     _gtkWindowResize(instance, width, height);
   }
 
+  /// Move the window to ([x], [y]) in screen coordinates.
+  void move(int x, int y) {
+    _gtkWindowMove(instance, x, y);
+  }
+
   /// Maximize window.
   void maximize() {
     _gtkWindowMaximize(instance);
@@ -554,6 +559,12 @@ class GtkWindow extends GtkContainer {
   )
   external static void _gtkWindowResize(
       ffi.Pointer<ffi.NativeType> window, int width, int height);
+
+  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Int, ffi.Int)>(
+    symbol: 'gtk_window_move',
+  )
+  external static void _gtkWindowMove(
+      ffi.Pointer<ffi.NativeType> window, int x, int y);
 
   @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
       symbol: 'gtk_window_maximize')

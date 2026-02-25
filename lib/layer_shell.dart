@@ -25,6 +25,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/src/foundation/_features.dart';
 import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_linux.dart';
+import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:flutter/src/widgets/binding.dart';
 import 'gtk.dart';
 
@@ -121,7 +122,27 @@ GtkLayerShellLayer layerFromString(String s) {
   }
 }
 
+/// Manages dynamically-created popup windows for inclusion in the ViewCollection.
+class PopupManager extends ChangeNotifier {
+  static final PopupManager instance = PopupManager._();
+  PopupManager._();
+
+  final List<Widget> _popupViews = [];
+  List<Widget> get popupViews => List.unmodifiable(_popupViews);
+
+  void add(Widget view) {
+    _popupViews.add(view);
+    notifyListeners();
+  }
+
+  void remove(Widget view) {
+    _popupViews.remove(view);
+    notifyListeners();
+  }
+}
+
 class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
+  @override
   RegularWindowController createRegularWindowController({
     Size? preferredSize,
     BoxConstraints? preferredConstraints,
@@ -130,6 +151,26 @@ class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
   }) {
     throw UnsupportedError(
         "Layer shell windows are created via the factory constructor in this app.");
+  }
+
+  @override
+  PopupWindowController createPopupWindowController({
+    required PopupWindowControllerDelegate delegate,
+    required BoxConstraints preferredConstraints,
+    required Rect anchorRect,
+    required WindowPositioner positioner,
+    required BaseWindowController parent,
+  }) {
+    if (!isWindowingEnabled) {
+      throw UnsupportedError(_kWindowingDisabledErrorMessage);
+    }
+    return PopupGtkWindowController(
+      parent: parent,
+      anchorRect: anchorRect,
+      positioner: positioner,
+      preferredConstraints: preferredConstraints,
+      delegate: delegate,
+    );
   }
 }
 
@@ -254,6 +295,9 @@ class LayershellWindowController extends RegularWindowController {
 
   Size get contentSize => _window.getSize();
 
+  /// The underlying GTK window, exposed for use as a popup transient parent.
+  GtkWindow get gtkWindow => _window;
+
   void destroy() {
     if (_destroyed) {
       return;
@@ -303,6 +347,157 @@ class LayershellWindowController extends RegularWindowController {
   String get title => "";
 }
 
+/// A popup window backed by a transient GTK window (xdg_popup on Wayland).
+///
+/// The popup is positioned relative to [anchorRect] in screen coordinates
+/// using [positioner] to determine the anchor points and offset.
+class PopupGtkWindowController extends PopupWindowController {
+  factory PopupGtkWindowController({
+    required BaseWindowController parent,
+    required Rect anchorRect,
+    required WindowPositioner positioner,
+    required BoxConstraints preferredConstraints,
+    required PopupWindowControllerDelegate delegate,
+  }) {
+    final controller = PopupGtkWindowController._internal(
+      parent: parent,
+      delegate: delegate,
+    );
+    controller._setup(
+      anchorRect: anchorRect,
+      positioner: positioner,
+      preferredConstraints: preferredConstraints,
+    );
+    return controller;
+  }
+
+  PopupGtkWindowController._internal({
+    required this.parent,
+    required PopupWindowControllerDelegate delegate,
+  })  : _delegate = delegate,
+        _window = GtkWindow(),
+        super.empty();
+
+  @override
+  final BaseWindowController parent;
+  final PopupWindowControllerDelegate _delegate;
+  final GtkWindow _window;
+  late FlutterView _view;
+  late FlWindowMonitor _windowMonitor;
+  bool _destroyed = false;
+
+  void _setup({
+    required Rect anchorRect,
+    required WindowPositioner positioner,
+    required BoxConstraints preferredConstraints,
+  }) {
+    _windowMonitor = FlWindowMonitor(
+      _window,
+      notifyListeners, // onConfigure
+      notifyListeners, // onStateChanged
+      notifyListeners, // onIsActiveNotify
+      notifyListeners, // onTitleNotify
+      () {}, // onClose
+      _delegate.onWindowDestroyed, // onDestroy
+    );
+
+    final view = FlView();
+    view.setBackgroundColor('#00000000');
+    final int viewId = view.getId();
+    _view = WidgetsBinding.instance.platformDispatcher.views.firstWhere(
+      (FlutterView v) => v.viewId == viewId,
+    );
+
+    // Compute popup screen position from anchorRect + positioner.
+    final anchorPoint = _anchorPointOn(anchorRect, positioner.parentAnchor);
+    final size = Size(
+      preferredConstraints.maxWidth.isFinite
+          ? preferredConstraints.maxWidth
+          : 200,
+      preferredConstraints.maxHeight.isFinite
+          ? preferredConstraints.maxHeight
+          : 200,
+    );
+    final childOffset = _childAnchorOffset(size, positioner.childAnchor);
+    final x = (anchorPoint.dx - childOffset.dx + positioner.offset.dx).toInt();
+    final y = (anchorPoint.dy - childOffset.dy + positioner.offset.dy).toInt();
+
+    // Use layer shell on the overlay layer so the compositor treats this as a
+    // proper layer surface rather than a floating xdg_toplevel.  Anchoring to
+    // top+left and setting margins positions the popup at (x, y) in screen
+    // coordinates, which is how layer-shell apps (e.g. Waybar) show dropdowns.
+    _window.layerInitForWindow();
+    _window.layerSetLayer(GtkLayerShellLayer.overlay);
+    _window.layerSetKeyboardMode(GtkLayerShellKeyboardMode.onDemand);
+    _window.layerSetAnchor(GtkLayerShellEdge.left, true);
+    _window.layerSetAnchor(GtkLayerShellEdge.top, true);
+    _window.layerSetMargin(GtkLayerShellEdge.left, x);
+    _window.layerSetMargin(GtkLayerShellEdge.top, y);
+
+    _window.setSizeRequest(size.width.toInt(), size.height.toInt());
+    _window.setDefaultSize(size.width.toInt(), size.height.toInt());
+    _window.setAppPaintable(true);
+    _window.add(view);
+    _window.present();
+    view.show();
+  }
+
+  static Offset _anchorPointOn(Rect r, WindowPositionerAnchor a) => switch (a) {
+        WindowPositionerAnchor.center => r.center,
+        WindowPositionerAnchor.top => r.topCenter,
+        WindowPositionerAnchor.bottom => r.bottomCenter,
+        WindowPositionerAnchor.left => r.centerLeft,
+        WindowPositionerAnchor.right => r.centerRight,
+        WindowPositionerAnchor.topLeft => r.topLeft,
+        WindowPositionerAnchor.topRight => r.topRight,
+        WindowPositionerAnchor.bottomLeft => r.bottomLeft,
+        WindowPositionerAnchor.bottomRight => r.bottomRight,
+      };
+
+  static Offset _childAnchorOffset(Size s, WindowPositionerAnchor a) =>
+      switch (a) {
+        WindowPositionerAnchor.center => Offset(s.width / 2, s.height / 2),
+        WindowPositionerAnchor.top => Offset(s.width / 2, 0),
+        WindowPositionerAnchor.bottom => Offset(s.width / 2, s.height),
+        WindowPositionerAnchor.left => Offset(0, s.height / 2),
+        WindowPositionerAnchor.right => Offset(s.width, s.height / 2),
+        WindowPositionerAnchor.topLeft => Offset.zero,
+        WindowPositionerAnchor.topRight => Offset(s.width, 0),
+        WindowPositionerAnchor.bottomLeft => Offset(0, s.height),
+        WindowPositionerAnchor.bottomRight => Offset(s.width, s.height),
+      };
+
+  @override
+  FlutterView get rootView => _view;
+
+  @override
+  Size get contentSize => _window.getSize();
+
+  @override
+  bool get isActivated => _window.isActive();
+
+  @override
+  void activate() => _window.present();
+
+  @override
+  void setConstraints(BoxConstraints c) {
+    if (c.maxWidth.isFinite && c.maxHeight.isFinite) {
+      _window.resize(c.maxWidth.toInt(), c.maxHeight.toInt());
+    }
+  }
+
+  @override
+  void destroy() {
+    if (_destroyed) return;
+    _window.destroy();
+    _windowMonitor.close();
+    _windowMonitor.unref();
+    _destroyed = true;
+  }
+
+  bool get isDestroyed => _destroyed;
+}
+
 class LayerShellWindow extends StatelessWidget {
   @internal
   LayerShellWindow({super.key, required this.controller, required this.child}) {
@@ -323,8 +518,10 @@ class LayerShellWindow extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
-      builder: (BuildContext context, Widget? widget) =>
-          View(view: controller.rootView, child: child),
+      builder: (BuildContext context, Widget? _) => View(
+        view: controller.rootView,
+        child: WindowScope(controller: controller, child: child),
+      ),
     );
   }
 }

@@ -78,24 +78,28 @@ void main() async {
     );
   }
 
-  runWidget(ViewCollection(
-    views: [
-      if (backgroundController != null)
-        LayerShellWindow(
-          controller: backgroundController,
-          child: BackgroundWindow(config: appConfig.background!),
-        ),
-      for (final entry in appConfig.panels.entries)
-        LayerShellWindow(
-          controller: controllers[entry.key]!,
-          child: PanelMain(
-            panelConfig: entry.value,
-            modulesConfig: appConfig.modules,
-            connection: connection,
-            anchor: entry.value.anchor,
+  runWidget(ListenableBuilder(
+    listenable: PopupManager.instance,
+    builder: (context, _) => ViewCollection(
+      views: [
+        if (backgroundController != null)
+          LayerShellWindow(
+            controller: backgroundController,
+            child: BackgroundWindow(config: appConfig.background!),
           ),
-        ),
-    ],
+        for (final entry in appConfig.panels.entries)
+          LayerShellWindow(
+            controller: controllers[entry.key]!,
+            child: PanelMain(
+              panelConfig: entry.value,
+              modulesConfig: appConfig.modules,
+              connection: connection,
+              anchor: entry.value.anchor,
+            ),
+          ),
+        ...PopupManager.instance.popupViews,
+      ],
+    ),
   ));
 }
 
