@@ -1,5 +1,4 @@
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/config.dart';
 import 'package:miracle/miracle.dart';
 
 /// Provides [MiracleConnection] to the widget subtree.
@@ -39,20 +38,3 @@ class BarScope extends InheritedWidget {
   bool updateShouldNotify(BarScope old) => anchor != old.anchor;
 }
 
-/// Provides [ModulesConfig] to the widget subtree so that module widgets can
-/// read their own configuration without needing constructor parameters.
-class ModulesScope extends InheritedWidget {
-  const ModulesScope({
-    super.key,
-    required this.config,
-    required super.child,
-  });
-
-  final ModulesConfig config;
-
-  static ModulesConfig of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<ModulesScope>()!.config;
-
-  @override
-  bool updateShouldNotify(ModulesScope old) => config != old.config;
-}

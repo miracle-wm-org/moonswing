@@ -8,6 +8,7 @@ import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:pulseaudio/pulseaudio.dart';
 import 'package:graceful_shell/layer_shell.dart';
+import 'package:graceful_shell/module.dart';
 
 class SoundControl extends StatefulWidget {
   const SoundControl({super.key});
@@ -214,4 +215,15 @@ class _SoundPopupContent extends StatelessWidget {
       ),
     );
   }
+}
+
+class SoundControlModule extends Module {
+  @override
+  String get configKey => 'sound_control';
+
+  @override
+  void loadConfig(Map<String, dynamic>? map) {}
+
+  @override
+  WidgetBuilder get builder => (_) => const SoundControl();
 }

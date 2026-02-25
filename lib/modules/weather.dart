@@ -2,14 +2,33 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/module.dart';
 import 'package:http/http.dart' as http;
+
+class WeatherConfig {
+  final String unit;
+  final int refreshMinutes;
+
+  const WeatherConfig({
+    this.unit = 'fahrenheit',
+    this.refreshMinutes = 10,
+  });
+
+  factory WeatherConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const WeatherConfig();
+    return WeatherConfig(
+      unit: map['unit'] as String? ?? 'fahrenheit',
+      refreshMinutes: map['refresh_minutes'] as int? ?? 10,
+    );
+  }
+}
 
 enum TemperatureUnit { celsius, fahrenheit }
 
 class Weather extends StatefulWidget {
-  const Weather({super.key});
+  const Weather({super.key, required this.config});
+
+  final WeatherConfig config;
 
   @override
   WeatherState createState() => WeatherState();
@@ -19,23 +38,19 @@ class WeatherState extends State<Weather> {
   String _weatherText = '';
   bool _loading = true;
   Timer? _refreshTimer;
-  late WeatherConfig _config;
 
-  TemperatureUnit get _unit => _config.unit == 'celsius'
+  TemperatureUnit get _unit => widget.config.unit == 'celsius'
       ? TemperatureUnit.celsius
       : TemperatureUnit.fahrenheit;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_refreshTimer == null) {
-      _config = ModulesScope.of(context).weather;
+  void initState() {
+    super.initState();
+    _fetchWeather();
+    _refreshTimer =
+        Timer.periodic(Duration(minutes: widget.config.refreshMinutes), (_) {
       _fetchWeather();
-      _refreshTimer =
-          Timer.periodic(Duration(minutes: _config.refreshMinutes), (_) {
-        _fetchWeather();
-      });
-    }
+    });
   }
 
   @override
@@ -193,4 +208,19 @@ class _SpinnerState extends State<_Spinner>
       ),
     );
   }
+}
+
+class WeatherModule extends Module {
+  WeatherConfig _config = const WeatherConfig();
+
+  @override
+  String get configKey => 'weather';
+
+  @override
+  void loadConfig(Map<String, dynamic>? map) {
+    _config = WeatherConfig.fromMap(map);
+  }
+
+  @override
+  WidgetBuilder get builder => (context) => Weather(config: _config);
 }

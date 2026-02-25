@@ -5,8 +5,28 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/module.dart';
+
+class DockConfig {
+  final List<String> apps;
+  final int iconSize;
+
+  const DockConfig({
+    this.apps = const [],
+    this.iconSize = 24,
+  });
+
+  factory DockConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const DockConfig();
+    return DockConfig(
+      apps: (map['apps'] as List<dynamic>?)
+              ?.whereType<String>()
+              .toList() ??
+          const [],
+      iconSize: map['icon_size'] as int? ?? 24,
+    );
+  }
+}
 
 // GIO FFI bindings
 
@@ -88,7 +108,9 @@ class _DockApp {
 // Dock widget
 
 class Dock extends StatefulWidget {
-  const Dock({super.key});
+  const Dock({super.key, required this.config});
+
+  final DockConfig config;
 
   @override
   DockState createState() => DockState();
@@ -96,15 +118,11 @@ class Dock extends StatefulWidget {
 
 class DockState extends State<Dock> {
   List<_DockApp> _apps = [];
-  bool _loaded = false;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_loaded) {
-      _loaded = true;
-      _loadApps(ModulesScope.of(context).dock);
-    }
+  void initState() {
+    super.initState();
+    _loadApps(widget.config);
   }
 
   void _loadApps(DockConfig config) {
@@ -176,7 +194,7 @@ class DockState extends State<Dock> {
   Widget build(BuildContext context) {
     if (_apps.isEmpty) return const SizedBox.shrink();
 
-    final size = ModulesScope.of(context).dock.iconSize;
+    final size = widget.config.iconSize;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -260,4 +278,19 @@ class _DockButtonState extends State<_DockButton> {
       ),
     );
   }
+}
+
+class DockModule extends Module {
+  DockConfig _config = const DockConfig();
+
+  @override
+  String get configKey => 'dock';
+
+  @override
+  void loadConfig(Map<String, dynamic>? map) {
+    _config = DockConfig.fromMap(map);
+  }
+
+  @override
+  WidgetBuilder get builder => (context) => Dock(config: _config);
 }

@@ -1,9 +1,24 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/module.dart';
+
+class ClockConfig {
+  final bool showDate;
+
+  const ClockConfig({this.showDate = true});
+
+  factory ClockConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const ClockConfig();
+    return ClockConfig(
+      showDate: map['show_date'] as bool? ?? true,
+    );
+  }
+}
 
 class Clock extends StatefulWidget {
-  const Clock({super.key});
+  const Clock({super.key, required this.config});
+
+  final ClockConfig config;
 
   @override
   ClockState createState() => ClockState();
@@ -75,7 +90,7 @@ class ClockState extends State<Clock> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (ModulesScope.of(context).clock.showDate) ...[
+        if (widget.config.showDate) ...[
           Text(_dateString,
               style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF))),
           const SizedBox(width: 8),
@@ -85,4 +100,19 @@ class ClockState extends State<Clock> {
       ],
     );
   }
+}
+
+class ClockModule extends Module {
+  ClockConfig _config = const ClockConfig();
+
+  @override
+  String get configKey => 'clock';
+
+  @override
+  void loadConfig(Map<String, dynamic>? map) {
+    _config = ClockConfig.fromMap(map);
+  }
+
+  @override
+  WidgetBuilder get builder => (context) => Clock(config: _config);
 }

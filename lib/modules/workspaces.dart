@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:miracle/miracle.dart';
 
@@ -89,6 +90,17 @@ class _WorkspaceButton extends StatefulWidget {
 
   @override
   State<_WorkspaceButton> createState() => _WorkspaceButtonState();
+}
+
+class WorkspacesModule extends Module {
+  @override
+  String get configKey => 'workspaces';
+
+  @override
+  void loadConfig(Map<String, dynamic>? map) {}
+
+  @override
+  WidgetBuilder get builder => (_) => const Workspaces();
 }
 
 class _WorkspaceButtonState extends State<_WorkspaceButton> {

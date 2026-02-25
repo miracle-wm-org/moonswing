@@ -2,7 +2,20 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/module.dart';
+
+class MediaPlayerConfig {
+  final double maxTextWidth;
+
+  const MediaPlayerConfig({this.maxTextWidth = 200.0});
+
+  factory MediaPlayerConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const MediaPlayerConfig();
+    return MediaPlayerConfig(
+      maxTextWidth: (map['max_text_width'] as num?)?.toDouble() ?? 200.0,
+    );
+  }
+}
 
 const String _mprisPrefix = 'org.mpris.MediaPlayer2.';
 const String _playerInterface = 'org.mpris.MediaPlayer2.Player';
@@ -26,7 +39,9 @@ class _PlayerState {
 }
 
 class MediaPlayer extends StatefulWidget {
-  const MediaPlayer({super.key});
+  const MediaPlayer({super.key, required this.config});
+
+  final MediaPlayerConfig config;
 
   @override
   MediaPlayerState createState() => MediaPlayerState();
@@ -280,7 +295,7 @@ class MediaPlayerState extends State<MediaPlayer>
     }
 
     return SizedBox(
-      width: ModulesScope.of(context).mediaPlayer.maxTextWidth,
+      width: widget.config.maxTextWidth,
       height: 16,
       child: ClipRect(
         child: AnimatedBuilder(
@@ -419,4 +434,19 @@ class _PanelIconButtonState extends State<_PanelIconButton> {
       ),
     );
   }
+}
+
+class MediaPlayerModule extends Module {
+  MediaPlayerConfig _config = const MediaPlayerConfig();
+
+  @override
+  String get configKey => 'media_player';
+
+  @override
+  void loadConfig(Map<String, dynamic>? map) {
+    _config = MediaPlayerConfig.fromMap(map);
+  }
+
+  @override
+  WidgetBuilder get builder => (context) => MediaPlayer(config: _config);
 }

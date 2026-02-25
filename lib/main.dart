@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/dock.dart';
 import 'package:graceful_shell/modules/sound_control.dart';
@@ -19,6 +20,14 @@ import 'package:wayland/wayland.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
+
+  Module.register(WorkspacesModule());
+  Module.register(MediaPlayerModule());
+  Module.register(SoundControlModule());
+  Module.register(BatteryModule());
+  Module.register(WeatherModule());
+  Module.register(ClockModule());
+  Module.register(DockModule());
 
   final appConfig = await AppConfig.load();
 
@@ -95,7 +104,6 @@ void main() async {
               connection: connection,
               child: PanelMain(
                 panelConfig: entry.value,
-                modulesConfig: appConfig.modules,
                 anchor: entry.value.anchor,
               ),
             ),
@@ -107,14 +115,13 @@ void main() async {
 }
 
 class PanelMain extends StatefulWidget {
-  const PanelMain(
-      {super.key,
-      required this.panelConfig,
-      required this.modulesConfig,
-      required this.anchor});
+  const PanelMain({
+    super.key,
+    required this.panelConfig,
+    required this.anchor,
+  });
 
   final PanelConfig panelConfig;
-  final ModulesConfig modulesConfig;
   final String anchor;
 
   @override
@@ -141,22 +148,9 @@ class _PanelMainState extends State<PanelMain>
   }
 
   Widget _buildModule(ModuleName name) {
-    switch (name) {
-      case ModuleName.workspaces:
-        return const Workspaces();
-      case ModuleName.mediaPlayer:
-        return const MediaPlayer();
-      case ModuleName.soundControl:
-        return const SoundControl();
-      case ModuleName.battery:
-        return const Battery();
-      case ModuleName.weather:
-        return const Weather();
-      case ModuleName.clock:
-        return const Clock();
-      case ModuleName.dock:
-        return const Dock();
-    }
+    final module = Module.lookup(name.toConfigKey());
+    if (module == null) return const SizedBox.shrink();
+    return Builder(builder: module.builder);
   }
 
   Widget _buildSection(List<ModuleName> modules) {
@@ -215,36 +209,33 @@ class _PanelMainState extends State<PanelMain>
 
     return BarScope(
       anchor: widget.panelConfig.anchor,
-      child: ModulesScope(
-        config: widget.modulesConfig,
-        child: DefaultTextStyle(
-          style: const TextStyle(
-            fontFamily: 'Ubuntu Sans',
-            fontSize: 12,
-            color: Color(0xFFE0E0E0),
-          ),
-          child: Directionality(
-            textDirection: TextDirection.ltr,
-            child: SizedBox.expand(
-              child: AnimatedBuilder(
-                animation: _bgAnimation,
-                builder: (context, child) {
-                  return CustomPaint(
-                    painter: PanelBackgroundPainter(
-                      anchor: widget.panelConfig.anchor,
-                      animationValue: _bgAnimation.value,
-                    ),
-                    child: child,
-                  );
-                },
-                child: Padding(
-                  padding: vertical
-                      ? EdgeInsets.fromLTRB(0, pad, 0, pad)
-                      : EdgeInsets.fromLTRB(pad, 0, pad, 0),
-                  child: vertical
-                      ? Column(children: sections)
-                      : Row(children: sections),
-                ),
+      child: DefaultTextStyle(
+        style: const TextStyle(
+          fontFamily: 'Ubuntu Sans',
+          fontSize: 12,
+          color: Color(0xFFE0E0E0),
+        ),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox.expand(
+            child: AnimatedBuilder(
+              animation: _bgAnimation,
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: PanelBackgroundPainter(
+                    anchor: widget.panelConfig.anchor,
+                    animationValue: _bgAnimation.value,
+                  ),
+                  child: child,
+                );
+              },
+              child: Padding(
+                padding: vertical
+                    ? EdgeInsets.fromLTRB(0, pad, 0, pad)
+                    : EdgeInsets.fromLTRB(pad, 0, pad, 0),
+                child: vertical
+                    ? Column(children: sections)
+                    : Row(children: sections),
               ),
             ),
           ),

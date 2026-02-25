@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:toml/toml.dart';
+import 'package:graceful_shell/module.dart';
 
 enum BackgroundFit {
   fill,
@@ -75,6 +76,16 @@ enum ModuleName {
   clock,
   dock;
 
+  String toConfigKey() => switch (this) {
+        ModuleName.workspaces => 'workspaces',
+        ModuleName.mediaPlayer => 'media_player',
+        ModuleName.soundControl => 'sound_control',
+        ModuleName.battery => 'battery',
+        ModuleName.weather => 'weather',
+        ModuleName.clock => 'clock',
+        ModuleName.dock => 'dock',
+      };
+
   static ModuleName? fromString(String s) {
     switch (s) {
       case 'workspaces':
@@ -94,112 +105,6 @@ enum ModuleName {
       default:
         return null;
     }
-  }
-}
-
-class WeatherConfig {
-  final String unit;
-  final int refreshMinutes;
-
-  const WeatherConfig({
-    this.unit = 'fahrenheit',
-    this.refreshMinutes = 10,
-  });
-
-  factory WeatherConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const WeatherConfig();
-    return WeatherConfig(
-      unit: map['unit'] as String? ?? 'fahrenheit',
-      refreshMinutes: map['refresh_minutes'] as int? ?? 10,
-    );
-  }
-}
-
-class BatteryConfig {
-  final int pollSeconds;
-
-  const BatteryConfig({this.pollSeconds = 30});
-
-  factory BatteryConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const BatteryConfig();
-    return BatteryConfig(
-      pollSeconds: map['poll_seconds'] as int? ?? 30,
-    );
-  }
-}
-
-class ClockConfig {
-  final bool showDate;
-
-  const ClockConfig({this.showDate = true});
-
-  factory ClockConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const ClockConfig();
-    return ClockConfig(
-      showDate: map['show_date'] as bool? ?? true,
-    );
-  }
-}
-
-class MediaPlayerConfig {
-  final double maxTextWidth;
-
-  const MediaPlayerConfig({this.maxTextWidth = 200.0});
-
-  factory MediaPlayerConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const MediaPlayerConfig();
-    return MediaPlayerConfig(
-      maxTextWidth: (map['max_text_width'] as num?)?.toDouble() ?? 200.0,
-    );
-  }
-}
-
-class DockConfig {
-  final List<String> apps;
-  final int iconSize;
-
-  const DockConfig({
-    this.apps = const [],
-    this.iconSize = 24,
-  });
-
-  factory DockConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const DockConfig();
-    return DockConfig(
-      apps: (map['apps'] as List<dynamic>?)
-              ?.whereType<String>()
-              .toList() ??
-          const [],
-      iconSize: map['icon_size'] as int? ?? 24,
-    );
-  }
-}
-
-class ModulesConfig {
-  final WeatherConfig weather;
-  final BatteryConfig battery;
-  final ClockConfig clock;
-  final MediaPlayerConfig mediaPlayer;
-  final DockConfig dock;
-
-  const ModulesConfig({
-    this.weather = const WeatherConfig(),
-    this.battery = const BatteryConfig(),
-    this.clock = const ClockConfig(),
-    this.mediaPlayer = const MediaPlayerConfig(),
-    this.dock = const DockConfig(),
-  });
-
-  factory ModulesConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const ModulesConfig();
-    return ModulesConfig(
-      weather: WeatherConfig.fromMap(map['weather'] as Map<String, dynamic>?),
-      battery: BatteryConfig.fromMap(map['battery'] as Map<String, dynamic>?),
-      clock: ClockConfig.fromMap(map['clock'] as Map<String, dynamic>?),
-      mediaPlayer: MediaPlayerConfig.fromMap(
-          map['media_player'] as Map<String, dynamic>?),
-      dock: DockConfig.fromMap(map['dock'] as Map<String, dynamic>?),
-    );
   }
 }
 
@@ -273,12 +178,10 @@ class PanelConfig {
 
 class AppConfig {
   final Map<String, PanelConfig> panels;
-  final ModulesConfig modules;
   final BackgroundConfig? background;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
-    this.modules = const ModulesConfig(),
     this.background,
   });
 
@@ -335,7 +238,7 @@ max_text_width = 200.0
 
   factory AppConfig._fromMap(Map<String, dynamic> map) {
     final modulesMap = map['modules'] as Map<String, dynamic>?;
-    final modules = ModulesConfig.fromMap(modulesMap);
+    Module.loadAll(modulesMap);
 
     final panels = <String, PanelConfig>{};
 
@@ -350,13 +253,11 @@ max_text_width = 200.0
     }
 
     final backgroundMap = map['background'] as Map<String, dynamic>?;
-    final background = backgroundMap != null
-        ? BackgroundConfig.fromMap(backgroundMap)
-        : null;
+    final background =
+        backgroundMap != null ? BackgroundConfig.fromMap(backgroundMap) : null;
 
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
-      modules: modules,
       background: background,
     );
   }

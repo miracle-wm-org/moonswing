@@ -1,11 +1,26 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/module.dart';
 import 'package:udev/udev.dart';
 
+class BatteryConfig {
+  final int pollSeconds;
+
+  const BatteryConfig({this.pollSeconds = 30});
+
+  factory BatteryConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const BatteryConfig();
+    return BatteryConfig(
+      pollSeconds: map['poll_seconds'] as int? ?? 30,
+    );
+  }
+}
+
 class Battery extends StatefulWidget {
-  const Battery({super.key});
+  const Battery({super.key, required this.config});
+
+  final BatteryConfig config;
 
   @override
   BatteryState createState() => BatteryState();
@@ -19,15 +34,13 @@ class BatteryState extends State<Battery> {
   StreamSubscription<UdevDevice>? _udevSubscription;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_refreshTimer == null) {
-      final pollSeconds = ModulesScope.of(context).battery.pollSeconds;
-      _detectBatteries();
-      _refreshTimer = Timer.periodic(Duration(seconds: pollSeconds), (_) {
-        _readBattery();
-      });
-    }
+  void initState() {
+    super.initState();
+    _detectBatteries();
+    _refreshTimer = Timer.periodic(
+      Duration(seconds: widget.config.pollSeconds),
+      (_) => _readBattery(),
+    );
   }
 
   @override
@@ -170,4 +183,19 @@ class BatteryState extends State<Battery> {
       style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF)),
     );
   }
+}
+
+class BatteryModule extends Module {
+  BatteryConfig _config = const BatteryConfig();
+
+  @override
+  String get configKey => 'battery';
+
+  @override
+  void loadConfig(Map<String, dynamic>? map) {
+    _config = BatteryConfig.fromMap(map);
+  }
+
+  @override
+  WidgetBuilder get builder => (context) => Battery(config: _config);
 }
