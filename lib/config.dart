@@ -67,60 +67,19 @@ class BackgroundConfig {
   }
 }
 
-enum ModuleName {
-  workspaces,
-  mediaPlayer,
-  soundControl,
-  battery,
-  weather,
-  clock,
-  dock;
-
-  String toConfigKey() => switch (this) {
-        ModuleName.workspaces => 'workspaces',
-        ModuleName.mediaPlayer => 'media_player',
-        ModuleName.soundControl => 'sound_control',
-        ModuleName.battery => 'battery',
-        ModuleName.weather => 'weather',
-        ModuleName.clock => 'clock',
-        ModuleName.dock => 'dock',
-      };
-
-  static ModuleName? fromString(String s) {
-    switch (s) {
-      case 'workspaces':
-        return ModuleName.workspaces;
-      case 'media_player':
-        return ModuleName.mediaPlayer;
-      case 'sound_control':
-        return ModuleName.soundControl;
-      case 'battery':
-        return ModuleName.battery;
-      case 'weather':
-        return ModuleName.weather;
-      case 'clock':
-        return ModuleName.clock;
-      case 'dock':
-        return ModuleName.dock;
-      default:
-        return null;
-    }
-  }
-}
-
 class LayoutConfig {
-  final List<ModuleName> left;
-  final List<ModuleName> center;
-  final List<ModuleName> right;
+  final List<String> left;
+  final List<String> center;
+  final List<String> right;
 
   const LayoutConfig({
-    this.left = const [ModuleName.workspaces],
-    this.center = const [ModuleName.mediaPlayer],
+    this.left = const ["workspaces"],
+    this.center = const ["media_player"],
     this.right = const [
-      ModuleName.soundControl,
-      ModuleName.battery,
-      ModuleName.weather,
-      ModuleName.clock,
+      "sound_control",
+      "battery",
+      "weather",
+      "clock",
     ],
   });
 
@@ -133,17 +92,13 @@ class LayoutConfig {
     );
   }
 
-  static List<ModuleName> _parseModuleList(dynamic value) {
+  static List<String> _parseModuleList(dynamic value) {
     if (value == null) return [];
     if (value is! List) return [];
-    return value
-        .whereType<String>()
-        .map(ModuleName.fromString)
-        .whereType<ModuleName>()
-        .toList();
+    return value.whereType<String>().toList();
   }
 
-  Set<ModuleName> get enabledModules => {...left, ...center, ...right};
+  Set<String> get enabledModules => {...left, ...center, ...right};
 }
 
 class PanelConfig {

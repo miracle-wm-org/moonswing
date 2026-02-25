@@ -147,13 +147,13 @@ class _PanelMainState extends State<PanelMain>
     super.dispose();
   }
 
-  Widget _buildModule(ModuleName name) {
-    final module = Module.lookup(name.toConfigKey());
+  Widget _buildModule(String name) {
+    final module = Module.lookup(name);
     if (module == null) return const SizedBox.shrink();
     return Builder(builder: module.builder);
   }
 
-  Widget _buildSection(List<ModuleName> modules) {
+  Widget _buildSection(List<String> modules) {
     if (modules.isEmpty) return const SizedBox.shrink();
 
     final bool vertical = widget.anchor == 'left' || widget.anchor == 'right';
