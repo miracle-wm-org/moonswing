@@ -1,14 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/scopes.dart';
 import 'package:miracle/miracle.dart';
 
 final Color _focusedColor = const Color(0xFF4A90E2);
 
 class Workspaces extends StatefulWidget {
-  const Workspaces({super.key, required this.connection});
-
-  final MiracleConnection connection;
+  const Workspaces({super.key});
 
   @override
   WorkspacesState createState() => WorkspacesState();
@@ -16,22 +15,23 @@ class Workspaces extends StatefulWidget {
 
 class WorkspacesState extends State<Workspaces> {
   List<WorkspaceResult> _workspaces = <WorkspaceResult>[];
+  bool _initialized = false;
+  late MiracleConnection _connection;
 
   @override
-  void initState() {
-    super.initState();
-    widget.connection.subscribe([SubscriptionType.workspace]);
-    widget.connection.listen((Event event) {
-      if (event is EventWorkspace) {
-        widget.connection.getWorkspaces().then((workspaces) {
-          _updateWorkspaces(workspaces);
-        });
-      }
-    });
-
-    widget.connection.getWorkspaces().then((workspaces) {
-      _updateWorkspaces(workspaces);
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _connection = MiracleScope.of(context);
+      _connection.subscribe([SubscriptionType.workspace]);
+      _connection.listen((Event event) {
+        if (event is EventWorkspace) {
+          _connection.getWorkspaces().then(_updateWorkspaces);
+        }
+      });
+      _connection.getWorkspaces().then(_updateWorkspaces);
+    }
   }
 
   void _updateWorkspaces(List<WorkspaceResult> workspaces) {
@@ -55,7 +55,7 @@ class WorkspacesState extends State<Workspaces> {
                 final String command = workspace.num != null
                     ? 'workspace ${workspace.num}'
                     : 'workspace ${workspace.name}';
-                widget.connection.command(command);
+                _connection.command(command);
               },
               child: Text(
                 workspace.name ?? workspace.num?.toString() ?? '?',

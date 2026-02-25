@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/scopes.dart';
 
 class Clock extends StatefulWidget {
-  const Clock({super.key, required this.config});
-
-  final ClockConfig config;
+  const Clock({super.key});
 
   @override
   ClockState createState() => ClockState();
@@ -77,7 +75,7 @@ class ClockState extends State<Clock> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.config.showDate) ...[
+        if (ModulesScope.of(context).clock.showDate) ...[
           Text(_dateString,
               style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF))),
           const SizedBox(width: 8),

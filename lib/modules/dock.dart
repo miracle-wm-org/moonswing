@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/scopes.dart';
 
 // GIO FFI bindings
 
@@ -87,9 +88,7 @@ class _DockApp {
 // Dock widget
 
 class Dock extends StatefulWidget {
-  const Dock({super.key, required this.config});
-
-  final DockConfig config;
+  const Dock({super.key});
 
   @override
   DockState createState() => DockState();
@@ -97,16 +96,20 @@ class Dock extends StatefulWidget {
 
 class DockState extends State<Dock> {
   List<_DockApp> _apps = [];
+  bool _loaded = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadApps();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_loaded) {
+      _loaded = true;
+      _loadApps(ModulesScope.of(context).dock);
+    }
   }
 
-  void _loadApps() {
+  void _loadApps(DockConfig config) {
     final apps = <_DockApp>[];
-    for (final appId in widget.config.apps) {
+    for (final appId in config.apps) {
       final desktopId = _stringToNative('$appId.desktop');
       try {
         final appInfo = _gDesktopAppInfoNew(desktopId);
@@ -173,7 +176,7 @@ class DockState extends State<Dock> {
   Widget build(BuildContext context) {
     if (_apps.isEmpty) return const SizedBox.shrink();
 
-    final size = widget.config.iconSize;
+    final size = ModulesScope.of(context).dock.iconSize;
 
     return Row(
       mainAxisSize: MainAxisSize.min,

@@ -3,18 +3,13 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/scopes.dart';
 import 'package:http/http.dart' as http;
 
 enum TemperatureUnit { celsius, fahrenheit }
 
 class Weather extends StatefulWidget {
-  const Weather({super.key, required this.config});
-
-  final WeatherConfig config;
-
-  TemperatureUnit get unit => config.unit == 'celsius'
-      ? TemperatureUnit.celsius
-      : TemperatureUnit.fahrenheit;
+  const Weather({super.key});
 
   @override
   WeatherState createState() => WeatherState();
@@ -24,15 +19,23 @@ class WeatherState extends State<Weather> {
   String _weatherText = '';
   bool _loading = true;
   Timer? _refreshTimer;
+  late WeatherConfig _config;
+
+  TemperatureUnit get _unit => _config.unit == 'celsius'
+      ? TemperatureUnit.celsius
+      : TemperatureUnit.fahrenheit;
 
   @override
-  void initState() {
-    super.initState();
-    _fetchWeather();
-    _refreshTimer =
-        Timer.periodic(Duration(minutes: widget.config.refreshMinutes), (_) {
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_refreshTimer == null) {
+      _config = ModulesScope.of(context).weather;
       _fetchWeather();
-    });
+      _refreshTimer =
+          Timer.periodic(Duration(minutes: _config.refreshMinutes), (_) {
+        _fetchWeather();
+      });
+    }
   }
 
   @override
@@ -52,7 +55,7 @@ class WeatherState extends State<Weather> {
       final lon = geo['longitude'];
 
       // Fetch weather from Open-Meteo
-      final unitParam = widget.unit == TemperatureUnit.fahrenheit
+      final unitParam = _unit == TemperatureUnit.fahrenheit
           ? '&temperature_unit=fahrenheit'
           : '';
       final weatherResponse =
@@ -67,7 +70,7 @@ class WeatherState extends State<Weather> {
       final temp = current['temperature_2m'];
       final code = current['weather_code'] as int;
       final condition = _weatherCondition(code);
-      final unitLabel = widget.unit == TemperatureUnit.fahrenheit ? '°F' : '°C';
+      final unitLabel = _unit == TemperatureUnit.fahrenheit ? '°F' : '°C';
 
       if (!mounted) return;
       setState(() {

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/scopes.dart';
 
 const String _mprisPrefix = 'org.mpris.MediaPlayer2.';
 const String _playerInterface = 'org.mpris.MediaPlayer2.Player';
@@ -26,9 +26,7 @@ class _PlayerState {
 }
 
 class MediaPlayer extends StatefulWidget {
-  const MediaPlayer({super.key, required this.config});
-
-  final MediaPlayerConfig config;
+  const MediaPlayer({super.key});
 
   @override
   MediaPlayerState createState() => MediaPlayerState();
@@ -282,7 +280,7 @@ class MediaPlayerState extends State<MediaPlayer>
     }
 
     return SizedBox(
-      width: widget.config.maxTextWidth,
+      width: ModulesScope.of(context).mediaPlayer.maxTextWidth,
       height: 16,
       child: ClipRect(
         child: AnimatedBuilder(

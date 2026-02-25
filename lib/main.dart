@@ -9,6 +9,7 @@ import 'package:graceful_shell/modules/media_player.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/panel_background.dart';
+import 'package:graceful_shell/scopes.dart';
 import 'layer_shell.dart';
 import 'gtk.dart';
 import 'package:media_kit/media_kit.dart';
@@ -90,11 +91,13 @@ void main() async {
         for (final entry in appConfig.panels.entries)
           LayerShellWindow(
             controller: controllers[entry.key]!,
-            child: PanelMain(
-              panelConfig: entry.value,
-              modulesConfig: appConfig.modules,
+            child: MiracleScope(
               connection: connection,
-              anchor: entry.value.anchor,
+              child: PanelMain(
+                panelConfig: entry.value,
+                modulesConfig: appConfig.modules,
+                anchor: entry.value.anchor,
+              ),
             ),
           ),
         ...PopupManager.instance.popupViews,
@@ -108,12 +111,10 @@ class PanelMain extends StatefulWidget {
       {super.key,
       required this.panelConfig,
       required this.modulesConfig,
-      required this.connection,
       required this.anchor});
 
   final PanelConfig panelConfig;
   final ModulesConfig modulesConfig;
-  final MiracleConnection connection;
   final String anchor;
 
   @override
@@ -142,19 +143,19 @@ class _PanelMainState extends State<PanelMain>
   Widget _buildModule(ModuleName name) {
     switch (name) {
       case ModuleName.workspaces:
-        return Workspaces(connection: widget.connection);
+        return const Workspaces();
       case ModuleName.mediaPlayer:
-        return MediaPlayer(config: widget.modulesConfig.mediaPlayer);
+        return const MediaPlayer();
       case ModuleName.soundControl:
         return const SoundControl();
       case ModuleName.battery:
-        return Battery(config: widget.modulesConfig.battery);
+        return const Battery();
       case ModuleName.weather:
-        return Weather(config: widget.modulesConfig.weather);
+        return const Weather();
       case ModuleName.clock:
-        return Clock(config: widget.modulesConfig.clock);
+        return const Clock();
       case ModuleName.dock:
-        return Dock(config: widget.modulesConfig.dock);
+        return const Dock();
     }
   }
 
@@ -212,33 +213,39 @@ class _PanelMainState extends State<PanelMain>
     }
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
-    return DefaultTextStyle(
-      style: const TextStyle(
-        fontFamily: 'Ubuntu Sans',
-        fontSize: 12,
-        color: Color(0xFFE0E0E0),
-      ),
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: SizedBox.expand(
-          child: AnimatedBuilder(
-            animation: _bgAnimation,
-            builder: (context, child) {
-              return CustomPaint(
-                painter: PanelBackgroundPainter(
-                  anchor: widget.panelConfig.anchor,
-                  animationValue: _bgAnimation.value,
+    return BarScope(
+      anchor: widget.panelConfig.anchor,
+      child: ModulesScope(
+        config: widget.modulesConfig,
+        child: DefaultTextStyle(
+          style: const TextStyle(
+            fontFamily: 'Ubuntu Sans',
+            fontSize: 12,
+            color: Color(0xFFE0E0E0),
+          ),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox.expand(
+              child: AnimatedBuilder(
+                animation: _bgAnimation,
+                builder: (context, child) {
+                  return CustomPaint(
+                    painter: PanelBackgroundPainter(
+                      anchor: widget.panelConfig.anchor,
+                      animationValue: _bgAnimation.value,
+                    ),
+                    child: child,
+                  );
+                },
+                child: Padding(
+                  padding: vertical
+                      ? EdgeInsets.fromLTRB(0, pad, 0, pad)
+                      : EdgeInsets.fromLTRB(pad, 0, pad, 0),
+                  child: vertical
+                      ? Column(children: sections)
+                      : Row(children: sections),
                 ),
-                child: child,
-              );
-            },
-            child: Padding(
-              padding: vertical
-                  ? EdgeInsets.fromLTRB(0, pad, 0, pad)
-                  : EdgeInsets.fromLTRB(pad, 0, pad, 0),
-              child: vertical
-                  ? Column(children: sections)
-                  : Row(children: sections),
+              ),
             ),
           ),
         ),

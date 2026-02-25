@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/scopes.dart';
 import 'package:udev/udev.dart';
 
 class Battery extends StatefulWidget {
-  const Battery({super.key, required this.config});
-
-  final BatteryConfig config;
+  const Battery({super.key});
 
   @override
   BatteryState createState() => BatteryState();
@@ -21,13 +19,15 @@ class BatteryState extends State<Battery> {
   StreamSubscription<UdevDevice>? _udevSubscription;
 
   @override
-  void initState() {
-    super.initState();
-    _detectBatteries();
-    _refreshTimer =
-        Timer.periodic(Duration(seconds: widget.config.pollSeconds), (_) {
-      _readBattery();
-    });
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_refreshTimer == null) {
+      final pollSeconds = ModulesScope.of(context).battery.pollSeconds;
+      _detectBatteries();
+      _refreshTimer = Timer.periodic(Duration(seconds: pollSeconds), (_) {
+        _readBattery();
+      });
+    }
   }
 
   @override
