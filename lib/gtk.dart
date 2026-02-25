@@ -238,6 +238,35 @@ class GdkMonitor extends GObject {
       symbol: 'gdk_monitor_get_manufacturer')
   external static ffi.Pointer<ffi.Uint8> _gdkMonitorGetManufacturer(
       ffi.Pointer<ffi.NativeType> monitor);
+
+  /// Get the monitor geometry (position and size) in logical pixels.
+  Size getGeometry() {
+    final ptr = gMalloc0(16).cast<GdkRectangle>(); // 4 × int32
+    _gdkMonitorGetGeometry(instance, ptr);
+    final w = ptr.ref.width.toDouble();
+    final h = ptr.ref.height.toDouble();
+    gFree(ptr.cast());
+    return Size(w, h);
+  }
+
+  @ffi.Native<
+      ffi.Void Function(
+          ffi.Pointer<ffi.NativeType>, ffi.Pointer<GdkRectangle>)>(
+      symbol: 'gdk_monitor_get_geometry')
+  external static void _gdkMonitorGetGeometry(
+      ffi.Pointer<ffi.NativeType> monitor, ffi.Pointer<GdkRectangle> geometry);
+}
+
+/// A GdkRectangle: position and size in integer logical pixels.
+final class GdkRectangle extends ffi.Struct {
+  @ffi.Int()
+  external int x;
+  @ffi.Int()
+  external int y;
+  @ffi.Int()
+  external int width;
+  @ffi.Int()
+  external int height;
 }
 
 /// Wraps GdkGeometry

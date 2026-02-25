@@ -42,6 +42,9 @@ To try experimental windowing APIs:
 See: https://github.com/flutter/flutter/issues/30701.
 ''';
 
+/// Returns the primary monitor's size in logical pixels.
+Size getScreenSize() => GdkDisplay.getDefault().getMonitor(0).getGeometry();
+
 /// Monitor information returned by [listMonitors].
 class MonitorInfo {
   const MonitorInfo({
