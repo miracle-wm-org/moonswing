@@ -28,6 +28,8 @@ class SoundControlState extends State<SoundControl> {
 
   PopupWindowController? _popupController;
   PopupWindow? _popupView;
+  bool _hovered = false;
+  bool _popupHasBeenActive = false;
 
   @override
   void initState() {
@@ -153,10 +155,25 @@ class SoundControlState extends State<SoundControl> {
         onMuteToggled: () => client?.setSinkMute(sinkName, !_muted),
       ),
     );
+    _popupHasBeenActive = false;
+    _popupController!.addListener(_onPopupStateChanged);
     PopupManager.instance.add(_popupView!);
+    setState(() {});
+  }
+
+  void _onPopupStateChanged() {
+    final ctrl = _popupController;
+    if (ctrl == null) return;
+    if (ctrl.isActivated) {
+      _popupHasBeenActive = true;
+    } else if (_popupHasBeenActive) {
+      _popupHasBeenActive = false;
+      _closePopup();
+    }
   }
 
   void _closePopup() {
+    _popupController?.removeListener(_onPopupStateChanged);
     if (_popupView != null) {
       PopupManager.instance.remove(_popupView!);
       _popupView = null;
@@ -166,6 +183,7 @@ class SoundControlState extends State<SoundControl> {
     if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
       ctrl.destroy();
     }
+    if (mounted) setState(() {});
   }
 
   IconData _volumeIcon() {
@@ -179,22 +197,34 @@ class SoundControlState extends State<SoundControl> {
   Widget build(BuildContext context) {
     if (!_available) return const SizedBox.shrink();
 
-    return GestureDetector(
-      onTap: () => _togglePopup(context),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FaIcon(
-            _volumeIcon(),
-            size: 12,
-            color: const Color(0xFFE0E0E0),
+    final isActive = _hovered || _popupController != null;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTapDown: (_) => _togglePopup(context),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0x28FFFFFF) : null,
+            borderRadius: BorderRadius.circular(4),
           ),
-          const SizedBox(width: 4),
-          Text(
-            '${(_volume * 100).round()}%',
-            style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF)),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(
+                _volumeIcon(),
+                size: 12,
+                color: const Color(0xFFE0E0E0),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${(_volume * 100).round()}%',
+                style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF)),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
