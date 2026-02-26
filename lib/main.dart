@@ -7,6 +7,7 @@ import 'package:graceful_shell/modules/dock.dart';
 import 'package:graceful_shell/modules/sound_control.dart';
 import 'package:graceful_shell/modules/clock.dart';
 import 'package:graceful_shell/modules/media_player.dart';
+import 'package:graceful_shell/modules/system_monitor.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/panel_background.dart';
@@ -28,6 +29,7 @@ void main() async {
   Module.register(WeatherModule());
   Module.register(ClockModule());
   Module.register(DockModule());
+  Module.register(SystemMonitorModule());
 
   final appConfig = await AppConfig.load();
 
