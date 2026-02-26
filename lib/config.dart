@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 import 'package:toml/toml.dart';
 import 'package:graceful_shell/module.dart';
 
@@ -16,6 +17,62 @@ enum BackgroundFit {
       default:
         return BackgroundFit.fill;
     }
+  }
+}
+
+class ThemeConfig {
+  final Color foreground;
+  final Color accent;
+  final Color surfaceHover;
+  final Color surfacePressed;
+  final Color workspaceBackground;
+  final Color popupBackground;
+  final Color popupForeground;
+  final Color sliderTrack;
+  final Color muted;
+  final Color divider;
+
+  const ThemeConfig({
+    this.foreground = const Color(0xFFE0E0E0),
+    this.accent = const Color(0xFF4A90E2),
+    this.surfaceHover = const Color(0xFF4A4A4A),
+    this.surfacePressed = const Color(0xFF2A2A2A),
+    this.workspaceBackground = const Color(0xFF3A3A3A),
+    this.popupBackground = const Color(0xFF1E1E2E),
+    this.popupForeground = const Color(0xFFCDD6F4),
+    this.sliderTrack = const Color(0xFF45475A),
+    this.muted = const Color(0xFFE06C75),
+    this.divider = const Color(0x33FFFFFF),
+  });
+
+  static Color _parseColor(String? hex, Color fallback) {
+    if (hex == null) return fallback;
+    final s = hex.startsWith('#') ? hex.substring(1) : hex;
+    final value = int.tryParse(s.length == 6 ? 'FF$s' : s, radix: 16);
+    return value != null ? Color(value) : fallback;
+  }
+
+  factory ThemeConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const ThemeConfig();
+    return ThemeConfig(
+      foreground:
+          _parseColor(map['foreground'] as String?, const Color(0xFFE0E0E0)),
+      accent: _parseColor(map['accent'] as String?, const Color(0xFF4A90E2)),
+      surfaceHover:
+          _parseColor(map['surface_hover'] as String?, const Color(0xFF4A4A4A)),
+      surfacePressed: _parseColor(
+          map['surface_pressed'] as String?, const Color(0xFF2A2A2A)),
+      workspaceBackground: _parseColor(
+          map['workspace_background'] as String?, const Color(0xFF3A3A3A)),
+      popupBackground: _parseColor(
+          map['popup_background'] as String?, const Color(0xFF1E1E2E)),
+      popupForeground: _parseColor(
+          map['popup_foreground'] as String?, const Color(0xFFCDD6F4)),
+      sliderTrack:
+          _parseColor(map['slider_track'] as String?, const Color(0xFF45475A)),
+      muted: _parseColor(map['muted'] as String?, const Color(0xFFE06C75)),
+      divider: _parseColor(map['divider'] as String?, const Color(0x33FFFFFF)),
+    );
   }
 }
 
@@ -134,10 +191,12 @@ class PanelConfig {
 class AppConfig {
   final Map<String, PanelConfig> panels;
   final BackgroundConfig? background;
+  final ThemeConfig theme;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
+    this.theme = const ThemeConfig(),
   });
 
   static const _defaultConfig = '''
@@ -211,9 +270,12 @@ max_text_width = 200.0
     final background =
         backgroundMap != null ? BackgroundConfig.fromMap(backgroundMap) : null;
 
+    final themeMap = map['theme'] as Map<String, dynamic>?;
+
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
       background: background,
+      theme: ThemeConfig.fromMap(themeMap),
     );
   }
 }

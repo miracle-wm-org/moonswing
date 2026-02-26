@@ -100,11 +100,14 @@ void main() async {
         for (final entry in appConfig.panels.entries)
           LayerShellWindow(
             controller: controllers[entry.key]!,
-            child: MiracleScope(
-              connection: connection,
-              child: PanelMain(
-                panelConfig: entry.value,
-                anchor: entry.value.anchor,
+            child: ThemeScope(
+              theme: appConfig.theme,
+              child: MiracleScope(
+                connection: connection,
+                child: PanelMain(
+                  panelConfig: entry.value,
+                  anchor: entry.value.anchor,
+                ),
               ),
             ),
           ),
@@ -207,13 +210,14 @@ class _PanelMainState extends State<PanelMain>
     }
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
+    final theme = ThemeScope.of(context);
     return BarScope(
       anchor: widget.panelConfig.anchor,
       child: DefaultTextStyle(
-        style: const TextStyle(
+        style: TextStyle(
           fontFamily: 'Ubuntu Sans',
           fontSize: 12,
-          color: Color(0xFFE0E0E0),
+          color: theme.foreground,
         ),
         child: Directionality(
           textDirection: TextDirection.ltr,
@@ -257,7 +261,7 @@ class _PanelDivider extends StatelessWidget {
       child: Container(
         width: vertical ? null : 1,
         height: vertical ? 1 : null,
-        color: const Color(0x33FFFFFF),
+        color: ThemeScope.of(context).divider,
       ),
     );
   }

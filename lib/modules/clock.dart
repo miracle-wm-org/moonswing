@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/scopes.dart';
 
 class ClockConfig {
   final bool showDate;
@@ -87,16 +88,16 @@ class ClockState extends State<Clock> {
 
   @override
   Widget build(BuildContext context) {
+    final foreground = ThemeScope.of(context).foreground;
+    final style = TextStyle(fontSize: 16, color: foreground);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (widget.config.showDate) ...[
-          Text(_dateString,
-              style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF))),
+          Text(_dateString, style: style),
           const SizedBox(width: 8),
         ],
-        Text(_timeString,
-            style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF))),
+        Text(_timeString, style: style),
       ],
     );
   }

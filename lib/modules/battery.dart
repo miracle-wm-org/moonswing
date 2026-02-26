@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/scopes.dart';
 import 'package:udev/udev.dart';
 
 class BatteryConfig {
@@ -180,7 +181,7 @@ class BatteryState extends State<Battery> {
 
     return Text(
       _batteryText,
-      style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF)),
+      style: TextStyle(fontSize: 16, color: ThemeScope.of(context).foreground),
     );
   }
 }

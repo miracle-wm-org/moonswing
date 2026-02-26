@@ -131,6 +131,7 @@ class SoundControlState extends State<SoundControl> {
     final client = _client;
     final sinkName = _defaultSinkName;
     final isVertical = anchor == 'top' || anchor == 'bottom';
+    final theme = ThemeScope.of(context);
 
     _popupController = PopupWindowController(
       parent: parentController,
@@ -147,12 +148,15 @@ class SoundControlState extends State<SoundControl> {
 
     _popupView = PopupWindow(
       controller: _popupController!,
-      child: _SoundPopupContent(
-        volume: _volume,
-        muted: _muted,
-        vertical: isVertical,
-        onVolumeChanged: (v) => client?.setSinkVolume(sinkName, v),
-        onMuteToggled: () => client?.setSinkMute(sinkName, !_muted),
+      child: ThemeScope(
+        theme: theme,
+        child: _SoundPopupContent(
+          volume: _volume,
+          muted: _muted,
+          vertical: isVertical,
+          onVolumeChanged: (v) => client?.setSinkVolume(sinkName, v),
+          onMuteToggled: () => client?.setSinkMute(sinkName, !_muted),
+        ),
       ),
     );
     _popupHasBeenActive = false;
@@ -197,6 +201,7 @@ class SoundControlState extends State<SoundControl> {
   Widget build(BuildContext context) {
     if (!_available) return const SizedBox.shrink();
 
+    final theme = ThemeScope.of(context);
     final isActive = _hovered || _popupController != null;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -215,12 +220,12 @@ class SoundControlState extends State<SoundControl> {
               FaIcon(
                 _volumeIcon(),
                 size: 12,
-                color: const Color(0xFFE0E0E0),
+                color: theme.foreground,
               ),
               const SizedBox(width: 4),
               Text(
                 '${(_volume * 100).round()}%',
-                style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF)),
+                style: TextStyle(fontSize: 16, color: theme.foreground),
               ),
             ],
           ),
@@ -280,6 +285,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
     final muteButton = GestureDetector(
       onTap: () {
         final newMuted = !_muted;
@@ -289,7 +295,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
       child: FaIcon(
         _volumeIcon(),
         size: 14,
-        color: _muted ? const Color(0xFFE06C75) : const Color(0xFFCDD6F4),
+        color: _muted ? theme.muted : theme.popupForeground,
       ),
     );
 
@@ -335,9 +341,9 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
     return Directionality(
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
-        style: const TextStyle(color: Color(0xFFCDD6F4), fontSize: 13),
+        style: TextStyle(color: theme.popupForeground, fontSize: 13),
         child: Container(
-          color: const Color(0xFF1E1E2E),
+          color: theme.popupBackground,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: content,
         ),
@@ -361,6 +367,7 @@ class _VolumeSlider extends StatelessWidget {
   final ValueChanged<double> onChangeEnd;
   final Axis axis;
 
+
   double _valueFromPosition(BuildContext context, Offset globalPosition) {
     final box = context.findRenderObject() as RenderBox;
     final local = box.globalToLocal(globalPosition);
@@ -372,6 +379,18 @@ class _VolumeSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final painter = _SliderPainter(
+      value: value,
+      enabled: enabled,
+      axis: axis,
+      trackColor: theme.sliderTrack,
+      activeFillColor: theme.accent,
+      inactiveFillColor: theme.sliderTrack,
+      activeThumbColor: theme.popupForeground,
+      inactiveThumbColor: theme.sliderTrack,
+    );
+
     if (axis == Axis.vertical) {
       return GestureDetector(
         onVerticalDragUpdate: !enabled
@@ -387,7 +406,7 @@ class _VolumeSlider extends StatelessWidget {
               },
         child: CustomPaint(
           size: const Size(20, double.infinity),
-          painter: _SliderPainter(value: value, enabled: enabled, axis: axis),
+          painter: painter,
         ),
       );
     }
@@ -405,7 +424,7 @@ class _VolumeSlider extends StatelessWidget {
             },
       child: CustomPaint(
         size: const Size(double.infinity, 20),
-        painter: _SliderPainter(value: value, enabled: enabled, axis: axis),
+        painter: painter,
       ),
     );
   }
@@ -415,12 +434,22 @@ class _SliderPainter extends CustomPainter {
   const _SliderPainter({
     required this.value,
     required this.enabled,
+    required this.trackColor,
+    required this.activeFillColor,
+    required this.inactiveFillColor,
+    required this.activeThumbColor,
+    required this.inactiveThumbColor,
     this.axis = Axis.horizontal,
   });
 
   final double value;
   final bool enabled;
   final Axis axis;
+  final Color trackColor;
+  final Color activeFillColor;
+  final Color inactiveFillColor;
+  final Color activeThumbColor;
+  final Color inactiveThumbColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -433,7 +462,7 @@ class _SliderPainter extends CustomPainter {
         Offset(trackX, 0),
         Offset(trackX, size.height),
         Paint()
-          ..color = const Color(0xFF45475A)
+          ..color = trackColor
           ..strokeWidth = 3
           ..strokeCap = StrokeCap.round,
       );
@@ -444,8 +473,7 @@ class _SliderPainter extends CustomPainter {
           Offset(trackX, size.height),
           Offset(trackX, thumbY),
           Paint()
-            ..color =
-                enabled ? const Color(0xFF89B4FA) : const Color(0xFF585B70)
+            ..color = enabled ? activeFillColor : inactiveFillColor
             ..strokeWidth = 3
             ..strokeCap = StrokeCap.round,
         );
@@ -456,7 +484,7 @@ class _SliderPainter extends CustomPainter {
         Offset(trackX, thumbY),
         6,
         Paint()
-          ..color = enabled ? const Color(0xFFCDD6F4) : const Color(0xFF6C7086),
+          ..color = enabled ? activeThumbColor : inactiveThumbColor,
       );
       return;
     }
@@ -469,7 +497,7 @@ class _SliderPainter extends CustomPainter {
       Offset(0, trackY),
       Offset(size.width, trackY),
       Paint()
-        ..color = const Color(0xFF45475A)
+        ..color = trackColor
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round,
     );
@@ -480,7 +508,7 @@ class _SliderPainter extends CustomPainter {
         Offset(0, trackY),
         Offset(thumbX, trackY),
         Paint()
-          ..color = enabled ? const Color(0xFF89B4FA) : const Color(0xFF585B70)
+          ..color = enabled ? activeFillColor : inactiveFillColor
           ..strokeWidth = 3
           ..strokeCap = StrokeCap.round,
       );
@@ -490,14 +518,18 @@ class _SliderPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(thumbX, trackY),
       6,
-      Paint()
-        ..color = enabled ? const Color(0xFFCDD6F4) : const Color(0xFF6C7086),
+      Paint()..color = enabled ? activeThumbColor : inactiveThumbColor,
     );
   }
 
   @override
   bool shouldRepaint(_SliderPainter old) =>
-      old.value != value || old.enabled != enabled || old.axis != axis;
+      old.value != value ||
+      old.enabled != enabled ||
+      old.axis != axis ||
+      old.trackColor != trackColor ||
+      old.activeFillColor != activeFillColor ||
+      old.activeThumbColor != activeThumbColor;
 }
 
 class SoundControlModule extends Module {

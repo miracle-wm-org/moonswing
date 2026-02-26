@@ -175,6 +175,71 @@ Desktop files are looked up from standard XDG application directories. Apps with
 
 No configurable settings.
 
+## Theme
+
+The `[theme]` section controls the color palette used across all panels and modules. All fields are optional — omitting the section entirely uses the built-in defaults.
+
+Colors are specified as hex strings in `#RRGGBB` format (opaque) or `#AARRGGBB` format (with alpha, where `AA` is the alpha channel). For example, `"#33FFFFFF"` is white at ~20% opacity.
+
+```toml
+[theme]
+foreground          = "#E0E0E0"
+accent              = "#4A90E2"
+surface_hover       = "#4A4A4A"
+surface_pressed     = "#2A2A2A"
+workspace_background = "#3A3A3A"
+popup_background    = "#1E1E2E"
+popup_foreground    = "#CDD6F4"
+slider_track        = "#45475A"
+muted               = "#E06C75"
+divider             = "#33FFFFFF"
+```
+
+| Key                   | Default     | Description                                                     |
+|-----------------------|-------------|-----------------------------------------------------------------|
+| `foreground`          | `#E0E0E0`   | Primary text and icon color used across all modules             |
+| `accent`              | `#4A90E2`   | Focused workspace button background; volume slider fill color   |
+| `surface_hover`       | `#4A4A4A`   | Button background when hovered (dock, media player controls)    |
+| `surface_pressed`     | `#2A2A2A`   | Button background when pressed (dock, media player controls)    |
+| `workspace_background`| `#3A3A3A`   | Unfocused workspace button background                           |
+| `popup_background`    | `#1E1E2E`   | Sound control popup window background                           |
+| `popup_foreground`    | `#CDD6F4`   | Sound control popup text and active slider thumb color          |
+| `slider_track`        | `#45475A`   | Volume slider track (the unfilled portion)                      |
+| `muted`               | `#E06C75`   | Mute icon color when audio is muted                             |
+| `divider`             | `#33FFFFFF` | Separator lines between panel sections (supports alpha)         |
+
+### Example: Gruvbox Theme
+
+```toml
+[theme]
+foreground          = "#EBDBB2"
+accent              = "#458588"
+surface_hover       = "#504945"
+surface_pressed     = "#3C3836"
+workspace_background = "#3C3836"
+popup_background    = "#282828"
+popup_foreground    = "#EBDBB2"
+slider_track        = "#504945"
+muted               = "#CC241D"
+divider             = "#33EBDBB2"
+```
+
+### Example: Light Theme
+
+```toml
+[theme]
+foreground          = "#2E2E2E"
+accent              = "#0066CC"
+surface_hover       = "#E0E0E0"
+surface_pressed     = "#C8C8C8"
+workspace_background = "#D0D0D0"
+popup_background    = "#F5F5F5"
+popup_foreground    = "#2E2E2E"
+slider_track        = "#BBBBBB"
+muted               = "#CC3333"
+divider             = "#33000000"
+```
+
 ## Background
 
 The `[background]` section enables a full-screen wallpaper window displayed behind all other surfaces. It supports images and videos, with optional time-of-day scheduling and animated crossfade transitions between entries.
@@ -279,6 +344,18 @@ max_text_width = 200.0
 [modules.dock]
 apps = ["firefox", "org.gnome.Nautilus", "kitty"]
 icon_size = 24
+
+[theme]
+foreground          = "#E0E0E0"
+accent              = "#4A90E2"
+surface_hover       = "#4A4A4A"
+surface_pressed     = "#2A2A2A"
+workspace_background = "#3A3A3A"
+popup_background    = "#1E1E2E"
+popup_foreground    = "#CDD6F4"
+slider_track        = "#45475A"
+muted               = "#E06C75"
+divider             = "#33FFFFFF"
 
 [background]
 fit = "fill"

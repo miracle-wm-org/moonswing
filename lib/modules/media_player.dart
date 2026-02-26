@@ -3,6 +3,7 @@ import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/scopes.dart';
 
 class MediaPlayerConfig {
   final double maxTextWidth;
@@ -60,10 +61,10 @@ class MediaPlayerState extends State<MediaPlayer>
 
   late final AnimationController _scrollController;
 
-  static const TextStyle _textStyle = TextStyle(
+  // Used only for TextPainter width measurement — color has no effect on layout.
+  static const TextStyle _measureStyle = TextStyle(
     fontFamily: 'Ubuntu Sans',
     fontSize: 12,
-    color: Color(0xFFE0E0E0),
   );
 
   @override
@@ -253,7 +254,7 @@ class MediaPlayerState extends State<MediaPlayer>
 
     if (text.length > _marqueeThreshold) {
       final painter = TextPainter(
-        text: TextSpan(text: text, style: _textStyle),
+        text: TextSpan(text: text, style: _measureStyle),
         textDirection: TextDirection.ltr,
         maxLines: 1,
       )..layout();
@@ -287,11 +288,14 @@ class MediaPlayerState extends State<MediaPlayer>
   void _previous() => _callMethod('Previous');
   void _stop() => _callMethod('Stop');
 
-  Widget _buildTrackText() {
+  Widget _buildTrackText(BuildContext context) {
     if (_displayText.isEmpty) return const SizedBox.shrink();
 
+    final style = _measureStyle.copyWith(
+        color: ThemeScope.of(context).foreground);
+
     if (_displayText.length <= _marqueeThreshold) {
-      return Text(_displayText, style: _textStyle, maxLines: 1);
+      return Text(_displayText, style: style, maxLines: 1);
     }
 
     return SizedBox(
@@ -312,13 +316,13 @@ class MediaPlayerState extends State<MediaPlayer>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(_displayText,
-                  style: _textStyle,
+                  style: style,
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.visible),
               SizedBox(width: _marqueeGap),
               Text(_displayText,
-                  style: _textStyle,
+                  style: style,
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.visible),
@@ -363,7 +367,7 @@ class MediaPlayerState extends State<MediaPlayer>
                 icon: FontAwesomeIcons.forwardStep, onPressed: _next),
           ),
         const SizedBox(width: 6),
-        _buildTrackText(),
+        _buildTrackText(context),
       ],
     );
   }
@@ -388,11 +392,12 @@ class _PanelIconButtonState extends State<_PanelIconButton> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
     Color color;
     if (_pressed) {
-      color = const Color(0x11FFFFFF);
+      color = theme.surfacePressed;
     } else if (_hovered) {
-      color = const Color(0x22FFFFFF);
+      color = theme.surfaceHover;
     } else {
       color = const Color(0x00000000);
     }
@@ -426,7 +431,7 @@ class _PanelIconButtonState extends State<_PanelIconButton> {
               child: FaIcon(
                 widget.icon,
                 size: 12,
-                color: const Color(0xFFE0E0E0),
+                color: theme.foreground,
               ),
             ),
           ),

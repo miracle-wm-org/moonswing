@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/scopes.dart';
 
 class DockConfig {
   final List<String> apps;
@@ -166,17 +167,14 @@ class DockState extends State<Dock> {
     super.dispose();
   }
 
-  Widget _fallbackIcon(String name, int size) {
+  Widget _fallbackIcon(String name, int size, Color foreground) {
     return SizedBox(
       width: size.toDouble(),
       height: size.toDouble(),
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: TextStyle(
-            fontSize: size * 0.6,
-            color: const Color(0xFFE0E0E0),
-          ),
+          style: TextStyle(fontSize: size * 0.6, color: foreground),
         ),
       ),
     );
@@ -195,6 +193,7 @@ class DockState extends State<Dock> {
     if (_apps.isEmpty) return const SizedBox.shrink();
 
     final size = widget.config.iconSize;
+    final foreground = ThemeScope.of(context).foreground;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -207,13 +206,13 @@ class DockState extends State<Dock> {
             width: size.toDouble(),
             height: size.toDouble(),
             filterQuality: FilterQuality.medium,
-            errorBuilder: (_, __, ___) => _fallbackIcon(app.name, size),
+            errorBuilder: (_, __, ___) => _fallbackIcon(app.name, size, foreground),
           );
         } else {
           icon = XdgIcon(
             name: app.iconName,
             size: size,
-            iconNotFoundBuilder: () => _fallbackIcon(app.name, size),
+            iconNotFoundBuilder: () => _fallbackIcon(app.name, size, foreground),
           );
         }
         return _DockButton(
@@ -244,11 +243,12 @@ class _DockButtonState extends State<_DockButton> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
     Color color = const Color(0x00000000);
     if (_pressed) {
-      color = const Color(0xFF2A2A2A);
+      color = theme.surfacePressed;
     } else if (_hovered) {
-      color = const Color(0xFF4A4A4A);
+      color = theme.surfaceHover;
     }
 
     return MouseRegion(

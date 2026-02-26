@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/scopes.dart';
 import 'package:http/http.dart' as http;
 
 class WeatherConfig {
@@ -161,7 +162,7 @@ class WeatherState extends State<Weather> {
 
     return Text(
       _weatherText,
-      style: const TextStyle(fontSize: 16, color: Color(0xFFFFFFFF)),
+      style: TextStyle(fontSize: 16, color: ThemeScope.of(context).foreground),
     );
   }
 }
@@ -202,9 +203,10 @@ class _SpinnerState extends State<_Spinner>
           child: child,
         );
       },
-      child: const Text(
+      child: Text(
         '◐',
-        style: TextStyle(fontSize: 14, color: Color(0xFFFFFFFF)),
+        style: TextStyle(
+            fontSize: 14, color: ThemeScope.of(context).foreground),
       ),
     );
   }

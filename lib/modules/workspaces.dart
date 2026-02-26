@@ -1,11 +1,7 @@
-import 'dart:ui';
-
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:miracle/miracle.dart';
-
-final Color _focusedColor = const Color(0xFF4A90E2);
 
 class Workspaces extends StatefulWidget {
   const Workspaces({super.key});
@@ -43,6 +39,7 @@ class WorkspacesState extends State<Workspaces> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
     return Padding(
         padding: const EdgeInsets.all(4.0),
         child: Row(
@@ -50,8 +47,11 @@ class WorkspacesState extends State<Workspaces> {
           children: _workspaces.map((workspace) {
             return _WorkspaceButton(
               key: ValueKey(workspace.num ?? workspace.name),
-              backgroundColor:
-                  workspace.focused ? _focusedColor : const Color(0xFF3A3A3A),
+              backgroundColor: workspace.focused
+                  ? theme.accent
+                  : theme.workspaceBackground,
+              hoverColor: theme.surfaceHover,
+              pressedColor: theme.surfacePressed,
               onPressed: () {
                 final String command = workspace.num != null
                     ? 'workspace ${workspace.num}'
@@ -60,7 +60,7 @@ class WorkspacesState extends State<Workspaces> {
               },
               child: Text(
                 workspace.name ?? workspace.num?.toString() ?? '?',
-                style: const TextStyle(color: Color(0xFFFFFFFF)),
+                style: TextStyle(color: theme.foreground),
               ),
             );
           }).toList(),
