@@ -422,8 +422,15 @@ class PopupGtkWindowController extends PopupWindowController {
           : 200,
     );
     final childOffset = _childAnchorOffset(size, positioner.childAnchor);
-    final x = (anchorPoint.dx - childOffset.dx + positioner.offset.dx).toInt();
-    final y = (anchorPoint.dy - childOffset.dy + positioner.offset.dy).toInt();
+    final rawX = (anchorPoint.dx - childOffset.dx + positioner.offset.dx).toInt();
+    final rawY = (anchorPoint.dy - childOffset.dy + positioner.offset.dy).toInt();
+
+    // Clamp position so the popup stays fully on screen.
+    final screenSize = getScreenSize();
+    final maxX = ((screenSize.width - size.width).toInt()).clamp(0, screenSize.width.toInt());
+    final maxY = ((screenSize.height - size.height).toInt()).clamp(0, screenSize.height.toInt());
+    final x = rawX.clamp(0, maxX);
+    final y = rawY.clamp(0, maxY);
 
     // Use layer shell on the overlay layer so the compositor treats this as a
     // proper layer surface rather than a floating xdg_toplevel.  Anchoring to
