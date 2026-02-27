@@ -7,9 +7,11 @@ import 'package:graceful_shell/modules/dock.dart';
 import 'package:graceful_shell/modules/sound_control.dart';
 import 'package:graceful_shell/modules/clock.dart';
 import 'package:graceful_shell/modules/media_player.dart';
+import 'package:graceful_shell/modules/notifications.dart';
 import 'package:graceful_shell/modules/system_monitor.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
+import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'layer_shell.dart';
@@ -30,8 +32,11 @@ void main() async {
   Module.register(ClockModule());
   Module.register(DockModule());
   Module.register(SystemMonitorModule());
+  Module.register(NotificationsModule());
 
   final appConfig = await AppConfig.load();
+
+  await startNotificationService();
 
   MiracleConnection connection = MiracleConnection();
   await connection.connect();
