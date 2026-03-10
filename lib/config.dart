@@ -229,7 +229,7 @@ max_text_width = 200.0
   static Future<AppConfig> load() async {
     final configHome = Platform.environment['XDG_CONFIG_HOME'] ??
         '${Platform.environment['HOME']}/.config';
-    final configPath = '$configHome/graceful-panel/config.toml';
+    final configPath = '$configHome/graceful-shell/config.toml';
     final file = File(configPath);
 
     if (!await file.exists()) {
