@@ -8,6 +8,7 @@ import 'package:graceful_shell/modules/sound_control.dart';
 import 'package:graceful_shell/modules/clock.dart';
 import 'package:graceful_shell/modules/media_player.dart';
 import 'package:graceful_shell/modules/notifications.dart';
+import 'package:graceful_shell/modules/system.dart';
 import 'package:graceful_shell/modules/system_monitor.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
@@ -33,6 +34,7 @@ void main() async {
   Module.register(DockModule());
   Module.register(SystemMonitorModule());
   Module.register(NotificationsModule());
+  Module.register(SystemModule());
 
   final appConfig = await AppConfig.load();
 

@@ -25,6 +25,7 @@ dependencies:
   media_kit: ^1.1.11
   media_kit_video: ^1.2.5
   media_kit_libs_linux: ^1.0.4
+  ubuntu_session: ^0.0.4
 
 dev_dependencies:
   flutter_test:

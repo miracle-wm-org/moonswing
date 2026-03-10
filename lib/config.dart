@@ -137,6 +137,7 @@ class LayoutConfig {
       "battery",
       "weather",
       "clock",
+      "system",
     ],
   });
 
@@ -209,7 +210,7 @@ layer = "top"
 [panels.top.layout]
 left = ["workspaces"]
 center = ["media_player"]
-right = ["sound_control", "battery", "weather", "clock"]
+right = ["sound_control", "battery", "weather", "clock", "system"]
 
 [modules.weather]
 unit = "fahrenheit"
