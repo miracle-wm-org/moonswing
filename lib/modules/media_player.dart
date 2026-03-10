@@ -58,14 +58,18 @@ class MediaPlayerState extends State<MediaPlayer>
   _PlayerState? _activePlayer;
   String _displayText = '';
   double _textWidth = 0;
+  String _fontFamily = 'Ubuntu Sans';
 
   late final AnimationController _scrollController;
 
   // Used only for TextPainter width measurement — color has no effect on layout.
-  static const TextStyle _measureStyle = TextStyle(
-    fontFamily: 'Ubuntu Sans',
-    fontSize: 12,
-  );
+  TextStyle get _measureStyle => TextStyle(fontFamily: _fontFamily, fontSize: 12);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fontFamily = ThemeScope.of(context).fontFamily;
+  }
 
   @override
   void initState() {

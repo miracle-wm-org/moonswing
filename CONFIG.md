@@ -183,30 +183,32 @@ Colors are specified as hex strings in `#RRGGBB` format (opaque) or `#AARRGGBB` 
 
 ```toml
 [theme]
-foreground          = "#E0E0E0"
-accent              = "#4A90E2"
-surface_hover       = "#4A4A4A"
-surface_pressed     = "#2A2A2A"
+font                 = "Ubuntu Sans"
+foreground           = "#E0E0E0"
+accent               = "#4A90E2"
+surface_hover        = "#4A4A4A"
+surface_pressed      = "#2A2A2A"
 workspace_background = "#3A3A3A"
-popup_background    = "#1E1E2E"
-popup_foreground    = "#CDD6F4"
-slider_track        = "#45475A"
-muted               = "#E06C75"
-divider             = "#33FFFFFF"
+popup_background     = "#1E1E2E"
+popup_foreground     = "#CDD6F4"
+slider_track         = "#45475A"
+muted                = "#E06C75"
+divider              = "#33FFFFFF"
 ```
 
-| Key                    | Default     | Description                                                   |
-| ---------------------- | ----------- | ------------------------------------------------------------- |
-| `foreground`           | `#E0E0E0`   | Primary text and icon color used across all modules           |
-| `accent`               | `#4A90E2`   | Focused workspace button background; volume slider fill color |
-| `surface_hover`        | `#4A4A4A`   | Button background when hovered (dock, media player controls)  |
-| `surface_pressed`      | `#2A2A2A`   | Button background when pressed (dock, media player controls)  |
-| `workspace_background` | `#3A3A3A`   | Unfocused workspace button background                         |
-| `popup_background`     | `#1E1E2E`   | Sound control popup window background                         |
-| `popup_foreground`     | `#CDD6F4`   | Sound control popup text and active slider thumb color        |
-| `slider_track`         | `#45475A`   | Volume slider track (the unfilled portion)                    |
-| `muted`                | `#E06C75`   | Mute icon color when audio is muted                           |
-| `divider`              | `#33FFFFFF` | Separator lines between panel sections (supports alpha)       |
+| Key                    | Default       | Description                                                   |
+| ---------------------- | ------------- | ------------------------------------------------------------- |
+| `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups        |
+| `foreground`           | `#E0E0E0`     | Primary text and icon color used across all modules           |
+| `accent`               | `#4A90E2`     | Focused workspace button background; volume slider fill color |
+| `surface_hover`        | `#4A4A4A`     | Button background when hovered (dock, media player controls)  |
+| `surface_pressed`      | `#2A2A2A`     | Button background when pressed (dock, media player controls)  |
+| `workspace_background` | `#3A3A3A`     | Unfocused workspace button background                         |
+| `popup_background`     | `#1E1E2E`     | Sound control popup window background                         |
+| `popup_foreground`     | `#CDD6F4`     | Sound control popup text and active slider thumb color        |
+| `slider_track`         | `#45475A`     | Volume slider track (the unfilled portion)                    |
+| `muted`                | `#E06C75`     | Mute icon color when audio is muted                           |
+| `divider`              | `#33FFFFFF`   | Separator lines between panel sections (supports alpha)       |
 
 ### Example: Gruvbox Theme
 

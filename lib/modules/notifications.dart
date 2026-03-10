@@ -268,7 +268,7 @@ class _NotificationPanelState extends State<_NotificationPanel>
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: TextStyle(
-          fontFamily: 'Ubuntu Sans',
+          fontFamily: theme.fontFamily,
           fontSize: 13,
           color: theme.popupForeground,
         ),

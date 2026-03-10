@@ -31,6 +31,7 @@ class ThemeConfig {
   final Color sliderTrack;
   final Color muted;
   final Color divider;
+  final String fontFamily;
 
   const ThemeConfig({
     this.foreground = const Color(0xFFE0E0E0),
@@ -43,6 +44,7 @@ class ThemeConfig {
     this.sliderTrack = const Color(0xFF45475A),
     this.muted = const Color(0xFFE06C75),
     this.divider = const Color(0x33FFFFFF),
+    this.fontFamily = 'Ubuntu Sans',
   });
 
   static Color _parseColor(String? hex, Color fallback) {
@@ -72,6 +74,7 @@ class ThemeConfig {
           _parseColor(map['slider_track'] as String?, const Color(0xFF45475A)),
       muted: _parseColor(map['muted'] as String?, const Color(0xFFE06C75)),
       divider: _parseColor(map['divider'] as String?, const Color(0x33FFFFFF)),
+      fontFamily: map['font'] as String? ?? 'Ubuntu Sans',
     );
   }
 }

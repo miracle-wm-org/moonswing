@@ -230,7 +230,7 @@ class _PanelMainState extends State<PanelMain>
       anchor: widget.panelConfig.anchor,
       child: DefaultTextStyle(
         style: TextStyle(
-          fontFamily: 'Ubuntu Sans',
+          fontFamily: theme.fontFamily,
           fontSize: 12,
           color: theme.foreground,
         ),
