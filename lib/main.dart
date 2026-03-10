@@ -52,74 +52,80 @@ void main() async {
   final windowingOwner = ExtendedWindowingOwnerLinux();
   WidgetsBinding.instance.windowingOwner = windowingOwner;
 
-  LayershellWindowController? backgroundController;
+  final backgroundControllers = <LayershellWindowController>[];
   if (appConfig.background != null &&
-      appConfig.background!.entries.isNotEmpty &&
-      monitors.isNotEmpty) {
-    backgroundController = LayershellWindowController(
-      owner: windowingOwner,
-      delegate: LayershellWindowControllerDelegate(),
-      layer: GtkLayerShellLayer.background,
-      anchorEdges: [
-        GtkLayerShellEdge.top,
-        GtkLayerShellEdge.bottom,
-        GtkLayerShellEdge.left,
-        GtkLayerShellEdge.right,
-      ],
-      keyboardMode: GtkLayerShellKeyboardMode.none,
-      monitor: monitors.first.gdkMonitor,
-    );
+      appConfig.background!.entries.isNotEmpty) {
+    for (final monitor in monitors) {
+      backgroundControllers.add(LayershellWindowController(
+        owner: windowingOwner,
+        delegate: LayershellWindowControllerDelegate(),
+        layer: GtkLayerShellLayer.background,
+        anchorEdges: [
+          GtkLayerShellEdge.top,
+          GtkLayerShellEdge.bottom,
+          GtkLayerShellEdge.left,
+          GtkLayerShellEdge.right,
+        ],
+        keyboardMode: GtkLayerShellKeyboardMode.none,
+        monitor: monitor.gdkMonitor,
+      ));
+    }
   }
 
-  final controllers = <String, LayershellWindowController>{};
-  for (final entry in appConfig.panels.entries) {
-    final panelConfig = entry.value;
-    final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
-    final layer = layerFromString(panelConfig.layer);
+  final monitorControllers = <Map<String, LayershellWindowController>>[];
+  for (final monitor in monitors) {
+    final controllers = <String, LayershellWindowController>{};
+    for (final entry in appConfig.panels.entries) {
+      final panelConfig = entry.value;
+      final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
+      final layer = layerFromString(panelConfig.layer);
 
-    int? width;
-    int? height;
-    if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
-      width = panelConfig.height;
-    } else {
-      height = panelConfig.height;
+      int? width;
+      int? height;
+      if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
+        width = panelConfig.height;
+      } else {
+        height = panelConfig.height;
+      }
+
+      controllers[entry.key] = LayershellWindowController(
+        owner: windowingOwner,
+        delegate: LayershellWindowControllerDelegate(),
+        width: width,
+        height: height,
+        layer: layer,
+        anchorEdges: anchorEdges,
+        exclusiveZone: panelConfig.height,
+        monitor: monitor.gdkMonitor,
+      );
     }
-
-    controllers[entry.key] = LayershellWindowController(
-      owner: windowingOwner,
-      delegate: LayershellWindowControllerDelegate(),
-      width: width,
-      height: height,
-      layer: layer,
-      anchorEdges: anchorEdges,
-      exclusiveZone: panelConfig.height,
-      monitor: monitors.first.gdkMonitor,
-    );
+    monitorControllers.add(controllers);
   }
 
   runWidget(ListenableBuilder(
     listenable: PopupManager.instance,
     builder: (context, _) => ViewCollection(
       views: [
-        if (backgroundController != null)
+        for (final ctrl in backgroundControllers)
           LayerShellWindow(
-            controller: backgroundController,
+            controller: ctrl,
             child: BackgroundWindow(config: appConfig.background!),
           ),
-        for (final entry in appConfig.panels.entries)
-          LayerShellWindow(
-            controller: controllers[entry.key]!,
-            child: ThemeScope(
-              theme: appConfig.theme,
-              child: MiracleScope(
-                connection: connection,
-                child: PanelMain(
-                  panelConfig: entry.value,
-                  anchor: entry.value.anchor,
+        for (final controllers in monitorControllers)
+          for (final entry in appConfig.panels.entries)
+            LayerShellWindow(
+              controller: controllers[entry.key]!,
+              child: ThemeScope(
+                theme: appConfig.theme,
+                child: MiracleScope(
+                  connection: connection,
+                  child: PanelMain(
+                    panelConfig: entry.value,
+                    anchor: entry.value.anchor,
+                  ),
                 ),
               ),
             ),
-          ),
         ...PopupManager.instance.popupViews,
       ],
     ),

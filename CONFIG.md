@@ -3,10 +3,10 @@
 Graceful Panel is configured via a TOML file located at:
 
 ```
-~/.config/graceful-panel/config.toml
+~/.config/graceful-shell/config.toml
 ```
 
-If `$XDG_CONFIG_HOME` is set, the config file is read from `$XDG_CONFIG_HOME/graceful-panel/config.toml` instead.
+If `$XDG_CONFIG_HOME` is set, the config file is read from `$XDG_CONFIG_HOME/graceful-shell/config.toml` instead.
 
 The panel works out of the box with no configuration file. All settings have sensible defaults that match the standard layout. You only need to create a config file to customize behavior.
 
@@ -61,12 +61,12 @@ right  = ["weather"]
 
 ### Panel Settings
 
-| Key                  | Type   | Default | Description                                       |
-|----------------------|--------|---------|---------------------------------------------------|
+| Key                  | Type   | Default | Description                                                             |
+| -------------------- | ------ | ------- | ----------------------------------------------------------------------- |
 | `height`             | int    | `32`    | Panel thickness in pixels (height for top/bottom, width for left/right) |
-| `padding_horizontal` | int    | `40`    | Left and right padding in pixels                  |
-| `anchor`             | string | `"top"` | Screen edge: `"top"`, `"bottom"`, `"left"`, or `"right"` |
-| `layer`              | string | `"top"` | Layer shell layer: `"background"`, `"bottom"`, `"top"`, or `"overlay"` |
+| `padding_horizontal` | int    | `40`    | Left and right padding in pixels                                        |
+| `anchor`             | string | `"top"` | Screen edge: `"top"`, `"bottom"`, `"left"`, or `"right"`                |
+| `layer`              | string | `"top"` | Layer shell layer: `"background"`, `"bottom"`, `"top"`, or `"overlay"`  |
 
 The `anchor` value determines which edges the panel is attached to:
 
@@ -112,9 +112,9 @@ unit = "fahrenheit"
 refresh_minutes = 10
 ```
 
-| Key               | Type   | Default        | Description                          |
-|-------------------|--------|----------------|--------------------------------------|
-| `unit`            | string | `"fahrenheit"` | `"celsius"` or `"fahrenheit"`        |
+| Key               | Type   | Default        | Description                             |
+| ----------------- | ------ | -------------- | --------------------------------------- |
+| `unit`            | string | `"fahrenheit"` | `"celsius"` or `"fahrenheit"`           |
 | `refresh_minutes` | int    | `10`           | How often to re-fetch weather (minutes) |
 
 ### Battery
@@ -124,8 +124,8 @@ refresh_minutes = 10
 poll_seconds = 30
 ```
 
-| Key            | Type | Default | Description                              |
-|----------------|------|---------|------------------------------------------|
+| Key            | Type | Default | Description                                   |
+| -------------- | ---- | ------- | --------------------------------------------- |
 | `poll_seconds` | int  | `30`    | Polling interval for battery status (seconds) |
 
 ### Clock
@@ -135,8 +135,8 @@ poll_seconds = 30
 show_date = true
 ```
 
-| Key         | Type | Default | Description                        |
-|-------------|------|---------|------------------------------------|
+| Key         | Type | Default | Description                             |
+| ----------- | ---- | ------- | --------------------------------------- |
 | `show_date` | bool | `true`  | Whether to show the date alongside time |
 
 ### Media Player
@@ -146,8 +146,8 @@ show_date = true
 max_text_width = 200.0
 ```
 
-| Key              | Type  | Default | Description                                 |
-|------------------|-------|---------|---------------------------------------------|
+| Key              | Type  | Default | Description                                  |
+| ---------------- | ----- | ------- | -------------------------------------------- |
 | `max_text_width` | float | `200.0` | Width in pixels before text starts scrolling |
 
 ### Workspaces
@@ -162,9 +162,9 @@ apps = ["firefox", "org.gnome.Nautilus", "kitty", "code"]
 icon_size = 24
 ```
 
-| Key         | Type         | Default | Description                                         |
-|-------------|--------------|---------|-----------------------------------------------------|
-| `apps`      | string array | `[]`    | Desktop entry IDs of apps to show in the dock       |
+| Key         | Type         | Default | Description                                          |
+| ----------- | ------------ | ------- | ---------------------------------------------------- |
+| `apps`      | string array | `[]`    | Desktop entry IDs of apps to show in the dock        |
 | `icon_size` | int          | `24`    | Icon size in pixels (should fit within panel height) |
 
 Each entry in `apps` is a desktop file ID (the filename without `.desktop`). For example, `"firefox"` corresponds to `firefox.desktop`, and `"org.gnome.Nautilus"` corresponds to `org.gnome.Nautilus.desktop`.
@@ -195,18 +195,18 @@ muted               = "#E06C75"
 divider             = "#33FFFFFF"
 ```
 
-| Key                   | Default     | Description                                                     |
-|-----------------------|-------------|-----------------------------------------------------------------|
-| `foreground`          | `#E0E0E0`   | Primary text and icon color used across all modules             |
-| `accent`              | `#4A90E2`   | Focused workspace button background; volume slider fill color   |
-| `surface_hover`       | `#4A4A4A`   | Button background when hovered (dock, media player controls)    |
-| `surface_pressed`     | `#2A2A2A`   | Button background when pressed (dock, media player controls)    |
-| `workspace_background`| `#3A3A3A`   | Unfocused workspace button background                           |
-| `popup_background`    | `#1E1E2E`   | Sound control popup window background                           |
-| `popup_foreground`    | `#CDD6F4`   | Sound control popup text and active slider thumb color          |
-| `slider_track`        | `#45475A`   | Volume slider track (the unfilled portion)                      |
-| `muted`               | `#E06C75`   | Mute icon color when audio is muted                             |
-| `divider`             | `#33FFFFFF` | Separator lines between panel sections (supports alpha)         |
+| Key                    | Default     | Description                                                   |
+| ---------------------- | ----------- | ------------------------------------------------------------- |
+| `foreground`           | `#E0E0E0`   | Primary text and icon color used across all modules           |
+| `accent`               | `#4A90E2`   | Focused workspace button background; volume slider fill color |
+| `surface_hover`        | `#4A4A4A`   | Button background when hovered (dock, media player controls)  |
+| `surface_pressed`      | `#2A2A2A`   | Button background when pressed (dock, media player controls)  |
+| `workspace_background` | `#3A3A3A`   | Unfocused workspace button background                         |
+| `popup_background`     | `#1E1E2E`   | Sound control popup window background                         |
+| `popup_foreground`     | `#CDD6F4`   | Sound control popup text and active slider thumb color        |
+| `slider_track`         | `#45475A`   | Volume slider track (the unfilled portion)                    |
+| `muted`                | `#E06C75`   | Mute icon color when audio is muted                           |
+| `divider`              | `#33FFFFFF` | Separator lines between panel sections (supports alpha)       |
 
 ### Example: Gruvbox Theme
 
@@ -261,26 +261,26 @@ time = "20:00"
 
 ### Background Settings
 
-| Key   | Type   | Default  | Description                                      |
-|-------|--------|----------|--------------------------------------------------|
-| `fit` | string | `"fill"` | How the image/video is sized within the screen   |
+| Key   | Type   | Default  | Description                                    |
+| ----- | ------ | -------- | ---------------------------------------------- |
+| `fit` | string | `"fill"` | How the image/video is sized within the screen |
 
 **`fit` values:**
 
-| Value       | Description                                              |
-|-------------|----------------------------------------------------------|
-| `"fill"`    | Scale to fill the screen, cropping if needed (cover)     |
-| `"contain"` | Scale to fit within the screen, letterboxing if needed   |
-| `"natural"` | Display at original resolution, no scaling               |
+| Value       | Description                                            |
+| ----------- | ------------------------------------------------------ |
+| `"fill"`    | Scale to fill the screen, cropping if needed (cover)   |
+| `"contain"` | Scale to fit within the screen, letterboxing if needed |
+| `"natural"` | Display at original resolution, no scaling             |
 
 ### Background Entries
 
 Each `[[background.entries]]` block defines a piece of media and the time of day it becomes active.
 
-| Key    | Type   | Description                                               |
-|--------|--------|-----------------------------------------------------------|
-| `path` | string | Absolute path to an image or video file                   |
-| `time` | string | 24-hour time (`"HH:MM"`) when this entry becomes active   |
+| Key    | Type   | Description                                             |
+| ------ | ------ | ------------------------------------------------------- |
+| `path` | string | Absolute path to an image or video file                 |
+| `time` | string | 24-hour time (`"HH:MM"`) when this entry becomes active |
 
 Entries are selected by finding the latest entry whose `time` is at or before the current time. If the current time is before all entries' times (e.g., a 3am check with the earliest entry at 6am), the last entry from the previous day wraps around.
 
