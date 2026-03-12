@@ -421,7 +421,8 @@ class SystemMonitorState extends State<SystemMonitor> {
     final theme = ThemeScope.of(context);
     final isVertical = anchor == 'left' || anchor == 'right';
 
-    _popupController = PopupWindowController(
+    PopupWindowController? thisController;
+    _popupController = thisController = PopupWindowController(
       parent: parentController,
       anchorRect: anchorRect,
       positioner: WindowPositioner(
@@ -431,7 +432,9 @@ class SystemMonitorState extends State<SystemMonitor> {
       preferredConstraints: isVertical
           ? const BoxConstraints.tightFor(width: 440, height: 420)
           : const BoxConstraints.tightFor(width: 420, height: 440),
-      delegate: _SystemMonitorPopupDelegate(onDestroyed: _closePopup),
+      delegate: _SystemMonitorPopupDelegate(onDestroyed: () {
+        if (_popupController == thisController) _closePopup();
+      }),
     );
 
     _popupView = PopupWindow(
@@ -474,7 +477,9 @@ class SystemMonitorState extends State<SystemMonitor> {
     final ctrl = _popupController;
     _popupController = null;
     if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
-      ctrl.destroy();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!ctrl.isDestroyed) ctrl.destroy();
+      });
     }
     if (mounted) setState(() {});
   }

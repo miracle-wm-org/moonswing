@@ -133,7 +133,8 @@ class SoundControlState extends State<SoundControl> {
     final isVertical = anchor == 'top' || anchor == 'bottom';
     final theme = ThemeScope.of(context);
 
-    _popupController = PopupWindowController(
+    PopupWindowController? thisController;
+    _popupController = thisController = PopupWindowController(
       parent: parentController,
       anchorRect: anchorRect,
       positioner: WindowPositioner(
@@ -143,7 +144,9 @@ class SoundControlState extends State<SoundControl> {
       preferredConstraints: isVertical
           ? const BoxConstraints.tightFor(width: 80, height: 200)
           : const BoxConstraints.tightFor(width: 240, height: 50),
-      delegate: _SoundPopupDelegate(onDestroyed: _closePopup),
+      delegate: _SoundPopupDelegate(onDestroyed: () {
+        if (_popupController == thisController) _closePopup();
+      }),
     );
 
     _popupView = PopupWindow(
@@ -185,7 +188,9 @@ class SoundControlState extends State<SoundControl> {
     final ctrl = _popupController;
     _popupController = null;
     if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
-      ctrl.destroy();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!ctrl.isDestroyed) ctrl.destroy();
+      });
     }
     if (mounted) setState(() {});
   }

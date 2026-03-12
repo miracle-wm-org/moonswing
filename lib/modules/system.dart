@@ -77,7 +77,8 @@ class SystemState extends State<System> {
 
     final theme = ThemeScope.of(context);
 
-    _popupController = PopupWindowController(
+    PopupWindowController? thisController;
+    _popupController = thisController = PopupWindowController(
       parent: parentController,
       anchorRect: anchorRect,
       positioner: WindowPositioner(
@@ -85,7 +86,9 @@ class SystemState extends State<System> {
         childAnchor: childAnchor,
       ),
       preferredConstraints: const BoxConstraints.tightFor(width: 200, height: 154),
-      delegate: _SystemPopupDelegate(onDestroyed: _closePopup),
+      delegate: _SystemPopupDelegate(onDestroyed: () {
+        if (_popupController == thisController) _closePopup();
+      }),
     );
 
     _popupView = PopupWindow(
@@ -121,7 +124,9 @@ class SystemState extends State<System> {
     final ctrl = _popupController;
     _popupController = null;
     if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
-      ctrl.destroy();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!ctrl.isDestroyed) ctrl.destroy();
+      });
     }
     if (mounted) setState(() {});
   }
