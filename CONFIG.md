@@ -92,6 +92,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"media_player"` - MPRIS media player controls
 - `"sound_control"` - PulseAudio volume display
 - `"battery"` - Battery status monitor
+- `"network"` - Network connectivity (ethernet or WiFi name and IP address)
 - `"weather"` - Weather display
 - `"clock"` - Date and time
 - `"dock"` - Application launcher dock
@@ -170,6 +171,17 @@ icon_size = 24
 Each entry in `apps` is a desktop file ID (the filename without `.desktop`). For example, `"firefox"` corresponds to `firefox.desktop`, and `"org.gnome.Nautilus"` corresponds to `org.gnome.Nautilus.desktop`.
 
 Desktop files are looked up from standard XDG application directories. Apps with missing desktop files are silently skipped.
+
+### Network
+
+```toml
+[modules.network]
+poll_seconds = 10
+```
+
+| Key            | Type | Default | Description                                         |
+| -------------- | ---- | ------- | --------------------------------------------------- |
+| `poll_seconds` | int  | `10`    | How often to re-check network status (seconds)      |
 
 ### Sound Control
 
@@ -317,7 +329,7 @@ layer = "top"
 [panels.top.layout]
 left   = ["workspaces", "dock"]
 center = ["media_player"]
-right  = ["sound_control", "battery", "weather", "clock"]
+right  = ["sound_control", "battery", "network", "weather", "clock"]
 
 [panels.bottom]
 height = 32
