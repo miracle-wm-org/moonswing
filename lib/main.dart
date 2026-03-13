@@ -246,6 +246,7 @@ class _PanelMainState extends State<PanelMain>
                   painter: PanelBackgroundPainter(
                     anchor: widget.panelConfig.anchor,
                     animationValue: _bgAnimation.value,
+                    theme: theme,
                   ),
                   child: child,
                 );

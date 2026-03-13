@@ -34,16 +34,16 @@ class ThemeConfig {
   final String fontFamily;
 
   const ThemeConfig({
-    this.foreground = const Color(0xFFE0E0E0),
-    this.accent = const Color(0xFF4A90E2),
-    this.surfaceHover = const Color(0xFF4A4A4A),
-    this.surfacePressed = const Color(0xFF2A2A2A),
-    this.workspaceBackground = const Color(0xFF3A3A3A),
-    this.popupBackground = const Color(0xFF1E1E2E),
-    this.popupForeground = const Color(0xFFCDD6F4),
-    this.sliderTrack = const Color(0xFF45475A),
-    this.muted = const Color(0xFFE06C75),
-    this.divider = const Color(0x33FFFFFF),
+    this.foreground = const Color(0xFFF3F4F4),
+    this.accent = const Color(0xFF853953),
+    this.surfaceHover = const Color(0xFF853953),
+    this.surfacePressed = const Color(0xFF612D53),
+    this.workspaceBackground = const Color(0xFF2C2C2C),
+    this.popupBackground = const Color(0xFF2C2C2C),
+    this.popupForeground = const Color(0xFFF3F4F4),
+    this.sliderTrack = const Color(0xFF612D53),
+    this.muted = const Color(0xFF853953),
+    this.divider = const Color(0x33F3F4F4),
     this.fontFamily = 'Ubuntu Sans',
   });
 
@@ -58,22 +58,22 @@ class ThemeConfig {
     if (map == null) return const ThemeConfig();
     return ThemeConfig(
       foreground:
-          _parseColor(map['foreground'] as String?, const Color(0xFFE0E0E0)),
-      accent: _parseColor(map['accent'] as String?, const Color(0xFF4A90E2)),
+          _parseColor(map['foreground'] as String?, const Color(0xFFF3F4F4)),
+      accent: _parseColor(map['accent'] as String?, const Color(0xFF853953)),
       surfaceHover:
-          _parseColor(map['surface_hover'] as String?, const Color(0xFF4A4A4A)),
+          _parseColor(map['surface_hover'] as String?, const Color(0xFF853953)),
       surfacePressed: _parseColor(
-          map['surface_pressed'] as String?, const Color(0xFF2A2A2A)),
+          map['surface_pressed'] as String?, const Color(0xFF612D53)),
       workspaceBackground: _parseColor(
-          map['workspace_background'] as String?, const Color(0xFF3A3A3A)),
+          map['workspace_background'] as String?, const Color(0xFF2C2C2C)),
       popupBackground: _parseColor(
-          map['popup_background'] as String?, const Color(0xFF1E1E2E)),
+          map['popup_background'] as String?, const Color(0xFF2C2C2C)),
       popupForeground: _parseColor(
-          map['popup_foreground'] as String?, const Color(0xFFCDD6F4)),
+          map['popup_foreground'] as String?, const Color(0xFFF3F4F4)),
       sliderTrack:
-          _parseColor(map['slider_track'] as String?, const Color(0xFF45475A)),
-      muted: _parseColor(map['muted'] as String?, const Color(0xFFE06C75)),
-      divider: _parseColor(map['divider'] as String?, const Color(0x33FFFFFF)),
+          _parseColor(map['slider_track'] as String?, const Color(0xFF612D53)),
+      muted: _parseColor(map['muted'] as String?, const Color(0xFF853953)),
+      divider: _parseColor(map['divider'] as String?, const Color(0x33F3F4F4)),
       fontFamily: map['font'] as String? ?? 'Ubuntu Sans',
     );
   }
