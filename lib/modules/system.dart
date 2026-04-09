@@ -2,7 +2,6 @@
 // ignore_for_file: invalid_use_of_internal_member
 
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:ubuntu_session/ubuntu_session.dart';
@@ -17,25 +16,20 @@ class System extends StatefulWidget {
   SystemState createState() => SystemState();
 }
 
-class SystemState extends State<System> {
-  PopupWindowController? _popupController;
-  PopupWindow? _popupView;
+class SystemState extends State<System> with PopupHost<System> {
   bool _hovered = false;
-  bool _popupHasBeenActive = false;
 
   @override
   void dispose() {
-    _closePopup();
+    closePopup();
     super.dispose();
   }
 
   void _togglePopup(BuildContext context) {
-    if (_popupController != null) {
-      _closePopup();
+    if (isPopupOpen) {
+      closePopup();
       return;
     }
-
-    final parentController = WindowScope.of(context);
 
     final renderBox = context.findRenderObject() as RenderBox;
     final offset = renderBox.localToGlobal(Offset.zero);
@@ -77,65 +71,24 @@ class SystemState extends State<System> {
 
     final theme = ThemeScope.of(context);
 
-    PopupWindowController? thisController;
-    _popupController = thisController = PopupWindowController(
-      parent: parentController,
+    openPopup(
+      context,
       anchorRect: anchorRect,
-      positioner: WindowPositioner(
-        parentAnchor: parentAnchor,
-        childAnchor: childAnchor,
-      ),
+      parentAnchor: parentAnchor,
+      childAnchor: childAnchor,
       preferredConstraints:
           const BoxConstraints.tightFor(width: 200, height: 154),
-      delegate: _SystemPopupDelegate(onDestroyed: () {
-        if (_popupController == thisController) _closePopup();
-      }),
-    );
-
-    _popupView = PopupWindow(
-      controller: _popupController!,
       child: ThemeScope(
         theme: theme,
         child: const _SystemPopupContent(),
       ),
     );
-    _popupHasBeenActive = false;
-    _popupController!.addListener(_onPopupStateChanged);
-    PopupManager.instance.add(_popupView!);
-    setState(() {});
-  }
-
-  void _onPopupStateChanged() {
-    final ctrl = _popupController;
-    if (ctrl == null) return;
-    if (ctrl.isActivated) {
-      _popupHasBeenActive = true;
-    } else if (_popupHasBeenActive) {
-      _popupHasBeenActive = false;
-      _closePopup();
-    }
-  }
-
-  void _closePopup() {
-    _popupController?.removeListener(_onPopupStateChanged);
-    if (_popupView != null) {
-      PopupManager.instance.remove(_popupView!);
-      _popupView = null;
-    }
-    final ctrl = _popupController;
-    _popupController = null;
-    if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!ctrl.isDestroyed) ctrl.destroy();
-      });
-    }
-    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || _popupController != null;
+    final isActive = _hovered || isPopupOpen;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -158,17 +111,6 @@ class SystemState extends State<System> {
   }
 }
 
-class _SystemPopupDelegate extends PopupWindowControllerDelegate {
-  _SystemPopupDelegate({required this.onDestroyed});
-  final VoidCallback onDestroyed;
-
-  @override
-  void onWindowDestroyed() {
-    super.onWindowDestroyed();
-    onDestroyed();
-  }
-}
-
 class _SystemPopupContent extends StatelessWidget {
   const _SystemPopupContent();
 
@@ -179,41 +121,43 @@ class _SystemPopupContent extends StatelessWidget {
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 13),
-        child: Container(
-          color: theme.popupBackground,
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _SystemButton(
-                icon: FontAwesomeIcons.arrowRightFromBracket,
-                label: 'Log Out',
-                onTap: () async {
-                  final session = UbuntuSession();
-                  await session.logout();
-                },
-              ),
-              const SizedBox(height: 4),
-              _SystemButton(
-                icon: FontAwesomeIcons.powerOff,
-                label: 'Shut Down',
-                onTap: () async {
-                  final session = UbuntuSession();
-                  await session.shutdown();
-                },
-              ),
-              const SizedBox(height: 4),
-              _SystemButton(
-                icon: FontAwesomeIcons.moon,
-                label: 'Sleep',
-                onTap: () async {
-                  final manager = SystemdSessionManager();
-                  await manager.connect();
-                  await manager.suspend(false);
-                  await manager.close();
-                },
-              ),
-            ],
+        child: PopupBounceIn(
+          child: Container(
+            color: theme.popupBackground,
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _SystemButton(
+                  icon: FontAwesomeIcons.arrowRightFromBracket,
+                  label: 'Log Out',
+                  onTap: () async {
+                    final session = UbuntuSession();
+                    await session.logout();
+                  },
+                ),
+                const SizedBox(height: 4),
+                _SystemButton(
+                  icon: FontAwesomeIcons.powerOff,
+                  label: 'Shut Down',
+                  onTap: () async {
+                    final session = UbuntuSession();
+                    await session.shutdown();
+                  },
+                ),
+                const SizedBox(height: 4),
+                _SystemButton(
+                  icon: FontAwesomeIcons.moon,
+                  label: 'Sleep',
+                  onTap: () async {
+                    final manager = SystemdSessionManager();
+                    await manager.connect();
+                    await manager.suspend(false);
+                    await manager.close();
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

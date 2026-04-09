@@ -265,32 +265,33 @@ class _NotificationPanelState extends State<_NotificationPanel>
     final items = NotificationStore.instance.items;
 
     return Directionality(
-      textDirection: TextDirection.ltr,
-      child: DefaultTextStyle(
-        style: TextStyle(
-          fontFamily: theme.fontFamily,
-          fontSize: 13,
-          color: theme.popupForeground,
-        ),
-        child: SlideTransition(
-          position: _slideAnimation,
-          child: Container(
-            color: theme.popupBackground,
-            child: Column(
-              children: [
-                _buildHeader(theme, items.isNotEmpty),
-                Container(height: 1, color: theme.divider),
-                Expanded(
-                  child: items.isEmpty
-                      ? _buildEmpty(theme)
-                      : _buildList(theme, items),
+        textDirection: TextDirection.ltr,
+        child: DefaultTextStyle(
+          style: TextStyle(
+            fontFamily: theme.fontFamily,
+            fontSize: 13,
+            color: theme.popupForeground,
+          ),
+          child: SlideTransition(
+            position: _slideAnimation,
+            child: PopupBounceIn(
+              child: Container(
+                color: theme.popupBackground,
+                child: Column(
+                  children: [
+                    _buildHeader(theme, items.isNotEmpty),
+                    Container(height: 1, color: theme.divider),
+                    Expanded(
+                      child: items.isEmpty
+                          ? _buildEmpty(theme)
+                          : _buildList(theme, items),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    );
+        ));
   }
 
   Widget _buildHeader(ThemeConfig theme, bool hasItems) {

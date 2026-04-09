@@ -300,7 +300,15 @@ class MediaPlayerState extends State<MediaPlayer>
         _measureStyle.copyWith(color: ThemeScope.of(context).foreground);
 
     if (_displayText.length <= _marqueeThreshold) {
-      return Text(_displayText, style: style, maxLines: 1);
+      return ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: widget.config.maxTextWidth),
+        child: Text(
+          _displayText,
+          style: style,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
     }
 
     return SizedBox(

@@ -4,7 +4,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
@@ -310,7 +309,8 @@ class SystemMonitor extends StatefulWidget {
   SystemMonitorState createState() => SystemMonitorState();
 }
 
-class SystemMonitorState extends State<SystemMonitor> {
+class SystemMonitorState extends State<SystemMonitor>
+    with PopupHost<SystemMonitor> {
   Timer? _timer;
 
   // Bar display state
@@ -324,11 +324,7 @@ class SystemMonitorState extends State<SystemMonitor> {
   List<_CpuCoreStat> _prevCpuStats = [];
   List<_CpuCoreInfo> _coreInfo = [];
 
-  // Popup state
-  PopupWindowController? _popupController;
-  PopupWindow? _popupView;
   bool _hovered = false;
-  bool _popupHasBeenActive = false;
 
   @override
   void initState() {
@@ -344,7 +340,7 @@ class SystemMonitorState extends State<SystemMonitor> {
   @override
   void dispose() {
     _timer?.cancel();
-    _closePopup();
+    closePopup();
     super.dispose();
   }
 
@@ -373,12 +369,11 @@ class SystemMonitorState extends State<SystemMonitor> {
   }
 
   void _togglePopup(BuildContext context) {
-    if (_popupController != null) {
-      _closePopup();
+    if (isPopupOpen) {
+      closePopup();
       return;
     }
 
-    final parentController = WindowScope.of(context);
     final renderBox = context.findRenderObject() as RenderBox;
     final offset = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
@@ -420,24 +415,14 @@ class SystemMonitorState extends State<SystemMonitor> {
     final theme = ThemeScope.of(context);
     final isVertical = anchor == 'left' || anchor == 'right';
 
-    PopupWindowController? thisController;
-    _popupController = thisController = PopupWindowController(
-      parent: parentController,
+    openPopup(
+      context,
       anchorRect: anchorRect,
-      positioner: WindowPositioner(
-        parentAnchor: parentAnchor,
-        childAnchor: childAnchor,
-      ),
+      parentAnchor: parentAnchor,
+      childAnchor: childAnchor,
       preferredConstraints: isVertical
           ? const BoxConstraints.tightFor(width: 440, height: 420)
           : const BoxConstraints.tightFor(width: 420, height: 440),
-      delegate: _SystemMonitorPopupDelegate(onDestroyed: () {
-        if (_popupController == thisController) _closePopup();
-      }),
-    );
-
-    _popupView = PopupWindow(
-      controller: _popupController!,
       child: ThemeScope(
         theme: theme,
         child: _SystemMonitorPopup(
@@ -450,37 +435,6 @@ class SystemMonitorState extends State<SystemMonitor> {
         ),
       ),
     );
-    _popupHasBeenActive = false;
-    _popupController!.addListener(_onPopupStateChanged);
-    PopupManager.instance.add(_popupView!);
-    setState(() {});
-  }
-
-  void _onPopupStateChanged() {
-    final ctrl = _popupController;
-    if (ctrl == null) return;
-    if (ctrl.isActivated) {
-      _popupHasBeenActive = true;
-    } else if (_popupHasBeenActive) {
-      _popupHasBeenActive = false;
-      _closePopup();
-    }
-  }
-
-  void _closePopup() {
-    _popupController?.removeListener(_onPopupStateChanged);
-    if (_popupView != null) {
-      PopupManager.instance.remove(_popupView!);
-      _popupView = null;
-    }
-    final ctrl = _popupController;
-    _popupController = null;
-    if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!ctrl.isDestroyed) ctrl.destroy();
-      });
-    }
-    if (mounted) setState(() {});
   }
 
   String _formatTemp(double celsius) {
@@ -496,7 +450,7 @@ class SystemMonitorState extends State<SystemMonitor> {
     if (!_hasData) return const SizedBox.shrink();
 
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || _popupController != null;
+    final isActive = _hovered || isPopupOpen;
 
     final tempC = _tempCelsius;
 
@@ -544,21 +498,6 @@ class SystemMonitorState extends State<SystemMonitor> {
         ),
       ),
     );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Popup delegate
-// ---------------------------------------------------------------------------
-
-class _SystemMonitorPopupDelegate extends PopupWindowControllerDelegate {
-  _SystemMonitorPopupDelegate({required this.onDestroyed});
-  final VoidCallback onDestroyed;
-
-  @override
-  void onWindowDestroyed() {
-    super.onWindowDestroyed();
-    onDestroyed();
   }
 }
 
@@ -666,19 +605,21 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 12),
-        child: Container(
-          color: theme.popupBackground,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildTabBar(theme),
-              Container(height: 1, color: theme.divider),
-              Expanded(
-                child: _tab == _PopupTab.cpu
-                    ? _buildCpuTab(theme)
-                    : _buildMemoryTab(theme),
-              ),
-            ],
+        child: PopupBounceIn(
+          child: Container(
+            color: theme.popupBackground,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildTabBar(theme),
+                Container(height: 1, color: theme.divider),
+                Expanded(
+                  child: _tab == _PopupTab.cpu
+                      ? _buildCpuTab(theme)
+                      : _buildMemoryTab(theme),
+                ),
+              ],
+            ),
           ),
         ),
       ),

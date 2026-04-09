@@ -21,12 +21,10 @@ import 'dart:ffi' as ffi;
 import 'dart:ui' show Display, FlutterView;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/src/foundation/_features.dart';
 import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
-import 'package:flutter/src/widgets/binding.dart';
 import 'gtk.dart';
 
 const String _kWindowingDisabledErrorMessage = '''
@@ -213,7 +211,6 @@ class LayershellWindowController extends RegularWindowController {
     }
 
     final controller = LayershellWindowController._internal(
-      owner: owner,
       delegate: delegate,
     );
 
@@ -231,10 +228,8 @@ class LayershellWindowController extends RegularWindowController {
   }
 
   LayershellWindowController._internal({
-    required ExtendedWindowingOwnerLinux owner,
     required LayershellWindowControllerDelegate delegate,
-  })  : _owner = owner,
-        _delegate = delegate,
+  })  : _delegate = delegate,
         _window = GtkWindow(),
         super.empty();
 
@@ -294,19 +289,21 @@ class LayershellWindowController extends RegularWindowController {
     view.show();
   }
 
+  @override
   FlutterView get rootView => _view;
   late final FlutterView _view;
-  final ExtendedWindowingOwnerLinux _owner;
   final LayershellWindowControllerDelegate _delegate;
   final GtkWindow _window;
   late final FlWindowMonitor _windowMonitor;
   bool _destroyed = false;
 
+  @override
   Size get contentSize => _window.getSize();
 
   /// The underlying GTK window, exposed for use as a popup transient parent.
   GtkWindow get gtkWindow => _window;
 
+  @override
   void destroy() {
     if (_destroyed) {
       return;
@@ -317,12 +314,15 @@ class LayershellWindowController extends RegularWindowController {
     _destroyed = true;
   }
 
+  @override
   bool get isActivated => _window.isActive();
 
+  @override
   void setSize(Size size) {
     _window.resize(size.width.toInt(), size.height.toInt());
   }
 
+  @override
   void activate() {
     _window.present();
   }
@@ -541,7 +541,6 @@ class LayerShellWindow extends StatelessWidget {
   final Widget child;
 
   /// {@macro flutter.widgets.windowing.experimental}
-  @internal
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -549,6 +548,153 @@ class LayerShellWindow extends StatelessWidget {
       builder: (BuildContext context, Widget? _) => View(
         view: controller.rootView,
         child: WindowScope(controller: controller, child: child),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Shared popup infrastructure
+// ---------------------------------------------------------------------------
+
+/// Shared delegate that forwards [onWindowDestroyed] to a callback.
+///
+/// Replaces per-module private delegate classes.
+class PopupDelegate extends PopupWindowControllerDelegate {
+  PopupDelegate({required this.onDestroyed});
+  final VoidCallback onDestroyed;
+
+  @override
+  void onWindowDestroyed() {
+    super.onWindowDestroyed();
+    onDestroyed();
+  }
+}
+
+/// Mixin for [State] classes that own a single popup window.
+///
+/// Encapsulates the controller/view lifecycle, focus-loss tracking, and
+/// PopupManager registration so each module only needs to compute its own
+/// anchor geometry and call [openPopup].
+mixin PopupHost<T extends StatefulWidget> on State<T> {
+  PopupWindowController? _popupController;
+  PopupWindow? _popupView;
+  bool _popupHasBeenActive = false;
+
+  /// Whether a popup is currently open.
+  bool get isPopupOpen => _popupController != null;
+
+  /// Opens a popup positioned relative to the given anchor geometry.
+  ///
+  /// If a popup is already open this is a no-op — call [closePopup] first.
+  void openPopup(
+    BuildContext context, {
+    required Widget child,
+    required BoxConstraints preferredConstraints,
+    required Rect anchorRect,
+    required WindowPositionerAnchor parentAnchor,
+    required WindowPositionerAnchor childAnchor,
+  }) {
+    final parentController = WindowScope.of(context);
+    PopupWindowController? thisController;
+    _popupController = thisController = PopupWindowController(
+      parent: parentController,
+      anchorRect: anchorRect,
+      positioner: WindowPositioner(
+        parentAnchor: parentAnchor,
+        childAnchor: childAnchor,
+      ),
+      preferredConstraints: preferredConstraints,
+      delegate: PopupDelegate(onDestroyed: () {
+        if (_popupController == thisController) closePopup();
+      }),
+    );
+    _popupView = PopupWindow(controller: _popupController!, child: child);
+    _popupHasBeenActive = false;
+    _popupController!.addListener(_onPopupControllerChanged);
+    PopupManager.instance.add(_popupView!);
+    setState(() {});
+  }
+
+  void _onPopupControllerChanged() {
+    final ctrl = _popupController;
+    if (ctrl == null) return;
+    if (ctrl.isActivated) {
+      _popupHasBeenActive = true;
+    } else if (_popupHasBeenActive) {
+      _popupHasBeenActive = false;
+      closePopup();
+    }
+  }
+
+  /// Closes and destroys the current popup, if any.
+  void closePopup() {
+    _popupController?.removeListener(_onPopupControllerChanged);
+    if (_popupView != null) {
+      PopupManager.instance.remove(_popupView!);
+      _popupView = null;
+    }
+    final ctrl = _popupController;
+    _popupController = null;
+    if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!ctrl.isDestroyed) ctrl.destroy();
+      });
+    }
+    if (mounted) setState(() {});
+  }
+}
+
+/// Wraps [child] with a scale + fade bounce-in animation.
+///
+/// Place this inside any popup content widget (inside Directionality /
+/// DefaultTextStyle) so the content springs into view when the popup opens.
+class PopupBounceIn extends StatefulWidget {
+  const PopupBounceIn({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<PopupBounceIn> createState() => _PopupBounceInState();
+}
+
+class _PopupBounceInState extends State<PopupBounceIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _opacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _scale = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
+    );
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _ctrl,
+        curve: const Interval(0.0, 0.35, curve: Curves.easeOut),
+      ),
+    );
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: ScaleTransition(
+        scale: _scale,
+        child: widget.child,
       ),
     );
   }

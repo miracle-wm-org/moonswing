@@ -3,7 +3,6 @@
 
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:pulseaudio/pulseaudio.dart';
@@ -18,7 +17,8 @@ class SoundControl extends StatefulWidget {
   SoundControlState createState() => SoundControlState();
 }
 
-class SoundControlState extends State<SoundControl> {
+class SoundControlState extends State<SoundControl>
+    with PopupHost<SoundControl> {
   double _volume = 0.0;
   bool _muted = false;
   bool _available = false;
@@ -26,10 +26,7 @@ class SoundControlState extends State<SoundControl> {
   PulseAudioClient? _client;
   StreamSubscription<PulseAudioSink>? _sinkChangedSub;
 
-  PopupWindowController? _popupController;
-  PopupWindow? _popupView;
   bool _hovered = false;
-  bool _popupHasBeenActive = false;
 
   @override
   void initState() {
@@ -41,7 +38,7 @@ class SoundControlState extends State<SoundControl> {
   void dispose() {
     _sinkChangedSub?.cancel();
     _client?.dispose();
-    _closePopup();
+    closePopup();
     super.dispose();
   }
 
@@ -81,12 +78,10 @@ class SoundControlState extends State<SoundControl> {
   }
 
   void _togglePopup(BuildContext context) {
-    if (_popupController != null) {
-      _closePopup();
+    if (isPopupOpen) {
+      closePopup();
       return;
     }
-
-    final parentController = WindowScope.of(context);
 
     final renderBox = context.findRenderObject() as RenderBox;
     final offset = renderBox.localToGlobal(Offset.zero);
@@ -133,24 +128,14 @@ class SoundControlState extends State<SoundControl> {
     final isVertical = anchor == 'top' || anchor == 'bottom';
     final theme = ThemeScope.of(context);
 
-    PopupWindowController? thisController;
-    _popupController = thisController = PopupWindowController(
-      parent: parentController,
+    openPopup(
+      context,
       anchorRect: anchorRect,
-      positioner: WindowPositioner(
-        parentAnchor: parentAnchor,
-        childAnchor: childAnchor,
-      ),
+      parentAnchor: parentAnchor,
+      childAnchor: childAnchor,
       preferredConstraints: isVertical
           ? const BoxConstraints.tightFor(width: 80, height: 200)
           : const BoxConstraints.tightFor(width: 240, height: 50),
-      delegate: _SoundPopupDelegate(onDestroyed: () {
-        if (_popupController == thisController) _closePopup();
-      }),
-    );
-
-    _popupView = PopupWindow(
-      controller: _popupController!,
       child: ThemeScope(
         theme: theme,
         child: _SoundPopupContent(
@@ -162,37 +147,6 @@ class SoundControlState extends State<SoundControl> {
         ),
       ),
     );
-    _popupHasBeenActive = false;
-    _popupController!.addListener(_onPopupStateChanged);
-    PopupManager.instance.add(_popupView!);
-    setState(() {});
-  }
-
-  void _onPopupStateChanged() {
-    final ctrl = _popupController;
-    if (ctrl == null) return;
-    if (ctrl.isActivated) {
-      _popupHasBeenActive = true;
-    } else if (_popupHasBeenActive) {
-      _popupHasBeenActive = false;
-      _closePopup();
-    }
-  }
-
-  void _closePopup() {
-    _popupController?.removeListener(_onPopupStateChanged);
-    if (_popupView != null) {
-      PopupManager.instance.remove(_popupView!);
-      _popupView = null;
-    }
-    final ctrl = _popupController;
-    _popupController = null;
-    if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!ctrl.isDestroyed) ctrl.destroy();
-      });
-    }
-    if (mounted) setState(() {});
   }
 
   FaIconData _volumeIcon() {
@@ -207,7 +161,7 @@ class SoundControlState extends State<SoundControl> {
     if (!_available) return const SizedBox.shrink();
 
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || _popupController != null;
+    final isActive = _hovered || isPopupOpen;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -237,17 +191,6 @@ class SoundControlState extends State<SoundControl> {
         ),
       ),
     );
-  }
-}
-
-class _SoundPopupDelegate extends PopupWindowControllerDelegate {
-  _SoundPopupDelegate({required this.onDestroyed});
-  final VoidCallback onDestroyed;
-
-  @override
-  void onWindowDestroyed() {
-    super.onWindowDestroyed();
-    onDestroyed();
   }
 }
 
@@ -347,10 +290,12 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 13),
-        child: Container(
-          color: theme.popupBackground,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: content,
+        child: PopupBounceIn(
+          child: Container(
+            color: theme.popupBackground,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: content,
+          ),
         ),
       ),
     );

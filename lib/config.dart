@@ -212,17 +212,17 @@ layer = "top"
 
 [panels.top.layout]
 left = ["workspaces"]
-center = ["media_player"]
 right = ["sound_control", "battery", "weather", "clock", "system"]
 
 [panels.bottom]
-height = 48
+height = 32
 padding_horizontal = 0
 anchor = "bottom"
 layer = "top"
 
 [panels.bottom.layout]
 center = ["dock"]
+right = ["media_player"]
 
 [modules.weather]
 unit = "fahrenheit"

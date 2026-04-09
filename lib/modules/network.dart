@@ -4,7 +4,6 @@
 import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/layer_shell.dart';
@@ -181,14 +180,11 @@ class Network extends StatefulWidget {
   NetworkState createState() => NetworkState();
 }
 
-class NetworkState extends State<Network> {
+class NetworkState extends State<Network> with PopupHost<Network> {
   NetworkInfo _info = NetworkInfo.none;
   Timer? _timer;
 
-  PopupWindowController? _popupController;
-  PopupWindow? _popupView;
   bool _hovered = false;
-  bool _popupHasBeenActive = false;
 
   @override
   void initState() {
@@ -201,7 +197,7 @@ class NetworkState extends State<Network> {
   @override
   void dispose() {
     _timer?.cancel();
-    _closePopup();
+    closePopup();
     super.dispose();
   }
 
@@ -215,12 +211,11 @@ class NetworkState extends State<Network> {
   // -------------------------------------------------------------------------
 
   void _togglePopup(BuildContext context) {
-    if (_popupController != null) {
-      _closePopup();
+    if (isPopupOpen) {
+      closePopup();
       return;
     }
 
-    final parentController = WindowScope.of(context);
     final renderBox = context.findRenderObject() as RenderBox;
     final offset = renderBox.localToGlobal(Offset.zero);
     final size = renderBox.size;
@@ -240,7 +235,6 @@ class NetworkState extends State<Network> {
         final screenH = getScreenSize().height;
         anchorRect = Rect.fromLTWH(offset.dx, screenH - barLogicalHeight,
             size.width, barLogicalHeight);
-
         parentAnchor = WindowPositionerAnchor.top;
         childAnchor = WindowPositionerAnchor.bottom;
       case 'left':
@@ -260,61 +254,19 @@ class NetworkState extends State<Network> {
     }
 
     final theme = ThemeScope.of(context);
-    final info = _info;
 
-    PopupWindowController? thisController;
-    _popupController = thisController = PopupWindowController(
-      parent: parentController,
+    openPopup(
+      context,
       anchorRect: anchorRect,
-      positioner: WindowPositioner(
-        parentAnchor: parentAnchor,
-        childAnchor: childAnchor,
-      ),
+      parentAnchor: parentAnchor,
+      childAnchor: childAnchor,
       preferredConstraints:
           const BoxConstraints.tightFor(width: 220, height: 110),
-      delegate: _NetworkPopupDelegate(onDestroyed: () {
-        if (_popupController == thisController) _closePopup();
-      }),
-    );
-
-    _popupView = PopupWindow(
-      controller: _popupController!,
       child: ThemeScope(
         theme: theme,
-        child: _NetworkPopupContent(info: info),
+        child: _NetworkPopupContent(info: _info),
       ),
     );
-    _popupHasBeenActive = false;
-    _popupController!.addListener(_onPopupStateChanged);
-    PopupManager.instance.add(_popupView!);
-    setState(() {});
-  }
-
-  void _onPopupStateChanged() {
-    final ctrl = _popupController;
-    if (ctrl == null) return;
-    if (ctrl.isActivated) {
-      _popupHasBeenActive = true;
-    } else if (_popupHasBeenActive) {
-      _popupHasBeenActive = false;
-      _closePopup();
-    }
-  }
-
-  void _closePopup() {
-    _popupController?.removeListener(_onPopupStateChanged);
-    if (_popupView != null) {
-      PopupManager.instance.remove(_popupView!);
-      _popupView = null;
-    }
-    final ctrl = _popupController;
-    _popupController = null;
-    if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!ctrl.isDestroyed) ctrl.destroy();
-      });
-    }
-    if (mounted) setState(() {});
   }
 
   // -------------------------------------------------------------------------
@@ -334,7 +286,7 @@ class NetworkState extends State<Network> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || _popupController != null;
+    final isActive = _hovered || isPopupOpen;
     final isNone = _info.type == NetworkType.none;
     // ignore: deprecated_member_use
     final dimColor = theme.foreground.withOpacity(0.4);
@@ -378,17 +330,6 @@ class NetworkState extends State<Network> {
 // Popup
 // ---------------------------------------------------------------------------
 
-class _NetworkPopupDelegate extends PopupWindowControllerDelegate {
-  _NetworkPopupDelegate({required this.onDestroyed});
-  final VoidCallback onDestroyed;
-
-  @override
-  void onWindowDestroyed() {
-    super.onWindowDestroyed();
-    onDestroyed();
-  }
-}
-
 class _NetworkPopupContent extends StatelessWidget {
   const _NetworkPopupContent({required this.info});
 
@@ -408,23 +349,25 @@ class _NetworkPopupContent extends StatelessWidget {
 
     return Directionality(
       textDirection: TextDirection.ltr,
-      child: Container(
-        color: bg,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('IP Address', style: labelStyle),
-            const SizedBox(height: 2),
-            Text(ipText, style: valueStyle),
-            if (info.type == NetworkType.wifi) ...[
-              const SizedBox(height: 10),
-              Text('Signal Strength', style: labelStyle),
+      child: PopupBounceIn(
+        child: Container(
+          color: bg,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('IP Address', style: labelStyle),
               const SizedBox(height: 2),
-              Text('${info.signal}%', style: valueStyle),
+              Text(ipText, style: valueStyle),
+              if (info.type == NetworkType.wifi) ...[
+                const SizedBox(height: 10),
+                Text('Signal Strength', style: labelStyle),
+                const SizedBox(height: 2),
+                Text('${info.signal}%', style: valueStyle),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
