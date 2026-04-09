@@ -215,6 +215,15 @@ left = ["workspaces"]
 center = ["media_player"]
 right = ["sound_control", "battery", "weather", "clock", "system"]
 
+[panels.bottom]
+height = 48
+padding_horizontal = 0
+anchor = "bottom"
+layer = "top"
+
+[panels.bottom.layout]
+center = ["dock"]
+
 [modules.weather]
 unit = "fahrenheit"
 refresh_minutes = 10

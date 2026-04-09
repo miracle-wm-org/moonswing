@@ -383,7 +383,7 @@ class _PanelIconButton extends StatefulWidget {
     required this.onPressed,
   });
 
-  final IconData icon;
+  final FaIconData icon;
   final VoidCallback onPressed;
 
   @override

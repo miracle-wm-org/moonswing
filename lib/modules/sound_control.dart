@@ -195,7 +195,7 @@ class SoundControlState extends State<SoundControl> {
     if (mounted) setState(() {});
   }
 
-  IconData _volumeIcon() {
+  FaIconData _volumeIcon() {
     if (_muted) return FontAwesomeIcons.volumeXmark;
     if (_volume <= 0.0) return FontAwesomeIcons.volumeOff;
     if (_volume <= 0.5) return FontAwesomeIcons.volumeLow;
@@ -281,7 +281,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
     _muted = widget.muted;
   }
 
-  IconData _volumeIcon() {
+  FaIconData _volumeIcon() {
     if (_muted) return FontAwesomeIcons.volumeXmark;
     if (_volume <= 0.0) return FontAwesomeIcons.volumeOff;
     if (_volume <= 0.5) return FontAwesomeIcons.volumeLow;

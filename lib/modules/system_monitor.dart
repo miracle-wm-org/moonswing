@@ -291,7 +291,7 @@ String _formatDuration(Duration d) {
   return '${s}s';
 }
 
-IconData _temperatureIcon(double celsius) {
+FaIconData _temperatureIcon(double celsius) {
   if (celsius >= 80) return FontAwesomeIcons.temperatureHigh;
   if (celsius <= 30) return FontAwesomeIcons.temperatureLow;
   return FontAwesomeIcons.temperatureHalf;
@@ -907,7 +907,7 @@ class _TabButton extends StatelessWidget {
     required this.onTap,
   });
 
-  final IconData icon;
+  final FaIconData icon;
   final String label;
   final bool selected;
   final ThemeConfig theme;

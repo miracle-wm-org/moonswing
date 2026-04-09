@@ -150,6 +150,7 @@ class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
     Size? preferredSize,
     BoxConstraints? preferredConstraints,
     String? title,
+    bool decorated = true,
     required RegularWindowControllerDelegate delegate,
   }) {
     throw UnsupportedError(
@@ -479,6 +480,14 @@ class PopupGtkWindowController extends PopupWindowController {
 
   @override
   FlutterView get rootView => _view;
+
+  @override
+  Offset get offsetFromParent => Offset.zero;
+
+  @override
+  void updatePosition({Rect? anchorRect, WindowPositioner? positioner}) {
+    // No-op: layer-shell popups are positioned at creation time.
+  }
 
   @override
   Size get contentSize => _window.getSize();

@@ -321,7 +321,7 @@ class NetworkState extends State<Network> {
   // Bar widget
   // -------------------------------------------------------------------------
 
-  IconData _networkIcon() {
+  FaIconData _networkIcon() {
     switch (_info.type) {
       case NetworkType.ethernet:
         return FontAwesomeIcons.ethernet;
