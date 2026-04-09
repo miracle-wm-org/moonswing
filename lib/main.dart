@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
@@ -50,6 +51,27 @@ void main() async {
 
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
+
+  final waylandOutputs = <WaylandOutput>[];
+  final outputCompleters = <Completer<void>>[];
+  WaylandRegistry? waylandRegistry;
+  waylandRegistry = waylandClient.getRegistry(
+    onGlobal: (globalName, interface, version) {
+      if (interface == 'wl_output') {
+        final completer = Completer<void>();
+        outputCompleters.add(completer);
+        waylandOutputs.add(WaylandOutput(
+          waylandClient,
+          waylandRegistry!.bind(globalName, interface, version),
+          onDone: completer.complete,
+        ));
+      }
+    },
+  );
+  final syncCompleter = Completer<void>();
+  waylandClient.sync((_) => syncCompleter.complete());
+  await syncCompleter.future;
+  await Future.wait(outputCompleters.map((c) => c.future));
 
   final windowingOwner = ExtendedWindowingOwnerLinux();
   WidgetsBinding.instance.windowingOwner = windowingOwner;
@@ -104,6 +126,20 @@ void main() async {
     monitorControllers.add(controllers);
   }
 
+  WaylandOutput matchOutput(MonitorInfo monitor) => waylandOutputs.firstWhere(
+        (o) =>
+            o.make == monitor.manufacturer &&
+            o.model == monitor.model &&
+            o.x == monitor.position.dx.toInt() &&
+            o.y == monitor.position.dy.toInt(),
+        orElse: () => waylandOutputs.first,
+      );
+
+  final monitoredControllers = List.generate(
+    monitors.length,
+    (i) => (monitors[i], monitorControllers[i], matchOutput(monitors[i])),
+  );
+
   runWidget(ListenableBuilder(
     listenable: PopupManager.instance,
     builder: (context, _) => ViewCollection(
@@ -113,7 +149,7 @@ void main() async {
             controller: ctrl,
             child: BackgroundWindow(config: appConfig.background!),
           ),
-        for (final controllers in monitorControllers)
+        for (final (_, controllers, waylandOutput) in monitoredControllers)
           for (final entry in appConfig.panels.entries)
             LayerShellWindow(
               controller: controllers[entry.key]!,
@@ -121,9 +157,12 @@ void main() async {
                 theme: appConfig.theme,
                 child: MiracleScope(
                   connection: connection,
-                  child: PanelMain(
-                    panelConfig: entry.value,
-                    anchor: entry.value.anchor,
+                  child: DisplayScope(
+                    output: waylandOutput,
+                    child: PanelMain(
+                      panelConfig: entry.value,
+                      anchor: entry.value.anchor,
+                    ),
                   ),
                 ),
               ),

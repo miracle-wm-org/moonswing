@@ -4,7 +4,7 @@
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:typed_data';
-import 'dart:ui' show Size;
+import 'dart:ui' show Offset, Size;
 import 'package:flutter/src/widgets/binding.dart';
 
 // Load the GTK Layer Shell library
@@ -249,10 +249,19 @@ class GdkMonitor extends GObject {
     return Size(w, h);
   }
 
+  /// Get the monitor's top-left position in logical pixels.
+  Offset getPosition() {
+    final ptr = gMalloc0(16).cast<GdkRectangle>(); // 4 × int32
+    _gdkMonitorGetGeometry(instance, ptr);
+    final x = ptr.ref.x.toDouble();
+    final y = ptr.ref.y.toDouble();
+    gFree(ptr.cast());
+    return Offset(x, y);
+  }
+
   @ffi.Native<
-      ffi.Void Function(
-          ffi.Pointer<ffi.NativeType>, ffi.Pointer<GdkRectangle>)>(
-      symbol: 'gdk_monitor_get_geometry')
+      ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+          ffi.Pointer<GdkRectangle>)>(symbol: 'gdk_monitor_get_geometry')
   external static void _gdkMonitorGetGeometry(
       ffi.Pointer<ffi.NativeType> monitor, ffi.Pointer<GdkRectangle> geometry);
 }
@@ -1109,8 +1118,8 @@ class FlView extends GtkWidget {
       ffi.Pointer<GdkRGBA> rgba, ffi.Pointer<ffi.Uint8> spec);
 
   @ffi.Native<
-      ffi.Void Function(ffi.Pointer<ffi.NativeType>,
-          ffi.Pointer<GdkRGBA>)>(symbol: 'fl_view_set_background_color')
+          ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Pointer<GdkRGBA>)>(
+      symbol: 'fl_view_set_background_color')
   external static void _flViewSetBackgroundColor(
       ffi.Pointer<ffi.NativeType> view, ffi.Pointer<GdkRGBA> color);
 }

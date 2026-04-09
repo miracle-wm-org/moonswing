@@ -30,8 +30,7 @@ class PanelBackgroundPainter extends CustomPainter {
       tileMode: TileMode.repeated,
     );
 
-    final double shift =
-        horizontal ? w * animationValue : h * animationValue;
+    final double shift = horizontal ? w * animationValue : h * animationValue;
 
     final Rect shaderRect = horizontal
         ? Rect.fromLTWH(-shift, 0, w, h)

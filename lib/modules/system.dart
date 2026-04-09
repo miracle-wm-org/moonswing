@@ -85,7 +85,8 @@ class SystemState extends State<System> {
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
       ),
-      preferredConstraints: const BoxConstraints.tightFor(width: 200, height: 154),
+      preferredConstraints:
+          const BoxConstraints.tightFor(width: 200, height: 154),
       delegate: _SystemPopupDelegate(onDestroyed: () {
         if (_popupController == thisController) _closePopup();
       }),

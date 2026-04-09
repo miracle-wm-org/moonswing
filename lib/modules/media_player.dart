@@ -63,7 +63,8 @@ class MediaPlayerState extends State<MediaPlayer>
   late final AnimationController _scrollController;
 
   // Used only for TextPainter width measurement — color has no effect on layout.
-  TextStyle get _measureStyle => TextStyle(fontFamily: _fontFamily, fontSize: 12);
+  TextStyle get _measureStyle =>
+      TextStyle(fontFamily: _fontFamily, fontSize: 12);
 
   @override
   void didChangeDependencies() {
@@ -295,8 +296,8 @@ class MediaPlayerState extends State<MediaPlayer>
   Widget _buildTrackText(BuildContext context) {
     if (_displayText.isEmpty) return const SizedBox.shrink();
 
-    final style = _measureStyle.copyWith(
-        color: ThemeScope.of(context).foreground);
+    final style =
+        _measureStyle.copyWith(color: ThemeScope.of(context).foreground);
 
     if (_displayText.length <= _marqueeThreshold) {
       return Text(_displayText, style: style, maxLines: 1);

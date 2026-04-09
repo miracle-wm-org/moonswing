@@ -402,8 +402,7 @@ class SystemMonitorState extends State<SystemMonitor> {
         parentAnchor = WindowPositionerAnchor.top;
         childAnchor = WindowPositionerAnchor.bottom;
       case 'left':
-        anchorRect =
-            Rect.fromLTWH(0, offset.dy, barLogicalWidth, size.height);
+        anchorRect = Rect.fromLTWH(0, offset.dy, barLogicalWidth, size.height);
         parentAnchor = WindowPositionerAnchor.right;
         childAnchor = WindowPositionerAnchor.left;
       case 'right':
@@ -523,7 +522,8 @@ class SystemMonitorState extends State<SystemMonitor> {
                 style: TextStyle(fontSize: 12, color: theme.foreground),
               ),
               const SizedBox(width: 8),
-              FaIcon(FontAwesomeIcons.memory, size: 11, color: theme.foreground),
+              FaIcon(FontAwesomeIcons.memory,
+                  size: 11, color: theme.foreground),
               const SizedBox(width: 4),
               Text(
                 _formatBytes(_memUsedKb),
@@ -717,7 +717,8 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
     if (_coreInfo.isEmpty) {
       return Center(
         child: Text('No CPU data',
-            style: TextStyle(color: theme.popupForeground.withValues(alpha: 0.5))),
+            style:
+                TextStyle(color: theme.popupForeground.withValues(alpha: 0.5))),
       );
     }
 
@@ -735,7 +736,8 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
           Row(
             children: [
               FaIcon(_temperatureIcon(tempC!),
-                  size: 11, color: theme.popupForeground.withValues(alpha: 0.7)),
+                  size: 11,
+                  color: theme.popupForeground.withValues(alpha: 0.7)),
               const SizedBox(width: 6),
               Text('Temperature',
                   style: TextStyle(
@@ -743,8 +745,7 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
                       fontSize: 11)),
               const Spacer(),
               Text(tempLabel,
-                  style:
-                      TextStyle(color: theme.popupForeground, fontSize: 12)),
+                  style: TextStyle(color: theme.popupForeground, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 8),
@@ -766,7 +767,8 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
             child: Text(
               'CPU${core.index}',
               style: TextStyle(
-                  color: theme.popupForeground.withValues(alpha: 0.7), fontSize: 11),
+                  color: theme.popupForeground.withValues(alpha: 0.7),
+                  fontSize: 11),
             ),
           ),
           const SizedBox(width: 8),
@@ -793,7 +795,8 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
               _formatDuration(core.totalTime),
               textAlign: TextAlign.right,
               style: TextStyle(
-                  color: theme.popupForeground.withValues(alpha: 0.59), fontSize: 11),
+                  color: theme.popupForeground.withValues(alpha: 0.59),
+                  fontSize: 11),
             ),
           ),
         ],
@@ -816,7 +819,8 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
           child: Row(
             children: [
               FaIcon(FontAwesomeIcons.memory,
-                  size: 11, color: theme.popupForeground.withValues(alpha: 0.7)),
+                  size: 11,
+                  color: theme.popupForeground.withValues(alpha: 0.7)),
               const SizedBox(width: 6),
               Text('System Memory',
                   style: TextStyle(
@@ -824,8 +828,7 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
                       fontSize: 11)),
               const Spacer(),
               Text('$usedLabel / $totalLabel',
-                  style:
-                      TextStyle(color: theme.popupForeground, fontSize: 12)),
+                  style: TextStyle(color: theme.popupForeground, fontSize: 12)),
             ],
           ),
         ),
@@ -856,8 +859,7 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
     );
   }
 
-  Widget _buildProcessRow(
-      _ProcessInfo proc, double maxRss, ThemeConfig theme) {
+  Widget _buildProcessRow(_ProcessInfo proc, double maxRss, ThemeConfig theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -885,7 +887,8 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
               _formatBytes(proc.rssKb),
               textAlign: TextAlign.right,
               style: TextStyle(
-                  color: theme.popupForeground.withValues(alpha: 0.78), fontSize: 11),
+                  color: theme.popupForeground.withValues(alpha: 0.78),
+                  fontSize: 11),
             ),
           ),
         ],
@@ -915,7 +918,8 @@ class _TabButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? theme.accent : theme.popupForeground.withValues(alpha: 0.63);
+    final color =
+        selected ? theme.accent : theme.popupForeground.withValues(alpha: 0.63);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -992,15 +996,13 @@ class _UsageBarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const radius = Radius.circular(3);
-    final trackRect =
-        Rect.fromLTWH(0, 0, size.width, size.height);
+    final trackRect = Rect.fromLTWH(0, 0, size.width, size.height);
     canvas.drawRRect(
       RRect.fromRectAndRadius(trackRect, radius),
       Paint()..color = trackColor,
     );
     if (value > 0) {
-      final fillRect =
-          Rect.fromLTWH(0, 0, size.width * value, size.height);
+      final fillRect = Rect.fromLTWH(0, 0, size.width * value, size.height);
       canvas.drawRRect(
         RRect.fromRectAndRadius(fillRect, radius),
         Paint()..color = fillColor,
@@ -1031,6 +1033,5 @@ class SystemMonitorModule extends Module {
   }
 
   @override
-  WidgetBuilder get builder =>
-      (context) => SystemMonitor(config: _config);
+  WidgetBuilder get builder => (context) => SystemMonitor(config: _config);
 }

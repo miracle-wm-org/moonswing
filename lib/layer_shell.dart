@@ -52,6 +52,7 @@ class MonitorInfo {
     required this.model,
     required this.manufacturer,
     required this.gdkMonitor,
+    required this.position,
   });
 
   final String connector;
@@ -59,9 +60,12 @@ class MonitorInfo {
   final String manufacturer;
   final ffi.Pointer<ffi.NativeType> gdkMonitor;
 
+  /// Top-left position of this monitor in logical pixels.
+  final Offset position;
+
   @override
   String toString() =>
-      'MonitorInfo(connector: $connector, model: $model, manufacturer: $manufacturer)';
+      'MonitorInfo(connector: $connector, model: $model, manufacturer: $manufacturer, position: $position)';
 }
 
 /// List all available monitors using GDK.
@@ -77,6 +81,7 @@ List<MonitorInfo> listMonitors() {
       model: monitor.getModel(),
       manufacturer: monitor.getManufacturer(),
       gdkMonitor: monitor.instance,
+      position: monitor.getPosition(),
     ));
   }
 
@@ -423,13 +428,17 @@ class PopupGtkWindowController extends PopupWindowController {
           : 200,
     );
     final childOffset = _childAnchorOffset(size, positioner.childAnchor);
-    final rawX = (anchorPoint.dx - childOffset.dx + positioner.offset.dx).toInt();
-    final rawY = (anchorPoint.dy - childOffset.dy + positioner.offset.dy).toInt();
+    final rawX =
+        (anchorPoint.dx - childOffset.dx + positioner.offset.dx).toInt();
+    final rawY =
+        (anchorPoint.dy - childOffset.dy + positioner.offset.dy).toInt();
 
     // Clamp position so the popup stays fully on screen.
     final screenSize = getScreenSize();
-    final maxX = ((screenSize.width - size.width).toInt()).clamp(0, screenSize.width.toInt());
-    final maxY = ((screenSize.height - size.height).toInt()).clamp(0, screenSize.height.toInt());
+    final maxX = ((screenSize.width - size.width).toInt())
+        .clamp(0, screenSize.width.toInt());
+    final maxY = ((screenSize.height - size.height).toInt())
+        .clamp(0, screenSize.height.toInt());
     final x = rawX.clamp(0, maxX);
     final y = rawY.clamp(0, maxY);
 

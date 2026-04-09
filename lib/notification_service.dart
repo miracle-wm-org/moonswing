@@ -165,22 +165,21 @@ class NotificationServer extends DBusObject {
     // D-Bus Notify signature: susssasa{sv}i
     if (values.length < 8) return DBusMethodErrorResponse.invalidArgs();
 
-    final appName    = (values[0] as DBusString).value;
+    final appName = (values[0] as DBusString).value;
     final replacesId = (values[1] as DBusUint32).value;
     // values[2] = app_icon (ignored)
-    final summary    = (values[3] as DBusString).value;
-    final body       = (values[4] as DBusString).value;
-    final actions    = (values[5] as DBusArray)
+    final summary = (values[3] as DBusString).value;
+    final body = (values[4] as DBusString).value;
+    final actions = (values[5] as DBusArray)
         .children
         .map((v) => (v as DBusString).value)
         .toList();
     // values[6] = hints a{sv} (ignored)
-    final expireMs   = (values[7] as DBusInt32).value;
+    final expireMs = (values[7] as DBusInt32).value;
 
     // Reuse replacesId if it refers to an existing notification.
     final int assignedId;
-    if (replacesId != 0 &&
-        _store.items.any((n) => n.id == replacesId)) {
+    if (replacesId != 0 && _store.items.any((n) => n.id == replacesId)) {
       assignedId = replacesId;
     } else {
       assignedId = _store.allocateId();

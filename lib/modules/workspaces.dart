@@ -40,16 +40,18 @@ class WorkspacesState extends State<Workspaces> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final outputName = DisplayScope.of(context).name;
+    final visibleWorkspaces =
+        _workspaces.where((ws) => ws.output == outputName).toList();
     return Padding(
         padding: const EdgeInsets.all(4.0),
         child: Row(
           spacing: 4,
-          children: _workspaces.map((workspace) {
+          children: visibleWorkspaces.map((workspace) {
             return _WorkspaceButton(
               key: ValueKey(workspace.num ?? workspace.name),
-              backgroundColor: workspace.focused
-                  ? theme.accent
-                  : theme.workspaceBackground,
+              backgroundColor:
+                  workspace.focused ? theme.accent : theme.workspaceBackground,
               hoverColor: theme.surfaceHover,
               pressedColor: theme.surfacePressed,
               onPressed: () {

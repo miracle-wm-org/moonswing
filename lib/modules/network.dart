@@ -238,8 +238,8 @@ class NetworkState extends State<Network> {
     switch (anchor) {
       case 'bottom':
         final screenH = getScreenSize().height;
-        anchorRect =
-            Rect.fromLTWH(offset.dx, screenH - barLogicalHeight, size.width, barLogicalHeight);
+        anchorRect = Rect.fromLTWH(offset.dx, screenH - barLogicalHeight,
+            size.width, barLogicalHeight);
 
         parentAnchor = WindowPositionerAnchor.top;
         childAnchor = WindowPositionerAnchor.bottom;

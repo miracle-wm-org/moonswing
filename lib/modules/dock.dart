@@ -20,9 +20,7 @@ class DockConfig {
   factory DockConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const DockConfig();
     return DockConfig(
-      apps: (map['apps'] as List<dynamic>?)
-              ?.whereType<String>()
-              .toList() ??
+      apps: (map['apps'] as List<dynamic>?)?.whereType<String>().toList() ??
           const [],
       iconSize: map['icon_size'] as int? ?? 24,
     );
@@ -31,8 +29,7 @@ class DockConfig {
 
 // GIO FFI bindings
 
-@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Int)>(
-    symbol: 'g_malloc0')
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Int)>(symbol: 'g_malloc0')
 external ffi.Pointer<ffi.NativeType> _gMalloc0(int count);
 
 @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(symbol: 'g_free')
@@ -63,9 +60,11 @@ external ffi.Pointer<ffi.Uint8> _gIconToString(
     ffi.Pointer<ffi.NativeType> icon);
 
 @ffi.Native<
-    ffi.Int Function(ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.NativeType>,
-        ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.NativeType>)>(
-    symbol: 'g_app_info_launch')
+    ffi.Int Function(
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.NativeType>)>(symbol: 'g_app_info_launch')
 external int _gAppInfoLaunch(
     ffi.Pointer<ffi.NativeType> appInfo,
     ffi.Pointer<ffi.NativeType> files,
@@ -135,8 +134,7 @@ class DockState extends State<Dock> {
         if (appInfo == ffi.nullptr) continue;
 
         final namePtr = _gAppInfoGetName(appInfo);
-        final name =
-            namePtr != ffi.nullptr ? _nativeToString(namePtr) : appId;
+        final name = namePtr != ffi.nullptr ? _nativeToString(namePtr) : appId;
 
         var iconName = appId;
         final iconPtr = _gAppInfoGetIcon(appInfo);
@@ -206,13 +204,15 @@ class DockState extends State<Dock> {
             width: size.toDouble(),
             height: size.toDouble(),
             filterQuality: FilterQuality.medium,
-            errorBuilder: (_, __, ___) => _fallbackIcon(app.name, size, foreground),
+            errorBuilder: (_, __, ___) =>
+                _fallbackIcon(app.name, size, foreground),
           );
         } else {
           icon = XdgIcon(
             name: app.iconName,
             size: size,
-            iconNotFoundBuilder: () => _fallbackIcon(app.name, size, foreground),
+            iconNotFoundBuilder: () =>
+                _fallbackIcon(app.name, size, foreground),
           );
         }
         return _DockButton(

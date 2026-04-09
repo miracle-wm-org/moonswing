@@ -205,8 +205,8 @@ class _SpinnerState extends State<_Spinner>
       },
       child: Text(
         '◐',
-        style: TextStyle(
-            fontSize: 14, color: ThemeScope.of(context).foreground),
+        style:
+            TextStyle(fontSize: 14, color: ThemeScope.of(context).foreground),
       ),
     );
   }

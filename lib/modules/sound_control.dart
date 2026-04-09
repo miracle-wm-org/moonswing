@@ -372,7 +372,6 @@ class _VolumeSlider extends StatelessWidget {
   final ValueChanged<double> onChangeEnd;
   final Axis axis;
 
-
   double _valueFromPosition(BuildContext context, Offset globalPosition) {
     final box = context.findRenderObject() as RenderBox;
     final local = box.globalToLocal(globalPosition);
@@ -488,8 +487,7 @@ class _SliderPainter extends CustomPainter {
       canvas.drawCircle(
         Offset(trackX, thumbY),
         6,
-        Paint()
-          ..color = enabled ? activeThumbColor : inactiveThumbColor,
+        Paint()..color = enabled ? activeThumbColor : inactiveThumbColor,
       );
       return;
     }
