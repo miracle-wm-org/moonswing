@@ -128,21 +128,23 @@ GtkLayerShellLayer layerFromString(String s) {
   }
 }
 
-/// Manages dynamically-created popup windows for inclusion in the ViewCollection.
-class PopupManager extends ChangeNotifier {
-  static final PopupManager instance = PopupManager._();
-  PopupManager._();
+/// Manages dynamically-created LayerShell windows (e.g. the notification panel)
+/// for inclusion in the root ViewCollection.
+/// XDG popup windows are handled separately via WindowRegistry / WindowManager.
+class DynamicLayerShellViews extends ChangeNotifier {
+  static final DynamicLayerShellViews instance = DynamicLayerShellViews._();
+  DynamicLayerShellViews._();
 
-  final List<Widget> _popupViews = [];
-  List<Widget> get popupViews => List.unmodifiable(_popupViews);
+  final List<Widget> _views = [];
+  List<Widget> get views => List.unmodifiable(_views);
 
   void add(Widget view) {
-    _popupViews.add(view);
+    _views.add(view);
     notifyListeners();
   }
 
   void remove(Widget view) {
-    _popupViews.remove(view);
+    _views.remove(view);
     notifyListeners();
   }
 }
@@ -574,11 +576,12 @@ class PopupDelegate extends PopupWindowControllerDelegate {
 /// Mixin for [State] classes that own a single popup window.
 ///
 /// Encapsulates the controller/view lifecycle, focus-loss tracking, and
-/// PopupManager registration so each module only needs to compute its own
+/// WindowRegistry registration so each module only needs to compute its own
 /// anchor geometry and call [openPopup].
 mixin PopupHost<T extends StatefulWidget> on State<T> {
   PopupWindowController? _popupController;
-  PopupWindow? _popupView;
+  WindowRegistry? _registry;
+  WindowEntry? _entry;
   bool _popupHasBeenActive = false;
 
   /// Whether a popup is currently open.
@@ -609,10 +612,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         if (_popupController == thisController) closePopup();
       }),
     );
-    _popupView = PopupWindow(controller: _popupController!, child: child);
     _popupHasBeenActive = false;
     _popupController!.addListener(_onPopupControllerChanged);
-    PopupManager.instance.add(_popupView!);
+    _registry = WindowRegistry.of(context);
+    _entry = WindowEntry(controller: _popupController!, builder: (_) => child);
+    _registry!.register(_entry!);
     setState(() {});
   }
 
@@ -630,10 +634,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   /// Closes and destroys the current popup, if any.
   void closePopup() {
     _popupController?.removeListener(_onPopupControllerChanged);
-    if (_popupView != null) {
-      PopupManager.instance.remove(_popupView!);
-      _popupView = null;
+    if (_entry != null) {
+      _registry?.unregister(_entry!);
+      _entry = null;
     }
+    _registry = null;
     final ctrl = _popupController;
     _popupController = null;
     if (ctrl is PopupGtkWindowController && !ctrl.isDestroyed) {

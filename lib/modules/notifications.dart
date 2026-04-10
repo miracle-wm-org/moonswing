@@ -109,7 +109,7 @@ class _NotificationsState extends State<Notifications>
       ),
     );
 
-    PopupManager.instance.add(_panelView!);
+    DynamicLayerShellViews.instance.add(_panelView!);
     setState(() {});
   }
 
@@ -124,7 +124,7 @@ class _NotificationsState extends State<Notifications>
 
   void _closePanel() {
     if (_panelView != null) {
-      PopupManager.instance.remove(_panelView!);
+      DynamicLayerShellViews.instance.remove(_panelView!);
       _panelView = null;
     }
     final ctrl = _panelController;

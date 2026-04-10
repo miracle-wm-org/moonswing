@@ -1,5 +1,8 @@
 import 'dart:async';
+// ignore_for_file: implementation_imports
+// ignore_for_file: invalid_use_of_internal_member
 import 'package:flutter/widgets.dart';
+import 'package:flutter/src/widgets/_window.dart';
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/module.dart';
@@ -141,7 +144,7 @@ void main() async {
   );
 
   runWidget(ListenableBuilder(
-    listenable: PopupManager.instance,
+    listenable: DynamicLayerShellViews.instance,
     builder: (context, _) => ViewCollection(
       views: [
         for (final ctrl in backgroundControllers)
@@ -153,21 +156,23 @@ void main() async {
           for (final entry in appConfig.panels.entries)
             LayerShellWindow(
               controller: controllers[entry.key]!,
-              child: ThemeScope(
-                theme: appConfig.theme,
-                child: MiracleScope(
-                  connection: connection,
-                  child: DisplayScope(
-                    output: waylandOutput,
-                    child: PanelMain(
-                      panelConfig: entry.value,
-                      anchor: entry.value.anchor,
+              child: WindowManager(
+                child: ThemeScope(
+                  theme: appConfig.theme,
+                  child: MiracleScope(
+                    connection: connection,
+                    child: DisplayScope(
+                      output: waylandOutput,
+                      child: PanelMain(
+                        panelConfig: entry.value,
+                        anchor: entry.value.anchor,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-        ...PopupManager.instance.popupViews,
+        ...DynamicLayerShellViews.instance.views,
       ],
     ),
   ));
