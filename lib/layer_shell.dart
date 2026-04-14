@@ -151,18 +151,6 @@ class DynamicLayerShellViews extends ChangeNotifier {
 
 class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
   @override
-  RegularWindowController createRegularWindowController({
-    Size? preferredSize,
-    BoxConstraints? preferredConstraints,
-    String? title,
-    bool decorated = true,
-    required RegularWindowControllerDelegate delegate,
-  }) {
-    throw UnsupportedError(
-        "Layer shell windows are created via the factory constructor in this app.");
-  }
-
-  @override
   PopupWindowController createPopupWindowController({
     required PopupWindowControllerDelegate delegate,
     required BoxConstraints preferredConstraints,
@@ -183,24 +171,16 @@ class ExtendedWindowingOwnerLinux extends WindowingOwnerLinux {
   }
 }
 
-class LayershellWindowControllerDelegate {
-  /// Called when the window is requested to close.
-  void onWindowCloseRequested(LayershellWindowController controller) {}
-
-  /// Called when the window is destroyed.
-  void onWindowDestroyed() {}
-}
-
 class LayershellWindowController extends RegularWindowController {
   /// Create a new LayershellWindowController.
   factory LayershellWindowController({
     required ExtendedWindowingOwnerLinux owner,
-    required LayershellWindowControllerDelegate delegate,
+    required RegularWindowControllerDelegate delegate,
     GtkLayerShellLayer layer = GtkLayerShellLayer.top,
     List<GtkLayerShellEdge> anchorEdges = const [
       GtkLayerShellEdge.top,
       GtkLayerShellEdge.left,
-      GtkLayerShellEdge.right
+      GtkLayerShellEdge.right,
     ],
     GtkLayerShellKeyboardMode keyboardMode = GtkLayerShellKeyboardMode.onDemand,
     int? width,
@@ -211,12 +191,12 @@ class LayershellWindowController extends RegularWindowController {
     if (!isWindowingEnabled) {
       throw UnsupportedError(_kWindowingDisabledErrorMessage);
     }
-
-    final controller = LayershellWindowController._internal(
+    final inner = owner.createRegularWindowController(
       delegate: delegate,
-    );
-
-    controller._setup(
+      decorated: false,
+    ) as RegularWindowControllerLinux;
+    return LayershellWindowController._wrap(
+      inner,
       layer: layer,
       anchorEdges: anchorEdges,
       keyboardMode: keyboardMode,
@@ -225,17 +205,10 @@ class LayershellWindowController extends RegularWindowController {
       exclusiveZone: exclusiveZone,
       monitor: monitor,
     );
-
-    return controller;
   }
 
-  LayershellWindowController._internal({
-    required LayershellWindowControllerDelegate delegate,
-  })  : _delegate = delegate,
-        _window = GtkWindow(),
-        super.empty();
-
-  void _setup({
+  LayershellWindowController._wrap(
+    this._inner, {
     required GtkLayerShellLayer layer,
     required List<GtkLayerShellEdge> anchorEdges,
     required GtkLayerShellKeyboardMode keyboardMode,
@@ -243,91 +216,62 @@ class LayershellWindowController extends RegularWindowController {
     int? height,
     int? exclusiveZone,
     ffi.Pointer<ffi.NativeType>? monitor,
-  }) {
-    _windowMonitor = FlWindowMonitor(
-      _window,
-      // onConfigure
-      notifyListeners,
-      // onStateChanged
-      notifyListeners,
-      // onIsActiveNotify
-      notifyListeners,
-      // onTitleNotify
-      notifyListeners,
-      // onClose
-      () {
-        _delegate.onWindowCloseRequested(this);
-      },
-      // onDestroy
-      _delegate.onWindowDestroyed,
-    );
-    final view = FlView();
-    view.setBackgroundColor('#00000000');
-    final int viewId = view.getId();
-    _view = WidgetsBinding.instance.platformDispatcher.views.firstWhere(
-      (FlutterView view) => view.viewId == viewId,
-    );
+  }) : super.empty() {
+    // Forward change notifications from the inner controller so listeners on
+    // this wrapper (e.g. LayerShellWindow's ListenableBuilder) stay in sync.
+    _inner.addListener(notifyListeners);
 
-    _window.layerInitForWindow();
+    // Apply layer-shell settings now — the GtkWindow exists but present() is
+    // deferred to the first frame, satisfying gtk-layer-shell's ordering rule.
+    final gtkWin = GtkWindow(_inner.getWindowHandle().cast());
+    FlView.fromHandle(_inner.getFlutterViewHandle().cast())
+        .setBackgroundColor('#00000000');
 
-    // Set monitor if specified
+    gtkWin.layerInitForWindow();
     if (monitor != null && monitor.address != 0) {
-      _window.layerSetMonitor(monitor);
+      gtkWin.layerSetMonitor(monitor);
     }
-
     if (exclusiveZone != null) {
-      _window.layerAutoExclusiveZoneEnable();
-      _window.layerSetExclusiveZone(exclusiveZone);
+      gtkWin.layerAutoExclusiveZoneEnable();
+      gtkWin.layerSetExclusiveZone(exclusiveZone);
     }
     for (final edge in anchorEdges) {
-      _window.layerSetAnchor(edge, true);
+      gtkWin.layerSetAnchor(edge, true);
     }
-    _window.layerSetLayer(layer);
-    _window.setSizeRequest(width ?? -1, height ?? -1);
-    _window.setDefaultSize(width ?? -1, height ?? -1);
-    _window.setAppPaintable(true);
-    _window.add(view);
-    _window.present();
-    view.show();
+    gtkWin.layerSetLayer(layer);
+    gtkWin.layerSetKeyboardMode(keyboardMode);
+    gtkWin.setSizeRequest(width ?? -1, height ?? -1);
+    gtkWin.setDefaultSize(width ?? -1, height ?? -1);
+    gtkWin.setAppPaintable(true);
   }
 
-  @override
-  FlutterView get rootView => _view;
-  late final FlutterView _view;
-  final LayershellWindowControllerDelegate _delegate;
-  final GtkWindow _window;
-  late final FlWindowMonitor _windowMonitor;
-  bool _destroyed = false;
-
-  @override
-  Size get contentSize => _window.getSize();
+  final RegularWindowControllerLinux _inner;
 
   /// The underlying GTK window, exposed for use as a popup transient parent.
-  GtkWindow get gtkWindow => _window;
+  GtkWindow get gtkWindow => GtkWindow(_inner.getWindowHandle().cast());
+
+  @override
+  FlutterView get rootView => _inner.rootView;
+
+  @override
+  Size get contentSize => _inner.contentSize;
 
   @override
   void destroy() {
-    if (_destroyed) {
-      return;
-    }
-    _window.destroy();
-    _windowMonitor.close();
-    _windowMonitor.unref();
-    _destroyed = true;
+    _inner.removeListener(notifyListeners);
+    _inner.destroy();
   }
 
   @override
-  bool get isActivated => _window.isActive();
+  bool get isActivated => _inner.isActivated;
 
   @override
-  void setSize(Size size) {
-    _window.resize(size.width.toInt(), size.height.toInt());
-  }
+  void setSize(Size size) => _inner.setSize(size);
 
   @override
-  void activate() {
-    _window.present();
-  }
+  void activate() => _inner.activate();
+
+  // Layer-shell windows are compositor-managed — no-op these operations.
 
   @override
   bool get isFullscreen => false;
@@ -336,7 +280,6 @@ class LayershellWindowController extends RegularWindowController {
   bool get isMaximized => false;
 
   @override
-  // TODO: implement isMinimized
   bool get isMinimized => false;
 
   @override
@@ -355,7 +298,7 @@ class LayershellWindowController extends RegularWindowController {
   void setTitle(String title) {}
 
   @override
-  String get title => "";
+  String get title => '';
 }
 
 /// A popup window backed by a transient GTK window (xdg_popup on Wayland).
@@ -386,7 +329,7 @@ class PopupGtkWindowController extends PopupWindowController {
     required this.parent,
     required PopupWindowControllerDelegate delegate,
   })  : _delegate = delegate,
-        _window = GtkWindow(),
+        _window = GtkWindow(GtkWindow.gtkWindowNew(0)),
         super.empty();
 
   @override

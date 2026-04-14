@@ -401,7 +401,7 @@ enum GtkLayerShellKeyboardMode {
 /// Wraps GtkWindow
 class GtkWindow extends GtkContainer {
   /// Create a new GtkWindow
-  GtkWindow() : super(_gtkWindowNew(0));
+  GtkWindow(super.instance);
 
   /// Make window visible and grab focus.
   void present() {
@@ -526,7 +526,7 @@ class GtkWindow extends GtkContainer {
 
   @ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Int)>(
       symbol: 'gtk_window_new')
-  external static ffi.Pointer<ffi.NativeType> _gtkWindowNew(int type);
+  external static ffi.Pointer<ffi.NativeType> gtkWindowNew(int type);
 
   @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
       symbol: 'gtk_window_present')
@@ -1080,6 +1080,10 @@ class FlView extends GtkWidget {
             ),
           ),
         );
+
+  /// Wrap an existing FlView handle (e.g. obtained via [getFlutterViewHandle]).
+  // ignore: use_super_parameters
+  FlView.fromHandle(ffi.Pointer<ffi.NativeType> handle) : super(handle);
 
   /// Get the ID for the Flutter view being shown in this widget.
   int getId() {

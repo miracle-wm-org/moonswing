@@ -3,9 +3,13 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/src/widgets/_window.dart';
+import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
+import 'package:graceful_shell/layer_shell.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class DockConfig {
@@ -216,6 +220,7 @@ class DockState extends State<Dock> {
           );
         }
         return _DockButton(
+          appName: app.name,
           onPressed: () => _launchApp(app),
           child: icon,
         );
@@ -226,10 +231,12 @@ class DockState extends State<Dock> {
 
 class _DockButton extends StatefulWidget {
   const _DockButton({
+    required this.appName,
     required this.onPressed,
     required this.child,
   });
 
+  final String appName;
   final VoidCallback onPressed;
   final Widget child;
 
@@ -240,6 +247,75 @@ class _DockButton extends StatefulWidget {
 class _DockButtonState extends State<_DockButton> {
   bool _hovered = false;
   bool _pressed = false;
+
+  TooltipWindowController? _tooltipController;
+  WindowRegistry? _registry;
+  WindowEntry? _entry;
+
+  @override
+  void dispose() {
+    _closeTooltip();
+    super.dispose();
+  }
+
+  void _openTooltip(BuildContext context) {
+    if (_tooltipController != null) return;
+
+    final renderBox = context.findRenderObject() as RenderBox?;
+    Rect anchorRect = Rect.zero;
+    if (renderBox != null && renderBox.hasSize) {
+      final Offset position = renderBox.localToGlobal(Offset.zero);
+      anchorRect = position & renderBox.size;
+    }
+
+    final barAnchor = BarScope.of(context).anchor;
+    final WindowPositionerAnchor parentAnchor;
+    final WindowPositionerAnchor childAnchor;
+
+    switch (barAnchor) {
+      case 'bottom':
+        parentAnchor = WindowPositionerAnchor.top;
+        childAnchor = WindowPositionerAnchor.bottom;
+      case 'left':
+        parentAnchor = WindowPositionerAnchor.right;
+        childAnchor = WindowPositionerAnchor.left;
+      case 'right':
+        parentAnchor = WindowPositionerAnchor.left;
+        childAnchor = WindowPositionerAnchor.right;
+      default: // 'top'
+        parentAnchor = WindowPositionerAnchor.bottom;
+        childAnchor = WindowPositionerAnchor.top;
+    }
+
+    final theme = ThemeScope.of(context);
+    _tooltipController = TooltipWindowController(
+      parent: WindowScope.of(context),
+      anchorRect: anchorRect,
+      positioner: WindowPositioner(
+        parentAnchor: parentAnchor,
+        childAnchor: childAnchor,
+      ),
+    );
+    _registry = WindowRegistry.of(context);
+    _entry = WindowEntry(
+      controller: _tooltipController!,
+      builder: (_) => _TooltipLabel(name: widget.appName, theme: theme),
+    );
+    _registry!.register(_entry!);
+  }
+
+  void _closeTooltip() {
+    if (_entry != null) {
+      _registry?.unregister(_entry!);
+      _entry = null;
+    }
+    _registry = null;
+    final ctrl = _tooltipController;
+    _tooltipController = null;
+    if (ctrl != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.destroy());
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -253,11 +329,19 @@ class _DockButtonState extends State<_DockButton> {
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
+      onEnter: (_) {
+        setState(() => _hovered = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _hovered) _openTooltip(context);
+        });
+      },
+      onExit: (_) {
+        setState(() {
+          _hovered = false;
+          _pressed = false;
+        });
+        _closeTooltip();
+      },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapDown: (_) => setState(() => _pressed = true),
@@ -277,6 +361,30 @@ class _DockButtonState extends State<_DockButton> {
         ),
       ),
     );
+  }
+}
+
+class _TooltipLabel extends StatelessWidget {
+  const _TooltipLabel({required this.name, required this.theme});
+
+  final String name;
+  final ThemeConfig theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+        textDirection: TextDirection.ltr,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: theme.popupBackground,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            name,
+            style: TextStyle(color: theme.popupForeground, fontSize: 12),
+          ),
+        ));
   }
 }
 

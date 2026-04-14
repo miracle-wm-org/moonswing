@@ -9,6 +9,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/gtk.dart';
+import 'package:flutter/src/widgets/_window.dart';
 
 /// Bell icon widget that lives in the bar. Lights up and shakes when
 /// notifications arrive, and opens/closes the notification panel on click.
@@ -84,7 +85,7 @@ class _NotificationsState extends State<Notifications>
 
     _panelController = LayershellWindowController(
       owner: owner,
-      delegate: LayershellWindowControllerDelegate(),
+      delegate: RegularWindowControllerDelegate(),
       layer: GtkLayerShellLayer.overlay,
       anchorEdges: [
         GtkLayerShellEdge.right,

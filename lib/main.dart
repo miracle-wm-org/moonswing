@@ -85,7 +85,7 @@ void main() async {
     for (final monitor in monitors) {
       backgroundControllers.add(LayershellWindowController(
         owner: windowingOwner,
-        delegate: LayershellWindowControllerDelegate(),
+        delegate: RegularWindowControllerDelegate(),
         layer: GtkLayerShellLayer.background,
         anchorEdges: [
           GtkLayerShellEdge.top,
@@ -117,7 +117,7 @@ void main() async {
 
       controllers[entry.key] = LayershellWindowController(
         owner: windowingOwner,
-        delegate: LayershellWindowControllerDelegate(),
+        delegate: RegularWindowControllerDelegate(),
         width: width,
         height: height,
         layer: layer,
