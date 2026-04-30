@@ -3,7 +3,9 @@
 import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/modules/network.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class SettingsOverlay extends StatefulWidget {
@@ -26,6 +28,8 @@ class _SettingsOverlayState extends State<SettingsOverlay>
   late final Animation<double> _scale;
   late final Animation<double> _opacity;
   final _focusNode = FocusNode();
+
+  String _selectedCategory = 'network';
 
   @override
   void initState() {
@@ -125,6 +129,7 @@ class _SettingsOverlayState extends State<SettingsOverlay>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header
           Container(
             padding: const EdgeInsets.only(left: 24, right: 12, top: 12, bottom: 12),
             decoration: BoxDecoration(
@@ -136,7 +141,7 @@ class _SettingsOverlayState extends State<SettingsOverlay>
               children: [
                 Expanded(
                   child: Text(
-                    'General Settings',
+                    'Settings',
                     style: TextStyle(
                       fontSize: 18,
                       fontFamily: theme.fontFamily,
@@ -171,19 +176,140 @@ class _SettingsOverlayState extends State<SettingsOverlay>
               ],
             ),
           ),
+          // Body: sidebar + content
           Expanded(
-            child: Center(
-              child: Text(
-                'Settings coming soon',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _SettingsSidebar(
+                  selectedCategory: _selectedCategory,
+                  onCategorySelected: (cat) =>
+                      setState(() => _selectedCategory = cat),
                 ),
-              ),
+                Container(width: 1, color: theme.divider),
+                Expanded(child: _buildCategoryContent(_selectedCategory)),
+              ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryContent(String category) {
+    switch (category) {
+      case 'network':
+        return const NetworkSettingsPage();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sidebar
+// ---------------------------------------------------------------------------
+
+class _SettingsSidebar extends StatelessWidget {
+  const _SettingsSidebar({
+    required this.selectedCategory,
+    required this.onCategorySelected,
+  });
+
+  final String selectedCategory;
+  final ValueChanged<String> onCategorySelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 180,
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _SidebarItem(
+              icon: FontAwesomeIcons.wifi,
+              label: 'Network',
+              selected: selectedCategory == 'network',
+              onTap: () => onCategorySelected('network'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatefulWidget {
+  const _SidebarItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final FaIconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  _SidebarItemState createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<_SidebarItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final Color bg;
+    if (widget.selected) {
+      bg = theme.accent.withValues(alpha: 0.25);
+    } else if (_hovered) {
+      bg = theme.surfaceHover;
+    } else {
+      bg = const Color(0x00000000);
+    }
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              FaIcon(
+                widget.icon,
+                size: 13,
+                color: widget.selected
+                    ? theme.accent
+                    : theme.popupForeground.withValues(alpha: 0.8),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontFamily: theme.fontFamily,
+                  color: widget.selected
+                      ? theme.accent
+                      : theme.popupForeground.withValues(alpha: 0.8),
+                  fontWeight:
+                      widget.selected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
