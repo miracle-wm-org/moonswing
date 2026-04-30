@@ -203,7 +203,7 @@ class AppConfig {
     this.theme = const ThemeConfig(),
   });
 
-  static const _defaultConfig = '''
+  static String _buildDefaultConfig(String homeDir) => '''
 [panels.top]
 height = 32
 padding_horizontal = 40
@@ -212,7 +212,8 @@ layer = "top"
 
 [panels.top.layout]
 left = ["workspaces"]
-right = ["sound_control", "battery", "weather", "clock", "system"]
+center = ["clock"]
+right = ["sound_control", "battery", "weather", "system"]
 
 [panels.bottom]
 height = 32
@@ -236,22 +237,35 @@ show_date = true
 
 [modules.media_player]
 max_text_width = 200.0
+
+[background]
+fit = "fill"
+
+[[background.entries]]
+path = "$homeDir/.local/share/graceful-shell/wallpaper.jpg"
+time = "00:00"
 ''';
 
   static Future<AppConfig> load() async {
+    final homeDir = Platform.environment['HOME'] ?? '';
     final configHome = Platform.environment['XDG_CONFIG_HOME'] ??
-        '${Platform.environment['HOME']}/.config';
+        '$homeDir/.config';
     final configPath = '$configHome/graceful-shell/config.toml';
     final file = File(configPath);
 
     if (!await file.exists()) {
       try {
         await file.parent.create(recursive: true);
-        await file.writeAsString(_defaultConfig);
+        await file.writeAsString(_buildDefaultConfig(homeDir));
       } catch (_) {
         // Could not write default config; proceed with defaults
       }
-      return const AppConfig(background: null);
+      try {
+        final doc = TomlDocument.parse(_buildDefaultConfig(homeDir));
+        return AppConfig._fromMap(doc.toMap());
+      } catch (_) {
+        return const AppConfig();
+      }
     }
 
     try {

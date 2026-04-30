@@ -193,7 +193,7 @@ class LayershellWindowController extends RegularWindowController {
     }
     final inner = owner.createRegularWindowController(
       delegate: delegate,
-      decorated: false,
+      resizable: false
     ) as RegularWindowControllerLinux;
     return LayershellWindowController._wrap(
       inner,
@@ -223,8 +223,8 @@ class LayershellWindowController extends RegularWindowController {
 
     // Apply layer-shell settings now — the GtkWindow exists but present() is
     // deferred to the first frame, satisfying gtk-layer-shell's ordering rule.
-    final gtkWin = GtkWindow(_inner.getWindowHandle().cast());
-    FlView.fromHandle(_inner.getFlutterViewHandle().cast())
+    final gtkWin = GtkWindow(_inner.windowHandle.cast());
+    FlView.fromHandle(_inner.flutterViewHandle.cast())
         .setBackgroundColor('#00000000');
 
     gtkWin.layerInitForWindow();
@@ -248,7 +248,7 @@ class LayershellWindowController extends RegularWindowController {
   final RegularWindowControllerLinux _inner;
 
   /// The underlying GTK window, exposed for use as a popup transient parent.
-  GtkWindow get gtkWindow => GtkWindow(_inner.getWindowHandle().cast());
+  GtkWindow get gtkWindow => GtkWindow(_inner.windowHandle.cast());
 
   @override
   FlutterView get rootView => _inner.rootView;
