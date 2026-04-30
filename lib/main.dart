@@ -251,29 +251,26 @@ class _PanelMainState extends State<PanelMain>
   Widget build(BuildContext context) {
     final layout = widget.panelConfig.layout;
 
-    final sections = <Widget>[];
-
-    if (layout.left.isNotEmpty) {
-      sections.add(_buildSection(layout.left));
-    }
-
     final bool vertical = widget.panelConfig.anchor == 'left' ||
         widget.panelConfig.anchor == 'right';
 
-    if (layout.center.isNotEmpty) {
-      if (sections.isNotEmpty) sections.add(_PanelDivider(vertical: vertical));
-      sections
-          .add(Expanded(child: Center(child: _buildSection(layout.center))));
-    } else {
-      sections.add(const Expanded(child: SizedBox.shrink()));
-    }
-
-    if (layout.right.isNotEmpty) {
-      if (layout.center.isNotEmpty || layout.left.isNotEmpty) {
-        sections.add(_PanelDivider(vertical: vertical));
-      }
-      sections.add(_buildSection(layout.right));
-    }
+    final stackChildren = <Widget>[
+      if (layout.left.isNotEmpty)
+        Align(
+          alignment: vertical ? Alignment.topCenter : Alignment.centerLeft,
+          child: _buildSection(layout.left),
+        ),
+      if (layout.center.isNotEmpty)
+        Align(
+          alignment: Alignment.center,
+          child: _buildSection(layout.center),
+        ),
+      if (layout.right.isNotEmpty)
+        Align(
+          alignment: vertical ? Alignment.bottomCenter : Alignment.centerRight,
+          child: _buildSection(layout.right),
+        ),
+    ];
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
     final theme = ThemeScope.of(context);
@@ -304,31 +301,11 @@ class _PanelMainState extends State<PanelMain>
                 padding: vertical
                     ? EdgeInsets.fromLTRB(0, pad, 0, pad)
                     : EdgeInsets.fromLTRB(pad, 0, pad, 0),
-                child: vertical
-                    ? Column(children: sections)
-                    : Row(children: sections),
+                child: Stack(children: stackChildren),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _PanelDivider extends StatelessWidget {
-  const _PanelDivider({this.vertical = false});
-
-  final bool vertical;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      child: Container(
-        width: vertical ? null : 1,
-        height: vertical ? 1 : null,
-        color: ThemeScope.of(context).divider,
       ),
     );
   }
