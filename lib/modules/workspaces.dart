@@ -13,7 +13,7 @@ class Workspaces extends StatefulWidget {
 class WorkspacesState extends State<Workspaces> {
   List<WorkspaceResult> _workspaces = <WorkspaceResult>[];
   bool _initialized = false;
-  late MiracleConnection _connection;
+  MiracleConnection? _connection;
 
   @override
   void didChangeDependencies() {
@@ -21,13 +21,13 @@ class WorkspacesState extends State<Workspaces> {
     if (!_initialized) {
       _initialized = true;
       _connection = MiracleScope.of(context);
-      _connection.subscribe([SubscriptionType.workspace]);
-      _connection.listen((Event event) {
+      _connection?.subscribe([SubscriptionType.workspace]);
+      _connection?.listen((Event event) {
         if (event is EventWorkspace) {
-          _connection.getWorkspaces().then(_updateWorkspaces);
+          _connection?.getWorkspaces().then(_updateWorkspaces);
         }
       });
-      _connection.getWorkspaces().then(_updateWorkspaces);
+      _connection?.getWorkspaces().then(_updateWorkspaces);
     }
   }
 
@@ -58,7 +58,7 @@ class WorkspacesState extends State<Workspaces> {
                 final String command = workspace.num != null
                     ? 'workspace ${workspace.num}'
                     : 'workspace ${workspace.name}';
-                _connection.command(command);
+                _connection?.command(command);
               },
               child: Text(
                 workspace.name ?? workspace.num?.toString() ?? '?',

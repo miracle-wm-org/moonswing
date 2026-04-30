@@ -11,10 +11,10 @@ class MiracleScope extends InheritedWidget {
     required super.child,
   });
 
-  final MiracleConnection connection;
+  final MiracleConnection? connection;
 
-  static MiracleConnection of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<MiracleScope>()!.connection;
+  static MiracleConnection? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<MiracleScope>()?.connection;
 
   @override
   bool updateShouldNotify(MiracleScope old) => connection != old.connection;

@@ -1,6 +1,7 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:ui';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -24,6 +25,7 @@ class _SettingsOverlayState extends State<SettingsOverlay>
   late final AnimationController _controller;
   late final Animation<double> _scale;
   late final Animation<double> _opacity;
+  final _focusNode = FocusNode();
 
   @override
   void initState() {
@@ -48,10 +50,15 @@ class _SettingsOverlayState extends State<SettingsOverlay>
     }
   }
 
+  void _requestClose() {
+    widget.closingNotifier.value = true;
+  }
+
   @override
   void dispose() {
     widget.closingNotifier.removeListener(_onClosingChanged);
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -59,6 +66,30 @@ class _SettingsOverlayState extends State<SettingsOverlay>
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
 
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: DefaultTextStyle(
+        style: TextStyle(
+          fontFamily: theme.fontFamily,
+          fontSize: 14,
+          color: theme.popupForeground,
+        ),
+        child: KeyboardListener(
+          focusNode: _focusNode,
+          autofocus: true,
+          onKeyEvent: (event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              _requestClose();
+            }
+          },
+          child: _buildAnimated(theme),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnimated(ThemeConfig theme) {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -89,25 +120,55 @@ class _SettingsOverlayState extends State<SettingsOverlay>
       decoration: BoxDecoration(
         color: theme.popupBackground,
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: theme.accent, width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            padding: const EdgeInsets.only(left: 24, right: 12, top: 12, bottom: 12),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: theme.divider),
               ),
             ),
-            child: Text(
-              'General Settings',
-              style: TextStyle(
-                fontSize: 18,
-                fontFamily: theme.fontFamily,
-                color: theme.popupForeground,
-                fontWeight: FontWeight.w600,
-              ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'General Settings',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: _requestClose,
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        color: const Color(0x00000000),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '✕',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: theme.popupForeground.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           Expanded(

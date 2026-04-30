@@ -525,7 +525,6 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   PopupWindowController? _popupController;
   WindowRegistry? _registry;
   WindowEntry? _entry;
-  bool _popupHasBeenActive = false;
 
   /// Whether a popup is currently open.
   bool get isPopupOpen => _popupController != null;
@@ -555,28 +554,14 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         if (_popupController == thisController) closePopup();
       }),
     );
-    _popupHasBeenActive = false;
-    _popupController!.addListener(_onPopupControllerChanged);
     _registry = WindowRegistry.of(context);
     _entry = WindowEntry(controller: _popupController!, builder: (_) => child);
     _registry!.register(_entry!);
     setState(() {});
   }
 
-  void _onPopupControllerChanged() {
-    final ctrl = _popupController;
-    if (ctrl == null) return;
-    if (ctrl.isActivated) {
-      _popupHasBeenActive = true;
-    } else if (_popupHasBeenActive) {
-      _popupHasBeenActive = false;
-      closePopup();
-    }
-  }
-
   /// Closes and destroys the current popup, if any.
   void closePopup() {
-    _popupController?.removeListener(_onPopupControllerChanged);
     if (_entry != null) {
       _registry?.unregister(_entry!);
       _entry = null;

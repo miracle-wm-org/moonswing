@@ -3,7 +3,6 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
@@ -244,77 +243,60 @@ class _DockButton extends StatefulWidget {
   State<_DockButton> createState() => _DockButtonState();
 }
 
-class _DockButtonState extends State<_DockButton> {
+class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   bool _hovered = false;
   bool _pressed = false;
 
-  TooltipWindowController? _tooltipController;
-  WindowRegistry? _registry;
-  WindowEntry? _entry;
-
-  @override
-  void dispose() {
-    _closeTooltip();
-    super.dispose();
-  }
-
   void _openTooltip(BuildContext context) {
-    if (_tooltipController != null) return;
+    if (isPopupOpen) return;
 
     final renderBox = context.findRenderObject() as RenderBox?;
-    Rect anchorRect = Rect.zero;
-    if (renderBox != null && renderBox.hasSize) {
-      final Offset position = renderBox.localToGlobal(Offset.zero);
-      anchorRect = position & renderBox.size;
-    }
+    if (renderBox == null || !renderBox.hasSize) return;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    final flutterView = View.of(context);
+    final dpr = flutterView.devicePixelRatio;
+    final barLogicalWidth = flutterView.physicalSize.width / dpr;
+    final barLogicalHeight = flutterView.physicalSize.height / dpr;
 
     final barAnchor = BarScope.of(context).anchor;
     final WindowPositionerAnchor parentAnchor;
     final WindowPositionerAnchor childAnchor;
+    final Rect anchorRect;
 
     switch (barAnchor) {
       case 'bottom':
+        final screenH = getScreenSize().height;
+        anchorRect = Rect.fromLTWH(offset.dx,
+            screenH - 2 * barLogicalHeight - 8, size.width, size.height);
         parentAnchor = WindowPositionerAnchor.top;
         childAnchor = WindowPositionerAnchor.bottom;
       case 'left':
+        anchorRect = offset & size;
         parentAnchor = WindowPositionerAnchor.right;
         childAnchor = WindowPositionerAnchor.left;
       case 'right':
+        final screenW = getScreenSize().width;
+        anchorRect = Rect.fromLTWH(screenW - barLogicalWidth + offset.dx,
+            offset.dy, size.width, size.height);
         parentAnchor = WindowPositionerAnchor.left;
         childAnchor = WindowPositionerAnchor.right;
       default: // 'top'
+        anchorRect = offset & size;
         parentAnchor = WindowPositionerAnchor.bottom;
         childAnchor = WindowPositionerAnchor.top;
     }
 
     final theme = ThemeScope.of(context);
-    _tooltipController = TooltipWindowController(
-      parent: WindowScope.of(context),
+    openPopup(
+      context,
+      child: _TooltipLabel(name: widget.appName, theme: theme),
+      preferredConstraints: const BoxConstraints(maxWidth: 120, maxHeight: 32),
       anchorRect: anchorRect,
-      positioner: WindowPositioner(
-        parentAnchor: parentAnchor,
-        childAnchor: childAnchor,
-      ),
+      parentAnchor: parentAnchor,
+      childAnchor: childAnchor,
     );
-    _registry = WindowRegistry.of(context);
-    _entry = WindowEntry(
-      controller: _tooltipController!,
-      builder: (_) => _TooltipLabel(name: widget.appName, theme: theme),
-    );
-    _registry!.register(_entry!);
-  }
-
-  void _closeTooltip() {
-    if (_entry != null) {
-      _registry?.unregister(_entry!);
-      _entry = null;
-    }
-    _registry = null;
-    final ctrl = _tooltipController;
-    _tooltipController = null;
-    if (ctrl != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.destroy());
-    }
   }
 
   @override
@@ -340,7 +322,7 @@ class _DockButtonState extends State<_DockButton> {
           _hovered = false;
           _pressed = false;
         });
-        _closeTooltip();
+        closePopup();
       },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -377,13 +359,14 @@ class _TooltipLabel extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: theme.popupBackground,
-            borderRadius: BorderRadius.circular(4),
+            color: theme.popupBackground.withAlpha(100),
+            borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(
+          child: Center(
+              child: Text(
             name,
             style: TextStyle(color: theme.popupForeground, fontSize: 12),
-          ),
+          )),
         ));
   }
 }

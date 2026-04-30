@@ -46,9 +46,14 @@ void main() async {
 
   await startNotificationService();
 
-  MiracleConnection connection = MiracleConnection();
-  await connection.connect();
-  await connection.subscribe([SubscriptionType.workspace]);
+  MiracleConnection? connection;
+  try {
+    connection = MiracleConnection();
+    await connection.connect();
+    await connection.subscribe([SubscriptionType.workspace]);
+  } catch (e) {
+    connection = null;
+  }
 
   final monitors = listMonitors();
 
