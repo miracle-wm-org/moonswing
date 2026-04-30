@@ -1,6 +1,13 @@
+// ignore_for_file: implementation_imports
+// ignore_for_file: invalid_use_of_internal_member
+
 import 'dart:async';
 import 'package:flutter/widgets.dart';
+import 'package:flutter/src/widgets/_window.dart';
+import 'package:graceful_shell/gtk.dart';
+import 'package:graceful_shell/layer_shell.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/modules/settings_overlay.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class ClockConfig {
@@ -25,10 +32,15 @@ class Clock extends StatefulWidget {
   ClockState createState() => ClockState();
 }
 
+// ignore: library_private_types_in_public_api
 class ClockState extends State<Clock> {
   late String _timeString;
   late String _dateString;
   Timer? _timer;
+
+  LayershellWindowController? _overlayController;
+  LayerShellWindow? _overlayView;
+  final ValueNotifier<bool> _closingNotifier = ValueNotifier(false);
 
   @override
   void initState() {
@@ -60,7 +72,73 @@ class ClockState extends State<Clock> {
   @override
   void dispose() {
     _timer?.cancel();
+    _closeOverlay();
+    _closingNotifier.dispose();
     super.dispose();
+  }
+
+  void _toggleOverlay(BuildContext context) {
+    if (_overlayController != null) {
+      _beginCloseOverlay();
+    } else {
+      _openOverlay(context);
+    }
+  }
+
+  void _openOverlay(BuildContext context) {
+    final owner =
+        WidgetsBinding.instance.windowingOwner as ExtendedWindowingOwnerLinux;
+
+    _closingNotifier.value = false;
+
+    _overlayController = LayershellWindowController(
+      owner: owner,
+      delegate: RegularWindowControllerDelegate(),
+      layer: GtkLayerShellLayer.overlay,
+      anchorEdges: [
+        GtkLayerShellEdge.top,
+        GtkLayerShellEdge.bottom,
+        GtkLayerShellEdge.left,
+        GtkLayerShellEdge.right,
+      ],
+      keyboardMode: GtkLayerShellKeyboardMode.onDemand,
+    );
+
+    final theme = ThemeScope.of(context);
+
+    _overlayView = LayerShellWindow(
+      controller: _overlayController!,
+      child: ThemeScope(
+        theme: theme,
+        child: SettingsOverlay(
+          closingNotifier: _closingNotifier,
+          onClosed: _onOverlayClosed,
+        ),
+      ),
+    );
+
+    DynamicLayerShellViews.instance.add(_overlayView!);
+    setState(() {});
+  }
+
+  void _beginCloseOverlay() {
+    _closingNotifier.value = true;
+    // SettingsOverlay plays its fade-out then calls _onOverlayClosed.
+  }
+
+  void _onOverlayClosed() {
+    _closeOverlay();
+  }
+
+  void _closeOverlay() {
+    if (_overlayView != null) {
+      DynamicLayerShellViews.instance.remove(_overlayView!);
+      _overlayView = null;
+    }
+    final ctrl = _overlayController;
+    _overlayController = null;
+    ctrl?.destroy();
+    if (mounted) setState(() {});
   }
 
   static const _months = [
@@ -90,15 +168,22 @@ class ClockState extends State<Clock> {
   Widget build(BuildContext context) {
     final foreground = ThemeScope.of(context).foreground;
     final style = TextStyle(fontSize: 16, color: foreground);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.config.showDate) ...[
-          Text(_dateString, style: style),
-          const SizedBox(width: 8),
-        ],
-        Text(_timeString, style: style),
-      ],
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _toggleOverlay(context),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (widget.config.showDate) ...[
+              Text(_dateString, style: style),
+              const SizedBox(width: 8),
+            ],
+            Text(_timeString, style: style),
+          ],
+        ),
+      ),
     );
   }
 }
