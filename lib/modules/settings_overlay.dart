@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/modules/bluetooth.dart';
 import 'package:graceful_shell/modules/network.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -200,6 +201,8 @@ class _SettingsOverlayState extends State<SettingsOverlay>
     switch (category) {
       case 'network':
         return const NetworkSettingsPage();
+      case 'bluetooth':
+        return const BluetoothSettingsPage();
       default:
         return const SizedBox.shrink();
     }
@@ -233,6 +236,12 @@ class _SettingsSidebar extends StatelessWidget {
               label: 'Network',
               selected: selectedCategory == 'network',
               onTap: () => onCategorySelected('network'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.bluetooth,
+              label: 'Bluetooth',
+              selected: selectedCategory == 'bluetooth',
+              onTap: () => onCategorySelected('bluetooth'),
             ),
           ],
         ),
