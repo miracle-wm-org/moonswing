@@ -2,6 +2,8 @@
 
 The shell of your dreams, built with Flutter.
 
+![Graceful Shell demo](demo.png)
+
 ## Dependencies
 
 Install the required system libraries before building:
@@ -45,6 +47,12 @@ make install PREFIX=/usr/local
 ```
 
 This copies the binary, libraries, and the default wallpaper to the prefix. Make sure `$PREFIX/bin` is in your `PATH`.
+
+Once built, simply run:
+
+```sh
+graceful-shell
+```
 
 To uninstall:
 
