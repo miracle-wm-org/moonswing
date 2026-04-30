@@ -225,6 +225,9 @@ layer = "top"
 center = ["dock"]
 right = ["media_player"]
 
+[modules.dock]
+apps = ["firefox_firefox", "org.gnome.Ptyxis", "org.gnome.Nautilus"]
+
 [modules.weather]
 unit = "fahrenheit"
 refresh_minutes = 10
