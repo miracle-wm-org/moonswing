@@ -7,7 +7,7 @@ import 'package:flutter/src/widgets/_window.dart';
 import 'package:graceful_shell/gtk.dart';
 import 'package:graceful_shell/layer_shell.dart';
 import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/modules/settings_overlay.dart';
+import 'package:graceful_shell/settings/overlay.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class ClockConfig {
@@ -37,6 +37,7 @@ class ClockState extends State<Clock> {
   late String _timeString;
   late String _dateString;
   Timer? _timer;
+  bool _hovered = false;
 
   LayershellWindowController? _overlayController;
   LayerShellWindow? _overlayView;
@@ -166,22 +167,30 @@ class ClockState extends State<Clock> {
 
   @override
   Widget build(BuildContext context) {
-    final foreground = ThemeScope.of(context).foreground;
-    final style = TextStyle(fontSize: 16, color: foreground);
+    final theme = ThemeScope.of(context);
+    final style = TextStyle(fontSize: 16, color: theme.foreground);
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapDown: (_) => _toggleOverlay(context),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.config.showDate) ...[
-              Text(_dateString, style: style),
-              const SizedBox(width: 8),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _hovered ? theme.surfaceHover : null,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.config.showDate) ...[
+                Text(_dateString, style: style),
+                const SizedBox(width: 8),
+              ],
+              Text(_timeString, style: style),
             ],
-            Text(_timeString, style: style),
-          ],
+          ),
         ),
       ),
     );

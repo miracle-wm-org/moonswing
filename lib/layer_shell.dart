@@ -192,9 +192,7 @@ class LayershellWindowController extends RegularWindowController {
       throw UnsupportedError(_kWindowingDisabledErrorMessage);
     }
     final inner = owner.createRegularWindowController(
-      delegate: delegate,
-      resizable: false
-    ) as RegularWindowControllerLinux;
+        delegate: delegate, resizable: false) as RegularWindowControllerLinux;
     return LayershellWindowController._wrap(
       inner,
       layer: layer,

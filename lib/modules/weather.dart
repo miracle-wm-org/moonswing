@@ -98,12 +98,12 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
       final unitParam = _unit == TemperatureUnit.fahrenheit
           ? '&temperature_unit=fahrenheit'
           : '';
-      final weatherResponse =
-          await http.get(Uri.parse('https://api.open-meteo.com/v1/forecast'
-              '?latitude=$lat&longitude=$lon'
-              '&current=temperature_2m,weather_code'
-              '&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max'
-              '$unitParam'));
+      final weatherResponse = await http.get(Uri.parse(
+          'https://api.open-meteo.com/v1/forecast'
+          '?latitude=$lat&longitude=$lon'
+          '&current=temperature_2m,weather_code'
+          '&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max'
+          '$unitParam'));
       if (weatherResponse.statusCode != 200) return;
 
       final weather = jsonDecode(weatherResponse.body);
@@ -128,7 +128,8 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
           weatherCode: (codes[i] as num).toInt(),
           tempMax: (maxTemps[i] as num).toDouble(),
           tempMin: (minTemps[i] as num).toDouble(),
-          precipProbability: precips[i] != null ? (precips[i] as num).toInt() : 0,
+          precipProbability:
+              precips[i] != null ? (precips[i] as num).toInt() : 0,
         ));
       }
 
@@ -249,7 +250,8 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
       anchorRect: anchorRect,
       parentAnchor: parentAnchor,
       childAnchor: childAnchor,
-      preferredConstraints: const BoxConstraints.tightFor(width: 260, height: 300),
+      preferredConstraints:
+          const BoxConstraints.tightFor(width: 260, height: 300),
       child: ThemeScope(
         theme: theme,
         child: _WeatherForecastPopup(

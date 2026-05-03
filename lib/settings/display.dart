@@ -212,8 +212,7 @@ class ZwlrOutputManagerV1 extends WaylandObject {
     switch (code) {
       case 0:
         final headId = WaylandReadBuffer(payload).readUint();
-        final head =
-            ZwlrOutputHeadV1(client, headId, onChanged: onChanged);
+        final head = ZwlrOutputHeadV1(client, headId, onChanged: onChanged);
         heads.add(head);
         onChanged();
         return true;
@@ -366,8 +365,7 @@ class _DisplayEdit {
   }) =>
       _DisplayEdit(
         enabled: enabled ?? this.enabled,
-        selectedMode:
-            clearMode ? null : (selectedMode ?? this.selectedMode),
+        selectedMode: clearMode ? null : (selectedMode ?? this.selectedMode),
         scale: scale ?? this.scale,
         transform: transform ?? this.transform,
         positionX: positionX ?? this.positionX,
@@ -415,7 +413,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       registry = client.getRegistry(
         onGlobal: (name, interface, version) {
           if (interface == 'zwlr_output_manager_v1') {
-            final boundId = registry!.bind(name, interface, math.min(version, 2));
+            final boundId =
+                registry!.bind(name, interface, math.min(version, 2));
             _manager = ZwlrOutputManagerV1(
               client,
               boundId,
@@ -429,7 +428,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       client.sync((_) {
         if (!mounted) return;
         if (_manager == null) {
-          setState(() => _error = 'Display management not supported by this compositor');
+          setState(() =>
+              _error = 'Display management not supported by this compositor');
         }
       });
     } catch (e) {
@@ -626,7 +626,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                     setState(() {
                       final edit = _edits[headId];
                       if (edit != null) {
-                        _edits[headId] = edit.copyWith(positionX: x, positionY: y);
+                        _edits[headId] =
+                            edit.copyWith(positionX: x, positionY: y);
                       }
                     });
                   },
@@ -647,8 +648,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                     : ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: manager.heads.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 12),
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (_, i) {
                           final head = manager.heads[i];
                           final edit = _edits[head.id];
@@ -1189,7 +1189,8 @@ class _DropdownTriggerState extends State<_DropdownTrigger> {
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
-    final bg = _hovered ? theme.surfaceHover : theme.divider.withValues(alpha: 0.5);
+    final bg =
+        _hovered ? theme.surfaceHover : theme.divider.withValues(alpha: 0.5);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
@@ -1276,9 +1277,8 @@ class _ModeListItemState extends State<_ModeListItem> {
                   style: TextStyle(
                     fontSize: 13,
                     fontFamily: theme.fontFamily,
-                    color: widget.selected
-                        ? theme.accent
-                        : theme.popupForeground,
+                    color:
+                        widget.selected ? theme.accent : theme.popupForeground,
                   ),
                 ),
               ),

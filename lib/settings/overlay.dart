@@ -5,9 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/modules/bluetooth.dart';
-import 'package:graceful_shell/modules/display.dart';
-import 'package:graceful_shell/modules/network.dart';
+import 'package:graceful_shell/settings/bluetooth.dart';
+import 'package:graceful_shell/settings/display.dart';
+import 'package:graceful_shell/settings/network.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class SettingsOverlay extends StatefulWidget {
@@ -133,7 +133,8 @@ class _SettingsOverlayState extends State<SettingsOverlay>
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.only(left: 24, right: 12, top: 12, bottom: 12),
+            padding:
+                const EdgeInsets.only(left: 24, right: 12, top: 12, bottom: 12),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: theme.divider),

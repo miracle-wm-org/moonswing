@@ -251,8 +251,8 @@ time = "00:00"
 
   static Future<AppConfig> load() async {
     final homeDir = Platform.environment['HOME'] ?? '';
-    final configHome = Platform.environment['XDG_CONFIG_HOME'] ??
-        '$homeDir/.config';
+    final configHome =
+        Platform.environment['XDG_CONFIG_HOME'] ?? '$homeDir/.config';
     final configPath = '$configHome/graceful-shell/config.toml';
     final file = File(configPath);
 
