@@ -179,14 +179,18 @@ Future<BluetoothScanResult> scanBluetooth({bool discover = false}) async {
         path: initial.adapterPath!,
       );
       await adapter.callMethod(
-        _adapterIface, 'StartDiscovery', [],
+        _adapterIface,
+        'StartDiscovery',
+        [],
         replySignature: DBusSignature(''),
       );
       await Future.delayed(const Duration(seconds: 5));
       final fresh = await fetch();
       try {
         await adapter.callMethod(
-          _adapterIface, 'StopDiscovery', [],
+          _adapterIface,
+          'StopDiscovery',
+          [],
           replySignature: DBusSignature(''),
         );
       } catch (_) {}
@@ -498,7 +502,8 @@ class _BtPowerToggleState extends State<_BtPowerToggle> {
             color: bg,
             borderRadius: BorderRadius.circular(6),
             border: widget.powered
-                ? Border.all(color: theme.accent.withValues(alpha: 0.4), width: 1)
+                ? Border.all(
+                    color: theme.accent.withValues(alpha: 0.4), width: 1)
                 : null,
           ),
           child: Row(
