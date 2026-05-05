@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/settings/audio.dart';
 import 'package:graceful_shell/settings/bluetooth.dart';
 import 'package:graceful_shell/settings/display.dart';
 import 'package:graceful_shell/settings/network.dart';
@@ -207,6 +208,8 @@ class _SettingsOverlayState extends State<SettingsOverlay>
         return const BluetoothSettingsPage();
       case 'display':
         return const DisplaySettingsPage();
+      case 'audio':
+        return const AudioSettingsPage();
       default:
         return const SizedBox.shrink();
     }
@@ -252,6 +255,12 @@ class _SettingsSidebar extends StatelessWidget {
               label: 'Display',
               selected: selectedCategory == 'display',
               onTap: () => onCategorySelected('display'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.volumeHigh,
+              label: 'Audio',
+              selected: selectedCategory == 'audio',
+              onTap: () => onCategorySelected('audio'),
             ),
           ],
         ),

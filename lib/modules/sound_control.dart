@@ -5,7 +5,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:pulseaudio/pulseaudio.dart';
+import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/layer_shell.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -23,8 +23,8 @@ class SoundControlState extends State<SoundControl>
   bool _muted = false;
   bool _available = false;
   String _defaultSinkName = '';
-  PulseAudioClient? _client;
-  StreamSubscription<PulseAudioSink>? _sinkChangedSub;
+  PulseClient? _client;
+  StreamSubscription<PaSink>? _sinkChangedSub;
 
   bool _hovered = false;
 
@@ -37,14 +37,13 @@ class SoundControlState extends State<SoundControl>
   @override
   void dispose() {
     _sinkChangedSub?.cancel();
-    _client?.dispose();
     closePopup();
     super.dispose();
   }
 
   Future<void> _initPulseAudio() async {
     try {
-      final client = PulseAudioClient();
+      final client = PulseClient();
       await client.initialize();
       _client = client;
 
