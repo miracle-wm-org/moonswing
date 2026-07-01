@@ -1,16 +1,11 @@
-// ignore_for_file: implementation_imports
-// ignore_for_file: invalid_use_of_internal_member
-
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window.dart';
-import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:ubuntu_session/ubuntu_session.dart';
-import 'package:graceful_shell/gtk.dart';
+import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/layer_shell.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -36,19 +31,15 @@ class SystemState extends State<System> with PopupHost<System> {
 
   void _showConfirmation(String label, Future<void> Function() action) {
     closePopup();
-    final owner =
-        WidgetsBinding.instance.windowingOwner as ExtendedWindowingOwnerLinux;
     _confirmController = LayershellWindowController(
-      owner: owner,
-      delegate: RegularWindowControllerDelegate(),
-      layer: GtkLayerShellLayer.overlay,
+      layer: LayerShellLayer.overlay,
       anchorEdges: [
-        GtkLayerShellEdge.top,
-        GtkLayerShellEdge.bottom,
-        GtkLayerShellEdge.left,
-        GtkLayerShellEdge.right,
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
       ],
-      keyboardMode: GtkLayerShellKeyboardMode.onDemand,
+      keyboardMode: LayerShellKeyboardMode.onDemand,
     );
     _confirmView = LayerShellWindow(
       controller: _confirmController!,
@@ -82,51 +73,10 @@ class SystemState extends State<System> with PopupHost<System> {
       return;
     }
 
-    final renderBox = context.findRenderObject() as RenderBox;
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-
-    final flutterView = View.of(context);
-    final dpr = flutterView.devicePixelRatio;
-    final barLogicalWidth = flutterView.physicalSize.width / dpr;
-    final barLogicalHeight = flutterView.physicalSize.height / dpr;
-
-    final anchor = BarScope.of(context).anchor;
-
-    final Rect anchorRect;
-    final WindowPositionerAnchor parentAnchor;
-    final WindowPositionerAnchor childAnchor;
-
-    switch (anchor) {
-      case 'bottom':
-        final screenH = getScreenSize().height;
-        anchorRect =
-            Rect.fromLTWH(offset.dx, screenH - barLogicalHeight, size.width, 0);
-        parentAnchor = WindowPositionerAnchor.top;
-        childAnchor = WindowPositionerAnchor.bottom;
-      case 'left':
-        anchorRect = Rect.fromLTWH(0, offset.dy, barLogicalWidth, size.height);
-        parentAnchor = WindowPositionerAnchor.right;
-        childAnchor = WindowPositionerAnchor.left;
-      case 'right':
-        final screenW = getScreenSize().width;
-        anchorRect = Rect.fromLTWH(
-            screenW - barLogicalWidth, offset.dy, barLogicalWidth, 0);
-        parentAnchor = WindowPositionerAnchor.left;
-        childAnchor = WindowPositionerAnchor.right;
-      default: // 'top'
-        anchorRect = Rect.fromLTWH(offset.dx, 0, size.width, 0);
-        parentAnchor = WindowPositionerAnchor.bottom;
-        childAnchor = WindowPositionerAnchor.top;
-    }
-
     _storedTheme = ThemeScope.of(context);
 
-    openPopup(
+    openBarPopup(
       context,
-      anchorRect: anchorRect,
-      parentAnchor: parentAnchor,
-      childAnchor: childAnchor,
       preferredConstraints:
           const BoxConstraints.tightFor(width: 200, height: 154),
       child: ThemeScope(

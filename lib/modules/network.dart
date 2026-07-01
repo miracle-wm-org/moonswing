@@ -1,13 +1,10 @@
-// ignore_for_file: implementation_imports
-// ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/layer_shell.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -491,50 +488,10 @@ class NetworkState extends State<Network> with PopupHost<Network> {
       return;
     }
 
-    final renderBox = context.findRenderObject() as RenderBox;
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-
-    final flutterView = View.of(context);
-    final dpr = flutterView.devicePixelRatio;
-    final barLogicalWidth = flutterView.physicalSize.width / dpr;
-    final barLogicalHeight = flutterView.physicalSize.height / dpr;
-
-    final anchor = BarScope.of(context).anchor;
-    final Rect anchorRect;
-    final WindowPositionerAnchor parentAnchor;
-    final WindowPositionerAnchor childAnchor;
-
-    switch (anchor) {
-      case 'bottom':
-        final screenH = getScreenSize().height;
-        anchorRect = Rect.fromLTWH(offset.dx, screenH - barLogicalHeight,
-            size.width, barLogicalHeight);
-        parentAnchor = WindowPositionerAnchor.top;
-        childAnchor = WindowPositionerAnchor.bottom;
-      case 'left':
-        anchorRect = Rect.fromLTWH(0, offset.dy, barLogicalWidth, size.height);
-        parentAnchor = WindowPositionerAnchor.right;
-        childAnchor = WindowPositionerAnchor.left;
-      case 'right':
-        // x=0 is the left (inner) edge of the right bar's window surface;
-        // placing the popup's right there causes it to appear left of the bar.
-        anchorRect = Rect.fromLTWH(0, offset.dy, 0, size.height);
-        parentAnchor = WindowPositionerAnchor.left;
-        childAnchor = WindowPositionerAnchor.right;
-      default: // 'top'
-        anchorRect = Rect.fromLTWH(offset.dx, 0, size.width, 0);
-        parentAnchor = WindowPositionerAnchor.bottom;
-        childAnchor = WindowPositionerAnchor.top;
-    }
-
     final theme = ThemeScope.of(context);
 
-    openPopup(
+    openBarPopup(
       context,
-      anchorRect: anchorRect,
-      parentAnchor: parentAnchor,
-      childAnchor: childAnchor,
       preferredConstraints:
           const BoxConstraints.tightFor(width: 220, height: 110),
       child: ThemeScope(

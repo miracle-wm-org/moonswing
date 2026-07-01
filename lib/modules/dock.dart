@@ -3,10 +3,9 @@ import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
-import 'package:graceful_shell/layer_shell.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -252,50 +251,12 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
 
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return;
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-
-    final flutterView = View.of(context);
-    final dpr = flutterView.devicePixelRatio;
-    final barLogicalWidth = flutterView.physicalSize.width / dpr;
-    final barLogicalHeight = flutterView.physicalSize.height / dpr;
-
-    final barAnchor = BarScope.of(context).anchor;
-    final WindowPositionerAnchor parentAnchor;
-    final WindowPositionerAnchor childAnchor;
-    final Rect anchorRect;
-
-    switch (barAnchor) {
-      case 'bottom':
-        final screenH = getScreenSize().height;
-        anchorRect = Rect.fromLTWH(offset.dx,
-            screenH - 2 * barLogicalHeight - 8, size.width, size.height);
-        parentAnchor = WindowPositionerAnchor.top;
-        childAnchor = WindowPositionerAnchor.bottom;
-      case 'left':
-        anchorRect = offset & size;
-        parentAnchor = WindowPositionerAnchor.right;
-        childAnchor = WindowPositionerAnchor.left;
-      case 'right':
-        final screenW = getScreenSize().width;
-        anchorRect = Rect.fromLTWH(screenW - barLogicalWidth + offset.dx,
-            offset.dy, size.width, size.height);
-        parentAnchor = WindowPositionerAnchor.left;
-        childAnchor = WindowPositionerAnchor.right;
-      default: // 'top'
-        anchorRect = offset & size;
-        parentAnchor = WindowPositionerAnchor.bottom;
-        childAnchor = WindowPositionerAnchor.top;
-    }
 
     final theme = ThemeScope.of(context);
-    openPopup(
+    openBarPopup(
       context,
       child: _TooltipLabel(name: widget.appName, theme: theme),
       preferredConstraints: const BoxConstraints(maxWidth: 120, maxHeight: 32),
-      anchorRect: anchorRect,
-      parentAnchor: parentAnchor,
-      childAnchor: childAnchor,
     );
   }
 

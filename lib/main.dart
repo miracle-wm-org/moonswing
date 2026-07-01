@@ -20,8 +20,7 @@ import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/scopes.dart';
-import 'layer_shell.dart';
-import 'gtk.dart';
+import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:miracle/miracle.dart';
 import 'package:wayland/wayland.dart';
@@ -55,8 +54,6 @@ void main() async {
     connection = null;
   }
 
-  final monitors = listMonitors();
-
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
 
@@ -81,106 +78,163 @@ void main() async {
   await syncCompleter.future;
   await Future.wait(outputCompleters.map((c) => c.future));
 
-  final windowingOwner = ExtendedWindowingOwnerLinux();
-  WidgetsBinding.instance.windowingOwner = windowingOwner;
+  initLayerShell();
 
-  final backgroundControllers = <LayershellWindowController>[];
-  if (appConfig.background != null &&
-      appConfig.background!.entries.isNotEmpty) {
-    for (final monitor in monitors) {
-      backgroundControllers.add(LayershellWindowController(
-        owner: windowingOwner,
-        delegate: RegularWindowControllerDelegate(),
-        layer: GtkLayerShellLayer.background,
-        anchorEdges: [
-          GtkLayerShellEdge.top,
-          GtkLayerShellEdge.bottom,
-          GtkLayerShellEdge.left,
-          GtkLayerShellEdge.right,
-        ],
-        keyboardMode: GtkLayerShellKeyboardMode.none,
-        monitor: monitor.gdkMonitor,
-      ));
-    }
-  }
+  // Layer-shell controllers are created from within the widget tree (see
+  // [_GracefulShellRootState.initState]), not here in main(), so that the GTK
+  // windowing system is fully initialized before the first surface is created.
+  runWidget(GracefulShellRoot(
+    appConfig: appConfig,
+    connection: connection,
+    waylandOutputs: waylandOutputs,
+  ));
+}
 
-  final monitorControllers = <Map<String, LayershellWindowController>>[];
-  for (final monitor in monitors) {
-    final controllers = <String, LayershellWindowController>{};
-    for (final entry in appConfig.panels.entries) {
-      final panelConfig = entry.value;
-      final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
-      final layer = layerFromString(panelConfig.layer);
+/// Root of the widget tree. Owns the lifecycle of every startup layer-shell
+/// window (backgrounds + panels), creating them in [initState] and destroying
+/// them in [dispose].
+class GracefulShellRoot extends StatefulWidget {
+  const GracefulShellRoot({
+    super.key,
+    required this.appConfig,
+    required this.connection,
+    required this.waylandOutputs,
+  });
 
-      int? width;
-      int? height;
-      if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
-        width = panelConfig.height;
-      } else {
-        height = panelConfig.height;
+  final AppConfig appConfig;
+  final MiracleConnection? connection;
+  final List<WaylandOutput> waylandOutputs;
+
+  @override
+  State<GracefulShellRoot> createState() => _GracefulShellRootState();
+}
+
+class _GracefulShellRootState extends State<GracefulShellRoot> {
+  final List<LayershellWindowController> _backgroundControllers = [];
+  final List<Map<String, LayershellWindowController>> _monitorControllers = [];
+  late final List<
+      (
+        MonitorInfo,
+        Map<String, LayershellWindowController>,
+        WaylandOutput
+      )> _monitoredControllers;
+
+  @override
+  void initState() {
+    super.initState();
+    final appConfig = widget.appConfig;
+    final monitors = listMonitors();
+
+    if (appConfig.background != null &&
+        appConfig.background!.entries.isNotEmpty) {
+      for (final monitor in monitors) {
+        _backgroundControllers.add(LayershellWindowController(
+          layer: LayerShellLayer.background,
+          anchorEdges: [
+            LayerShellEdge.top,
+            LayerShellEdge.bottom,
+            LayerShellEdge.left,
+            LayerShellEdge.right,
+          ],
+          keyboardMode: LayerShellKeyboardMode.none,
+          monitor: monitor.gdkMonitor,
+        ));
       }
-
-      controllers[entry.key] = LayershellWindowController(
-        owner: windowingOwner,
-        delegate: RegularWindowControllerDelegate(),
-        width: width,
-        height: height,
-        layer: layer,
-        anchorEdges: anchorEdges,
-        exclusiveZone: panelConfig.height,
-        monitor: monitor.gdkMonitor,
-      );
     }
-    monitorControllers.add(controllers);
+
+    for (final monitor in monitors) {
+      final controllers = <String, LayershellWindowController>{};
+      for (final entry in appConfig.panels.entries) {
+        final panelConfig = entry.value;
+        final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
+        final layer = layerFromString(panelConfig.layer);
+
+        int? width;
+        int? height;
+        if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
+          width = panelConfig.height;
+        } else {
+          height = panelConfig.height;
+        }
+
+        controllers[entry.key] = LayershellWindowController(
+          width: width,
+          height: height,
+          layer: layer,
+          anchorEdges: anchorEdges,
+          exclusiveZone: panelConfig.height,
+          monitor: monitor.gdkMonitor,
+        );
+      }
+      _monitorControllers.add(controllers);
+    }
+
+    WaylandOutput matchOutput(MonitorInfo monitor) =>
+        widget.waylandOutputs.firstWhere(
+          (o) =>
+              o.make == monitor.manufacturer &&
+              o.model == monitor.model &&
+              o.x == monitor.position.dx.toInt() &&
+              o.y == monitor.position.dy.toInt(),
+          orElse: () => widget.waylandOutputs.first,
+        );
+
+    _monitoredControllers = List.generate(
+      monitors.length,
+      (i) => (monitors[i], _monitorControllers[i], matchOutput(monitors[i])),
+    );
   }
 
-  WaylandOutput matchOutput(MonitorInfo monitor) => waylandOutputs.firstWhere(
-        (o) =>
-            o.make == monitor.manufacturer &&
-            o.model == monitor.model &&
-            o.x == monitor.position.dx.toInt() &&
-            o.y == monitor.position.dy.toInt(),
-        orElse: () => waylandOutputs.first,
-      );
+  @override
+  void dispose() {
+    for (final ctrl in _backgroundControllers) {
+      ctrl.destroy();
+    }
+    for (final controllers in _monitorControllers) {
+      for (final ctrl in controllers.values) {
+        ctrl.destroy();
+      }
+    }
+    super.dispose();
+  }
 
-  final monitoredControllers = List.generate(
-    monitors.length,
-    (i) => (monitors[i], monitorControllers[i], matchOutput(monitors[i])),
-  );
-
-  runWidget(ListenableBuilder(
-    listenable: DynamicLayerShellViews.instance,
-    builder: (context, _) => ViewCollection(
-      views: [
-        for (final ctrl in backgroundControllers)
-          LayerShellWindow(
-            controller: ctrl,
-            child: BackgroundWindow(config: appConfig.background!),
-          ),
-        for (final (_, controllers, waylandOutput) in monitoredControllers)
-          for (final entry in appConfig.panels.entries)
+  @override
+  Widget build(BuildContext context) {
+    final appConfig = widget.appConfig;
+    return ListenableBuilder(
+      listenable: DynamicLayerShellViews.instance,
+      builder: (context, _) => ViewCollection(
+        views: [
+          for (final ctrl in _backgroundControllers)
             LayerShellWindow(
-              controller: controllers[entry.key]!,
-              child: WindowManager(
-                child: ThemeScope(
-                  theme: appConfig.theme,
-                  child: MiracleScope(
-                    connection: connection,
-                    child: DisplayScope(
-                      output: waylandOutput,
-                      child: PanelMain(
-                        panelConfig: entry.value,
-                        anchor: entry.value.anchor,
+              controller: ctrl,
+              child: BackgroundWindow(config: appConfig.background!),
+            ),
+          for (final (_, controllers, waylandOutput) in _monitoredControllers)
+            for (final entry in appConfig.panels.entries)
+              LayerShellWindow(
+                controller: controllers[entry.key]!,
+                child: WindowManager(
+                  child: ThemeScope(
+                    theme: appConfig.theme,
+                    child: MiracleScope(
+                      connection: widget.connection,
+                      child: DisplayScope(
+                        output: waylandOutput,
+                        child: PanelMain(
+                          panelConfig: entry.value,
+                          anchor: entry.value.anchor,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-        ...DynamicLayerShellViews.instance.views,
-      ],
-    ),
-  ));
+          ...DynamicLayerShellViews.instance.views,
+        ],
+      ),
+    );
+  }
 }
 
 class PanelMain extends StatefulWidget {

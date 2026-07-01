@@ -1,15 +1,11 @@
-// ignore_for_file: implementation_imports
-// ignore_for_file: invalid_use_of_internal_member
-
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/layer_shell.dart';
+import 'package:layer_shell/layer_shell.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/gtk.dart';
-import 'package:flutter/src/widgets/_window.dart';
 
 /// Bell icon widget that lives in the bar. Lights up and shakes when
 /// notifications arrive, and opens/closes the notification panel on click.
@@ -77,20 +73,16 @@ class _NotificationsState extends State<Notifications>
   }
 
   void _openPanel(BuildContext context) {
-    final owner =
-        WidgetsBinding.instance.windowingOwner as ExtendedWindowingOwnerLinux;
     final panelWidth = (getScreenSize().width / 5).round();
 
     _closingNotifier.value = false;
 
     _panelController = LayershellWindowController(
-      owner: owner,
-      delegate: RegularWindowControllerDelegate(),
-      layer: GtkLayerShellLayer.overlay,
+      layer: LayerShellLayer.overlay,
       anchorEdges: [
-        GtkLayerShellEdge.right,
-        GtkLayerShellEdge.top,
-        GtkLayerShellEdge.bottom,
+        LayerShellEdge.right,
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
       ],
       width: panelWidth,
       // height omitted: top+bottom anchoring makes this full-height.

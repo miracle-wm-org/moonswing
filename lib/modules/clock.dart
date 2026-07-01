@@ -1,11 +1,6 @@
-// ignore_for_file: implementation_imports
-// ignore_for_file: invalid_use_of_internal_member
-
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window.dart';
-import 'package:graceful_shell/gtk.dart';
-import 'package:graceful_shell/layer_shell.dart';
+import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/settings/overlay.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -87,22 +82,17 @@ class ClockState extends State<Clock> {
   }
 
   void _openOverlay(BuildContext context) {
-    final owner =
-        WidgetsBinding.instance.windowingOwner as ExtendedWindowingOwnerLinux;
-
     _closingNotifier.value = false;
 
     _overlayController = LayershellWindowController(
-      owner: owner,
-      delegate: RegularWindowControllerDelegate(),
-      layer: GtkLayerShellLayer.overlay,
+      layer: LayerShellLayer.overlay,
       anchorEdges: [
-        GtkLayerShellEdge.top,
-        GtkLayerShellEdge.bottom,
-        GtkLayerShellEdge.left,
-        GtkLayerShellEdge.right,
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
       ],
-      keyboardMode: GtkLayerShellKeyboardMode.onDemand,
+      keyboardMode: LayerShellKeyboardMode.onDemand,
     );
 
     final theme = ThemeScope.of(context);
