@@ -1,8 +1,6 @@
 import 'dart:async';
-// ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
 import 'package:flutter/widgets.dart';
-import 'package:flutter/src/widgets/_window.dart';
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/module.dart';
