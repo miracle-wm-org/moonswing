@@ -60,8 +60,8 @@ This file bridges Flutter's internal windowing API (imported via `implementation
 
 - **`LayershellWindowController`** — wraps `RegularWindowControllerLinux` and applies layer-shell properties (anchor edges, layer, exclusive zone, monitor) immediately after GTK window creation, before Flutter presents the window.
 - **`PopupGtkWindowController`** — creates freestanding GTK windows on the `overlay` layer, positioned with top+left anchors and margins derived from the parent widget's screen rect.
-- **`DynamicLayerShellViews`** — a singleton `ChangeNotifier` for adding/removing layer-shell views at runtime (used by the notifications module).
-- **`PopupHost` mixin** — reusable `State` mixin that manages a single popup window lifecycle; modules that open popups (e.g. `SoundControl`) mix this in.
+- **`LayerShellHost` mixin** (`lib/popup.dart`) — reusable `State` mixin for modules that open a full layer-shell window (panel/overlay/dialog) at runtime. The module creates the `LayershellWindowController` and hands it to `openLayerWindow`, which registers a `WindowEntry` into the panel's `WindowRegistry` (supplied by the per-panel `WindowManager` in `main.dart`); `closeLayerWindow` unregisters and destroys it. Used by the notifications, clock, and system modules. This is the same `WindowManager`/`WindowRegistry` path popups use — there is no separate runtime-view registry.
+- **`PopupHost` mixin** (`lib/popup.dart`) — reusable `State` mixin that manages a single popup window lifecycle; modules that open popups (e.g. `SoundControl`) mix this in.
 - **`PopupBounceIn`** — scale+fade animation widget used inside popup content.
 
 ### Scopes (`lib/scopes.dart`)

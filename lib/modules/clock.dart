@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/settings/overlay.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -28,14 +29,12 @@ class Clock extends StatefulWidget {
 }
 
 // ignore: library_private_types_in_public_api
-class ClockState extends State<Clock> {
+class ClockState extends State<Clock> with LayerShellHost<Clock> {
   late String _timeString;
   late String _dateString;
   Timer? _timer;
   bool _hovered = false;
 
-  LayershellWindowController? _overlayController;
-  LayerShellWindow? _overlayView;
   final ValueNotifier<bool> _closingNotifier = ValueNotifier(false);
 
   @override
@@ -68,13 +67,13 @@ class ClockState extends State<Clock> {
   @override
   void dispose() {
     _timer?.cancel();
-    _closeOverlay();
+    closeLayerWindow();
     _closingNotifier.dispose();
     super.dispose();
   }
 
   void _toggleOverlay(BuildContext context) {
-    if (_overlayController != null) {
+    if (isLayerWindowOpen) {
       _beginCloseOverlay();
     } else {
       _openOverlay(context);
@@ -84,7 +83,7 @@ class ClockState extends State<Clock> {
   void _openOverlay(BuildContext context) {
     _closingNotifier.value = false;
 
-    _overlayController = LayershellWindowController(
+    final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
       anchorEdges: [
         LayerShellEdge.top,
@@ -97,8 +96,9 @@ class ClockState extends State<Clock> {
 
     final theme = ThemeScope.of(context);
 
-    _overlayView = LayerShellWindow(
-      controller: _overlayController!,
+    openLayerWindow(
+      context,
+      controller: controller,
       child: ThemeScope(
         theme: theme,
         child: SettingsOverlay(
@@ -107,9 +107,6 @@ class ClockState extends State<Clock> {
         ),
       ),
     );
-
-    DynamicLayerShellViews.instance.add(_overlayView!);
-    setState(() {});
   }
 
   void _beginCloseOverlay() {
@@ -118,18 +115,7 @@ class ClockState extends State<Clock> {
   }
 
   void _onOverlayClosed() {
-    _closeOverlay();
-  }
-
-  void _closeOverlay() {
-    if (_overlayView != null) {
-      DynamicLayerShellViews.instance.remove(_overlayView!);
-      _overlayView = null;
-    }
-    final ctrl = _overlayController;
-    _overlayController = null;
-    ctrl?.destroy();
-    if (mounted) setState(() {});
+    closeLayerWindow();
   }
 
   static const _months = [

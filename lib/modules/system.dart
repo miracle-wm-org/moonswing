@@ -16,22 +16,21 @@ class System extends StatefulWidget {
   SystemState createState() => SystemState();
 }
 
-class SystemState extends State<System> with PopupHost<System> {
+class SystemState extends State<System>
+    with PopupHost<System>, LayerShellHost<System> {
   bool _hovered = false;
   ThemeConfig? _storedTheme;
-  LayershellWindowController? _confirmController;
-  LayerShellWindow? _confirmView;
 
   @override
   void dispose() {
-    _closeConfirmation();
+    closeLayerWindow();
     closePopup();
     super.dispose();
   }
 
   void _showConfirmation(String label, Future<void> Function() action) {
     closePopup();
-    _confirmController = LayershellWindowController(
+    final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
       anchorEdges: [
         LayerShellEdge.top,
@@ -41,8 +40,11 @@ class SystemState extends State<System> with PopupHost<System> {
       ],
       keyboardMode: LayerShellKeyboardMode.onDemand,
     );
-    _confirmView = LayerShellWindow(
-      controller: _confirmController!,
+    // Register into this panel's WindowRegistry via the state's own context —
+    // the System bar widget is mounted inside the panel's WindowManager.
+    openLayerWindow(
+      context,
+      controller: controller,
       child: ThemeScope(
         theme: _storedTheme!,
         child: _ConfirmationDialog(
@@ -52,19 +54,10 @@ class SystemState extends State<System> with PopupHost<System> {
         ),
       ),
     );
-    DynamicLayerShellViews.instance.add(_confirmView!);
-    if (mounted) setState(() {});
   }
 
   void _closeConfirmation() {
-    if (_confirmView != null) {
-      DynamicLayerShellViews.instance.remove(_confirmView!);
-      _confirmView = null;
-    }
-    final ctrl = _confirmController;
-    _confirmController = null;
-    ctrl?.destroy();
-    if (mounted) setState(() {});
+    closeLayerWindow();
   }
 
   void _togglePopup(BuildContext context) {

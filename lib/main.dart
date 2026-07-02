@@ -201,38 +201,34 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   @override
   Widget build(BuildContext context) {
     final appConfig = widget.appConfig;
-    return ListenableBuilder(
-      listenable: DynamicLayerShellViews.instance,
-      builder: (context, _) => ViewCollection(
-        views: [
-          for (final ctrl in _backgroundControllers)
+    return ViewCollection(
+      views: [
+        for (final ctrl in _backgroundControllers)
+          LayerShellWindow(
+            controller: ctrl,
+            child: BackgroundWindow(config: appConfig.background!),
+          ),
+        for (final (_, controllers, waylandOutput) in _monitoredControllers)
+          for (final entry in appConfig.panels.entries)
             LayerShellWindow(
-              controller: ctrl,
-              child: BackgroundWindow(config: appConfig.background!),
-            ),
-          for (final (_, controllers, waylandOutput) in _monitoredControllers)
-            for (final entry in appConfig.panels.entries)
-              LayerShellWindow(
-                controller: controllers[entry.key]!,
-                child: WindowManager(
-                  child: ThemeScope(
-                    theme: appConfig.theme,
-                    child: MiracleScope(
-                      connection: widget.connection,
-                      child: DisplayScope(
-                        output: waylandOutput,
-                        child: PanelMain(
-                          panelConfig: entry.value,
-                          anchor: entry.value.anchor,
-                        ),
+              controller: controllers[entry.key]!,
+              child: WindowManager(
+                child: ThemeScope(
+                  theme: appConfig.theme,
+                  child: MiracleScope(
+                    connection: widget.connection,
+                    child: DisplayScope(
+                      output: waylandOutput,
+                      child: PanelMain(
+                        panelConfig: entry.value,
+                        anchor: entry.value.anchor,
                       ),
                     ),
                   ),
                 ),
               ),
-          ...DynamicLayerShellViews.instance.views,
-        ],
-      ),
+            ),
+      ],
     );
   }
 }

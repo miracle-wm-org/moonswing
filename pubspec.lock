@@ -196,8 +196,8 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: HEAD
-      resolved-ref: a4e796ac0a0df20200daa5bdf95fbbcdbe26fdf5
+      ref: "9733bef"
+      resolved-ref: "9733bef02707c9be11f7d8e1089f8f332bd6929d"
       url: "https://github.com/mattkae/layer_shell.dart.git"
     source: git
     version: "0.1.0"
@@ -585,5 +585,5 @@ packages:
     source: hosted
     version: "6.6.1"
 sdks:
-  dart: ">=3.10.0 <4.0.0"
+  dart: ">=3.11.0-0 <4.0.0"
   flutter: ">=3.27.4"

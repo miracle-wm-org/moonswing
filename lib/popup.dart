@@ -1,8 +1,13 @@
-// Popup infrastructure built on Flutter's regular (experimental) windowing
-// API. Popups are real compositor-positioned windows (xdg_popup) created by the
-// default WindowingOwnerLinux that layer_shell's initLayerShell() installs — no
-// hand-rolled positioning: the compositor places the popup from the parent-local
-// [anchorRect] and [WindowPositioner].
+// Windowing infrastructure built on Flutter's regular (experimental) windowing
+// API. Two things live here:
+//   * [PopupHost] — compositor-positioned popups (xdg_popup) created by the
+//     default WindowingOwnerLinux that layer_shell's initLayerShell() installs;
+//     the compositor places the popup from the parent-local [anchorRect] and
+//     [WindowPositioner].
+//   * [LayerShellHost] — full layer-shell windows (panels/overlays/dialogs)
+//     whose [LayershellWindowController] the module creates itself.
+// Both register a [WindowEntry] into the panel's [WindowRegistry] (supplied by
+// the per-panel [WindowManager]), so they share one windowing mechanism.
 
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
@@ -11,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:layer_shell/layer_shell.dart';
 
 /// Shared delegate that forwards [onWindowDestroyed] to a callback.
 class PopupDelegate extends PopupWindowControllerDelegate {
@@ -127,6 +133,53 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       // idempotent so a second call (e.g. from onWindowDestroyed) is harmless.
       WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.destroy());
     }
+    if (mounted) setState(() {});
+  }
+}
+
+/// Mixin for [State] classes that own a single full layer-shell window
+/// (a panel, overlay, or dialog) whose surface they configure themselves.
+///
+/// The module creates the [LayershellWindowController] with its own
+/// layer/anchor parameters and hands it to [openLayerWindow]; this mixin owns
+/// the [WindowRegistry] registration + teardown so each module only decides
+/// when to open and what content to show.
+mixin LayerShellHost<T extends StatefulWidget> on State<T> {
+  LayershellWindowController? _lsController;
+  WindowRegistry? _lsRegistry;
+  WindowEntry? _lsEntry;
+
+  /// Whether a layer-shell window is currently open.
+  bool get isLayerWindowOpen => _lsController != null;
+
+  /// Registers [controller] (already created by the caller with its
+  /// layer/anchor params) into the panel's [WindowRegistry], rendering [child].
+  ///
+  /// If a window is already open this is a no-op — call [closeLayerWindow]
+  /// first.
+  void openLayerWindow(
+    BuildContext context, {
+    required LayershellWindowController controller,
+    required Widget child,
+  }) {
+    if (isLayerWindowOpen) return;
+    _lsController = controller;
+    _lsRegistry = WindowRegistry.of(context);
+    _lsEntry = WindowEntry(controller: controller, builder: (_) => child);
+    _lsRegistry!.register(_lsEntry!);
+    setState(() {});
+  }
+
+  /// Unregisters and destroys the current layer-shell window, if any.
+  void closeLayerWindow() {
+    if (_lsEntry != null) {
+      _lsRegistry?.unregister(_lsEntry!);
+      _lsEntry = null;
+    }
+    _lsRegistry = null;
+    final ctrl = _lsController;
+    _lsController = null;
+    ctrl?.destroy();
     if (mounted) setState(() {});
   }
 }

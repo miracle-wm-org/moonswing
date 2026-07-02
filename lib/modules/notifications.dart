@@ -17,12 +17,10 @@ class Notifications extends StatefulWidget {
 }
 
 class _NotificationsState extends State<Notifications>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, LayerShellHost<Notifications> {
   late final AnimationController _shakeController;
   late final Animation<double> _shakeAnimation;
 
-  LayershellWindowController? _panelController;
-  LayerShellWindow? _panelView;
   final ValueNotifier<bool> _closingNotifier = ValueNotifier(false);
   int _prevCount = 0;
 
@@ -51,7 +49,7 @@ class _NotificationsState extends State<Notifications>
     NotificationStore.instance.removeListener(_onStoreChanged);
     _shakeController.dispose();
     _closingNotifier.dispose();
-    _closePanel();
+    closeLayerWindow();
     super.dispose();
   }
 
@@ -65,7 +63,7 @@ class _NotificationsState extends State<Notifications>
   }
 
   void _togglePanel(BuildContext context) {
-    if (_panelController != null) {
+    if (isLayerWindowOpen) {
       _beginClosePanel();
     } else {
       _openPanel(context);
@@ -77,7 +75,7 @@ class _NotificationsState extends State<Notifications>
 
     _closingNotifier.value = false;
 
-    _panelController = LayershellWindowController(
+    final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
       anchorEdges: [
         LayerShellEdge.right,
@@ -91,8 +89,9 @@ class _NotificationsState extends State<Notifications>
 
     final theme = ThemeScope.of(context);
 
-    _panelView = LayerShellWindow(
-      controller: _panelController!,
+    openLayerWindow(
+      context,
+      controller: controller,
       child: ThemeScope(
         theme: theme,
         child: _NotificationPanel(
@@ -101,9 +100,6 @@ class _NotificationsState extends State<Notifications>
         ),
       ),
     );
-
-    DynamicLayerShellViews.instance.add(_panelView!);
-    setState(() {});
   }
 
   void _beginClosePanel() {
@@ -112,18 +108,7 @@ class _NotificationsState extends State<Notifications>
   }
 
   void _onPanelClosed() {
-    _closePanel();
-  }
-
-  void _closePanel() {
-    if (_panelView != null) {
-      DynamicLayerShellViews.instance.remove(_panelView!);
-      _panelView = null;
-    }
-    final ctrl = _panelController;
-    _panelController = null;
-    ctrl?.destroy();
-    if (mounted) setState(() {});
+    closeLayerWindow();
   }
 
   @override
@@ -131,7 +116,7 @@ class _NotificationsState extends State<Notifications>
     final theme = ThemeScope.of(context);
     final count = NotificationStore.instance.items.length;
     final hasUnread = count > 0;
-    final isOpen = _panelController != null;
+    final isOpen = isLayerWindowOpen;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
