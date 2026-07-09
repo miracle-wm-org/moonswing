@@ -14,9 +14,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/_window.dart';
+import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:layer_shell/layer_shell.dart';
+import 'package:layer_shell/src/gtk.dart';
 
 /// Minimum size floor applied to every popup/tooltip so a sized-to-content
 /// window never collapses to a degenerate size.
@@ -119,6 +121,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         if (_popupController == thisController) closePopup();
       }),
     );
+    // The popup surface defaults to opaque black (fl_view_renderer paints the
+    // view background unless it is exactly #00000000), so make it transparent
+    // the same way LayershellWindowController does for panels.
+    final native = thisController as WindowControllerLinux;
+    GtkWindow.fromHandle(native.windowHandle).setAppPaintable(true);
+    FlView.fromHandle(native.flutterViewHandle).setBackgroundColor('#00000000');
     _registry = WindowRegistry.of(context);
     // The content is laid out directly under the popup's View, so this box is
     // what actually gives a sized-to-content window its size: tight
