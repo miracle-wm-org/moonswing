@@ -108,7 +108,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
       ),
-      preferredConstraints: preferredConstraints,
+      constraints: preferredConstraints,
       delegate: PopupDelegate(onDestroyed: () {
         if (_popupController == thisController) closePopup();
       }),
