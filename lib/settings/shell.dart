@@ -282,9 +282,7 @@ class _CategoryCardState extends State<_CategoryCard> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
             decoration: BoxDecoration(
-              color: _hovered
-                  ? theme.surfaceHover
-                  : theme.divider.withValues(alpha: 0.35),
+              color: _hovered ? theme.surfaceHover : theme.controlSurface,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: _hovered ? theme.accent : theme.divider,
@@ -967,7 +965,7 @@ class _OptionButtonState extends State<_OptionButton> {
     } else if (_hovered) {
       bg = theme.surfaceHover;
     } else {
-      bg = theme.divider.withValues(alpha: 0.5);
+      bg = theme.controlSurface;
     }
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -1840,7 +1838,7 @@ class _AddDropdownState extends State<_AddDropdown> {
             margin: const EdgeInsets.only(top: 4),
             constraints: const BoxConstraints(maxHeight: 180),
             decoration: BoxDecoration(
-              color: theme.popupBackground,
+              color: theme.controlSurface,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: theme.divider),
             ),

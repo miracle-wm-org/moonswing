@@ -28,6 +28,7 @@ class ThemeConfig {
   final Color workspaceBackground;
   final Color popupBackground;
   final Color popupForeground;
+  final Color controlSurface;
   final Color sliderTrack;
   final Color muted;
   final Color divider;
@@ -41,6 +42,7 @@ class ThemeConfig {
     this.workspaceBackground = const Color(0xFF2C2C2C),
     this.popupBackground = const Color(0xFF2C2C2C),
     this.popupForeground = const Color(0xFFF3F4F4),
+    this.controlSurface = const Color(0xFF39393D),
     this.sliderTrack = const Color(0xFF612D53),
     this.muted = const Color(0xFF853953),
     this.divider = const Color(0x33F3F4F4),
@@ -70,6 +72,8 @@ class ThemeConfig {
           map['popup_background'] as String?, const Color(0xFF2C2C2C)),
       popupForeground: _parseColor(
           map['popup_foreground'] as String?, const Color(0xFFF3F4F4)),
+      controlSurface: _parseColor(
+          map['control_surface'] as String?, const Color(0xFF39393D)),
       sliderTrack:
           _parseColor(map['slider_track'] as String?, const Color(0xFF612D53)),
       muted: _parseColor(map['muted'] as String?, const Color(0xFF853953)),

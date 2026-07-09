@@ -1139,7 +1139,7 @@ class _ModeDropdownState extends State<_ModeDropdown> {
             margin: const EdgeInsets.only(top: 2),
             constraints: const BoxConstraints(maxHeight: 160),
             decoration: BoxDecoration(
-              color: theme.popupBackground,
+              color: theme.controlSurface,
               border: Border.all(color: theme.divider),
               borderRadius: BorderRadius.circular(6),
             ),
@@ -1190,7 +1190,7 @@ class _DropdownTriggerState extends State<_DropdownTrigger> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     final bg =
-        _hovered ? theme.surfaceHover : theme.divider.withValues(alpha: 0.5);
+        _hovered ? theme.surfaceHover : theme.controlSurface;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
@@ -1332,7 +1332,7 @@ class _OptionButtonState extends State<_OptionButton> {
     } else if (_hovered) {
       bg = theme.surfaceHover;
     } else {
-      bg = theme.divider.withValues(alpha: 0.5);
+      bg = theme.controlSurface;
     }
 
     return MouseRegion(
