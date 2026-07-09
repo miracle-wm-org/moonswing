@@ -9,6 +9,7 @@ import 'package:graceful_shell/settings/audio.dart';
 import 'package:graceful_shell/settings/bluetooth.dart';
 import 'package:graceful_shell/settings/display.dart';
 import 'package:graceful_shell/settings/network.dart';
+import 'package:graceful_shell/settings/shell.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class SettingsOverlay extends StatefulWidget {
@@ -210,6 +211,8 @@ class _SettingsOverlayState extends State<SettingsOverlay>
         return const DisplaySettingsPage();
       case 'audio':
         return const AudioSettingsPage();
+      case 'shell':
+        return const ShellSettingsPage();
       default:
         return const SizedBox.shrink();
     }
@@ -261,6 +264,12 @@ class _SettingsSidebar extends StatelessWidget {
               label: 'Audio',
               selected: selectedCategory == 'audio',
               onTap: () => onCategorySelected('audio'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.gear,
+              label: 'Shell',
+              selected: selectedCategory == 'shell',
+              onTap: () => onCategorySelected('shell'),
             ),
           ],
         ),

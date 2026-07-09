@@ -254,11 +254,19 @@ path = "$homeDir/.local/share/graceful-shell/wallpaper.jpg"
 time = "00:00"
 ''';
 
-  static Future<AppConfig> load() async {
+  /// Resolves the absolute path to `config.toml`, honouring
+  /// `XDG_CONFIG_HOME`. Shared by the loader and the settings writer so the
+  /// two never diverge.
+  static String resolveConfigPath() {
     final homeDir = Platform.environment['HOME'] ?? '';
     final configHome =
         Platform.environment['XDG_CONFIG_HOME'] ?? '$homeDir/.config';
-    final configPath = '$configHome/graceful-shell/config.toml';
+    return '$configHome/graceful-shell/config.toml';
+  }
+
+  static Future<AppConfig> load() async {
+    final homeDir = Platform.environment['HOME'] ?? '';
+    final configPath = resolveConfigPath();
     final file = File(configPath);
 
     if (!await file.exists()) {

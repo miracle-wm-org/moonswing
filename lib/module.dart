@@ -14,6 +14,10 @@ abstract class Module {
   /// Looks up a registered module by its [configKey].
   static Module? lookup(String key) => _registry[key];
 
+  /// All registered module keys, in registration order. Used by the settings
+  /// UI to offer the set of modules a panel slot can contain.
+  static Iterable<String> get registeredKeys => _registry.keys;
+
   /// Calls [loadConfig] on every registered module using [modulesMap].
   static void loadAll(Map<String, dynamic>? modulesMap) {
     for (final module in _registry.values) {
