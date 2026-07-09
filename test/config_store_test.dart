@@ -114,7 +114,7 @@ right = ["battery", "clock"]
 
     final store2 = await ConfigStore.loadFrom(path);
     store2.set(['background', 'entries'], [
-      {'path': '/tmp/w.jpg', 'time': '00:00'}
+      {'path': '/tmp/w.jpg', 'shown': true}
     ]);
     expect(store2.needsRestart, isTrue);
 

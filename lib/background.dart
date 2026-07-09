@@ -25,12 +25,14 @@ bool _isVideo(String path) {
       lower.endsWith('.avi');
 }
 
-BackgroundEntry selectCurrentEntry(List<BackgroundEntry> sorted, DateTime now) {
-  final nowDur = Duration(hours: now.hour, minutes: now.minute);
-  for (int i = sorted.length - 1; i >= 0; i--) {
-    if (sorted[i].timeOfDay <= nowDur) return sorted[i];
-  }
-  return sorted.last;
+/// The entries eligible to be shown: flagged `shown`, a valid image extension,
+/// and present on disk. This is the pool the rotation cycles through, in
+/// configuration (presentation) order.
+List<BackgroundEntry> shownEntries(BackgroundConfig config) {
+  return config.entries
+      .where((e) =>
+          e.shown && isImagePath(e.path) && File(e.path).existsSync())
+      .toList();
 }
 
 class BackgroundWindow extends StatefulWidget {
@@ -43,31 +45,47 @@ class BackgroundWindow extends StatefulWidget {
 }
 
 class _BackgroundWindowState extends State<BackgroundWindow> {
-  late BackgroundEntry _currentEntry;
+  List<BackgroundEntry> _entries = const [];
+  int _index = 0;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _currentEntry = selectCurrentEntry(widget.config.entries, DateTime.now());
-    _scheduleNextTick();
+    _entries = shownEntries(widget.config);
+    _restartTimer();
   }
 
-  void _scheduleNextTick() {
-    final now = DateTime.now();
-    final msUntilNextMinute = (60 - now.second) * 1000 - now.millisecond;
-    _timer = Timer(Duration(milliseconds: msUntilNextMinute), () {
-      _checkAndUpdate();
-      _scheduleNextTick();
+  @override
+  void didUpdateWidget(BackgroundWindow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = shownEntries(widget.config);
+    // Keep pointing at the same wallpaper across edits when it's still shown,
+    // otherwise clamp back into range.
+    final currentPath = _currentPath;
+    final nextIndex =
+        currentPath == null ? 0 : next.indexWhere((e) => e.path == currentPath);
+    setState(() {
+      _entries = next;
+      _index = nextIndex >= 0 ? nextIndex : 0;
     });
+    _restartTimer();
   }
 
-  void _checkAndUpdate() {
-    if (!mounted) return;
-    final next = selectCurrentEntry(widget.config.entries, DateTime.now());
-    if (next.path != _currentEntry.path) {
-      setState(() => _currentEntry = next);
-    }
+  String? get _currentPath =>
+      (_index >= 0 && _index < _entries.length) ? _entries[_index].path : null;
+
+  void _restartTimer() {
+    _timer?.cancel();
+    _timer = null;
+    // Nothing to rotate through with 0 or 1 wallpapers.
+    if (_entries.length <= 1) return;
+    final minutes =
+        widget.config.intervalMinutes < 1 ? 1 : widget.config.intervalMinutes;
+    _timer = Timer.periodic(Duration(minutes: minutes), (_) {
+      if (!mounted || _entries.length <= 1) return;
+      setState(() => _index = (_index + 1) % _entries.length);
+    });
   }
 
   @override
@@ -92,24 +110,27 @@ class _BackgroundWindowState extends State<BackgroundWindow> {
               if (currentChild != null) currentChild,
             ],
           ),
-          child: _buildMedia(_currentEntry),
+          child: _buildMedia(_currentPath),
         ),
       ),
     );
   }
 
-  Widget _buildMedia(BackgroundEntry entry) {
+  Widget _buildMedia(String? path) {
+    if (path == null) {
+      return const ColoredBox(key: ValueKey('__empty__'), color: Color(0xFF1A1A1A));
+    }
     final fit = _boxFitFor(widget.config.fit);
-    if (_isVideo(entry.path)) {
+    if (_isVideo(path)) {
       return _VideoBackground(
-        key: ValueKey(entry.path),
-        path: entry.path,
+        key: ValueKey(path),
+        path: path,
         fit: fit,
       );
     }
     return _ImageBackground(
-      key: ValueKey(entry.path),
-      path: entry.path,
+      key: ValueKey(path),
+      path: path,
       fit: fit,
     );
   }

@@ -83,49 +83,64 @@ class ThemeConfig {
   }
 }
 
+/// File extensions considered valid image wallpapers. Paths with any other
+/// extension (or none) are treated as invalid and auto-pruned by the selector.
+const Set<String> imageExtensions = {
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.bmp',
+};
+
+/// Whether [path] points at a supported image file, judged purely by its
+/// extension. Existence is checked separately at call sites so this stays a
+/// pure, unit-testable predicate.
+bool isImagePath(String path) {
+  final lower = path.toLowerCase();
+  final dot = lower.lastIndexOf('.');
+  if (dot < 0) return false;
+  return imageExtensions.contains(lower.substring(dot));
+}
+
 class BackgroundEntry {
   final String path;
-  final Duration timeOfDay;
+  final bool shown;
 
-  const BackgroundEntry({required this.path, required this.timeOfDay});
+  const BackgroundEntry({required this.path, this.shown = true});
 
   factory BackgroundEntry.fromMap(Map<String, dynamic> map) {
     final path = map['path'] as String? ?? '';
-    final timeStr = map['time'] as String? ?? '00:00';
-    return BackgroundEntry(
-      path: path,
-      timeOfDay: _parseTime(timeStr),
-    );
-  }
-
-  static Duration _parseTime(String s) {
-    final parts = s.split(':');
-    if (parts.length != 2) return Duration.zero;
-    final hours = int.tryParse(parts[0]) ?? 0;
-    final minutes = int.tryParse(parts[1]) ?? 0;
-    return Duration(hours: hours, minutes: minutes);
+    final shown = map['shown'] as bool? ?? true;
+    return BackgroundEntry(path: path, shown: shown);
   }
 }
 
 class BackgroundConfig {
   final BackgroundFit fit;
+  final int intervalMinutes;
   final List<BackgroundEntry> entries;
 
   const BackgroundConfig({
     this.fit = BackgroundFit.fill,
+    this.intervalMinutes = 5,
     this.entries = const [],
   });
 
   factory BackgroundConfig.fromMap(Map<String, dynamic> map) {
     final fitStr = map['fit'] as String? ?? 'fill';
+    final rawInterval = map['interval_minutes'];
+    final interval = rawInterval is num ? rawInterval.toInt() : 5;
     final rawEntries = map['entries'] as List<dynamic>? ?? [];
+    // List order is the canonical presentation order — do not sort.
     final entries = rawEntries
         .whereType<Map<String, dynamic>>()
         .map(BackgroundEntry.fromMap)
-        .toList()
-      ..sort((a, b) => a.timeOfDay.compareTo(b.timeOfDay));
+        .toList();
     return BackgroundConfig(
       fit: BackgroundFit.fromString(fitStr),
+      intervalMinutes: interval < 1 ? 1 : interval,
       entries: entries,
     );
   }
@@ -252,10 +267,11 @@ expanded_spacing = 6
 
 [background]
 fit = "fill"
+interval_minutes = 5
 
 [[background.entries]]
 path = "$homeDir/.local/share/graceful-shell/wallpaper.jpg"
-time = "00:00"
+shown = true
 ''';
 
   /// Resolves the absolute path to `config.toml`, honouring

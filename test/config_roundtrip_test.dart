@@ -38,9 +38,10 @@ void main() {
       },
       'background': {
         'fit': 'fill',
+        'interval_minutes': 5,
         'entries': [
-          {'path': '/home/u/a.jpg', 'time': '00:00'},
-          {'path': '/home/u/b.jpg', 'time': '18:30'},
+          {'path': '/home/u/a.jpg', 'shown': true},
+          {'path': '/home/u/b.jpg', 'shown': false},
         ],
       },
     };
@@ -58,10 +59,11 @@ void main() {
     expect(reparsed['modules']['clock']['show_date'], true);
     expect(reparsed['modules']['system_tray']['hidden_items'],
         ['Discord', 'Steam']);
+    expect(reparsed['background']['interval_minutes'], 5);
     final entries = reparsed['background']['entries'] as List;
     expect(entries.length, 2);
     expect(entries[1]['path'], '/home/u/b.jpg');
-    expect(entries[1]['time'], '18:30');
+    expect(entries[1]['shown'], false);
   });
 
   test('empty and single-key maps encode without error', () {
