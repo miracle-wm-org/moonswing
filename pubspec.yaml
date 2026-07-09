@@ -18,7 +18,6 @@ dependencies:
   layer_shell:
     git:
       url: https://github.com/mattkae/layer_shell.dart.git
-      ref: 9733bef
   http: ^1.2.0
   udev: ^0.0.3
   dbus: ^0.7.11
