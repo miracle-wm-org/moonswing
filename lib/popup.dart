@@ -18,6 +18,11 @@ import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:layer_shell/layer_shell.dart';
 
+/// Minimum size floor applied to every popup/tooltip so a sized-to-content
+/// window never collapses to a degenerate size.
+const BoxConstraints kMinPopupConstraints =
+    BoxConstraints(minWidth: 48, minHeight: 24);
+
 /// Shared delegate that forwards [onWindowDestroyed] to a callback.
 class PopupDelegate extends PopupWindowControllerDelegate {
   PopupDelegate({required this.onDestroyed});
@@ -100,6 +105,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   }) {
     if (isPopupOpen) return;
     final parentController = WindowScope.of(context);
+    final constraints = preferredConstraints.enforce(kMinPopupConstraints);
     PopupWindowController? thisController;
     _popupController = thisController = PopupWindowController(
       parent: parentController,
@@ -108,13 +114,20 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
       ),
-      constraints: preferredConstraints,
+      constraints: constraints,
       delegate: PopupDelegate(onDestroyed: () {
         if (_popupController == thisController) closePopup();
       }),
     );
     _registry = WindowRegistry.of(context);
-    _entry = WindowEntry(controller: _popupController!, builder: (_) => child);
+    // The content is laid out directly under the popup's View, so this box is
+    // what actually gives a sized-to-content window its size: tight
+    // constraints make the content fill the popup exactly, loose ones are
+    // floored at [kMinPopupConstraints].
+    _entry = WindowEntry(
+      controller: _popupController!,
+      builder: (_) => ConstrainedBox(constraints: constraints, child: child),
+    );
     _registry!.register(_entry!);
     setState(() {});
   }
