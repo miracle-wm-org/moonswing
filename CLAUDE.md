@@ -92,6 +92,21 @@ If the config file is absent, a default two-panel layout is written to disk and 
 
 Implements the FreeDesktop `org.freedesktop.Notifications` D-Bus interface via the `dbus` package. `startNotificationService()` registers on the session bus so the shell receives desktop notifications, which the `NotificationsModule` displays.
 
+### System tray service (`lib/status_notifier_service.dart`, `lib/dbus_menu.dart`)
+
+Implements the freedesktop/KDE **StatusNotifierItem (SNI)** system tray. `startStatusNotifierService()` (called from `main.dart` right after `startNotificationService()`) makes the shell own `org.kde.StatusNotifierWatcher` on the session bus and register itself as a `StatusNotifierHost`, so tray applications (Discord, Steam, network/VPN applets, etc.) attach to it. Each registered item is tracked via a `DBusRemoteObject` — its icon/title/status/menu properties are read and kept live through the item's `NewIcon`/`NewStatus`/… change signals — and published through the `TrayStore` singleton (`ChangeNotifier`, same pattern as `NotificationStore`). Item removal is detected via `nameOwnerChanged`. Like the notification daemon, it fails silently if another tray watcher already owns the name.
+
+`lib/dbus_menu.dart` is the client for the `com.canonical.dbusmenu` protocol: it fetches an item's context menu (`GetLayout`) into a `MenuNode` tree and reports clicks (`Event`). Icons arrive either as themed names (rendered with `XdgIcon`) or as raw ARGB32 pixmaps (decoded to a Flutter `ui.Image`).
+
+The `SystemTrayModule` (`lib/modules/system_tray.dart`, `configKey = 'system_tray'`, in the default top panel) renders the icons in a condensed, overlapping strip that spreads apart on hover; clicking an icon opens that app's menu in a themed popup (via `PopupHost`). Config options under `[modules.system_tray]`:
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `icon_size` | number | `16` | Rendered icon width/height (logical px). |
+| `collapsed_overlap` | number | `10` | How far each icon overlaps its neighbour at rest. |
+| `expanded_spacing` | number | `6` | Gap between icons when the strip is hovered. |
+| `hidden_items` | string list | `[]` | SNI `Id` or `Title` values to hide from the tray. |
+
 ### Background window (`lib/background.dart`)
 
 Renders a full-screen wallpaper with time-of-day scheduling and crossfade transitions using `media_kit` for video support. One background window is created per monitor.

@@ -213,7 +213,7 @@ layer = "top"
 [panels.top.layout]
 left = ["workspaces"]
 center = ["clock"]
-right = ["sound_control", "battery", "weather", "system"]
+right = ["sound_control", "system_tray", "battery", "weather", "system"]
 
 [panels.bottom]
 height = 32
@@ -240,6 +240,11 @@ show_date = true
 
 [modules.media_player]
 max_text_width = 200.0
+
+[modules.system_tray]
+icon_size = 16
+collapsed_overlap = 10
+expanded_spacing = 6
 
 [background]
 fit = "fill"

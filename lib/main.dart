@@ -13,10 +13,12 @@ import 'package:graceful_shell/modules/network.dart';
 import 'package:graceful_shell/modules/notifications.dart';
 import 'package:graceful_shell/modules/system.dart';
 import 'package:graceful_shell/modules/system_monitor.dart';
+import 'package:graceful_shell/modules/system_tray.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/panel_background.dart';
+import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
@@ -38,10 +40,12 @@ void main() async {
   Module.register(NotificationsModule());
   Module.register(NetworkModule());
   Module.register(SystemModule());
+  Module.register(SystemTrayModule());
 
   final appConfig = await AppConfig.load();
 
   await startNotificationService();
+  await startStatusNotifierService();
 
   MiracleConnection? connection;
   try {
