@@ -52,6 +52,90 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Expanded(child: _buildBody(theme)),
+        _RestartBanner(),
+      ],
+    );
+  }
+
+  Widget _buildBody(ThemeConfig theme) {
+    final store = _store;
+    if (store == null) {
+      return Center(child: _LoadingIndicator(color: theme.accent));
+    }
+    // A nested Navigator lets the Shell pane drill from the category menu into
+    // a single category's settings and back, while the outer Settings bar and
+    // sidebar (owned by SettingsOverlay) stay put around this pane.
+    return Navigator(
+      onGenerateInitialRoutes: (navigator, initialRoute) => [
+        PageRouteBuilder(
+          pageBuilder: (context, _, __) => _ShellHome(store: store),
+        ),
+      ],
+    );
+  }
+}
+
+/// One selectable settings category shown on the Shell landing page and pushed
+/// as its own view when tapped.
+class _ShellCategory {
+  const _ShellCategory({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.build,
+  });
+
+  final String title;
+  final String subtitle;
+  final FaIconData icon;
+  final Widget Function(ConfigStore store) build;
+}
+
+const List<_ShellCategory> _shellCategories = [
+  _ShellCategory(
+    title: 'Appearance',
+    subtitle: 'Colors and font',
+    icon: FontAwesomeIcons.palette,
+    build: _buildAppearance,
+  ),
+  _ShellCategory(
+    title: 'Module Settings',
+    subtitle: 'Per-module options',
+    icon: FontAwesomeIcons.puzzlePiece,
+    build: _buildModules,
+  ),
+  _ShellCategory(
+    title: 'Panels & Layout',
+    subtitle: 'Size, anchor, module slots',
+    icon: FontAwesomeIcons.tableColumns,
+    build: _buildPanels,
+  ),
+  _ShellCategory(
+    title: 'Background',
+    subtitle: 'Wallpaper and fit',
+    icon: FontAwesomeIcons.image,
+    build: _buildBackground,
+  ),
+];
+
+Widget _buildAppearance(ConfigStore store) => _AppearanceSection(store: store);
+Widget _buildModules(ConfigStore store) => _ModulesSection(store: store);
+Widget _buildPanels(ConfigStore store) => _PanelsSection(store: store);
+Widget _buildBackground(ConfigStore store) => _BackgroundSection(store: store);
+
+/// Landing view: the "Graceful Shell" header plus a tappable row per category.
+class _ShellHome extends StatelessWidget {
+  const _ShellHome({required this.store});
+
+  final ConfigStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
           child: Text(
@@ -65,36 +149,193 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
           ),
         ),
         Container(height: 1, color: theme.divider),
-        Expanded(child: _buildBody(theme)),
-        _RestartBanner(),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final category in _shellCategories)
+                  _CategoryCard(
+                    category: category,
+                    onTap: () => Navigator.of(context).push(
+                      _slideRoute(_ShellCategoryView(
+                        category: category,
+                        store: store,
+                      )),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
+}
 
-  Widget _buildBody(ThemeConfig theme) {
-    final store = _store;
-    if (store == null) {
-      return Center(child: _LoadingIndicator(color: theme.accent));
-    }
-    return ListenableBuilder(
-      listenable: store,
-      builder: (context, _) {
-        return SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+/// Detail view: a back button + category title header over the category's
+/// existing settings section.
+class _ShellCategoryView extends StatelessWidget {
+  const _ShellCategoryView({required this.category, required this.store});
+
+  final _ShellCategory category;
+  final ConfigStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
+          child: Row(
             children: [
-              _AppearanceSection(store: store),
-              const SizedBox(height: 24),
-              _ModulesSection(store: store),
-              const SizedBox(height: 24),
-              _PanelsSection(store: store),
-              const SizedBox(height: 24),
-              _BackgroundSection(store: store),
+              _IconButton(
+                icon: FontAwesomeIcons.arrowLeft,
+                size: 14,
+                onTap: () => Navigator.of(context).pop(),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                category.title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ),
-        );
-      },
+        ),
+        Container(height: 1, color: theme.divider),
+        Expanded(
+          child: ListenableBuilder(
+            listenable: store,
+            builder: (context, _) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                child: category.build(store),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Subtle horizontal-slide + fade transition for pushing a category view.
+PageRoute<T> _slideRoute<T>(Widget child) {
+  return PageRouteBuilder<T>(
+    transitionDuration: const Duration(milliseconds: 220),
+    reverseTransitionDuration: const Duration(milliseconds: 180),
+    pageBuilder: (context, animation, secondaryAnimation) => child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.06, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
+/// Tappable, hover-aware row on the landing page. Styled after the sidebar's
+/// [_SidebarItem]: icon + title + subtitle + trailing chevron.
+class _CategoryCard extends StatefulWidget {
+  const _CategoryCard({required this.category, required this.onTap});
+
+  final _ShellCategory category;
+  final VoidCallback onTap;
+
+  @override
+  _CategoryCardState createState() => _CategoryCardState();
+}
+
+class _CategoryCardState extends State<_CategoryCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? theme.surfaceHover
+                  : theme.divider.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _hovered ? theme.accent : theme.divider,
+              ),
+            ),
+            child: Row(
+              children: [
+                FaIcon(
+                  widget.category.icon,
+                  size: 16,
+                  color: _hovered
+                      ? theme.accent
+                      : theme.popupForeground.withValues(alpha: 0.8),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.category.title,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontFamily: theme.fontFamily,
+                          color: theme.popupForeground,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.category.subtitle,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontFamily: theme.fontFamily,
+                          color: theme.popupForeground.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                FaIcon(
+                  FontAwesomeIcons.chevronRight,
+                  size: 12,
+                  color: theme.popupForeground.withValues(alpha: 0.4),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
