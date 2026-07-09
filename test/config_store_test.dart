@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
@@ -66,6 +67,59 @@ right = ["battery", "clock"]
 
     store.dispose();
     reopened.dispose();
+  });
+
+  test('appConfig derives a typed config from the live in-memory map',
+      () async {
+    final store = await ConfigStore.loadFrom(path);
+
+    expect(store.appConfig.theme.accent, const Color(0xFF853953));
+    expect(store.appConfig.panels['top']?.layout.right, ['battery', 'clock']);
+
+    // A live edit is reflected immediately, without touching disk.
+    store.set(['theme', 'accent'], '#123456');
+    store.set(['panels', 'top', 'layout', 'right'], ['clock']);
+
+    expect(store.appConfig.theme.accent, const Color(0xFF123456));
+    expect(store.appConfig.panels['top']?.layout.right, ['clock']);
+
+    store.dispose();
+  });
+
+  test('needsRestart tracks only window-geometry / panel-set / background '
+      'changes', () async {
+    final store = await ConfigStore.loadFrom(path);
+    expect(store.needsRestart, isFalse);
+
+    // Live-updatable fields never require a restart.
+    store.set(['theme', 'accent'], '#123456');
+    store.set(['panels', 'top', 'layout', 'right'], ['clock']);
+    store.set(['panels', 'top', 'padding_horizontal'], 20);
+    expect(store.needsRestart, isFalse);
+
+    // A restart-only field flips it.
+    store.set(['panels', 'top', 'anchor'], 'bottom');
+    expect(store.needsRestart, isTrue);
+
+    store.dispose();
+  });
+
+  test('needsRestart flags added panels and background-layer presence',
+      () async {
+    final store = await ConfigStore.loadFrom(path);
+    expect(store.needsRestart, isFalse);
+
+    store.set(['panels', 'bottom', 'height'], 40);
+    expect(store.needsRestart, isTrue);
+
+    final store2 = await ConfigStore.loadFrom(path);
+    store2.set(['background', 'entries'], [
+      {'path': '/tmp/w.jpg', 'time': '00:00'}
+    ]);
+    expect(store2.needsRestart, isTrue);
+
+    store.dispose();
+    store2.dispose();
   });
 
   test('remove deletes a key and persists', () async {

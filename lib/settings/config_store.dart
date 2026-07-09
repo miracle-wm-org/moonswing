@@ -13,18 +13,51 @@ import 'package:graceful_shell/config.dart';
 /// changes back atomically (temp file + rename) with a short debounce so that
 /// dragging a slider or typing in a field does not thrash the disk.
 ///
-/// Changes are consumed by [AppConfig.load] on the next launch — the running
-/// app is not live-reloaded (see the settings "restart to apply" banner).
+/// This is the single in-memory source of truth for the whole process: the
+/// running shell watches it as a [Listenable] and rebuilds live (see
+/// [appConfig]), while the settings UI mutates it. A restart is only needed for
+/// changes that recreate native layer-shell windows (panel geometry, panel set,
+/// background-layer presence).
 class ConfigStore extends ChangeNotifier {
-  ConfigStore._(this._path, this._root);
+  ConfigStore._(this._path, this._root) {
+    _startupRestartSignature = _restartSignature();
+  }
 
   final String _path;
   final Map<String, dynamic> _root;
+
+  /// Signature of the restart-only fields captured when the store loaded, used
+  /// by [needsRestart] to decide whether the "restart to apply" banner shows.
+  late final String _startupRestartSignature;
 
   Timer? _saveDebounce;
   bool _disposed = false;
 
   static const Duration _debounce = Duration(milliseconds: 400);
+
+  /// The process-wide store shared by the running shell and the settings UI.
+  /// Populated by [initShared] during startup.
+  static ConfigStore? _shared;
+
+  /// The shared singleton. Throws if used before [initShared].
+  static ConfigStore get instance {
+    final store = _shared;
+    if (store == null) {
+      throw StateError('ConfigStore.instance used before initShared()');
+    }
+    return store;
+  }
+
+  /// Loads the shared singleton from the real config path. Idempotent — a
+  /// second call returns the already-loaded store. Call once from `main()`.
+  static Future<ConfigStore> initShared() async =>
+      _shared ??= await loadFrom(AppConfig.resolveConfigPath());
+
+  /// A freshly-derived typed [AppConfig] built from the current in-memory map.
+  /// Also re-applies per-module options via [Module.loadAll] as a side effect
+  /// (see [AppConfig.fromMap]), so this must be read outside of `build` — from
+  /// a listener callback that then triggers a rebuild.
+  AppConfig get appConfig => AppConfig.fromMap(_root);
 
   /// Loads and parses the config file into a mutable map. Falls back to an
   /// empty document if the file is missing or unparseable.
@@ -105,6 +138,33 @@ class ConfigStore extends ChangeNotifier {
       node.remove(path.last);
       _onChanged();
     }
+  }
+
+  /// True when a restart-only field has changed since the store loaded. These
+  /// are values that parametrize native layer-shell windows and cannot apply
+  /// live: panel `anchor`/`height`/`layer`, the set of panels, and whether the
+  /// background layer exists (has ≥1 entry). Everything else updates live.
+  bool get needsRestart => _restartSignature() != _startupRestartSignature;
+
+  String _restartSignature() {
+    final parts = <String>[];
+    final panels = _root['panels'];
+    if (panels is Map) {
+      final keys = panels.keys.map((k) => '$k').toList()..sort();
+      for (final key in keys) {
+        final panel = panels[key];
+        if (panel is Map) {
+          parts.add('$key:${panel['anchor']}:${panel['height']}:'
+              '${panel['layer']}');
+        } else {
+          parts.add('$key:');
+        }
+      }
+    }
+    final background = _root['background'];
+    final entries = background is Map ? background['entries'] : null;
+    parts.add('bg:${entries is List && entries.isNotEmpty}');
+    return parts.join('|');
   }
 
   /// The top-level table names under `[panels]`, in document order.

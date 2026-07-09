@@ -90,22 +90,30 @@ class _SettingsOverlayState extends State<SettingsOverlay>
 
     return Directionality(
       textDirection: TextDirection.ltr,
-      child: DefaultTextStyle(
-        style: TextStyle(
-          fontFamily: theme.fontFamily,
-          fontSize: 14,
-          color: theme.popupForeground,
-        ),
-        child: KeyboardListener(
-          focusNode: _focusNode,
-          autofocus: true,
-          onKeyEvent: (event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.escape) {
-              _requestClose();
-            }
-          },
-          child: Overlay(initialEntries: [_panelEntry]),
+      // The shell boots without a WidgetsApp/MaterialApp, so the default
+      // text-editing key bindings (Backspace, Delete, arrows, Home/End,
+      // Ctrl+A, …) that WidgetsApp normally supplies are absent. Provide them
+      // here so every EditableText in the settings UI — including the
+      // color-picker popup, which is inserted into the Overlay below — handles
+      // editing keys instead of dropping them.
+      child: DefaultTextEditingShortcuts(
+        child: DefaultTextStyle(
+          style: TextStyle(
+            fontFamily: theme.fontFamily,
+            fontSize: 14,
+            color: theme.popupForeground,
+          ),
+          child: KeyboardListener(
+            focusNode: _focusNode,
+            autofocus: true,
+            onKeyEvent: (event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.escape) {
+                _requestClose();
+              }
+            },
+            child: Overlay(initialEntries: [_panelEntry]),
+          ),
         ),
       ),
     );

@@ -26,43 +26,28 @@ class ShellSettingsPage extends StatefulWidget {
 }
 
 class _ShellSettingsPageState extends State<ShellSettingsPage> {
-  ConfigStore? _store;
-
-  @override
-  void initState() {
-    super.initState();
-    ConfigStore.load().then((store) {
-      if (!mounted) {
-        store.dispose();
-        return;
-      }
-      setState(() => _store = store);
-    });
-  }
-
-  @override
-  void dispose() {
-    _store?.dispose();
-    super.dispose();
-  }
+  // The process-wide store shared with the running shell. Not disposed here —
+  // its lifetime is the whole process, and mutating it live-updates the shell.
+  final ConfigStore _store = ConfigStore.instance;
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(child: _buildBody(theme)),
-        _RestartBanner(),
+        Expanded(child: _buildBody()),
+        // Only surfaces when a restart-only field actually changed.
+        ListenableBuilder(
+          listenable: _store,
+          builder: (context, _) =>
+              _store.needsRestart ? _RestartBanner() : const SizedBox.shrink(),
+        ),
       ],
     );
   }
 
-  Widget _buildBody(ThemeConfig theme) {
+  Widget _buildBody() {
     final store = _store;
-    if (store == null) {
-      return Center(child: _LoadingIndicator(color: theme.accent));
-    }
     // A nested Navigator lets the Shell pane drill from the category menu into
     // a single category's settings and back, while the outer Settings bar and
     // sidebar (owned by SettingsOverlay) stay put around this pane.
@@ -1142,8 +1127,10 @@ class _ColorField extends StatefulWidget {
 class _ColorFieldState extends State<_ColorField> {
   late final TextEditingController _controller;
   final _focusNode = FocusNode();
-  final _portalController = OverlayPortalController();
   final _link = LayerLink();
+  // The picker floats in the root overlay (not a nearby OverlayPortal target)
+  // so a nested Navigator's clipped Overlay can't cut it off. See _open().
+  OverlayEntry? _pickerEntry;
   bool _focused = false;
 
   @override
@@ -1156,9 +1143,32 @@ class _ColorFieldState extends State<_ColorField> {
 
   @override
   void dispose() {
+    _close();
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _toggle() {
+    if (_pickerEntry != null) {
+      _close();
+    } else {
+      _open();
+    }
+  }
+
+  void _open() {
+    if (_pickerEntry != null) return;
+    // Insert into the root overlay so the picker can extend past the settings
+    // content pane (whose nested Navigator Overlay would otherwise clip it).
+    final entry = OverlayEntry(builder: (context) => _buildPicker());
+    _pickerEntry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+  }
+
+  void _close() {
+    _pickerEntry?.remove();
+    _pickerEntry = null;
   }
 
   void _apply(Color color) {
@@ -1183,7 +1193,7 @@ class _ColorFieldState extends State<_ColorField> {
           child: MouseRegion(
             cursor: SystemMouseCursors.click,
             child: GestureDetector(
-              onTap: _portalController.toggle,
+              onTap: _toggle,
               child: Container(
                 width: 22,
                 height: 22,
@@ -1228,10 +1238,6 @@ class _ColorFieldState extends State<_ColorField> {
             backgroundCursorColor: theme.divider,
           ),
         ),
-        OverlayPortal(
-          controller: _portalController,
-          overlayChildBuilder: (context) => _buildPicker(),
-        ),
       ],
     );
   }
@@ -1243,7 +1249,7 @@ class _ColorFieldState extends State<_ColorField> {
         Positioned.fill(
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: _portalController.hide,
+            onTap: _close,
           ),
         ),
         CompositedTransformFollower(
@@ -2023,48 +2029,6 @@ class _RestartBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _LoadingIndicator extends StatefulWidget {
-  const _LoadingIndicator({required this.color});
-
-  final Color color;
-
-  @override
-  _LoadingIndicatorState createState() => _LoadingIndicatorState();
-}
-
-class _LoadingIndicatorState extends State<_LoadingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) => Transform.rotate(
-        angle: _controller.value * 2 * 3.1415926,
-        child: child,
-      ),
-      child:
-          FaIcon(FontAwesomeIcons.circleNotch, size: 20, color: widget.color),
     );
   }
 }

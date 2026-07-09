@@ -282,7 +282,7 @@ time = "00:00"
       }
       try {
         final doc = TomlDocument.parse(_buildDefaultConfig(homeDir));
-        return AppConfig._fromMap(doc.toMap());
+        return AppConfig.fromMap(doc.toMap());
       } catch (_) {
         return const AppConfig();
       }
@@ -291,13 +291,17 @@ time = "00:00"
     try {
       final document = await TomlDocument.load(configPath);
       final map = document.toMap();
-      return AppConfig._fromMap(map);
+      return AppConfig.fromMap(map);
     } catch (_) {
       return const AppConfig();
     }
   }
 
-  factory AppConfig._fromMap(Map<String, dynamic> map) {
+  /// Builds a typed config from an already-parsed TOML map. Also applies the
+  /// module subtable to every registered module via [Module.loadAll], so
+  /// rebuilding an [AppConfig] from a live config map re-applies per-module
+  /// options as a side effect.
+  factory AppConfig.fromMap(Map<String, dynamic> map) {
     final modulesMap = map['modules'] as Map<String, dynamic>?;
     Module.loadAll(modulesMap);
 

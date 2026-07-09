@@ -20,6 +20,7 @@ import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/settings/config_store.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:miracle/miracle.dart';
@@ -42,7 +43,11 @@ void main() async {
   Module.register(SystemModule());
   Module.register(SystemTrayModule());
 
+  // AppConfig.load() writes the default config on first run and applies the
+  // module subtables; the shared ConfigStore then reads that same file and
+  // becomes the single live source of truth the shell watches.
   final appConfig = await AppConfig.load();
+  final store = await ConfigStore.initShared();
 
   await startNotificationService();
   await startStatusNotifierService();
@@ -87,6 +92,7 @@ void main() async {
   // windowing system is fully initialized before the first surface is created.
   runWidget(GracefulShellRoot(
     appConfig: appConfig,
+    store: store,
     connection: connection,
     waylandOutputs: waylandOutputs,
   ));
@@ -99,11 +105,16 @@ class GracefulShellRoot extends StatefulWidget {
   const GracefulShellRoot({
     super.key,
     required this.appConfig,
+    required this.store,
     required this.connection,
     required this.waylandOutputs,
   });
 
+  /// The config captured at startup. Native layer-shell windows (panels /
+  /// background) are created from this snapshot and cannot change without a
+  /// restart; live values come from [store] instead.
   final AppConfig appConfig;
+  final ConfigStore store;
   final MiracleConnection? connection;
   final List<WaylandOutput> waylandOutputs;
 
@@ -121,10 +132,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         WaylandOutput
       )> _monitoredControllers;
 
+  /// The current config the widget tree renders from. Kept in sync with
+  /// [GracefulShellRoot.store] by [_onConfigChanged] so theme, panel layout,
+  /// per-module options, and the background image update live. Window geometry
+  /// still comes from [widget.appConfig] (the startup snapshot).
+  late AppConfig _liveConfig;
+
   @override
   void initState() {
     super.initState();
     final appConfig = widget.appConfig;
+    _liveConfig = appConfig;
+    widget.store.addListener(_onConfigChanged);
     final monitors = listMonitors();
 
     if (appConfig.background != null &&
@@ -187,8 +206,25 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     );
   }
 
+  /// Rebuilds a fresh typed config from the store (which also re-applies
+  /// per-module options via [Module.loadAll]) and rebuilds the tree. Runs in a
+  /// listener, never during build, because deriving the config has side effects.
+  void _onConfigChanged() {
+    if (!mounted) return;
+    final AppConfig next;
+    try {
+      next = widget.store.appConfig;
+    } catch (_) {
+      // A mid-edit or malformed map failed to parse — keep the last good
+      // config rather than tearing down the running shell.
+      return;
+    }
+    setState(() => _liveConfig = next);
+  }
+
   @override
   void dispose() {
+    widget.store.removeListener(_onConfigChanged);
     for (final ctrl in _backgroundControllers) {
       ctrl.destroy();
     }
@@ -200,31 +236,64 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     super.dispose();
   }
 
+  /// Merges live-updatable panel fields (module layout, horizontal padding)
+  /// onto the startup window geometry (anchor/height/layer), which cannot
+  /// change without recreating the native window. Falls back to the startup
+  /// config for panels removed after launch.
+  PanelConfig _effectivePanel(String key, PanelConfig startup) {
+    final live = _liveConfig.panels[key];
+    if (live == null) return startup;
+    return PanelConfig(
+      name: startup.name,
+      height: startup.height,
+      anchor: startup.anchor,
+      layer: startup.layer,
+      paddingHorizontal: live.paddingHorizontal,
+      layout: live.layout,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final appConfig = widget.appConfig;
+    // Iterate the *startup* panels — those own the layer-shell controllers —
+    // but render each with the live config merged onto its fixed geometry.
+    final startupPanels = widget.appConfig.panels;
+
+    // Background window existence is startup-only; while it exists, follow live
+    // edits (fit / entry paths) but keep the startup wallpaper if the user
+    // clears every entry (a full removal needs a restart).
+    final liveBg = _liveConfig.background;
+    final BackgroundConfig? bgConfig = _backgroundControllers.isEmpty
+        ? null
+        : (liveBg != null && liveBg.entries.isNotEmpty
+            ? liveBg
+            : widget.appConfig.background!);
+
     return ViewCollection(
       views: [
         for (final ctrl in _backgroundControllers)
           LayerShellWindow(
             controller: ctrl,
-            child: BackgroundWindow(config: appConfig.background!),
+            child: BackgroundWindow(config: bgConfig!),
           ),
         for (final (_, controllers, waylandOutput) in _monitoredControllers)
-          for (final entry in appConfig.panels.entries)
+          for (final entry in startupPanels.entries)
             LayerShellWindow(
               controller: controllers[entry.key]!,
               child: WindowManager(
                 child: ThemeScope(
-                  theme: appConfig.theme,
+                  theme: _liveConfig.theme,
                   child: MiracleScope(
                     connection: widget.connection,
                     child: DisplayScope(
                       output: waylandOutput,
-                      child: PanelMain(
-                        panelConfig: entry.value,
-                        anchor: entry.value.anchor,
-                      ),
+                      child: Builder(builder: (context) {
+                        final panel = _effectivePanel(entry.key, entry.value);
+                        return PanelMain(
+                          panelConfig: panel,
+                          anchor: panel.anchor,
+                        );
+                      }),
                     ),
                   ),
                 ),
