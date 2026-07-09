@@ -33,6 +33,12 @@ class _SettingsOverlayState extends State<SettingsOverlay>
   late final Animation<double> _opacity;
   final _focusNode = FocusNode();
 
+  // The animated panel lives inside an Overlay so descendants (e.g. the theme
+  // color pickers) can float OverlayPortal popups. Overlay does not rebuild its
+  // initial entries on setState, so we keep a handle and markNeedsBuild() it
+  // whenever the visible content changes (see [_selectCategory]).
+  late final OverlayEntry _panelEntry;
+
   String _selectedCategory = 'network';
 
   @override
@@ -48,8 +54,16 @@ class _SettingsOverlayState extends State<SettingsOverlay>
     _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
+    _panelEntry = OverlayEntry(
+      builder: (context) => _buildAnimated(ThemeScope.of(context)),
+    );
     _controller.forward();
     widget.closingNotifier.addListener(_onClosingChanged);
+  }
+
+  void _selectCategory(String cat) {
+    _selectedCategory = cat;
+    _panelEntry.markNeedsBuild();
   }
 
   void _onClosingChanged() {
@@ -91,7 +105,7 @@ class _SettingsOverlayState extends State<SettingsOverlay>
               _requestClose();
             }
           },
-          child: _buildAnimated(theme),
+          child: Overlay(initialEntries: [_panelEntry]),
         ),
       ),
     );
@@ -188,8 +202,7 @@ class _SettingsOverlayState extends State<SettingsOverlay>
               children: [
                 _SettingsSidebar(
                   selectedCategory: _selectedCategory,
-                  onCategorySelected: (cat) =>
-                      setState(() => _selectedCategory = cat),
+                  onCategorySelected: _selectCategory,
                 ),
                 Container(width: 1, color: theme.divider),
                 Expanded(child: _buildCategoryContent(_selectedCategory)),

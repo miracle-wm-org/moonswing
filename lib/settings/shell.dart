@@ -1,11 +1,14 @@
 // ignore_for_file: library_private_types_in_public_api
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/settings/config_store.dart';
 
@@ -867,6 +870,26 @@ class _NumberField extends StatelessWidget {
 
 /// Colour swatch + hex text field. Accepts `#RGB`-style 6- or 8-digit hex
 /// (matching [ThemeConfig] parsing) and previews the parsed colour live.
+/// Parses a `#RRGGBB` / `#AARRGGBB` hex string (`#` optional) into a color.
+Color? _parseHexColor(String hex) {
+  final s = hex.startsWith('#') ? hex.substring(1) : hex;
+  if (s.length != 6 && s.length != 8) return null;
+  final value = int.tryParse(s.length == 6 ? 'FF$s' : s, radix: 16);
+  return value != null ? Color(value) : null;
+}
+
+/// Formats a color back to the config's hex form: `#RRGGBB` when fully opaque,
+/// otherwise `#AARRGGBB`.
+String _formatHexColor(Color c) {
+  final argb = c.toARGB32();
+  final rgb = (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
+  final a = (argb >> 24) & 0xFF;
+  if (a == 0xFF) return '#$rgb';
+  return '#${a.toRadixString(16).padLeft(2, '0')}$rgb';
+}
+
+/// A color swatch + hex text field. Clicking the swatch opens a visual color
+/// picker ([_ColorPickerPopup]) floated over the settings window.
 class _ColorField extends StatefulWidget {
   const _ColorField({required this.initial, required this.onChanged});
 
@@ -880,6 +903,8 @@ class _ColorField extends StatefulWidget {
 class _ColorFieldState extends State<_ColorField> {
   late final TextEditingController _controller;
   final _focusNode = FocusNode();
+  final _portalController = OverlayPortalController();
+  final _link = LayerLink();
   bool _focused = false;
 
   @override
@@ -897,33 +922,45 @@ class _ColorFieldState extends State<_ColorField> {
     super.dispose();
   }
 
-  static Color? _parse(String hex) {
-    final s = hex.startsWith('#') ? hex.substring(1) : hex;
-    if (s.length != 6 && s.length != 8) return null;
-    final value = int.tryParse(s.length == 6 ? 'FF$s' : s, radix: 16);
-    return value != null ? Color(value) : null;
+  void _apply(Color color) {
+    final hex = _formatHexColor(color);
+    _controller.value = TextEditingValue(
+      text: hex,
+      selection: TextSelection.collapsed(offset: hex.length),
+    );
+    setState(() {});
+    widget.onChanged(hex);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final swatch = _parse(_controller.text);
+    final swatch = _parseHexColor(_controller.text);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            color: swatch ?? const Color(0x00000000),
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: theme.divider),
+        CompositedTransformTarget(
+          link: _link,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: _portalController.toggle,
+              child: Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: swatch ?? const Color(0x00000000),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: theme.divider),
+                ),
+                child: swatch == null
+                    ? FaIcon(FontAwesomeIcons.question,
+                        size: 10,
+                        color: theme.popupForeground.withValues(alpha: 0.4))
+                    : null,
+              ),
+            ),
           ),
-          child: swatch == null
-              ? FaIcon(FontAwesomeIcons.question,
-                  size: 10,
-                  color: theme.popupForeground.withValues(alpha: 0.4))
-              : null,
         ),
         const SizedBox(width: 8),
         Container(
@@ -937,9 +974,12 @@ class _ColorFieldState extends State<_ColorField> {
               width: 1,
             ),
           ),
+          // Read-only on the main page: the value is edited through the color
+          // picker popup, not typed here.
           child: EditableText(
             controller: _controller,
             focusNode: _focusNode,
+            readOnly: true,
             style: TextStyle(
               fontSize: 13,
               color: theme.popupForeground,
@@ -947,18 +987,401 @@ class _ColorFieldState extends State<_ColorField> {
             ),
             cursorColor: theme.accent,
             backgroundCursorColor: theme.divider,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
-            ],
-            onChanged: (v) {
-              setState(() {});
-              if (_parse(v) != null) widget.onChanged(v);
-            },
+          ),
+        ),
+        OverlayPortal(
+          controller: _portalController,
+          overlayChildBuilder: (context) => _buildPicker(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPicker() {
+    return Stack(
+      children: [
+        // Dismiss when tapping outside the popup.
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _portalController.hide,
+          ),
+        ),
+        CompositedTransformFollower(
+          link: _link,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(0, 8),
+          child: _ColorPickerPopup(
+            initial: _parseHexColor(_controller.text) ?? const Color(0xFF000000),
+            onChanged: _apply,
           ),
         ),
       ],
     );
   }
+}
+
+/// Visual HSV color picker: a draggable saturation/value square, hue and alpha
+/// sliders, and a manual hex entry. Emits every change through [onChanged].
+class _ColorPickerPopup extends StatefulWidget {
+  const _ColorPickerPopup({required this.initial, required this.onChanged});
+
+  final Color initial;
+  final ValueChanged<Color> onChanged;
+
+  @override
+  State<_ColorPickerPopup> createState() => _ColorPickerPopupState();
+}
+
+class _ColorPickerPopupState extends State<_ColorPickerPopup> {
+  static const double _w = 200;
+  static const double _squareH = 150;
+  static const double _sliderH = 14;
+
+  late HSVColor _hsv;
+  late final TextEditingController _hexController;
+  final _hexFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _hsv = HSVColor.fromColor(widget.initial);
+    _hexController =
+        TextEditingController(text: _formatHexColor(widget.initial));
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    _hexFocus.dispose();
+    super.dispose();
+  }
+
+  /// Applies a new HSV value, optionally syncing the hex field text (skipped
+  /// while the user is typing into that field).
+  void _set(HSVColor hsv, {bool syncHex = true}) {
+    _hsv = hsv;
+    final color = hsv.toColor();
+    if (syncHex) {
+      final hex = _formatHexColor(color);
+      if (_hexController.text != hex) {
+        _hexController.value = TextEditingValue(
+          text: hex,
+          selection: TextSelection.collapsed(offset: hex.length),
+        );
+      }
+    }
+    setState(() {});
+    widget.onChanged(color);
+  }
+
+  void _onHex(String text) {
+    final c = _parseHexColor(text);
+    if (c != null) _set(HSVColor.fromColor(c), syncHex: false);
+  }
+
+  /// A fixed-size region that reports the pointer position (down + drag) as
+  /// normalized (0..1) coordinates.
+  Widget _draggable({
+    required double width,
+    required double height,
+    required ValueChanged<Offset> onChange,
+    required Widget child,
+  }) {
+    void handle(Offset local) {
+      onChange(Offset(
+        (local.dx / width).clamp(0.0, 1.0),
+        (local.dy / height).clamp(0.0, 1.0),
+      ));
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (d) => handle(d.localPosition),
+      onPanDown: (d) => handle(d.localPosition),
+      onPanUpdate: (d) => handle(d.localPosition),
+      child: SizedBox(width: width, height: height, child: child),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final color = _hsv.toColor();
+    return PopupBounceIn(
+      child: Container(
+        width: _w + 24,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.popupBackground,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: theme.accent, width: 1),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x66000000),
+              blurRadius: 16,
+              offset: Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Saturation / value square.
+            _draggable(
+              width: _w,
+              height: _squareH,
+              onChange: (n) =>
+                  _set(_hsv.withSaturation(n.dx).withValue(1 - n.dy)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: CustomPaint(
+                  painter: _SVPainter(_hsv.hue),
+                  foregroundPainter: _SVCursorPainter(
+                    saturation: _hsv.saturation,
+                    value: _hsv.value,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Hue slider.
+            _draggable(
+              width: _w,
+              height: _sliderH,
+              onChange: (n) =>
+                  _set(_hsv.withHue((n.dx * 360).clamp(0.0, 360.0))),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_sliderH / 2),
+                child: CustomPaint(
+                  painter: _HuePainter(),
+                  foregroundPainter: _ThumbPainter(_hsv.hue / 360),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Alpha slider.
+            _draggable(
+              width: _w,
+              height: _sliderH,
+              onChange: (n) => _set(_hsv.withAlpha(n.dx)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_sliderH / 2),
+                child: CustomPaint(
+                  painter: _AlphaPainter(_hsv.withAlpha(1).toColor()),
+                  foregroundPainter: _ThumbPainter(_hsv.alpha),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Manual hex entry.
+            Row(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: theme.divider),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.workspaceBackground,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: theme.divider),
+                    ),
+                    child: EditableText(
+                      controller: _hexController,
+                      focusNode: _hexFocus,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.popupForeground,
+                        fontFamily: theme.fontFamily,
+                      ),
+                      cursorColor: theme.accent,
+                      backgroundCursorColor: theme.divider,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                            RegExp(r'[#0-9a-fA-F]')),
+                      ],
+                      onChanged: _onHex,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Paints the saturation (x) / value (y) gradient field for a given [hue].
+class _SVPainter extends CustomPainter {
+  _SVPainter(this.hue);
+
+  final double hue;
+
+  @override
+  void paint(ui.Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final hueColor = HSVColor.fromAHSV(1, hue, 1, 1).toColor();
+    canvas.drawRect(
+      rect,
+      ui.Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [const Color(0xFFFFFFFF), hueColor],
+        ).createShader(rect),
+    );
+    canvas.drawRect(
+      rect,
+      ui.Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x00000000), Color(0xFF000000)],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SVPainter old) => old.hue != hue;
+}
+
+/// Draws the ring cursor over the saturation/value square.
+class _SVCursorPainter extends CustomPainter {
+  _SVCursorPainter({required this.saturation, required this.value});
+
+  final double saturation;
+  final double value;
+
+  @override
+  void paint(ui.Canvas canvas, Size size) {
+    final c = Offset(saturation * size.width, (1 - value) * size.height);
+    canvas.drawCircle(
+      c,
+      6,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = const Color(0xFFFFFFFF),
+    );
+    canvas.drawCircle(
+      c,
+      7.5,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0x88000000),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SVCursorPainter old) =>
+      old.saturation != saturation || old.value != value;
+}
+
+/// Paints the full hue spectrum bar.
+class _HuePainter extends CustomPainter {
+  @override
+  void paint(ui.Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      ui.Paint()
+        ..shader = const LinearGradient(
+          colors: [
+            Color(0xFFFF0000),
+            Color(0xFFFFFF00),
+            Color(0xFF00FF00),
+            Color(0xFF00FFFF),
+            Color(0xFF0000FF),
+            Color(0xFFFF00FF),
+            Color(0xFFFF0000),
+          ],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_HuePainter old) => false;
+}
+
+/// Paints the alpha slider: a checkerboard behind a transparent→opaque gradient
+/// of the current [color].
+class _AlphaPainter extends CustomPainter {
+  _AlphaPainter(this.color);
+
+  final Color color;
+
+  @override
+  void paint(ui.Canvas canvas, Size size) {
+    const cell = 5.0;
+    final rect = Offset.zero & size;
+    canvas.drawRect(rect, ui.Paint()..color = const Color(0xFFCCCCCC));
+    final dark = ui.Paint()..color = const Color(0xFF888888);
+    for (double y = 0; y < size.height; y += cell) {
+      for (double x = 0; x < size.width; x += cell) {
+        if (((x ~/ cell) + (y ~/ cell)) % 2 == 0) {
+          canvas.drawRect(Rect.fromLTWH(x, y, cell, cell), dark);
+        }
+      }
+    }
+    canvas.drawRect(
+      rect,
+      ui.Paint()
+        ..shader = LinearGradient(
+          colors: [color.withValues(alpha: 0), color.withValues(alpha: 1)],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_AlphaPainter old) => old.color != color;
+}
+
+/// Draws the round thumb for the hue/alpha sliders at normalized position [t].
+class _ThumbPainter extends CustomPainter {
+  _ThumbPainter(this.t);
+
+  final double t;
+
+  @override
+  void paint(ui.Canvas canvas, Size size) {
+    final r = size.height / 2;
+    final x = (t.clamp(0.0, 1.0) * size.width).clamp(r, size.width - r);
+    final center = Offset(x, size.height / 2);
+    canvas.drawCircle(
+      center,
+      r - 1,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 2
+        ..color = const Color(0xFFFFFFFF),
+    );
+    canvas.drawCircle(
+      center,
+      r,
+      ui.Paint()
+        ..style = ui.PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = const Color(0x66000000),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ThumbPainter old) => old.t != t;
 }
 
 /// Editable ordered list of strings. When [suggestions] is provided, new items
