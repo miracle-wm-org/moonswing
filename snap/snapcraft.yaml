@@ -1,0 +1,41 @@
+name: graceful-shell
+base: core22
+version: '0.1-nightly'
+summary: The shell of your dreams, built with Flutter
+description: |
+  Graceful Shell renders Wayland layer-shell panels (taskbars) and an optional
+  wallpaper for Wayland compositors such as Miracle WM, built with Flutter.
+grade: devel
+confinement: classic
+platforms:
+  amd64:
+
+apps:
+  graceful-shell:
+    command: bin/graceful_shell
+
+parts:
+  graceful-shell:
+    plugin: flutter
+    source: .
+    flutter-target: lib/main.dart
+    flutter-channel: master
+    override-build: |
+      flutter config --enable-windowing
+      craftctl default
+    build-packages:
+      - libgtk-3-dev
+      - libgtk-layer-shell-dev
+      - libasound2-dev
+      - libmpv-dev
+      - pkg-config
+    stage-packages:
+      - libgtk-layer-shell0
+      - libmpv1
+      - libasound2
+      - libpulse0
+  wallpaper:
+    plugin: dump
+    source: assets
+    organize:
+      wallpaper.jpg: share/graceful-shell/wallpaper.jpg

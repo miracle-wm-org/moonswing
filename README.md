@@ -26,6 +26,29 @@ flutter channel master
 flutter upgrade
 ```
 
+## Install the nightly snap (amd64)
+
+Prebuilt classic snaps are published for every commit to `main`. Download the
+latest `graceful-shell_*.snap` from the [nightly release](https://github.com/miracle-wm-org/graceful-shell/releases/tag/nightly),
+then install it:
+
+```sh
+sudo snap install ./graceful-shell_*.snap --classic --dangerous
+```
+
+`--classic` is required (this shell needs full access to the Wayland compositor);
+`--dangerous` allows installing a locally downloaded snap. Once installed, run:
+
+```sh
+graceful-shell
+```
+
+To update, download the newest snap and re-run the install command. To remove:
+
+```sh
+sudo snap remove graceful-shell
+```
+
 ## Building and installing
 
 Enable Flutter's experimental windowing API (one-time setup):
