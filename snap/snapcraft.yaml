@@ -22,7 +22,10 @@ parts:
     flutter-channel: master
     override-build: |
       if [ ! -d "${CRAFT_PART_BUILD}/flutter-distro" ]; then
-        git clone --depth 1 -b master \
+        # Full clone (not --depth 1): Flutter derives its SDK version from
+        # `git describe --tags`, which needs tag history. A shallow master
+        # clone reports version 0.0.0-unknown and fails pub SDK constraints.
+        git clone -b master \
           https://github.com/flutter/flutter.git "${CRAFT_PART_BUILD}/flutter-distro"
       fi
       flutter config --enable-windowing
