@@ -46,6 +46,21 @@ parts:
       - libmpv1
       - libasound2
       - libpulse0
+    prime:
+      # Classic confinement uses the host graphics stack. Bundled Mesa
+      # (pulled in transitively by libmpv/gtk) is a different version than the
+      # host DRI drivers, causing "libEGL fatal: did not find extension
+      # DRI_Mesa version 1". Drop the whole GL/EGL/GBM/DRI set so the loader
+      # falls through to the host's consistent Mesa + drivers.
+      - -usr/lib/*/libEGL*
+      - -usr/lib/*/libGL.so*
+      - -usr/lib/*/libGLX*
+      - -usr/lib/*/libGLdispatch*
+      - -usr/lib/*/libOpenGL*
+      - -usr/lib/*/libGLES*
+      - -usr/lib/*/libgbm*
+      - -usr/lib/*/libglapi*
+      - -usr/lib/*/dri/*
   wallpaper:
     plugin: dump
     source: assets
