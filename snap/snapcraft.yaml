@@ -61,6 +61,11 @@ parts:
       - -usr/lib/*/libgbm*
       - -usr/lib/*/libglapi*
       - -usr/lib/*/dri/*
+      # Host Mesa is newer and calls symbols (e.g. wl_display_create_queue_
+      # with_name) absent from the bundled core22 libwayland/libdrm. Drop them
+      # too so the whole graphics + display stack comes from the host.
+      - -usr/lib/*/libwayland*
+      - -usr/lib/*/libdrm*
   wallpaper:
     plugin: dump
     source: assets
