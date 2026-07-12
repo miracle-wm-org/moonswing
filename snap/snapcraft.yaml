@@ -21,6 +21,10 @@ parts:
     flutter-target: lib/main.dart
     flutter-channel: master
     override-build: |
+      if [ ! -d "${CRAFT_PART_BUILD}/flutter-distro" ]; then
+        git clone --depth 1 -b master \
+          https://github.com/flutter/flutter.git "${CRAFT_PART_BUILD}/flutter-distro"
+      fi
       flutter config --enable-windowing
       craftctl default
     build-packages:
