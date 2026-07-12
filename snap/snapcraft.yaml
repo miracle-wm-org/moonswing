@@ -12,7 +12,7 @@ platforms:
 
 apps:
   graceful-shell:
-    command: bin/graceful_shell
+    command: graceful_shell
 
 parts:
   graceful-shell:
