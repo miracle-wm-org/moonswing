@@ -13,6 +13,11 @@ platforms:
 apps:
   graceful-shell:
     command: graceful_shell
+    environment:
+      # Classic confinement runs in the host namespace and does not set up a
+      # library search path. Point the loader at the staged libs (libmpv.so.1
+      # and its deps live under usr/lib/<triplet>; Flutter plugins in lib).
+      LD_LIBRARY_PATH: $SNAP/usr/lib/x86_64-linux-gnu:$SNAP/lib:$LD_LIBRARY_PATH
 
 parts:
   graceful-shell:
