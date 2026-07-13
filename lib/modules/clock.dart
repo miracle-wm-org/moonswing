@@ -84,7 +84,7 @@ class ClockState extends State<Clock> with LayerShellHost<Clock> {
     _closingNotifier.value = false;
 
     final controller = LayershellWindowController(
-      layer: LayerShellLayer.bottom,
+      layer: LayerShellLayer.overlay,
       anchorEdges: [
         LayerShellEdge.top,
         LayerShellEdge.bottom,
