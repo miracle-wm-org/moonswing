@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/event.dart';
 import 'package:graceful_shell/overlay/calendar/google_provider.dart';
 import 'package:graceful_shell/overlay/calendar/month.dart';
@@ -278,10 +279,20 @@ class CalendarStore extends ChangeNotifier {
 /// must not delay the shell coming up. The first fetch happens when the user
 /// opens the calendar tab.
 Future<void> startCalendarService(CalendarConfig config) async {
+  final tokenStore = CalendarTokenStore();
+
   try {
-    CalendarStore.instance.configure(config, CalendarTokenStore());
+    CalendarStore.instance.configure(config, tokenStore);
     await CalendarStore.instance.restore();
   } catch (e) {
     debugPrint('Calendar service unavailable: $e');
   }
+
+  // The connect pane writes the OAuth client ID and secret into the ConfigStore.
+  // Re-reading them here is what lets "Connect" light up the moment they are
+  // entered, instead of only after a restart.
+  ConfigStore.instance.addListener(() {
+    final map = ConfigStore.instance.get<Map<String, dynamic>>(['calendar']);
+    CalendarStore.instance.configure(CalendarConfig.fromMap(map), tokenStore);
+  });
 }

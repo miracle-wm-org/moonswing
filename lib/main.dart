@@ -23,6 +23,7 @@ import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
+import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:wayland/wayland.dart';
@@ -52,6 +53,10 @@ void main() async {
 
   await startNotificationService();
   await startStatusNotifierService();
+  // Restores saved calendar tokens from disk only — no network I/O, so an
+  // offline machine or an expired account cannot delay the shell coming up.
+  // The first fetch happens when the user opens the calendar tab.
+  await startCalendarService(appConfig.calendar);
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.

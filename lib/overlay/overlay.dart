@@ -5,12 +5,40 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/overlay/calendar/calendar_tab.dart';
 import 'package:graceful_shell/overlay/settings/audio.dart';
 import 'package:graceful_shell/overlay/settings/bluetooth.dart';
 import 'package:graceful_shell/overlay/settings/display.dart';
 import 'package:graceful_shell/overlay/settings/network.dart';
 import 'package:graceful_shell/overlay/settings/shell.dart';
 import 'package:graceful_shell/scopes.dart';
+
+/// One top-level tab in the overlay. Adding a tab is one entry here plus one
+/// child in the [IndexedStack] that [_SettingsOverlayState] builds.
+class _OverlayTab {
+  const _OverlayTab({
+    required this.id,
+    required this.label,
+    required this.icon,
+  });
+
+  final String id;
+  final String label;
+  final FaIconData icon;
+}
+
+const List<_OverlayTab> _tabs = [
+  _OverlayTab(
+    id: 'calendar',
+    label: 'Calendar',
+    icon: FontAwesomeIcons.calendarDays,
+  ),
+  _OverlayTab(
+    id: 'settings',
+    label: 'Settings',
+    icon: FontAwesomeIcons.gear,
+  ),
+];
 
 class SettingsOverlay extends StatefulWidget {
   const SettingsOverlay({
@@ -39,6 +67,9 @@ class _SettingsOverlayState extends State<SettingsOverlay>
   // whenever the visible content changes (see [_selectCategory]).
   late final OverlayEntry _panelEntry;
 
+  // Clicking the clock most plausibly means "show me the calendar", so that is
+  // the tab the overlay opens on.
+  String _selectedTab = 'calendar';
   String _selectedCategory = 'network';
 
   @override
@@ -63,6 +94,11 @@ class _SettingsOverlayState extends State<SettingsOverlay>
 
   void _selectCategory(String cat) {
     _selectedCategory = cat;
+    _panelEntry.markNeedsBuild();
+  }
+
+  void _selectTab(String tab) {
+    _selectedTab = tab;
     _panelEntry.markNeedsBuild();
   }
 
@@ -155,45 +191,51 @@ class _SettingsOverlayState extends State<SettingsOverlay>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Header: the tab bar, plus the close button.
           Container(
             padding:
-                const EdgeInsets.only(left: 24, right: 12, top: 12, bottom: 12),
+                const EdgeInsets.only(left: 16, right: 12, top: 8, bottom: 0),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: theme.divider),
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Expanded(
-                  child: Text(
-                    'Settings',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontFamily: theme.fontFamily,
-                      color: theme.popupForeground,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    children: [
+                      for (final tab in _tabs)
+                        _TabButton(
+                          tab: tab,
+                          selected: _selectedTab == tab.id,
+                          onTap: () => _selectTab(tab.id),
+                        ),
+                    ],
                   ),
                 ),
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: _requestClose,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        color: const Color(0x00000000),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '✕',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: theme.popupForeground.withValues(alpha: 0.6),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: _requestClose,
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(6),
+                          color: const Color(0x00000000),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '✕',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color:
+                                  theme.popupForeground.withValues(alpha: 0.6),
+                            ),
                           ),
                         ),
                       ),
@@ -203,22 +245,37 @@ class _SettingsOverlayState extends State<SettingsOverlay>
               ],
             ),
           ),
-          // Body: sidebar + content
+          // Body. An IndexedStack rather than a switch: the settings tab hosts
+          // ShellSettingsPage, which owns a nested Navigator. Rebuilding the
+          // body on every tab change would tear that down, dropping the user
+          // back to the category landing page — and would lose the calendar's
+          // selected month and day the same way.
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            child: IndexedStack(
+              index: _tabs.indexWhere((t) => t.id == _selectedTab),
+              sizing: StackFit.expand,
               children: [
-                _SettingsSidebar(
-                  selectedCategory: _selectedCategory,
-                  onCategorySelected: _selectCategory,
-                ),
-                Container(width: 1, color: theme.divider),
-                Expanded(child: _buildCategoryContent(_selectedCategory)),
+                const CalendarTab(),
+                _buildSettingsBody(theme),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSettingsBody(ThemeConfig theme) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SettingsSidebar(
+          selectedCategory: _selectedCategory,
+          onCategorySelected: _selectCategory,
+        ),
+        Container(width: 1, color: theme.divider),
+        Expanded(child: _buildCategoryContent(_selectedCategory)),
+      ],
     );
   }
 
@@ -237,6 +294,81 @@ class _SettingsOverlayState extends State<SettingsOverlay>
       default:
         return const SizedBox.shrink();
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tab bar
+// ---------------------------------------------------------------------------
+
+class _TabButton extends StatefulWidget {
+  const _TabButton({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _OverlayTab tab;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_TabButton> createState() => _TabButtonState();
+}
+
+class _TabButtonState extends State<_TabButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final Color foreground;
+    if (widget.selected) {
+      foreground = theme.accent;
+    } else if (_hovered) {
+      foreground = theme.popupForeground;
+    } else {
+      foreground = theme.popupForeground.withValues(alpha: 0.6);
+    }
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+          decoration: BoxDecoration(
+            // The underline sits on the header's bottom border, so the selected
+            // tab reads as continuous with the content below it.
+            border: Border(
+              bottom: BorderSide(
+                color: widget.selected ? theme.accent : const Color(0x00000000),
+                width: 2,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(widget.tab.icon, size: 13, color: foreground),
+              const SizedBox(width: 8),
+              Text(
+                widget.tab.label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontFamily: theme.fontFamily,
+                  color: foreground,
+                  fontWeight:
+                      widget.selected ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
