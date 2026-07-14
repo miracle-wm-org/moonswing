@@ -13,6 +13,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 
 /// Settings page for graceful-shell's own configuration (`config.toml`).
 ///
@@ -179,7 +180,7 @@ class _ShellCategoryView extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
           child: Row(
             children: [
-              _IconButton(
+              SettingsIconButton(
                 icon: FontAwesomeIcons.arrowLeft,
                 size: 14,
                 onTap: () => Navigator.of(context).pop(),
@@ -350,19 +351,19 @@ class _AppearanceSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Section(
+    return SettingsSection(
       label: 'Appearance',
       children: [
-        _SettingRow(
+        SettingsRow(
           label: 'Font',
-          control: _TextField(
+          control: SettingsTextField(
             width: 180,
             initial: store.get<String>(['theme', 'font']) ?? 'Ubuntu Sans',
             onChanged: (v) => store.set(['theme', 'font'], v.trim()),
           ),
         ),
         for (final c in _colors)
-          _SettingRow(
+          SettingsRow(
             label: c.$2,
             control: _ColorField(
               initial: store.get<String>(['theme', c.$1]) ?? c.$3,
@@ -385,22 +386,22 @@ class _ModulesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Section(
+    return SettingsSection(
       label: 'Modules',
       children: [
-        _SubLabel('Weather'),
-        _SettingRow(
+        SettingsSubLabel('Weather'),
+        SettingsRow(
           label: 'Unit',
-          control: _Segmented(
+          control: SettingsSegmented(
             options: const ['fahrenheit', 'celsius'],
             value: store.get<String>(['modules', 'weather', 'unit']) ??
                 'fahrenheit',
             onChanged: (v) => store.set(['modules', 'weather', 'unit'], v),
           ),
         ),
-        _SettingRow(
+        SettingsRow(
           label: 'Refresh (minutes)',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store.get<num>(['modules', 'weather', 'refresh_minutes']) ??
                 10,
             isInt: true,
@@ -408,28 +409,28 @@ class _ModulesSection extends StatelessWidget {
                 store.set(['modules', 'weather', 'refresh_minutes'], v),
           ),
         ),
-        _SubLabel('Battery'),
-        _SettingRow(
+        SettingsSubLabel('Battery'),
+        SettingsRow(
           label: 'Poll (seconds)',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store.get<num>(['modules', 'battery', 'poll_seconds']) ?? 30,
             isInt: true,
             onChanged: (v) =>
                 store.set(['modules', 'battery', 'poll_seconds'], v),
           ),
         ),
-        _SubLabel('Clock'),
-        _SettingRow(
+        SettingsSubLabel('Clock'),
+        SettingsRow(
           label: 'Show date',
-          control: _Toggle(
+          control: SettingsToggle(
             value: store.get<bool>(['modules', 'clock', 'show_date']) ?? true,
             onChanged: (v) => store.set(['modules', 'clock', 'show_date'], v),
           ),
         ),
-        _SubLabel('Media player'),
-        _SettingRow(
+        SettingsSubLabel('Media player'),
+        SettingsRow(
           label: 'Max text width',
-          control: _NumberField(
+          control: SettingsNumberField(
             value:
                 store.get<num>(['modules', 'media_player', 'max_text_width']) ??
                     200,
@@ -438,19 +439,19 @@ class _ModulesSection extends StatelessWidget {
                 store.set(['modules', 'media_player', 'max_text_width'], v),
           ),
         ),
-        _SubLabel('System tray'),
-        _SettingRow(
+        SettingsSubLabel('System tray'),
+        SettingsRow(
           label: 'Icon size',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store.get<num>(['modules', 'system_tray', 'icon_size']) ?? 16,
             isInt: false,
             onChanged: (v) =>
                 store.set(['modules', 'system_tray', 'icon_size'], v),
           ),
         ),
-        _SettingRow(
+        SettingsRow(
           label: 'Collapsed overlap',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store
                     .get<num>(['modules', 'system_tray', 'collapsed_overlap']) ??
                 10,
@@ -459,9 +460,9 @@ class _ModulesSection extends StatelessWidget {
                 store.set(['modules', 'system_tray', 'collapsed_overlap'], v),
           ),
         ),
-        _SettingRow(
+        SettingsRow(
           label: 'Expanded spacing',
-          control: _NumberField(
+          control: SettingsNumberField(
             value:
                 store.get<num>(['modules', 'system_tray', 'expanded_spacing']) ??
                     6,
@@ -470,7 +471,7 @@ class _ModulesSection extends StatelessWidget {
                 store.set(['modules', 'system_tray', 'expanded_spacing'], v),
           ),
         ),
-        _SettingRow(
+        SettingsRow(
           label: 'Hidden items',
           alignTop: true,
           control: _StringListEditor(
@@ -481,16 +482,16 @@ class _ModulesSection extends StatelessWidget {
             addHint: 'SNI id or title',
           ),
         ),
-        _SubLabel('Dock'),
-        _SettingRow(
+        SettingsSubLabel('Dock'),
+        SettingsRow(
           label: 'Icon size',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store.get<num>(['modules', 'dock', 'icon_size']) ?? 24,
             isInt: true,
             onChanged: (v) => store.set(['modules', 'dock', 'icon_size'], v),
           ),
         ),
-        _SettingRow(
+        SettingsRow(
           label: 'Apps',
           alignTop: true,
           control: _StringListEditor(
@@ -499,10 +500,10 @@ class _ModulesSection extends StatelessWidget {
             addHint: 'app id',
           ),
         ),
-        _SubLabel('System monitor'),
-        _SettingRow(
+        SettingsSubLabel('System monitor'),
+        SettingsRow(
           label: 'Poll (seconds)',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store.get<num>(['modules', 'system_monitor', 'poll_seconds'])
                     ?.toInt() ??
                 2,
@@ -511,9 +512,9 @@ class _ModulesSection extends StatelessWidget {
                 store.set(['modules', 'system_monitor', 'poll_seconds'], v),
           ),
         ),
-        _SettingRow(
+        SettingsRow(
           label: 'Temperature unit',
-          control: _Segmented(
+          control: SettingsSegmented(
             options: const ['celsius', 'fahrenheit'],
             value:
                 store.get<String>(['modules', 'system_monitor', 'temp_unit']) ??
@@ -522,10 +523,10 @@ class _ModulesSection extends StatelessWidget {
                 store.set(['modules', 'system_monitor', 'temp_unit'], v),
           ),
         ),
-        _SubLabel('Network'),
-        _SettingRow(
+        SettingsSubLabel('Network'),
+        SettingsRow(
           label: 'Poll (seconds)',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store.get<num>(['modules', 'network', 'poll_seconds']) ?? 10,
             isInt: true,
             onChanged: (v) =>
@@ -549,11 +550,11 @@ class _PanelsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final names = store.panelNames;
-    return _Section(
+    return SettingsSection(
       label: 'Panels & Layout',
       children: [
         if (names.isEmpty)
-          _Hint('No panels defined in config.toml.')
+          SettingsHint('No panels defined in config.toml.')
         else
           for (final name in names) _buildPanel(name),
       ],
@@ -567,41 +568,41 @@ class _PanelsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SubLabel(name),
-          _SettingRow(
+          SettingsSubLabel(name),
+          SettingsRow(
             label: 'Height',
-            control: _NumberField(
+            control: SettingsNumberField(
               value: store.get<num>(p(['height'])) ?? 32,
               isInt: true,
               onChanged: (v) => store.set(p(['height']), v),
             ),
           ),
-          _SettingRow(
+          SettingsRow(
             label: 'Horizontal padding',
-            control: _NumberField(
+            control: SettingsNumberField(
               value: store.get<num>(p(['padding_horizontal'])) ?? 40,
               isInt: true,
               onChanged: (v) => store.set(p(['padding_horizontal']), v),
             ),
           ),
-          _SettingRow(
+          SettingsRow(
             label: 'Anchor',
-            control: _Segmented(
+            control: SettingsSegmented(
               options: const ['top', 'bottom', 'left', 'right'],
               value: store.get<String>(p(['anchor'])) ?? 'top',
               onChanged: (v) => store.set(p(['anchor']), v),
             ),
           ),
-          _SettingRow(
+          SettingsRow(
             label: 'Layer',
-            control: _Segmented(
+            control: SettingsSegmented(
               options: const ['background', 'bottom', 'top', 'overlay'],
               value: store.get<String>(p(['layer'])) ?? 'top',
               onChanged: (v) => store.set(p(['layer']), v),
             ),
           ),
           for (final slot in const ['left', 'center', 'right'])
-            _SettingRow(
+            SettingsRow(
               label: '${slot[0].toUpperCase()}${slot.substring(1)} modules',
               alignTop: true,
               control: _StringListEditor(
@@ -724,20 +725,20 @@ class _BackgroundSectionState extends State<_BackgroundSection> {
     final shown = entries.where((e) => e['shown'] == true).toList();
     final hidden = entries.where((e) => e['shown'] != true).toList();
 
-    return _Section(
+    return SettingsSection(
       label: 'Background',
       children: [
-        _SettingRow(
+        SettingsRow(
           label: 'Fit',
-          control: _Segmented(
+          control: SettingsSegmented(
             options: const ['fill', 'contain', 'natural'],
             value: store.get<String>(['background', 'fit']) ?? 'fill',
             onChanged: (v) => store.set(['background', 'fit'], v),
           ),
         ),
-        _SettingRow(
+        SettingsRow(
           label: 'Rotation interval (minutes)',
-          control: _NumberField(
+          control: SettingsNumberField(
             value: store.get<num>(['background', 'interval_minutes']) ?? 5,
             isInt: true,
             onChanged: (v) => store.set(['background', 'interval_minutes'],
@@ -746,11 +747,11 @@ class _BackgroundSectionState extends State<_BackgroundSection> {
         ),
         const Padding(
           padding: EdgeInsets.only(top: 2),
-          child: _Hint('Selected wallpapers rotate on this interval, in order.'),
+          child: SettingsHint('Selected wallpapers rotate on this interval, in order.'),
         ),
-        _SubLabel('Shown'),
+        SettingsSubLabel('Shown'),
         if (shown.isEmpty)
-          const _Hint('No wallpapers selected. Select one from Available below.')
+          const SettingsHint('No wallpapers selected. Select one from Available below.')
         else
           _WallpaperGrid(
             entries: shown,
@@ -762,9 +763,9 @@ class _BackgroundSectionState extends State<_BackgroundSection> {
           padding: const EdgeInsets.only(top: 10),
           child: _AddButton(label: 'Add wallpaper', onTap: _addWallpapers),
         ),
-        _SubLabel('Available'),
+        SettingsSubLabel('Available'),
         if (hidden.isEmpty)
-          const _Hint('No hidden wallpapers.')
+          const SettingsHint('No hidden wallpapers.')
         else
           _WallpaperGrid(
             entries: hidden,
@@ -860,7 +861,7 @@ class _WallpaperGrid extends StatelessWidget {
 }
 
 /// A single wallpaper preview cell. Renders the image cover-cropped with a
-/// selection border + check badge, mirroring [_OptionButton]'s selected styling.
+/// selection border + check badge, mirroring [SettingsOptionButton]'s selected styling.
 class _WallpaperTile extends StatefulWidget {
   const _WallpaperTile({
     required this.path,
@@ -941,399 +942,6 @@ class _WallpaperTileState extends State<_WallpaperTile> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Layout helpers
-// ---------------------------------------------------------------------------
-
-class _Section extends StatelessWidget {
-  const _Section({required this.label, required this.children});
-
-  final String label;
-  final List<Widget> children;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SectionLabel(label),
-        const SizedBox(height: 8),
-        ...children,
-      ],
-    );
-  }
-}
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Text(
-      text.toUpperCase(),
-      style: TextStyle(
-        fontSize: 11,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.5),
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-}
-
-class _SubLabel extends StatelessWidget {
-  const _SubLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 2),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontFamily: theme.fontFamily,
-          color: theme.accent,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
-}
-
-class _Hint extends StatelessWidget {
-  const _Hint(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Text(
-      text,
-      style: TextStyle(
-        fontSize: 12,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.5),
-      ),
-    );
-  }
-}
-
-class _SettingRow extends StatelessWidget {
-  const _SettingRow({
-    required this.label,
-    required this.control,
-    this.alignTop = false,
-  });
-
-  final String label;
-  final Widget control;
-  final bool alignTop;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment:
-            alignTop ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(top: alignTop ? 10 : 0),
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.85),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          control,
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Controls
-// ---------------------------------------------------------------------------
-
-class _Toggle extends StatefulWidget {
-  const _Toggle({required this.value, required this.onChanged});
-
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  _ToggleState createState() => _ToggleState();
-}
-
-class _ToggleState extends State<_Toggle> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final color = widget.value ? theme.accent : theme.divider;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: () => widget.onChanged(!widget.value),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 44,
-          height: 24,
-          decoration: BoxDecoration(
-            color: _hovered ? color.withValues(alpha: 0.8) : color,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeInOut,
-                left: widget.value ? 22 : 2,
-                top: 2,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFFFFF),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Segmented extends StatelessWidget {
-  const _Segmented({
-    required this.options,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final List<String> options;
-  final String value;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      alignment: WrapAlignment.end,
-      children: [
-        for (final o in options)
-          _OptionButton(
-            label: '${o[0].toUpperCase()}${o.substring(1)}',
-            selected: o == value,
-            onTap: () => onChanged(o),
-          ),
-      ],
-    );
-  }
-}
-
-class _OptionButton extends StatefulWidget {
-  const _OptionButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  _OptionButtonState createState() => _OptionButtonState();
-}
-
-class _OptionButtonState extends State<_OptionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final Color bg;
-    if (widget.selected) {
-      bg = theme.accent;
-    } else if (_hovered) {
-      bg = theme.surfaceHover;
-    } else {
-      bg = theme.controlSurface;
-    }
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: widget.selected ? theme.accent : theme.divider),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: theme.fontFamily,
-              color: widget.selected
-                  ? const Color(0xFFFFFFFF)
-                  : theme.popupForeground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Bordered single-line text input backed by [EditableText] (the codebase does
-/// not use Material). Seeds its controller once from [initial]; subsequent
-/// parent rebuilds do not clobber in-progress edits.
-class _TextField extends StatefulWidget {
-  const _TextField({
-    required this.initial,
-    required this.onChanged,
-    this.width,
-    this.inputFormatters,
-  });
-
-  final String initial;
-  final ValueChanged<String> onChanged;
-  final double? width;
-  final List<TextInputFormatter>? inputFormatters;
-
-  @override
-  _TextFieldState createState() => _TextFieldState();
-}
-
-class _TextFieldState extends State<_TextField> {
-  late final TextEditingController _controller;
-  final _focusNode = FocusNode();
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initial);
-    _focusNode.addListener(
-        () => setState(() => _focused = _focusNode.hasFocus));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Container(
-      width: widget.width,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: theme.popupBackground,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: _focused ? theme.accent : theme.divider,
-          width: 1,
-        ),
-      ),
-      child: EditableText(
-        controller: _controller,
-        focusNode: _focusNode,
-        style: TextStyle(
-          fontSize: 13,
-          color: theme.popupForeground,
-          fontFamily: theme.fontFamily,
-        ),
-        cursorColor: theme.accent,
-        backgroundCursorColor: theme.divider,
-        inputFormatters: widget.inputFormatters,
-        onChanged: (v) => widget.onChanged(v),
-      ),
-    );
-  }
-}
-
-class _NumberField extends StatelessWidget {
-  const _NumberField({
-    required this.value,
-    required this.onChanged,
-    required this.isInt,
-  });
-
-  final num value;
-  final bool isInt;
-  final ValueChanged<num> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return _TextField(
-      width: 90,
-      initial: isInt ? '${value.toInt()}' : _trimDouble(value.toDouble()),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(
-            isInt ? RegExp(r'[0-9]') : RegExp(r'[0-9.]')),
-      ],
-      onChanged: (text) {
-        if (text.isEmpty) return;
-        if (isInt) {
-          final v = int.tryParse(text);
-          if (v != null) onChanged(v);
-        } else {
-          final v = double.tryParse(text);
-          if (v != null) onChanged(v);
-        }
-      },
-    );
-  }
-
-  static String _trimDouble(double v) {
-    if (v == v.roundToDouble()) return v.toStringAsFixed(1);
-    return '$v';
-  }
-}
-
-/// Colour swatch + hex text field. Accepts `#RGB`-style 6- or 8-digit hex
-/// (matching [ThemeConfig] parsing) and previews the parsed colour live.
-/// Parses a `#RRGGBB` / `#AARRGGBB` hex string (`#` optional) into a color.
-Color? _parseHexColor(String hex) {
-  final s = hex.startsWith('#') ? hex.substring(1) : hex;
-  if (s.length != 6 && s.length != 8) return null;
-  final value = int.tryParse(s.length == 6 ? 'FF$s' : s, radix: 16);
-  return value != null ? Color(value) : null;
-}
 
 /// Formats a color back to the config's hex form: `#RRGGBB` when fully opaque,
 /// otherwise `#AARRGGBB`.
@@ -1417,7 +1025,7 @@ class _ColorFieldState extends State<_ColorField> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final swatch = _parseHexColor(_controller.text);
+    final swatch = parseHexColor(_controller.text);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1491,7 +1099,7 @@ class _ColorFieldState extends State<_ColorField> {
           followerAnchor: Alignment.topLeft,
           offset: const Offset(0, 8),
           child: _ColorPickerPopup(
-            initial: _parseHexColor(_controller.text) ?? const Color(0xFF000000),
+            initial: parseHexColor(_controller.text) ?? const Color(0xFF000000),
             onChanged: _apply,
           ),
         ),
@@ -1555,7 +1163,7 @@ class _ColorPickerPopupState extends State<_ColorPickerPopup> {
   }
 
   void _onHex(String text) {
-    final c = _parseHexColor(text);
+    final c = parseHexColor(text);
     if (c != null) _set(HSVColor.fromColor(c), syncHex: false);
   }
 
@@ -1961,17 +1569,17 @@ class _StringListEditorState extends State<_StringListEditor> {
                 ),
               ),
             ),
-            _IconButton(
+            SettingsIconButton(
               icon: FontAwesomeIcons.chevronUp,
               size: 10,
               onTap: () => _move(i, -1),
             ),
-            _IconButton(
+            SettingsIconButton(
               icon: FontAwesomeIcons.chevronDown,
               size: 10,
               onTap: () => _move(i, 1),
             ),
-            _IconButton(
+            SettingsIconButton(
               icon: FontAwesomeIcons.xmark,
               size: 12,
               onTap: () => _removeAt(i),
@@ -2035,7 +1643,7 @@ class _StringListEditorState extends State<_StringListEditor> {
             ),
           ),
         ),
-        _IconButton(
+        SettingsIconButton(
           icon: FontAwesomeIcons.plus,
           onTap: () {
             _add(_addController.text);
@@ -2194,45 +1802,6 @@ class _AddButtonState extends State<_AddButton> {
   }
 }
 
-class _IconButton extends StatefulWidget {
-  const _IconButton({required this.icon, required this.onTap, this.size = 12});
-
-  final FaIconData icon;
-  final VoidCallback onTap;
-  final double size;
-
-  @override
-  _IconButtonState createState() => _IconButtonState();
-}
-
-class _IconButtonState extends State<_IconButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: 26,
-          height: 26,
-          alignment: Alignment.center,
-          child: FaIcon(
-            widget.icon,
-            size: widget.size,
-            color: _hovered
-                ? theme.accent
-                : theme.popupForeground.withValues(alpha: 0.6),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _RestartBanner extends StatelessWidget {
   @override
