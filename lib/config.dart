@@ -265,17 +265,48 @@ class CalendarConfig {
   }
 }
 
+/// The on-screen indicator shown when volume, microphone volume, or screen
+/// brightness changes.
+class OsdConfig {
+  final bool enabled;
+
+  /// Inactivity before the indicator fades out.
+  final int hideDelayMs;
+
+  /// Distance from the bottom edge of the screen, in logical pixels.
+  final int margin;
+
+  const OsdConfig({
+    this.enabled = true,
+    this.hideDelayMs = 1500,
+    this.margin = 96,
+  });
+
+  factory OsdConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const OsdConfig();
+    final hideDelay = (map['hide_delay_ms'] as num?)?.toInt() ?? 1500;
+    return OsdConfig(
+      enabled: map['enabled'] as bool? ?? true,
+      // A zero delay would hide the indicator before it finished fading in.
+      hideDelayMs: hideDelay < 100 ? 100 : hideDelay,
+      margin: (map['margin'] as num?)?.toInt() ?? 96,
+    );
+  }
+}
+
 class AppConfig {
   final Map<String, PanelConfig> panels;
   final BackgroundConfig? background;
   final ThemeConfig theme;
   final CalendarConfig calendar;
+  final OsdConfig osd;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
     this.theme = const ThemeConfig(),
     this.calendar = const CalendarConfig(),
+    this.osd = const OsdConfig(),
   });
 
   static String _buildDefaultConfig(String homeDir) => '''
@@ -395,12 +426,14 @@ shown = true
 
     final themeMap = map['theme'] as Map<String, dynamic>?;
     final calendarMap = map['calendar'] as Map<String, dynamic>?;
+    final osdMap = map['osd'] as Map<String, dynamic>?;
 
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
       background: background,
       theme: ThemeConfig.fromMap(themeMap),
       calendar: CalendarConfig.fromMap(calendarMap),
+      osd: OsdConfig.fromMap(osdMap),
     );
   }
 }

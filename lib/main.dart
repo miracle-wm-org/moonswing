@@ -1,5 +1,6 @@
 import 'dart:async';
 // ignore_for_file: invalid_use_of_internal_member
+// ignore_for_file: implementation_imports
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
@@ -19,12 +20,16 @@ import 'package:graceful_shell/modules/system_tray.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/notification_service.dart';
+import 'package:graceful_shell/osd/osd.dart';
+import 'package:graceful_shell/osd/osd_service.dart';
+import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:layer_shell/layer_shell.dart';
+import 'package:layer_shell/src/gtk.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:wayland/wayland.dart';
 
@@ -57,6 +62,9 @@ void main() async {
   // offline machine or an expired account cannot delay the shell coming up.
   // The first fetch happens when the user opens the calendar tab.
   await startCalendarService(appConfig.calendar);
+  // Watches the default sink/source and the backlight so the on-screen
+  // indicator can react to volume, mic, and brightness changes made anywhere.
+  await startOsdService(appConfig.osd);
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.
@@ -190,6 +198,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// background.
   late final bool _hasBackground;
 
+  /// The on-screen indicator's windows, keyed like [_surfaces]. Unlike panels
+  /// these exist only while [OsdStore] holds a request: the shell has no
+  /// input-region support, so a permanently-mapped surface — however small —
+  /// would sit on the overlay layer eating clicks.
+  final Map<String, LayershellWindowController> _osd = {};
+
   late final MonitorWatcher _monitorWatcher;
   bool _syncScheduled = false;
 
@@ -208,6 +222,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         appConfig.background != null && appConfig.background!.entries.isNotEmpty;
     widget.store.addListener(_onConfigChanged);
     widget.outputs.addListener(_onOutputsChanged);
+    OsdStore.instance.addListener(_onOsdChanged);
 
     for (final monitor in listMonitors()) {
       _surfaces[_monitorKey(monitor)] = _createSurfaces(monitor);
@@ -271,6 +286,63 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     return _MonitorSurfaces(monitor, background, panels);
   }
 
+  /// Builds the indicator window for [monitor]: a small card floating above the
+  /// bottom edge. Anchoring to the bottom edge alone (rather than to the two
+  /// side edges too) lets layer-shell centre the window horizontally, and keeps
+  /// the surface — and so the region that swallows clicks — no larger than the
+  /// card itself.
+  LayershellWindowController _createOsd(MonitorInfo monitor) {
+    final controller = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [LayerShellEdge.bottom],
+      keyboardMode: LayerShellKeyboardMode.none,
+      width: kOsdWindowSize.width.round(),
+      height: kOsdWindowSize.height.round(),
+      monitor: monitor.gdkMonitor,
+    );
+    // The controller exposes no margin, so lift the window off the bottom edge
+    // through the GTK handle it was built from.
+    GtkWindow.fromHandle(controller.windowHandle)
+        .layerSetMargin(LayerShellEdge.bottom, _liveConfig.osd.margin);
+    return controller;
+  }
+
+  /// Creates the indicator windows when [OsdStore] gets a request and destroys
+  /// them once it clears (which the card does after its fade-out). While a
+  /// request is live this does nothing — the card listens to the store itself,
+  /// so a change of value or of kind never touches the native windows, and a
+  /// burst of volume-key presses maps to one window, not one per press.
+  void _onOsdChanged() {
+    if (!mounted) return;
+    final wanted = OsdStore.instance.current != null;
+    if (wanted == _osd.isNotEmpty) return;
+
+    if (wanted) {
+      for (final entry in _surfaces.entries) {
+        _osd[entry.key] = _createOsd(entry.value.monitor);
+      }
+      setState(() {});
+      return;
+    }
+
+    final removed = _osd.values.toList();
+    _osd.clear();
+    setState(() {});
+    _destroyAfterFrame(removed);
+  }
+
+  /// Destroys native windows only once the frame that detached their views has
+  /// been rendered — destroying while Flutter still renders into the view would
+  /// use a freed FlView.
+  void _destroyAfterFrame(List<LayershellWindowController> controllers) {
+    if (controllers.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final controller in controllers) {
+        controller.destroy();
+      }
+    });
+  }
+
   /// Coalesces bursts of `monitor-added` / `monitor-removed` signals (a single
   /// reconfigure can emit several) into one reconciliation, and hops off the
   /// GTK signal-emission stack before creating or destroying windows.
@@ -297,6 +369,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     for (final key in _surfaces.keys.toList()) {
       if (!incoming.containsKey(key)) {
         removed.addAll(_surfaces.remove(key)!.controllers);
+        final osd = _osd.remove(key);
+        if (osd != null) removed.add(osd);
         changed = true;
       }
     }
@@ -304,25 +378,19 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     for (final entry in incoming.entries) {
       if (!_surfaces.containsKey(entry.key)) {
         _surfaces[entry.key] = _createSurfaces(entry.value);
+        // A monitor plugged in mid-indicator gets one too, so the card is not
+        // missing from the display the user may well be looking at.
+        if (_osd.isNotEmpty) _osd[entry.key] = _createOsd(entry.value);
         changed = true;
       }
     }
 
     if (!changed) return;
 
+    // Detach the removed views from the tree first, then destroy their native
+    // windows after that frame has been rendered.
     setState(() {});
-
-    // Detach the removed views from the tree first (via the setState above),
-    // then destroy their native windows once the frame that dropped them has
-    // been rendered — destroying while Flutter still renders into the view
-    // would use a freed FlView.
-    if (removed.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        for (final controller in removed) {
-          controller.destroy();
-        }
-      });
-    }
+    _destroyAfterFrame(removed);
   }
 
   void _onOutputsChanged() {
@@ -368,6 +436,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   void dispose() {
     widget.store.removeListener(_onConfigChanged);
     widget.outputs.removeListener(_onOutputsChanged);
+    OsdStore.instance.removeListener(_onOsdChanged);
     _monitorWatcher.dispose();
     for (final surfaces in _surfaces.values) {
       for (final ctrl in surfaces.controllers) {
@@ -375,6 +444,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       }
     }
     _surfaces.clear();
+    for (final ctrl in _osd.values) {
+      ctrl.destroy();
+    }
+    _osd.clear();
     super.dispose();
   }
 
@@ -450,6 +523,17 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                     ),
                   ),
                 ),
+          // The indicator is not tied to any panel, so it lives here beside the
+          // background rather than inside a module's window registry.
+          if (_osd[_monitorKey(surfaces.monitor)] case final osd?)
+            LayerShellWindow(
+              key: ObjectKey(osd),
+              controller: osd,
+              child: ThemeScope(
+                theme: _liveConfig.theme,
+                child: OsdWindow(store: OsdStore.instance),
+              ),
+            ),
         ],
       ],
     );

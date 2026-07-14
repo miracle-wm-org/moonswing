@@ -348,6 +348,25 @@ Access is **read-only** (`calendar.readonly`): the shell displays events but nev
 
 Sign-in tokens are **not** stored in `config.toml`. They live in `$XDG_DATA_HOME/graceful-shell/calendar_tokens.json` (usually `~/.local/share/…`), with permissions restricted to your user, so that sharing or copying a config file never leaks account access. Clicking **Disconnect** revokes the token with Google and deletes it locally.
 
+## On-Screen Indicator
+
+The `[osd]` section configures the indicator that appears when the volume, microphone volume, or screen brightness changes — an icon for what changed plus a bar for its current level, floating above the bottom edge of every monitor. It fades out once the changes stop.
+
+The shell only *watches* these values; it does not bind the keys. Whatever already applies the change (your compositor's media-key bindings, or the shell's own volume slider) keeps doing so, and the indicator follows. Brightness is read from `/sys/class/backlight`, so machines without a panel backlight simply never see the sun indicator.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether to show the indicator at all. |
+| `hide_delay_ms` | integer | `1500` | How long the indicator stays up after the last change. Clamped to a minimum of 100. |
+| `margin` | integer | `96` | Distance from the bottom edge of the screen, in pixels. |
+
+```toml
+[osd]
+enabled = true
+hide_delay_ms = 1500
+margin = 96
+```
+
 ## Full Example
 
 ```toml

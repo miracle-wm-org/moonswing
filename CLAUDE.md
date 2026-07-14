@@ -132,6 +132,19 @@ The Calendar tab shows a month grid (usable with no account connected), an agend
 | `token_store.dart` | OAuth tokens in a 0600 file under `XDG_DATA_HOME`, deliberately *not* in `config.toml` (which the settings UI rewrites and users share). A TODO tracks moving to the Secret Service D-Bus API. |
 | `calendar_store.dart` | `CalendarStore.instance`, the singleton `ChangeNotifier` the UI watches — same pattern as `NotificationStore`/`TrayStore`. `startCalendarService()` runs from `main()` and only restores tokens from disk; the first network fetch happens when the tab is opened. |
 
+### On-screen indicator (`lib/osd/`)
+
+The OSD is the card that appears when volume, microphone volume, or brightness changes: an icon for what changed and a bar for its level, bottom-centred on every monitor, fading out after a period of inactivity.
+
+| File | Responsibility |
+|------|----------------|
+| `osd_store.dart` | `OsdStore.instance` — the singleton `ChangeNotifier` the card watches, same pattern as `NotificationStore`/`TrayStore`. It holds **one** `OsdRequest`, so a `show()` replaces whatever is on screen; that is what makes brightness supersede a still-visible volume bar instead of stacking a second card. `visible` going false is the cue to fade out; the card answers with `onFadeOutComplete()`, which clears `current` and lets the host drop the window. |
+| `brightness_monitor.dart` | Reads `/sys/class/backlight/<device>/{brightness,max_brightness}` and watches the `backlight` udev subsystem for change events — the same event-driven approach `modules/battery.dart` takes with `power_supply`. The sysfs root is injectable so tests never touch the real `/sys`. |
+| `osd_service.dart` | `startOsdService()` (from `main()`) wires the sources into the store. Volume and mic come free from the existing `PulseClient` subscription (`onSinkChanged` / `onSourceChanged`); the service seeds last-known levels at startup and only shows the card on an **actual** change, because PulseAudio emits sink events for unrelated reasons (a stream connecting, a port switch) that would otherwise flash the card. |
+| `osd.dart` | `OsdWindow`, the card itself. Uses the `reverse().then(...)` fade-out handshake `SettingsOverlay` uses. |
+
+The windows are owned by `_GracefulShellRootState` (`lib/main.dart`) alongside the background, not by a panel module — the indicator is not tied to any panel. They exist only while `OsdStore.current` is non-null: the shell has no input-region support, so a permanently-mapped overlay surface would swallow clicks. For the same reason the window is kept tight around the card (`kOsdWindowSize`), anchored to the bottom edge only, which also lets layer-shell centre it horizontally for free.
+
 ### Background window (`lib/background.dart`)
 
 Renders a full-screen wallpaper with time-of-day scheduling and crossfade transitions using `media_kit` for video support. One background window is created per monitor.
