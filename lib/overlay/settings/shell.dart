@@ -12,7 +12,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/settings/config_store.dart';
+import 'package:graceful_shell/config_store.dart';
 
 /// Settings page for graceful-shell's own configuration (`config.toml`).
 ///

@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/settings/overlay.dart';
+import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class ClockConfig {

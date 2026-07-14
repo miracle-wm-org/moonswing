@@ -3,7 +3,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
-import 'package:graceful_shell/settings/config_store.dart';
+import 'package:graceful_shell/config_store.dart';
 
 /// End-to-end test of the settings write layer against a real temp file.
 ///

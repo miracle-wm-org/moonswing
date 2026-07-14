@@ -22,7 +22,7 @@ import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/settings/config_store.dart';
+import 'package:graceful_shell/config_store.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:wayland/wayland.dart';

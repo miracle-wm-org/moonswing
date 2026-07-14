@@ -5,11 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/settings/audio.dart';
-import 'package:graceful_shell/settings/bluetooth.dart';
-import 'package:graceful_shell/settings/display.dart';
-import 'package:graceful_shell/settings/network.dart';
-import 'package:graceful_shell/settings/shell.dart';
+import 'package:graceful_shell/overlay/settings/audio.dart';
+import 'package:graceful_shell/overlay/settings/bluetooth.dart';
+import 'package:graceful_shell/overlay/settings/display.dart';
+import 'package:graceful_shell/overlay/settings/network.dart';
+import 'package:graceful_shell/overlay/settings/shell.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class SettingsOverlay extends StatefulWidget {
