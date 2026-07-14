@@ -211,15 +211,71 @@ class PanelConfig {
   }
 }
 
+/// Google OAuth client credentials, from `[calendar.google]`.
+///
+/// The user supplies these from their own Google Cloud "Desktop app" client:
+/// shipping a client ID and secret in the repo would put every user of the
+/// shell on one shared quota, which Google's terms do not allow.
+class GoogleOAuthConfig {
+  final String clientId;
+  final String clientSecret;
+
+  const GoogleOAuthConfig({this.clientId = '', this.clientSecret = ''});
+
+  bool get isComplete => clientId.isNotEmpty && clientSecret.isNotEmpty;
+
+  factory GoogleOAuthConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const GoogleOAuthConfig();
+    return GoogleOAuthConfig(
+      clientId: (map['client_id'] as String? ?? '').trim(),
+      clientSecret: (map['client_secret'] as String? ?? '').trim(),
+    );
+  }
+}
+
+/// The `[calendar]` section. OAuth *tokens* deliberately live outside the
+/// config file — see `CalendarTokenStore`.
+class CalendarConfig {
+  final int refreshMinutes;
+
+  /// A [DateTime] weekday constant: [DateTime.sunday] or [DateTime.monday].
+  final int weekStart;
+
+  final GoogleOAuthConfig? google;
+
+  const CalendarConfig({
+    this.refreshMinutes = 15,
+    this.weekStart = DateTime.sunday,
+    this.google,
+  });
+
+  factory CalendarConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const CalendarConfig();
+
+    final googleMap = map['google'] as Map<String, dynamic>?;
+    final refresh = (map['refresh_minutes'] as num?)?.toInt() ?? 15;
+    final weekStart = (map['week_start'] as String? ?? 'sunday').toLowerCase();
+
+    return CalendarConfig(
+      // A zero or negative interval would spin the refresh timer hot.
+      refreshMinutes: refresh < 1 ? 1 : refresh,
+      weekStart: weekStart == 'monday' ? DateTime.monday : DateTime.sunday,
+      google: googleMap != null ? GoogleOAuthConfig.fromMap(googleMap) : null,
+    );
+  }
+}
+
 class AppConfig {
   final Map<String, PanelConfig> panels;
   final BackgroundConfig? background;
   final ThemeConfig theme;
+  final CalendarConfig calendar;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
     this.theme = const ThemeConfig(),
+    this.calendar = const CalendarConfig(),
   });
 
   static String _buildDefaultConfig(String homeDir) => '''
@@ -338,11 +394,13 @@ shown = true
         backgroundMap != null ? BackgroundConfig.fromMap(backgroundMap) : null;
 
     final themeMap = map['theme'] as Map<String, dynamic>?;
+    final calendarMap = map['calendar'] as Map<String, dynamic>?;
 
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
       background: background,
       theme: ThemeConfig.fromMap(themeMap),
+      calendar: CalendarConfig.fromMap(calendarMap),
     );
   }
 }
