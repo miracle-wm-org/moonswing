@@ -26,6 +26,13 @@ import 'package:layer_shell/src/gtk.dart';
 const BoxConstraints kMinPopupConstraints =
     BoxConstraints(minWidth: 48, minHeight: 24);
 
+/// Every popup and tooltip is anchored to a widget in a bar that may sit near a
+/// screen edge, so let the compositor translate the window along both axes to
+/// keep it on-screen. Slide (rather than flip) preserves the popup's side of the
+/// bar, which is what the anchor pair from [popupAnchorsForBar] encodes.
+const WindowPositionerConstraintAdjustment kPopupSlide =
+    WindowPositionerConstraintAdjustment(slideX: true, slideY: true);
+
 /// Shared delegate that forwards [onWindowDestroyed] to a callback.
 class PopupDelegate extends PopupWindowControllerDelegate {
   PopupDelegate({required this.onDestroyed});
@@ -116,6 +123,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       positioner: WindowPositioner(
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
+        constraintAdjustment: kPopupSlide,
       ),
       constraints: constraints,
       delegate: PopupDelegate(onDestroyed: () {
