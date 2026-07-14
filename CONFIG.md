@@ -317,6 +317,37 @@ path = "/home/user/wallpapers/wallpaper.jpg"
 time = "00:00"
 ```
 
+## Calendar
+
+The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The month grid works with no configuration at all; this section only matters for connecting an account.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `refresh_minutes` | integer | `15` | How often to re-fetch events. Clamped to a minimum of 1. |
+| `week_start` | string | `"sunday"` | First column of the month grid: `"sunday"` or `"monday"`. |
+
+### Google
+
+Graceful Shell signs in with **your own** Google OAuth client rather than a shared one, so you will need to create it once:
+
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create a project and enable the **Google Calendar API**.
+2. Under *Credentials*, create an **OAuth client ID** of type **Desktop app**.
+3. Paste the generated client ID and secret into the Calendar tab's connect pane (or into the config directly), then click **Connect Google Calendar**.
+
+```toml
+[calendar]
+refresh_minutes = 15
+week_start = "monday"
+
+[calendar.google]
+client_id = "1234567890-abcdef.apps.googleusercontent.com"
+client_secret = "GOCSPX-your-client-secret"
+```
+
+Access is **read-only** (`calendar.readonly`): the shell displays events but never modifies them.
+
+Sign-in tokens are **not** stored in `config.toml`. They live in `$XDG_DATA_HOME/graceful-shell/calendar_tokens.json` (usually `~/.local/share/…`), with permissions restricted to your user, so that sharing or copying a config file never leaks account access. Clicking **Disconnect** revokes the token with Google and deletes it locally.
+
 ## Full Example
 
 ```toml

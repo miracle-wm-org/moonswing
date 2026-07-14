@@ -107,6 +107,31 @@ The `SystemTrayModule` (`lib/modules/system_tray.dart`, `configKey = 'system_tra
 | `expanded_spacing` | number | `6` | Gap between icons when the strip is hovered. |
 | `hidden_items` | string list | `[]` | SNI `Id` or `Title` values to hide from the tray. |
 
+### The overlay (`lib/overlay/`)
+
+Clicking the clock opens a full-screen layer-shell overlay (`lib/overlay/overlay.dart`, class `SettingsOverlay`) — a blurred backdrop over a fixed 800x560 panel with **top tabs**. Adding a tab means one entry in the top-level `_tabs` list plus one child in the `IndexedStack` that builds the body.
+
+The body is an `IndexedStack`, not a `switch`: the settings tab hosts `ShellSettingsPage`, which owns a nested `Navigator`, and rebuilding the body on every tab change would tear it down and drop the user back to the category landing page.
+
+- **`lib/overlay/settings/`** — the settings tab: a sidebar (Network / Bluetooth / Display / Audio / Shell) over one page per category. `controls.dart` holds the themed form controls (`SettingsSection`, `SettingsRow`, `SettingsTextField`, `SettingsIconButton`, …) shared with the calendar tab.
+- **`lib/overlay/calendar/`** — the calendar tab, described below.
+
+`lib/config_store.dart` (`ConfigStore.instance`) is the live, writable view of `config.toml` that the settings UI mutates; it is a `ChangeNotifier` with a debounced atomic write.
+
+### Calendar (`lib/overlay/calendar/`)
+
+The Calendar tab shows a month grid (usable with no account connected), an agenda for the selected day, and a pane for connecting an account.
+
+| File | Responsibility |
+|------|----------------|
+| `month.dart` | Pure month math — `buildMonthGrid` returns a fixed 6x7 `MonthGrid`, so the panel never changes height between months. Days are built with `DateTime(y, m, n)`, never `add(Duration(days: 1))`, which drifts across DST. |
+| `event.dart` | Provider-agnostic `CalendarEvent` plus `groupByDay` bucketing (a multi-day event lands in every day it covers). |
+| `provider.dart` | The `CalendarProvider` abstraction. Adding CalDAV/Outlook means a new implementation and a new connect pane — the grid, agenda, and store are untouched. `CalendarAuthException` means the grant is dead (drop the account); `CalendarFetchException` is transient (keep tokens and events). |
+| `google_oauth.dart` | Google's installed-app loopback flow with PKCE: binds `127.0.0.1:0`, opens consent with `xdg-open`, exchanges the code for tokens. Uses the user's own "Desktop app" client — see `CONFIG.md`. |
+| `google_provider.dart` | Google Calendar REST v3. Note `end.date` on an all-day event is **exclusive** on the wire and is converted to an inclusive end. |
+| `token_store.dart` | OAuth tokens in a 0600 file under `XDG_DATA_HOME`, deliberately *not* in `config.toml` (which the settings UI rewrites and users share). A TODO tracks moving to the Secret Service D-Bus API. |
+| `calendar_store.dart` | `CalendarStore.instance`, the singleton `ChangeNotifier` the UI watches — same pattern as `NotificationStore`/`TrayStore`. `startCalendarService()` runs from `main()` and only restores tokens from disk; the first network fetch happens when the tab is opened. |
+
 ### Background window (`lib/background.dart`)
 
 Renders a full-screen wallpaper with time-of-day scheduling and crossfade transitions using `media_kit` for video support. One background window is created per monitor.
