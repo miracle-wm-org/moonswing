@@ -5,6 +5,7 @@ import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/monitor_watcher.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/dock.dart';
 import 'package:graceful_shell/modules/sound_control.dart';
@@ -60,7 +61,10 @@ void main() async {
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
 
-  final waylandOutputs = <WaylandOutput>[];
+  // Live registry of outputs, kept current as monitors are plugged in and out.
+  // The registry callbacks below stay connected for the lifetime of the client,
+  // so `wl_output` globals advertised after startup are tracked too.
+  final outputs = OutputTracker();
   final outputCompleters = <Completer<void>>[];
   WaylandRegistry? waylandRegistry;
   waylandRegistry = waylandClient.getRegistry(
@@ -68,13 +72,22 @@ void main() async {
       if (interface == 'wl_output') {
         final completer = Completer<void>();
         outputCompleters.add(completer);
-        waylandOutputs.add(WaylandOutput(
-          waylandClient,
-          waylandRegistry!.bind(globalName, interface, version),
-          onDone: completer.complete,
-        ));
+        outputs.add(
+          globalName,
+          WaylandOutput(
+            waylandClient,
+            waylandRegistry!.bind(globalName, interface, version),
+            onDone: () {
+              // `done` fires once after the initial property burst and again
+              // whenever the output changes; only the first completes startup.
+              if (!completer.isCompleted) completer.complete();
+              outputs.markChanged();
+            },
+          ),
+        );
       }
     },
+    onGlobalRemove: (globalName) => outputs.remove(globalName),
   );
   final syncCompleter = Completer<void>();
   waylandClient.sync((_) => syncCompleter.complete());
@@ -90,20 +103,47 @@ void main() async {
     appConfig: appConfig,
     store: store,
     miracle: miracle,
-    waylandOutputs: waylandOutputs,
+    outputs: outputs,
   ));
 }
 
-/// Root of the widget tree. Owns the lifecycle of every startup layer-shell
-/// window (backgrounds + panels), creating them in [initState] and destroying
-/// them in [dispose].
+/// Live set of Wayland outputs, kept in sync with the compositor's `wl_output`
+/// globals. Panels match against this to resolve which physical display they
+/// render on. Notifies listeners when outputs are added, removed, or their
+/// details (name / geometry) change, so the shell can re-match after a hotplug.
+class OutputTracker extends ChangeNotifier {
+  final List<WaylandOutput> outputs = [];
+  final Map<int, WaylandOutput> _byGlobal = {};
+
+  void add(int global, WaylandOutput output) {
+    _byGlobal[global] = output;
+    outputs.add(output);
+    notifyListeners();
+  }
+
+  void remove(int global) {
+    final output = _byGlobal.remove(global);
+    if (output == null) return;
+    outputs.remove(output);
+    notifyListeners();
+  }
+
+  /// Signals that an existing output's properties changed (e.g. its `done`
+  /// event delivered a new name or geometry) without the set itself changing.
+  void markChanged() => notifyListeners();
+}
+
+/// Root of the widget tree. Owns the lifecycle of every layer-shell window
+/// (backgrounds + panels) on every monitor: it creates them for the monitors
+/// present at startup, then adds and destroys them as monitors are plugged in
+/// and unplugged, and tears them all down in [dispose].
 class GracefulShellRoot extends StatefulWidget {
   const GracefulShellRoot({
     super.key,
     required this.appConfig,
     required this.store,
     required this.miracle,
-    required this.waylandOutputs,
+    required this.outputs,
   });
 
   /// The config captured at startup. Native layer-shell windows (panels /
@@ -112,21 +152,41 @@ class GracefulShellRoot extends StatefulWidget {
   final AppConfig appConfig;
   final ConfigStore store;
   final MiracleManager miracle;
-  final List<WaylandOutput> waylandOutputs;
+  final OutputTracker outputs;
 
   @override
   State<GracefulShellRoot> createState() => _GracefulShellRootState();
 }
 
+/// The layer-shell surfaces (optional background window plus the configured
+/// panels) that belong to a single monitor.
+class _MonitorSurfaces {
+  _MonitorSurfaces(this.monitor, this.background, this.panels);
+
+  final MonitorInfo monitor;
+  final LayershellWindowController? background;
+  final Map<String, LayershellWindowController> panels;
+
+  /// Every native controller owned by this monitor, for teardown.
+  Iterable<LayershellWindowController> get controllers => [
+        if (background != null) background!,
+        ...panels.values,
+      ];
+}
+
 class _GracefulShellRootState extends State<GracefulShellRoot> {
-  final List<LayershellWindowController> _backgroundControllers = [];
-  final List<Map<String, LayershellWindowController>> _monitorControllers = [];
-  late final List<
-      (
-        MonitorInfo,
-        Map<String, LayershellWindowController>,
-        WaylandOutput
-      )> _monitoredControllers;
+  /// Surfaces keyed by a stable monitor identity ([_monitorKey]). Entries are
+  /// added when a monitor is plugged in and removed when it is unplugged, so
+  /// this map is the live source of truth for what the shell renders.
+  final Map<String, _MonitorSurfaces> _surfaces = {};
+
+  /// Whether a background window should exist on each monitor. Fixed at startup
+  /// (like the native window geometry) so newly-plugged monitors get a matching
+  /// background.
+  late final bool _hasBackground;
+
+  late final MonitorWatcher _monitorWatcher;
+  bool _syncScheduled = false;
 
   /// The current config the widget tree renders from. Kept in sync with
   /// [GracefulShellRoot.store] by [_onConfigChanged] so theme, panel layout,
@@ -139,67 +199,148 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     super.initState();
     final appConfig = widget.appConfig;
     _liveConfig = appConfig;
+    _hasBackground =
+        appConfig.background != null && appConfig.background!.entries.isNotEmpty;
     widget.store.addListener(_onConfigChanged);
-    final monitors = listMonitors();
+    widget.outputs.addListener(_onOutputsChanged);
 
-    if (appConfig.background != null &&
-        appConfig.background!.entries.isNotEmpty) {
-      for (final monitor in monitors) {
-        _backgroundControllers.add(LayershellWindowController(
-          layer: LayerShellLayer.background,
-          anchorEdges: [
-            LayerShellEdge.top,
-            LayerShellEdge.bottom,
-            LayerShellEdge.left,
-            LayerShellEdge.right,
-          ],
-          keyboardMode: LayerShellKeyboardMode.none,
-          monitor: monitor.gdkMonitor,
-        ));
+    for (final monitor in listMonitors()) {
+      _surfaces[_monitorKey(monitor)] = _createSurfaces(monitor);
+    }
+
+    // React to monitors being plugged in / unplugged at runtime.
+    _monitorWatcher = MonitorWatcher(_scheduleMonitorSync);
+  }
+
+  /// A stable key identifying a monitor across enumerations. The connector name
+  /// (e.g. `DP-1`) survives other monitors coming and going; only if the GDK
+  /// build cannot report it do we fall back to make/model/position.
+  String _monitorKey(MonitorInfo monitor) => monitor.connector.isNotEmpty
+      ? monitor.connector
+      : '${monitor.manufacturer}|${monitor.model}|'
+          '${monitor.position.dx},${monitor.position.dy}';
+
+  /// Builds the layer-shell controllers (background + panels) for [monitor].
+  /// This realizes the native GTK windows immediately; the widgets that render
+  /// into them are attached on the next [build].
+  _MonitorSurfaces _createSurfaces(MonitorInfo monitor) {
+    LayershellWindowController? background;
+    if (_hasBackground) {
+      background = LayershellWindowController(
+        layer: LayerShellLayer.background,
+        anchorEdges: const [
+          LayerShellEdge.top,
+          LayerShellEdge.bottom,
+          LayerShellEdge.left,
+          LayerShellEdge.right,
+        ],
+        keyboardMode: LayerShellKeyboardMode.none,
+        monitor: monitor.gdkMonitor,
+      );
+    }
+
+    final panels = <String, LayershellWindowController>{};
+    for (final entry in widget.appConfig.panels.entries) {
+      final panelConfig = entry.value;
+      final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
+      final layer = layerFromString(panelConfig.layer);
+
+      int? width;
+      int? height;
+      if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
+        width = panelConfig.height;
+      } else {
+        height = panelConfig.height;
+      }
+
+      panels[entry.key] = LayershellWindowController(
+        width: width,
+        height: height,
+        layer: layer,
+        anchorEdges: anchorEdges,
+        exclusiveZone: panelConfig.height,
+        monitor: monitor.gdkMonitor,
+      );
+    }
+
+    return _MonitorSurfaces(monitor, background, panels);
+  }
+
+  /// Coalesces bursts of `monitor-added` / `monitor-removed` signals (a single
+  /// reconfigure can emit several) into one reconciliation, and hops off the
+  /// GTK signal-emission stack before creating or destroying windows.
+  void _scheduleMonitorSync() {
+    if (_syncScheduled) return;
+    _syncScheduled = true;
+    scheduleMicrotask(() {
+      _syncScheduled = false;
+      if (mounted) _syncMonitors();
+    });
+  }
+
+  /// Reconciles [_surfaces] with the current monitor list: destroys surfaces
+  /// for monitors that were unplugged and creates them for monitors that were
+  /// plugged in.
+  void _syncMonitors() {
+    final incoming = <String, MonitorInfo>{
+      for (final monitor in listMonitors()) _monitorKey(monitor): monitor,
+    };
+
+    final removed = <LayershellWindowController>[];
+    var changed = false;
+
+    for (final key in _surfaces.keys.toList()) {
+      if (!incoming.containsKey(key)) {
+        removed.addAll(_surfaces.remove(key)!.controllers);
+        changed = true;
       }
     }
 
-    for (final monitor in monitors) {
-      final controllers = <String, LayershellWindowController>{};
-      for (final entry in appConfig.panels.entries) {
-        final panelConfig = entry.value;
-        final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
-        final layer = layerFromString(panelConfig.layer);
+    for (final entry in incoming.entries) {
+      if (!_surfaces.containsKey(entry.key)) {
+        _surfaces[entry.key] = _createSurfaces(entry.value);
+        changed = true;
+      }
+    }
 
-        int? width;
-        int? height;
-        if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
-          width = panelConfig.height;
-        } else {
-          height = panelConfig.height;
+    if (!changed) return;
+
+    setState(() {});
+
+    // Detach the removed views from the tree first (via the setState above),
+    // then destroy their native windows once the frame that dropped them has
+    // been rendered — destroying while Flutter still renders into the view
+    // would use a freed FlView.
+    if (removed.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        for (final controller in removed) {
+          controller.destroy();
         }
-
-        controllers[entry.key] = LayershellWindowController(
-          width: width,
-          height: height,
-          layer: layer,
-          anchorEdges: anchorEdges,
-          exclusiveZone: panelConfig.height,
-          monitor: monitor.gdkMonitor,
-        );
-      }
-      _monitorControllers.add(controllers);
+      });
     }
+  }
 
-    WaylandOutput matchOutput(MonitorInfo monitor) =>
-        widget.waylandOutputs.firstWhere(
-          (o) =>
-              o.make == monitor.manufacturer &&
-              o.model == monitor.model &&
-              o.x == monitor.position.dx.toInt() &&
-              o.y == monitor.position.dy.toInt(),
-          orElse: () => widget.waylandOutputs.first,
-        );
+  void _onOutputsChanged() {
+    // Outputs were added/removed or finished reporting their properties;
+    // rebuild so each panel re-resolves the display it renders on.
+    if (mounted) setState(() {});
+  }
 
-    _monitoredControllers = List.generate(
-      monitors.length,
-      (i) => (monitors[i], _monitorControllers[i], matchOutput(monitors[i])),
-    );
+  /// Resolves the Wayland output backing [monitor] for [DisplayScope]. Falls
+  /// back to the first known output if an exact match is not (yet) available,
+  /// or null only when no outputs are known at all.
+  WaylandOutput? _outputFor(MonitorInfo monitor) {
+    final outputs = widget.outputs.outputs;
+    if (outputs.isEmpty) return null;
+    for (final output in outputs) {
+      if (output.make == monitor.manufacturer &&
+          output.model == monitor.model &&
+          output.x == monitor.position.dx.toInt() &&
+          output.y == monitor.position.dy.toInt()) {
+        return output;
+      }
+    }
+    return outputs.first;
   }
 
   /// Rebuilds a fresh typed config from the store (which also re-applies
@@ -221,14 +362,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   @override
   void dispose() {
     widget.store.removeListener(_onConfigChanged);
-    for (final ctrl in _backgroundControllers) {
-      ctrl.destroy();
-    }
-    for (final controllers in _monitorControllers) {
-      for (final ctrl in controllers.values) {
+    widget.outputs.removeListener(_onOutputsChanged);
+    _monitorWatcher.dispose();
+    for (final surfaces in _surfaces.values) {
+      for (final ctrl in surfaces.controllers) {
         ctrl.destroy();
       }
     }
+    _surfaces.clear();
     super.dispose();
   }
 
@@ -259,7 +400,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // edits (fit / entry paths) but keep the startup wallpaper if the user
     // clears every entry (a full removal needs a restart).
     final liveBg = _liveConfig.background;
-    final BackgroundConfig? bgConfig = _backgroundControllers.isEmpty
+    final BackgroundConfig? bgConfig = !_hasBackground
         ? null
         : (liveBg != null && liveBg.entries.isNotEmpty
             ? liveBg
@@ -267,34 +408,44 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
     return ViewCollection(
       views: [
-        for (final ctrl in _backgroundControllers)
-          LayerShellWindow(
-            controller: ctrl,
-            child: BackgroundWindow(config: bgConfig!),
-          ),
-        for (final (_, controllers, waylandOutput) in _monitoredControllers)
-          for (final entry in startupPanels.entries)
+        // One group of surfaces per currently-connected monitor. Monitors are
+        // added to / removed from [_surfaces] as they are plugged and unplugged.
+        for (final surfaces in _surfaces.values) ...[
+          if (surfaces.background != null)
             LayerShellWindow(
-              controller: controllers[entry.key]!,
-              child: WindowManager(
-                child: ThemeScope(
-                  theme: _liveConfig.theme,
-                  child: MiracleScope(
-                    manager: widget.miracle,
-                    child: DisplayScope(
-                      output: waylandOutput,
-                      child: Builder(builder: (context) {
-                        final panel = _effectivePanel(entry.key, entry.value);
-                        return PanelMain(
-                          panelConfig: panel,
-                          anchor: panel.anchor,
-                        );
-                      }),
+              // Key by controller so add/remove of one monitor doesn't shift how
+              // Flutter matches the remaining views onto their FlutterViews.
+              key: ObjectKey(surfaces.background!),
+              controller: surfaces.background!,
+              child: BackgroundWindow(config: bgConfig!),
+            ),
+          if (_outputFor(surfaces.monitor) case final output?)
+            for (final entry in startupPanels.entries)
+              if (surfaces.panels[entry.key] case final controller?)
+                LayerShellWindow(
+                  key: ObjectKey(controller),
+                  controller: controller,
+                  child: WindowManager(
+                    child: ThemeScope(
+                      theme: _liveConfig.theme,
+                      child: MiracleScope(
+                        manager: widget.miracle,
+                        child: DisplayScope(
+                          output: output,
+                          child: Builder(builder: (context) {
+                            final panel =
+                                _effectivePanel(entry.key, entry.value);
+                            return PanelMain(
+                              panelConfig: panel,
+                              anchor: panel.anchor,
+                            );
+                          }),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ),
+        ],
       ],
     );
   }
