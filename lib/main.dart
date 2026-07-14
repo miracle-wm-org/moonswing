@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/dock.dart';
@@ -23,7 +24,6 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/settings/config_store.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
-import 'package:miracle/miracle.dart';
 import 'package:wayland/wayland.dart';
 
 void main() async {
@@ -52,14 +52,10 @@ void main() async {
   await startNotificationService();
   await startStatusNotifierService();
 
-  MiracleConnection? connection;
-  try {
-    connection = MiracleConnection();
-    await connection.connect();
-    await connection.subscribe([SubscriptionType.workspace]);
-  } catch (e) {
-    connection = null;
-  }
+  // Miracle may not be running yet (or at all). The manager keeps the shell
+  // usable either way — the workspaces module offers a retry when it is absent.
+  final miracle = MiracleManager();
+  await miracle.connect();
 
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
@@ -93,7 +89,7 @@ void main() async {
   runWidget(GracefulShellRoot(
     appConfig: appConfig,
     store: store,
-    connection: connection,
+    miracle: miracle,
     waylandOutputs: waylandOutputs,
   ));
 }
@@ -106,7 +102,7 @@ class GracefulShellRoot extends StatefulWidget {
     super.key,
     required this.appConfig,
     required this.store,
-    required this.connection,
+    required this.miracle,
     required this.waylandOutputs,
   });
 
@@ -115,7 +111,7 @@ class GracefulShellRoot extends StatefulWidget {
   /// restart; live values come from [store] instead.
   final AppConfig appConfig;
   final ConfigStore store;
-  final MiracleConnection? connection;
+  final MiracleManager miracle;
   final List<WaylandOutput> waylandOutputs;
 
   @override
@@ -284,7 +280,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 child: ThemeScope(
                   theme: _liveConfig.theme,
                   child: MiracleScope(
-                    connection: widget.connection,
+                    manager: widget.miracle,
                     child: DisplayScope(
                       output: waylandOutput,
                       child: Builder(builder: (context) {

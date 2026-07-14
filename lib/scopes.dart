@@ -1,23 +1,28 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
-import 'package:miracle/miracle.dart';
+import 'package:graceful_shell/miracle_manager.dart';
 import 'package:wayland/wayland.dart';
 
-/// Provides [MiracleConnection] to the widget subtree.
+/// Provides the shell's [MiracleManager] to the widget subtree.
+///
+/// The manager — not the connection — is scoped, because the connection can
+/// come and go at runtime (Miracle may not be up when the shell starts, and a
+/// user can retry from any bar). Consumers read `manager.connection` and listen
+/// to the manager for changes; the scope itself is stable.
 class MiracleScope extends InheritedWidget {
   const MiracleScope({
     super.key,
-    required this.connection,
+    required this.manager,
     required super.child,
   });
 
-  final MiracleConnection? connection;
+  final MiracleManager manager;
 
-  static MiracleConnection? of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<MiracleScope>()?.connection;
+  static MiracleManager of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<MiracleScope>()!.manager;
 
   @override
-  bool updateShouldNotify(MiracleScope old) => connection != old.connection;
+  bool updateShouldNotify(MiracleScope old) => manager != old.manager;
 }
 
 /// Provides bar information — specifically the side the bar is anchored to —

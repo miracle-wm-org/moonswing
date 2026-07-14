@@ -7,7 +7,6 @@ import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class DockConfig {
@@ -255,7 +254,7 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
     final theme = ThemeScope.of(context);
     openBarPopup(
       context,
-      child: _TooltipLabel(name: widget.appName, theme: theme),
+      child: TooltipLabel(text: widget.appName, theme: theme),
       preferredConstraints: const BoxConstraints(maxWidth: 120, maxHeight: 32),
     );
   }
@@ -304,31 +303,6 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         ),
       ),
     );
-  }
-}
-
-class _TooltipLabel extends StatelessWidget {
-  const _TooltipLabel({required this.name, required this.theme});
-
-  final String name;
-  final ThemeConfig theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-        textDirection: TextDirection.ltr,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: theme.popupBackground.withAlpha(100),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-              child: Text(
-            name,
-            style: TextStyle(color: theme.popupForeground, fontSize: 12),
-          )),
-        ));
   }
 }
 

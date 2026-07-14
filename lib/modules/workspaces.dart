@@ -1,5 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/loading_indicator.dart';
+import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:miracle/miracle.dart';
 
@@ -12,26 +18,58 @@ class Workspaces extends StatefulWidget {
 
 class WorkspacesState extends State<Workspaces> {
   List<WorkspaceResult> _workspaces = <WorkspaceResult>[];
-  bool _initialized = false;
+  MiracleManager? _manager;
   MiracleConnection? _connection;
+  StreamSubscription<Event>? _events;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_initialized) {
-      _initialized = true;
-      _connection = MiracleScope.of(context);
-      _connection?.subscribe([SubscriptionType.workspace]);
-      _connection?.listen((Event event) {
-        if (event is EventWorkspace) {
-          _connection?.getWorkspaces().then(_updateWorkspaces);
-        }
-      });
-      _connection?.getWorkspaces().then(_updateWorkspaces);
+    final manager = MiracleScope.of(context);
+    if (manager != _manager) {
+      _manager?.removeListener(_onManagerChanged);
+      _manager = manager..addListener(_onManagerChanged);
     }
+    _syncConnection();
+  }
+
+  @override
+  void dispose() {
+    _manager?.removeListener(_onManagerChanged);
+    _events?.cancel();
+    super.dispose();
+  }
+
+  void _onManagerChanged() {
+    if (!mounted) return;
+    // Rebuild even when the connection itself is unchanged — the connecting
+    // flag drives the spinner.
+    setState(_syncConnection);
+  }
+
+  /// Attaches to the manager's current connection, tearing down the listener on
+  /// whichever connection it replaces. A [MiracleConnection] is single-use, so
+  /// every reconnect hands us a different instance.
+  void _syncConnection() {
+    final connection = _manager?.connection;
+    if (identical(connection, _connection)) return;
+
+    _events?.cancel();
+    _events = null;
+    _connection = connection;
+    _workspaces = <WorkspaceResult>[];
+
+    if (connection == null) return;
+    _events = connection.listen((Event event) {
+      if (event is EventWorkspace) {
+        connection.getWorkspaces().then(_updateWorkspaces);
+      }
+    });
+    connection.getWorkspaces().then(_updateWorkspaces);
   }
 
   void _updateWorkspaces(List<WorkspaceResult> workspaces) {
+    if (!mounted) return;
     setState(() {
       _workspaces = workspaces;
     });
@@ -40,6 +78,26 @@ class WorkspacesState extends State<Workspaces> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final connection = _connection;
+
+    if (connection == null) {
+      return Padding(
+        padding: const EdgeInsets.all(4.0),
+        child: (_manager?.connecting ?? false)
+            ? SizedBox(
+                width: 24,
+                height: 24,
+                child: Center(
+                  child: LoadingIndicator(
+                    color: theme.foreground.withValues(alpha: 0.6),
+                    size: 12,
+                  ),
+                ),
+              )
+            : const _MiracleRetryButton(),
+      );
+    }
+
     final outputName = DisplayScope.of(context).name;
     final visibleWorkspaces =
         _workspaces.where((ws) => ws.output == outputName).toList();
@@ -58,7 +116,7 @@ class WorkspacesState extends State<Workspaces> {
                 final String command = workspace.num != null
                     ? 'workspace ${workspace.num}'
                     : 'workspace ${workspace.name}';
-                _connection?.command(command);
+                connection.command(command);
               },
               child: Text(
                 workspace.name ?? workspace.num?.toString() ?? '?',
@@ -67,6 +125,66 @@ class WorkspacesState extends State<Workspaces> {
             );
           }).toList(),
         ));
+  }
+}
+
+/// Stands in for the workspace row while the shell has no Miracle connection.
+/// One click retries for every bar at once — the connection is shell-wide.
+class _MiracleRetryButton extends StatefulWidget {
+  const _MiracleRetryButton();
+
+  @override
+  State<_MiracleRetryButton> createState() => _MiracleRetryButtonState();
+}
+
+class _MiracleRetryButtonState extends State<_MiracleRetryButton>
+    with PopupHost<_MiracleRetryButton> {
+  bool _hovered = false;
+
+  void _openTooltip(BuildContext context) {
+    if (isPopupOpen) return;
+    final error = MiracleScope.of(context).lastError;
+    openBarPopup(
+      context,
+      child: TooltipLabel(
+        text: error == null
+            ? 'Not connected to Miracle — click to retry'
+            : 'Not connected to Miracle — click to retry\n$error',
+        theme: ThemeScope.of(context),
+      ),
+      preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 64),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return MouseRegion(
+      onEnter: (_) {
+        setState(() => _hovered = true);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _hovered) _openTooltip(context);
+        });
+      },
+      onExit: (_) {
+        setState(() => _hovered = false);
+        closePopup();
+      },
+      child: _WorkspaceButton(
+        backgroundColor: theme.workspaceBackground,
+        hoverColor: theme.surfaceHover,
+        pressedColor: theme.surfacePressed,
+        onPressed: () {
+          closePopup();
+          MiracleScope.of(context).connect();
+        },
+        child: FaIcon(
+          FontAwesomeIcons.arrowsRotate,
+          size: 10,
+          color: theme.foreground,
+        ),
+      ),
+    );
   }
 }
 

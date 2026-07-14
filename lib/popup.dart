@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
+import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
@@ -255,6 +256,37 @@ class _PopupBounceInState extends State<PopupBounceIn>
       child: ScaleTransition(
         scale: _scale,
         child: widget.child,
+      ),
+    );
+  }
+}
+
+/// Text label rendered inside a hover tooltip popup.
+///
+/// Popup content is built in its own window, outside the panel's [ThemeScope],
+/// so the theme is passed in rather than looked up.
+class TooltipLabel extends StatelessWidget {
+  const TooltipLabel({super.key, required this.text, required this.theme});
+
+  final String text;
+  final ThemeConfig theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: theme.popupBackground.withAlpha(100),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: Text(
+            text,
+            style: TextStyle(color: theme.popupForeground, fontSize: 12),
+          ),
+        ),
       ),
     );
   }
