@@ -352,6 +352,10 @@ icon_size = 16
 collapsed_overlap = 10
 expanded_spacing = 6
 
+[modules.system_monitor]
+poll_seconds = 2
+temp_unit = "celsius"
+
 [background]
 fit = "fill"
 interval_minutes = 5

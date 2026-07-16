@@ -187,6 +187,37 @@ poll_seconds = 10
 
 No configurable settings.
 
+### System Monitor
+
+Drives both the panel module (CPU, memory, and temperature, with a popup) and the **System** tab in the overlay, which adds usage graphs, swap, load average, network throughput, disk usage, and a sortable process table you can kill from. The two share one sampler, so these settings apply to both.
+
+```toml
+[modules.system_monitor]
+poll_seconds = 2
+temp_unit = "celsius"
+history_samples = 120
+cpu_percent_mode = "machine"
+show_kernel_threads = false
+confirm_kill = true
+kill_grace_seconds = 5
+disk_poll_seconds = 30
+```
+
+| Key                   | Type   | Default     | Description                                                                                              |
+| --------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------- |
+| `poll_seconds`        | int    | `2`         | How often stats are re-read (1–60)                                                                        |
+| `temp_unit`           | string | `"celsius"` | `"celsius"` or `"fahrenheit"`                                                                             |
+| `history_samples`     | int    | `120`       | How many samples the graphs keep (10–600). At the default cadence, 120 is four minutes                    |
+| `cpu_percent_mode`    | string | `"machine"` | `"machine"`: 0–100% of the whole machine, so the process rows sum to the total. `"core"`: `top`-style, where 100% is one saturated core |
+| `show_kernel_threads` | bool   | `false`     | Show kernel threads in the process table                                                                  |
+| `confirm_kill`        | bool   | `true`      | Ask before quitting a process. A *force* quit always confirms regardless                                  |
+| `kill_grace_seconds`  | int    | `5`         | How long a process gets to honour the request to quit before the row offers to force it (1–60)            |
+| `disk_poll_seconds`   | int    | `30`        | How often filesystem usage is re-read (5–600). Separate because it shells out to `df`                     |
+
+Nothing is read until something needs it: the shell only samples `/proc` while the panel module is on a panel or the System tab is open, and the per-process scan runs only while that tab is actually the visible one.
+
+Two processes can never be killed from here, whatever the config says: the shell itself, and `init`.
+
 ## Theme
 
 The `[theme]` section controls the color palette used across all panels and modules. All fields are optional — omitting the section entirely uses the built-in defaults.

@@ -28,6 +28,7 @@ import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
+import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
 import 'package:media_kit/media_kit.dart';
@@ -65,6 +66,9 @@ void main() async {
   // Watches the default sink/source and the backlight so the on-screen
   // indicator can react to volume, mic, and brightness changes made anywhere.
   await startOsdService(appConfig.osd);
+  // Configures the system stats store, but does not start it polling — the
+  // first lease (the bar module, or the monitor tab being opened) does that.
+  startSystemStatsService();
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.

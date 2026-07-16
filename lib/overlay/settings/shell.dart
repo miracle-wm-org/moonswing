@@ -623,6 +623,51 @@ class _ModulesSection extends StatelessWidget {
                 store.set(['modules', 'system_monitor', 'temp_unit'], v),
           ),
         ),
+        SettingsRow(
+          label: 'Graph history (samples)',
+          control: SettingsNumberField(
+            value: store
+                    .get<num>(['modules', 'system_monitor', 'history_samples'])
+                    ?.toInt() ??
+                120,
+            isInt: true,
+            onChanged: (v) =>
+                store.set(['modules', 'system_monitor', 'history_samples'], v),
+          ),
+        ),
+        SettingsRow(
+          label: 'CPU percentages',
+          control: SettingsSegmented(
+            // "machine" makes the process rows sum to the total CPU gauge;
+            // "core" is top-style, where 100% is one saturated core.
+            options: const ['machine', 'core'],
+            value: store.get<String>(
+                    ['modules', 'system_monitor', 'cpu_percent_mode']) ??
+                'machine',
+            onChanged: (v) =>
+                store.set(['modules', 'system_monitor', 'cpu_percent_mode'], v),
+          ),
+        ),
+        SettingsRow(
+          label: 'Show kernel threads',
+          control: SettingsToggle(
+            value: store.get<bool>(
+                    ['modules', 'system_monitor', 'show_kernel_threads']) ??
+                false,
+            onChanged: (v) => store
+                .set(['modules', 'system_monitor', 'show_kernel_threads'], v),
+          ),
+        ),
+        SettingsRow(
+          label: 'Confirm before quitting a process',
+          control: SettingsToggle(
+            value:
+                store.get<bool>(['modules', 'system_monitor', 'confirm_kill']) ??
+                    true,
+            onChanged: (v) =>
+                store.set(['modules', 'system_monitor', 'confirm_kill'], v),
+          ),
+        ),
         SettingsSubLabel('Network'),
         SettingsRow(
           label: 'Poll (seconds)',

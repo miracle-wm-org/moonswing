@@ -11,7 +11,50 @@ import 'package:graceful_shell/overlay/settings/bluetooth.dart';
 import 'package:graceful_shell/overlay/settings/display.dart';
 import 'package:graceful_shell/overlay/settings/network.dart';
 import 'package:graceful_shell/overlay/settings/shell.dart';
+import 'package:graceful_shell/overlay/system/system_tab.dart';
 import 'package:graceful_shell/scopes.dart';
+
+/// The panel is a share of the display rather than a fixed box, so it reads the
+/// same on a 1080p laptop and on a 4K desktop. 16:10 is a little squarer than
+/// the 16:9 of most monitors, which suits the sidebar-plus-content layout and
+/// keeps the panel clear of the screen edges on a wide display.
+const double kOverlayPanelAspect = 16 / 10;
+const double kOverlayPanelWidthFraction = 0.66;
+const double kOverlayPanelHeightFraction = 0.78;
+const Size kOverlayPanelMinSize = Size(800, 800 / kOverlayPanelAspect);
+const Size kOverlayPanelMaxSize = Size(1600, 1600 / kOverlayPanelAspect);
+
+/// Panel size for an overlay surface of [available] logical pixels. The overlay
+/// window is anchored to all four edges (see `_openOverlay` in
+/// `modules/clock.dart`), so [available] is the usable size of the monitor.
+///
+/// Every clamp re-derives the other axis from [kOverlayPanelAspect], so the
+/// ratio survives all of them — except the last one, where fitting on screen
+/// wins over the minimum size.
+Size overlayPanelSize(Size available) {
+  double width = available.width * kOverlayPanelWidthFraction;
+  double height = width / kOverlayPanelAspect;
+
+  final maxHeight = available.height * kOverlayPanelHeightFraction;
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * kOverlayPanelAspect;
+  }
+
+  if (width > kOverlayPanelMaxSize.width) {
+    width = kOverlayPanelMaxSize.width;
+    height = width / kOverlayPanelAspect;
+  }
+  if (width < kOverlayPanelMinSize.width) {
+    width = kOverlayPanelMinSize.width;
+    height = width / kOverlayPanelAspect;
+  }
+
+  return Size(
+    width.clamp(0.0, available.width),
+    height.clamp(0.0, available.height),
+  );
+}
 
 /// One top-level tab in the overlay. Adding a tab is one entry here plus one
 /// child in the [IndexedStack] that [_SettingsOverlayState] builds.
@@ -32,6 +75,11 @@ const List<_OverlayTab> _tabs = [
     id: 'calendar',
     label: 'Calendar',
     icon: FontAwesomeIcons.calendarDays,
+  ),
+  _OverlayTab(
+    id: 'system',
+    label: 'System',
+    icon: FontAwesomeIcons.microchip,
   ),
   _OverlayTab(
     id: 'settings',
@@ -77,7 +125,7 @@ class _SettingsOverlayState extends State<SettingsOverlay>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 240),
     );
     _scale = Tween<double>(begin: 0.92, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
@@ -156,33 +204,39 @@ class _SettingsOverlayState extends State<SettingsOverlay>
   }
 
   Widget _buildAnimated(ThemeConfig theme) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Opacity(
-          opacity: _opacity.value,
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-            child: Container(
-              color: const Color(0x882C2C2C),
-              child: Center(
-                child: Transform.scale(
-                  scale: _scale.value,
-                  child: child,
+    // LayoutBuilder outside AnimatedBuilder, so the panel is sized once per
+    // surface-size change rather than on every frame of the open animation.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Opacity(
+              opacity: _opacity.value,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+                child: Container(
+                  color: const Color(0x882C2C2C),
+                  child: Center(
+                    child: Transform.scale(
+                      scale: _scale.value,
+                      child: child,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
+          child: _buildPanel(theme, overlayPanelSize(constraints.biggest)),
         );
       },
-      child: _buildPanel(theme),
     );
   }
 
-  Widget _buildPanel(ThemeConfig theme) {
+  Widget _buildPanel(ThemeConfig theme, Size size) {
     return Container(
-      width: 800,
-      height: 560,
+      width: size.width,
+      height: size.height,
       decoration: BoxDecoration(
         color: theme.popupBackground,
         borderRadius: BorderRadius.circular(12),
@@ -250,12 +304,17 @@ class _SettingsOverlayState extends State<SettingsOverlay>
           // body on every tab change would tear that down, dropping the user
           // back to the category landing page — and would lose the calendar's
           // selected month and day the same way.
+          //
+          // The flip side is that every tab stays alive once built, so a tab
+          // that polls must be told when it is not the visible one and stop.
+          // That is what SystemTab.active is for.
           Expanded(
             child: IndexedStack(
               index: _tabs.indexWhere((t) => t.id == _selectedTab),
               sizing: StackFit.expand,
               children: [
                 const CalendarTab(),
+                SystemTab(active: _selectedTab == 'system'),
                 _buildSettingsBody(theme),
               ],
             ),

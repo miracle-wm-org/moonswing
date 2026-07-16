@@ -113,8 +113,11 @@ Clicking the clock opens a full-screen layer-shell overlay (`lib/overlay/overlay
 
 The body is an `IndexedStack`, not a `switch`: the settings tab hosts `ShellSettingsPage`, which owns a nested `Navigator`, and rebuilding the body on every tab change would tear it down and drop the user back to the category landing page.
 
-- **`lib/overlay/settings/`** — the settings tab: a sidebar (Network / Bluetooth / Display / Audio / Shell) over one page per category. `controls.dart` holds the themed form controls (`SettingsSection`, `SettingsRow`, `SettingsTextField`, `SettingsIconButton`, …) shared with the calendar tab.
+The flip side, and the trap for the next tab author: **`IndexedStack` keeps every tab alive once built.** A tab that owns a `Timer` keeps running it while the user is on some other tab. A tab that polls must therefore be told when it is the visible one — see `SystemTab.active`, which drives the lease it holds on `SystemStatsStore`.
+
+- **`lib/overlay/settings/`** — the settings tab: a sidebar (Network / Bluetooth / Display / Audio / Shell) over one page per category. `controls.dart` holds the themed form controls (`SettingsSection`, `SettingsRow`, `SettingsTextField`, `SettingsIconButton`, …) shared with the calendar and system tabs.
 - **`lib/overlay/calendar/`** — the calendar tab, described below.
+- **`lib/overlay/system/`** — the system monitor tab, described below.
 
 `lib/config_store.dart` (`ConfigStore.instance`) is the live, writable view of `config.toml` that the settings UI mutates; it is a `ChangeNotifier` with a debounced atomic write.
 
@@ -144,6 +147,30 @@ The OSD is the card that appears when volume, microphone volume, or brightness c
 | `osd.dart` | `OsdWindow`, the card itself. Uses the `reverse().then(...)` fade-out handshake `SettingsOverlay` uses. |
 
 The windows are owned by `_GracefulShellRootState` (`lib/main.dart`) alongside the background, not by a panel module — the indicator is not tied to any panel. They exist only while `OsdStore.current` is non-null: the shell has no input-region support, so a permanently-mapped overlay surface would swallow clicks. For the same reason the window is kept tight around the card (`kOsdWindowSize`), anchored to the bottom edge only, which also lets layer-shell centre it horizontally for free.
+
+### System monitor (`lib/system/`, `lib/overlay/system/`)
+
+`lib/system/` is the UI-free sampling layer, shared by the `SystemMonitorModule` bar widget and the overlay's **System** tab. Every reader takes its `/proc` and `/sys` roots as constructor parameters — the same shape `BrightnessMonitor` uses — so tests point them at a temp directory and never touch the real ones.
+
+| File | Responsibility |
+|------|----------------|
+| `models.dart` | `CpuSample`, `MemorySample`, `LoadAverage`, `NetSample`, `DiskUsage`, `ProcessRaw` (raw counters, what crosses the isolate boundary), `ProcessRow` (the resolved view row), `HistorySample`. |
+| `proc_reader.dart` | The cheap reads: `/proc/{stat,meminfo,loadavg,uptime,cpuinfo,net/dev}` and `/sys/class/thermal`. Six small files, so they stay on the UI isolate. |
+| `process_reader.dart` | The expensive `/proc/<pid>/stat` walk, plus the **pure** `computeProcessRows` that resolves two raw snapshots into rows. |
+| `process_sampler.dart` | The seam between the store and the walk. `IsolateProcessSampler` runs it in `Isolate.run`; tests inject a synchronous fake and never spawn an isolate. |
+| `process_killer.dart` | Signals processes, with the guards. |
+| `disk_reader.dart` | `df -B1 -P` behind an injectable runner, on its own slow cadence. |
+| `history.dart`, `format.dart` | Ring buffer for the graphs; byte/duration/temperature formatting. |
+| `system_stats_store.dart` | `SystemStatsStore.instance` + `startSystemStatsService()` — same singleton `ChangeNotifier` pattern as `OsdStore`/`TrayStore`. |
+
+Four things a change here has to keep true:
+
+- **Leases, not timers.** The store polls only while somebody holds a lease. A *light* lease (CPU, memory, temperature, load, network) is what the bar module holds for its lifetime; a *detail* lease adds the per-process walk and is held only while the System tab is the visible tab. There is one sampler for the machine — before this, a two-monitor setup ran two independent `/proc` walks. Because the bar module holds a light lease from start-up, the history buffer is already full when the tab is first opened, so the graphs draw populated.
+- **The process walk runs in an isolate; the arithmetic does not.** `Isolate.run` returns raw tick counters and the store diffs them on the UI isolate. That keeps the delta pure and unit-testable, and it is what lets the sampler be stateless.
+- **`comm` in `/proc/<pid>/stat` can contain spaces *and* parentheses.** Splitting the line on whitespace is the classic bug; `parseStatLine` anchors on the **last** `)`.
+- **Kills are keyed on `(pid, starttime)`, never on the PID alone.** A process can exit and have its PID recycled between the row being drawn and the user confirming — a start-time mismatch refuses the signal. `ProcessKiller` also hard-refuses the shell's own PID (killing it takes every panel down) and PID 1; both refusals live in the killer, not the UI, so they cannot be bypassed. There is no automatic SIGTERM→SIGKILL escalation: an editor answers SIGTERM with a save prompt, and killing it five seconds later would destroy the user's work, so the grace period only *offers* a force-quit.
+
+`lib/overlay/system/` is the tab: `system_tab.dart` (Overview / Processes sub-tabs, and the lease), `overview_page.dart`, `process_table.dart` (sort, filter, kill), `kill_confirm.dart`, `time_series_chart.dart` (a `CustomPainter` area chart — there is no charting package), and `stat_tile.dart`. `lib/usage_bar.dart` holds the fill bar both the tab and the bar module's popup use.
 
 ### Background window (`lib/background.dart`)
 
