@@ -12,6 +12,7 @@ import 'package:graceful_shell/overlay/settings/display.dart';
 import 'package:graceful_shell/overlay/settings/network.dart';
 import 'package:graceful_shell/overlay/settings/shell.dart';
 import 'package:graceful_shell/overlay/system/system_tab.dart';
+import 'package:graceful_shell/overlay/system_info/system_info_tab.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The panel is a share of the display rather than a fixed box, so it reads the
@@ -78,8 +79,13 @@ const List<_OverlayTab> _tabs = [
   ),
   _OverlayTab(
     id: 'system',
-    label: 'System',
+    label: 'Monitor',
     icon: FontAwesomeIcons.microchip,
+  ),
+  _OverlayTab(
+    id: 'systeminfo',
+    label: 'System Info',
+    icon: FontAwesomeIcons.circleInfo,
   ),
   _OverlayTab(
     id: 'settings',
@@ -315,6 +321,7 @@ class _SettingsOverlayState extends State<SettingsOverlay>
               children: [
                 const CalendarTab(),
                 SystemTab(active: _selectedTab == 'system'),
+                const SystemInfoTab(),
                 _buildSettingsBody(theme),
               ],
             ),
