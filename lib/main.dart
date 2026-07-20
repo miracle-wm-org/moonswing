@@ -19,6 +19,8 @@ import 'package:graceful_shell/modules/system_monitor.dart';
 import 'package:graceful_shell/modules/system_tray.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
+import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
+import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/osd/osd.dart';
 import 'package:graceful_shell/osd/osd_service.dart';
@@ -28,6 +30,7 @@ import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
+import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
@@ -78,6 +81,12 @@ void main() async {
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
 
+  // Registers the shell's global shortcuts (e.g. Ctrl+Shift+S to open settings)
+  // with the compositor via the ext-input-trigger protocols. It binds its
+  // globals from the same registry callback below; on a compositor that lacks
+  // them nothing is bound and the shell is unaffected.
+  final inputTriggers = startInputTriggerService(waylandClient);
+
   // Live registry of outputs, kept current as monitors are plugged in and out.
   // The registry callbacks below stay connected for the lifetime of the client,
   // so `wl_output` globals advertised after startup are tracked too.
@@ -103,6 +112,10 @@ void main() async {
           ),
         );
       }
+      // Also offer every global to the input-trigger manager, which binds the
+      // registration/action managers it needs and ignores the rest.
+      inputTriggers.handleGlobal(
+          waylandRegistry!, globalName, interface, version);
     },
     onGlobalRemove: (globalName) => outputs.remove(globalName),
   );
@@ -110,6 +123,14 @@ void main() async {
   waylandClient.sync((_) => syncCompleter.complete());
   await syncCompleter.future;
   await Future.wait(outputCompleters.map((c) => c.future));
+
+  // The initial global burst is done. If the input-trigger managers weren't
+  // among them, the compositor doesn't implement these protocols (an older Mir,
+  // or not Mir) — the shortcuts silently won't work, so say so once.
+  if (!inputTriggers.isRegistered) {
+    debugPrint('input-trigger: compositor did not advertise the '
+        'ext-input-trigger globals; global shortcuts are unavailable');
+  }
 
   initLayerShell();
 
@@ -208,6 +229,15 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// would sit on the overlay layer eating clicks.
   final Map<String, LayershellWindowController> _osd = {};
 
+  /// The settings overlay window, opened by the global shortcut (Ctrl+Shift+S).
+  /// Unlike the OSD there is a single instance, not one per monitor, and it
+  /// takes keyboard focus. Non-null exactly while the overlay is on screen.
+  LayershellWindowController? _settings;
+
+  /// Drives the settings overlay's fade-out. Flipping true asks [SettingsOverlay]
+  /// to play its exit animation and then call back into [_onSettingsClosed].
+  final ValueNotifier<bool> _settingsClosing = ValueNotifier(false);
+
   late final MonitorWatcher _monitorWatcher;
   bool _syncScheduled = false;
 
@@ -222,11 +252,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     super.initState();
     final appConfig = widget.appConfig;
     _liveConfig = appConfig;
-    _hasBackground =
-        appConfig.background != null && appConfig.background!.entries.isNotEmpty;
+    _hasBackground = appConfig.background != null &&
+        appConfig.background!.entries.isNotEmpty;
     widget.store.addListener(_onConfigChanged);
     widget.outputs.addListener(_onOutputsChanged);
     OsdStore.instance.addListener(_onOsdChanged);
+    InputTriggerStore.instance.addListener(_onSettingsTriggered);
 
     for (final monitor in listMonitors()) {
       _surfaces[_monitorKey(monitor)] = _createSurfaces(monitor);
@@ -335,6 +366,50 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _destroyAfterFrame(removed);
   }
 
+  /// The global "open settings" shortcut fired. It toggles: close the overlay
+  /// if it is up, open it otherwise.
+  void _onSettingsTriggered() {
+    if (!mounted) return;
+    if (_settings != null) {
+      // SettingsOverlay plays its fade-out then calls _onSettingsClosed.
+      _settingsClosing.value = true;
+    } else {
+      _openSettings();
+    }
+  }
+
+  /// Opens the settings overlay as a single full-monitor layer-shell window on
+  /// the first connected monitor. It sits on the overlay layer and takes
+  /// keyboard focus (onDemand) so its text fields and Escape-to-close work —
+  /// the same recipe the clock uses to open this overlay from a panel.
+  void _openSettings() {
+    if (_surfaces.isEmpty) return;
+    final monitor = _surfaces.values.first.monitor;
+    _settingsClosing.value = false;
+    _settings = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+      monitor: monitor.gdkMonitor,
+    );
+    setState(() {});
+  }
+
+  /// Called by [SettingsOverlay] once its fade-out has finished (from the toggle
+  /// shortcut or its own Escape handler), so the native window can be torn down.
+  void _onSettingsClosed() {
+    if (!mounted) return;
+    final removed = _settings;
+    _settings = null;
+    setState(() {});
+    if (removed != null) _destroyAfterFrame([removed]);
+  }
+
   /// Destroys native windows only once the frame that detached their views has
   /// been rendered — destroying while Flutter still renders into the view would
   /// use a freed FlView.
@@ -441,6 +516,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     widget.store.removeListener(_onConfigChanged);
     widget.outputs.removeListener(_onOutputsChanged);
     OsdStore.instance.removeListener(_onOsdChanged);
+    InputTriggerStore.instance.removeListener(_onSettingsTriggered);
     _monitorWatcher.dispose();
     for (final surfaces in _surfaces.values) {
       for (final ctrl in surfaces.controllers) {
@@ -452,6 +528,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ctrl.destroy();
     }
     _osd.clear();
+    _settings?.destroy();
+    _settings = null;
+    _settingsClosing.dispose();
     super.dispose();
   }
 
@@ -539,6 +618,20 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               ),
             ),
         ],
+        // The settings overlay opened by the global shortcut. A single window
+        // (not per-monitor), so it lives outside the per-monitor loop above.
+        if (_settings case final settings?)
+          LayerShellWindow(
+            key: ObjectKey(settings),
+            controller: settings,
+            child: ThemeScope(
+              theme: _liveConfig.theme,
+              child: SettingsOverlay(
+                closingNotifier: _settingsClosing,
+                onClosed: _onSettingsClosed,
+              ),
+            ),
+          ),
       ],
     );
   }
