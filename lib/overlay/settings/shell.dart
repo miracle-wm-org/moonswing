@@ -3,7 +3,6 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -14,6 +13,7 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
+import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 
 /// Settings page for graceful-shell's own configuration (`config.toml`).
@@ -687,33 +687,195 @@ class _ModulesSection extends StatelessWidget {
 // Panels & layout
 // ---------------------------------------------------------------------------
 
-class _PanelsSection extends StatelessWidget {
+class _PanelsSection extends StatefulWidget {
   const _PanelsSection({required this.store});
 
   final ConfigStore store;
 
   @override
+  State<_PanelsSection> createState() => _PanelsSectionState();
+}
+
+class _PanelsSectionState extends State<_PanelsSection> {
+  /// Known anchor names — used only to give a freshly-added panel a sensible
+  /// default anchor (a panel named `left` anchors left). Panels are NOT
+  /// created for these by default; the user adds each one manually.
+  static const _anchors = ['top', 'bottom', 'left', 'right'];
+
+  int _selected = 0;
+  bool _adding = false;
+  final _nameController = TextEditingController();
+  final _nameFocus = FocusNode();
+
+  ConfigStore get store => widget.store;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameFocus.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _nameFocus.dispose();
+    super.dispose();
+  }
+
+  String _title(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+
+  void _startAdd() {
+    setState(() => _adding = true);
+    _nameFocus.requestFocus();
+  }
+
+  void _cancelAdd() {
+    setState(() {
+      _adding = false;
+      _nameController.clear();
+    });
+  }
+
+  void _commitAdd(List<String> existing) {
+    final name = _nameController.text.trim();
+    if (name.isEmpty || existing.contains(name)) {
+      _cancelAdd();
+      return;
+    }
+    // Writing the anchor creates the `[panels.<name>]` table (ConfigStore.set
+    // builds intermediate tables); a known anchor name seeds its own position.
+    store.set(['panels', name, 'anchor'], _anchors.contains(name) ? name : 'top');
+    setState(() {
+      _adding = false;
+      _nameController.clear();
+      _selected = existing.length; // new panel is appended at the end
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final names = store.panelNames;
+    final selected = names.isEmpty ? -1 : _selected.clamp(0, names.length - 1);
     return SettingsSection(
       label: 'Panels & Layout',
       children: [
-        if (names.isEmpty)
-          SettingsHint('No panels defined in config.toml.')
+        _buildTabs(names, selected),
+        if (_adding) _buildAddField(names),
+        if (selected < 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: SettingsHint(
+              _adding ? 'Name the panel, then press Enter.' : 'No panels yet. '
+                  'Use “Add panel” to create one.',
+            ),
+          )
         else
-          for (final name in names) _buildPanel(name),
+          _buildPanel(names[selected]),
       ],
+    );
+  }
+
+  Widget _buildTabs(List<String> names, int selected) {
+    final theme = ThemeScope.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: theme.divider)),
+        ),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < names.length; i++)
+                _PanelTab(
+                  label: _title(names[i]),
+                  selected: i == selected && !_adding,
+                  onTap: () => setState(() {
+                    _selected = i;
+                    _adding = false;
+                  }),
+                ),
+              _PanelTab(
+                label: 'Add panel',
+                icon: FontAwesomeIcons.plus,
+                selected: _adding,
+                onTap: _startAdd,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAddField(List<String> existing) {
+    final theme = ThemeScope.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: theme.popupBackground,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                    color: _nameFocus.hasFocus ? theme.accent : theme.divider),
+              ),
+              child: Stack(
+                children: [
+                  if (_nameController.text.isEmpty)
+                    Text(
+                      'Panel name (e.g. top)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: theme.popupForeground.withValues(alpha: 0.35),
+                        fontFamily: theme.fontFamily,
+                      ),
+                    ),
+                  EditableText(
+                    controller: _nameController,
+                    focusNode: _nameFocus,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.popupForeground,
+                      fontFamily: theme.fontFamily,
+                    ),
+                    cursorColor: theme.accent,
+                    backgroundCursorColor: theme.divider,
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _commitAdd(existing),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SettingsIconButton(
+            icon: FontAwesomeIcons.check,
+            onTap: () => _commitAdd(existing),
+          ),
+          SettingsIconButton(
+            icon: FontAwesomeIcons.xmark,
+            onTap: _cancelAdd,
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildPanel(String name) {
     List<String> p(List<String> rest) => ['panels', name, ...rest];
+    // A not-yet-defined anchor panel defaults its anchor to its own position.
+    final defaultAnchor = _anchors.contains(name) ? name : 'top';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(top: 8, bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SettingsSubLabel(name),
           SettingsRow(
             label: 'Height',
             control: SettingsNumberField(
@@ -734,7 +896,7 @@ class _PanelsSection extends StatelessWidget {
             label: 'Anchor',
             control: SettingsSegmented(
               options: const ['top', 'bottom', 'left', 'right'],
-              value: store.get<String>(p(['anchor'])) ?? 'top',
+              value: store.get<String>(p(['anchor'])) ?? defaultAnchor,
               onChanged: (v) => store.set(p(['anchor']), v),
             ),
           ),
@@ -747,16 +909,101 @@ class _PanelsSection extends StatelessWidget {
             ),
           ),
           for (final slot in const ['left', 'center', 'right'])
-            SettingsRow(
-              label: '${slot[0].toUpperCase()}${slot.substring(1)} modules',
-              alignTop: true,
-              control: _StringListEditor(
-                items: store.getList<String>(p(['layout', slot])),
-                onChanged: (list) => store.set(p(['layout', slot]), list),
-                suggestions: Module.registeredKeys.toList(),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SettingsSubLabel(
+                    '${slot[0].toUpperCase()}${slot.substring(1)} modules',
+                  ),
+                  const SizedBox(height: 4),
+                  _StringListEditor(
+                    items: store.getList<String>(p(['layout', slot])),
+                    onChanged: (list) => store.set(p(['layout', slot]), list),
+                    suggestions: Module.registeredKeys.toList(),
+                    width: null,
+                  ),
+                ],
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// A single tab in the Panels & Layout tab strip. Replicates the overlay's own
+/// top-tab underline treatment ([_TabButton] in `overlay.dart`) so the two read
+/// as the same idiom: an accent underline and accent text when selected.
+class _PanelTab extends StatefulWidget {
+  const _PanelTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final FaIconData? icon;
+
+  @override
+  State<_PanelTab> createState() => _PanelTabState();
+}
+
+class _PanelTabState extends State<_PanelTab> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final Color color;
+    if (widget.selected) {
+      color = theme.accent;
+    } else if (_hovered) {
+      color = theme.popupForeground;
+    } else {
+      color = theme.popupForeground.withValues(alpha: 0.6);
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: widget.selected ? theme.accent : const Color(0x00000000),
+                width: 2,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.icon != null) ...[
+                FaIcon(widget.icon, size: 11, color: color),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontFamily: theme.fontFamily,
+                  color: color,
+                  fontWeight:
+                      widget.selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -840,17 +1087,17 @@ class _BackgroundSectionState extends State<_BackgroundSection> {
   }
 
   Future<void> _addWallpapers() async {
-    const group = XTypeGroup(
-      label: 'Images',
-      extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp'],
+    final paths = await showFilePicker(
+      context,
+      filters: [FilePickerFilter.images, FilePickerFilter.all],
+      allowMultiple: true,
     );
-    final files = await openFiles(acceptedTypeGroups: [group]);
-    if (files.isEmpty) return;
+    if (paths == null || paths.isEmpty) return;
     final list = _normalize(_rawEntries());
     final existing = list.map((e) => e['path']).toSet();
-    for (final f in files) {
-      if (isImagePath(f.path) && existing.add(f.path)) {
-        list.add({'path': f.path, 'shown': true});
+    for (final p in paths) {
+      if (isImagePath(p) && existing.add(p)) {
+        list.add({'path': p, 'shown': true});
       }
     }
     store.set(['background', 'entries'], _normalize(list));
@@ -1624,12 +1871,17 @@ class _StringListEditor extends StatefulWidget {
     required this.onChanged,
     this.suggestions,
     this.addHint,
+    this.width = 260,
   });
 
   final List<String> items;
   final ValueChanged<List<String>> onChanged;
   final List<String>? suggestions;
   final String? addHint;
+
+  /// Fixed editor width. Pass `null` to stretch to the parent's width (used on
+  /// the Panels page, where the list sits full-width under its label).
+  final double? width;
 
   @override
   _StringListEditorState createState() => _StringListEditorState();
@@ -1677,18 +1929,17 @@ class _StringListEditorState extends State<_StringListEditor> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 260,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < widget.items.length; i++)
-            _row(context, i, widget.items[i]),
-          const SizedBox(height: 6),
-          _buildAdder(context),
-        ],
-      ),
+    final column = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < widget.items.length; i++)
+          _row(context, i, widget.items[i]),
+        const SizedBox(height: 6),
+        _buildAdder(context),
+      ],
     );
+    final width = widget.width;
+    return width == null ? column : SizedBox(width: width, child: column);
   }
 
   Widget _row(BuildContext context, int i, String item) {
@@ -1698,8 +1949,9 @@ class _StringListEditorState extends State<_StringListEditor> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
         decoration: BoxDecoration(
-          color: theme.divider.withValues(alpha: 0.35),
+          color: theme.controlSurface,
           borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: theme.divider),
         ),
         child: Row(
           children: [
@@ -1833,7 +2085,15 @@ class _AddDropdownState extends State<_AddDropdown> {
               color: theme.controlSurface,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: theme.divider),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
             ),
+            clipBehavior: Clip.antiAlias,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1920,16 +2180,16 @@ class _AddButtonState extends State<_AddButton> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: _hovered
-                ? theme.surfaceHover
-                : theme.divider.withValues(alpha: 0.4),
+            color: _hovered ? theme.surfaceHover : theme.controlSurface,
             borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: theme.divider),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               FaIcon(FontAwesomeIcons.plus,
-                  size: 11, color: theme.popupForeground),
+                  size: 11,
+                  color: _hovered ? theme.popupForeground : theme.accent),
               const SizedBox(width: 8),
               Text(
                 widget.label,
