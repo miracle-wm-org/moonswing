@@ -94,6 +94,16 @@ const Set<String> imageExtensions = {
   '.bmp',
 };
 
+/// File extensions rendered with the video backend rather than as a still.
+const Set<String> videoExtensions = {
+  '.mp4',
+  '.mkv',
+  '.webm',
+  '.mov',
+  '.avi',
+  '.m4v',
+};
+
 /// Whether [path] points at a supported image file, judged purely by its
 /// extension. Existence is checked separately at call sites so this stays a
 /// pure, unit-testable predicate.
@@ -294,12 +304,59 @@ class OsdConfig {
   }
 }
 
+/// The lock screen: its wallpaper and the chrome drawn over it.
+///
+/// Unlike [BackgroundConfig] this holds a single wallpaper rather than a
+/// rotating list — a lock screen has no reason to cycle — but it accepts the
+/// same image *and* video paths, rendered by the shared `MediaBackground`.
+class LockConfig {
+  /// Wallpaper path (image or video). Null falls back to the shipped default.
+  final String? background;
+
+  final BackgroundFit fit;
+
+  /// Whether to show the account's name above the unlock control.
+  final bool showUsername;
+
+  /// Gaussian blur applied to the wallpaper once the password field is shown.
+  final double blurSigma;
+
+  const LockConfig({
+    this.background,
+    this.fit = BackgroundFit.fill,
+    this.showUsername = true,
+    this.blurSigma = 18.0,
+  });
+
+  factory LockConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const LockConfig();
+    // Every read is type-tested rather than cast: a wrongly-typed value here
+    // would otherwise throw out of AppConfig.fromMap, and the caller responds
+    // to that by discarding the *whole* config, not just this table.
+    final rawBackground = map['background'];
+    final background = rawBackground is String ? rawBackground.trim() : null;
+    final rawSigma = map['blur_sigma'];
+    final sigma = rawSigma is num ? rawSigma.toDouble() : 18.0;
+    final rawFit = map['fit'];
+    final rawShowUsername = map['show_username'];
+    return LockConfig(
+      background: (background == null || background.isEmpty) ? null : background,
+      fit: BackgroundFit.fromString(rawFit is String ? rawFit : 'fill'),
+      showUsername: rawShowUsername is bool ? rawShowUsername : true,
+      // A negative sigma throws inside ImageFilter.blur; clamp rather than
+      // let a hand-edited config crash the lock screen.
+      blurSigma: sigma.isNaN ? 18.0 : sigma.clamp(0.0, 100.0),
+    );
+  }
+}
+
 class AppConfig {
   final Map<String, PanelConfig> panels;
   final BackgroundConfig? background;
   final ThemeConfig theme;
   final CalendarConfig calendar;
   final OsdConfig osd;
+  final LockConfig lock;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
@@ -307,6 +364,7 @@ class AppConfig {
     this.theme = const ThemeConfig(),
     this.calendar = const CalendarConfig(),
     this.osd = const OsdConfig(),
+    this.lock = const LockConfig(),
   });
 
   static String _buildDefaultConfig(String homeDir) => '''
@@ -363,6 +421,12 @@ interval_minutes = 5
 [[background.entries]]
 path = "$homeDir/.local/share/graceful-shell/wallpaper.jpg"
 shown = true
+
+[lock]
+background = "$homeDir/.local/share/graceful-shell/lock-wallpaper.jpg"
+fit = "fill"
+show_username = true
+blur_sigma = 18.0
 ''';
 
   /// Resolves the absolute path to `config.toml`, honouring
@@ -431,6 +495,7 @@ shown = true
     final themeMap = map['theme'] as Map<String, dynamic>?;
     final calendarMap = map['calendar'] as Map<String, dynamic>?;
     final osdMap = map['osd'] as Map<String, dynamic>?;
+    final lockMap = map['lock'] as Map<String, dynamic>?;
 
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
@@ -438,6 +503,7 @@ shown = true
       theme: ThemeConfig.fromMap(themeMap),
       calendar: CalendarConfig.fromMap(calendarMap),
       osd: OsdConfig.fromMap(osdMap),
+      lock: LockConfig.fromMap(lockMap),
     );
   }
 }

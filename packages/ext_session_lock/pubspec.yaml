@@ -1,0 +1,23 @@
+name: ext_session_lock
+description: "Wayland ext-session-lock-v1 surfaces for Flutter Linux, built on gtk-session-lock."
+publish_to: "none"
+version: 0.0.1
+
+environment:
+  # dart:ffi NativeCallable requires 3.1.0.
+  sdk: ^3.1.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.3
+  # Reused for the generic GTK/GDK/Flutter FFI wrappers (GtkWindow, FlView,
+  # FlEngine, FlViewMonitor, FlWindowMonitor) and for ExtendedWindowingOwnerLinux,
+  # which this package subclasses so lock windows land in the same registrar as
+  # every other window.
+  layer_shell:
+    git:
+      url: https://github.com/mattkae/layer_shell.dart.git
+
+dev_dependencies:
+  flutter_lints: ^6.0.0

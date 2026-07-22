@@ -32,6 +32,8 @@ flutter test test/widget_test.dart
 
 System dependencies required at build time: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`.
 
+Required at runtime for the lock screen: `libgtk-session-lock0` (`ext-session-lock-v1`) and `libpam` — both loaded with `dlopen`, so the shell builds and runs without them; only locking is unavailable.
+
 ## Architecture
 
 Graceful Shell is a **Flutter Linux desktop application** that renders Wayland layer-shell panels (taskbars) and an optional wallpaper window using GTK and the `gtk-layer-shell` library.
@@ -175,3 +177,27 @@ Four things a change here has to keep true:
 ### Background window (`lib/background.dart`)
 
 Renders a full-screen wallpaper with time-of-day scheduling and crossfade transitions using `media_kit` for video support. One background window is created per monitor.
+
+`MediaBackground({path, fit})` is the public "render this image or video" widget, shared with the lock screen; the image/video split is decided by extension (`isVideoPath`), and the `media_kit` `Player` lifecycle (muted, looping, disposed on unmount) lives entirely inside it.
+
+### Lock screen (`lib/lock/`, `packages/ext_session_lock/`)
+
+**Lock** in the system module's power menu locks the session with the `ext-session-lock-v1` Wayland protocol. The compositor then hides every other surface — the shell's own panels included — and, per the protocol, blanks any output that has no lock surface, so a monitor we fail to cover is never *exposed*, only blank.
+
+The lock surface is a **new window-controller type**, not runner C code. `packages/ext_session_lock/` is a standalone package that does for `ext-session-lock-v1` what `layer_shell.dart` does for wlr-layer-shell: it `dlopen`s `libgtk-session-lock.so.0` and binds six functions. `SessionLockWindowController` mirrors `LayershellWindowController._internal` almost line for line, except that where the layer-shell one calls `gtk_layer_init_for_window()` it calls `gtk_session_lock_lock_new_surface(lock, window, monitor)` — and, like layer-shell init, **that must happen before the window is realized**.
+
+It depends on `layer_shell` only to reuse the generic GTK/Flutter FFI wrappers and to subclass `ExtendedWindowingOwnerLinux`, so lock windows register into the *same* `LinuxWindowRegistrar` as every other window. `initSessionLock()` (called from `main()` in place of `initLayerShell()`) calls `initLayerShell()` first and then swaps in the subclass, which is why panels and popups are unaffected.
+
+| File | Responsibility |
+|------|----------------|
+| `lock_controller.dart` | `LockController.instance` — the seam between the Lock button (deep in a panel's tree) and `_GracefulShellRootState` (which owns every window). Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`. |
+| `lock_screen.dart` | The UI: wallpaper via `MediaBackground`, clock/date, account name, and the reveal-on-any-key password field that blurs the wallpaper behind it. |
+| `pam_authenticator.dart` | PAM over `dart:ffi`. |
+| `user_identity.dart` | `getpwuid(getuid())` for the account name PAM needs and the GECOS name the UI shows. |
+
+Four things a change here has to keep true:
+
+- **Lock windows exist only while locked**, like the OSD windows and unlike the panels — `_GracefulShellRootState` creates one per monitor on request and destroys them on unlock, including for monitors hotplugged mid-lock.
+- **Order teardown as detach → destroy windows → unlock.** Destroying a GTK window while Flutter still renders into its `FlView` is a use-after-free, so the views are detached a frame first; and the windows go *before* the unlock so GTK never remaps a surface that has stopped being a lock surface. The compositor blanks the outputs for the one frame in between.
+- **Never unlock on the way out.** `dispose()` drops the lock object without sending an unlock: if the shell is dying while the session is locked, the session must stay locked. The protocol guarantees exactly this — a client that disconnects without `unlock_and_destroy` leaves the session locked.
+- **PAM's conversation callback is `isolateLocal` and the whole exchange runs in `Isolate.run`.** PAM invokes the callback synchronously on the thread that called `pam_authenticate`, and that call blocks for seconds on failure (`pam_unix` delays deliberately). The response array is allocated with the C allocator because PAM `free()`s it. This works unprivileged because `pam_unix` shells out to the setuid-root `unix_chkpwd`. An empty password is rejected before PAM is ever called, so an account configured `nullok` cannot be opened with a bare Enter.

@@ -5,7 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'config.dart';
 
-BoxFit _boxFitFor(BackgroundFit fit) {
+BoxFit boxFitFor(BackgroundFit fit) {
   switch (fit) {
     case BackgroundFit.fill:
       return BoxFit.cover;
@@ -16,13 +16,30 @@ BoxFit _boxFitFor(BackgroundFit fit) {
   }
 }
 
-bool _isVideo(String path) {
+bool isVideoPath(String path) {
   final lower = path.toLowerCase();
-  return lower.endsWith('.mp4') ||
-      lower.endsWith('.mkv') ||
-      lower.endsWith('.webm') ||
-      lower.endsWith('.mov') ||
-      lower.endsWith('.avi');
+  return videoExtensions.any(lower.endsWith);
+}
+
+/// Renders a wallpaper from a filesystem path, picking the image or video
+/// renderer from the extension.
+///
+/// Shared by the desktop background and the lock screen; both want the same
+/// muted, looping, no-controls video behaviour and the same graceful fallback
+/// when a file is missing or undecodable.
+class MediaBackground extends StatelessWidget {
+  const MediaBackground({super.key, required this.path, required this.fit});
+
+  final String path;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isVideoPath(path)) {
+      return _VideoBackground(path: path, fit: fit);
+    }
+    return _ImageBackground(path: path, fit: fit);
+  }
 }
 
 /// The entries eligible to be shown: flagged `shown`, a valid image extension,
@@ -120,24 +137,16 @@ class _BackgroundWindowState extends State<BackgroundWindow> {
     if (path == null) {
       return const ColoredBox(key: ValueKey('__empty__'), color: Color(0xFF1A1A1A));
     }
-    final fit = _boxFitFor(widget.config.fit);
-    if (_isVideo(path)) {
-      return _VideoBackground(
-        key: ValueKey(path),
-        path: path,
-        fit: fit,
-      );
-    }
-    return _ImageBackground(
+    return MediaBackground(
       key: ValueKey(path),
       path: path,
-      fit: fit,
+      fit: boxFitFor(widget.config.fit),
     );
   }
 }
 
 class _ImageBackground extends StatelessWidget {
-  const _ImageBackground({super.key, required this.path, required this.fit});
+  const _ImageBackground({required this.path, required this.fit});
 
   final String path;
   final BoxFit fit;
@@ -157,7 +166,7 @@ class _ImageBackground extends StatelessWidget {
 }
 
 class _VideoBackground extends StatefulWidget {
-  const _VideoBackground({super.key, required this.path, required this.fit});
+  const _VideoBackground({required this.path, required this.fit});
 
   final String path;
   final BoxFit fit;

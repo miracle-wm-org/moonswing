@@ -348,6 +348,39 @@ path = "/home/user/wallpapers/wallpaper.jpg"
 time = "00:00"
 ```
 
+## Lock Screen
+
+The `[lock]` section configures the lock screen, reached from **Lock** in the power menu (the power icon in the top panel). Locking uses the `ext-session-lock-v1` Wayland protocol, so the compositor hides every other surface — including the shell's own panels — and blanks any monitor that has no lock surface.
+
+```toml
+[lock]
+background = "/home/user/wallpapers/lock.jpg"
+fit = "fill"
+show_username = true
+blur_sigma = 18.0
+```
+
+| Key             | Type    | Default            | Description                                                        |
+| --------------- | ------- | ------------------ | ------------------------------------------------------------------ |
+| `background`    | string  | shipped wallpaper  | Absolute path to an image **or** video shown behind the lock screen |
+| `fit`           | string  | `"fill"`           | How the wallpaper is sized (same values as `[background]`)         |
+| `show_username` | boolean | `true`             | Show the account's name above the unlock button                     |
+| `blur_sigma`    | number  | `18.0`             | Blur applied to the wallpaper once the password field appears; `0` leaves it sharp |
+
+Unlike `[background]`, this is a single wallpaper rather than a rotating list — but it accepts the same image and video formats, and videos loop silently. If `background` is unset or the file is missing, the shipped default (`$PREFIX/share/graceful-shell/lock-wallpaper.jpg`) is used, falling back to a plain dark fill.
+
+`blur_sigma` is clamped to `0`–`100`.
+
+### Behaviour
+
+The lock screen starts as a clock, date, and the account name over the wallpaper. Pressing the unlock button, Enter, or **any other key** reveals the password field and blurs the wallpaper; a printable first keystroke is carried into the field rather than swallowed. Pressing Escape once returns focus out of the field, and a second Escape hides it again.
+
+### Requirements
+
+- **`libgtk-session-lock0`** must be installed (`sudo apt install libgtk-session-lock0`). Without it the Lock button reports that locking is unavailable rather than failing silently.
+- The compositor must implement `ext-session-lock-v1` (Mir/Miracle does).
+- Passwords are checked with **PAM**. Installing the bundled service file with `sudo make install-pam` is recommended; without it the shell falls back to the system `login` service, which works but attributes attempts to `login` in the auth logs.
+
 ## Calendar
 
 The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The month grid works with no configuration at all; this section only matters for connecting an account.

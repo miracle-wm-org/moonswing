@@ -1,0 +1,16 @@
+#
+# PAM configuration file for the graceful-shell lock screen.
+#
+# The lock screen only ever calls pam_authenticate(), so the `auth` stack is the
+# only one that matters here. Including `login` reuses the system's normal
+# password stack (common-auth), which is what every other screen locker on the
+# machine does — see /etc/pam.d/swaylock, which is this file verbatim.
+#
+# Install to /etc/pam.d/graceful-shell (needs root):
+#   sudo make install-pam
+#
+# Without it, the lock screen falls back to the `login` service directly, which
+# works but attributes the attempt to `login` in the auth logs.
+#
+
+auth include login

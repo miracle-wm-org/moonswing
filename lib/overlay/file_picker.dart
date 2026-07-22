@@ -46,6 +46,17 @@ class FilePickerFilter {
   static final FilePickerFilter images =
       FilePickerFilter(label: 'Images', extensions: imageExtensions);
 
+  /// Videos the shell can play behind a surface, for the lock screen and any
+  /// other wallpaper that accepts motion.
+  static final FilePickerFilter videos =
+      FilePickerFilter(label: 'Videos', extensions: videoExtensions);
+
+  /// Images *and* videos, for wallpapers that accept either.
+  static final FilePickerFilter wallpapers = FilePickerFilter(
+    label: 'Images & video',
+    extensions: {...imageExtensions, ...videoExtensions},
+  );
+
   /// Matches everything, for pickers that should not constrain by type.
   static const FilePickerFilter all =
       FilePickerFilter(label: 'All files', extensions: {});

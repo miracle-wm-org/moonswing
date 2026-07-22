@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Path packages resolve through the root lockfile; theirs is redundant.
+packages/*/pubspec.lock

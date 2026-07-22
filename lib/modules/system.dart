@@ -5,6 +5,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:ubuntu_session/ubuntu_session.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -60,6 +61,13 @@ class SystemState extends State<System>
     closeLayerWindow();
   }
 
+  /// Locking needs no confirmation — it is trivially reversible with a
+  /// password, unlike the other three actions.
+  void _lock() {
+    closePopup();
+    LockController.instance.lock();
+  }
+
   void _togglePopup(BuildContext context) {
     if (isPopupOpen) {
       closePopup();
@@ -71,10 +79,13 @@ class SystemState extends State<System>
     openBarPopup(
       context,
       preferredConstraints:
-          const BoxConstraints.tightFor(width: 200, height: 154),
+          const BoxConstraints.tightFor(width: 200, height: 202),
       child: ThemeScope(
         theme: _storedTheme!,
-        child: _SystemPopupContent(onShowConfirmation: _showConfirmation),
+        child: _SystemPopupContent(
+          onShowConfirmation: _showConfirmation,
+          onLock: _lock,
+        ),
       ),
     );
   }
@@ -106,9 +117,13 @@ class SystemState extends State<System>
 }
 
 class _SystemPopupContent extends StatelessWidget {
-  const _SystemPopupContent({required this.onShowConfirmation});
+  const _SystemPopupContent({
+    required this.onShowConfirmation,
+    required this.onLock,
+  });
 
   final void Function(String, Future<void> Function()) onShowConfirmation;
+  final VoidCallback onLock;
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +139,12 @@ class _SystemPopupContent extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                _SystemButton(
+                  icon: FontAwesomeIcons.lock,
+                  label: 'Lock',
+                  onTap: onLock,
+                ),
+                const SizedBox(height: 4),
                 _SystemButton(
                   icon: FontAwesomeIcons.arrowRightFromBracket,
                   label: 'Log Out',
