@@ -23,6 +23,7 @@ import 'package:ffi/ffi.dart';
 /// void gtk_session_lock_lock_new_surface(
 ///     GtkSessionLockLock *lock, GtkWindow *gtk_window, GdkMonitor *monitor);
 /// gboolean gtk_session_lock_is_lock_window(GtkWindow *window);
+/// void gtk_session_lock_unmap_lock_window(GtkWindow *window);
 /// ```
 ///
 /// Note `gboolean` is a `gint` (32-bit), not a C `bool`, so it is bound as
@@ -55,7 +56,11 @@ class GtkSessionLockBindings {
         _isLockWindow = lib.lookupFunction<
                 ffi.Int32 Function(ffi.Pointer<ffi.Void>),
                 int Function(ffi.Pointer<ffi.Void>)>(
-            'gtk_session_lock_is_lock_window');
+            'gtk_session_lock_is_lock_window'),
+        _unmapLockWindow = lib.lookupFunction<
+                ffi.Void Function(ffi.Pointer<ffi.Void>),
+                void Function(ffi.Pointer<ffi.Void>)>(
+            'gtk_session_lock_unmap_lock_window');
 
   final int Function() _isSupported;
   final int Function() _getProtocolVersion;
@@ -67,6 +72,7 @@ class GtkSessionLockBindings {
           ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>)
       _lockNewSurface;
   final int Function(ffi.Pointer<ffi.Void>) _isLockWindow;
+  final void Function(ffi.Pointer<ffi.Void>) _unmapLockWindow;
 
   static bool _attempted = false;
   static GtkSessionLockBindings? _instance;
@@ -122,6 +128,19 @@ class GtkSessionLockBindings {
 
   /// True when [window] has been made a lock surface.
   bool isLockWindow(ffi.Pointer<ffi.Void> window) => _isLockWindow(window) != 0;
+
+  /// Destroys [window]'s `ext_session_lock_surface_v1` role object. No-op for
+  /// windows that are not lock surfaces.
+  ///
+  /// Must be called *before* the window is hidden or destroyed. GTK3's Wayland
+  /// backend destroys the `wl_surface` on unmap, and gtk-session-lock only
+  /// destroys the role in the window's finalize handler — after the surface is
+  /// already gone from the wire. Mir reacts to a surface dying before its role
+  /// by deleting the role resource server-side, so that trailing destroy then
+  /// hits an unknown object and the compositor kills the connection with an
+  /// `invalid_object` error.
+  void unmapLockWindow(ffi.Pointer<ffi.Void> window) =>
+      _unmapLockWindow(window);
 }
 
 // GLib signal plumbing. GObject is already in the process (Flutter's Linux

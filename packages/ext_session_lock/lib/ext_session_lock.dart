@@ -415,10 +415,20 @@ class SessionLockWindowController extends RegularWindowController
   Size get contentSize => _window.getSize();
 
   @override
+  bool get isDestroyed => _destroyed;
+
+  @override
   void destroy() {
     if (_destroyed) return;
     _viewMonitor.close();
     _viewMonitor.unref();
+    // The role object must die before the wl_surface: gtk_widget_destroy
+    // tears down the wl_surface on unmap while gtk-session-lock only destroys
+    // the ext_session_lock_surface_v1 in the window's finalizer, and Mir
+    // answers that reversed order by deleting the role server-side — the
+    // finalizer's destroy then hits an unknown object and the compositor
+    // kills the connection.
+    GtkSessionLockBindings.instance?.unmapLockWindow(_window.instance.cast());
     _window.destroy();
     _windowMonitor.close();
     _windowMonitor.unref();
