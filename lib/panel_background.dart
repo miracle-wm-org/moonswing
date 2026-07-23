@@ -1,52 +1,48 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
 
-class PanelBackgroundPainter extends CustomPainter {
-  const PanelBackgroundPainter({
-    this.anchor = 'top',
-    this.animationValue = 0.0,
-    this.theme = const ThemeConfig(),
-  });
+/// The static gradient drawn behind a panel's modules.
+///
+/// The gradient is "aligned" to the panel's own edge: the bright accent sits
+/// against that edge and fades to dark across the panel.
+///   top    -> left-aligned    bottom -> right-aligned
+///   left   -> top-aligned     right  -> bottom-aligned
+BoxDecoration panelBackgroundDecoration({
+  String anchor = 'top',
+  ThemeConfig theme = const ThemeConfig(),
+}) {
+  final dark = theme.workspaceBackground.withValues(alpha: 0xEE / 0xFF);
+  final mid = theme.surfacePressed.withValues(alpha: 0xEE / 0xFF);
+  final light = theme.accent.withValues(alpha: 0xEE / 0xFF);
 
-  final String anchor;
-  final double animationValue;
-  final ThemeConfig theme;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double h = size.height;
-    final bool horizontal = anchor == 'top' || anchor == 'bottom';
-
-    final dark = theme.workspaceBackground.withValues(alpha: 0xEE / 0xFF);
-    final mid = theme.surfacePressed.withValues(alpha: 0xEE / 0xFF);
-    final light = theme.accent.withValues(alpha: 0xEE / 0xFF);
-
-    final gradient = LinearGradient(
-      begin: horizontal ? Alignment.centerLeft : Alignment.topCenter,
-      end: horizontal ? Alignment.centerRight : Alignment.bottomCenter,
-      colors: [dark, mid, light, mid, dark],
-      stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
-      tileMode: TileMode.repeated,
-    );
-
-    final double shift = horizontal ? w * animationValue : h * animationValue;
-
-    final Rect shaderRect = horizontal
-        ? Rect.fromLTWH(-shift, 0, w, h)
-        : Rect.fromLTWH(0, -shift, w, h);
-
-    final paint = Paint()
-      ..shader = gradient.createShader(shaderRect)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), paint);
+  late final Alignment begin;
+  late final Alignment end;
+  switch (anchor) {
+    case 'bottom':
+      begin = Alignment.centerRight;
+      end = Alignment.centerLeft;
+      break;
+    case 'left':
+      begin = Alignment.topCenter;
+      end = Alignment.bottomCenter;
+      break;
+    case 'right':
+      begin = Alignment.bottomCenter;
+      end = Alignment.topCenter;
+      break;
+    case 'top':
+    default:
+      begin = Alignment.centerLeft;
+      end = Alignment.centerRight;
+      break;
   }
 
-  @override
-  bool shouldRepaint(PanelBackgroundPainter oldDelegate) {
-    return oldDelegate.anchor != anchor ||
-        oldDelegate.animationValue != animationValue ||
-        oldDelegate.theme != theme;
-  }
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: begin,
+      end: end,
+      colors: [light, mid, dark],
+      stops: const [0.0, 0.5, 1.0],
+    ),
+  );
 }

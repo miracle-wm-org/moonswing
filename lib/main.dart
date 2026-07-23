@@ -841,25 +841,7 @@ class PanelMain extends StatefulWidget {
   _PanelMainState createState() => _PanelMainState();
 }
 
-class _PanelMainState extends State<PanelMain>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _bgAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _bgAnimation = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 30),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _bgAnimation.dispose();
-    super.dispose();
-  }
-
+class _PanelMainState extends State<PanelMain> {
   Widget _buildModule(String name) {
     final module = Module.lookup(name);
     if (module == null) return const SizedBox.shrink();
@@ -929,18 +911,11 @@ class _PanelMainState extends State<PanelMain>
         child: Directionality(
           textDirection: TextDirection.ltr,
           child: SizedBox.expand(
-            child: AnimatedBuilder(
-              animation: _bgAnimation,
-              builder: (context, child) {
-                return CustomPaint(
-                  painter: PanelBackgroundPainter(
-                    anchor: widget.panelConfig.anchor,
-                    animationValue: _bgAnimation.value,
-                    theme: theme,
-                  ),
-                  child: child,
-                );
-              },
+            child: DecoratedBox(
+              decoration: panelBackgroundDecoration(
+                anchor: widget.panelConfig.anchor,
+                theme: theme,
+              ),
               child: Padding(
                 padding: vertical
                     ? EdgeInsets.fromLTRB(0, pad, 0, pad)
