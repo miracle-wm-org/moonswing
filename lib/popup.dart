@@ -33,6 +33,12 @@ const BoxConstraints kMinPopupConstraints =
 const WindowPositionerConstraintAdjustment kPopupSlide =
     WindowPositionerConstraintAdjustment(slideX: true, slideY: true);
 
+/// Adjustment for a flyout submenu anchored to the side of its parent: flip to
+/// the opposite side when the preferred side would run off-screen, and slide
+/// vertically to stay on-screen. Used for the app-directory category submenus.
+const WindowPositionerConstraintAdjustment kPopupFlipX =
+    WindowPositionerConstraintAdjustment(flipX: true, slideY: true);
+
 /// Shared delegate that forwards [onWindowDestroyed] to a callback.
 class PopupDelegate extends PopupWindowControllerDelegate {
   PopupDelegate({required this.onDestroyed});
@@ -78,6 +84,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   PopupWindowController? _popupController;
   WindowRegistry? _registry;
   WindowEntry? _entry;
+  VoidCallback? _onClosed;
 
   /// Whether a popup is currently open.
   bool get isPopupOpen => _popupController != null;
@@ -112,8 +119,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     required Rect anchorRect,
     required WindowPositionerAnchor parentAnchor,
     required WindowPositionerAnchor childAnchor,
+    WindowPositionerConstraintAdjustment constraintAdjustment = kPopupSlide,
+    VoidCallback? onClosed,
   }) {
     if (isPopupOpen) return;
+    _onClosed = onClosed;
     final parentController = WindowScope.of(context);
     final constraints = preferredConstraints.enforce(kMinPopupConstraints);
     PopupWindowController? thisController;
@@ -123,7 +133,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       positioner: WindowPositioner(
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
-        constraintAdjustment: kPopupSlide,
+        constraintAdjustment: constraintAdjustment,
       ),
       constraints: constraints,
       delegate: PopupDelegate(onDestroyed: () {
@@ -158,12 +168,17 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     _registry = null;
     final ctrl = _popupController;
     _popupController = null;
+    final onClosed = _onClosed;
+    _onClosed = null;
     if (ctrl != null) {
       // Defer destroy to avoid tearing the window down mid-frame; destroy() is
       // idempotent so a second call (e.g. from onWindowDestroyed) is harmless.
       WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.destroy());
     }
     if (mounted) setState(() {});
+    // Fires once per open, whether closed explicitly or dismissed by the
+    // compositor (whose destroy routes through the delegate to closePopup).
+    onClosed?.call();
   }
 }
 

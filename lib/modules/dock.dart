@@ -1,21 +1,24 @@
-import 'dart:convert';
-import 'dart:ffi' as ffi;
-import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter/widgets.dart';
-import 'package:xdg_icons/xdg_icons.dart';
-import 'package:graceful_shell/popup.dart';
+
+import 'package:graceful_shell/app_info.dart';
+import 'package:graceful_shell/config_store.dart';
+import 'package:graceful_shell/modules/app_directory.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
 
 class DockConfig {
   final List<String> apps;
   final int iconSize;
 
+  /// Whether the app-directory button (and its divider) is shown at the end of
+  /// the dock.
+  final bool showAppDirectory;
+
   const DockConfig({
     this.apps = const [],
     this.iconSize = 24,
+    this.showAppDirectory = true,
   });
 
   factory DockConfig.fromMap(Map<String, dynamic>? map) {
@@ -24,86 +27,19 @@ class DockConfig {
       apps: (map['apps'] as List<dynamic>?)?.whereType<String>().toList() ??
           const [],
       iconSize: map['icon_size'] as int? ?? 24,
+      showAppDirectory: map['show_app_directory'] as bool? ?? true,
     );
   }
-}
-
-// GIO FFI bindings
-
-@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Int)>(symbol: 'g_malloc0')
-external ffi.Pointer<ffi.NativeType> _gMalloc0(int count);
-
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(symbol: 'g_free')
-external void _gFree(ffi.Pointer<ffi.NativeType> value);
-
-@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
-    symbol: 'g_object_unref')
-external void _gObjectUnref(ffi.Pointer<ffi.NativeType> object);
-
-@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.Uint8>)>(
-    symbol: 'g_desktop_app_info_new')
-external ffi.Pointer<ffi.NativeType> _gDesktopAppInfoNew(
-    ffi.Pointer<ffi.Uint8> desktopId);
-
-@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
-    symbol: 'g_app_info_get_name')
-external ffi.Pointer<ffi.Uint8> _gAppInfoGetName(
-    ffi.Pointer<ffi.NativeType> appInfo);
-
-@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
-    symbol: 'g_app_info_get_icon')
-external ffi.Pointer<ffi.NativeType> _gAppInfoGetIcon(
-    ffi.Pointer<ffi.NativeType> appInfo);
-
-@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
-    symbol: 'g_icon_to_string')
-external ffi.Pointer<ffi.Uint8> _gIconToString(
-    ffi.Pointer<ffi.NativeType> icon);
-
-@ffi.Native<
-    ffi.Int Function(
-        ffi.Pointer<ffi.NativeType>,
-        ffi.Pointer<ffi.NativeType>,
-        ffi.Pointer<ffi.NativeType>,
-        ffi.Pointer<ffi.NativeType>)>(symbol: 'g_app_info_launch')
-external int _gAppInfoLaunch(
-    ffi.Pointer<ffi.NativeType> appInfo,
-    ffi.Pointer<ffi.NativeType> files,
-    ffi.Pointer<ffi.NativeType> context,
-    ffi.Pointer<ffi.NativeType> error);
-
-// String conversion helpers
-
-ffi.Pointer<ffi.Uint8> _stringToNative(String value) {
-  final Uint8List units = utf8.encode(value);
-  final ffi.Pointer<ffi.Uint8> buffer =
-      _gMalloc0(units.length + 1).cast<ffi.Uint8>();
-  final Uint8List nativeString = buffer.asTypedList(units.length + 1);
-  nativeString.setAll(0, units);
-  nativeString[units.length] = 0;
-  return buffer;
-}
-
-String _nativeToString(ffi.Pointer<ffi.Uint8> value) {
-  var length = 0;
-  while (value[length] != 0) {
-    length++;
-  }
-  return utf8.decode(value.asTypedList(length));
 }
 
 // Data model
 
 class _DockApp {
-  final String name;
-  final String iconName;
-  final ffi.Pointer<ffi.NativeType> appInfo;
+  /// The config id (as stored in `[modules.dock].apps`), used for unpinning.
+  final String appId;
+  final AppEntry entry;
 
-  const _DockApp({
-    required this.name,
-    required this.iconName,
-    required this.appInfo,
-  });
+  const _DockApp({required this.appId, required this.entry});
 }
 
 // Dock widget
@@ -126,70 +62,52 @@ class DockState extends State<Dock> {
     _loadApps(widget.config);
   }
 
+  @override
+  void didUpdateWidget(Dock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A live config edit (e.g. pin/unpin writing to `[modules.dock].apps`)
+    // rebuilds this widget with a fresh DockConfig. Reload only when the pinned
+    // set actually changed so unrelated edits don't thrash the GIO lookups.
+    if (!_sameList(oldWidget.config.apps, widget.config.apps)) {
+      _loadApps(widget.config);
+    }
+  }
+
+  static bool _sameList(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   void _loadApps(DockConfig config) {
     final apps = <_DockApp>[];
     for (final appId in config.apps) {
-      final desktopId = _stringToNative('$appId.desktop');
-      try {
-        final appInfo = _gDesktopAppInfoNew(desktopId);
-        if (appInfo == ffi.nullptr) continue;
-
-        final namePtr = _gAppInfoGetName(appInfo);
-        final name = namePtr != ffi.nullptr ? _nativeToString(namePtr) : appId;
-
-        var iconName = appId;
-        final iconPtr = _gAppInfoGetIcon(appInfo);
-        if (iconPtr != ffi.nullptr) {
-          final iconStr = _gIconToString(iconPtr);
-          if (iconStr != ffi.nullptr) {
-            iconName = _nativeToString(iconStr);
-            _gFree(iconStr.cast());
-          }
-        }
-
-        apps.add(_DockApp(name: name, iconName: iconName, appInfo: appInfo));
-      } finally {
-        _gFree(desktopId.cast());
-      }
+      final entry = loadAppById(appId);
+      if (entry == null) continue;
+      apps.add(_DockApp(appId: appId, entry: entry));
     }
-
+    // Release the previously-resolved GAppInfo pointers before swapping.
+    final previous = _apps;
     setState(() {
       _apps = apps;
     });
+    disposeAppEntries(previous.map((a) => a.entry));
   }
 
   @override
   void dispose() {
-    for (final app in _apps) {
-      _gObjectUnref(app.appInfo);
-    }
+    disposeAppEntries(_apps.map((a) => a.entry));
     super.dispose();
   }
 
-  Widget _fallbackIcon(String name, int size, Color foreground) {
-    return SizedBox(
-      width: size.toDouble(),
-      height: size.toDouble(),
-      child: Center(
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: TextStyle(fontSize: size * 0.6, color: foreground),
-        ),
-      ),
-    );
-  }
-
-  void _launchApp(_DockApp app) {
-    try {
-      _gAppInfoLaunch(app.appInfo, ffi.nullptr, ffi.nullptr, ffi.nullptr);
-    } catch (_) {
-      // Launch failed silently
-    }
-  }
+  void _launch(_DockApp app) => launchApp(app.entry.appInfo);
 
   @override
   Widget build(BuildContext context) {
-    if (_apps.isEmpty) return const SizedBox.shrink();
+    final showDirectory = widget.config.showAppDirectory;
+    if (_apps.isEmpty && !showDirectory) return const SizedBox.shrink();
 
     final size = widget.config.iconSize;
     final foreground = ThemeScope.of(context).foreground;
@@ -197,42 +115,54 @@ class DockState extends State<Dock> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       spacing: 4,
-      children: _apps.map((app) {
-        final Widget icon;
-        if (app.iconName.startsWith('/')) {
-          icon = Image.file(
-            File(app.iconName),
-            width: size.toDouble(),
-            height: size.toDouble(),
-            filterQuality: FilterQuality.medium,
-            errorBuilder: (_, __, ___) =>
-                _fallbackIcon(app.name, size, foreground),
-          );
-        } else {
-          icon = XdgIcon(
-            name: app.iconName,
-            size: size,
-            iconNotFoundBuilder: () =>
-                _fallbackIcon(app.name, size, foreground),
-          );
-        }
-        return _DockButton(
-          appName: app.name,
-          onPressed: () => _launchApp(app),
-          child: icon,
-        );
-      }).toList(),
+      children: [
+        for (final app in _apps)
+          _DockButton(
+            appId: app.appId,
+            appName: app.entry.name,
+            onPressed: () => _launch(app),
+            child: AppIconImage(
+              iconName: app.entry.iconName,
+              name: app.entry.name,
+              size: size,
+              foreground: foreground,
+            ),
+          ),
+        if (showDirectory) ...[
+          _DockDivider(height: size.toDouble()),
+          AppDirectoryButton(iconSize: size),
+        ],
+      ],
+    );
+  }
+}
+
+/// Thin vertical rule separating the pinned apps from the directory button.
+class _DockDivider extends StatelessWidget {
+  const _DockDivider({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: height,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      color: ThemeScope.of(context).divider,
     );
   }
 }
 
 class _DockButton extends StatefulWidget {
   const _DockButton({
+    required this.appId,
     required this.appName,
     required this.onPressed,
     required this.child,
   });
 
+  final String appId;
   final String appName;
   final VoidCallback onPressed;
   final Widget child;
@@ -256,6 +186,46 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       context,
       child: TooltipLabel(text: widget.appName, theme: theme),
       preferredConstraints: const BoxConstraints(maxWidth: 120, maxHeight: 32),
+    );
+  }
+
+  void _openUnpinMenu(BuildContext context) {
+    // Replace any open tooltip with the context menu.
+    closePopup();
+    final theme = ThemeScope.of(context);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      openBarPopup(
+        context,
+        // Loose: the menu sizes to its content (see [ContextMenuCard]).
+        preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
+        child: ThemeScope(
+          theme: theme,
+          child: PopupBounceIn(
+            child: ContextMenuCard(
+              items: [
+                ContextMenuItem(
+                  label: 'Unpin from dock',
+                  onTap: () {
+                    _unpin();
+                    closePopup();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  void _unpin() {
+    final store = ConfigStore.instance;
+    final list = store.getList<String>(['modules', 'dock', 'apps']);
+    if (!list.contains(widget.appId)) return;
+    store.set(
+      ['modules', 'dock', 'apps'],
+      [...list]..remove(widget.appId),
     );
   }
 
@@ -292,6 +262,7 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
           widget.onPressed();
         },
         onTapCancel: () => setState(() => _pressed = false),
+        onSecondaryTapDown: (_) => _openUnpinMenu(context),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           padding: const EdgeInsets.all(4),

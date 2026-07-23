@@ -202,7 +202,7 @@ class PanelConfig {
   const PanelConfig({
     this.name = 'default',
     this.height = 32,
-    this.paddingHorizontal = 12,
+    this.paddingHorizontal = 8,
     this.anchor = 'top',
     this.layer = 'top',
     this.layout = const LayoutConfig(),
@@ -213,7 +213,7 @@ class PanelConfig {
     return PanelConfig(
       name: name,
       height: map['height'] as int? ?? 32,
-      paddingHorizontal: map['padding_horizontal'] as int? ?? 40,
+      paddingHorizontal: map['padding_horizontal'] as int? ?? 8,
       anchor: map['anchor'] as String? ?? 'top',
       layer: map['layer'] as String? ?? 'top',
       layout: LayoutConfig.fromMap(layoutMap),
@@ -370,7 +370,7 @@ class AppConfig {
   static String _buildDefaultConfig(String homeDir) => '''
 [panels.top]
 height = 32
-padding_horizontal = 40
+padding_horizontal = 8
 anchor = "top"
 layer = "top"
 

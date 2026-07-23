@@ -599,6 +599,15 @@ class _ModulesSection extends StatelessWidget {
           ),
         ),
         SettingsRow(
+          label: 'Show app directory',
+          control: SettingsToggle(
+            value: store.get<bool>(['modules', 'dock', 'show_app_directory']) ??
+                true,
+            onChanged: (v) =>
+                store.set(['modules', 'dock', 'show_app_directory'], v),
+          ),
+        ),
+        SettingsRow(
           label: 'Apps',
           alignTop: true,
           control: _StringListEditor(
@@ -894,7 +903,7 @@ class _PanelsSectionState extends State<_PanelsSection> {
           SettingsRow(
             label: 'Horizontal padding',
             control: SettingsNumberField(
-              value: store.get<num>(p(['padding_horizontal'])) ?? 40,
+              value: store.get<num>(p(['padding_horizontal'])) ?? 8,
               isInt: true,
               onChanged: (v) => store.set(p(['padding_horizontal']), v),
             ),
