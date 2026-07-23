@@ -344,6 +344,12 @@ class SessionLockWindowController extends RegularWindowController
     // window instead of a lock surface.
     attachedAsLockSurface = isLockWindow;
 
+    // gtk-layer-shell disables decorations itself in layer_surface_new(); the
+    // gtk-session-lock fork dropped that call, and a decorated GTK3 window
+    // draws its CSD titlebar *inside* the lock surface. Must happen before
+    // realize, like every other bit of surface setup here.
+    gtkWindowSetDecorated(_window.instance.cast(), false);
+
     // Size the window to the monitor before it is ever laid out.
     //
     // gtk-session-lock only constrains the size once the compositor's

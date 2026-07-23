@@ -177,6 +177,20 @@ final _gdkDisplayGetDefault = _process.lookupFunction<
     ffi.Pointer<ffi.Void> Function(),
     ffi.Pointer<ffi.Void> Function()>('gdk_display_get_default');
 
+final _gtkWindowSetDecorated = _process.lookupFunction<
+    ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Int32),
+    void Function(
+        ffi.Pointer<ffi.Void>, int)>('gtk_window_set_decorated');
+
+/// Enables or disables GTK's client-side decorations on [window].
+///
+/// Lock windows must be created undecorated: gtk-layer-shell disables
+/// decorations itself in `layer_surface_new()`, but the gtk-session-lock fork
+/// dropped that call, so an untouched GTK3 window draws its CSD titlebar
+/// *inside* the lock surface.
+void gtkWindowSetDecorated(ffi.Pointer<ffi.Void> window, bool decorated) =>
+    _gtkWindowSetDecorated(window, decorated ? 1 : 0);
+
 final _gdkDisplaySync = _process.lookupFunction<
     ffi.Void Function(ffi.Pointer<ffi.Void>),
     void Function(ffi.Pointer<ffi.Void>)>('gdk_display_sync');

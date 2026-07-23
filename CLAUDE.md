@@ -195,8 +195,9 @@ It depends on `layer_shell` only to reuse the generic GTK/Flutter FFI wrappers a
 | `pam_authenticator.dart` | PAM over `dart:ffi`. |
 | `user_identity.dart` | `getpwuid(getuid())` for the account name PAM needs and the GECOS name the UI shows. |
 
-Four things a change here has to keep true:
+Five things a change here has to keep true:
 
+- **Lock windows are created undecorated, before realize.** gtk-layer-shell calls `gtk_window_set_decorated(FALSE)` itself; the gtk-session-lock fork does not, and a decorated GTK3 window draws its CSD titlebar *inside* the lock surface. `SessionLockWindowController` makes the call explicitly.
 - **Lock windows exist only while locked**, like the OSD windows and unlike the panels — `_GracefulShellRootState` creates one per monitor on request and destroys them on unlock, including for monitors hotplugged mid-lock.
 - **Order teardown as detach → unlock → destroy windows, and unmap the role before each destroy.** Destroying a GTK window while Flutter still renders into its `FlView` is a use-after-free, so the views are detached a frame first. The unlock comes next — `unlockAndDestroy()` syncs with the compositor before anything else is torn down, matching gtk-session-lock's own example. Then, inside `SessionLockWindowController.destroy()`, `gtk_session_lock_unmap_lock_window()` runs before `gtk_widget_destroy()`: GTK destroys the `wl_surface` on unmap but gtk-session-lock only destroys the `ext_session_lock_surface_v1` in the window's finalizer, and Mir answers a surface dying before its role by deleting the role server-side — the finalizer's trailing destroy then hits an unknown object and the compositor kills the connection (`Error 22 dispatching to Wayland display`).
 - **Never unlock on the way out.** `dispose()` drops the lock object without sending an unlock: if the shell is dying while the session is locked, the session must stay locked. The protocol guarantees exactly this — a client that disconnects without `unlock_and_destroy` leaves the session locked.
