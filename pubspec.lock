@@ -204,7 +204,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: "901fe6c2b76dd5905f858354f2d2c4270105025a"
+      resolved-ref: "8fb6439f3a5a99a86538469df3f5f1d45db307fe"
       url: "https://github.com/mattkae/layer_shell.dart.git"
     source: git
     version: "0.1.0"
