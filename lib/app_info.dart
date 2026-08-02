@@ -86,6 +86,59 @@ external int _gAppInfoLaunch(
     ffi.Pointer<ffi.NativeType> context,
     ffi.Pointer<ffi.NativeType> error);
 
+/// `GDesktopAppInfo*` — the ids of the entry's `[Desktop Action …]` groups, as
+/// a NULL-terminated `gchar**`. Owned by the appinfo: read it, never free it.
+@ffi.Native<ffi.Pointer<ffi.Pointer<ffi.Uint8>> Function(
+    ffi.Pointer<ffi.NativeType>)>(symbol: 'g_desktop_app_info_list_actions')
+external ffi.Pointer<ffi.Pointer<ffi.Uint8>> _gDesktopAppInfoListActions(
+    ffi.Pointer<ffi.NativeType> appInfo);
+
+/// The localised display name of one action id. Caller frees the result.
+@ffi.Native<
+    ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.Uint8>)>(symbol: 'g_desktop_app_info_get_action_name')
+external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetActionName(
+    ffi.Pointer<ffi.NativeType> appInfo, ffi.Pointer<ffi.Uint8> action);
+
+/// Launches one action by *id* (not by display name). Returns void — unlike
+/// `g_app_info_launch` there is no GError to inspect.
+@ffi.Native<
+    ffi.Void Function(
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.Uint8>,
+        ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'g_desktop_app_info_launch_action')
+external void _gDesktopAppInfoLaunchAction(
+    ffi.Pointer<ffi.NativeType> appInfo,
+    ffi.Pointer<ffi.Uint8> action,
+    ffi.Pointer<ffi.NativeType> launchContext);
+
+/// `Keywords=` from the desktop entry, NULL-terminated and owned by the
+/// appinfo. What makes searching "browser" find Firefox.
+@ffi.Native<ffi.Pointer<ffi.Pointer<ffi.Uint8>> Function(
+    ffi.Pointer<ffi.NativeType>)>(symbol: 'g_desktop_app_info_get_keywords')
+external ffi.Pointer<ffi.Pointer<ffi.Uint8>> _gDesktopAppInfoGetKeywords(
+    ffi.Pointer<ffi.NativeType> appInfo);
+
+/// `GenericName=` — "Web Browser" for Firefox. May be NULL; owned by the
+/// appinfo.
+@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'g_desktop_app_info_get_generic_name')
+external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetGenericName(
+    ffi.Pointer<ffi.NativeType> appInfo);
+
+/// A `GdkAppLaunchContext*` for the default display, or NULL. Passing one to
+/// `g_app_info_launch` gives the launched app a startup-notification token, so
+/// it wins the focus race against the overlay closing behind it.
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gdk_display_get_app_launch_context')
+external ffi.Pointer<ffi.NativeType> _gdkDisplayGetAppLaunchContext(
+    ffi.Pointer<ffi.NativeType> display);
+
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function()>(
+    symbol: 'gdk_display_get_default')
+external ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefault();
+
 /// Minimal view of GLib's `GList` node: a data pointer and a forward link.
 final class _GList extends ffi.Struct {
   external ffi.Pointer<ffi.NativeType> data;
@@ -115,9 +168,32 @@ String _nativeToString(ffi.Pointer<ffi.Uint8> value) {
   return utf8.decode(value.asTypedList(length));
 }
 
+/// Copies a NULL-terminated `gchar**` into Dart strings. Every `strv` this file
+/// reads is transfer-none, so nothing here is freed.
+List<String> _strvToList(ffi.Pointer<ffi.Pointer<ffi.Uint8>> strv) {
+  if (strv == ffi.nullptr) return const [];
+  final values = <String>[];
+  for (var i = 0; strv[i] != ffi.nullptr; i++) {
+    values.add(_nativeToString(strv[i]));
+  }
+  return values;
+}
+
 // ---------------------------------------------------------------------------
 // Model
 // ---------------------------------------------------------------------------
+
+/// One of an application's alternative launch options — a `[Desktop Action …]`
+/// group, e.g. Firefox's "New Private Window".
+class AppAction {
+  /// The action id, which is what [launchAppAction] takes. Not the label.
+  final String id;
+
+  /// The localised label to show the user.
+  final String name;
+
+  const AppAction({required this.id, required this.name});
+}
 
 /// A resolved installed application. [appInfo] is a live `GAppInfo*` retained
 /// for launching; callers that build [AppEntry]s must unref it when done.
@@ -131,6 +207,15 @@ class AppEntry {
   /// Raw freedesktop `Categories=` values (e.g. `['Network', 'WebBrowser']`).
   final List<String> categories;
 
+  /// `GenericName=` — "Web Browser" — or empty.
+  final String genericName;
+
+  /// `Keywords=` — extra search terms the entry declares.
+  final List<String> keywords;
+
+  /// Alternative launch options, empty for most applications.
+  final List<AppAction> actions;
+
   final ffi.Pointer<ffi.NativeType> appInfo;
 
   const AppEntry({
@@ -139,6 +224,9 @@ class AppEntry {
     required this.iconName,
     required this.categories,
     required this.appInfo,
+    this.genericName = '',
+    this.keywords = const [],
+    this.actions = const [],
   });
 }
 
@@ -217,11 +305,31 @@ AppEntry _entryFromAppInfo(
     }
   }
 
+  final genericPtr = _gDesktopAppInfoGetGenericName(appInfo);
+  final genericName =
+      genericPtr != ffi.nullptr ? _nativeToString(genericPtr) : '';
+
+  final actions = <AppAction>[];
+  for (final actionId in _strvToList(_gDesktopAppInfoListActions(appInfo))) {
+    final namePtr = _stringToNative(actionId);
+    try {
+      final labelPtr = _gDesktopAppInfoGetActionName(appInfo, namePtr);
+      if (labelPtr == ffi.nullptr) continue;
+      actions.add(AppAction(id: actionId, name: _nativeToString(labelPtr)));
+      _gFree(labelPtr.cast());
+    } finally {
+      _gFree(namePtr.cast());
+    }
+  }
+
   return AppEntry(
     id: id,
     name: name,
     iconName: iconName,
     categories: categories,
+    genericName: genericName,
+    keywords: _strvToList(_gDesktopAppInfoGetKeywords(appInfo)),
+    actions: actions,
     appInfo: appInfo,
   );
 }
@@ -233,12 +341,47 @@ void disposeAppEntries(Iterable<AppEntry> entries) {
   }
 }
 
+/// A `GdkAppLaunchContext*` for the default display, or NULL if there isn't
+/// one. The caller owns it and must unref it.
+///
+/// Worth the extra call: without a launch context the launched application has
+/// no startup-notification token, and a shell surface closing in the same frame
+/// can win the focus race against it.
+ffi.Pointer<ffi.NativeType> _launchContext() {
+  try {
+    final display = _gdkDisplayGetDefault();
+    if (display == ffi.nullptr) return ffi.nullptr;
+    return _gdkDisplayGetAppLaunchContext(display);
+  } catch (_) {
+    return ffi.nullptr;
+  }
+}
+
 /// Launches [appInfo] (a `GAppInfo*`), swallowing any error.
 void launchApp(ffi.Pointer<ffi.NativeType> appInfo) {
+  final context = _launchContext();
   try {
-    _gAppInfoLaunch(appInfo, ffi.nullptr, ffi.nullptr, ffi.nullptr);
+    _gAppInfoLaunch(appInfo, ffi.nullptr, context, ffi.nullptr);
   } catch (_) {
     // Launch failed — nothing useful to surface from here.
+  } finally {
+    if (context != ffi.nullptr) _gObjectUnref(context);
+  }
+}
+
+/// Launches one of [appInfo]'s alternative launch options by [actionId] (an
+/// [AppAction.id], not its label), swallowing any error.
+void launchAppAction(
+    ffi.Pointer<ffi.NativeType> appInfo, String actionId) {
+  final action = _stringToNative(actionId);
+  final context = _launchContext();
+  try {
+    _gDesktopAppInfoLaunchAction(appInfo, action, context);
+  } catch (_) {
+    // Same posture as launchApp: there is nothing useful to report.
+  } finally {
+    if (context != ffi.nullptr) _gObjectUnref(context);
+    _gFree(action.cast());
   }
 }
 

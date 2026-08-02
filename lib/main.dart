@@ -2,6 +2,7 @@ import 'dart:async';
 // ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: implementation_imports
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/miracle_manager.dart';
@@ -9,6 +10,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/monitor_watcher.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/dock.dart';
+import 'package:graceful_shell/modules/launcher.dart';
 import 'package:graceful_shell/modules/sound_control.dart';
 import 'package:graceful_shell/modules/clock.dart';
 import 'package:graceful_shell/modules/media_player.dart';
@@ -21,6 +23,9 @@ import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
+import 'package:graceful_shell/launcher/app_index.dart';
+import 'package:graceful_shell/launcher/launcher_controller.dart';
+import 'package:graceful_shell/launcher/launcher_overlay.dart';
 import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/lock/lock_screen.dart';
 import 'package:graceful_shell/notification_service.dart';
@@ -56,6 +61,7 @@ void main() async {
   Module.register(NetworkModule());
   Module.register(SystemModule());
   Module.register(SystemTrayModule());
+  Module.register(LauncherModule());
 
   // AppConfig.load() writes the default config on first run and applies the
   // module subtables; the shared ConfigStore then reads that same file and
@@ -75,6 +81,9 @@ void main() async {
   // Configures the system stats store, but does not start it polling — the
   // first lease (the bar module, or the monitor tab being opened) does that.
   startSystemStatsService();
+  // Enumerates installed applications now, while nothing is on screen, so the
+  // launcher can paint the instant its shortcut fires.
+  startAppIndexService();
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.
@@ -245,6 +254,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// to play its exit animation and then call back into [_onSettingsClosed].
   final ValueNotifier<bool> _settingsClosing = ValueNotifier(false);
 
+  /// The application launcher's window, shaped exactly like [_settings]: one
+  /// instance, keyboard-focusing, non-null exactly while it is on screen.
+  LayershellWindowController? _launcher;
+
+  /// Drives [LauncherOverlay]'s fade-out, as [_settingsClosing] does for the
+  /// settings overlay.
+  final ValueNotifier<bool> _launcherClosing = ValueNotifier(false);
+
   /// The `ext-session-lock-v1` lock, non-null exactly while the session is
   /// locked. Owned here rather than by the module that offers the Lock button
   /// because the lock spans every monitor and outlives any one panel.
@@ -274,6 +291,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     widget.outputs.addListener(_onOutputsChanged);
     OsdStore.instance.addListener(_onOsdChanged);
     InputTriggerStore.instance.addListener(_onSettingsTriggered);
+    LauncherController.instance.addListener(_onLauncherTriggered);
     LockController.instance.addListener(_onLockRequested);
 
     for (final monitor in listMonitors()) {
@@ -391,8 +409,62 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       // SettingsOverlay plays its fade-out then calls _onSettingsClosed.
       _settingsClosing.value = true;
     } else {
+      // Two stacked focus-taking overlay surfaces have no defined focus order,
+      // so the one already up steps aside.
+      if (_launcher != null) _launcherClosing.value = true;
       _openSettings();
     }
+  }
+
+  /// The launcher was asked for, by its shortcut or by the bar module. Toggles
+  /// the same way the settings overlay does.
+  void _onLauncherTriggered() {
+    if (!mounted) return;
+    if (_launcher != null) {
+      _launcherClosing.value = true;
+    } else {
+      if (_settings != null) _settingsClosing.value = true;
+      _openLauncher();
+    }
+  }
+
+  /// Opens the launcher as a full-screen overlay-layer window.
+  ///
+  /// Unlike [_openSettings] this passes no monitor: with no `wl_output` on the
+  /// layer surface the compositor picks, and miracle places shell surfaces on
+  /// its focused output — which it retargets whenever the pointer crosses a
+  /// monitor boundary. So the launcher appears where the user is looking.
+  ///
+  /// `onDemand` keyboard mode is enough for the search field to be typeable
+  /// immediately, because miracle focuses every layer-shell window it maps.
+  void _openLauncher() {
+    _launcherClosing.value = false;
+    // The rows hold GAppInfo pointers, so hold off any index rebuild until the
+    // launcher is gone.
+    AppIndex.instance.acquire();
+    _launcher = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+    );
+    setState(() {});
+  }
+
+  /// Called by [LauncherOverlay] once it is finished with its window — after
+  /// the fade-out, or immediately when an application was launched.
+  void _onLauncherClosed() {
+    if (!mounted) return;
+    final removed = _launcher;
+    if (removed == null) return;
+    _launcher = null;
+    AppIndex.instance.release();
+    setState(() {});
+    _destroyAfterFrame([removed]);
   }
 
   /// Opens the settings overlay as a single full-monitor layer-shell window on
@@ -682,6 +754,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     widget.outputs.removeListener(_onOutputsChanged);
     OsdStore.instance.removeListener(_onOsdChanged);
     InputTriggerStore.instance.removeListener(_onSettingsTriggered);
+    LauncherController.instance.removeListener(_onLauncherTriggered);
     LockController.instance.removeListener(_onLockRequested);
     _monitorWatcher.dispose();
     // Drop the lock windows, but never send an unlock on the way out: if the
@@ -708,6 +781,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _settings?.destroy();
     _settings = null;
     _settingsClosing.dispose();
+    _launcher?.destroy();
+    _launcher = null;
+    _launcherClosing.dispose();
     super.dispose();
   }
 
@@ -806,6 +882,24 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               child: SettingsOverlay(
                 closingNotifier: _settingsClosing,
                 onClosed: _onSettingsClosed,
+              ),
+            ),
+          ),
+        // The application launcher. Like the settings overlay it is a single
+        // window rather than one per monitor, so it lives outside the loop.
+        if (_launcher case final launcher?)
+          LayerShellWindow(
+            key: ObjectKey(launcher),
+            controller: launcher,
+            child: ThemeScope(
+              theme: _liveConfig.theme,
+              child: LauncherOverlay(
+                closingNotifier: _launcherClosing,
+                onClosed: _onLauncherClosed,
+                apps: AppIndex.instance.searchable,
+                onLaunch: (app) => launchApp(app.appInfo),
+                onLaunchAction: (app, action) =>
+                    launchAppAction(app.appInfo, action.id),
               ),
             ),
           ),

@@ -358,6 +358,10 @@ class LockConfig {
 const ShortcutSpec kDefaultOpenSettings =
     ShortcutSpec(modifiers: 0x108, keysym: 0x53);
 
+/// Ctrl+Space.
+const ShortcutSpec kDefaultOpenLauncher =
+    ShortcutSpec(modifiers: 0x100, keysym: 0x20);
+
 /// The compositor-level shortcuts the shell registers at start-up.
 ///
 /// A null field means the shortcut is *disabled* (the user wrote `""`), which
@@ -370,15 +374,18 @@ const ShortcutSpec kDefaultOpenSettings =
 /// "restart to apply" banner tells the truth.
 class ShortcutsConfig {
   final ShortcutSpec? openSettings;
+  final ShortcutSpec? openLauncher;
 
   const ShortcutsConfig({
     this.openSettings = kDefaultOpenSettings,
+    this.openLauncher = kDefaultOpenLauncher,
   });
 
   factory ShortcutsConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ShortcutsConfig();
     return ShortcutsConfig(
       openSettings: _read(map, 'open_settings', kDefaultOpenSettings),
+      openLauncher: _read(map, 'open_launcher', kDefaultOpenLauncher),
     );
   }
 
@@ -446,7 +453,7 @@ layer = "top"
 
 [panels.bottom.layout]
 center = ["dock"]
-right = ["media_player"]
+right = ["media_player", "launcher"]
 
 [modules.dock]
 apps = ["firefox_firefox", "org.gnome.Ptyxis", "org.gnome.Nautilus"]
@@ -489,6 +496,7 @@ blur_sigma = 18.0
 
 [shortcuts]
 open_settings = "ctrl+shift+s"
+open_launcher = "ctrl+space"
 ''';
 
   /// Resolves the absolute path to `config.toml`, honouring

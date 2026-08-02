@@ -183,6 +183,42 @@ poll_seconds = 10
 | -------------- | ---- | ------- | --------------------------------------------------- |
 | `poll_seconds` | int  | `10`    | How often to re-check network status (seconds)      |
 
+### Launcher
+
+A magnifying-glass button that opens the application launcher — the same overlay the `open_launcher` shortcut opens (see [Shortcuts](#shortcuts)), and only ever one of them at a time.
+
+```toml
+[modules.launcher]
+icon_size = 18
+```
+
+| Key         | Type | Default | Description                             |
+| ----------- | ---- | ------- | --------------------------------------- |
+| `icon_size` | int  | `18`    | Icon size in pixels                     |
+
+The launcher itself lists every installed application, ranks them as you type (matching the name, generic name, `Keywords=`, and desktop ID, in that order of preference), and launches the selected one with Enter. Applications that declare `[Desktop Action …]` groups — "New Private Window", "New Document" — show a chevron; hovering it, or pressing Right with the caret at the end of your query, opens those as a submenu.
+
+Typing a calculation shows its result above the application results:
+
+```
+2^10/4      →  256
+(1+2)*3     →  9
+sqrt(16)+1  →  5
+```
+
+`+ - * / ^ % !`, parentheses, and the usual functions (`sqrt`, `sin`, `cos`, `tan`, `ln`, `log`, `abs`, `ceil`, `floor`, …) are understood, along with the constants `pi` and `e`. A query has to contain both a digit and an operator to be treated as arithmetic, so searching for an application never turns into a calculation.
+
+Escape or a click on the blurred backdrop dismisses the launcher.
+
+**This module is in the default bottom panel, but adding it to an existing config is manual** — the default config file is only written when none exists. Add `"launcher"` to a panel's layout:
+
+```toml
+[panels.bottom.layout]
+right = ["media_player", "launcher"]
+```
+
+The launcher lists the same applications any menu would: those `g_app_info_should_show()` accepts. An entry with `NoDisplay=true`, or one restricted with `OnlyShowIn=GNOME;`, will not appear.
+
 ### Sound Control
 
 No configurable settings.
@@ -225,11 +261,13 @@ The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are
 ```toml
 [shortcuts]
 open_settings = "ctrl+shift+s"
+open_launcher = "ctrl+space"
 ```
 
-| Key             | Type   | Default            | Description                              |
-| --------------- | ------ | ------------------ | ---------------------------------------- |
-| `open_settings` | string | `"ctrl+shift+s"`   | Opens (and closes) the settings overlay  |
+| Key             | Type   | Default            | Description                                    |
+| --------------- | ------ | ------------------ | ---------------------------------------------- |
+| `open_settings` | string | `"ctrl+shift+s"`   | Opens (and closes) the settings overlay        |
+| `open_launcher` | string | `"ctrl+space"`     | Opens (and closes) the application launcher    |
 
 **Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
 
@@ -511,7 +549,7 @@ layer = "top"
 [panels.bottom.layout]
 left   = []
 center = []
-right  = ["clock"]
+right  = ["clock", "launcher"]
 
 [modules.weather]
 unit = "fahrenheit"
@@ -532,6 +570,7 @@ icon_size = 24
 
 [shortcuts]
 open_settings = "ctrl+shift+s"
+open_launcher = "ctrl+space"
 
 [theme]
 foreground          = "#E0E0E0"

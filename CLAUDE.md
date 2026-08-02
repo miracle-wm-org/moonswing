@@ -174,6 +174,26 @@ Four things a change here has to keep true:
 
 `lib/overlay/system/` is the tab: `system_tab.dart` (Overview / Processes sub-tabs, and the lease), `overview_page.dart`, `process_table.dart` (sort, filter, kill), `kill_confirm.dart`, `time_series_chart.dart` (a `CustomPainter` area chart — there is no charting package), and `stat_tile.dart`. `lib/usage_bar.dart` holds the fill bar both the tab and the bar module's popup use.
 
+### Application launcher (`lib/launcher/`, `lib/modules/launcher.dart`)
+
+A centred search card on a full-screen overlay layer-shell window, opened by `Ctrl+Space` (configurable under `[shortcuts]`) or by the magnifier bar module. It searches installed applications, offers each one's desktop-entry *Actions* in a flyout, and evaluates a typed mathematical expression into a row above the results.
+
+| File | Responsibility |
+|------|----------------|
+| `launcher_controller.dart` | `LauncherController.instance` — the seam between the two entry points and `_GracefulShellRootState`, which owns the window. Same shape as `LockController`. Deliberately *not* `InputTriggerStore`: that store reports compositor triggers and its listener toggles on any notification, so a second signal there would open the settings overlay instead. |
+| `app_index.dart` | `AppIndex.instance` + `startAppIndexService()` — the process-wide app list, built at start-up and refreshed from a `GAppInfoMonitor` "changed" signal (the `MonitorWatcher` pattern). |
+| `app_search.dart` | Pure ranking: exact > prefix > word-start > substring, weighted name > generic name > keywords > id. `SearchableApp` folds case once at index-build time. |
+| `expression.dart` | The calculator, over `math_expressions`. `looksLikeExpression` is the load-bearing half — without it `e`, `pi`, and `42` all "evaluate". |
+| `launcher_overlay.dart` | The card. Takes its app list and launch callbacks as parameters, so widget tests never touch GIO. |
+
+Five things a change here has to keep true:
+
+- **The window is created with no `monitor:`.** `layer_shell` then omits the `wl_output`, and miracle places shell surfaces on its *focused* output, which it retargets whenever the pointer crosses a monitor boundary — so the launcher appears where the user is. `_openSettings` does the opposite and pins to the first monitor.
+- **Clicking the backdrop must dismiss.** The shell has no input-region support, so this surface swallows every click on the monitor, including the bar button that opened it. Without dismiss-on-backdrop a mouse-only user has no way out.
+- **`Focus` nests *inside* `DefaultTextEditingShortcuts`.** Key events propagate upwards from the focused node, so the lower handler gets first refusal — that is what lets Up/Down/Enter/Escape win while Backspace and the arrows still edit text. Right only opens the flyout when the caret is collapsed at end-of-text, or it would make the caret unmovable.
+- **The actions flyout is a `Stack` child, not an `OverlayPortal`.** Rows have a fixed `itemExtent`, so its position is arithmetic against the scroll offset. An `Overlay`'s entries do not rebuild on `setState` (see `overlay/overlay.dart`), which would be a trap for content that changes on every keystroke.
+- **`AppIndex` does not share its `AppEntry`s with `modules/app_directory.dart`.** That widget unrefs its own list in `dispose`; sharing would unref `GAppInfo*`s the index still holds. For the same reason the root brackets the launcher's lifetime with `acquire()`/`release()`, which defers a refresh while rows are on screen.
+
 ### Background window (`lib/background.dart`)
 
 Renders a full-screen wallpaper with time-of-day scheduling and crossfade transitions using `media_kit` for video support. One background window is created per monitor.

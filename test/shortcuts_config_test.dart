@@ -7,11 +7,22 @@ void main() {
     test('an absent section keeps the built-in defaults', () {
       final config = ShortcutsConfig.fromMap(null);
       expect(config.openSettings, kDefaultOpenSettings);
+      expect(config.openLauncher, kDefaultOpenLauncher);
     });
 
     test('an absent key keeps its default', () {
       final config = ShortcutsConfig.fromMap(<String, dynamic>{});
       expect(config.openSettings, kDefaultOpenSettings);
+      expect(config.openLauncher, kDefaultOpenLauncher);
+    });
+
+    test('a typo in one key leaves the other alone', () {
+      final config = ShortcutsConfig.fromMap({
+        'open_settings': 'ctrl+nosuchkey',
+        'open_launcher': 'super+space',
+      });
+      expect(config.openSettings, kDefaultOpenSettings);
+      expect(config.openLauncher, parseShortcut('super+space'));
     });
 
     test('a valid string is parsed', () {

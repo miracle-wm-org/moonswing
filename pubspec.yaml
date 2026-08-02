@@ -4,8 +4,9 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  # dart:ffi NativeCallable (monitor_watcher, lock/pam_authenticator) needs 3.1.0.
-  sdk: ^3.1.0
+  # dart:ffi NativeCallable (monitor_watcher, lock/pam_authenticator) needs 3.1.0;
+  # math_expressions 3.2 (the launcher's calculator) raises the floor to 3.8.
+  sdk: ^3.8.0
 
 dependencies:
   flutter:
@@ -29,6 +30,9 @@ dependencies:
   pulseaudio: ^0.0.8
   ffi: ^2.1.3
   toml: ^0.18.0
+  # 3.2.0 is the only line compatible with toml's petitparser ^7; the 3.0.x
+  # line pins petitparser ^6. It is also what raises the SDK floor above.
+  math_expressions: ^3.2.0
   xdg_icons: ^0.1.2
   media_kit: ^1.1.11
   media_kit_video: ^1.2.5

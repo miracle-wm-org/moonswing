@@ -3,6 +3,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
+import 'package:graceful_shell/launcher/launcher_controller.dart';
 import 'package:wayland/wayland.dart';
 
 /// One global shortcut: a key combination and what it does when the compositor
@@ -41,6 +42,11 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
       'graceful-shell.open-settings',
       config.openSettings,
       InputTriggerStore.instance.triggerSettings,
+    ),
+    (
+      'graceful-shell.open-launcher',
+      config.openLauncher,
+      LauncherController.instance.toggle,
     ),
   ];
 

@@ -8,8 +8,7 @@ void main() {
       // If these two ever diverge, every shortcut silently registers the wrong
       // key — the defaults are const and cannot call the parser themselves.
       expect(parseShortcut('ctrl+shift+s'), kDefaultOpenSettings);
-      expect(parseShortcut('ctrl+space'),
-          const ShortcutSpec(modifiers: 0x100, keysym: 0x20));
+      expect(parseShortcut('ctrl+space'), kDefaultOpenLauncher);
     });
 
     test('shift resolves a letter to its shifted keysym', () {

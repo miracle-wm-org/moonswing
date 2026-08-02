@@ -186,26 +186,62 @@ void main() {
   });
 
   group('inputShortcutsFor', () {
-    test('the default config yields the settings shortcut, shift-resolved', () {
+    InputShortcut named(List<InputShortcut> shortcuts, String name) =>
+        shortcuts.firstWhere((s) => s.name == name);
+
+    test('the default config yields both shortcuts, under distinct names', () {
       final shortcuts = inputShortcutsFor(const ShortcutsConfig());
 
-      expect(shortcuts, hasLength(1));
-      expect(shortcuts.single.name, 'graceful-shell.open-settings');
-      expect(shortcuts.single.modifiers,
+      expect(shortcuts.map((s) => s.name).toSet(), {
+        'graceful-shell.open-settings',
+        'graceful-shell.open-launcher',
+      });
+    });
+
+    test('the default settings shortcut is shift-resolved', () {
+      final settings = named(inputShortcutsFor(const ShortcutsConfig()),
+          'graceful-shell.open-settings');
+
+      expect(settings.modifiers,
           InputTriggerModifiers.ctrl | InputTriggerModifiers.shift);
       // Not 0x73: Mir matches the resolved character, so Shift+s is `S`.
-      expect(shortcuts.single.keysym, InputTriggerKeysyms.capitalS);
+      expect(settings.keysym, InputTriggerKeysyms.capitalS);
+    });
+
+    test('the default launcher shortcut is Ctrl+Space', () {
+      final launcher = named(inputShortcutsFor(const ShortcutsConfig()),
+          'graceful-shell.open-launcher');
+
+      expect(launcher.modifiers, InputTriggerModifiers.ctrl);
+      expect(launcher.keysym, 0x20);
     });
 
     test('a disabled shortcut is not registered at all', () {
-      final shortcuts =
-          inputShortcutsFor(const ShortcutsConfig(openSettings: null));
+      final shortcuts = inputShortcutsFor(
+          const ShortcutsConfig(openSettings: null, openLauncher: null));
       expect(shortcuts, isEmpty);
+
+      final onlyLauncher =
+          inputShortcutsFor(const ShortcutsConfig(openSettings: null));
+      expect(onlyLauncher.single.name, 'graceful-shell.open-launcher');
+    });
+
+    test('two shortcuts on the same combination collapse to the first', () {
+      // Registering the second would come back `failed`, which the service
+      // logs as "owned by another client" — a lie about the shell's own config.
+      final shortcuts = inputShortcutsFor(ShortcutsConfig(
+        openSettings: parseShortcut('ctrl+space'),
+        openLauncher: parseShortcut('ctrl+space'),
+      ));
+
+      expect(shortcuts.single.name, 'graceful-shell.open-settings');
     });
 
     test('a code: shortcut registers as a keycode', () {
       final shortcuts = inputShortcutsFor(ShortcutsConfig(
-          openSettings: parseShortcut('ctrl+code:31')));
+        openSettings: parseShortcut('ctrl+code:31'),
+        openLauncher: null,
+      ));
       expect(shortcuts.single.spec.isKeycode, isTrue);
       expect(shortcuts.single.keysym, 31);
     });
