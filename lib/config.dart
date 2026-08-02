@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:toml/toml.dart';
+import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/module.dart';
 
 enum BackgroundFit {
@@ -350,6 +352,61 @@ class LockConfig {
   }
 }
 
+/// Ctrl+Shift+S. The shifted keysym (`S`, not `s`) is what Mir matches on —
+/// see [parseShortcut]. Spelled numerically because a const field cannot call a
+/// function; `test/shortcut_parse_test.dart` asserts the two agree.
+const ShortcutSpec kDefaultOpenSettings =
+    ShortcutSpec(modifiers: 0x108, keysym: 0x53);
+
+/// The compositor-level shortcuts the shell registers at start-up.
+///
+/// A null field means the shortcut is *disabled* (the user wrote `""`), which
+/// is distinct from the key being absent — absent falls back to the default.
+///
+/// Registration latches on the first successful handshake
+/// (`InputTriggerManager._registered`), so these are read once from the startup
+/// snapshot and editing them needs a restart. If the settings UI ever grows a
+/// shortcut editor, add `shortcuts` to `ConfigStore._restartSignature()` so the
+/// "restart to apply" banner tells the truth.
+class ShortcutsConfig {
+  final ShortcutSpec? openSettings;
+
+  const ShortcutsConfig({
+    this.openSettings = kDefaultOpenSettings,
+  });
+
+  factory ShortcutsConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const ShortcutsConfig();
+    return ShortcutsConfig(
+      openSettings: _read(map, 'open_settings', kDefaultOpenSettings),
+    );
+  }
+
+  /// Reads one shortcut, falling back to [fallback] on anything unusable. Each
+  /// key is read independently so a typo in one does not disable the other —
+  /// and, like every other config class here, a wrongly-typed value is tested
+  /// for rather than cast, because a throw would discard the whole config.
+  static ShortcutSpec? _read(
+      Map<String, dynamic> map, String key, ShortcutSpec fallback) {
+    if (!map.containsKey(key)) return fallback;
+    final raw = map[key];
+    if (raw is! String) {
+      debugPrint('config: [shortcuts].$key is not a string; using the default');
+      return fallback;
+    }
+    final trimmed = raw.trim().toLowerCase();
+    // An explicit empty string (or "none") disables the shortcut entirely.
+    if (trimmed.isEmpty || trimmed == 'none') return null;
+    final spec = parseShortcut(raw);
+    if (spec == null) {
+      debugPrint('config: [shortcuts].$key ("$raw") is not a shortcut the '
+          'shell understands; using the default');
+      return fallback;
+    }
+    return spec;
+  }
+}
+
 class AppConfig {
   final Map<String, PanelConfig> panels;
   final BackgroundConfig? background;
@@ -357,6 +414,7 @@ class AppConfig {
   final CalendarConfig calendar;
   final OsdConfig osd;
   final LockConfig lock;
+  final ShortcutsConfig shortcuts;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
@@ -365,6 +423,7 @@ class AppConfig {
     this.calendar = const CalendarConfig(),
     this.osd = const OsdConfig(),
     this.lock = const LockConfig(),
+    this.shortcuts = const ShortcutsConfig(),
   });
 
   static String _buildDefaultConfig(String homeDir) => '''
@@ -427,6 +486,9 @@ background = "$homeDir/.local/share/graceful-shell/lock-wallpaper.jpg"
 fit = "fill"
 show_username = true
 blur_sigma = 18.0
+
+[shortcuts]
+open_settings = "ctrl+shift+s"
 ''';
 
   /// Resolves the absolute path to `config.toml`, honouring
@@ -496,6 +558,7 @@ blur_sigma = 18.0
     final calendarMap = map['calendar'] as Map<String, dynamic>?;
     final osdMap = map['osd'] as Map<String, dynamic>?;
     final lockMap = map['lock'] as Map<String, dynamic>?;
+    final shortcutsMap = map['shortcuts'] as Map<String, dynamic>?;
 
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
@@ -504,6 +567,7 @@ blur_sigma = 18.0
       calendar: CalendarConfig.fromMap(calendarMap),
       osd: OsdConfig.fromMap(osdMap),
       lock: LockConfig.fromMap(lockMap),
+      shortcuts: ShortcutsConfig.fromMap(shortcutsMap),
     );
   }
 }

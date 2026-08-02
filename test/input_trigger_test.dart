@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
+import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:wayland/wayland.dart';
 
 /// Builds an event payload the way the compositor would, so decoding is tested
@@ -183,6 +185,32 @@ void main() {
     });
   });
 
+  group('inputShortcutsFor', () {
+    test('the default config yields the settings shortcut, shift-resolved', () {
+      final shortcuts = inputShortcutsFor(const ShortcutsConfig());
+
+      expect(shortcuts, hasLength(1));
+      expect(shortcuts.single.name, 'graceful-shell.open-settings');
+      expect(shortcuts.single.modifiers,
+          InputTriggerModifiers.ctrl | InputTriggerModifiers.shift);
+      // Not 0x73: Mir matches the resolved character, so Shift+s is `S`.
+      expect(shortcuts.single.keysym, InputTriggerKeysyms.capitalS);
+    });
+
+    test('a disabled shortcut is not registered at all', () {
+      final shortcuts =
+          inputShortcutsFor(const ShortcutsConfig(openSettings: null));
+      expect(shortcuts, isEmpty);
+    });
+
+    test('a code: shortcut registers as a keycode', () {
+      final shortcuts = inputShortcutsFor(ShortcutsConfig(
+          openSettings: parseShortcut('ctrl+code:31')));
+      expect(shortcuts.single.spec.isKeycode, isTrue);
+      expect(shortcuts.single.keysym, 31);
+    });
+  });
+
   group('InputTriggerManager.handleGlobal', () {
     test('registers only once both managers are bound', () {
       final client = WaylandClient();
@@ -192,8 +220,10 @@ void main() {
         shortcuts: [
           InputShortcut(
             name: 'test',
-            modifiers: InputTriggerModifiers.ctrl,
-            keysym: InputTriggerKeysyms.s,
+            spec: const ShortcutSpec(
+              modifiers: InputTriggerModifiers.ctrl,
+              keysym: InputTriggerKeysyms.s,
+            ),
             onActivate: () {},
           ),
         ],

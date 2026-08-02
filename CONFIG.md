@@ -218,6 +218,63 @@ Nothing is read until something needs it: the shell only samples `/proc` while t
 
 Two processes can never be killed from here, whatever the config says: the shell itself, and `init`.
 
+## Shortcuts
+
+The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are registered with the compositor (Mir's `ext-input-trigger` protocols), so they fire no matter which window has focus.
+
+```toml
+[shortcuts]
+open_settings = "ctrl+shift+s"
+```
+
+| Key             | Type   | Default            | Description                              |
+| --------------- | ------ | ------------------ | ---------------------------------------- |
+| `open_settings` | string | `"ctrl+shift+s"`   | Opens (and closes) the settings overlay  |
+
+**Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
+
+### Syntax
+
+A shortcut is modifiers and a key joined by `+`, in any case:
+
+| Part      | Accepted spellings                                    |
+| --------- | ----------------------------------------------------- |
+| Modifiers | `ctrl` / `control`, `shift`, `alt`, `super` / `meta` / `win` / `logo` |
+| Key       | a letter `a`–`z`, a digit `0`–`9`, `f1`–`f24`, or a named key |
+
+Named keys: `space`, `return` / `enter`, `tab`, `escape` / `esc`, `backspace`, `delete` / `del`, `insert`, `home`, `end`, `pageup`, `pagedown`, `left`, `right`, `up`, `down`, `print`, `pause`, `menu`, and the punctuation names `minus`, `equal`, `plus`, `comma`, `period`, `slash`, `backslash`, `semicolon`, `apostrophe`, `grave`, `bracketleft`, `bracketright`.
+
+Left/right modifier variants are deliberately not offered: a trigger fires only when *exactly* the registered modifiers are held, so binding the left Control key would stop the shortcut working on the right one.
+
+**Shift must be written out.** `"ctrl+S"` means Ctrl and the S key — it is read identically to `"ctrl+s"`. Write `"ctrl+shift+s"` if you want Shift in the combination.
+
+### Layouts
+
+The compositor matches on the character your layout actually produces, so a shortcut containing `shift` is resolved before it is registered: `"ctrl+shift+s"` registers `S`, and `"ctrl+shift+1"` registers `!`. That resolution uses a **US layout** table. On other layouts, shifted digits and punctuation will be wrong — letters are fine everywhere.
+
+Two escape hatches cover the rest:
+
+```toml
+[shortcuts]
+open_settings = "ctrl+0x1b"      # a raw xkbcommon keysym
+open_settings = "ctrl+code:31"   # a raw evdev keycode — layout-independent
+```
+
+The `code:` form binds the physical key, so it keeps working when you switch layouts.
+
+### Disabling a shortcut
+
+Set it to an empty string (or `"none"`) to register nothing — useful when a combination collides with an input method such as fcitx or IBus:
+
+```toml
+[shortcuts]
+open_settings = ""
+```
+
+An unparseable value is not treated as "disabled": it falls back to the default and logs why, so a typo does not silently cost you a shortcut.
+
+If another client already owns a combination, the shell logs it and moves on — it never fails to start over a shortcut.
+
 ## Theme
 
 The `[theme]` section controls the color palette used across all panels and modules. All fields are optional — omitting the section entirely uses the built-in defaults.
@@ -472,6 +529,9 @@ max_text_width = 200.0
 [modules.dock]
 apps = ["firefox", "org.gnome.Nautilus", "kitty"]
 icon_size = 24
+
+[shortcuts]
+open_settings = "ctrl+shift+s"
 
 [theme]
 foreground          = "#E0E0E0"

@@ -84,11 +84,13 @@ void main() async {
   final WaylandClient waylandClient = WaylandClient();
   await waylandClient.connect();
 
-  // Registers the shell's global shortcuts (e.g. Ctrl+Shift+S to open settings)
-  // with the compositor via the ext-input-trigger protocols. It binds its
-  // globals from the same registry callback below; on a compositor that lacks
-  // them nothing is bound and the shell is unaffected.
-  final inputTriggers = startInputTriggerService(waylandClient);
+  // Registers the shell's global shortcuts (Ctrl+Shift+S to open settings by
+  // default, configurable under `[shortcuts]`) with the compositor via the
+  // ext-input-trigger protocols. It binds its globals from the same registry
+  // callback below; on a compositor that lacks them nothing is bound and the
+  // shell is unaffected.
+  final inputTriggers =
+      startInputTriggerService(waylandClient, shortcuts: appConfig.shortcuts);
 
   // Live registry of outputs, kept current as monitors are plugged in and out.
   // The registry callbacks below stay connected for the lifetime of the client,

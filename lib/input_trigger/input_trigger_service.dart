@@ -1,16 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
+import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:wayland/wayland.dart';
 
-/// One built-in global shortcut: a modifier+keysym combination and what it does
-/// when the compositor reports it firing.
+/// One global shortcut: a key combination and what it does when the compositor
+/// reports it firing.
 @immutable
 class InputShortcut {
   const InputShortcut({
     required this.name,
-    required this.modifiers,
-    required this.keysym,
+    required this.spec,
     required this.onActivate,
   });
 
@@ -18,28 +19,54 @@ class InputShortcut {
   /// be duplicated across actions.
   final String name;
 
-  /// Modifier bitfield ([InputTriggerModifiers]).
-  final int modifiers;
-
-  /// `xkbcommon` keysym, the shift-resolved character ([InputTriggerKeysyms]).
-  final int keysym;
+  /// The combination to register.
+  final ShortcutSpec spec;
 
   /// Run when the compositor reports the trigger's `begin`.
   final VoidCallback onActivate;
+
+  int get modifiers => spec.modifiers;
+  int get keysym => spec.keysym;
 }
 
-/// The shell's built-in shortcuts. A list so making it config-driven (a
-/// `[shortcuts]` TOML section) later is additive.
-List<InputShortcut> defaultInputShortcuts() => [
-      InputShortcut(
-        name: 'graceful-shell.open-settings',
-        modifiers: InputTriggerModifiers.ctrl | InputTriggerModifiers.shift,
-        // Shift-resolved keysym: holding Shift turns the `s` key into `S`, and
-        // Mir matches on the resolved character (see [InputTriggerKeysyms]).
-        keysym: InputTriggerKeysyms.capitalS,
-        onActivate: InputTriggerStore.instance.triggerSettings,
-      ),
-    ];
+/// Turns the user's `[shortcuts]` config into the list the manager registers.
+///
+/// Disabled shortcuts (a null spec) are dropped, and two shortcuts that resolve
+/// to the same combination are collapsed to the first — otherwise the second
+/// registration would come back `failed` and be logged as "owned by another
+/// client", which would be a lie about the shell's own config.
+List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
+  final wanted = <(String, ShortcutSpec?, VoidCallback)>[
+    (
+      'graceful-shell.open-settings',
+      config.openSettings,
+      InputTriggerStore.instance.triggerSettings,
+    ),
+  ];
+
+  final shortcuts = <InputShortcut>[];
+  final seen = <ShortcutSpec, String>{};
+  for (final (name, spec, onActivate) in wanted) {
+    if (spec == null) {
+      debugPrint('input-trigger: "$name" is disabled by config');
+      continue;
+    }
+    final owner = seen[spec];
+    if (owner != null) {
+      debugPrint('input-trigger: "$name" is configured to the same combination '
+          'as "$owner"; only "$owner" is registered');
+      continue;
+    }
+    seen[spec] = name;
+    shortcuts.add(
+        InputShortcut(name: name, spec: spec, onActivate: onActivate));
+  }
+  return shortcuts;
+}
+
+/// The shell's shortcuts with no user config applied.
+List<InputShortcut> defaultInputShortcuts() =>
+    inputShortcutsFor(const ShortcutsConfig());
 
 /// Registers the shell's global shortcuts with the compositor through the
 /// ext-input-trigger protocols and routes their activations into
@@ -107,11 +134,17 @@ class InputTriggerManager {
     ExtInputTriggerActionManagerV1 actionManager,
     InputShortcut shortcut,
   ) {
+    final kind = shortcut.spec.isKeycode ? 'keycode' : 'keysym';
     debugPrint('input-trigger: registering "${shortcut.name}" '
         'modifiers=0x${shortcut.modifiers.toRadixString(16)} '
-        'keysym=0x${shortcut.keysym.toRadixString(16)}');
-    final trigger = registration.registerKeyboardSymTrigger(
-        shortcut.modifiers, shortcut.keysym);
+        '$kind=0x${shortcut.keysym.toRadixString(16)}');
+    // The `code:` config form asks for a physical key rather than a character,
+    // which is what makes a shortcut survive a layout change.
+    final trigger = shortcut.spec.isKeycode
+        ? registration.registerKeyboardCodeTrigger(
+            shortcut.modifiers, shortcut.keysym)
+        : registration.registerKeyboardSymTrigger(
+            shortcut.modifiers, shortcut.keysym);
 
     trigger.onDone = () {
       // We own the combination. Bind it to an action; the control's token then
@@ -142,10 +175,16 @@ class InputTriggerManager {
   }
 }
 
-/// Creates the manager that wires the shell's built-in global shortcuts into the
+/// Creates the manager that wires the shell's global shortcuts into the
 /// compositor. The caller feeds it globals from the shared Wayland registry
 /// callback (see [InputTriggerManager.handleGlobal]). Safe on a compositor
 /// without the ext-input-trigger globals: the manager just never binds anything.
-InputTriggerManager startInputTriggerService(WaylandClient client) {
-  return InputTriggerManager(client);
+///
+/// [shortcuts] comes from the start-up config snapshot, not the live store:
+/// registration latches, so a later edit cannot take effect anyway.
+InputTriggerManager startInputTriggerService(
+  WaylandClient client, {
+  ShortcutsConfig shortcuts = const ShortcutsConfig(),
+}) {
+  return InputTriggerManager(client, shortcuts: inputShortcutsFor(shortcuts));
 }
