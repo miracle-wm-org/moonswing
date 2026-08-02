@@ -7,6 +7,13 @@
 
 import 'dart:ui';
 
+import 'package:flutter/gestures.dart'
+    show
+        TapDragDownDetails,
+        TapDragStartDetails,
+        TapDragUpDetails,
+        TapDragUpdateDetails;
+import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -21,8 +28,9 @@ import 'package:graceful_shell/scopes.dart';
 /// resizes as you type is unusable.
 const double kLauncherCardWidth = 640;
 
-/// How tall the results list may grow before it scrolls.
-const double kLauncherMaxListHeight = 420;
+/// Height of the results area. Fixed, not a maximum: the card must not resize
+/// on every keystroke, and an empty result set must not let it grow.
+const double kLauncherListHeight = 420;
 
 /// Row height. Fixed so the actions flyout can be positioned arithmetically
 /// against the scroll offset, with no LayerLink or Overlay involved.
@@ -294,7 +302,16 @@ class _LauncherOverlayState extends State<LauncherOverlay>
                 _MathResultRow(theme: theme, expression: _query, result: result),
               ],
               const SizedBox(height: 8),
-              Flexible(child: _buildResults(theme)),
+              // Flexible, then a fixed height: the SizedBox pins the results
+              // area to one size no matter how many rows there are, and the
+              // Flexible caps it at whatever the surface can actually give
+              // (which only bites on a very short monitor).
+              Flexible(
+                child: SizedBox(
+                  height: kLauncherListHeight,
+                  child: _buildResults(theme),
+                ),
+              ),
             ],
           ),
         ),
@@ -304,55 +321,47 @@ class _LauncherOverlayState extends State<LauncherOverlay>
 
   Widget _buildResults(ThemeConfig theme) {
     if (_results.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 24),
-        child: Center(
-          child: Text(
-            _query.isEmpty ? 'No applications' : 'No matching applications',
-            style: TextStyle(color: theme.muted, fontSize: 13),
-          ),
+      return Center(
+        child: Text(
+          _query.isEmpty ? 'No applications' : 'No matching applications',
+          style: TextStyle(color: theme.muted, fontSize: 13),
         ),
       );
     }
-
-    final height = (_results.length * kLauncherRowHeight)
-        .clamp(0.0, kLauncherMaxListHeight);
 
     // The flyout is a Stack child rather than an OverlayPortal: this window is
     // already full-screen and rows have a fixed extent, so its position is pure
     // arithmetic — and an Overlay's entries do not rebuild on setState, which
     // would be a trap for content that changes on every keystroke.
-    return SizedBox(
-      height: height,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          ListView.builder(
-            controller: _scrollController,
-            padding: EdgeInsets.zero,
-            itemExtent: kLauncherRowHeight,
-            itemCount: _results.length,
-            itemBuilder: (context, i) {
-              final app = _results[i];
-              return _AppRow(
-                theme: theme,
-                app: app,
-                selected: i == _selected,
-                flyoutOpen: _flyoutRow == i,
-                onTap: () {
-                  setState(() => _selected = i);
-                  _launchSelected();
-                },
-                onHover: () {
-                  if (_selected != i) setState(() => _selected = i);
-                },
-                onToggleActions: () => _toggleFlyout(i),
-              );
-            },
-          ),
-          if (_flyoutRow case final row?) _buildFlyout(theme, row, height),
-        ],
-      ),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        ListView.builder(
+          controller: _scrollController,
+          padding: EdgeInsets.zero,
+          itemExtent: kLauncherRowHeight,
+          itemCount: _results.length,
+          itemBuilder: (context, i) {
+            final app = _results[i];
+            return _AppRow(
+              theme: theme,
+              app: app,
+              selected: i == _selected,
+              flyoutOpen: _flyoutRow == i,
+              onTap: () {
+                setState(() => _selected = i);
+                _launchSelected();
+              },
+              onHover: () {
+                if (_selected != i) setState(() => _selected = i);
+              },
+              onToggleActions: () => _toggleFlyout(i),
+            );
+          },
+        ),
+        if (_flyoutRow case final row?)
+          _buildFlyout(theme, row, kLauncherListHeight),
+      ],
     );
   }
 
@@ -378,10 +387,18 @@ class _LauncherOverlayState extends State<LauncherOverlay>
   }
 }
 
-/// The search input. Same recipe as the app directory's: a raw [EditableText]
-/// (there is no Material `TextField` in this tree) with an autofocus and a hint
-/// drawn behind it.
-class _LauncherSearchField extends StatelessWidget {
+/// The search input: a raw [EditableText] (there is no Material `TextField` in
+/// this tree) with an autofocus and a hint drawn behind it.
+///
+/// Mouse selection is wired up the way `TextField` does it, because a bare
+/// `EditableText` cannot do it: `RenderEditable` carries its own plain tap
+/// recogniser (enough to place the caret, nothing more), and it sits deeper in
+/// the hit-test path than any detector wrapped around it, so it wins the arena
+/// and a hand-rolled one never fires. Handing it `rendererIgnoresPointer`
+/// switches that off and lets [TextSelectionGestureDetector] — which counts
+/// consecutive taps rather than racing a double-tap recogniser, so single
+/// clicks stay instant — own click, double-click, triple-click and drag.
+class _LauncherSearchField extends StatefulWidget {
   const _LauncherSearchField({
     required this.controller,
     required this.focusNode,
@@ -395,7 +412,61 @@ class _LauncherSearchField extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   @override
+  State<_LauncherSearchField> createState() => _LauncherSearchFieldState();
+}
+
+class _LauncherSearchFieldState extends State<_LauncherSearchField> {
+  final GlobalKey<EditableTextState> _editableKey = GlobalKey();
+
+  RenderEditable? get _renderEditable =>
+      _editableKey.currentState?.renderEditable;
+
+  void _onSingleTapUp(TapDragUpDetails details) {
+    widget.focusNode.requestFocus();
+    _renderEditable?.selectPositionAt(
+      from: details.globalPosition,
+      cause: SelectionChangedCause.tap,
+    );
+  }
+
+  void _onDoubleTapDown(TapDragDownDetails details) {
+    widget.focusNode.requestFocus();
+    _renderEditable?.selectWordsInRange(
+      from: details.globalPosition,
+      cause: SelectionChangedCause.doubleTap,
+    );
+  }
+
+  void _onTripleTapDown(TapDragDownDetails details) {
+    widget.focusNode.requestFocus();
+    // A one-line field, so "the paragraph" is the whole query.
+    widget.controller.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: widget.controller.text.length,
+    );
+  }
+
+  void _onDragSelectionStart(TapDragStartDetails details) {
+    widget.focusNode.requestFocus();
+    _renderEditable?.selectPositionAt(
+      from: details.globalPosition,
+      cause: SelectionChangedCause.drag,
+    );
+  }
+
+  void _onDragSelectionUpdate(TapDragUpdateDetails details) {
+    // The details report where the drag is *now* plus how far it has come, so
+    // the anchor is recovered rather than remembered.
+    _renderEditable?.selectPositionAt(
+      from: details.globalPosition - details.offsetFromOrigin,
+      to: details.globalPosition,
+      cause: SelectionChangedCause.drag,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final theme = widget.theme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -409,30 +480,52 @@ class _LauncherSearchField extends StatelessWidget {
               size: 14, color: theme.muted),
           const SizedBox(width: 10),
           Expanded(
-            child: Stack(
-              alignment: Alignment.centerLeft,
-              children: [
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: controller,
-                  builder: (context, value, _) => value.text.isEmpty
-                      ? Text('Search applications or type a calculation…',
-                          style: TextStyle(color: theme.muted, fontSize: 15))
-                      : const SizedBox.shrink(),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.text,
+              child: TextSelectionGestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onSingleTapUp: _onSingleTapUp,
+                onDoubleTapDown: _onDoubleTapDown,
+                onTripleTapDown: _onTripleTapDown,
+                onDragSelectionStart: _onDragSelectionStart,
+                onDragSelectionUpdate: _onDragSelectionUpdate,
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: widget.controller,
+                      builder: (context, value, _) => value.text.isEmpty
+                          ? Text('Search applications or type a calculation…',
+                              style: TextStyle(color: theme.muted, fontSize: 15))
+                          : const SizedBox.shrink(),
+                    ),
+                    EditableText(
+                      key: _editableKey,
+                      controller: widget.controller,
+                      focusNode: widget.focusNode,
+                      autofocus: true,
+                      // Hands pointer handling to the detector above; without
+                      // this RenderEditable's own tap recogniser wins the arena
+                      // and nothing but caret placement ever works.
+                      rendererIgnoresPointer: true,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: theme.popupForeground,
+                        fontFamily: theme.fontFamily,
+                      ),
+                      cursorColor: theme.accent,
+                      backgroundCursorColor: theme.divider,
+                      // Selected text is drawn on the accent, which reads as an
+                      // inverted block against the field's dark control
+                      // surface. Flutter paints the highlight *behind* the
+                      // glyphs and offers no way to recolour them, so the
+                      // contrast has to come from the highlight alone.
+                      selectionColor: theme.accent,
+                      onChanged: widget.onChanged,
+                    ),
+                  ],
                 ),
-                EditableText(
-                  controller: controller,
-                  focusNode: focusNode,
-                  autofocus: true,
-                  style: TextStyle(
-                    fontSize: 15,
-                    color: theme.popupForeground,
-                    fontFamily: theme.fontFamily,
-                  ),
-                  cursorColor: theme.accent,
-                  backgroundCursorColor: theme.divider,
-                  onChanged: onChanged,
-                ),
-              ],
+              ),
             ),
           ),
         ],

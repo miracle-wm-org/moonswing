@@ -99,6 +99,41 @@ void main() {
     expect(find.text('No matching applications'), findsOneWidget);
   });
 
+  group('card size', () {
+    Size cardSize(WidgetTester tester) =>
+        tester.getSize(find.byType(LauncherOverlay));
+
+    testWidgets('does not change as the result count does', (tester) async {
+      // The card must not resize on every keystroke, and — the bug this
+      // guards — an empty result set must not let it grow to fill the screen.
+      final many = [
+        for (var i = 0; i < 200; i++) _app('App $i'),
+      ].map(SearchableApp.new).toList();
+      await pumpLauncher(tester, apps: many);
+
+      final withEverything = cardSize(tester);
+      expect(withEverything.height, lessThan(700));
+
+      await _type(tester, 'App 1');
+      expect(cardSize(tester), withEverything);
+
+      await _type(tester, 'App 12');
+      expect(cardSize(tester), withEverything);
+
+      await _type(tester, 'zzzz'); // no results at all
+      expect(cardSize(tester), withEverything);
+    });
+
+    testWidgets('the results area keeps one fixed height', (tester) async {
+      await pumpLauncher(tester);
+      final listBox = find.ancestor(
+        of: find.byType(ListView),
+        matching: find.byType(SizedBox),
+      );
+      expect(tester.getSize(listBox.first).height, kLauncherListHeight);
+    });
+  });
+
   testWidgets('Enter launches the selected app and releases the window',
       (tester) async {
     final harness = await pumpLauncher(tester);
@@ -167,6 +202,77 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(harness.closing.value, isFalse);
+  });
+
+  group('text selection', () {
+    EditableText field(WidgetTester tester) =>
+        tester.widget<EditableText>(find.byType(EditableText));
+
+    testWidgets('selected text is painted on the accent', (tester) async {
+      await pumpLauncher(tester);
+      expect(field(tester).selectionColor, const ThemeConfig().accent);
+    });
+
+    testWidgets('dragging across the query selects it', (tester) async {
+      // A bare EditableText has no gesture layer, so without the handlers on
+      // the field this selects nothing at all.
+      await pumpLauncher(tester);
+      await _type(tester, 'firefox');
+
+      final box = tester.getRect(find.byType(EditableText));
+      final gesture =
+          await tester.startGesture(box.centerLeft + const Offset(1, 0));
+      await gesture.moveTo(box.centerRight - const Offset(1, 0));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final selection = field(tester).controller.selection;
+      expect(selection.isCollapsed, isFalse);
+      expect(selection.textInside('firefox'), 'firefox');
+    });
+
+    testWidgets('double-clicking a word selects it', (tester) async {
+      await pumpLauncher(tester);
+      await _type(tester, 'text editor');
+
+      final box = tester.getRect(find.byType(EditableText));
+      await tester.tapAt(box.centerLeft + const Offset(6, 0));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tapAt(box.centerLeft + const Offset(6, 0));
+      await tester.pumpAndSettle();
+
+      expect(field(tester).controller.selection.textInside('text editor'),
+          'text');
+    });
+
+    testWidgets('triple-clicking selects the whole query', (tester) async {
+      await pumpLauncher(tester);
+      await _type(tester, 'text editor');
+
+      final box = tester.getRect(find.byType(EditableText));
+      final at = box.centerLeft + const Offset(6, 0);
+      for (var i = 0; i < 3; i++) {
+        await tester.tapAt(at);
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.pumpAndSettle();
+
+      expect(field(tester).controller.selection.textInside('text editor'),
+          'text editor');
+    });
+
+    testWidgets('clicking places the caret without selecting', (tester) async {
+      await pumpLauncher(tester);
+      await _type(tester, 'firefox');
+
+      final box = tester.getRect(find.byType(EditableText));
+      await tester.tapAt(box.centerLeft + const Offset(1, 0));
+      await tester.pumpAndSettle();
+
+      final selection = field(tester).controller.selection;
+      expect(selection.isCollapsed, isTrue);
+      expect(selection.baseOffset, 0);
+    });
   });
 
   group('calculator', () {
