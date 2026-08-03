@@ -245,26 +245,33 @@ class _LauncherOverlayState extends State<LauncherOverlay>
             onKeyEvent: _onKey,
             child: AnimatedBuilder(
               animation: _controller,
-              builder: (context, child) => Opacity(
-                opacity: _opacity.value,
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                  child: GestureDetector(
-                    // The shell has no input-region support, so this surface
-                    // swallows every click on the monitor — including on the
-                    // bar button that opened it. Without dismiss-on-backdrop a
-                    // mouse-only user would have no way out.
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _requestClose,
-                    child: Container(
-                      color: const Color(0x882C2C2C),
-                      child: Center(
-                        child: Transform.scale(scale: _scale.value, child: child),
-                      ),
+              builder: (context, child) {
+                final backdrop = GestureDetector(
+                  // The shell has no input-region support, so this surface
+                  // swallows every click on the monitor — including on the
+                  // bar button that opened it. Without dismiss-on-backdrop a
+                  // mouse-only user would have no way out.
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _requestClose,
+                  child: Container(
+                    color: theme.scrim,
+                    child: Center(
+                      child: Transform.scale(scale: _scale.value, child: child),
                     ),
                   ),
-                ),
-              ),
+                );
+                return Opacity(
+                  opacity: _opacity.value,
+                  // See overlay.dart: this softens the scrim, not the desktop.
+                  child: theme.blur > 0
+                      ? BackdropFilter(
+                          filter: ImageFilter.blur(
+                              sigmaX: theme.blur, sigmaY: theme.blur),
+                          child: backdrop,
+                        )
+                      : backdrop,
+                );
+              },
               child: _buildCard(theme),
             ),
           ),

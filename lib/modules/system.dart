@@ -4,11 +4,11 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:ubuntu_session/ubuntu_session.dart';
 import 'package:layer_shell/layer_shell.dart';
-import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 class System extends StatefulWidget {
   const System({super.key});
@@ -20,7 +20,6 @@ class System extends StatefulWidget {
 class SystemState extends State<System>
     with PopupHost<System>, LayerShellHost<System> {
   bool _hovered = false;
-  ThemeConfig? _storedTheme;
 
   @override
   void dispose() {
@@ -41,13 +40,14 @@ class SystemState extends State<System>
       ],
       keyboardMode: LayerShellKeyboardMode.onDemand,
     );
+    // Full-screen means the whole output, panels included.
+    spanFullOutput(controller);
     // Register into this panel's WindowRegistry via the state's own context —
     // the System bar widget is mounted inside the panel's WindowManager.
     openLayerWindow(
       context,
       controller: controller,
-      child: ThemeScope(
-        theme: _storedTheme!,
+      child: ThemeProvider(
         child: _ConfirmationDialog(
           label: label,
           action: action,
@@ -74,14 +74,11 @@ class SystemState extends State<System>
       return;
     }
 
-    _storedTheme = ThemeScope.of(context);
-
     openBarPopup(
       context,
       preferredConstraints:
           const BoxConstraints.tightFor(width: 200, height: 202),
-      child: ThemeScope(
-        theme: _storedTheme!,
+      child: ThemeProvider(
         child: _SystemPopupContent(
           onShowConfirmation: _showConfirmation,
           onLock: _lock,

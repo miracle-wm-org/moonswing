@@ -42,10 +42,11 @@ Graceful Shell is a **Flutter Linux desktop application** that renders Wayland l
 
 1. All `Module` subclasses are registered in the global registry.
 2. `AppConfig.load()` reads `~/.config/graceful-shell/config.toml`, calls `Module.loadAll()` to push per-module config into each registered module, and returns typed config objects.
-3. A `MiracleConnection` is opened for Miracle WM IPC (workspace events).
-4. Wayland outputs are enumerated via `WaylandClient` to correlate with GDK monitors.
-5. Flutter's experimental multi-window API (`ExtendedWindowingOwnerLinux`) creates one `LayershellWindowController` per panel per monitor and optional background controllers.
-6. `runWidget` builds a `ViewCollection` containing all layer-shell windows wrapped in their scope providers.
+3. `startThemeService()` seeds the shipped themes into `~/.config/graceful-shell/themes/` and resolves the one `config.toml` names, before anything paints.
+4. A `MiracleConnection` is opened for Miracle WM IPC (workspace events).
+5. Wayland outputs are enumerated via `WaylandClient` to correlate with GDK monitors.
+6. Flutter's experimental multi-window API (`ExtendedWindowingOwnerLinux`) creates one `LayershellWindowController` per panel per monitor and optional background controllers.
+7. `runWidget` builds a `ViewCollection` containing all layer-shell windows wrapped in their scope providers.
 
 ### Module system (`lib/module.dart`, `lib/modules/`)
 
@@ -72,7 +73,7 @@ Four `InheritedWidget` scopes are provided around every panel's widget tree:
 
 | Scope | Provides |
 |-------|----------|
-| `ThemeScope` | `ThemeConfig` (colors, font) |
+| `ThemeScope` | `ThemeConfig` (colors, font) — never constructed directly; see `ThemeProvider` below |
 | `MiracleScope` | `MiracleConnection` (workspace IPC) |
 | `DisplayScope` | `WaylandOutput` (the monitor this panel is on) |
 | `BarScope` | `anchor` string (`'top'`, `'bottom'`, `'left'`, `'right'`) |
@@ -85,10 +86,31 @@ Raw FFI bindings for GTK3 and `gtk-layer-shell`. Provides `GtkWindow`, `GdkDispl
 
 `AppConfig.load()` reads TOML and produces:
 - `Map<String, PanelConfig>` — one entry per named panel section.
-- `ThemeConfig` — colors and font parsed from `[theme]`.
+- `String themeName` — the *name* of the active theme, not the palette. Resolving it is `ThemeStore`'s job (see Theming below).
 - `BackgroundConfig?` — optional wallpaper config from `[background]`.
 
 If the config file is absent, a default two-panel layout is written to disk and defaults are used. Parse errors fall back silently to defaults.
+
+### Theming (`lib/theme/`)
+
+A theme is a file, not a config section. Each one is a flat TOML table under `~/.config/graceful-shell/themes/`, and `config.toml` names the active one with a top-level `theme = "dracula"`. The file *is* the table, with the same key names the old `[theme]` section used, so `ThemeConfig.fromMap` parses a whole theme document unchanged.
+
+| File | Responsibility |
+|------|----------------|
+| `builtin_themes.dart` | `kBuiltInThemes` — slug to full TOML text for `graceful` (the default, and the palette earlier versions hard-coded), `dracula`, and `glassy`. Embedded as constants rather than installed to a share dir because nothing in the shell resolves paths relative to the bundle; the wallpapers the Makefile *does* install are found only via a hardcoded `$HOME/.local/share`, which breaks under a custom `PREFIX`. Seeding from a constant works identically in `flutter run`, `make install`, and the snap. |
+| `theme_store.dart` | `ThemeStore.instance` + `startThemeService()` — the same singleton-`ChangeNotifier` shape as `OsdStore`/`AppIndex`. Owns the resolved palette, the catalogue, seeding, `select`/`create`/`edit`/`delete`, and a debounced atomic write lifted from `ConfigStore.save()`. |
+| `theme_provider.dart` | `ThemeProvider` — a `ListenableBuilder` on the store wrapping a `ThemeScope`. |
+
+Four things a change here has to keep true:
+
+- **`ThemeProvider` is the only thing that constructs a `ThemeScope`.** `grep -rn 'ThemeScope(' lib/` should match `scopes.dart` and `theme_provider.dart` and nothing else. The shell renders into many independent FlutterViews — one per panel per monitor, plus a window for every popup, overlay, OSD card and lock surface — and an `InheritedWidget` cannot span them, so each tree is given the theme separately. Every module used to do that by reading `ThemeScope.of` in the handler that opened the window and passing the value in, which froze it: an open popup never restyled. Listening instead of snapshotting is what fixes it, and it works even though `PopupHost.openPopup` builds the content once and captures it in a `WindowEntry` builder (`lib/popup.dart`) — the widget instance never comes back, but the `ListenableBuilder`'s element is mounted in that view's tree and rebuilds itself. `test/theme_provider_test.dart` pins this with a `const` child.
+- **`ThemeStore` reads `ConfigStore` for the `theme` key alone.** Never `ConfigStore.appConfig` — that getter rebuilds the whole typed config and re-applies every module's options via `Module.loadAll`, which would fire on every keystroke anywhere in the settings UI.
+- **Shipped themes are read-only, and re-seeded when they drift.** `edit` forks a built-in into a user copy first, so `themes/dracula.toml` stays byte-identical to what was seeded. Membership in `kBuiltInThemes` *is* the read-only test, so there is one source of truth for "shipped". `_seedBuiltIns` rewrites any shipped file whose content differs, which is what makes a palette fix reach an install that has already run: seeding used to skip an existing file, and the first panel-colour fix silently never landed because the stale `glassy.toml` on disk had none of the new keys. User themes are never touched.
+- **The bar has its own colour, and one opacity.** `panelBackgroundDecoration` (`lib/panel_background.dart`) paints `panel_background`, whose alpha is honoured verbatim — it is the surface sitting directly on the desktop. The panel used to be derived from `workspace_background` at a hardcoded 93%, which made it the one thing in the shell no theme could open up while its own popups obeyed. `panel_gradient = false` gives a flat sheet (what `glassy` wants); true fades `accent` -> `surface_pressed` -> `panel_background` with **every stop taking its alpha from `panel_background`**, so an author sets the bar's transparency in one place and no stop can band across the middle.
+- **A full-screen layer-shell surface must call `spanFullOutput`.** gtk-layer-shell defaults the exclusive zone to 0, and per wlr-layer-shell that means "move me so I don't occlude surfaces that reserved space" — so the compositor shrinks the surface to the gap *between* the panels. `spanFullOutput` (`lib/popup.dart`) sets it to -1, "extend me to the edges I'm anchored to". The wallpaper window needs it or there is nothing behind a translucent panel but the compositor's empty background, and a see-through bar renders as a flat black strip identical on every monitor edge; the settings, launcher and power-menu overlays need it or their backdrop stops short of the bars. This was invisible for as long as every panel was opaque.
+- **`blur` cannot frost the desktop.** A layer-shell surface is transparent and the compositor owns everything under it; Mir exposes no blur protocol. The field feeds the `BackdropFilter`s in `overlay/overlay.dart` and `launcher/launcher_overlay.dart`, which soften the `scrim` and nothing else. Translucency over the desktop comes from alpha, which is how `glassy` is built.
+
+The settings UI for this is `_AppearanceSection` in `lib/overlay/settings/shell.dart`: a picker of swatch cards, a "New theme…" action, and a colour editor that is dimmed behind a "Duplicate to edit" button while a built-in is active. The HSV colour picker it uses (`SettingsColorField`, `SettingsColorPicker`, `formatHexColor`) lives in `lib/overlay/settings/controls.dart` beside the other shared controls.
 
 ### Notification service (`lib/notification_service.dart`)
 

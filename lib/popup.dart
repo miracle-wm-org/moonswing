@@ -16,7 +16,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
-import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
@@ -74,6 +73,22 @@ class PopupDelegate extends PopupWindowControllerDelegate {
 Rect popupAnchorRect(BuildContext context) {
   final box = context.findRenderObject() as RenderBox;
   return box.localToGlobal(Offset.zero) & box.size;
+}
+
+/// Tells the compositor not to shrink [controller]'s surface to make room for
+/// other layer-shell surfaces' exclusive zones.
+///
+/// gtk-layer-shell defaults the exclusive zone to 0, and per wlr-layer-shell a
+/// zone of 0 means "move me so I don't occlude surfaces that reserved space" —
+/// so a full-screen surface is shrunk to the gap *between* the panels. -1 means
+/// "leave me alone and extend me to the edges I'm anchored to".
+///
+/// This is what makes a translucent panel show the wallpaper: without it there
+/// is no wallpaper behind a bar at all, only the compositor's empty background,
+/// and a see-through bar reveals a flat black strip. It went unnoticed while
+/// every panel was opaque.
+void spanFullOutput(LayershellWindowController controller) {
+  GtkWindow.fromHandle(controller.windowHandle).layerSetExclusiveZone(-1);
 }
 
 /// Mixin for [State] classes that own a single popup window.
@@ -287,15 +302,16 @@ class _PopupBounceInState extends State<PopupBounceIn>
 /// Text label rendered inside a hover tooltip popup.
 ///
 /// Popup content is built in its own window, outside the panel's [ThemeScope],
-/// so the theme is passed in rather than looked up.
+/// so callers must wrap this in a `ThemeProvider` — which is also what keeps a
+/// tooltip that is still on screen in step with a theme change.
 class TooltipLabel extends StatelessWidget {
-  const TooltipLabel({super.key, required this.text, required this.theme});
+  const TooltipLabel({super.key, required this.text});
 
   final String text;
-  final ThemeConfig theme;
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
     return Directionality(
       textDirection: TextDirection.ltr,
       child: Container(

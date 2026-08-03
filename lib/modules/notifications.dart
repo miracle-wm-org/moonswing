@@ -6,6 +6,7 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 /// Bell icon widget that lives in the bar. Lights up and shakes when
 /// notifications arrive, and opens/closes the notification panel on click.
@@ -87,13 +88,10 @@ class _NotificationsState extends State<Notifications>
       // exclusiveZone omitted: no space reservation per requirements.
     );
 
-    final theme = ThemeScope.of(context);
-
     openLayerWindow(
       context,
       controller: controller,
-      child: ThemeScope(
-        theme: theme,
+      child: ThemeProvider(
         child: _NotificationPanel(
           closingNotifier: _closingNotifier,
           onClosed: _onPanelClosed,

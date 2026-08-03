@@ -9,6 +9,7 @@ import 'package:graceful_shell/system/models.dart';
 import 'package:graceful_shell/system/system_monitor_config.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:graceful_shell/usage_bar.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 /// CPU, memory, and temperature in the panel, with a popup breaking out the
 /// per-core figures and the heaviest processes.
@@ -50,7 +51,6 @@ class SystemMonitorState extends State<SystemMonitor>
     }
 
     final anchor = BarScope.of(context).anchor;
-    final theme = ThemeScope.of(context);
     final isVertical = anchor == 'left' || anchor == 'right';
 
     openBarPopup(
@@ -58,7 +58,7 @@ class SystemMonitorState extends State<SystemMonitor>
       preferredConstraints: isVertical
           ? const BoxConstraints.tightFor(width: 440, height: 420)
           : const BoxConstraints.tightFor(width: 420, height: 440),
-      child: ThemeScope(theme: theme, child: const _SystemMonitorPopup()),
+      child: const ThemeProvider(child: _SystemMonitorPopup()),
     );
   }
 

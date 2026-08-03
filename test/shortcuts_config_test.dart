@@ -56,14 +56,14 @@ void main() {
       // losing the user's theme and panels along with their typo.
       final config = AppConfig.fromMap({
         'shortcuts': {'open_settings': 42},
-        'theme': {'font': 'Cantarell'},
+        'theme': 'dracula',
         'panels': {
           'top': {'height': 40, 'anchor': 'top'},
         },
       });
 
       expect(config.shortcuts.openSettings, kDefaultOpenSettings);
-      expect(config.theme.fontFamily, 'Cantarell');
+      expect(config.themeName, 'dracula');
       expect(config.panels['top']!.height, 40);
     });
 

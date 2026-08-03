@@ -6,6 +6,7 @@ import 'package:graceful_shell/modules/app_directory.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 class DockConfig {
   final List<String> apps;
@@ -181,10 +182,9 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return;
 
-    final theme = ThemeScope.of(context);
     openBarPopup(
       context,
-      child: TooltipLabel(text: widget.appName, theme: theme),
+      child: ThemeProvider(child: TooltipLabel(text: widget.appName)),
       preferredConstraints: const BoxConstraints(maxWidth: 120, maxHeight: 32),
     );
   }
@@ -192,15 +192,13 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   void _openUnpinMenu(BuildContext context) {
     // Replace any open tooltip with the context menu.
     closePopup();
-    final theme = ThemeScope.of(context);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       openBarPopup(
         context,
         // Loose: the menu sizes to its content (see [ContextMenuCard]).
         preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
-        child: ThemeScope(
-          theme: theme,
+        child: ThemeProvider(
           child: PopupBounceIn(
             child: ContextMenuCard(
               items: [

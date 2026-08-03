@@ -6,6 +6,7 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:http/http.dart' as http;
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 class WeatherConfig {
   final String unit;
@@ -201,15 +202,13 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
       return;
     }
 
-    final theme = ThemeScope.of(context);
     final unitLabel = _unit == TemperatureUnit.fahrenheit ? '°F' : '°C';
 
     openBarPopup(
       context,
       preferredConstraints:
           const BoxConstraints.tightFor(width: 260, height: 300),
-      child: ThemeScope(
-        theme: theme,
+      child: ThemeProvider(
         child: _WeatherForecastPopup(
           forecast: _forecast,
           unitLabel: unitLabel,

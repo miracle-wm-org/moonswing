@@ -315,70 +315,98 @@ If another client already owns a combination, the shell logs it and moves on —
 
 ## Theme
 
-The `[theme]` section controls the color palette used across all panels and modules. All fields are optional — omitting the section entirely uses the built-in defaults.
-
-Colors are specified as hex strings in `#RRGGBB` format (opaque) or `#AARRGGBB` format (with alpha, where `AA` is the alpha channel). For example, `"#33FFFFFF"` is white at ~20% opacity.
+Themes live in their own files, one per theme, under `~/.config/graceful-shell/themes/`. `config.toml` picks one by name — the file's basename without `.toml`:
 
 ```toml
-[theme]
-font                 = "Ubuntu Sans"
-foreground           = "#E0E0E0"
-accent               = "#4A90E2"
-surface_hover        = "#4A4A4A"
-surface_pressed      = "#2A2A2A"
-workspace_background = "#3A3A3A"
-popup_background     = "#1E1E2E"
-popup_foreground     = "#CDD6F4"
-slider_track         = "#45475A"
-muted                = "#E06C75"
-divider              = "#33FFFFFF"
+theme = "dracula"
 ```
 
-| Key                    | Default       | Description                                                   |
-| ---------------------- | ------------- | ------------------------------------------------------------- |
-| `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups        |
-| `foreground`           | `#E0E0E0`     | Primary text and icon color used across all modules           |
-| `accent`               | `#4A90E2`     | Focused workspace button background; volume slider fill color |
-| `surface_hover`        | `#4A4A4A`     | Button background when hovered (dock, media player controls)  |
-| `surface_pressed`      | `#2A2A2A`     | Button background when pressed (dock, media player controls)  |
-| `workspace_background` | `#3A3A3A`     | Unfocused workspace button background                         |
-| `popup_background`     | `#1E1E2E`     | Sound control popup window background                         |
-| `popup_foreground`     | `#CDD6F4`     | Sound control popup text and active slider thumb color        |
-| `slider_track`         | `#45475A`     | Volume slider track (the unfilled portion)                    |
-| `muted`                | `#E06C75`     | Mute icon color when audio is muted                           |
-| `divider`              | `#33FFFFFF`   | Separator lines between panel sections (supports alpha)       |
+Three themes ship with the shell and are written into that directory the first time it starts:
 
-### Example: Gruvbox Theme
+| Name       | Looks like                                                        |
+| ---------- | ----------------------------------------------------------------- |
+| `graceful` | Deep maroon over near-black. The default, and the palette earlier versions hard-coded. |
+| `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
+| `glassy`   | Cool translucent surfaces that let the wallpaper through.          |
+
+If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `graceful` rather than starting unstyled. A single bad value inside a theme file costs only that key.
+
+The **Appearance** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The three shipped themes are read-only there — editing one offers to duplicate it first.
+
+Because the shell owns those three files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
+
+### Writing a theme file
+
+A theme file is a flat table — no section header. Every key is optional.
 
 ```toml
-[theme]
-foreground          = "#EBDBB2"
-accent              = "#458588"
-surface_hover       = "#504945"
-surface_pressed     = "#3C3836"
+# ~/.config/graceful-shell/themes/gruvbox.toml
+name = "Gruvbox"
+
+font = "Ubuntu Sans"
+blur = 24.0
+
+accent               = "#458588"
+foreground           = "#EBDBB2"
+surface_hover        = "#504945"
+surface_pressed      = "#3C3836"
 workspace_background = "#3C3836"
-popup_background    = "#282828"
-popup_foreground    = "#EBDBB2"
-slider_track        = "#504945"
-muted               = "#CC241D"
-divider             = "#33EBDBB2"
+popup_background     = "#282828"
+popup_foreground     = "#EBDBB2"
+control_surface      = "#504945"
+slider_track         = "#504945"
+muted                = "#928374"
+divider              = "#33EBDBB2"
+scrim                = "#88282828"
+
+panel_background     = "#EE282828"
+panel_gradient       = true
 ```
 
-### Example: Light Theme
+Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `AA` is the alpha channel). `"#33FFFFFF"` is white at ~20% opacity. Alpha is what makes a translucent theme translucent: panel and popup surfaces composite against the desktop behind them.
 
-```toml
-[theme]
-foreground          = "#2E2E2E"
-accent              = "#0066CC"
-surface_hover       = "#E0E0E0"
-surface_pressed     = "#C8C8C8"
-workspace_background = "#D0D0D0"
-popup_background    = "#F5F5F5"
-popup_foreground    = "#2E2E2E"
-slider_track        = "#BBBBBB"
-muted               = "#CC3333"
-divider             = "#33000000"
-```
+| Key                    | Default       | Description                                                                 |
+| ---------------------- | ------------- | --------------------------------------------------------------------------- |
+| `name`                 | the filename  | Display name shown in the settings picker                                   |
+| `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups                      |
+| `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
+| `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series   |
+| `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
+| `surface_hover`        | `#853953`     | Button background when hovered                                              |
+| `surface_pressed`      | `#612D53`     | Button background when pressed; the mid stop of the panel gradient          |
+| `workspace_background` | `#2C2C2C`     | Unfocused workspace button; the dark end of the panel gradient              |
+| `popup_background`     | `#2C2C2C`     | Background of popups, flyouts and the overlay panel                         |
+| `popup_foreground`     | `#F3F4F4`     | Text and icons inside popups                                                |
+| `control_surface`      | `#39393D`     | Cards, inputs and tiles inside popups and the settings pages                |
+| `slider_track`         | `#612D53`     | The unfilled portion of sliders and usage bars                              |
+| `muted`                | `#853953`     | Secondary, de-emphasised text                                               |
+| `divider`              | `#33F3F4F4`   | Separator lines, and the resting fill of subtle list rows (supports alpha)  |
+| `panel_background`     | `#EE2C2C2C`   | The bar's background, and the opacity of the whole bar (see below)          |
+| `panel_gradient`       | `true`        | Whether the bar fades from `accent`, or is a flat `panel_background`        |
+| `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
+
+Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
+
+### The panel
+
+The bar has its own color, `panel_background`, and its alpha is used exactly as written — this is the surface that sits directly on the desktop, so it is the one that decides how much of your wallpaper shows through.
+
+`panel_gradient` decides its shape:
+
+- **`false`** — a flat sheet of `panel_background`. This is what `glassy` does.
+- **`true`** (the default) — a fade from `accent` at the bar's own edge, through `surface_pressed`, to `panel_background`. The bright end sits against the anchored edge: left-aligned on a top bar, top-aligned on a left bar, and so on.
+
+A translucent bar shows the wallpaper the shell itself draws (`[background]`). Over a bare desktop with no `[background]` section there is nothing behind the bar but whatever your compositor paints, which may simply be black.
+
+In gradient mode **every stop is drawn at `panel_background`'s alpha**, not its own. The bar has exactly one opacity, so setting `panel_background = "#402C2C2C"` makes the whole bar 25% opaque without having to give `accent` and `surface_pressed` a matching alpha — and no stop can end up more opaque than the rest and read as a band across the middle.
+
+### About `blur`
+
+`blur` softens what sits behind the settings and launcher panels — that is, the `scrim` — and nothing else. It cannot frost the desktop: a shell surface is transparent and the compositor owns everything under it, and Mir exposes no blur protocol for a client to ask for one. A theme that wants to look like glass does it with alpha, as `glassy` does. Set `blur = 0` to skip the filter entirely.
+
+### Migrating from an inline `[theme]` table
+
+Older versions kept the palette in a `[theme]` table inside `config.toml`. That table is now ignored — `theme` is a name, not a table. To keep a palette you had customized, copy the contents of your old `[theme]` table into `~/.config/graceful-shell/themes/mine.toml` (dropping the `[theme]` header line), delete the table from `config.toml`, and set `theme = "mine"`. An un-migrated `[theme]` table is harmless: it costs you the theme, not the rest of your config.
 
 ## Background
 
@@ -529,6 +557,8 @@ margin = 96
 ## Full Example
 
 ```toml
+theme = "dracula"
+
 [panels.top]
 height = 32
 padding_horizontal = 40
@@ -571,18 +601,6 @@ icon_size = 24
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
-
-[theme]
-foreground          = "#E0E0E0"
-accent              = "#4A90E2"
-surface_hover       = "#4A4A4A"
-surface_pressed     = "#2A2A2A"
-workspace_background = "#3A3A3A"
-popup_background    = "#1E1E2E"
-popup_foreground    = "#CDD6F4"
-slider_track        = "#45475A"
-muted               = "#E06C75"
-divider             = "#33FFFFFF"
 
 [background]
 fit = "fill"

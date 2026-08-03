@@ -22,6 +22,16 @@ enum BackgroundFit {
   }
 }
 
+/// The theme selected when `config.toml` names none, and the one every
+/// failure path falls back to. Matches `lib/theme/builtin_themes.dart`.
+const String kDefaultThemeName = 'graceful';
+
+/// A resolved palette.
+///
+/// Themes are no longer part of `config.toml` — each one is its own file under
+/// `~/.config/graceful-shell/themes/` and `config.toml` names the active one.
+/// The file *is* this table, flat, so [fromMap] parses a whole theme document.
+/// See `lib/theme/theme_store.dart`.
 class ThemeConfig {
   final Color foreground;
   final Color accent;
@@ -34,6 +44,36 @@ class ThemeConfig {
   final Color sliderTrack;
   final Color muted;
   final Color divider;
+
+  /// The bar's own background.
+  ///
+  /// The one surface that had no colour of its own — the panel used to be
+  /// painted from [workspaceBackground] at a hardcoded 93% opacity, so a
+  /// translucent theme could not see through the very surface that sits on top
+  /// of the desktop. Its alpha is honoured verbatim, and it also sets the
+  /// opacity of the whole bar: see [panelGradient].
+  final Color panelBackground;
+
+  /// Whether the bar fades from [accent] across to [panelBackground].
+  ///
+  /// A theme that wants a plain sheet of glass sets this false and gets a flat
+  /// [panelBackground]. When true the gradient's stops all take their alpha
+  /// from [panelBackground], so the bar has exactly one opacity and cannot
+  /// band partway across.
+  final bool panelGradient;
+
+  /// The wash painted over the screen behind a full-screen overlay (the
+  /// settings panel, the launcher card).
+  final Color scrim;
+
+  /// Gaussian sigma for the overlay backdrops, or 0 to skip the filter.
+  ///
+  /// This blurs what *Flutter* has composited behind the filter, not the
+  /// desktop: a layer-shell surface is transparent and the compositor owns
+  /// everything under it, and Mir exposes no blur protocol. Translucency over
+  /// the desktop comes from alpha in the colours above.
+  final double blur;
+
   final String fontFamily;
 
   const ThemeConfig({
@@ -48,6 +88,10 @@ class ThemeConfig {
     this.sliderTrack = const Color(0xFF612D53),
     this.muted = const Color(0xFF853953),
     this.divider = const Color(0x33F3F4F4),
+    this.panelBackground = const Color(0xEE2C2C2C),
+    this.panelGradient = true,
+    this.scrim = const Color(0x882C2C2C),
+    this.blur = 24.0,
     this.fontFamily = 'Ubuntu Sans',
   });
 
@@ -58,31 +102,136 @@ class ThemeConfig {
     return value != null ? Color(value) : fallback;
   }
 
+  /// Renders [color] the way theme files spell it: `#RRGGBB` when opaque,
+  /// `#AARRGGBB` otherwise. The inverse of [_parseColor].
+  static String formatColor(Color color) {
+    String hex(double c) =>
+        (c * 255).round().clamp(0, 255).toRadixString(16).padLeft(2, '0');
+    final rgb = '${hex(color.r)}${hex(color.g)}${hex(color.b)}'.toUpperCase();
+    if (color.a >= 1.0) return '#$rgb';
+    return '#${hex(color.a).toUpperCase()}$rgb';
+  }
+
   factory ThemeConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ThemeConfig();
+    // Every read is type-tested rather than cast: a theme file is hand-editable
+    // and a wrongly-typed value should cost that one key, not the theme.
+    String? str(String key) {
+      final raw = map[key];
+      return raw is String ? raw : null;
+    }
+
+    final rawBlur = map['blur'];
+    final blur = rawBlur is num ? rawBlur.toDouble() : 24.0;
     return ThemeConfig(
-      foreground:
-          _parseColor(map['foreground'] as String?, const Color(0xFFF3F4F4)),
-      accent: _parseColor(map['accent'] as String?, const Color(0xFF853953)),
-      surfaceHover:
-          _parseColor(map['surface_hover'] as String?, const Color(0xFF853953)),
-      surfacePressed: _parseColor(
-          map['surface_pressed'] as String?, const Color(0xFF612D53)),
-      workspaceBackground: _parseColor(
-          map['workspace_background'] as String?, const Color(0xFF2C2C2C)),
-      popupBackground: _parseColor(
-          map['popup_background'] as String?, const Color(0xFF2C2C2C)),
-      popupForeground: _parseColor(
-          map['popup_foreground'] as String?, const Color(0xFFF3F4F4)),
-      controlSurface: _parseColor(
-          map['control_surface'] as String?, const Color(0xFF39393D)),
-      sliderTrack:
-          _parseColor(map['slider_track'] as String?, const Color(0xFF612D53)),
-      muted: _parseColor(map['muted'] as String?, const Color(0xFF853953)),
-      divider: _parseColor(map['divider'] as String?, const Color(0x33F3F4F4)),
-      fontFamily: map['font'] as String? ?? 'Ubuntu Sans',
+      foreground: _parseColor(str('foreground'), const Color(0xFFF3F4F4)),
+      accent: _parseColor(str('accent'), const Color(0xFF853953)),
+      surfaceHover: _parseColor(str('surface_hover'), const Color(0xFF853953)),
+      surfacePressed:
+          _parseColor(str('surface_pressed'), const Color(0xFF612D53)),
+      workspaceBackground:
+          _parseColor(str('workspace_background'), const Color(0xFF2C2C2C)),
+      popupBackground:
+          _parseColor(str('popup_background'), const Color(0xFF2C2C2C)),
+      popupForeground:
+          _parseColor(str('popup_foreground'), const Color(0xFFF3F4F4)),
+      controlSurface:
+          _parseColor(str('control_surface'), const Color(0xFF39393D)),
+      sliderTrack: _parseColor(str('slider_track'), const Color(0xFF612D53)),
+      muted: _parseColor(str('muted'), const Color(0xFF853953)),
+      divider: _parseColor(str('divider'), const Color(0x33F3F4F4)),
+      panelBackground:
+          _parseColor(str('panel_background'), const Color(0xEE2C2C2C)),
+      panelGradient: map['panel_gradient'] is bool
+          ? map['panel_gradient'] as bool
+          : true,
+      scrim: _parseColor(str('scrim'), const Color(0x882C2C2C)),
+      // A negative or NaN sigma throws inside ImageFilter.blur; clamp rather
+      // than let a hand-edited theme crash every overlay.
+      blur: blur.isNaN ? 24.0 : blur.clamp(0.0, 100.0),
+      fontFamily: str('font') ?? 'Ubuntu Sans',
     );
   }
+
+  /// The theme's key/value pairs, ready to hand to `TomlDocument.fromMap`.
+  /// Every key is written explicitly so a saved theme never depends on a
+  /// default that a later release might change.
+  Map<String, dynamic> toMap() => {
+        'font': fontFamily,
+        'blur': blur,
+        'foreground': formatColor(foreground),
+        'accent': formatColor(accent),
+        'surface_hover': formatColor(surfaceHover),
+        'surface_pressed': formatColor(surfacePressed),
+        'workspace_background': formatColor(workspaceBackground),
+        'popup_background': formatColor(popupBackground),
+        'popup_foreground': formatColor(popupForeground),
+        'control_surface': formatColor(controlSurface),
+        'slider_track': formatColor(sliderTrack),
+        'muted': formatColor(muted),
+        'divider': formatColor(divider),
+        'panel_background': formatColor(panelBackground),
+        'panel_gradient': panelGradient,
+        'scrim': formatColor(scrim),
+      };
+
+  /// The TOML keys [toMap] writes, in the order the settings editor lists
+  /// them. Colours only — `font` and `blur` have their own controls.
+  static const List<String> colorKeys = [
+    'accent',
+    'foreground',
+    'surface_hover',
+    'surface_pressed',
+    'workspace_background',
+    'popup_background',
+    'popup_foreground',
+    'control_surface',
+    'slider_track',
+    'muted',
+    'divider',
+    'panel_background',
+    'scrim',
+  ];
+
+  @override
+  bool operator ==(Object other) =>
+      other is ThemeConfig &&
+      other.foreground == foreground &&
+      other.accent == accent &&
+      other.surfaceHover == surfaceHover &&
+      other.surfacePressed == surfacePressed &&
+      other.workspaceBackground == workspaceBackground &&
+      other.popupBackground == popupBackground &&
+      other.popupForeground == popupForeground &&
+      other.controlSurface == controlSurface &&
+      other.sliderTrack == sliderTrack &&
+      other.muted == muted &&
+      other.divider == divider &&
+      other.panelBackground == panelBackground &&
+      other.panelGradient == panelGradient &&
+      other.scrim == scrim &&
+      other.blur == blur &&
+      other.fontFamily == fontFamily;
+
+  @override
+  int get hashCode => Object.hash(
+        foreground,
+        accent,
+        surfaceHover,
+        surfacePressed,
+        workspaceBackground,
+        popupBackground,
+        popupForeground,
+        controlSurface,
+        sliderTrack,
+        muted,
+        divider,
+        panelBackground,
+        panelGradient,
+        scrim,
+        blur,
+        fontFamily,
+      );
 }
 
 /// File extensions considered valid image wallpapers. Paths with any other
@@ -417,7 +566,12 @@ class ShortcutsConfig {
 class AppConfig {
   final Map<String, PanelConfig> panels;
   final BackgroundConfig? background;
-  final ThemeConfig theme;
+
+  /// The name of the active theme — the basename of a file under
+  /// `~/.config/graceful-shell/themes/`. Resolving it to a [ThemeConfig] is
+  /// `ThemeStore`'s job, not this one's; nothing here touches the disk.
+  final String themeName;
+
   final CalendarConfig calendar;
   final OsdConfig osd;
   final LockConfig lock;
@@ -426,7 +580,7 @@ class AppConfig {
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
-    this.theme = const ThemeConfig(),
+    this.themeName = kDefaultThemeName,
     this.calendar = const CalendarConfig(),
     this.osd = const OsdConfig(),
     this.lock = const LockConfig(),
@@ -434,6 +588,8 @@ class AppConfig {
   });
 
   static String _buildDefaultConfig(String homeDir) => '''
+theme = "$kDefaultThemeName"
+
 [panels.top]
 height = 32
 padding_horizontal = 8
@@ -562,7 +718,14 @@ open_launcher = "ctrl+space"
     final background =
         backgroundMap != null ? BackgroundConfig.fromMap(backgroundMap) : null;
 
-    final themeMap = map['theme'] as Map<String, dynamic>?;
+    // Type-tested, not cast: `theme` used to be a table and is now a name, so
+    // an un-migrated config still has a map here. Casting would throw out of
+    // this factory, and the caller answers that by discarding the *whole*
+    // config — a stale [theme] table must cost the theme, nothing else.
+    final rawTheme = map['theme'];
+    final themeName = rawTheme is String && rawTheme.trim().isNotEmpty
+        ? rawTheme.trim()
+        : kDefaultThemeName;
     final calendarMap = map['calendar'] as Map<String, dynamic>?;
     final osdMap = map['osd'] as Map<String, dynamic>?;
     final lockMap = map['lock'] as Map<String, dynamic>?;
@@ -571,7 +734,7 @@ open_launcher = "ctrl+space"
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
       background: background,
-      theme: ThemeConfig.fromMap(themeMap),
+      themeName: themeName,
       calendar: CalendarConfig.fromMap(calendarMap),
       osd: OsdConfig.fromMap(osdMap),
       lock: LockConfig.fromMap(lockMap),

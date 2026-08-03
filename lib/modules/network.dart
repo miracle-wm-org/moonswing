@@ -7,6 +7,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -488,14 +489,11 @@ class NetworkState extends State<Network> with PopupHost<Network> {
       return;
     }
 
-    final theme = ThemeScope.of(context);
-
     openBarPopup(
       context,
       preferredConstraints:
           const BoxConstraints.tightFor(width: 220, height: 110),
-      child: ThemeScope(
-        theme: theme,
+      child: ThemeProvider(
         child: _NetworkPopupContent(info: _info),
       ),
     );

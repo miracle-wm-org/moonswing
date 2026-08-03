@@ -33,12 +33,15 @@ import 'package:graceful_shell/osd/osd.dart';
 import 'package:graceful_shell/osd/osd_service.dart';
 import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/panel_background.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:graceful_shell/theme/theme_store.dart';
 import 'package:ext_session_lock/ext_session_lock.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
@@ -68,6 +71,10 @@ void main() async {
   // becomes the single live source of truth the shell watches.
   final appConfig = await AppConfig.load();
   final store = await ConfigStore.initShared();
+
+  // Seeds the shipped themes into ~/.config/graceful-shell/themes on first run
+  // and resolves the one config.toml names, before anything paints.
+  startThemeService(store);
 
   await startNotificationService();
   await startStatusNotifierService();
@@ -327,6 +334,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         keyboardMode: LayerShellKeyboardMode.none,
         monitor: monitor.gdkMonitor,
       );
+      // The wallpaper has to reach under the panels, or a translucent panel
+      // has nothing behind it to show.
+      spanFullOutput(background);
     }
 
     final panels = <String, LayershellWindowController>{};
@@ -452,6 +462,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ],
       keyboardMode: LayerShellKeyboardMode.onDemand,
     );
+    // Full-screen means the whole output, panels included — otherwise the
+    // backdrop stops short of the bars and dismiss-on-backdrop has dead strips.
+    spanFullOutput(_launcher!);
     setState(() {});
   }
 
@@ -486,6 +499,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       keyboardMode: LayerShellKeyboardMode.onDemand,
       monitor: monitor.gdkMonitor,
     );
+    spanFullOutput(_settings!);
     setState(() {});
   }
 
@@ -840,8 +854,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                   key: ObjectKey(controller),
                   controller: controller,
                   child: WindowManager(
-                    child: ThemeScope(
-                      theme: _liveConfig.theme,
+                    child: ThemeProvider(
                       child: MiracleScope(
                         manager: widget.miracle,
                         child: DisplayScope(
@@ -865,8 +878,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
             LayerShellWindow(
               key: ObjectKey(osd),
               controller: osd,
-              child: ThemeScope(
-                theme: _liveConfig.theme,
+              child: ThemeProvider(
                 child: OsdWindow(store: OsdStore.instance),
               ),
             ),
@@ -877,8 +889,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           LayerShellWindow(
             key: ObjectKey(settings),
             controller: settings,
-            child: ThemeScope(
-              theme: _liveConfig.theme,
+            child: ThemeProvider(
               child: SettingsOverlay(
                 closingNotifier: _settingsClosing,
                 onClosed: _onSettingsClosed,
@@ -891,8 +902,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           LayerShellWindow(
             key: ObjectKey(launcher),
             controller: launcher,
-            child: ThemeScope(
-              theme: _liveConfig.theme,
+            child: ThemeProvider(
               child: LauncherOverlay(
                 closingNotifier: _launcherClosing,
                 onClosed: _onLauncherClosed,
@@ -910,8 +920,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           SessionLockWindow(
             key: ObjectKey(controller),
             controller: controller,
-            child: ThemeScope(
-              theme: _liveConfig.theme,
+            child: ThemeProvider(
               child: LockScreen(
                 config: _liveConfig.lock,
                 onUnlocked: _unlockSession,

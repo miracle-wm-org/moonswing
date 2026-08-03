@@ -69,7 +69,13 @@ class MediaPlayerState extends State<MediaPlayer>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _fontFamily = ThemeScope.of(context).fontFamily;
+    final fontFamily = ThemeScope.of(context).fontFamily;
+    if (fontFamily == _fontFamily) return;
+    _fontFamily = fontFamily;
+    // The marquee's scroll distance is a measured text width, so switching to
+    // a theme with a different font has to re-measure — otherwise the title
+    // scrolls by the old font's width and clips or over-runs.
+    _updateDisplayText();
   }
 
   @override

@@ -1,7 +1,6 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -9,12 +8,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/theme/theme_store.dart';
 
 /// Settings page for graceful-shell's own configuration (`config.toml`).
 ///
@@ -345,46 +344,352 @@ class _CategoryCardState extends State<_CategoryCard> {
 // Appearance (theme)
 // ---------------------------------------------------------------------------
 
-class _AppearanceSection extends StatelessWidget {
+/// Theme picker + editor.
+///
+/// The palette no longer lives in `config.toml` — `[ThemeStore]` owns a file
+/// per theme under `~/.config/graceful-shell/themes/` and `config.toml` only
+/// names the active one. So this section talks to [ThemeStore], not [store];
+/// the parameter stays because every category builder takes one.
+class _AppearanceSection extends StatefulWidget {
   const _AppearanceSection({required this.store});
 
   final ConfigStore store;
 
-  // key, label, default hex (matching ThemeConfig defaults in config.dart).
-  static const List<(String, String, String)> _colors = [
-    ('accent', 'Accent', '#853953'),
-    ('foreground', 'Foreground', '#F3F4F4'),
-    ('surface_hover', 'Surface (hover)', '#853953'),
-    ('surface_pressed', 'Surface (pressed)', '#612D53'),
-    ('workspace_background', 'Workspace background', '#2C2C2C'),
-    ('popup_background', 'Popup background', '#2C2C2C'),
-    ('popup_foreground', 'Popup foreground', '#F3F4F4'),
-    ('slider_track', 'Slider track', '#612D53'),
-    ('muted', 'Muted', '#853953'),
-    ('divider', 'Divider', '#33F3F4F4'),
-  ];
+  @override
+  State<_AppearanceSection> createState() => _AppearanceSectionState();
+}
+
+class _AppearanceSectionState extends State<_AppearanceSection> {
+  final ThemeStore _themes = ThemeStore.instance;
+  bool _naming = false;
+
+  static const Map<String, String> _colorLabels = {
+    'accent': 'Accent',
+    'foreground': 'Foreground',
+    'surface_hover': 'Surface (hover)',
+    'surface_pressed': 'Surface (pressed)',
+    'workspace_background': 'Workspace background',
+    'popup_background': 'Popup background',
+    'popup_foreground': 'Popup foreground',
+    'control_surface': 'Control surface',
+    'slider_track': 'Slider track',
+    'muted': 'Muted text',
+    'divider': 'Divider',
+    'panel_background': 'Panel background',
+    'scrim': 'Overlay scrim',
+  };
+
+  void _duplicate() => setState(() => _themes.duplicateActive());
 
   @override
   Widget build(BuildContext context) {
-    return SettingsSection(
-      label: 'Appearance',
-      children: [
-        SettingsRow(
-          label: 'Font',
-          control: SettingsTextField(
-            width: 180,
-            initial: store.get<String>(['theme', 'font']) ?? 'Ubuntu Sans',
-            onChanged: (v) => store.set(['theme', 'font'], v.trim()),
-          ),
-        ),
-        for (final c in _colors)
-          SettingsRow(
-            label: c.$2,
-            control: _ColorField(
-              initial: store.get<String>(['theme', c.$1]) ?? c.$3,
-              onChanged: (v) => store.set(['theme', c.$1], v),
+    // Rebuilt on every ThemeStore change so the picker's tick, the swatches,
+    // and the read-only state all follow a switch made from anywhere.
+    return ListenableBuilder(
+      listenable: _themes,
+      builder: (context, _) {
+        final active = _themes.activeName;
+        final builtIn = _themes.activeIsBuiltIn;
+        // Read straight off the resolved theme rather than the file, so a key
+        // the file omits shows the value actually in use.
+        final current = _themes.theme.toMap();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SettingsSection(
+              label: 'Theme',
+              children: [
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    for (final summary in _themes.themes)
+                      _ThemeCard(
+                        summary: summary,
+                        selected: summary.slug == active,
+                        onTap: () => _themes.select(summary.slug),
+                        onDelete: summary.builtIn
+                            ? null
+                            : () => _themes.delete(summary.slug),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (_naming)
+                  _NewThemeRow(
+                    onCancel: () => setState(() => _naming = false),
+                    onSubmit: (name) {
+                      final slug = _themes.create(name);
+                      if (slug != null) setState(() => _naming = false);
+                    },
+                  )
+                else
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SettingsOptionButton(
+                      label: 'New theme…',
+                      selected: false,
+                      onTap: () => setState(() => _naming = true),
+                    ),
+                  ),
+                const SizedBox(height: 6),
+                SettingsHint(
+                  'Themes are files in ${_themes.directory}. '
+                  'Drop one in to add it by hand.',
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SettingsSection(
+              label: 'Edit ${_themes.themes.firstWhere(
+                    (t) => t.slug == active,
+                    orElse: () => _themes.themes.first,
+                  ).displayName}',
+              children: [
+                if (builtIn) ...[
+                  const SettingsHint(
+                    'This theme ships with the shell and is read-only — the '
+                    'next update would overwrite your changes. Duplicate it to '
+                    'make it yours.',
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SettingsOptionButton(
+                      label: 'Duplicate to edit',
+                      selected: false,
+                      onTap: _duplicate,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                SettingsRow(
+                  label: 'Font',
+                  control: SettingsTextField(
+                    // Keyed on the theme so switching re-seeds the field —
+                    // SettingsTextField reads `initial` only on first build.
+                    key: ValueKey('font-$active'),
+                    width: 180,
+                    initial: current['font'] as String? ?? 'Ubuntu Sans',
+                    onChanged: (v) => _themes.edit('font', v.trim()),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Panel gradient',
+                  control: SettingsToggle(
+                    value: current['panel_gradient'] as bool? ?? true,
+                    onChanged: builtIn
+                        ? (_) => _duplicate()
+                        : (v) => _themes.edit('panel_gradient', v),
+                  ),
+                ),
+                const SettingsHint(
+                  'Off paints the bar as a flat panel background. On fades it '
+                  'from the accent across to that colour, with every stop at '
+                  "the panel background's alpha — so the bar has one opacity.",
+                ),
+                const SizedBox(height: 8),
+                SettingsRow(
+                  label: 'Overlay blur',
+                  control: SettingsNumberField(
+                    key: ValueKey('blur-$active'),
+                    value: current['blur'] as num? ?? 24,
+                    isInt: false,
+                    onChanged: (v) =>
+                        _themes.edit('blur', v.toDouble().clamp(0.0, 100.0)),
+                  ),
+                ),
+                const SettingsHint(
+                  'Blur softens the wash behind the settings and launcher '
+                  'panels. It cannot blur the desktop itself — the compositor '
+                  'owns what is under a shell surface — so translucency comes '
+                  'from the alpha channel of the colours below.',
+                ),
+                const SizedBox(height: 8),
+                for (final entry in _colorLabels.entries)
+                  SettingsRow(
+                    label: entry.value,
+                    control: SettingsColorField(
+                      key: ValueKey('${entry.key}-$active'),
+                      initial: current[entry.key] as String? ?? '#000000',
+                      locked: builtIn,
+                      onLockedTap: _duplicate,
+                      onChanged: (v) => _themes.edit(entry.key, v),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// One theme in the picker: a strip of its own colours, its name, and a tick
+/// when it is the active one. Drawn in the theme it represents, so the grid
+/// previews rather than describes.
+class _ThemeCard extends StatefulWidget {
+  const _ThemeCard({
+    required this.summary,
+    required this.selected,
+    required this.onTap,
+    this.onDelete,
+  });
+
+  final ThemeSummary summary;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback? onDelete;
+
+  @override
+  State<_ThemeCard> createState() => _ThemeCardState();
+}
+
+class _ThemeCardState extends State<_ThemeCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final preview = widget.summary.config;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: 168,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: _hovered ? theme.surfaceHover : theme.controlSurface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.selected ? theme.accent : theme.divider,
+              width: widget.selected ? 2 : 1,
             ),
           ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // The swatches sit on the preview's own background, or a
+              // translucent theme would be judged against the wrong surface.
+              Container(
+                height: 34,
+                decoration: BoxDecoration(
+                  color: preview.workspaceBackground,
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: preview.divider),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  children: [
+                    for (final c in [
+                      preview.accent,
+                      preview.surfacePressed,
+                      preview.popupBackground,
+                      preview.foreground,
+                    ])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: Container(
+                          width: 16,
+                          height: 16,
+                          decoration: BoxDecoration(
+                            color: c,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: preview.divider),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.summary.displayName,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: theme.fontFamily,
+                        color: theme.popupForeground,
+                        fontWeight:
+                            widget.selected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                  if (widget.selected)
+                    FaIcon(FontAwesomeIcons.check,
+                        size: 11, color: theme.accent)
+                  else if (_hovered && widget.onDelete != null)
+                    SettingsIconButton(
+                      icon: FontAwesomeIcons.trash,
+                      size: 11,
+                      onTap: widget.onDelete!,
+                    ),
+                ],
+              ),
+              Text(
+                widget.summary.builtIn ? 'Built-in' : widget.summary.slug,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: theme.fontFamily,
+                  color: theme.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Name entry for "New theme…". The name is slugified into a filename, so an
+/// empty or punctuation-only name is refused rather than written.
+class _NewThemeRow extends StatefulWidget {
+  const _NewThemeRow({required this.onSubmit, required this.onCancel});
+
+  final ValueChanged<String> onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_NewThemeRow> createState() => _NewThemeRowState();
+}
+
+class _NewThemeRowState extends State<_NewThemeRow> {
+  String _name = '';
+
+  bool get _valid => _name.trim().replaceAll(RegExp(r'[^A-Za-z0-9]'), '').isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SettingsTextField(
+          width: 200,
+          initial: '',
+          onChanged: (v) => setState(() => _name = v),
+        ),
+        const SizedBox(width: 8),
+        SettingsOptionButton(
+          label: 'Create',
+          selected: _valid,
+          onTap: () {
+            if (_valid) widget.onSubmit(_name);
+          },
+        ),
+        const SizedBox(width: 6),
+        SettingsIconButton(
+          icon: FontAwesomeIcons.xmark,
+          size: 12,
+          onTap: widget.onCancel,
+        ),
       ],
     );
   }
@@ -1478,533 +1783,6 @@ class _WallpaperTileState extends State<_WallpaperTile> {
   }
 }
 
-
-/// Formats a color back to the config's hex form: `#RRGGBB` when fully opaque,
-/// otherwise `#AARRGGBB`.
-String _formatHexColor(Color c) {
-  final argb = c.toARGB32();
-  final rgb = (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
-  final a = (argb >> 24) & 0xFF;
-  if (a == 0xFF) return '#$rgb';
-  return '#${a.toRadixString(16).padLeft(2, '0')}$rgb';
-}
-
-/// A color swatch + hex text field. Clicking the swatch opens a visual color
-/// picker ([_ColorPickerPopup]) floated over the settings window.
-class _ColorField extends StatefulWidget {
-  const _ColorField({required this.initial, required this.onChanged});
-
-  final String initial;
-  final ValueChanged<String> onChanged;
-
-  @override
-  _ColorFieldState createState() => _ColorFieldState();
-}
-
-class _ColorFieldState extends State<_ColorField> {
-  late final TextEditingController _controller;
-  final _focusNode = FocusNode();
-  final _link = LayerLink();
-  // The picker floats in the root overlay (not a nearby OverlayPortal target)
-  // so a nested Navigator's clipped Overlay can't cut it off. See _open().
-  OverlayEntry? _pickerEntry;
-  bool _focused = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(text: widget.initial);
-    _focusNode.addListener(
-        () => setState(() => _focused = _focusNode.hasFocus));
-  }
-
-  @override
-  void dispose() {
-    _close();
-    _controller.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  void _toggle() {
-    if (_pickerEntry != null) {
-      _close();
-    } else {
-      _open();
-    }
-  }
-
-  void _open() {
-    if (_pickerEntry != null) return;
-    // Insert into the root overlay so the picker can extend past the settings
-    // content pane (whose nested Navigator Overlay would otherwise clip it).
-    final entry = OverlayEntry(builder: (context) => _buildPicker());
-    _pickerEntry = entry;
-    Overlay.of(context, rootOverlay: true).insert(entry);
-  }
-
-  void _close() {
-    _pickerEntry?.remove();
-    _pickerEntry = null;
-  }
-
-  void _apply(Color color) {
-    final hex = _formatHexColor(color);
-    _controller.value = TextEditingValue(
-      text: hex,
-      selection: TextSelection.collapsed(offset: hex.length),
-    );
-    setState(() {});
-    widget.onChanged(hex);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final swatch = parseHexColor(_controller.text);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CompositedTransformTarget(
-          link: _link,
-          child: MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: _toggle,
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: swatch ?? const Color(0x00000000),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: theme.divider),
-                ),
-                child: swatch == null
-                    ? FaIcon(FontAwesomeIcons.question,
-                        size: 10,
-                        color: theme.popupForeground.withValues(alpha: 0.4))
-                    : null,
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          width: 110,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: theme.popupBackground,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: _focused ? theme.accent : theme.divider,
-              width: 1,
-            ),
-          ),
-          // Read-only on the main page: the value is edited through the color
-          // picker popup, not typed here.
-          child: EditableText(
-            controller: _controller,
-            focusNode: _focusNode,
-            readOnly: true,
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.popupForeground,
-              fontFamily: theme.fontFamily,
-            ),
-            cursorColor: theme.accent,
-            backgroundCursorColor: theme.divider,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPicker() {
-    return Stack(
-      children: [
-        // Dismiss when tapping outside the popup.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _close,
-          ),
-        ),
-        CompositedTransformFollower(
-          link: _link,
-          targetAnchor: Alignment.bottomLeft,
-          followerAnchor: Alignment.topLeft,
-          offset: const Offset(0, 8),
-          child: _ColorPickerPopup(
-            initial: parseHexColor(_controller.text) ?? const Color(0xFF000000),
-            onChanged: _apply,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Visual HSV color picker: a draggable saturation/value square, hue and alpha
-/// sliders, and a manual hex entry. Emits every change through [onChanged].
-class _ColorPickerPopup extends StatefulWidget {
-  const _ColorPickerPopup({required this.initial, required this.onChanged});
-
-  final Color initial;
-  final ValueChanged<Color> onChanged;
-
-  @override
-  State<_ColorPickerPopup> createState() => _ColorPickerPopupState();
-}
-
-class _ColorPickerPopupState extends State<_ColorPickerPopup> {
-  static const double _w = 200;
-  static const double _squareH = 150;
-  static const double _sliderH = 14;
-
-  late HSVColor _hsv;
-  late final TextEditingController _hexController;
-  final _hexFocus = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    _hsv = HSVColor.fromColor(widget.initial);
-    _hexController =
-        TextEditingController(text: _formatHexColor(widget.initial));
-  }
-
-  @override
-  void dispose() {
-    _hexController.dispose();
-    _hexFocus.dispose();
-    super.dispose();
-  }
-
-  /// Applies a new HSV value, optionally syncing the hex field text (skipped
-  /// while the user is typing into that field).
-  void _set(HSVColor hsv, {bool syncHex = true}) {
-    _hsv = hsv;
-    final color = hsv.toColor();
-    if (syncHex) {
-      final hex = _formatHexColor(color);
-      if (_hexController.text != hex) {
-        _hexController.value = TextEditingValue(
-          text: hex,
-          selection: TextSelection.collapsed(offset: hex.length),
-        );
-      }
-    }
-    setState(() {});
-    widget.onChanged(color);
-  }
-
-  void _onHex(String text) {
-    final c = parseHexColor(text);
-    if (c != null) _set(HSVColor.fromColor(c), syncHex: false);
-  }
-
-  /// A fixed-size region that reports the pointer position (down + drag) as
-  /// normalized (0..1) coordinates.
-  Widget _draggable({
-    required double width,
-    required double height,
-    required ValueChanged<Offset> onChange,
-    required Widget child,
-  }) {
-    void handle(Offset local) {
-      onChange(Offset(
-        (local.dx / width).clamp(0.0, 1.0),
-        (local.dy / height).clamp(0.0, 1.0),
-      ));
-    }
-
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (d) => handle(d.localPosition),
-      onPanDown: (d) => handle(d.localPosition),
-      onPanUpdate: (d) => handle(d.localPosition),
-      child: SizedBox(width: width, height: height, child: child),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final color = _hsv.toColor();
-    return PopupBounceIn(
-      child: Container(
-        width: _w + 24,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: theme.popupBackground,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: theme.accent, width: 1),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x66000000),
-              blurRadius: 16,
-              offset: Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Saturation / value square.
-            _draggable(
-              width: _w,
-              height: _squareH,
-              onChange: (n) =>
-                  _set(_hsv.withSaturation(n.dx).withValue(1 - n.dy)),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: CustomPaint(
-                  painter: _SVPainter(_hsv.hue),
-                  foregroundPainter: _SVCursorPainter(
-                    saturation: _hsv.saturation,
-                    value: _hsv.value,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Hue slider.
-            _draggable(
-              width: _w,
-              height: _sliderH,
-              onChange: (n) =>
-                  _set(_hsv.withHue((n.dx * 360).clamp(0.0, 360.0))),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(_sliderH / 2),
-                child: CustomPaint(
-                  painter: _HuePainter(),
-                  foregroundPainter: _ThumbPainter(_hsv.hue / 360),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            // Alpha slider.
-            _draggable(
-              width: _w,
-              height: _sliderH,
-              onChange: (n) => _set(_hsv.withAlpha(n.dx)),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(_sliderH / 2),
-                child: CustomPaint(
-                  painter: _AlphaPainter(_hsv.withAlpha(1).toColor()),
-                  foregroundPainter: _ThumbPainter(_hsv.alpha),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Manual hex entry.
-            Row(
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: theme.divider),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: theme.workspaceBackground,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: theme.divider),
-                    ),
-                    child: EditableText(
-                      controller: _hexController,
-                      focusNode: _hexFocus,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: theme.popupForeground,
-                        fontFamily: theme.fontFamily,
-                      ),
-                      cursorColor: theme.accent,
-                      backgroundCursorColor: theme.divider,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                            RegExp(r'[#0-9a-fA-F]')),
-                      ],
-                      onChanged: _onHex,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Paints the saturation (x) / value (y) gradient field for a given [hue].
-class _SVPainter extends CustomPainter {
-  _SVPainter(this.hue);
-
-  final double hue;
-
-  @override
-  void paint(ui.Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final hueColor = HSVColor.fromAHSV(1, hue, 1, 1).toColor();
-    canvas.drawRect(
-      rect,
-      ui.Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [const Color(0xFFFFFFFF), hueColor],
-        ).createShader(rect),
-    );
-    canvas.drawRect(
-      rect,
-      ui.Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x00000000), Color(0xFF000000)],
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SVPainter old) => old.hue != hue;
-}
-
-/// Draws the ring cursor over the saturation/value square.
-class _SVCursorPainter extends CustomPainter {
-  _SVCursorPainter({required this.saturation, required this.value});
-
-  final double saturation;
-  final double value;
-
-  @override
-  void paint(ui.Canvas canvas, Size size) {
-    final c = Offset(saturation * size.width, (1 - value) * size.height);
-    canvas.drawCircle(
-      c,
-      6,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = const Color(0xFFFFFFFF),
-    );
-    canvas.drawCircle(
-      c,
-      7.5,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0x88000000),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SVCursorPainter old) =>
-      old.saturation != saturation || old.value != value;
-}
-
-/// Paints the full hue spectrum bar.
-class _HuePainter extends CustomPainter {
-  @override
-  void paint(ui.Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    canvas.drawRect(
-      rect,
-      ui.Paint()
-        ..shader = const LinearGradient(
-          colors: [
-            Color(0xFFFF0000),
-            Color(0xFFFFFF00),
-            Color(0xFF00FF00),
-            Color(0xFF00FFFF),
-            Color(0xFF0000FF),
-            Color(0xFFFF00FF),
-            Color(0xFFFF0000),
-          ],
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_HuePainter old) => false;
-}
-
-/// Paints the alpha slider: a checkerboard behind a transparent→opaque gradient
-/// of the current [color].
-class _AlphaPainter extends CustomPainter {
-  _AlphaPainter(this.color);
-
-  final Color color;
-
-  @override
-  void paint(ui.Canvas canvas, Size size) {
-    const cell = 5.0;
-    final rect = Offset.zero & size;
-    canvas.drawRect(rect, ui.Paint()..color = const Color(0xFFCCCCCC));
-    final dark = ui.Paint()..color = const Color(0xFF888888);
-    for (double y = 0; y < size.height; y += cell) {
-      for (double x = 0; x < size.width; x += cell) {
-        if (((x ~/ cell) + (y ~/ cell)) % 2 == 0) {
-          canvas.drawRect(Rect.fromLTWH(x, y, cell, cell), dark);
-        }
-      }
-    }
-    canvas.drawRect(
-      rect,
-      ui.Paint()
-        ..shader = LinearGradient(
-          colors: [color.withValues(alpha: 0), color.withValues(alpha: 1)],
-        ).createShader(rect),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_AlphaPainter old) => old.color != color;
-}
-
-/// Draws the round thumb for the hue/alpha sliders at normalized position [t].
-class _ThumbPainter extends CustomPainter {
-  _ThumbPainter(this.t);
-
-  final double t;
-
-  @override
-  void paint(ui.Canvas canvas, Size size) {
-    final r = size.height / 2;
-    final x = (t.clamp(0.0, 1.0) * size.width).clamp(r, size.width - r);
-    final center = Offset(x, size.height / 2);
-    canvas.drawCircle(
-      center,
-      r - 1,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = const Color(0xFFFFFFFF),
-    );
-    canvas.drawCircle(
-      center,
-      r,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = const Color(0x66000000),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ThumbPainter old) => old.t != t;
-}
 
 /// Editable ordered list of strings. When [suggestions] is provided, new items
 /// are added from a dropdown of those values; otherwise a free-form text field

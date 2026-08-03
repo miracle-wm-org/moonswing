@@ -5,6 +5,7 @@ import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 class SoundControl extends StatefulWidget {
   const SoundControl({super.key});
@@ -82,15 +83,13 @@ class SoundControlState extends State<SoundControl>
     final client = _client;
     final sinkName = _defaultSinkName;
     final isVertical = anchor == 'top' || anchor == 'bottom';
-    final theme = ThemeScope.of(context);
 
     openBarPopup(
       context,
       preferredConstraints: isVertical
           ? const BoxConstraints.tightFor(width: 80, height: 200)
           : const BoxConstraints.tightFor(width: 240, height: 50),
-      child: ThemeScope(
-        theme: theme,
+      child: ThemeProvider(
         child: _SoundPopupContent(
           volume: _volume,
           muted: _muted,

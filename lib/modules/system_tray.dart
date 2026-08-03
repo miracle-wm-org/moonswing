@@ -12,6 +12,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 /// Configuration for the system tray module (`[modules.system_tray]`).
 class SystemTrayConfig {
@@ -118,7 +119,6 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
     }
     // The icon may have been removed from the tray during the async fetch.
     if (!iconContext.mounted) return;
-    final theme = ThemeScope.of(context);
     openBarPopup(
       iconContext,
       preferredConstraints: const BoxConstraints(
@@ -127,8 +127,7 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
         minHeight: 24,
         maxHeight: 600,
       ),
-      child: ThemeScope(
-        theme: theme,
+      child: ThemeProvider(
         child: PopupBounceIn(
           child: _TrayMenu(
             item: item,

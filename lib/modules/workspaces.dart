@@ -7,6 +7,7 @@ import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:miracle/miracle.dart';
 
 class Workspaces extends StatefulWidget {
@@ -146,11 +147,12 @@ class _MiracleRetryButtonState extends State<_MiracleRetryButton>
     final error = MiracleScope.of(context).lastError;
     openBarPopup(
       context,
-      child: TooltipLabel(
-        text: error == null
-            ? 'Not connected to Miracle — click to retry'
-            : 'Not connected to Miracle — click to retry\n$error',
-        theme: ThemeScope.of(context),
+      child: ThemeProvider(
+        child: TooltipLabel(
+          text: error == null
+              ? 'Not connected to Miracle — click to retry'
+              : 'Not connected to Miracle — click to retry\n$error',
+        ),
       ),
       preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 64),
     );

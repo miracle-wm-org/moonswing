@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
@@ -17,8 +16,7 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('gs_config_store_test');
     path = '${tempDir.path}/config.toml';
     await File(path).writeAsString('''
-[theme]
-accent = "#853953"
+theme = "dracula"
 
 [modules.weather]
 unit = "fahrenheit"
@@ -38,13 +36,15 @@ right = ["battery", "clock"]
     final store = await ConfigStore.loadFrom(path);
 
     // Reads existing values.
-    expect(store.get<String>(['theme', 'accent']), '#853953');
+    expect(store.get<String>(['theme']), 'dracula');
     expect(store.get<num>(['modules', 'weather', 'refresh_minutes']), 10);
     expect(store.getList<String>(['panels', 'top', 'layout', 'right']),
         ['battery', 'clock']);
 
     // Mutates a scalar, creates a brand-new nested key, and replaces a list.
-    store.set(['theme', 'accent'], '#123456');
+    // A top-level scalar beside the tables: TOML requires it be emitted
+    // before them, so this also guards the writer's key ordering.
+    store.set(['theme'], 'glassy');
     store.set(['modules', 'weather', 'unit'], 'celsius');
     store.set(['modules', 'clock', 'show_date'], true); // new table
     store.set(['panels', 'top', 'layout', 'right'], ['clock', 'battery']);
@@ -53,7 +53,7 @@ right = ["battery", "clock"]
 
     // Re-read the file fresh from disk.
     final reparsed = (await TomlDocument.load(path)).toMap();
-    expect(reparsed['theme']['accent'], '#123456');
+    expect(reparsed['theme'], 'glassy');
     expect(reparsed['modules']['weather']['unit'], 'celsius');
     expect(reparsed['modules']['clock']['show_date'], true);
     expect(reparsed['panels']['top']['layout']['right'], ['clock', 'battery']);
@@ -63,7 +63,7 @@ right = ["battery", "clock"]
 
     // A second store instance sees the persisted changes (round-trip).
     final reopened = await ConfigStore.loadFrom(path);
-    expect(reopened.get<String>(['theme', 'accent']), '#123456');
+    expect(reopened.get<String>(['theme']), 'glassy');
 
     store.dispose();
     reopened.dispose();
@@ -73,14 +73,14 @@ right = ["battery", "clock"]
       () async {
     final store = await ConfigStore.loadFrom(path);
 
-    expect(store.appConfig.theme.accent, const Color(0xFF853953));
+    expect(store.appConfig.themeName, 'dracula');
     expect(store.appConfig.panels['top']?.layout.right, ['battery', 'clock']);
 
     // A live edit is reflected immediately, without touching disk.
-    store.set(['theme', 'accent'], '#123456');
+    store.set(['theme'], 'glassy');
     store.set(['panels', 'top', 'layout', 'right'], ['clock']);
 
-    expect(store.appConfig.theme.accent, const Color(0xFF123456));
+    expect(store.appConfig.themeName, 'glassy');
     expect(store.appConfig.panels['top']?.layout.right, ['clock']);
 
     store.dispose();
@@ -92,7 +92,7 @@ right = ["battery", "clock"]
     expect(store.needsRestart, isFalse);
 
     // Live-updatable fields never require a restart.
-    store.set(['theme', 'accent'], '#123456');
+    store.set(['theme'], 'glassy');
     store.set(['panels', 'top', 'layout', 'right'], ['clock']);
     store.set(['panels', 'top', 'padding_horizontal'], 20);
     expect(store.needsRestart, isFalse);

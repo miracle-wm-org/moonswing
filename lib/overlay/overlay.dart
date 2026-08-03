@@ -217,20 +217,29 @@ class _SettingsOverlayState extends State<SettingsOverlay>
         return AnimatedBuilder(
           animation: _controller,
           builder: (context, child) {
-            return Opacity(
-              opacity: _opacity.value,
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                child: Container(
-                  color: const Color(0x882C2C2C),
-                  child: Center(
-                    child: Transform.scale(
-                      scale: _scale.value,
-                      child: child,
-                    ),
-                  ),
+            final scrim = Container(
+              color: theme.scrim,
+              child: Center(
+                child: Transform.scale(
+                  scale: _scale.value,
+                  child: child,
                 ),
               ),
+            );
+            return Opacity(
+              opacity: _opacity.value,
+              // The filter only reaches what Flutter has drawn behind it, and
+              // on a transparent layer-shell surface that is nothing — the
+              // desktop belongs to the compositor. It is kept because it does
+              // soften the scrim under the panel, and skipped entirely at 0 so
+              // a theme that sets `blur = 0` pays nothing for it.
+              child: theme.blur > 0
+                  ? BackdropFilter(
+                      filter: ImageFilter.blur(
+                          sigmaX: theme.blur, sigmaY: theme.blur),
+                      child: scrim,
+                    )
+                  : scrim,
             );
           },
           child: _buildPanel(theme, overlayPanelSize(constraints.biggest)),

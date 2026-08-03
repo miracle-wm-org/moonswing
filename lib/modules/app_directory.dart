@@ -23,6 +23,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 /// The dock's right-side button that opens the application directory.
 class AppDirectoryButton extends StatefulWidget {
@@ -44,7 +45,6 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
       closePopup();
       return;
     }
-    final theme = ThemeScope.of(context);
     openBarPopup(
       context,
       // Width is fixed (the search field / list rows need a bounded width);
@@ -54,11 +54,9 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
         maxWidth: 300,
         maxHeight: 1200,
       ),
-      child: ThemeScope(
-        theme: theme,
+      child: ThemeProvider(
         child: PopupBounceIn(
           child: _AppDirectory(
-            theme: theme,
             iconSize: widget.iconSize,
             onClose: closePopup,
           ),
@@ -128,12 +126,10 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
 /// [PopupHost].
 class _AppDirectory extends StatefulWidget {
   const _AppDirectory({
-    required this.theme,
     required this.iconSize,
     required this.onClose,
   });
 
-  final ThemeConfig theme;
   final int iconSize;
   final VoidCallback onClose;
 
@@ -243,7 +239,6 @@ class _AppDirectoryState extends State<_AppDirectory>
     if (isPopupOpen) closePopup();
     _submenuCategory = category;
 
-    final theme = widget.theme;
     final apps = _byCategory[category] ?? const [];
     openPopup(
       rowContext,
@@ -260,25 +255,26 @@ class _AppDirectoryState extends State<_AppDirectory>
         maxHeight: 1200,
       ),
       // The flyout is its own popup window, so it does not inherit the
-      // Directionality / DefaultTextStyle from the directory popup's tree.
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: DefaultTextStyle(
-          style: TextStyle(
-            color: theme.popupForeground,
-            fontFamily: theme.fontFamily,
-            fontSize: 13,
-          ),
-          child: ThemeScope(
-            theme: theme,
-            child: MouseRegion(
+      // Directionality / DefaultTextStyle from the directory popup's tree — and
+      // the theme has to be re-provided, live, rather than snapshotted here.
+      child: ThemeProvider(
+        child: Builder(builder: (context) {
+          final theme = ThemeScope.of(context);
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: DefaultTextStyle(
+              style: TextStyle(
+                color: theme.popupForeground,
+                fontFamily: theme.fontFamily,
+                fontSize: 13,
+              ),
+              child: MouseRegion(
                 onEnter: (_) => _cancelClose(),
                 onExit: (_) => _scheduleClose(),
                 child: _FlyoutCard(
                   theme: theme,
                   child: _AppListView(
                     apps: apps,
-                    theme: theme,
                     iconSize: widget.iconSize,
                     onLaunch: _launch,
                     onPin: _pin,
@@ -291,10 +287,11 @@ class _AppDirectoryState extends State<_AppDirectory>
                       _scheduleClose();
                     },
                   ),
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        }),
       ),
     );
     setState(() {});
@@ -308,7 +305,7 @@ class _AppDirectoryState extends State<_AppDirectory>
 
   @override
   Widget build(BuildContext context) {
-    final theme = widget.theme;
+    final theme = ThemeScope.of(context);
     final searching = _query.isNotEmpty;
 
     return Directionality(
@@ -338,7 +335,6 @@ class _AppDirectoryState extends State<_AppDirectory>
                     child: searching
                         ? _AppListView(
                             apps: _searchResults(),
-                            theme: theme,
                             iconSize: widget.iconSize,
                             onLaunch: _launch,
                             onPin: _pin,
@@ -430,7 +426,6 @@ class _FlyoutCard extends StatelessWidget {
 class _AppListView extends StatefulWidget {
   const _AppListView({
     required this.apps,
-    required this.theme,
     required this.iconSize,
     required this.onLaunch,
     required this.onPin,
@@ -439,7 +434,6 @@ class _AppListView extends StatefulWidget {
   });
 
   final List<AppEntry> apps;
-  final ThemeConfig theme;
   final int iconSize;
   final void Function(AppEntry) onLaunch;
   final void Function(AppEntry) onPin;
@@ -460,7 +454,6 @@ class _AppListViewState extends State<_AppListView>
 
   void _openPinMenu(AppEntry app, Offset windowLocal) {
     if (isPopupOpen) closePopup();
-    final theme = widget.theme;
     openPopup(
       context,
       // A zero-size rect at the cursor (in this window's coordinate space);
@@ -472,31 +465,33 @@ class _AppListViewState extends State<_AppListView>
       // Loose: the menu sizes to its content (see [ContextMenuCard]).
       preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
       onClosed: widget.onMenuClosed,
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        child: DefaultTextStyle(
-          style: TextStyle(
-            color: theme.popupForeground,
-            fontFamily: theme.fontFamily,
-            fontSize: 13,
-          ),
-          child: ThemeScope(
-            theme: theme,
-            child: PopupBounceIn(
-              child: ContextMenuCard(
-                items: [
-                  ContextMenuItem(
-                    label: 'Pin to dock',
-                    onTap: () {
-                      widget.onPin(app);
-                      closePopup();
-                    },
-                  ),
-                ],
+      child: ThemeProvider(
+        child: Builder(builder: (context) {
+          final theme = ThemeScope.of(context);
+          return Directionality(
+            textDirection: TextDirection.ltr,
+            child: DefaultTextStyle(
+              style: TextStyle(
+                color: theme.popupForeground,
+                fontFamily: theme.fontFamily,
+                fontSize: 13,
+              ),
+              child: PopupBounceIn(
+                child: ContextMenuCard(
+                  items: [
+                    ContextMenuItem(
+                      label: 'Pin to dock',
+                      onTap: () {
+                        widget.onPin(app);
+                        closePopup();
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        }),
       ),
     );
     widget.onMenuOpened?.call();
@@ -504,7 +499,7 @@ class _AppListViewState extends State<_AppListView>
 
   @override
   Widget build(BuildContext context) {
-    final theme = widget.theme;
+    final theme = ThemeScope.of(context);
     final apps = widget.apps;
 
     if (apps.isEmpty) {

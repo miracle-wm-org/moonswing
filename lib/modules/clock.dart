@@ -5,6 +5,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/theme_provider.dart';
 
 class ClockConfig {
   final bool showDate;
@@ -93,14 +94,13 @@ class ClockState extends State<Clock> with LayerShellHost<Clock> {
       ],
       keyboardMode: LayerShellKeyboardMode.onDemand,
     );
-
-    final theme = ThemeScope.of(context);
+    // Full-screen means the whole output, panels included.
+    spanFullOutput(controller);
 
     openLayerWindow(
       context,
       controller: controller,
-      child: ThemeScope(
-        theme: theme,
+      child: ThemeProvider(
         child: SettingsOverlay(
           closingNotifier: _closingNotifier,
           onClosed: _onOverlayClosed,

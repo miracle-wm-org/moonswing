@@ -1,19 +1,39 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
 
-/// The static gradient drawn behind a panel's modules.
+/// The background drawn behind a panel's modules.
 ///
-/// The gradient is "aligned" to the panel's own edge: the bright accent sits
-/// against that edge and fades to dark across the panel.
+/// The bar's colour is [ThemeConfig.panelBackground] and its alpha is honoured
+/// as written, so a translucent theme can see through the surface that sits
+/// directly on the desktop. Before this the panel was painted from
+/// `workspaceBackground` at a hardcoded 93%, which made it the one thing in the
+/// shell no theme could open up.
+///
+/// With [ThemeConfig.panelGradient] the bar fades from `accent` through
+/// `surfacePressed` to that colour, "aligned" to the panel's own edge — the
+/// bright end sits against that edge:
 ///   top    -> left-aligned    bottom -> right-aligned
 ///   left   -> top-aligned     right  -> bottom-aligned
+///
+/// Every stop takes its alpha from `panelBackground`, not from its own colour.
+/// The bar therefore has exactly one opacity: an author sets how see-through it
+/// is in one place, and a stop cannot be more opaque than the rest of the bar
+/// and read as a band across it.
+///
+/// [theme] is required on purpose: a defaulted palette here would silently
+/// paint the built-in colours over whatever theme is actually active.
 BoxDecoration panelBackgroundDecoration({
   String anchor = 'top',
-  ThemeConfig theme = const ThemeConfig(),
+  required ThemeConfig theme,
 }) {
-  final dark = theme.workspaceBackground.withValues(alpha: 0xEE / 0xFF);
-  final mid = theme.surfacePressed.withValues(alpha: 0xEE / 0xFF);
-  final light = theme.accent.withValues(alpha: 0xEE / 0xFF);
+  if (!theme.panelGradient) {
+    return BoxDecoration(color: theme.panelBackground);
+  }
+
+  final alpha = theme.panelBackground.a;
+  final dark = theme.panelBackground;
+  final mid = theme.surfacePressed.withValues(alpha: alpha);
+  final light = theme.accent.withValues(alpha: alpha);
 
   late final Alignment begin;
   late final Alignment end;
