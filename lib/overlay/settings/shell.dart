@@ -376,6 +376,7 @@ class _AppearanceSectionState extends State<_AppearanceSection> {
     'muted': 'Muted text',
     'divider': 'Divider',
     'panel_background': 'Panel background',
+    'panel_border': 'Panel border',
     'scrim': 'Overlay scrim',
   };
 
@@ -487,6 +488,45 @@ class _AppearanceSectionState extends State<_AppearanceSection> {
                   'Off paints the bar as a flat panel background. On fades it '
                   'from the accent across to that colour, with every stop at '
                   "the panel background's alpha — so the bar has one opacity.",
+                ),
+                const SizedBox(height: 8),
+                SettingsRow(
+                  label: 'Panel margin',
+                  control: SettingsNumberField(
+                    key: ValueKey('panel_margin-$active'),
+                    value: current['panel_margin'] as num? ?? 0,
+                    isInt: true,
+                    onChanged: (v) =>
+                        _themes.edit('panel_margin', v.toInt().clamp(0, 256)),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Panel corner radius',
+                  control: SettingsNumberField(
+                    key: ValueKey('panel_radius-$active'),
+                    value: current['panel_radius'] as num? ?? 0,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                        'panel_radius', v.toDouble().clamp(0.0, 64.0)),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Panel border width',
+                  control: SettingsNumberField(
+                    key: ValueKey('panel_border_width-$active'),
+                    value: current['panel_border_width'] as num? ?? 0,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                        'panel_border_width', v.toDouble().clamp(0.0, 16.0)),
+                  ),
+                ),
+                const SettingsHint(
+                  'A margin floats the bar off the screen edges. The gap is '
+                  'real — windows will not tile into it, and clicks that land '
+                  'there reach the desktop. A floating bar rounds all four '
+                  'corners; one with no margin rounds only the two facing the '
+                  "screen, so the display's own corners stay square. The "
+                  'border draws only at a width above zero.',
                 ),
                 const SizedBox(height: 8),
                 SettingsRow(

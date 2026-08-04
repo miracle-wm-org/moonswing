@@ -20,14 +20,69 @@ import 'package:graceful_shell/config.dart';
 /// is in one place, and a stop cannot be more opaque than the rest of the bar
 /// and read as a band across it.
 ///
+/// Both shapes carry the bar's rim ([ThemeConfig.panelBorderWidth]) and its
+/// corner rounding ([panelCornerRadius]); a theme that sets neither gets the
+/// same decoration it always did.
+///
+/// The bar's corner rounding, from [ThemeConfig.panelRadius].
+///
+/// A floating bar ([ThemeConfig.panelMargin] > 0) rounds all four corners. A
+/// flush one rounds only the two facing the screen's interior: rounding the
+/// pair that sits against the screen edge would cut wallpaper wedges out of the
+/// display's own corners and make the bar read as a misaligned card.
+///
+/// Returns [BorderRadius.zero] for a radius of 0, which callers use to skip
+/// building a clip layer at all.
+BorderRadius panelCornerRadius({
+  String anchor = 'top',
+  required ThemeConfig theme,
+}) {
+  if (theme.panelRadius <= 0) return BorderRadius.zero;
+  final r = Radius.circular(theme.panelRadius);
+  if (theme.panelMargin > 0) return BorderRadius.all(r);
+
+  switch (anchor) {
+    case 'bottom':
+      return BorderRadius.only(topLeft: r, topRight: r);
+    case 'left':
+      return BorderRadius.only(topRight: r, bottomRight: r);
+    case 'right':
+      return BorderRadius.only(topLeft: r, bottomLeft: r);
+    case 'top':
+    default:
+      return BorderRadius.only(bottomLeft: r, bottomRight: r);
+  }
+}
+
+/// The bar's rim, or null when [ThemeConfig.panelBorderWidth] is 0.
+///
+/// Width is the off switch rather than alpha, and null rather than a
+/// zero-width [Border] on purpose: a `Border` in the decoration carries a
+/// non-zero [BoxDecoration.padding], which a [Container] would silently apply
+/// to the bar's content.
+Border? _panelBorder(ThemeConfig theme) => theme.panelBorderWidth > 0
+    ? Border.all(color: theme.panelBorder, width: theme.panelBorderWidth)
+    : null;
+
 /// [theme] is required on purpose: a defaulted palette here would silently
 /// paint the built-in colours over whatever theme is actually active.
 BoxDecoration panelBackgroundDecoration({
   String anchor = 'top',
   required ThemeConfig theme,
 }) {
+  final radius = panelCornerRadius(anchor: anchor, theme: theme);
+  // Normalised to null rather than BorderRadius.zero so that an untouched
+  // theme produces exactly the decoration it did before corners were themable.
+  final BorderRadius? borderRadius =
+      radius == BorderRadius.zero ? null : radius;
+  final border = _panelBorder(theme);
+
   if (!theme.panelGradient) {
-    return BoxDecoration(color: theme.panelBackground);
+    return BoxDecoration(
+      color: theme.panelBackground,
+      borderRadius: borderRadius,
+      border: border,
+    );
   }
 
   final alpha = theme.panelBackground.a;
@@ -64,5 +119,7 @@ BoxDecoration panelBackgroundDecoration({
       colors: [light, mid, dark],
       stops: const [0.0, 0.5, 1.0],
     ),
+    borderRadius: borderRadius,
+    border: border,
   );
 }

@@ -156,6 +156,11 @@ void main() {
     themes.edit('accent', '#00FF00');
     themes.edit('font', 'Cantarell');
     themes.edit('blur', 8.0);
+    // The bar's geometry writes an int beside two doubles, so this also covers
+    // the TOML encoder keeping the types apart.
+    themes.edit('panel_margin', 12);
+    themes.edit('panel_radius', 10.0);
+    themes.edit('panel_border_width', 1.5);
     await themes.flush();
 
     final map = (await TomlDocument.load('$themesDir/mine.toml')).toMap();
@@ -163,6 +168,9 @@ void main() {
     expect(reparsed.accent, const Color(0xFF00FF00));
     expect(reparsed.fontFamily, 'Cantarell');
     expect(reparsed.blur, 8.0);
+    expect(reparsed.panelMargin, 12);
+    expect(reparsed.panelRadius, 10.0);
+    expect(reparsed.panelBorderWidth, 1.5);
     expect(reparsed, themes.theme);
     // The display name survives a write.
     expect(map['name'], 'Mine');

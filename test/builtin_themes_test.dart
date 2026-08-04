@@ -27,6 +27,10 @@ void main() {
       ...ThemeConfig.colorKeys,
       'font',
       'blur',
+      'panel_gradient',
+      'panel_margin',
+      'panel_radius',
+      'panel_border_width',
     };
     for (final entry in kBuiltInThemes.entries) {
       final map = TomlDocument.parse(entry.value).toMap();
@@ -53,6 +57,33 @@ void main() {
       if (!theme.panelGradient) continue;
       expect(theme.panelBackground.a, greaterThan(0.5), reason: 'in ${entry.key}');
     }
+  });
+
+  test('the flush themes keep the geometry the bar always had', () {
+    // graceful is pinned to the ThemeConfig defaults by the test above, but
+    // dracula is not — and neither should have moved off the screen edge.
+    for (final slug in const ['graceful', 'dracula']) {
+      final theme =
+          ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
+      expect(theme.panelMargin, 0, reason: 'in $slug');
+      expect(theme.panelRadius, 0.0, reason: 'in $slug');
+      expect(theme.panelBorderWidth, 0.0, reason: 'in $slug');
+    }
+  });
+
+  test('glassy floats, rounds, and has a visible rim', () {
+    // The theme this feature exists for: alpha alone made the bar see-through,
+    // but it still read as a strip of tint rather than a pane of glass.
+    final glassy =
+        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['glassy']!).toMap());
+    expect(glassy.panelMargin, greaterThan(0));
+    expect(glassy.panelRadius, greaterThan(0));
+    expect(glassy.panelBorderWidth, greaterThan(0));
+    expect(glassy.panelBorder.a, greaterThan(0),
+        reason: 'a rim with a transparent colour draws nothing');
+    // Floating means all four corners round.
+    expect(panelCornerRadius(theme: glassy),
+        BorderRadius.circular(glassy.panelRadius));
   });
 
   test('toMap round-trips through TOML unchanged', () {

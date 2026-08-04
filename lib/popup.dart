@@ -88,7 +88,33 @@ Rect popupAnchorRect(BuildContext context) {
 /// and a see-through bar reveals a flat black strip. It went unnoticed while
 /// every panel was opaque.
 void spanFullOutput(LayershellWindowController controller) {
-  GtkWindow.fromHandle(controller.windowHandle).layerSetExclusiveZone(-1);
+  controller.setExclusiveZone(-1);
+}
+
+/// Floats a panel [margin] px off each screen edge it is anchored to.
+///
+/// This is a native layer-shell margin rather than a Flutter inset because the
+/// shell has no input-region support: padding inside a full-size surface would
+/// leave the surface swallowing every click in the gap, whereas a real margin
+/// shrinks it and lets those clicks reach the desktop.
+///
+/// The exclusive zone is deliberately untouched. Per wlr-layer-shell's
+/// `set_margin`, "the exclusive zone includes the margin" — the compositor adds
+/// the anchored edge's margin to the zone the surface already asked for, so
+/// windows stop below a floating bar without us sending anything. Reserving
+/// `height + margin` here as well would reserve it twice and leave a dead strip
+/// the size of the gap that no window would occupy.
+void setPanelMargin(
+  LayershellWindowController controller, {
+  required String anchor,
+  required int margin,
+}) {
+  for (final edge in anchorEdgesForPosition(anchor)) {
+    controller.setMargin(edge, margin);
+  }
+  // Once the surface is mapped a margin change only queues a resize, so a live
+  // theme edit would otherwise sit unsent until something else forced a frame.
+  controller.tryForceCommit();
 }
 
 /// Mixin for [State] classes that own a single popup window.

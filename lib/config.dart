@@ -62,6 +62,36 @@ class ThemeConfig {
   /// band partway across.
   final bool panelGradient;
 
+  /// How far each bar floats off the screen edges it is anchored to.
+  ///
+  /// This is a *native* `gtk_layer_set_margin` applied in `main.dart`, never a
+  /// Flutter `Padding`: the shell has no input-region support, so an inset
+  /// inside a full-size surface would swallow every click in the gap instead of
+  /// letting it reach the desktop.
+  ///
+  /// The exclusive zone is deliberately left at the panel's thickness. Per
+  /// wlr-layer-shell's `set_margin`, "the exclusive zone includes the margin",
+  /// so the compositor already keeps windows out of the gap; reserving
+  /// `height + margin` ourselves would reserve it twice.
+  final int panelMargin;
+
+  /// The bar's corner rounding.
+  ///
+  /// A floating bar ([panelMargin] > 0) rounds all four corners. A flush one
+  /// rounds only the two corners facing the screen's interior, because
+  /// rounding the pair against the screen edge cuts wallpaper wedges out of
+  /// the display's own corners.
+  final double panelRadius;
+
+  /// The colour of the bar's rim. Only drawn when [panelBorderWidth] > 0.
+  final Color panelBorder;
+
+  /// The bar's rim thickness, or 0 for no rim.
+  ///
+  /// Width, not alpha, is the off switch: at 0 no `Border` is built at all, so
+  /// the default decoration stays exactly what it was before rims existed.
+  final double panelBorderWidth;
+
   /// The wash painted over the screen behind a full-screen overlay (the
   /// settings panel, the launcher card).
   final Color scrim;
@@ -90,6 +120,10 @@ class ThemeConfig {
     this.divider = const Color(0x33F3F4F4),
     this.panelBackground = const Color(0xEE2C2C2C),
     this.panelGradient = true,
+    this.panelMargin = 0,
+    this.panelRadius = 0.0,
+    this.panelBorder = const Color(0x33F3F4F4),
+    this.panelBorderWidth = 0.0,
     this.scrim = const Color(0x882C2C2C),
     this.blur = 24.0,
     this.fontFamily = 'Ubuntu Sans',
@@ -121,8 +155,17 @@ class ThemeConfig {
       return raw is String ? raw : null;
     }
 
-    final rawBlur = map['blur'];
-    final blur = rawBlur is num ? rawBlur.toDouble() : 24.0;
+    // A theme file is hand-editable, so every number is clamped into a range
+    // that cannot crash a painter. NaN and ±Infinity both fall back rather than
+    // clamp: infinity survives clamp(), and `double.nan.toInt()` throws.
+    double num_(String key, double fallback, double max) {
+      final raw = map[key];
+      if (raw is! num) return fallback;
+      final value = raw.toDouble();
+      if (!value.isFinite) return fallback;
+      return value.clamp(0.0, max);
+    }
+
     return ThemeConfig(
       foreground: _parseColor(str('foreground'), const Color(0xFFF3F4F4)),
       accent: _parseColor(str('accent'), const Color(0xFF853953)),
@@ -145,10 +188,13 @@ class ThemeConfig {
       panelGradient: map['panel_gradient'] is bool
           ? map['panel_gradient'] as bool
           : true,
+      panelMargin: num_('panel_margin', 0.0, 256.0).round(),
+      panelRadius: num_('panel_radius', 0.0, 64.0),
+      panelBorder: _parseColor(str('panel_border'), const Color(0x33F3F4F4)),
+      panelBorderWidth: num_('panel_border_width', 0.0, 16.0),
       scrim: _parseColor(str('scrim'), const Color(0x882C2C2C)),
-      // A negative or NaN sigma throws inside ImageFilter.blur; clamp rather
-      // than let a hand-edited theme crash every overlay.
-      blur: blur.isNaN ? 24.0 : blur.clamp(0.0, 100.0),
+      // A negative or NaN sigma throws inside ImageFilter.blur.
+      blur: num_('blur', 24.0, 100.0),
       fontFamily: str('font') ?? 'Ubuntu Sans',
     );
   }
@@ -172,6 +218,10 @@ class ThemeConfig {
         'divider': formatColor(divider),
         'panel_background': formatColor(panelBackground),
         'panel_gradient': panelGradient,
+        'panel_margin': panelMargin,
+        'panel_radius': panelRadius,
+        'panel_border': formatColor(panelBorder),
+        'panel_border_width': panelBorderWidth,
         'scrim': formatColor(scrim),
       };
 
@@ -190,6 +240,7 @@ class ThemeConfig {
     'muted',
     'divider',
     'panel_background',
+    'panel_border',
     'scrim',
   ];
 
@@ -209,12 +260,18 @@ class ThemeConfig {
       other.divider == divider &&
       other.panelBackground == panelBackground &&
       other.panelGradient == panelGradient &&
+      other.panelMargin == panelMargin &&
+      other.panelRadius == panelRadius &&
+      other.panelBorder == panelBorder &&
+      other.panelBorderWidth == panelBorderWidth &&
       other.scrim == scrim &&
       other.blur == blur &&
       other.fontFamily == fontFamily;
 
+  // hashAll rather than Object.hash: the field list is already at that
+  // function's 20-argument ceiling, so the next key added would not compile.
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
         foreground,
         accent,
         surfaceHover,
@@ -228,10 +285,14 @@ class ThemeConfig {
         divider,
         panelBackground,
         panelGradient,
+        panelMargin,
+        panelRadius,
+        panelBorder,
+        panelBorderWidth,
         scrim,
         blur,
         fontFamily,
-      );
+      ]);
 }
 
 /// File extensions considered valid image wallpapers. Paths with any other

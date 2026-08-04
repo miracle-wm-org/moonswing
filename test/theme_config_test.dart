@@ -1,0 +1,141 @@
+import 'dart:ui';
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:graceful_shell/config.dart';
+
+void main() {
+  group('a hand-edited theme cannot crash the shell', () {
+    // Theme files are edited by hand, so every numeric key has to survive
+    // whatever is typed into it. The clamps live in ThemeConfig.fromMap rather
+    // than at each painter, so one bad value costs that key and nothing else.
+
+    test('a non-numeric value falls back', () {
+      final theme = ThemeConfig.fromMap({
+        'panel_margin': 'lots',
+        'panel_radius': true,
+        'panel_border_width': [1, 2],
+      });
+      expect(theme.panelMargin, 0);
+      expect(theme.panelRadius, 0.0);
+      expect(theme.panelBorderWidth, 0.0);
+    });
+
+    test('a negative value clamps to zero', () {
+      final theme = ThemeConfig.fromMap({
+        'panel_margin': -5,
+        'panel_radius': -1.0,
+        'panel_border_width': -0.5,
+        'blur': -10.0,
+      });
+      expect(theme.panelMargin, 0);
+      expect(theme.panelRadius, 0.0);
+      expect(theme.panelBorderWidth, 0.0);
+      expect(theme.blur, 0.0);
+    });
+
+    test('an absurd value clamps to the ceiling', () {
+      final theme = ThemeConfig.fromMap({
+        'panel_margin': 100000,
+        'panel_radius': 1e9,
+        'panel_border_width': 999,
+        'blur': 5000.0,
+      });
+      expect(theme.panelMargin, 256);
+      expect(theme.panelRadius, 64.0);
+      expect(theme.panelBorderWidth, 16.0);
+      expect(theme.blur, 100.0);
+    });
+
+    test('NaN falls back rather than propagating', () {
+      // The margin is the sharp edge here: double.nan.toInt() throws
+      // UnsupportedError, so a NaN that reached the int conversion would take
+      // down the whole theme rather than one key.
+      final theme = ThemeConfig.fromMap({
+        'panel_margin': double.nan,
+        'panel_radius': double.nan,
+        'panel_border_width': double.nan,
+        'blur': double.nan,
+      });
+      expect(theme.panelMargin, 0);
+      expect(theme.panelRadius, 0.0);
+      expect(theme.panelBorderWidth, 0.0);
+      expect(theme.blur, 24.0);
+    });
+
+    test('infinity falls back rather than clamping', () {
+      // clamp() lets infinity through as the upper bound, which would be a
+      // silently absurd value instead of an obviously ignored one.
+      final theme = ThemeConfig.fromMap({
+        'panel_margin': double.infinity,
+        'panel_radius': double.negativeInfinity,
+        'blur': double.infinity,
+      });
+      expect(theme.panelMargin, 0);
+      expect(theme.panelRadius, 0.0);
+      expect(theme.blur, 24.0);
+    });
+
+    test('a malformed border colour costs only that key', () {
+      final theme = ThemeConfig.fromMap({
+        'panel_border': 'not a colour',
+        'panel_border_width': 2.0,
+      });
+      expect(theme.panelBorder, const ThemeConfig().panelBorder);
+      expect(theme.panelBorderWidth, 2.0);
+    });
+  });
+
+  group('the new keys take part in equality', () {
+    // ThemeScope.updateShouldNotify is `old != new`, so a field missing from
+    // == means changing it in the settings UI repaints nothing — a failure
+    // that reads like a Flutter bug rather than a missing comparison.
+    const base = ThemeConfig();
+
+    test('panel_margin', () {
+      expect(base, isNot(const ThemeConfig(panelMargin: 8)));
+    });
+
+    test('panel_radius', () {
+      expect(base, isNot(const ThemeConfig(panelRadius: 12.0)));
+    });
+
+    test('panel_border', () {
+      expect(base, isNot(const ThemeConfig(panelBorder: Color(0xFFFF0000))));
+    });
+
+    test('panel_border_width', () {
+      expect(base, isNot(const ThemeConfig(panelBorderWidth: 1.0)));
+    });
+
+    test('and hashCode moves with them', () {
+      final hashes = {
+        base.hashCode,
+        const ThemeConfig(panelMargin: 8).hashCode,
+        const ThemeConfig(panelRadius: 12.0).hashCode,
+        const ThemeConfig(panelBorder: Color(0xFFFF0000)).hashCode,
+        const ThemeConfig(panelBorderWidth: 1.0).hashCode,
+      };
+      expect(hashes, hasLength(5));
+    });
+  });
+
+  test('the defaults are the geometry the bar has always had', () {
+    // Every install that has never opened the theme editor resolves to these,
+    // so they are what guarantee this feature changes nothing until asked for.
+    const theme = ThemeConfig();
+    expect(theme.panelMargin, 0);
+    expect(theme.panelRadius, 0.0);
+    expect(theme.panelBorderWidth, 0.0);
+  });
+
+  test('the new keys round-trip through toMap', () {
+    const theme = ThemeConfig(
+      panelMargin: 8,
+      panelRadius: 12.0,
+      panelBorder: Color(0x40FFFFFF),
+      panelBorderWidth: 1.5,
+    );
+    expect(ThemeConfig.fromMap(theme.toMap()), theme);
+  });
+}

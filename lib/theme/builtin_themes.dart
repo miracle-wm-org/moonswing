@@ -48,6 +48,14 @@ scrim                = "#882C2C2C"
 # always drawn. panel_background's alpha sets the opacity of every stop.
 panel_background     = "#EE2C2C2C"
 panel_gradient       = true
+
+# Flush to the screen edge, square, no rim — the geometry the bar has always
+# had. panel_border is spelled out even though nothing draws it at width 0: it
+# is the colour a rim would take if one were switched on.
+panel_margin         = 0
+panel_radius         = 0.0
+panel_border         = "#33F3F4F4"
+panel_border_width   = 0.0
 ''';
 
 const String _dracula = '''
@@ -76,6 +84,13 @@ scrim                = "#88282A36"
 
 panel_background     = "#EE282A36"
 panel_gradient       = true
+
+# Flush and square, like graceful — Dracula is a flat palette, not a floating
+# one. The rim colour matches divider so switching it on reads as Dracula.
+panel_margin         = 0
+panel_radius         = 0.0
+panel_border         = "#33F8F8F2"
+panel_border_width   = 0.0
 ''';
 
 const String _glassy = '''
@@ -111,4 +126,15 @@ scrim                = "#66101318"
 # the one place this theme wants nothing but the wallpaper.
 panel_background     = "#40121722"
 panel_gradient       = false
+
+# A floating pane rather than a strip: an 8px gap on every anchored edge, cut
+# by a real gtk-layer-shell margin, so nothing tiles into the gap (the
+# compositor folds the margin into the bar's reserved space) and clicks that
+# land in it still reach the desktop. The 1px rim is what gives an edge to a
+# sheet this translucent — without it the bar has no boundary at all over a
+# busy wallpaper.
+panel_margin         = 8
+panel_radius         = 12.0
+panel_border         = "#40FFFFFF"
+panel_border_width   = 1.0
 ''';

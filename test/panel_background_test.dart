@@ -50,6 +50,96 @@ void main() {
     expect(decoration.color, const Color(0x40121722));
   });
 
+  test('a default bar is square and unbordered', () {
+    // The pixel-identity guard for graceful and dracula: this feature must
+    // change nothing at all until a theme asks for it.
+    for (final gradient in [true, false]) {
+      final decoration = panelBackgroundDecoration(
+        theme: ThemeConfig(panelGradient: gradient),
+      );
+      expect(decoration.borderRadius, isNull, reason: 'gradient $gradient');
+      expect(decoration.border, isNull, reason: 'gradient $gradient');
+    }
+  });
+
+  test('a zero-width border is no Border at all', () {
+    // Width is the off switch, not alpha — and it has to produce *no* Border,
+    // because a Border carries a BoxDecoration.padding that would inset the
+    // bar's content the moment anyone wrapped it in a Container.
+    final decoration = panelBackgroundDecoration(
+      theme: const ThemeConfig(
+        panelBorder: Color(0xFFFF0000),
+        panelBorderWidth: 0,
+      ),
+    );
+    expect(decoration.border, isNull);
+  });
+
+  test('the rim and the rounding reach both shapes', () {
+    // The flat branch is the one glassy actually takes, and until now no test
+    // looked at anything but the gradient.
+    for (final gradient in [true, false]) {
+      final theme = ThemeConfig(
+        panelGradient: gradient,
+        panelMargin: 8,
+        panelRadius: 12,
+        panelBorder: const Color(0x40FFFFFF),
+        panelBorderWidth: 1.5,
+      );
+      final decoration = panelBackgroundDecoration(theme: theme);
+      expect(
+        decoration.border,
+        Border.all(color: const Color(0x40FFFFFF), width: 1.5),
+        reason: 'gradient $gradient',
+      );
+      expect(decoration.borderRadius, BorderRadius.circular(12),
+          reason: 'gradient $gradient');
+    }
+  });
+
+  test('a floating bar rounds all four corners', () {
+    for (final anchor in const ['top', 'bottom', 'left', 'right']) {
+      expect(
+        panelCornerRadius(
+          anchor: anchor,
+          theme: const ThemeConfig(panelMargin: 8, panelRadius: 12),
+        ),
+        BorderRadius.circular(12),
+        reason: 'anchor $anchor',
+      );
+    }
+  });
+
+  test('a flush bar rounds only the corners facing the screen', () {
+    // Rounding the pair against the screen edge would cut wallpaper wedges out
+    // of the display's own corners.
+    const r = Radius.circular(12);
+    for (final (anchor, expected) in const [
+      ('top', BorderRadius.only(bottomLeft: r, bottomRight: r)),
+      ('bottom', BorderRadius.only(topLeft: r, topRight: r)),
+      ('left', BorderRadius.only(topRight: r, bottomRight: r)),
+      ('right', BorderRadius.only(topLeft: r, bottomLeft: r)),
+    ]) {
+      expect(
+        panelCornerRadius(
+          anchor: anchor,
+          theme: const ThemeConfig(panelMargin: 0, panelRadius: 12),
+        ),
+        expected,
+        reason: 'anchor $anchor',
+      );
+    }
+  });
+
+  test('no radius means no clip layer', () {
+    // main.dart keys the ClipRRect off BorderRadius.zero, so this is what keeps
+    // an unstyled bar at exactly the layer count it had before.
+    expect(
+      panelCornerRadius(theme: const ThemeConfig(panelMargin: 8)),
+      BorderRadius.zero,
+    );
+  });
+
   test('the gradient is aligned to the panel edge', () {
     for (final (anchor, begin) in const [
       ('top', Alignment.centerLeft),

@@ -361,6 +361,10 @@ scrim                = "#88282828"
 
 panel_background     = "#EE282828"
 panel_gradient       = true
+panel_margin         = 0
+panel_radius         = 0.0
+panel_border         = "#33EBDBB2"
+panel_border_width   = 0.0
 ```
 
 Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `AA` is the alpha channel). `"#33FFFFFF"` is white at ~20% opacity. Alpha is what makes a translucent theme translucent: panel and popup surfaces composite against the desktop behind them.
@@ -383,6 +387,10 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `divider`              | `#33F3F4F4`   | Separator lines, and the resting fill of subtle list rows (supports alpha)  |
 | `panel_background`     | `#EE2C2C2C`   | The bar's background, and the opacity of the whole bar (see below)          |
 | `panel_gradient`       | `true`        | Whether the bar fades from `accent`, or is a flat `panel_background`        |
+| `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to              |
+| `panel_radius`         | `0.0`         | Corner rounding of each bar (see below for which corners)                   |
+| `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
+| `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
@@ -399,6 +407,21 @@ The bar has its own color, `panel_background`, and its alpha is used exactly as 
 A translucent bar shows the wallpaper the shell itself draws (`[background]`). Over a bare desktop with no `[background]` section there is nothing behind the bar but whatever your compositor paints, which may simply be black.
 
 In gradient mode **every stop is drawn at `panel_background`'s alpha**, not its own. The bar has exactly one opacity, so setting `panel_background = "#402C2C2C"` makes the whole bar 25% opaque without having to give `accent` and `surface_pressed` a matching alpha — and no stop can end up more opaque than the rest and read as a band across the middle.
+
+### Floating the bar
+
+`panel_margin` moves each bar away from the screen edges it is anchored to, turning a full-bleed strip into a floating pane. This is what `glassy` does, at `8`.
+
+The gap is real, not painted: the bar's surface genuinely shrinks, so **windows will not tile into it** and **clicks that land in the gap reach the desktop** rather than being swallowed by an invisible part of the bar. The space the bar reserves grows with the margin automatically — a 32px bar with an 8px margin keeps maximized windows 40px clear of the screen edge.
+
+`panel_radius` rounds the bar's corners, and which corners depends on whether it floats:
+
+- **`panel_margin` above zero** — all four corners round, because the bar is a card sitting on the wallpaper.
+- **`panel_margin = 0`** — only the two corners facing the middle of the screen round. A flush bar with rounded outer corners would cut wallpaper wedges out of the display's own corners, which reads as misalignment rather than styling.
+
+`panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
+
+All three follow a theme switch live; no restart is needed.
 
 ### About `blur`
 

@@ -44,7 +44,6 @@ import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 import 'package:ext_session_lock/ext_session_lock.dart';
 import 'package:layer_shell/layer_shell.dart';
-import 'package:layer_shell/src/gtk.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:wayland/wayland.dart';
 
@@ -287,6 +286,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// still comes from [widget.appConfig] (the startup snapshot).
   late AppConfig _liveConfig;
 
+  /// The panel margin currently committed to the native surfaces.
+  ///
+  /// Cached rather than read from [ThemeStore] at use time so [_onThemeChanged]
+  /// can tell whether the value actually moved: the store notifies on every
+  /// frame of a colour-picker drag, and re-committing every layer surface that
+  /// often would make the bars flicker.
+  int _panelMargin = 0;
+
   @override
   void initState() {
     super.initState();
@@ -300,6 +307,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     InputTriggerStore.instance.addListener(_onSettingsTriggered);
     LauncherController.instance.addListener(_onLauncherTriggered);
     LockController.instance.addListener(_onLockRequested);
+    ThemeStore.instance.addListener(_onThemeChanged);
+    // startThemeService() resolved the palette back in main(), so the margin is
+    // known before the first surface is built and no bar is created flush and
+    // then nudged.
+    _panelMargin = ThemeStore.instance.theme.panelMargin;
 
     for (final monitor in listMonitors()) {
       _surfaces[_monitorKey(monitor)] = _createSurfaces(monitor);
@@ -353,7 +365,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         height = panelConfig.height;
       }
 
-      panels[entry.key] = LayershellWindowController(
+      final controller = LayershellWindowController(
         width: width,
         height: height,
         layer: layer,
@@ -361,6 +373,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         exclusiveZone: panelConfig.height,
         monitor: monitor.gdkMonitor,
       );
+      // Reading the field rather than the store means a monitor hot-plugged
+      // after a theme change gets the current margin with no second call site.
+      setPanelMargin(controller,
+          anchor: panelConfig.anchor, margin: _panelMargin);
+      panels[entry.key] = controller;
     }
 
     return _MonitorSurfaces(monitor, background, panels);
@@ -380,10 +397,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       height: kOsdWindowSize.height.round(),
       monitor: monitor.gdkMonitor,
     );
-    // The controller exposes no margin, so lift the window off the bottom edge
-    // through the GTK handle it was built from.
-    GtkWindow.fromHandle(controller.windowHandle)
-        .layerSetMargin(LayerShellEdge.bottom, _liveConfig.osd.margin);
+    controller.setMargin(LayerShellEdge.bottom, _liveConfig.osd.margin);
     return controller;
   }
 
@@ -762,6 +776,34 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     setState(() => _liveConfig = next);
   }
 
+  /// Re-floats the bars when the active theme's margin changes.
+  ///
+  /// Panel geometry is otherwise frozen at startup, but this one has to follow
+  /// the theme live: everything else about a theme switch applies immediately,
+  /// and a bar that rounded its corners without also lifting off the screen
+  /// edge until the next restart would just look broken.
+  ///
+  /// No [setState] — nothing in the tree reads [_panelMargin]. The radius and
+  /// rim reach the panels through [ThemeProvider], which listens to this same
+  /// store, so rebuilding here would only duplicate that work on every frame of
+  /// a colour drag.
+  void _onThemeChanged() {
+    if (!mounted) return;
+    final next = ThemeStore.instance.theme.panelMargin;
+    if (next == _panelMargin) return;
+    _panelMargin = next;
+    for (final surfaces in _surfaces.values) {
+      surfaces.panels.forEach((key, controller) {
+        // Startup geometry, like _createSurfaces and _effectivePanel: the
+        // anchor a surface was built with cannot change without recreating it.
+        final panelConfig = widget.appConfig.panels[key];
+        if (panelConfig == null) return;
+        setPanelMargin(controller,
+            anchor: panelConfig.anchor, margin: next);
+      });
+    }
+  }
+
   @override
   void dispose() {
     widget.store.removeListener(_onConfigChanged);
@@ -770,6 +812,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     InputTriggerStore.instance.removeListener(_onSettingsTriggered);
     LauncherController.instance.removeListener(_onLauncherTriggered);
     LockController.instance.removeListener(_onLockRequested);
+    ThemeStore.instance.removeListener(_onThemeChanged);
     _monitorWatcher.dispose();
     // Drop the lock windows, but never send an unlock on the way out: if the
     // shell is going away while the session is locked, the session must stay
@@ -1005,6 +1048,17 @@ class _PanelMainState extends State<PanelMain> {
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
     final theme = ThemeScope.of(context);
+    final radius = panelCornerRadius(
+      anchor: widget.panelConfig.anchor,
+      theme: theme,
+    );
+    final Widget content = Padding(
+      padding: vertical
+          ? EdgeInsets.fromLTRB(0, pad, 0, pad)
+          : EdgeInsets.fromLTRB(pad, 0, pad, 0),
+      child: Stack(children: stackChildren),
+    );
+
     return BarScope(
       anchor: widget.panelConfig.anchor,
       child: DefaultTextStyle(
@@ -1016,17 +1070,19 @@ class _PanelMainState extends State<PanelMain> {
         child: Directionality(
           textDirection: TextDirection.ltr,
           child: SizedBox.expand(
+            // DecoratedBox, not Container: Container applies the decoration's
+            // padding — which for a bordered box is the border's thickness — to
+            // its child, silently insetting every module and changing what
+            // padding_horizontal means. The clip is conditional so a square bar
+            // (every install that has not opted in) adds no extra layer.
             child: DecoratedBox(
               decoration: panelBackgroundDecoration(
                 anchor: widget.panelConfig.anchor,
                 theme: theme,
               ),
-              child: Padding(
-                padding: vertical
-                    ? EdgeInsets.fromLTRB(0, pad, 0, pad)
-                    : EdgeInsets.fromLTRB(pad, 0, pad, 0),
-                child: Stack(children: stackChildren),
-              ),
+              child: radius == BorderRadius.zero
+                  ? content
+                  : ClipRRect(borderRadius: radius, child: content),
             ),
           ),
         ),
