@@ -32,6 +32,13 @@ sudo apt install libgtk-session-lock0
 
 Your compositor must also implement `ext-session-lock-v1` (Mir/Miracle does).
 
+Screen sharing needs **PipeWire 1.0+** (already running on any current desktop)
+and a compositor implementing `ext-image-copy-capture-v1` — miracle-wm built
+against MirAL 5.6 or newer. Both are checked at start-up; without them the
+shell runs normally and only screen sharing is unavailable. `make install`
+registers the shell as the ScreenCast portal backend; see
+[CONFIG.md](CONFIG.md#screen-sharing).
+
 You also need the [Flutter SDK](https://docs.flutter.dev/get-started/install/linux) on the `master` channel:
 
 ```sh

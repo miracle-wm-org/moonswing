@@ -1,0 +1,4 @@
+[portal]
+DBusName=org.freedesktop.impl.portal.desktop.graceful_shell
+Interfaces=org.freedesktop.impl.portal.ScreenCast;
+UseIn=mir;miracle-wm;

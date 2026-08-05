@@ -7,14 +7,23 @@ BUNDLE  := build/linux/x64/release/bundle
 
 PAMDIR  ?= /etc/pam.d
 
-.PHONY: all build install install-pam uninstall uninstall-pam clean
+# The portal backend is discovered through XDG_DATA_HOME / XDG_CONFIG_HOME,
+# not PREFIX: xdg-desktop-portal only searches those (plus system dirs), so
+# a custom PREFIX cannot move them.
+XDG_DATA_HOME   ?= $(HOME)/.local/share
+XDG_CONFIG_HOME ?= $(HOME)/.config
+PORTALDIR    := $(XDG_DATA_HOME)/xdg-desktop-portal/portals
+PORTALCONFDIR := $(XDG_CONFIG_HOME)/xdg-desktop-portal
+
+.PHONY: all build install install-pam install-portal uninstall uninstall-pam \
+	uninstall-portal clean
 
 all: build
 
 build:
 	flutter build linux --release
 
-install: build
+install: build install-portal
 	install -d $(BINDIR) $(APPDIR) $(DATADIR)
 	install -m 755 $(BUNDLE)/graceful_shell $(APPDIR)/graceful_shell
 	cp -r $(BUNDLE)/lib/. $(APPDIR)/lib/
@@ -34,12 +43,34 @@ install-pam:
 	install -m 644 pam/graceful-shell $(PAMDIR)/graceful-shell
 	@echo "Installed PAM service to $(PAMDIR)/graceful-shell."
 
-uninstall:
+# Registers the shell as the ScreenCast portal backend. No D-Bus activation
+# file: the shell owns the name from session start, and screen sharing should
+# not be able to start the shell.
+install-portal:
+	install -d $(PORTALDIR) $(PORTALCONFDIR)
+	install -m 644 portal/graceful-shell.portal $(PORTALDIR)/graceful-shell.portal
+	@if [ -f $(PORTALCONFDIR)/mir-portals.conf ]; then \
+		echo "Kept existing $(PORTALCONFDIR)/mir-portals.conf — to use the"; \
+		echo "shell's screen-share picker it needs:"; \
+		echo "  [preferred]"; \
+		echo "  org.freedesktop.impl.portal.ScreenCast=graceful-shell"; \
+	else \
+		install -m 644 portal/graceful-shell-portals.conf \
+			$(PORTALCONFDIR)/mir-portals.conf; \
+		echo "Installed $(PORTALCONFDIR)/mir-portals.conf."; \
+	fi
+	@echo "Run 'systemctl --user restart xdg-desktop-portal' to pick this up."
+
+uninstall: uninstall-portal
 	rm -f $(BINDIR)/graceful-shell
 	rm -rf $(APPDIR) $(DATADIR)
 
 uninstall-pam:
 	rm -f $(PAMDIR)/graceful-shell
+
+uninstall-portal:
+	rm -f $(PORTALDIR)/graceful-shell.portal
+	@echo "Left $(PORTALCONFDIR)/mir-portals.conf in place (user config)."
 
 clean:
 	flutter clean

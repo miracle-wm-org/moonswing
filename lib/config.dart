@@ -516,6 +516,45 @@ class OsdConfig {
   }
 }
 
+/// Screen sharing — the shell's xdg-desktop-portal ScreenCast backend.
+class ScreenshareConfig {
+  /// Whether to claim the ScreenCast backend bus name at all. Turning this
+  /// off lets another backend (xdg-desktop-portal-wlr) take over without
+  /// uninstalling anything.
+  final bool enabled;
+
+  /// Frame rate for the picker's live previews. Deliberately low: the picker
+  /// runs one capture session per monitor *and* per window simultaneously.
+  final int previewFps;
+
+  /// Cap on the shared stream's frame rate. 0 follows the output's refresh
+  /// rate; windows fall back to 60.
+  final int maxFps;
+
+  const ScreenshareConfig({
+    this.enabled = true,
+    this.previewFps = 10,
+    this.maxFps = 0,
+  });
+
+  factory ScreenshareConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const ScreenshareConfig();
+    // Type-test, never cast: a wrongly-typed value must not throw out of
+    // AppConfig.fromMap, whose caller answers by discarding the *entire*
+    // config.
+    final rawEnabled = map['enabled'];
+    final rawPreviewFps = map['preview_fps'];
+    final rawMaxFps = map['max_fps'];
+    final previewFps = rawPreviewFps is num ? rawPreviewFps.toInt() : 10;
+    final maxFps = rawMaxFps is num ? rawMaxFps.toInt() : 0;
+    return ScreenshareConfig(
+      enabled: rawEnabled is bool ? rawEnabled : true,
+      previewFps: previewFps.clamp(1, 60),
+      maxFps: maxFps < 0 ? 0 : maxFps,
+    );
+  }
+}
+
 /// The lock screen: its wallpaper and the chrome drawn over it.
 ///
 /// Unlike [BackgroundConfig] this holds a single wallpaper rather than a
@@ -637,6 +676,7 @@ class AppConfig {
   final OsdConfig osd;
   final LockConfig lock;
   final ShortcutsConfig shortcuts;
+  final ScreenshareConfig screenshare;
 
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
@@ -646,6 +686,7 @@ class AppConfig {
     this.osd = const OsdConfig(),
     this.lock = const LockConfig(),
     this.shortcuts = const ShortcutsConfig(),
+    this.screenshare = const ScreenshareConfig(),
   });
 
   static String _buildDefaultConfig(String homeDir) => '''
@@ -714,6 +755,11 @@ blur_sigma = 18.0
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
+
+[screenshare]
+enabled = true
+preview_fps = 10
+max_fps = 0
 ''';
 
   /// Resolves the absolute path to `config.toml`, honouring
@@ -791,6 +837,7 @@ open_launcher = "ctrl+space"
     final osdMap = map['osd'] as Map<String, dynamic>?;
     final lockMap = map['lock'] as Map<String, dynamic>?;
     final shortcutsMap = map['shortcuts'] as Map<String, dynamic>?;
+    final screenshareMap = map['screenshare'] as Map<String, dynamic>?;
 
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
@@ -800,6 +847,7 @@ open_launcher = "ctrl+space"
       osd: OsdConfig.fromMap(osdMap),
       lock: LockConfig.fromMap(lockMap),
       shortcuts: ShortcutsConfig.fromMap(shortcutsMap),
+      screenshare: ScreenshareConfig.fromMap(screenshareMap),
     );
   }
 }

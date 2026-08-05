@@ -577,6 +577,37 @@ hide_delay_ms = 1500
 margin = 96
 ```
 
+## Screen Sharing
+
+The `[screenshare]` section configures the shell's **xdg-desktop-portal ScreenCast backend**. With it installed, an application asking to share your screen (a browser calling `getDisplayMedia`, a video call, OBS) raises the shell's own picker: a full-screen overlay showing a live preview of every monitor and every open window. Nothing is shared until you choose a source and press Share — dismissing the picker with Escape or a click outside denies the request.
+
+Both monitors and individual windows can be shared. Frames reach the application as a PipeWire video stream.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether to claim the ScreenCast backend at all. Set false to leave screen sharing to another backend such as `xdg-desktop-portal-wlr`. |
+| `preview_fps` | integer | `10` | Frame rate for the picker's live previews. Clamped to 1–60. Deliberately low: the picker captures every monitor *and* every window at once. |
+| `max_fps` | integer | `0` | Cap on the shared stream's frame rate. `0` follows the monitor's refresh rate. |
+
+```toml
+[screenshare]
+enabled = true
+preview_fps = 10
+max_fps = 0
+```
+
+### Requirements
+
+- **A compositor with `ext-image-copy-capture-v1`** — miracle-wm built against MirAL 5.6 or newer. Without it the feature disables itself and logs why.
+- **PipeWire 1.0 or newer**, which every current desktop already runs.
+- **The portal files installed**, which `make install` does:
+  - `~/.local/share/xdg-desktop-portal/portals/graceful-shell.portal`
+  - `~/.config/xdg-desktop-portal/mir-portals.conf` (only written if absent, so an existing preference is never overwritten)
+
+  After installing, run `systemctl --user restart xdg-desktop-portal`.
+
+There is deliberately no D-Bus activation file: the shell owns the backend name from session start, so screen sharing cannot start the shell. If the shell is not running, screen sharing is simply unavailable.
+
 ## Full Example
 
 ```toml
@@ -624,6 +655,11 @@ icon_size = 24
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
+
+[screenshare]
+enabled = true
+preview_fps = 10
+max_fps = 0
 
 [background]
 fit = "fill"

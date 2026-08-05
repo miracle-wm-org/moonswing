@@ -43,6 +43,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # test/wl_interfaces_test.dart diffs the hand-written Wayland interface
+  # tables against the protocol XMLs in protocol/.
+  xml: ^6.5.0
 
 flutter:
   uses-material-design: true

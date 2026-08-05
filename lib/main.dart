@@ -34,6 +34,11 @@ import 'package:graceful_shell/osd/osd_service.dart';
 import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/screencast/picker_controller.dart';
+import 'package:graceful_shell/screencast/picker_overlay.dart';
+import 'package:graceful_shell/screencast/picker_sources.dart';
+import 'package:graceful_shell/screencast/screencast_log.dart';
+import 'package:graceful_shell/screencast/screencast_service.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
@@ -90,6 +95,16 @@ void main() async {
   // Enumerates installed applications now, while nothing is on screen, so the
   // launcher can paint the instant its shortcut fires.
   startAppIndexService();
+  // Claims the xdg-desktop-portal ScreenCast backend name, so apps asking to
+  // share their screen get the shell's own picker. Fails soft on a compositor
+  // without ext-image-copy-capture, or with no PipeWire.
+  screencastLog = (message) => debugPrint('screencast: $message');
+  if (appConfig.screenshare.enabled) {
+    await startScreencastService(
+      picker: ScreencastPickerController.instance,
+      maxFrameRate: appConfig.screenshare.maxFps,
+    );
+  }
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.
@@ -268,6 +283,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// settings overlay.
   final ValueNotifier<bool> _launcherClosing = ValueNotifier(false);
 
+  /// The screen-share consent picker's window, shaped like [_launcher]. Exists
+  /// only while an app's portal `Start` call is blocked awaiting a choice.
+  LayershellWindowController? _screencastPicker;
+
+  /// The request the open picker is answering, captured when the window was
+  /// created — the controller clears its own `pending` the moment the user
+  /// answers, but the overlay stays mounted through its fade-out.
+  PickRequest? _screencastRequest;
+
+  /// Drives [ScreencastPickerOverlay]'s fade-out.
+  final ValueNotifier<bool> _screencastClosing = ValueNotifier(false);
+
   /// The `ext-session-lock-v1` lock, non-null exactly while the session is
   /// locked. Owned here rather than by the module that offers the Lock button
   /// because the lock spans every monitor and outlives any one panel.
@@ -306,6 +333,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     OsdStore.instance.addListener(_onOsdChanged);
     InputTriggerStore.instance.addListener(_onSettingsTriggered);
     LauncherController.instance.addListener(_onLauncherTriggered);
+    ScreencastPickerController.instance.addListener(_onScreencastPickChanged);
     LockController.instance.addListener(_onLockRequested);
     ThemeStore.instance.addListener(_onThemeChanged);
     // startThemeService() resolved the palette back in main(), so the margin is
@@ -480,6 +508,61 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // backdrop stops short of the bars and dismiss-on-backdrop has dead strips.
     spanFullOutput(_launcher!);
     setState(() {});
+  }
+
+  /// An application asked to share the screen (or the pick was answered).
+  ///
+  /// The portal backend is blocked inside its `Start` call awaiting
+  /// [ScreencastPickerController]; this opens the consent surface when a
+  /// request appears and tears it down once one has been answered — including
+  /// when the *portal* cancelled (`Request.Close`) rather than the user.
+  void _onScreencastPickChanged() {
+    if (!mounted) return;
+    final request = ScreencastPickerController.instance.pending;
+    if (request != null) {
+      if (_screencastPicker != null) return;
+      // Two stacked focus-taking overlays have no defined focus order, and a
+      // consent prompt must be the one on top.
+      if (_settings != null) _settingsClosing.value = true;
+      if (_launcher != null) _launcherClosing.value = true;
+      _openScreencastPicker(request);
+    } else if (_screencastPicker != null) {
+      _screencastClosing.value = true;
+    }
+  }
+
+  /// Opens the picker as a full-screen overlay-layer window. Like the launcher
+  /// (and unlike settings) it passes no monitor, so the compositor puts it on
+  /// the focused output — where the user is.
+  void _openScreencastPicker(PickRequest request) {
+    _screencastClosing.value = false;
+    _screencastRequest = request;
+    _screencastPicker = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+    );
+    spanFullOutput(_screencastPicker!);
+    setState(() {});
+  }
+
+  /// Called by [ScreencastPickerOverlay] once its fade-out has finished.
+  void _onScreencastPickerClosed() {
+    if (!mounted) return;
+    final removed = _screencastPicker;
+    if (removed == null) return;
+    _screencastPicker = null;
+    _screencastRequest = null;
+    // A window torn down without the user answering (the shell is shutting
+    // down, or the frontend withdrew) still owes the portal a reply.
+    ScreencastPickerController.instance.cancel();
+    setState(() {});
+    _destroyAfterFrame([removed]);
   }
 
   /// Called by [LauncherOverlay] once it is finished with its window — after
@@ -811,6 +894,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     OsdStore.instance.removeListener(_onOsdChanged);
     InputTriggerStore.instance.removeListener(_onSettingsTriggered);
     LauncherController.instance.removeListener(_onLauncherTriggered);
+    ScreencastPickerController.instance
+        .removeListener(_onScreencastPickChanged);
     LockController.instance.removeListener(_onLockRequested);
     ThemeStore.instance.removeListener(_onThemeChanged);
     _monitorWatcher.dispose();
@@ -841,6 +926,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _launcher?.destroy();
     _launcher = null;
     _launcherClosing.dispose();
+    _screencastPicker?.destroy();
+    _screencastPicker = null;
+    _screencastClosing.dispose();
     super.dispose();
   }
 
@@ -954,6 +1042,34 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 onLaunchAction: (app, action) =>
                     launchAppAction(app.appInfo, action.id),
               ),
+            ),
+          ),
+        // The screen-share consent picker, open only while an application's
+        // portal request is waiting on an answer. Single window, like the
+        // launcher, so it lives outside the per-monitor loop.
+        if ((_screencastPicker, _screencastRequest)
+            case (final picker?, final request?))
+          LayerShellWindow(
+            key: ObjectKey(picker),
+            controller: picker,
+            child: ThemeProvider(
+              child: Builder(builder: (context) {
+                final connection = screencastService?.connection;
+                final sources = connection == null
+                    ? (monitors: <PickerSource>[], windows: <PickerSource>[])
+                    : buildPickerSources(connection, request,
+                        previewFps: _liveConfig.screenshare.previewFps);
+                return ScreencastPickerOverlay(
+                  request: request,
+                  monitors: sources.monitors,
+                  windows: sources.windows,
+                  closingNotifier: _screencastClosing,
+                  onClosed: _onScreencastPickerClosed,
+                  onConfirm: (picked) => ScreencastPickerController.instance
+                      .complete(PickResult(picked)),
+                  onCancel: ScreencastPickerController.instance.cancel,
+                );
+              }),
             ),
           ),
         // The lock screen. These surfaces exist only while the session is

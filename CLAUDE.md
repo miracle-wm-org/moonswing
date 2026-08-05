@@ -217,6 +217,45 @@ Five things a change here has to keep true:
 - **The actions flyout is a `Stack` child, not an `OverlayPortal`.** Rows have a fixed `itemExtent`, so its position is arithmetic against the scroll offset. An `Overlay`'s entries do not rebuild on `setState` (see `overlay/overlay.dart`), which would be a trap for content that changes on every keystroke.
 - **`AppIndex` does not share its `AppEntry`s with `modules/app_directory.dart`.** That widget unrefs its own list in `dispose`; sharing would unref `GAppInfo*`s the index still holds. For the same reason the root brackets the launcher's lifetime with `acquire()`/`release()`, which defers a refresh while rows are on screen.
 
+### Screen sharing (`lib/screencast/`, `lib/wayland_ffi/`, `lib/pipewire/`, `lib/native/`)
+
+The shell **is** the xdg-desktop-portal ScreenCast backend. When an app asks to share the screen, xdg-desktop-portal forwards the request here, a layer-shell overlay asks the user which monitor or window to share (with live previews of each), and the chosen sources are captured with `ext-image-copy-capture-v1` and published as PipeWire video streams. All of it is pure `dart:ffi` — no C in the repo.
+
+| Layer | Files | Responsibility |
+|-------|-------|----------------|
+| Native shims | `native/glib_source.dart`, `native/libc.dart` | `GlibFdWatch` (`g_unix_fd_add`); `memfd_create`/`mmap`/`memcpy`. |
+| Wayland FFI | `wayland_ffi/wl_ffi.dart`, `wl_types.dart`, `wl_interfaces.dart`, `wl_proxy.dart`, `wl_protocols.dart` | libwayland-client bindings, the `wl_interface` graph, listener vtables, and typed proxy wrappers. |
+| Capture | `screencast/capture_connection.dart`, `capture_session.dart` | The registry/outputs/toplevels, and one continuous capture per source. |
+| PipeWire | `pipewire/pw_ffi.dart`, `spa_pod.dart`, `spa_constants.dart`, `video_stream.dart` | libpipewire bindings, SPA pod build/parse, and the video-source stream. |
+| Portal | `screencast/screencast_portal.dart`, `screencast_service.dart`, `pick_types.dart` | The `org.freedesktop.impl.portal.ScreenCast` objects and the engine wiring them to capture. |
+| UI | `screencast/picker_controller.dart`, `picker_overlay.dart`, `picker_sources.dart`, `preview.dart` | The consent overlay and its live previews. |
+
+Seven things a change here has to keep true:
+
+- **The capture path needs its own Wayland connection, over libwayland.** `package:wayland` (what the rest of the shell uses) cannot pass file descriptors — its `writeFd`/`readFd` are stubs — and `wl_shm.create_pool` requires one. `WlDisplayConnection` is a second connection through `libwayland-client.so.0`, which does SCM_RIGHTS natively. Precedent for a second connection: `lib/overlay/settings/display.dart`.
+- **Everything below the UI is Flutter-free, on purpose.** `pick_types.dart` exists so the portal, engine, capture and PipeWire layers import no Flutter, which is what lets `tool/screencast_spike.dart` exercise the entire stack as a `dart compile exe` binary — the only way to test this against a live compositor, since the picker overlay needs a Flutter engine. Keep new non-UI code Flutter-free; use `screencastLog` rather than `debugPrint`.
+- **One thread, two fd watches.** The Dart UI isolate runs on the GLib main thread (see `lib/monitor_watcher.dart`), so `g_unix_fd_add` on the capture display fd and on `pw_loop_get_fd` is enough to drive both — no `pw_thread_loop`, no isolates, and every Wayland and `pw_stream` callback lands on the Dart thread, which is what makes `NativeCallable.isolateLocal` correct throughout. In a process with no GLib (the spike) the watch fails and the owner pumps manually; `PipewireVideoStream` registers itself in `_manuallyDriven` for exactly that.
+- **Only the ext protocols are hand-transcribed.** Core interfaces (`wl_output`, `wl_shm`, `wl_buffer`, …) come from libwayland's exported `wl_*_interface` data symbols, so they carry no transcription risk. `test/wl_interfaces_test.dart` diffs the hand-written tables against the XMLs in `protocol/` — a wrong signature is memory corruption inside libwayland, not an exception, so that test is the guardrail. Copy new protocol XMLs into `protocol/` and extend the test.
+- **The compositor paces the stream, not a timer.** After `ready` the session immediately creates the next frame; `ext-image-copy-capture` holds the copy until the content actually changes. That is why a static screen produces no frames — and why the spike needs something moving on screen. Previews are the exception: they pass `minFrameInterval`, because the picker runs a session per monitor *and* per window at once.
+- **Dismissing the picker is a denial, not a deferral.** Backdrop tap, Escape, `Request.Close`, and a superseding request all resolve the pick with null, which becomes portal response 1. `ScreencastPickerController.pick` also declines immediately when nothing is listening (`hasListeners` false) — a backend that could answer without a visible consent surface is a backend that can silently record the screen. `startScreencastService` takes its `SourcePicker` as a required parameter for the same reason: there is no default.
+- **`impl` version is 2, and the frame path never copies through Dart.** Version 2 predates restore/persist tokens (4) and virtual monitors (5), so the frontend never sends options this backend would have to understand. Frames go from the shm mapping to a `pw_buffer` with a libc `memcpy` on two raw pointers; previews take one bulk copy into a reusable `Uint8List` and decode via `ImageDescriptor.raw` with `PixelFormat.bgra8888` (XRGB/ARGB8888 are byte-identical to BGRx/BGRA little-endian), never a per-pixel reorder loop.
+
+Install: `portal/graceful-shell.portal` and `portal/graceful-shell-portals.conf` go to `XDG_DATA_HOME` and `XDG_CONFIG_HOME` via `make install-portal` — not `PREFIX`, which xdg-desktop-portal does not search. The conf is only written when absent, so a user's existing backend preference is out-ranked (a `{desktop}-portals.conf` beats the generic one) but never overwritten. There is no D-Bus activation file: the shell owns the name from session start, so screen sharing cannot start the shell.
+
+Verification, since none of this can be tested from the shell binary alone:
+
+```sh
+dart compile exe tool/screencast_spike.dart -o /tmp/spike
+WAYLAND_DISPLAY=wayland-99 /tmp/spike                     # globals, outputs, toplevels
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --capture           # frames from each output
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --multi             # N sessions on one source
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --pipewire          # prints NODE_ID=<n>
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --portal            # the real backend, auto-accepting
+python3 tool/portal_client_test.py [--window|--cancel]    # drives the portal contract
+```
+
+`--portal` grants every request without a picker (there is no Flutter engine to draw one), so it is a protocol harness, not a security-equivalent run.
+
 ### Background window (`lib/background.dart`)
 
 Renders a full-screen wallpaper with time-of-day scheduling and crossfade transitions using `media_kit` for video support. One background window is created per monitor.

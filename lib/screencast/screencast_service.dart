@@ -1,0 +1,279 @@
+import 'dart:async';
+
+import 'package:dbus/dbus.dart';
+
+import '../pipewire/spa_pod.dart';
+import '../pipewire/video_stream.dart';
+import 'capture_connection.dart';
+import 'capture_session.dart';
+import 'pick_types.dart';
+import 'screencast_log.dart';
+import 'screencast_portal.dart';
+
+const String kScreencastBusName =
+    'org.freedesktop.impl.portal.desktop.graceful_shell';
+
+ScreencastService? _service;
+
+/// The running service, if screen sharing came up. The picker overlay reads
+/// the capture connection off this for previews.
+ScreencastService? get screencastService => _service;
+
+/// Starts the ScreenCast portal backend. Fail-soft like every other service:
+/// missing libraries, missing compositor globals, no PipeWire daemon, or a
+/// taken bus name each just disable screen sharing with a log line.
+///
+/// [picker] is how consent is obtained — the shell passes
+/// `ScreencastPickerController.instance`, which raises the layer-shell
+/// overlay; `tool/screencast_spike.dart` passes a headless stand-in. There is
+/// deliberately no default: a backend that could start without asking would
+/// be a backend that can silently record the screen.
+///
+/// [attachToGlibLoop] drives the capture connection's event pump from the GTK
+/// main loop; the spike tool pumps manually instead.
+Future<void> startScreencastService({
+  required SourcePicker picker,
+  bool attachToGlibLoop = true,
+  int maxFrameRate = 0,
+}) async {
+  try {
+    if (!PipewireVideoStream.ensureInit()) {
+      screencastLog('unavailable: PipeWire not present');
+      return;
+    }
+    final connection =
+        CaptureConnection.connect(attachToGlibLoop: attachToGlibLoop);
+    if (connection == null) {
+      screencastLog('unavailable: cannot reach the display');
+      return;
+    }
+    if (!connection.supported) {
+      screencastLog('unavailable: compositor lacks ext-image-copy-capture '
+          '(needs miracle-wm with MirAL >= 5.6)');
+      connection.dispose();
+      return;
+    }
+
+    final client = DBusClient.session();
+    final reply = await client.requestName(kScreencastBusName,
+        flags: {DBusRequestNameFlag.doNotQueue});
+    if (reply != DBusRequestNameReply.primaryOwner &&
+        reply != DBusRequestNameReply.alreadyOwner) {
+      screencastLog('unavailable: $kScreencastBusName is already taken');
+      await client.close();
+      connection.dispose();
+      return;
+    }
+
+    final engine = ShellScreencastEngine(connection, picker,
+        maxFrameRate: maxFrameRate, driveWithGlib: attachToGlibLoop);
+    final backend = ScreenCastPortalBackend(client, engine);
+    await backend.init();
+    await client.registerObject(backend);
+
+    connection.onDied = () {
+      screencastLog('capture connection lost, closing sessions');
+      backend.closeAllSessions();
+    };
+
+    _service = ScreencastService._(connection, client, backend);
+    screencastLog('portal backend up as $kScreencastBusName '
+        '(windows: ${connection.windowCaptureSupported})');
+  } catch (e) {
+    screencastLog('unavailable: $e');
+  }
+}
+
+class ScreencastService {
+  ScreencastService._(this.connection, this._client, this._backend);
+
+  final CaptureConnection connection;
+  final DBusClient _client;
+  final ScreenCastPortalBackend _backend;
+
+  /// Drives the Wayland connection and every running PipeWire loop by hand.
+  /// Only for callers that started the service with `attachToGlibLoop: false`
+  /// — inside the shell the GLib main loop does all of this.
+  void pumpManually() {
+    connection.conn.pumpOnce();
+    PipewireVideoStream.iterateManuallyDriven();
+  }
+
+  Future<void> dispose() async {
+    await _backend.dispose();
+    await _client.close();
+    connection.dispose();
+    _service = null;
+  }
+}
+
+/// The real [ScreencastEngine]: consent via the injected [SourcePicker],
+/// streams via [CaptureSession] + [PipewireVideoStream].
+class ShellScreencastEngine implements ScreencastEngine {
+  ShellScreencastEngine(
+    this._connection,
+    this._picker, {
+    this.maxFrameRate = 0,
+    this.driveWithGlib = true,
+  });
+
+  final CaptureConnection _connection;
+  final SourcePicker _picker;
+
+  /// 0 = follow the output's refresh rate.
+  final int maxFrameRate;
+
+  /// False when the caller pumps the PipeWire loops itself.
+  final bool driveWithGlib;
+
+  @override
+  int get availableSourceTypes => sourceTypeMonitor |
+      (_connection.windowCaptureSupported ? sourceTypeWindow : 0);
+
+  @override
+  Future<PickResult?> pick(PickRequest request) => _picker.pick(request);
+
+  @override
+  void cancelPick() => _picker.cancel();
+
+  @override
+  Future<ActiveCast> startCast(
+    PickResult picked, {
+    required bool paintCursors,
+    required void Function() onStopped,
+  }) async {
+    final cast = _ShellActiveCast(onStopped);
+    try {
+      for (final source in picked.sources) {
+        await cast.addSource(_connection, source,
+            paintCursors: paintCursors,
+            maxFrameRate: maxFrameRate,
+            driveWithGlib: driveWithGlib);
+      }
+    } catch (e) {
+      cast.stop();
+      rethrow;
+    }
+    return cast;
+  }
+}
+
+class _ShellActiveCast implements ActiveCast {
+  _ShellActiveCast(this._onStopped);
+
+  final void Function() _onStopped;
+  final List<CaptureSession> _sessions = [];
+  final List<PipewireVideoStream> _streams = [];
+  final List<PortalStreamInfo> _streamInfos = [];
+  bool _stopped = false;
+
+  @override
+  List<PortalStreamInfo> get streams => List.unmodifiable(_streamInfos);
+
+  Future<void> addSource(
+    CaptureConnection connection,
+    PickedSource source, {
+    required bool paintCursors,
+    required int maxFrameRate,
+    bool driveWithGlib = true,
+  }) async {
+    final CaptureSession session;
+    final int sourceType;
+    int? x;
+    int? y;
+    var refresh = 60;
+
+    switch (source) {
+      case PickedMonitor(:final connector):
+        final output = connection.outputs
+            .where((o) => o.connector == connector)
+            .firstOrNull;
+        if (output == null) {
+          throw StateError('monitor $connector is gone');
+        }
+        session = CaptureSession.forOutput(connection, output,
+            paintCursors: paintCursors);
+        sourceType = sourceTypeMonitor;
+        x = output.x;
+        y = output.y;
+        if (output.refreshMHz > 0) refresh = (output.refreshMHz / 1000).ceil();
+      case PickedWindow(:final identifier):
+        final toplevel = connection.toplevelByIdentifier(identifier);
+        if (toplevel == null) {
+          throw StateError('window $identifier is gone');
+        }
+        session = CaptureSession.forToplevel(connection, toplevel,
+            paintCursors: paintCursors);
+        sourceType = sourceTypeWindow;
+    }
+    _sessions.add(session);
+
+    // The stream can only be created once the capture constraints are known
+    // (size + shm format); the first onSizeChanged marks that moment.
+    final sized = Completer<(int, int)>();
+    PipewireVideoStream? stream;
+    session.onSizeChanged = (w, h) {
+      if (!sized.isCompleted) {
+        sized.complete((w, h));
+      } else {
+        stream?.updateSize(w, h);
+      }
+    };
+    session.onStopped = (_) => _sourceStopped();
+    session.start();
+
+    final (width, height) =
+        await sized.future.timeout(const Duration(seconds: 5));
+    final spaFormat = spaVideoFormatForShm(session.shmFormat);
+    if (spaFormat == null) {
+      throw StateError(
+          'unmappable shm format 0x${session.shmFormat.toRadixString(16)}');
+    }
+
+    stream = PipewireVideoStream(
+      width: width,
+      height: height,
+      spaVideoFormat: spaFormat,
+      maxFrameRate: maxFrameRate > 0 ? maxFrameRate : refresh.clamp(1, 240),
+      driveWithGlib: driveWithGlib,
+    );
+    _streams.add(stream);
+    final pushTarget = stream;
+    session.onFrame = (frame) => pushTarget.pushFrame(frame);
+    stream.onError = (_) => _sourceStopped();
+    if (!stream.start()) {
+      throw StateError('PipeWire stream failed to start');
+    }
+    final nodeId = await stream.nodeId.timeout(const Duration(seconds: 5));
+
+    _streamInfos.add(PortalStreamInfo(
+      nodeId: nodeId,
+      sourceType: sourceType,
+      width: width,
+      height: height,
+      x: x,
+      y: y,
+    ));
+  }
+
+  void _sourceStopped() {
+    if (_stopped) return;
+    // One source dying ends the whole cast — the portal has no way to shrink
+    // a running session's stream list.
+    _onStopped();
+  }
+
+  @override
+  void stop() {
+    if (_stopped) return;
+    _stopped = true;
+    for (final s in _sessions) {
+      s.dispose();
+    }
+    _sessions.clear();
+    for (final s in _streams) {
+      s.dispose();
+    }
+    _streams.clear();
+  }
+}
