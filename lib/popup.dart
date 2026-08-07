@@ -13,9 +13,10 @@
 // ignore_for_file: invalid_use_of_internal_member
 
 import 'package:flutter/material.dart';
-import 'package:flutter/src/widgets/_window.dart';
+// Only _window_linux.dart is imported directly: layer_shell re-exports the
+// windowing and positioner pieces this file needs, but not the Linux-specific
+// BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
-import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/window_manager.dart';
 import 'package:layer_shell/layer_shell.dart';

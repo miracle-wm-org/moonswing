@@ -82,8 +82,15 @@ jobs:
 
       # This is what turns an upstream rename of a private windowing API into a
       # precise analyzer error instead of a compiler dump ten minutes later.
+      #
+      # Errors and warnings are fatal; infos are not. An upstream break shows up
+      # as an error, so gating on infos would only mean this job's signal is
+      # whatever style lint the repo has most recently accumulated — the job
+      # would sit red for reasons that have nothing to do with what it watches.
+      # `dart fix --apply` clears the standing info backlog when someone wants
+      # to; it is not this job's business to force it.
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze --fatal-warnings --no-fatal-infos
 
       - name: Test
         run: flutter test

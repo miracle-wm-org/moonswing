@@ -13,7 +13,6 @@ import 'package:graceful_shell/system/disk_reader.dart';
 import 'package:graceful_shell/system/models.dart';
 import 'package:graceful_shell/system/proc_reader.dart';
 import 'package:graceful_shell/system/process_killer.dart';
-import 'package:graceful_shell/system/process_reader.dart';
 import 'package:graceful_shell/system/process_sampler.dart';
 import 'package:graceful_shell/system/system_monitor_config.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';

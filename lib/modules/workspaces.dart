@@ -195,20 +195,21 @@ class _WorkspaceButton extends StatefulWidget {
     super.key,
     required this.onPressed,
     required this.child,
-    this.padding = const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
     this.backgroundColor = const Color(0xFF3A3A3A),
     this.hoverColor = const Color(0xFF4A4A4A),
     this.pressedColor = const Color(0xFF2A2A2A),
-    this.borderRadius = 6,
   });
+
+  /// Fixed, not parameters: every call site took the defaults.
+  static const EdgeInsets _padding =
+      EdgeInsets.symmetric(horizontal: 4, vertical: 4);
+  static const double _borderRadius = 6;
 
   final VoidCallback? onPressed;
   final Widget child;
-  final EdgeInsets padding;
   final Color backgroundColor;
   final Color hoverColor;
   final Color pressedColor;
-  final double borderRadius;
 
   @override
   State<_WorkspaceButton> createState() => _WorkspaceButtonState();
@@ -261,10 +262,11 @@ class _WorkspaceButtonState extends State<_WorkspaceButton> {
         onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          padding: widget.padding,
+          padding: _WorkspaceButton._padding,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(widget.borderRadius),
+            borderRadius:
+                BorderRadius.circular(_WorkspaceButton._borderRadius),
           ),
           child: SizedBox(
               width: 16, height: 16, child: Center(child: widget.child)),
