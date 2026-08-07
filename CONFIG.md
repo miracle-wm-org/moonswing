@@ -499,6 +499,8 @@ The `[desktop]` section puts a grid of pinned icons on the wallpaper: applicatio
 
 Right-clicking an icon offers **Open**, **Open with…** (files and folders), **Rename** and **Remove from desktop**. Right-clicking bare desktop offers **Add application…**, **Add file or folder…**, **Organize** (compact the icons) and **Change background…** (jump to the wallpaper settings).
 
+**Add application…** opens a searchable list of everything installed, each with its own icon — type to filter, arrow keys and Enter to pick, Escape to dismiss. It searches names, generic names and the keywords a desktop entry declares, so "internet" finds your browser. **Add file or folder…** opens the file picker, where folders are selectable as well as browsable.
+
 Everything here is also editable under **Settings → Shell → Desktop**, which is where the pinned list is easiest to manage.
 
 ```toml

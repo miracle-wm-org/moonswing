@@ -45,6 +45,7 @@ import 'package:graceful_shell/screencast/screencast_service.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
+import 'package:graceful_shell/desktop/app_chooser.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
@@ -308,6 +309,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// Monitor keys whose background surface currently takes keyboard focus for
   /// an in-place desktop rename. Empty is the normal state.
   final Set<String> _desktopKeyboard = {};
+
+  /// The application chooser opened by the desktop's "Add application…", and
+  /// the cell the new icon should land in. Both non-null exactly while it is
+  /// on screen.
+  LayershellWindowController? _appChooser;
+  GridCell? _appChooserCell;
 
   /// The application launcher's window, shaped exactly like [_settings]: one
   /// instance, keyboard-focusing, non-null exactly while it is on screen.
@@ -689,29 +696,68 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     required bool applications,
     required GridCell cell,
   }) async {
+    // Applications get a searchable list of what is installed, with icons —
+    // nobody should have to know that their launcher lives in
+    // /usr/share/applications/firefox.desktop.
+    if (applications) {
+      _openAppChooser(cell);
+      return;
+    }
+
     final paths = await FilePickerController.instance.pick(
-      FilePickerRequest(
-        filters: applications
-            ? const [FilePickerFilter.desktopEntries, FilePickerFilter.all]
-            : const [FilePickerFilter.all],
-        allowDirectories: !applications,
-        initialDirectory: applications ? '/usr/share/applications' : null,
+      const FilePickerRequest(
+        filters: [FilePickerFilter.all],
+        allowDirectories: true,
       ),
     );
     if (paths == null || paths.isEmpty || !mounted) return;
+    for (final path in paths) {
+      _pinToDesktop(desktopItemForPath(path), cell);
+    }
+  }
 
+  /// Pins [item] at [cell], or as near to it as the grid allows.
+  void _pinToDesktop(DesktopItem item, GridCell cell) {
     final store = DesktopStore.instance;
     // Nominal geometry: the surface that raised the menu knows the real one,
     // but placement only needs a free cell and the desktop reflows anything
     // out of range at render time anyway.
     final geometry = computeGridGeometry(const Size(1920, 1080), store.config);
-    for (final path in paths) {
-      final item = desktopItemForPath(path);
-      store.addItem(
-        item.copyWith(column: cell.column, row: cell.row),
-        geometry,
-      );
-    }
+    store.addItem(item.copyWith(column: cell.column, row: cell.row), geometry);
+  }
+
+  /// Opens the application chooser as a full-screen overlay-layer window.
+  ///
+  /// Like the launcher, no monitor: the compositor puts it on the focused
+  /// output, which is where the user just right-clicked. The rows hold
+  /// `GAppInfo` pointers from the index, so the index is pinned for the
+  /// window's lifetime exactly as `_openLauncher` does.
+  void _openAppChooser(GridCell cell) {
+    if (_appChooser != null) return;
+    AppIndex.instance.acquire();
+    _appChooserCell = cell;
+    _appChooser = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+    );
+    spanFullOutput(_appChooser!);
+    setState(() {});
+  }
+
+  void _closeAppChooser() {
+    final removed = _appChooser;
+    if (removed == null) return;
+    _appChooser = null;
+    _appChooserCell = null;
+    AppIndex.instance.release();
+    setState(() {});
+    _destroyAfterFrame([removed]);
   }
 
   /// Flips one background surface between `none` and `onDemand` keyboard
@@ -1225,6 +1271,32 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 closingNotifier: _settingsClosing,
                 onClosed: _onSettingsClosed,
                 route: _settingsRoute,
+              ),
+            ),
+          ),
+        // The application chooser opened by the desktop's "Add application…".
+        // A single window, like the launcher, so it lives outside the loop.
+        if (_appChooser case final chooser?)
+          LayerShellWindow(
+            key: ObjectKey(chooser),
+            controller: chooser,
+            child: ThemeProvider(
+              child: AppChooserOverlay(
+                apps: AppIndex.instance.searchable,
+                onSelected: (app) {
+                  final cell = _appChooserCell;
+                  _closeAppChooser();
+                  if (cell != null && app.filename.isNotEmpty) {
+                    _pinToDesktop(
+                      DesktopItem(
+                        kind: DesktopItemKind.app,
+                        target: app.filename,
+                      ),
+                      cell,
+                    );
+                  }
+                },
+                onCancel: _closeAppChooser,
               ),
             ),
           ),

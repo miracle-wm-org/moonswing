@@ -12,9 +12,11 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
+import 'package:graceful_shell/desktop/app_chooser.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
+import 'package:graceful_shell/launcher/app_index.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 
@@ -2171,27 +2173,45 @@ class _DesktopSectionState extends State<_DesktopSection> {
   void _setGrid(DesktopConfig Function(DesktopConfig) update) =>
       _desktop.setGrid(update(_desktop.config));
 
-  Future<void> _addItems({required bool applications}) async {
+  /// The settings panel is not the desktop, so there is no live geometry to
+  /// place against; a nominal grid is enough, because addItem only needs
+  /// somewhere free and the desktop reflows anything out of range anyway.
+  DesktopGridGeometry get _nominalGeometry =>
+      computeGridGeometry(const Size(1920, 1080), _desktop.config);
+
+  /// Picks an application from a searchable list of what is installed, rather
+  /// than making the user find a `.desktop` file on disk.
+  ///
+  /// The rows hold `GAppInfo` pointers owned by [AppIndex], whose refresh
+  /// unrefs the previous ones, so the index is pinned while the chooser is up —
+  /// the contract `_openLauncher` follows.
+  Future<void> _addApplication() async {
+    AppIndex.instance.acquire();
+    try {
+      final app = await showAppChooser(
+        context,
+        apps: AppIndex.instance.searchable,
+      );
+      if (app == null || app.filename.isEmpty || !mounted) return;
+      _desktop.addItem(
+        DesktopItem(kind: DesktopItemKind.app, target: app.filename),
+        _nominalGeometry,
+      );
+    } finally {
+      AppIndex.instance.release();
+    }
+  }
+
+  Future<void> _addFiles() async {
     final paths = await showFilePicker(
       context,
-      filters: applications
-          ? [FilePickerFilter.desktopEntries, FilePickerFilter.all]
-          : [FilePickerFilter.all],
+      filters: [FilePickerFilter.all],
       allowMultiple: true,
-      allowDirectories: !applications,
-      initialDirectory: applications ? '/usr/share/applications' : null,
+      allowDirectories: true,
     );
-    if (paths == null || paths.isEmpty) return;
-
-    // The settings panel is not the desktop, so there is no live geometry to
-    // place against; a nominal grid is enough, because addItem only needs
-    // somewhere free and the desktop reflows anything out of range anyway.
-    final geometry = computeGridGeometry(
-      const Size(1920, 1080),
-      _desktop.config,
-    );
+    if (paths == null || paths.isEmpty || !mounted) return;
     for (final path in paths) {
-      _desktop.addItem(desktopItemForPath(path), geometry);
+      _desktop.addItem(desktopItemForPath(path), _nominalGeometry);
     }
   }
 
@@ -2291,12 +2311,12 @@ class _DesktopSectionState extends State<_DesktopSection> {
               children: [
                 _AddButton(
                   label: 'Add application…',
-                  onTap: () => _addItems(applications: true),
+                  onTap: _addApplication,
                 ),
                 const SizedBox(width: 8),
                 _AddButton(
                   label: 'Add file or folder…',
-                  onTap: () => _addItems(applications: false),
+                  onTap: _addFiles,
                 ),
               ],
             ),

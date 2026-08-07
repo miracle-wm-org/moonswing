@@ -227,6 +227,18 @@ external int _gAppInfoLaunchUris(
 external ffi.Pointer<_GList> _gListAppend(
     ffi.Pointer<_GList> list, ffi.Pointer<ffi.NativeType> data);
 
+/// `GDesktopAppInfo*` — the absolute path of the `.desktop` file it was loaded
+/// from, or NULL for an appinfo that has none.
+///
+/// **Transfer-none**: owned by the appinfo, so read it and never free it. This
+/// is what lets the desktop grid pin an app the user picked out of a list —
+/// `DesktopItem.target` is a path, not a desktop id, so that entries outside
+/// `XDG_DATA_DIRS` work too.
+@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'g_desktop_app_info_get_filename')
+external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetFilename(
+    ffi.Pointer<ffi.NativeType> appInfo);
+
 /// Minimal view of GLib's `GList` node: a data pointer and a forward link.
 final class _GList extends ffi.Struct {
   external ffi.Pointer<ffi.NativeType> data;
@@ -304,6 +316,12 @@ class AppEntry {
   /// Alternative launch options, empty for most applications.
   final List<AppAction> actions;
 
+  /// The absolute path of the `.desktop` file this came from, or empty.
+  ///
+  /// What the desktop grid pins: `DesktopItem.target` is a path in every case,
+  /// so an entry outside `XDG_DATA_DIRS` works the same as a system one.
+  final String filename;
+
   final ffi.Pointer<ffi.NativeType> appInfo;
 
   const AppEntry({
@@ -312,6 +330,7 @@ class AppEntry {
     required this.iconName,
     required this.categories,
     required this.appInfo,
+    this.filename = '',
     this.genericName = '',
     this.keywords = const [],
     this.actions = const [],
@@ -374,6 +393,10 @@ AppEntry _entryFromAppInfo(
   final name =
       namePtr != ffi.nullptr ? _nativeToString(namePtr) : (id.isEmpty ? '?' : id);
 
+  final filenamePtr = _gDesktopAppInfoGetFilename(appInfo);
+  final filename =
+      filenamePtr != ffi.nullptr ? _nativeToString(filenamePtr) : '';
+
   var iconName = id;
   final iconPtr = _gAppInfoGetIcon(appInfo);
   if (iconPtr != ffi.nullptr) {
@@ -418,6 +441,8 @@ AppEntry _entryFromAppInfo(
     genericName: genericName,
     keywords: _strvToList(_gDesktopAppInfoGetKeywords(appInfo)),
     actions: actions,
+    // Transfer-none, so this is read and never freed.
+    filename: filename,
     appInfo: appInfo,
   );
 }
