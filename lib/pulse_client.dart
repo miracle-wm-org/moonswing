@@ -252,7 +252,14 @@ class _DisposeReq {
 // --- responses ---
 
 class _ReadyRes {
-  const _ReadyRes();
+  const _ReadyRes(this.loopAddress);
+
+  /// Address of the isolate's `pa_mainloop`. `pa_mainloop_wakeup` is one of the
+  /// few libpulse calls that is safe from another thread, so the main isolate
+  /// uses this to break the poll the instant it posts a request — without it a
+  /// volume change would sit in the isolate's message queue for up to the poll
+  /// slice.
+  final int loopAddress;
 }
 
 class _DoneRes {
@@ -397,13 +404,32 @@ class _PaIsolate {
   // Main loop driver
   // ---------------------------------------------------------------------------
 
+  /// How long a single [_loop] turn may stay inside libpulse before handing the
+  /// isolate back to the Dart event loop so queued request messages can run.
+  static const int _sliceUs = 50 * 1000;
+
   static Future<void> _loop() async {
     final inst = _inst;
     if (inst == null) return;
     if (inst.ops.isEmpty) {
-      _pa.pa_mainloop_prepare(inst.loop, 50 * 1000);
-      _pa.pa_mainloop_poll(inst.loop);
-      _pa.pa_mainloop_dispatch(inst.loop);
+      // `pa_mainloop_poll` maps a ppoll interrupted by a signal (EINTR) onto
+      // "poll returned, nothing was ready" — it does not retry. The Dart VM's
+      // thread interrupter signals every mutator thread at 1 kHz whenever the
+      // profiler is on, which is the default under `flutter run` and
+      // `--profile`, so a 50 ms poll was actually returning after ~1 ms with
+      // nothing to do. Re-arming through `Timer.run` on each of those turned an
+      // idle 20 Hz loop into an ~820 Hz spin — measured at 7 of the shell's 9%
+      // idle CPU, with `pollPositive` and `dispatched` both flat at zero.
+      // So: retry in place, and only go back through the event loop when the
+      // mainloop actually dispatched something or the slice is spent.
+      final slice = Stopwatch()..start();
+      var remainingUs = _sliceUs;
+      while (remainingUs > 0) {
+        if (_pa.pa_mainloop_prepare(inst.loop, remainingUs) < 0) break;
+        if (_pa.pa_mainloop_poll(inst.loop) < 0) break;
+        if (_pa.pa_mainloop_dispatch(inst.loop) != 0) break;
+        remainingUs = _sliceUs - slice.elapsedMicroseconds;
+      }
     } else {
       while (inst.ops.isNotEmpty) {
         _pa.pa_mainloop_iterate(inst.loop, 1, inst._ret);
@@ -489,7 +515,7 @@ class _PaIsolate {
           c, Pointer.fromFunction(_onSubscribe), nullptr);
       _pa.pa_context_subscribe(
           c, pa_subscription_mask.PA_SUBSCRIPTION_MASK_ALL, nullptr, nullptr);
-      _inst!.port.send(const _ReadyRes());
+      _inst!.port.send(_ReadyRes(_inst!.loop.address));
     }
   }
 
@@ -1088,8 +1114,9 @@ class PulseClient {
 
     _broadcast.listen((msg) {
       if (msg is SendPort) _sendPort = msg;
-      if (msg is _ReadyRes && !_initCompleter.isCompleted) {
-        _initCompleter.complete();
+      if (msg is _ReadyRes) {
+        _loop = Pointer<pa_mainloop>.fromAddress(msg.loopAddress);
+        if (!_initCompleter.isCompleted) _initCompleter.complete();
       }
     });
 
@@ -1097,7 +1124,31 @@ class PulseClient {
     await _initCompleter.future;
   }
 
+  // --- request posting ---
+
+  /// The PA isolate spends its time blocked inside `pa_mainloop_poll`, so a
+  /// message posted to it is not seen until that poll returns. Waking the
+  /// mainloop right after the send is what keeps the poll slice long (cheap at
+  /// idle) without making requests wait for it.
+  Pointer<pa_mainloop>? _loop;
+  late final PulseAudioBindings? _wakeBindings = () {
+    try {
+      return PulseAudioBindings(DynamicLibrary.open('libpulse.so.0'));
+    } catch (_) {
+      return null;
+    }
+  }();
+
+  void _post(Object msg) {
+    _sendPort.send(msg);
+    final loop = _loop;
+    if (loop != null) _wakeBindings?.pa_mainloop_wakeup(loop);
+  }
+
   void dispose() {
+    // Drop the pointer before the isolate frees the mainloop, so a late _post
+    // cannot wake freed memory.
+    _loop = null;
     _sendPort.send(const _DisposeReq());
     _recv.close();
     _instance = null;
@@ -1143,7 +1194,7 @@ class PulseClient {
   Future<PaServerInfo> getServerInfo() {
     _assertReady();
     final id = _id;
-    _sendPort.send(_GetServerInfoReq(id));
+    _post(_GetServerInfoReq(id));
     return _broadcast
         .firstWhere((m) => m is _ServerInfoRes && m.id == id)
         .then((m) => (m as _ServerInfoRes).info);
@@ -1154,7 +1205,7 @@ class PulseClient {
   Future<List<PaSink>> getSinkList() {
     _assertReady();
     final id = _id;
-    _sendPort.send(_GetSinkListReq(id));
+    _post(_GetSinkListReq(id));
     return _broadcast
         .firstWhere((m) => m is _SinkListRes && m.id == id)
         .then((m) => (m as _SinkListRes).list);
@@ -1163,7 +1214,7 @@ class PulseClient {
   Future<void> setSinkVolume(String name, double vol) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetSinkVolumeReq(id, name, vol));
+    _post(_SetSinkVolumeReq(id, name, vol));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1173,8 +1224,7 @@ class PulseClient {
       String name, double vol, double balance, int channelCount) {
     _assertReady();
     final id = _id;
-    _sendPort
-        .send(_SetSinkVolumeBalanceReq(id, name, vol, balance, channelCount));
+    _post(_SetSinkVolumeBalanceReq(id, name, vol, balance, channelCount));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1183,7 +1233,7 @@ class PulseClient {
   Future<void> setSinkMute(String name, bool mute) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetSinkMuteReq(id, name, mute));
+    _post(_SetSinkMuteReq(id, name, mute));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1192,7 +1242,7 @@ class PulseClient {
   Future<void> setDefaultSink(String name) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetDefaultSinkReq(id, name));
+    _post(_SetDefaultSinkReq(id, name));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1203,7 +1253,7 @@ class PulseClient {
   Future<List<PaSource>> getSourceList() {
     _assertReady();
     final id = _id;
-    _sendPort.send(_GetSourceListReq(id));
+    _post(_GetSourceListReq(id));
     return _broadcast
         .firstWhere((m) => m is _SourceListRes && m.id == id)
         .then((m) => (m as _SourceListRes).list);
@@ -1212,7 +1262,7 @@ class PulseClient {
   Future<void> setSourceVolume(String name, double vol) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetSourceVolumeReq(id, name, vol));
+    _post(_SetSourceVolumeReq(id, name, vol));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1221,7 +1271,7 @@ class PulseClient {
   Future<void> setSourceMute(String name, bool mute) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetSourceMuteReq(id, name, mute));
+    _post(_SetSourceMuteReq(id, name, mute));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1230,7 +1280,7 @@ class PulseClient {
   Future<void> setDefaultSource(String name) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetDefaultSourceReq(id, name));
+    _post(_SetDefaultSourceReq(id, name));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1241,7 +1291,7 @@ class PulseClient {
   Future<List<PaSinkInput>> getSinkInputList() {
     _assertReady();
     final id = _id;
-    _sendPort.send(_GetSinkInputListReq(id));
+    _post(_GetSinkInputListReq(id));
     return _broadcast
         .firstWhere((m) => m is _SinkInputListRes && m.id == id)
         .then((m) => (m as _SinkInputListRes).list);
@@ -1250,7 +1300,7 @@ class PulseClient {
   Future<void> setSinkInputVolume(int idx, double vol) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetSinkInputVolumeReq(id, idx, vol));
+    _post(_SetSinkInputVolumeReq(id, idx, vol));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1259,7 +1309,7 @@ class PulseClient {
   Future<void> setSinkInputMute(int idx, bool mute) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetSinkInputMuteReq(id, idx, mute));
+    _post(_SetSinkInputMuteReq(id, idx, mute));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1268,7 +1318,7 @@ class PulseClient {
   Future<void> moveSinkInput(int inputIdx, String sinkName) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_MoveSinkInputReq(id, inputIdx, sinkName));
+    _post(_MoveSinkInputReq(id, inputIdx, sinkName));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1279,7 +1329,7 @@ class PulseClient {
   Future<List<PaCard>> getCardList() {
     _assertReady();
     final id = _id;
-    _sendPort.send(_GetCardListReq(id));
+    _post(_GetCardListReq(id));
     return _broadcast
         .firstWhere((m) => m is _CardListRes && m.id == id)
         .then((m) => (m as _CardListRes).list);
@@ -1288,7 +1338,7 @@ class PulseClient {
   Future<void> setCardProfile(String cardName, String profileName) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_SetCardProfileReq(id, cardName, profileName));
+    _post(_SetCardProfileReq(id, cardName, profileName));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1299,7 +1349,7 @@ class PulseClient {
   Future<List<PaModule>> getModuleList() {
     _assertReady();
     final id = _id;
-    _sendPort.send(_GetModuleListReq(id));
+    _post(_GetModuleListReq(id));
     return _broadcast
         .firstWhere((m) => m is _ModuleListRes && m.id == id)
         .then((m) => (m as _ModuleListRes).list);
@@ -1308,7 +1358,7 @@ class PulseClient {
   Future<int> loadModule(String name, String args) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_LoadModuleReq(id, name, args));
+    _post(_LoadModuleReq(id, name, args));
     return _broadcast
         .firstWhere((m) => m is _LoadModuleRes && m.id == id)
         .then((m) => (m as _LoadModuleRes).moduleIndex);
@@ -1317,7 +1367,7 @@ class PulseClient {
   Future<void> unloadModule(int index) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_UnloadModuleReq(id, index));
+    _post(_UnloadModuleReq(id, index));
     return _broadcast
         .firstWhere((m) => m is _DoneRes && m.id == id)
         .then((_) {});
@@ -1328,7 +1378,7 @@ class PulseClient {
   Stream<double> startLevelMeter(String sourceName) {
     _assertReady();
     final id = _id;
-    _sendPort.send(_StartLevelMeterReq(id, sourceName));
+    _post(_StartLevelMeterReq(id, sourceName));
     // Wait for the _DoneRes before streaming, but return the stream immediately.
     // Levels arrive as _LevelRes events on the broadcast stream.
     return _levelStream;
@@ -1337,6 +1387,6 @@ class PulseClient {
   void stopLevelMeter() {
     if (!_initCompleter.isCompleted) return;
     final id = _id;
-    _sendPort.send(_StopLevelMeterReq(id));
+    _post(_StopLevelMeterReq(id));
   }
 }
