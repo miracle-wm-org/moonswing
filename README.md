@@ -63,6 +63,25 @@ sudo snap install ./graceful-shell_*.snap --classic --dangerous
 graceful-shell
 ```
 
+The snap bundles `libgtk-session-lock` and the wallpapers, so the lock screen and
+the wallpaper work out of the box. Two things it cannot install for you:
+
+- **Screen sharing.** The first run drops the ScreenCast portal backend files into
+  your XDG directories, but xdg-desktop-portal only reads them at start-up:
+
+  ```sh
+  systemctl --user restart xdg-desktop-portal
+  ```
+
+- **The PAM service file.** `/etc/pam.d/graceful-shell` needs root, so the lock
+  screen falls back to the system `login` service — it still authenticates, it
+  just attributes unlock attempts to `login` in the auth logs.
+
+Everything else — PipeWire, PAM, udev, D-Bus, icon themes, the `Ubuntu Sans` font,
+and the helper binaries the audio and System panes shell out to (`pw-metadata`,
+`speaker-test`, `lspci`) — comes from the host, which is what classic confinement
+is for.
+
 To update, download the newest snap and re-run the install command. To remove:
 
 ```sh

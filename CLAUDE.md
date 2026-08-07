@@ -34,6 +34,17 @@ System dependencies required at build time: `libgtk3`, `gtk-layer-shell`, `libas
 
 Required at runtime for the lock screen: `libgtk-session-lock0` (`ext-session-lock-v1`) and `libpam` — both loaded with `dlopen`, so the shell builds and runs without them; only locking is unavailable.
 
+### Packaging (`snap/snapcraft.yaml`, `.github/workflows/`)
+
+A **classic** snap, built nightly from `main` and published as a rolling `nightly` release. Classic confinement is what makes the rules here unusual: the snap runs in the host namespace, so the host's libraries are on the default loader path and `LD_LIBRARY_PATH` only *prepends* `$SNAP`.
+
+Four things a change here has to keep true:
+
+- **Bundle a library only when the host cannot be trusted to have it, or to have a compatible one.** `libgtk-layer-shell0`, `libmpv1`, `libpulse0`, `libasound2` are staged; `libpipewire-0.3`, `libpam`, `libudev`, `libwayland-client`, `libdbus` and the whole GL/EGL/GBM/DRI set are deliberately *not* — the `prime:` exclusion list exists because a bundled core22 Mesa against host DRI drivers produces `libEGL fatal: did not find extension DRI_Mesa version 1`, and the same reasoning kills every other candidate for a client/server version split.
+- **`libgtk-session-lock` is built from source, and stages no GTK.** There is no `libgtk-session-lock0` in core22 (it first appears in resolute), and without it **Lock silently does nothing**. It is dlopened into a process that already has the host GTK3 mapped, so it links by soname at build time and resolves to the host at run time; staging `libgtk-3-0` would put a second, different GTK in the same address space.
+- **The launcher is a wrapper, because the portal files belong to the user.** `snap/local/graceful-shell-wrapper` copies `graceful-shell.portal` and `mir-portals.conf` into `XDG_DATA_HOME`/`XDG_CONFIG_HOME` on first run — never overwriting, the same rule `make install-portal` follows — then `exec`s the binary. A snap cannot write those at build time, and xdg-desktop-portal searches nowhere else. It cannot install `/etc/pam.d/graceful-shell` either; `PamAuthenticator` falls back to the `login` service.
+- **The Flutter revision is pinned, and `flutter-master.yml` is why that is safe.** The shell is built on Flutter's experimental windowing API; the snap used to clone `master` at HEAD, so an upstream rename landing overnight broke the *release artifact*. The daily `flutter-master.yml` job now carries the early-warning role, and the pin is bumped to a revision that job has proven green.
+
 ## Architecture
 
 Graceful Shell is a **Flutter Linux desktop application** that renders Wayland layer-shell panels (taskbars) and an optional wallpaper window using GTK and the `gtk-layer-shell` library.
@@ -57,14 +68,15 @@ Graceful Shell is a **Flutter Linux desktop application** that renders Wayland l
 
 Modules are registered before config is loaded (`Module.register(...)` in `main()`) and retrieved by name at render time (`Module.lookup(name)`). Adding a new module means subclassing `Module`, implementing these three members, and calling `Module.register()` in `main.dart`.
 
-### Layer-shell windowing (`lib/layer_shell.dart`)
+### Layer-shell windowing (`package:layer_shell`, `lib/window_manager.dart`, `lib/popup.dart`)
 
-This file bridges Flutter's internal windowing API (imported via `implementation_imports`) with `gtk-layer-shell`:
+The gtk-layer-shell bridge is no longer in this repo — it is the `layer_shell` git dependency (`mattkae/layer_shell.dart`, pinned by `pubspec.lock`), which owns `LayershellWindowController`, `LayerShellWindow`, `ExtendedWindowingOwnerLinux`, and the generic GTK/GDK/Flutter FFI wrappers (`GtkWindow`, `FlView`, `FlEngine`, `FlWindowMonitor`) that `packages/ext_session_lock` reuses. It also re-exports the `@internal` SDK windowing pieces (`WindowRegistry`, `WindowEntry`, `WindowScope`, `PopupWindow`, `WindowPositioner`), which are unreachable through `package:flutter/widgets.dart`.
 
-- **`LayershellWindowController`** — wraps `RegularWindowControllerLinux` and applies layer-shell properties (anchor edges, layer, exclusive zone, monitor) immediately after GTK window creation, before Flutter presents the window.
-- **`PopupGtkWindowController`** — creates freestanding GTK windows on the `overlay` layer, positioned with top+left anchors and margins derived from the parent widget's screen rect.
-- **`LayerShellHost` mixin** (`lib/popup.dart`) — reusable `State` mixin for modules that open a full layer-shell window (panel/overlay/dialog) at runtime. The module creates the `LayershellWindowController` and hands it to `openLayerWindow`, which registers a `WindowEntry` into the panel's `WindowRegistry` (supplied by the per-panel `WindowManager` in `main.dart`); `closeLayerWindow` unregisters and destroys it. Used by the notifications, clock, and system modules. This is the same `WindowManager`/`WindowRegistry` path popups use — there is no separate runtime-view registry.
-- **`PopupHost` mixin** (`lib/popup.dart`) — reusable `State` mixin that manages a single popup window lifecycle; modules that open popups (e.g. `SoundControl`) mix this in.
+That dependency tracks Flutter `master`, and Flutter renames these APIs without notice. **When a build fails with `Type 'X' not found` inside `_window.dart`, the fix is upstream-first**: bump the `layer_shell` pin to a revision whose own *Build against Flutter master* workflow is green, then apply the same rename here. `.github/workflows/flutter-master.yml` is this repo's copy of that early-warning job.
+
+- **`PanelWindowManager`** (`lib/window_manager.dart`) — a vendored stand-in for Flutter's `WindowManager`, one per panel. The SDK widget used to render a `child` *plus* every window registered into its `WindowRegistry`; on master it takes `initialWindows` and renders only those, so panel content nested inside it disappears. This is a port of the pre-rename implementation — a `ViewAnchor` whose `child` is the panel and whose anchored views are the registered windows — with its own registry scope, because Flutter's `_WindowRegistryScope` is private and nothing outside the SDK can satisfy `WindowRegistry.of`. Reach it with `PanelWindowManager.registryOf(context)`.
+- **`LayerShellHost` mixin** (`lib/popup.dart`) — reusable `State` mixin for modules that open a full layer-shell window (panel/overlay/dialog) at runtime. The module creates the `LayershellWindowController` and hands it to `openLayerWindow`, which registers a `WindowEntry` into the panel's `WindowRegistry`; `closeLayerWindow` unregisters and destroys it. Used by the notifications, clock, and system modules. This is the same registry path popups use — there is no separate runtime-view registry.
+- **`PopupHost` mixin** (`lib/popup.dart`) — reusable `State` mixin that manages a single popup window lifecycle; modules that open popups (e.g. `SoundControl`) mix this in. Note the cast to `BaseWindowControllerLinux` when making the surface transparent: `WindowControllerLinux` is the *regular*-window controller and a popup's is not one, so the wrong cast compiles and then throws on the first popup.
 - **`PopupBounceIn`** — scale+fade animation widget used inside popup content.
 
 ### Scopes (`lib/scopes.dart`)
@@ -77,10 +89,6 @@ Four `InheritedWidget` scopes are provided around every panel's widget tree:
 | `MiracleScope` | `MiracleConnection` (workspace IPC) |
 | `DisplayScope` | `WaylandOutput` (the monitor this panel is on) |
 | `BarScope` | `anchor` string (`'top'`, `'bottom'`, `'left'`, `'right'`) |
-
-### GTK FFI (`lib/gtk.dart`)
-
-Raw FFI bindings for GTK3 and `gtk-layer-shell`. Provides `GtkWindow`, `GdkDisplay`, `FlView`, and `FlWindowMonitor` wrappers. This code is adapted from Flutter's internal Linux windowing implementation and wraps the C API used by `LayershellWindowController`.
 
 ### Configuration (`lib/config.dart`)
 

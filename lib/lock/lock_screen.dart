@@ -205,12 +205,7 @@ class _LockScreenState extends State<LockScreen> {
         File(configured).existsSync()) {
       return configured;
     }
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      const relative = '/.local/share/graceful-shell/lock-wallpaper.jpg';
-      if (File('$home$relative').existsSync()) return '$home$relative';
-    }
-    return null;
+    return shippedDataFile('lock-wallpaper.jpg');
   }
 
   String get _timeText =>

@@ -47,6 +47,7 @@ import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
+import 'package:graceful_shell/window_manager.dart';
 import 'package:ext_session_lock/ext_session_lock.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
@@ -984,7 +985,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 LayerShellWindow(
                   key: ObjectKey(controller),
                   controller: controller,
-                  child: WindowManager(
+                  child: PanelWindowManager(
                     child: ThemeProvider(
                       child: MiracleScope(
                         manager: widget.miracle,

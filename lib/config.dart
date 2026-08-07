@@ -26,6 +26,46 @@ enum BackgroundFit {
 /// failure path falls back to. Matches `lib/theme/builtin_themes.dart`.
 const String kDefaultThemeName = 'graceful';
 
+/// Resolves [name] against the directories the shell's shipped data files
+/// (the wallpapers) can live in, returning the first that exists.
+///
+/// The snap's own copy comes first, because it cannot write into the user's
+/// data dir; `make install` puts them in the XDG data dir instead. Returns null
+/// when neither has the file — the callers all treat a missing wallpaper as
+/// "draw the fallback", never as an error.
+///
+/// Under the snap this deliberately resolves through `/snap/<name>/current`
+/// rather than `$SNAP`, which is `/snap/<name>/<revision>`: the result is baked
+/// into the generated `config.toml` and a revisioned path would go dead on the
+/// next `snap refresh`.
+String? shippedDataFile(String name) {
+  final env = Platform.environment;
+  final roots = <String>[];
+
+  final snap = env['SNAP'] ?? '';
+  if (snap.isNotEmpty) {
+    final snapName = env['SNAP_NAME'] ?? '';
+    if (snapName.isNotEmpty) {
+      roots.add('/snap/$snapName/current/share/graceful-shell');
+    }
+    roots.add('$snap/share/graceful-shell');
+  }
+
+  final dataHome = env['XDG_DATA_HOME'] ?? '';
+  if (dataHome.isNotEmpty) {
+    roots.add('$dataHome/graceful-shell');
+  } else {
+    final home = env['HOME'] ?? '';
+    if (home.isNotEmpty) roots.add('$home/.local/share/graceful-shell');
+  }
+
+  for (final root in roots) {
+    final path = '$root/$name';
+    if (File(path).existsSync()) return path;
+  }
+  return null;
+}
+
 /// A resolved palette.
 ///
 /// Themes are no longer part of `config.toml` — each one is its own file under
@@ -689,7 +729,17 @@ class AppConfig {
     this.screenshare = const ScreenshareConfig(),
   });
 
-  static String _buildDefaultConfig(String homeDir) => '''
+  // Baked as absolute paths because config.toml is written once and then owned
+  // by the user: resolving at every read would silently move their wallpaper if
+  // the shell were later reinstalled somewhere else. Falls back to the XDG data
+  // dir when nothing is installed yet, which is where `make install` will put
+  // it.
+  static String _buildDefaultConfig(String homeDir) {
+    final wallpaper = shippedDataFile('wallpaper.jpg') ??
+        '$homeDir/.local/share/graceful-shell/wallpaper.jpg';
+    final lockWallpaper = shippedDataFile('lock-wallpaper.jpg') ??
+        '$homeDir/.local/share/graceful-shell/lock-wallpaper.jpg';
+    return '''
 theme = "$kDefaultThemeName"
 
 [panels.top]
@@ -743,11 +793,11 @@ fit = "fill"
 interval_minutes = 5
 
 [[background.entries]]
-path = "$homeDir/.local/share/graceful-shell/wallpaper.jpg"
+path = "$wallpaper"
 shown = true
 
 [lock]
-background = "$homeDir/.local/share/graceful-shell/lock-wallpaper.jpg"
+background = "$lockWallpaper"
 fit = "fill"
 show_username = true
 blur_sigma = 18.0
@@ -761,6 +811,7 @@ enabled = true
 preview_fps = 10
 max_fps = 0
 ''';
+  }
 
   /// Resolves the absolute path to `config.toml`, honouring
   /// `XDG_CONFIG_HOME`. Shared by the loader and the settings writer so the

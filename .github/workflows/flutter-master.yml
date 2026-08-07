@@ -1,0 +1,99 @@
+# Builds the shell against the latest Flutter `master`.
+#
+# The shell consumes Flutter's private, experimental windowing APIs
+# (`package:flutter/src/widgets/_window.dart` and friends) through
+# `layer_shell` and `packages/ext_session_lock`, and upstream renames them
+# without notice — even in patch releases. The nightly snap used to be what
+# discovered that, badly: it pinned nothing, so a rename landing overnight
+# turned the release artifact red and stayed red for two weeks.
+#
+# The snap now builds a pinned revision (snap/snapcraft.yaml), and this job is
+# what took over the early-warning role. When it goes red, the fix is to migrate
+# the code; when it is green, its framework revision is the one to move that pin
+# to.
+#
+# It does not run the shell. libgtk-layer-shell and libgtk-session-lock are
+# dlopen'd or linked but never exercised on a headless runner, and there is no
+# Wayland compositor here to give a layer surface to.
+
+name: Build against Flutter master
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # 07:00 UTC daily, an hour after layer_shell.dart's own master job, so an
+    # upstream break shows up there first and here second.
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Analyze, test and build (Linux)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Flutter's standard Linux desktop toolchain plus what linux/CMakeLists.txt
+      # declares REQUIRED: gtk+-3.0 and gtk-layer-shell-0. libmpv-dev is media_kit's
+      # and libasound2-dev is the audio stack's.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            libgtk-layer-shell-dev \
+            libasound2-dev \
+            libmpv-dev \
+            liblzma-dev
+
+      # cache: false is deliberate. Caching a key called "master" would pin a
+      # stale revision and defeat the entire point of this workflow.
+      - name: Set up Flutter (master channel)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: master
+          cache: false
+
+      # Persistent tool setting, master-channel only. Must run before the build
+      # so the feature flag is compiled in — initLayerShell() throws
+      # UnsupportedError when `isWindowingEnabled` is false.
+      - name: Enable windowing
+        run: flutter config --enable-windowing
+
+      # Its own step on purpose: when this job goes red, the framework revision
+      # and date are the first thing you want, without digging through logs. It
+      # is also the revision to copy into snap/snapcraft.yaml when it is green.
+      - name: Report Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # This is what turns an upstream rename of a private windowing API into a
+      # precise analyzer error instead of a compiler dump ten minutes later.
+      #
+      # Errors and warnings are fatal; infos are not. An upstream break shows up
+      # as an error, so gating on infos would only mean this job's signal is
+      # whatever style lint the repo has most recently accumulated — the job
+      # would sit red for reasons that have nothing to do with what it watches.
+      # `dart fix --apply` clears the standing info backlog when someone wants
+      # to; it is not this job's business to force it.
+      - name: Analyze
+        run: flutter analyze --fatal-warnings --no-fatal-infos
+
+      - name: Test
+        run: flutter test
+
+      - name: Build
+        run: flutter build linux --release

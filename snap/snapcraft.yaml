@@ -3,8 +3,17 @@ base: core22
 version: '0.1-nightly'
 summary: The shell of your dreams, built with Flutter
 description: |
-  Graceful Shell renders Wayland layer-shell panels (taskbars) and an optional
-  wallpaper for Wayland compositors such as Miracle WM, built with Flutter.
+  Graceful Shell renders Wayland layer-shell panels (taskbars), a wallpaper,
+  a lock screen and the ScreenCast portal backend for Wayland compositors such
+  as Miracle WM, built with Flutter.
+
+  Two things a snap cannot install for you:
+
+  * The PAM service file. `/etc/pam.d/graceful-shell` needs root, so the lock
+    screen falls back to the system `login` service — it still authenticates.
+  * Portal registration on the *first* run. The launcher drops the ScreenCast
+    backend files into your XDG dirs, but xdg-desktop-portal only reads them at
+    start-up: run `systemctl --user restart xdg-desktop-portal` once afterwards.
 grade: devel
 confinement: classic
 platforms:
@@ -12,7 +21,9 @@ platforms:
 
 apps:
   graceful-shell:
-    command: graceful_shell
+    # A wrapper, not the binary: it registers the ScreenCast portal backend on
+    # first run. See snap/local/graceful-shell-wrapper.
+    command: bin/graceful-shell
     environment:
       # Classic confinement runs in the host namespace and does not set up a
       # library search path. Point the loader at the staged libs (libmpv.so.1
@@ -33,6 +44,26 @@ parts:
         git clone -b master \
           https://github.com/flutter/flutter.git "${CRAFT_PART_BUILD}/flutter-distro"
       fi
+      # Pinned deliberately. The shell is built on Flutter's *experimental*
+      # windowing API, which upstream renames without notice — a rename landing
+      # overnight used to turn the nightly release artifact red (it did, for two
+      # weeks, when RegularWindowController became WindowController). This is a
+      # release build, so it does not track HEAD; the early-warning signal is
+      # .github/workflows/flutter-master.yml, which builds against master daily.
+      #
+      # To bump: wait for a green run of that workflow, take the framework
+      # revision it prints, and put it here. A detached checkout at a real
+      # revision still carries the tags `git describe` needs.
+      #
+      # b710a6e029 — flutter/flutter master @ 2026-08-07.
+      FLUTTER_REV=b710a6e0290f7cb9c3ad55666c5f8573aed2ee8f
+      # The clone above is skipped when a previous build left one behind, and
+      # that one predates any revision bumped in since — fetch before checking
+      # out anything it might not have.
+      git -C "${CRAFT_PART_BUILD}/flutter-distro" \
+        rev-parse --verify --quiet "${FLUTTER_REV}^{commit}" > /dev/null \
+        || git -C "${CRAFT_PART_BUILD}/flutter-distro" fetch --tags origin master
+      git -C "${CRAFT_PART_BUILD}/flutter-distro" checkout --detach "${FLUTTER_REV}"
       flutter config --enable-windowing
       craftctl default
     build-packages:
@@ -66,8 +97,77 @@ parts:
       # too so the whole graphics + display stack comes from the host.
       - -usr/lib/*/libwayland*
       - -usr/lib/*/libdrm*
+
+  # The lock screen dlopens libgtk-session-lock.so.0 (packages/ext_session_lock/
+  # lib/src/gtk_session_lock.dart) and silently does nothing when it is absent.
+  # It cannot come from stage-packages: libgtk-session-lock0 only entered the
+  # Ubuntu archive in resolute, so core22 has no such package, and a typical
+  # host does not have it installed either.
+  #
+  # Deliberately no stage-packages. The library is dlopened into a process that
+  # already has the *host* GTK3 mapped, so it must link against that one; a
+  # bundled core22 libgtk-3-0 would be a second, different GTK in the same
+  # address space. Linking by soname at build time and resolving to the host at
+  # run time is the same bargain the graphics `prime:` exclusions above strike.
+  gtk-session-lock:
+    plugin: meson
+    source: https://github.com/Cu3PO42/gtk-session-lock.git
+    source-tag: v0.2.0
+    meson-parameters:
+      - --prefix=/usr
+      - --buildtype=release
+      # Nothing in the shell consumes the typelib or the vapi, and building
+      # them would drag gobject-introspection and vala into the build.
+      - -Dintrospection=false
+      - -Dvapi=false
+      - -Dexamples=false
+      - -Dtests=false
+    build-packages:
+      - meson
+      - ninja-build
+      - pkg-config
+      - libgtk-3-dev
+      - libwayland-dev
+      # wayland-scanner, which protocol/meson.build calls to generate the
+      # ext-session-lock-v1 client glue.
+      - libwayland-bin
+      # NOT wayland-protocols. When it is present the build takes the XML from
+      # $pkgdatadir/staging/ext-session-lock/, and core22's 1.25 predates that
+      # protocol landing there — the dependency is optional precisely so the
+      # bundled protocol/ext-session-lock-v1.xml can be used instead.
+    prime:
+      # Runtime only — the shell binds the library through dart:ffi, so the
+      # headers and the pkg-config file are dead weight in the snap.
+      - -usr/include
+      - -usr/lib/*/pkgconfig
+
+  # The ScreenCast portal backend files. They are *staged*, not installed:
+  # xdg-desktop-portal reads them from XDG_DATA_HOME / XDG_CONFIG_HOME, which a
+  # snap cannot write at build time, so the launcher copies them out on first
+  # run instead.
+  portal:
+    plugin: dump
+    source: portal
+    organize:
+      graceful-shell.portal: share/graceful-shell/portal/graceful-shell.portal
+      graceful-shell-portals.conf: share/graceful-shell/portal/graceful-shell-portals.conf
+
+  launcher:
+    plugin: dump
+    source: snap/local
+    organize:
+      graceful-shell-wrapper: bin/graceful-shell
+
+  # Resolved by shippedDataFile() in lib/config.dart, which looks under
+  # /snap/<name>/current — not $SNAP, whose revisioned path would go dead in the
+  # generated config.toml on the next refresh.
   wallpaper:
     plugin: dump
     source: assets
     organize:
       wallpaper.jpg: share/graceful-shell/wallpaper.jpg
+      lock-wallpaper.jpg: share/graceful-shell/lock-wallpaper.jpg
+    stage:
+      # CREDITS.md is the rest of assets/; nothing should land at the snap root.
+      - share/graceful-shell/wallpaper.jpg
+      - share/graceful-shell/lock-wallpaper.jpg

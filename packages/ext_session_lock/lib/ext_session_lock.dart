@@ -301,8 +301,8 @@ class SessionLockWindowingOwnerLinux extends ExtendedWindowingOwnerLinux {
 /// before GTK maps it, which is why window creation is driven here rather than
 /// reusing the SDK's regular controller (which realizes in its own
 /// constructor).
-class SessionLockWindowController extends RegularWindowController
-    implements WindowControllerLinux {
+class SessionLockWindowController extends WindowController
+    implements BaseWindowControllerLinux {
   /// Creates a lock window on [monitor] for an already-[SessionLock.prepare]d
   /// and [SessionLock.lock]ed session lock.
   ///
