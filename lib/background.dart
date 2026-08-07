@@ -66,6 +66,10 @@ class _BackgroundWindowState extends State<BackgroundWindow> {
   int _index = 0;
   Timer? _timer;
 
+  /// The interval the running [_timer] was built with, so [_sameRotation] can
+  /// tell a real interval edit from an unrelated config write.
+  int _intervalMinutes = 0;
+
   @override
   void initState() {
     super.initState();
@@ -77,6 +81,13 @@ class _BackgroundWindowState extends State<BackgroundWindow> {
   void didUpdateWidget(BackgroundWindow oldWidget) {
     super.didUpdateWidget(oldWidget);
     final next = shownEntries(widget.config);
+
+    // Every ConfigStore write rebuilds the whole shell, and this widget sees a
+    // new (equal) BackgroundConfig each time. Restarting the timer on all of
+    // them would reset the rotation clock on every unrelated edit — dragging a
+    // desktop icon around would mean the wallpaper never advanced at all.
+    if (_sameRotation(next, widget.config)) return;
+
     // Keep pointing at the same wallpaper across edits when it's still shown,
     // otherwise clamp back into range.
     final currentPath = _currentPath;
@@ -89,12 +100,24 @@ class _BackgroundWindowState extends State<BackgroundWindow> {
     _restartTimer();
   }
 
+  /// Whether [next] and [config] would produce the timer and image sequence
+  /// already running — i.e. nothing about the rotation actually changed.
+  bool _sameRotation(List<BackgroundEntry> next, BackgroundConfig config) {
+    if (config.intervalMinutes != _intervalMinutes) return false;
+    if (next.length != _entries.length) return false;
+    for (var i = 0; i < next.length; i++) {
+      if (next[i].path != _entries[i].path) return false;
+    }
+    return true;
+  }
+
   String? get _currentPath =>
       (_index >= 0 && _index < _entries.length) ? _entries[_index].path : null;
 
   void _restartTimer() {
     _timer?.cancel();
     _timer = null;
+    _intervalMinutes = widget.config.intervalMinutes;
     // Nothing to rotate through with 0 or 1 wallpapers.
     if (_entries.length <= 1) return;
     final minutes =

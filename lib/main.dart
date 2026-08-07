@@ -3,7 +3,10 @@ import 'dart:async';
 // ignore_for_file: implementation_imports
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/background.dart';
+import 'package:graceful_shell/desktop/desktop_surface.dart';
+import 'package:graceful_shell/overlay/file_picker.dart';
+import 'package:graceful_shell/overlay/file_picker_controller.dart';
+import 'package:graceful_shell/overlay/settings_route.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
@@ -42,6 +45,9 @@ import 'package:graceful_shell/screencast/screencast_service.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
+import 'package:graceful_shell/desktop/desktop_actions.dart';
+import 'package:graceful_shell/desktop/desktop_layout.dart';
+import 'package:graceful_shell/desktop/desktop_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
@@ -80,6 +86,11 @@ void main() async {
   // Seeds the shipped themes into ~/.config/graceful-shell/themes on first run
   // and resolves the one config.toml names, before anything paints.
   startThemeService(store);
+
+  // Reads the pinned desktop icons, so the grid paints with the first frame of
+  // the background surface rather than popping in a moment later. Like the
+  // theme store it watches ConfigStore for its own subtree only.
+  startDesktopService(store);
 
   await startNotificationService();
   await startStatusNotifierService();
@@ -256,10 +267,15 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// this map is the live source of truth for what the shell renders.
   final Map<String, _MonitorSurfaces> _surfaces = {};
 
-  /// Whether a background window should exist on each monitor. Fixed at startup
+  /// Whether a background surface should exist on each monitor. Fixed at startup
   /// (like the native window geometry) so newly-plugged monitors get a matching
   /// background.
-  late final bool _hasBackground;
+  ///
+  /// Two things want it: a wallpaper to paint, and the desktop icon grid to
+  /// host. Either alone is enough — with the grid on and no wallpaper the
+  /// surface is transparent and the compositor's own background shows through.
+  /// [ConfigStore.needsRestart] signs this same decision.
+  late final bool _hasBackgroundSurface;
 
   /// The on-screen indicator's windows, keyed like [_surfaces]. Unlike panels
   /// these exist only while [OsdStore] holds a request: the shell has no
@@ -275,6 +291,23 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// Drives the settings overlay's fade-out. Flipping true asks [SettingsOverlay]
   /// to play its exit animation and then call back into [_onSettingsClosed].
   final ValueNotifier<bool> _settingsClosing = ValueNotifier(false);
+
+  /// The page the open (or about-to-open) settings overlay was asked for. Null
+  /// is the default landing page.
+  SettingsRoute? _settingsRoute;
+
+  /// A route that arrived while an overlay was already up. The overlay seeds
+  /// its tab in `initState`, so retargeting means closing and reopening; this
+  /// holds the destination across those two frames.
+  SettingsRoute? _pendingSettingsRoute;
+
+  /// The file picker's window, open only while a request is outstanding — like
+  /// the OSD and the screencast picker, and unlike the panels.
+  LayershellWindowController? _filePicker;
+
+  /// Monitor keys whose background surface currently takes keyboard focus for
+  /// an in-place desktop rename. Empty is the normal state.
+  final Set<String> _desktopKeyboard = {};
 
   /// The application launcher's window, shaped exactly like [_settings]: one
   /// instance, keyboard-focusing, non-null exactly while it is on screen.
@@ -327,8 +360,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     super.initState();
     final appConfig = widget.appConfig;
     _liveConfig = appConfig;
-    _hasBackground = appConfig.background != null &&
-        appConfig.background!.entries.isNotEmpty;
+    _hasBackgroundSurface =
+        (appConfig.background?.entries.isNotEmpty ?? false) ||
+            appConfig.desktop.enabled;
     widget.store.addListener(_onConfigChanged);
     widget.outputs.addListener(_onOutputsChanged);
     OsdStore.instance.addListener(_onOsdChanged);
@@ -336,6 +370,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     LauncherController.instance.addListener(_onLauncherTriggered);
     ScreencastPickerController.instance.addListener(_onScreencastPickChanged);
     LockController.instance.addListener(_onLockRequested);
+    SettingsController.instance.addListener(_onSettingsRouteRequested);
+    FilePickerController.instance.addListener(_onFilePickRequested);
     ThemeStore.instance.addListener(_onThemeChanged);
     // startThemeService() resolved the palette back in main(), so the margin is
     // known before the first surface is built and no bar is created flush and
@@ -363,7 +399,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// into them are attached on the next [build].
   _MonitorSurfaces _createSurfaces(MonitorInfo monitor) {
     LayershellWindowController? background;
-    if (_hasBackground) {
+    if (_hasBackgroundSurface) {
       background = LayershellWindowController(
         layer: LayerShellLayer.background,
         anchorEdges: const [
@@ -582,9 +618,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the first connected monitor. It sits on the overlay layer and takes
   /// keyboard focus (onDemand) so its text fields and Escape-to-close work —
   /// the same recipe the clock uses to open this overlay from a panel.
-  void _openSettings() {
+  void _openSettings([SettingsRoute? route]) {
     if (_surfaces.isEmpty) return;
     final monitor = _surfaces.values.first.monitor;
+    _settingsRoute = route;
     _settingsClosing.value = false;
     _settings = LayershellWindowController(
       layer: LayerShellLayer.overlay,
@@ -607,8 +644,140 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (!mounted) return;
     final removed = _settings;
     _settings = null;
+    _settingsRoute = null;
     setState(() {});
     if (removed != null) _destroyAfterFrame([removed]);
+
+    // A route that arrived while the overlay was up: the old window has now
+    // finished its fade-out, so reopen at the requested page.
+    final pending = _pendingSettingsRoute;
+    if (pending != null) {
+      _pendingSettingsRoute = null;
+      _openSettings(pending);
+    }
+  }
+
+  /// Something asked for the settings overlay at a particular page — today the
+  /// desktop's "Change background…".
+  ///
+  /// Unlike [_onSettingsTriggered] this never toggles: the request names a
+  /// destination, and closing the settings in response to "show me the
+  /// background settings" would be nonsense. An overlay already on screen is
+  /// closed and reopened, because it seeds its tab in `initState`.
+  void _onSettingsRouteRequested() {
+    if (!mounted) return;
+    final route = SettingsController.instance.pending;
+    if (route == null) return;
+    SettingsController.instance.consume();
+
+    if (_settings == null) {
+      _openSettings(route);
+      return;
+    }
+    if (_settingsRoute == route) return;
+    _pendingSettingsRoute = route;
+    _settingsClosing.value = true;
+  }
+
+  /// "Add application…" / "Add file or folder…" from the desktop's empty-space
+  /// menu.
+  ///
+  /// The picker is asked for through [FilePickerController] because the desktop
+  /// cannot host one itself; the chosen paths are then pinned at [cell], or as
+  /// near to it as the grid allows.
+  Future<void> _onDesktopAddRequested({
+    required bool applications,
+    required GridCell cell,
+  }) async {
+    final paths = await FilePickerController.instance.pick(
+      FilePickerRequest(
+        filters: applications
+            ? const [FilePickerFilter.desktopEntries, FilePickerFilter.all]
+            : const [FilePickerFilter.all],
+        allowDirectories: !applications,
+        initialDirectory: applications ? '/usr/share/applications' : null,
+      ),
+    );
+    if (paths == null || paths.isEmpty || !mounted) return;
+
+    final store = DesktopStore.instance;
+    // Nominal geometry: the surface that raised the menu knows the real one,
+    // but placement only needs a free cell and the desktop reflows anything
+    // out of range at render time anyway.
+    final geometry = computeGridGeometry(const Size(1920, 1080), store.config);
+    for (final path in paths) {
+      final item = desktopItemForPath(path);
+      store.addItem(
+        item.copyWith(column: cell.column, row: cell.row),
+        geometry,
+      );
+    }
+  }
+
+  /// Flips one background surface between `none` and `onDemand` keyboard
+  /// interactivity, for the duration of an in-place rename.
+  ///
+  /// The surface is created `none` (main.dart's `_createSurfaces`), so a text
+  /// field on it would never see a key event. It is not simply left `onDemand`:
+  /// a full-output background surface that can take focus would let a stray
+  /// click on the desktop steal it from the focused application.
+  ///
+  /// Cached in a set rather than read back from the controller, on the
+  /// [_panelMargin] precedent — re-committing a layer surface more often than
+  /// it actually changes makes it flicker. And force-committed for the same
+  /// reason [setPanelMargin] is: a change made after the surface is mapped
+  /// causes no repaint of its own, so it would otherwise sit queued.
+  void _setDesktopKeyboard(String monitorKey, bool wanted) {
+    if (_desktopKeyboard.contains(monitorKey) == wanted) return;
+    final controller = _surfaces[monitorKey]?.background;
+    if (controller == null) return;
+    controller.setKeyboardMode(
+      wanted ? LayerShellKeyboardMode.onDemand : LayerShellKeyboardMode.none,
+    );
+    controller.tryForceCommit();
+    if (wanted) {
+      _desktopKeyboard.add(monitorKey);
+    } else {
+      _desktopKeyboard.remove(monitorKey);
+    }
+  }
+
+  /// A surface that cannot host a modal asked for a file picker.
+  ///
+  /// The desktop grid is the caller: it lives on the background layer, where a
+  /// picker would be drawn under every application window. This puts one on the
+  /// overlay layer instead, with keyboard focus so Escape works.
+  void _onFilePickRequested() {
+    if (!mounted) return;
+    final request = FilePickerController.instance.pending;
+    if (request == null) {
+      if (_filePicker != null) _closeFilePicker();
+      return;
+    }
+    if (_filePicker != null) return;
+
+    // Like the launcher, no monitor: the compositor puts it on the focused
+    // output, which is where the user just right-clicked.
+    _filePicker = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+    );
+    spanFullOutput(_filePicker!);
+    setState(() {});
+  }
+
+  void _closeFilePicker() {
+    final removed = _filePicker;
+    if (removed == null) return;
+    _filePicker = null;
+    setState(() {});
+    _destroyAfterFrame([removed]);
   }
 
   /// Destroys native windows only once the frame that detached their views has
@@ -898,6 +1067,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     ScreencastPickerController.instance
         .removeListener(_onScreencastPickChanged);
     LockController.instance.removeListener(_onLockRequested);
+    SettingsController.instance.removeListener(_onSettingsRouteRequested);
+    FilePickerController.instance.removeListener(_onFilePickRequested);
     ThemeStore.instance.removeListener(_onThemeChanged);
     _monitorWatcher.dispose();
     // Drop the lock windows, but never send an unlock on the way out: if the
@@ -956,15 +1127,19 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // but render each with the live config merged onto its fixed geometry.
     final startupPanels = widget.appConfig.panels;
 
-    // Background window existence is startup-only; while it exists, follow live
-    // edits (fit / entry paths) but keep the startup wallpaper if the user
+    // Background surface existence is startup-only; while it exists, follow
+    // live edits (fit / entry paths) but keep the startup wallpaper if the user
     // clears every entry (a full removal needs a restart).
+    //
+    // Null here means "surface, but nothing to paint" — the grid-only case.
+    // That must render as *nothing*, not as BackgroundWindow's opaque empty
+    // fill, or a user with icons and no wallpaper gets a black desktop instead
+    // of whatever their compositor draws.
     final liveBg = _liveConfig.background;
-    final BackgroundConfig? bgConfig = !_hasBackground
+    final startupBg = widget.appConfig.background;
+    final BackgroundConfig? bgConfig = !_hasBackgroundSurface
         ? null
-        : (liveBg != null && liveBg.entries.isNotEmpty
-            ? liveBg
-            : widget.appConfig.background!);
+        : (liveBg != null && liveBg.entries.isNotEmpty ? liveBg : startupBg);
 
     return ViewCollection(
       views: [
@@ -977,7 +1152,31 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               // Flutter matches the remaining views onto their FlutterViews.
               key: ObjectKey(surfaces.background!),
               controller: surfaces.background!,
-              child: BackgroundWindow(config: bgConfig!),
+              // PanelWindowManager and ThemeProvider are what let the desktop
+              // grid open popups: LayerShellWindow already supplies the View
+              // and the WindowScope, but PopupHost also needs a WindowRegistry,
+              // and popup content is built outside the parent's ThemeScope.
+              //
+              // Deliberately no DisplayScope: the grid takes its geometry from
+              // a LayoutBuilder, and gating on `_outputFor` would mean no
+              // wallpaper until Wayland output enumeration completed.
+              child: PanelWindowManager(
+                child: ThemeProvider(
+                  child: DesktopSurface(
+                    background: bgConfig,
+                    desktop: _liveConfig.desktop,
+                    store: DesktopStore.instance,
+                    // Startup panel geometry, like _createSurfaces: the anchor
+                    // a surface was built with cannot change without a restart.
+                    panels: widget.appConfig.panels,
+                    onChangeBackground: () => SettingsController.instance
+                        .open(SettingsRoute.background),
+                    onAddRequested: _onDesktopAddRequested,
+                    onKeyboardRequested: (wanted) => _setDesktopKeyboard(
+                        _monitorKey(surfaces.monitor), wanted),
+                  ),
+                ),
+              ),
             ),
           if (_outputFor(surfaces.monitor) case final output?)
             for (final entry in startupPanels.entries)
@@ -1025,6 +1224,24 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               child: SettingsOverlay(
                 closingNotifier: _settingsClosing,
                 onClosed: _onSettingsClosed,
+                route: _settingsRoute,
+              ),
+            ),
+          ),
+        // The file picker asked for by a surface that cannot host a modal —
+        // today the desktop grid, which is on the background layer.
+        if ((_filePicker, FilePickerController.instance.pending)
+            case (final picker?, final request?))
+          LayerShellWindow(
+            key: ObjectKey(picker),
+            controller: picker,
+            child: ThemeProvider(
+              child: FilePickerWindow(
+                request: request,
+                onResult: (paths) {
+                  FilePickerController.instance.complete(paths);
+                  _closeFilePicker();
+                },
               ),
             ),
           ),

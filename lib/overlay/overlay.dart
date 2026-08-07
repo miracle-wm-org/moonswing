@@ -11,6 +11,7 @@ import 'package:graceful_shell/overlay/settings/bluetooth.dart';
 import 'package:graceful_shell/overlay/settings/display.dart';
 import 'package:graceful_shell/overlay/settings/network.dart';
 import 'package:graceful_shell/overlay/settings/shell.dart';
+import 'package:graceful_shell/overlay/settings_route.dart';
 import 'package:graceful_shell/overlay/system/system_tab.dart';
 import 'package:graceful_shell/overlay/system_info/system_info_tab.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -99,10 +100,15 @@ class SettingsOverlay extends StatefulWidget {
     super.key,
     required this.closingNotifier,
     required this.onClosed,
+    this.route,
   });
 
   final ValueNotifier<bool> closingNotifier;
   final VoidCallback onClosed;
+
+  /// Where to open. Null keeps the historical behaviour — the calendar tab,
+  /// which is what clicking the clock most plausibly means.
+  final SettingsRoute? route;
 
   @override
   _SettingsOverlayState createState() => _SettingsOverlayState();
@@ -122,13 +128,18 @@ class _SettingsOverlayState extends State<SettingsOverlay>
   late final OverlayEntry _panelEntry;
 
   // Clicking the clock most plausibly means "show me the calendar", so that is
-  // the tab the overlay opens on.
-  String _selectedTab = 'calendar';
-  String _selectedCategory = 'network';
+  // the tab the overlay opens on when no route asked for somewhere else.
+  late String _selectedTab;
+  late String _selectedCategory;
 
   @override
   void initState() {
     super.initState();
+    // Seeded once. The body is an IndexedStack built inside an Overlay entry,
+    // so a route is a starting point rather than a live address — the root
+    // reopens the overlay to retarget it.
+    _selectedTab = widget.route?.tab ?? 'calendar';
+    _selectedCategory = widget.route?.category ?? 'network';
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 240),
@@ -365,7 +376,9 @@ class _SettingsOverlayState extends State<SettingsOverlay>
       case 'audio':
         return const AudioSettingsPage();
       case 'shell':
-        return const ShellSettingsPage();
+        return ShellSettingsPage(
+          initialCategory: widget.route?.shellCategory,
+        );
       default:
         return const SizedBox.shrink();
     }

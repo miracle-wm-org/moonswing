@@ -270,6 +270,34 @@ Renders a full-screen wallpaper with time-of-day scheduling and crossfade transi
 
 `MediaBackground({path, fit})` is the public "render this image or video" widget, shared with the lock screen; the image/video split is decided by extension (`isVideoPath`), and the `media_kit` `Player` lifecycle (muted, looping, disposed on unmount) lives entirely inside it.
 
+### Desktop icons (`lib/desktop/`)
+
+A configurable grid of pinned items — `.desktop` entries, files and folders — drawn on the background surface over the wallpaper. Double-click opens (an app launches; a file or folder goes to its default handler, which for a directory is the file manager), single click selects, drag rearranges and **dropping one icon on another swaps them**. Right-click gives a real popup menu; right-clicking bare desktop offers Add / Organize / Change background.
+
+| File | Responsibility |
+|------|----------------|
+| `desktop_layout.dart` | Pure geometry: `DesktopGridGeometry`, `computeGridGeometry`, `panelInsetsFor`, `cellAt`/`nearestCell`, `firstFreeCell`/`nearestFreeCell`, `moveItemTo` (swap-aware), `placeItem`, `organizeItems`, `reflowIntoGrid`. The unit-test target. |
+| `desktop_store.dart` | `DesktopStore.instance` + `startDesktopService()` — the singleton `ChangeNotifier`, same shape as `ThemeStore`. |
+| `desktop_actions.dart` | The verbs: `openDesktopItem`, `openWithCandidates`, `labelForItem`, `iconNameForItem`, `desktopItemExists`. Flutter-free. |
+| `desktop_surface.dart` | What the background window renders: wallpaper + grid, and the `PopupHost` the menus open through. |
+| `desktop_grid.dart` | `DesktopLayer` — hit testing, selection, drag/swap, the drag-only grid lines. |
+| `desktop_icon.dart` | `DesktopIconTile`, `DesktopItemIcon`, `DesktopRenameField`. |
+| `desktop_menu.dart` | `DesktopItemMenu` (two pages), `DesktopEmptyMenu`, `DesktopMenuCard`. |
+
+Config lives in `[desktop]` / `[[desktop.items]]`; the settings UI is the **Desktop** category in `lib/overlay/settings/shell.dart`.
+
+Seven things a change here has to keep true:
+
+- **The background surface now exists for two reasons, and `needsRestart` signs the *decision*, not its causes.** `_hasBackgroundSurface` (`main.dart`) is `background.entries.isNotEmpty || desktop.enabled`, so icons work with no wallpaper — and in that case the surface must render `SizedBox.expand()`, **not** `BackgroundWindow`, whose empty state is an opaque `0xFF1A1A1A` fill that would black out a desktop the compositor was painting. `ConfigStore._restartSignature` encodes `bg:<either>` rather than two parts, so enabling the grid on a config that already has a wallpaper does not demand a restart.
+- **The grid must clear the panels, and it is the only thing on that surface that does.** The surface calls `spanFullOutput` (exclusive zone −1) so a translucent bar has wallpaper behind it, which means it reaches *under* the bars. `panelInsetsFor` sums each panel's `height + panelMargin` onto the edge its anchor names; the margin is read live from `ThemeScope`, so a theme change that re-floats the bars re-insets the grid on the same frame with no listener of its own. That works only because the background window is now wrapped in `ThemeProvider`.
+- **Nothing in `build` may touch GIO.** `loadAppByPath` **refs** what it returns and `iconNameForItem` guesses a content type; both are resolved once per change of the item set in `DesktopLayerState._syncResolved`, which disposes the previous entries after installing the new ones (the `DockState._loadApps` contract). Resolving in `build` leaks one `GAppInfo` per frame. Every GIO call there is also wrapped in a `try`, because `flutter_tester` does not link GLib — the fallback is a font glyph, which is also what a machine with no icon theme gets.
+- **`DesktopStore` splits persisted from ephemeral, and never reads `ConfigStore.appConfig`.** Items and geometry are written back; selection, drag and in-flight rename are not and must never reach disk. Every `ConfigStore.set` notifies synchronously and rebuilds every panel on every monitor, so a drag persists once **on drop** — routing pointer positions through the config would rebuild the shell dozens of times per gesture. `_onConfigChanged` compares a signature and early-returns, because that listener fires on every keystroke anywhere in the settings UI.
+- **Dragging is hand-rolled, and selection comes from a `Listener`.** Flutter's `Draggable` requires an `Overlay` ancestor, which a background-layer surface has no business hosting; the ghost is another `Stack` child and the drop resolves through `nearestCell` + `moveItemTo`. Selection is painted from `onPointerDown` rather than `onTap`/`onTapDown`: registering `onDoubleTap` makes `onTap` wait out the double-tap window, and `onTapDown` is still deferred until the tap recognizer beats the pan, either of which leaves the highlight visibly lagging the click.
+- **Renaming borrows the keyboard, and gives it back.** The surface is created `keyboardMode: none`, so an `EditableText` on it would never see a key event. `DesktopLayer` asks the root (`_setDesktopKeyboard`) to flip that one monitor's surface to `onDemand` for the duration of a rename and back afterwards — including from `dispose`, so a monitor unplugged mid-rename cannot leave a surface holding focus. It is not simply left `onDemand`: a full-output background surface that can take focus would let a stray desktop click steal it from the focused application. The toggle is cached and force-committed for the reasons `setPanelMargin` documents.
+- **The file picker cannot live on this surface.** `showFilePicker` inserts into the nearest root `Overlay`; on the background layer that modal would be drawn underneath every application window and every panel. `FilePickerController` (`lib/overlay/file_picker_controller.dart`) asks the root for an overlay-layer window instead, and declines immediately when nothing is listening — the rule `ScreencastPickerController` follows, so a headless run never awaits a window that will not appear.
+
+Verified against a live miracle: an `xdg_popup` parented to a background-layer surface stacks **above** both the panels and ordinary application windows, so the menus need no top-layer fallback.
+
 ### Lock screen (`lib/lock/`, `packages/ext_session_lock/`)
 
 **Lock** in the system module's power menu locks the session with the `ext-session-lock-v1` Wayland protocol. The compositor then hides every other surface — the shell's own panels included — and, per the protocol, blanks any output that has no lock surface, so a monitor we fail to cover is never *exposed*, only blank.

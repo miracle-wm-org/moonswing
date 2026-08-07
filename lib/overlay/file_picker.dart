@@ -20,6 +20,7 @@ import 'package:xdg_icons/xdg_icons.dart';
 
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/overlay/file_picker_controller.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 
@@ -57,6 +58,10 @@ class FilePickerFilter {
     extensions: {...imageExtensions, ...videoExtensions},
   );
 
+  /// Desktop entries, for pinning an application to the desktop grid.
+  static const FilePickerFilter desktopEntries =
+      FilePickerFilter(label: 'Applications', extensions: {'.desktop'});
+
   /// Matches everything, for pickers that should not constrain by type.
   static const FilePickerFilter all =
       FilePickerFilter(label: 'All files', extensions: {});
@@ -72,6 +77,7 @@ Future<List<String>?> showFilePicker(
   BuildContext context, {
   required List<FilePickerFilter> filters,
   bool allowMultiple = true,
+  bool allowDirectories = false,
   String? initialDirectory,
 }) {
   final overlay = Overlay.of(context, rootOverlay: true);
@@ -88,6 +94,7 @@ Future<List<String>?> showFilePicker(
     builder: (context) => _FilePickerDialog(
       filters: filters.isEmpty ? const [FilePickerFilter.all] : filters,
       allowMultiple: allowMultiple,
+      allowDirectories: allowDirectories,
       initialDirectory: initialDirectory,
       onResult: close,
     ),
@@ -230,12 +237,21 @@ class _FilePickerDialog extends StatefulWidget {
   const _FilePickerDialog({
     required this.filters,
     required this.allowMultiple,
+    required this.allowDirectories,
     required this.initialDirectory,
     required this.onResult,
   });
 
   final List<FilePickerFilter> filters;
   final bool allowMultiple;
+
+  /// Whether folders are pickable results, not just navigation.
+  ///
+  /// Off by default: every existing caller wants a file, and the tree already
+  /// serves folders as the way to get there. The desktop grid's "Add file or
+  /// folder…" is what needs them selectable.
+  final bool allowDirectories;
+
   final String? initialDirectory;
   final ValueChanged<List<String>?> onResult;
 
@@ -305,7 +321,13 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
   }
 
   void _confirm() {
-    if (_selected.isEmpty) return;
+    // With nothing ticked, "Use this folder" means the folder being browsed —
+    // otherwise reaching a directory you cannot see a tile for (the root, say)
+    // would be a dead end.
+    if (_selected.isEmpty) {
+      if (widget.allowDirectories) widget.onResult([_currentDir]);
+      return;
+    }
     widget.onResult(_selected.toList());
   }
 
@@ -455,17 +477,23 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
   }
 
   Widget _filePane(ThemeConfig theme) {
-    final files = sortEntries(readDir(_currentDir, showHidden: _showHidden))
-        .whereType<File>()
-        .where((f) => _filter.matches(f.path))
-        .toList();
+    final entries = sortEntries(readDir(_currentDir, showHidden: _showHidden));
+    // With allowDirectories the folders in this directory become selectable
+    // tiles *as well as* tree rows. The type filter deliberately does not apply
+    // to them — a folder has no extension to match.
+    final files = <FileSystemEntity>[
+      if (widget.allowDirectories) ...entries.whereType<Directory>(),
+      ...entries.whereType<File>().where((f) => _filter.matches(f.path)),
+    ];
 
     if (files.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
-            'No matching files in this folder.',
+            widget.allowDirectories
+                ? 'Nothing to select in this folder.'
+                : 'No matching files in this folder.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12,
@@ -501,7 +529,9 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
         children: [
           Text(
             _selected.isEmpty
-                ? 'Nothing selected'
+                ? (widget.allowDirectories
+                    ? basenameOf(_currentDir)
+                    : 'Nothing selected')
                 : '${_selected.length} selected',
             style: TextStyle(
               fontSize: 12,
@@ -519,14 +549,68 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
           // The confirm button reads disabled (dimmed, no-op) until something is
           // selected — reusing SettingsOptionButton keeps it in the app's idiom.
           Opacity(
-            opacity: _selected.isEmpty ? 0.4 : 1.0,
+            // Never dimmed when folders are allowed: an empty selection then
+            // means "use the folder I am in", which is a real answer.
+            opacity: _selected.isEmpty && !widget.allowDirectories ? 0.4 : 1.0,
             child: SettingsOptionButton(
-              label: widget.allowMultiple ? 'Add' : 'Select',
-              selected: _selected.isNotEmpty,
+              label: _selected.isEmpty && widget.allowDirectories
+                  ? 'Use this folder'
+                  : (widget.allowMultiple ? 'Add' : 'Select'),
+              selected: _selected.isNotEmpty || widget.allowDirectories,
               onTap: _confirm,
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A full-screen file picker for a window of its own.
+///
+/// [showFilePicker] inserts into the nearest root [Overlay], which the desktop
+/// surface has none of — and could not usefully have, since it is on the
+/// background layer and anything drawn there sits under every application
+/// window. The root creates an overlay-layer window and renders this into it;
+/// `FilePickerController` is the seam that asks for one.
+class FilePickerWindow extends StatelessWidget {
+  const FilePickerWindow({
+    super.key,
+    required this.request,
+    required this.onResult,
+  });
+
+  final FilePickerRequest request;
+  final ValueChanged<List<String>?> onResult;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Directionality(
+      textDirection: TextDirection.ltr,
+      // The shell boots without a WidgetsApp, so the default text-editing key
+      // bindings are absent — the same trap `SettingsOverlay` documents. The
+      // picker has no text field today, but it does bind Escape, and a future
+      // filter box would silently swallow Backspace without this.
+      child: DefaultTextEditingShortcuts(
+        child: DefaultTextStyle(
+          style: TextStyle(
+            fontFamily: theme.fontFamily,
+            fontSize: 14,
+            color: theme.popupForeground,
+          ),
+          // Built directly rather than through showFilePicker: there is no
+          // pre-existing Overlay to insert into here, this *is* the window.
+          child: _FilePickerDialog(
+            filters: request.filters.isEmpty
+                ? const [FilePickerFilter.all]
+                : request.filters,
+            allowMultiple: request.allowMultiple,
+            allowDirectories: request.allowDirectories,
+            initialDirectory: request.initialDirectory,
+            onResult: onResult,
+          ),
+        ),
       ),
     );
   }

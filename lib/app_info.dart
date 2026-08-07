@@ -139,6 +139,94 @@ external ffi.Pointer<ffi.NativeType> _gdkDisplayGetAppLaunchContext(
     symbol: 'gdk_display_get_default')
 external ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefault();
 
+// --- Opening arbitrary paths (the desktop icon grid) -----------------------
+
+/// Opens [uri] with the user's default handler.
+///
+/// One call covers both halves of "open this thing": a `file://` URI is
+/// content-type sniffed, and a *directory* sniffs as `inode/directory`, whose
+/// default handler is the file manager. There is deliberately no separate
+/// folder path.
+///
+/// Takes a URI, not a path — it must be percent-encoded, which is what
+/// `Uri.file(path).toString()` is for. The GError out-param is passed NULL,
+/// matching [launchApp]'s swallow-the-error posture.
+@ffi.Native<
+    ffi.Int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'g_app_info_launch_default_for_uri')
+external int _gAppInfoLaunchDefaultForUri(
+    ffi.Pointer<ffi.Uint8> uri,
+    ffi.Pointer<ffi.NativeType> context,
+    ffi.Pointer<ffi.NativeType> error);
+
+/// A `GDesktopAppInfo*` from an absolute `.desktop` **path**, or NULL.
+///
+/// The companion to [_gDesktopAppInfoNew], which resolves by *id* and so only
+/// finds entries under `XDG_DATA_DIRS`. The desktop grid stores paths, because
+/// that is what the file picker yields and a user may well pin a `.desktop`
+/// from their own home directory. Caller owns one ref.
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.Uint8>)>(
+    symbol: 'g_desktop_app_info_new_from_filename')
+external ffi.Pointer<ffi.NativeType> _gDesktopAppInfoNewFromFilename(
+    ffi.Pointer<ffi.Uint8> filename);
+
+/// Guesses a content type from a filename alone (NULL data, 0 length).
+///
+/// Returns a newly-allocated string — `g_free` it. `resultUncertain` is
+/// optional and we pass NULL: a guess we are told is uncertain is still the
+/// best answer available from a name.
+@ffi.Native<
+    ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.Uint8>,
+        ffi.Pointer<ffi.Uint8>, ffi.Size, ffi.Pointer<ffi.Int>)>(
+    symbol: 'g_content_type_guess')
+external ffi.Pointer<ffi.Uint8> _gContentTypeGuess(
+    ffi.Pointer<ffi.Uint8> filename,
+    ffi.Pointer<ffi.Uint8> data,
+    int dataSize,
+    ffi.Pointer<ffi.Int> resultUncertain);
+
+/// Every registered application that can open [contentType], best first.
+///
+/// **Transfer-full on both levels**, exactly like [_gAppInfoGetAll]: unref
+/// every element not retained, then `g_list_free` the head.
+@ffi.Native<ffi.Pointer<_GList> Function(ffi.Pointer<ffi.Uint8>)>(
+    symbol: 'g_app_info_get_all_for_type')
+external ffi.Pointer<_GList> _gAppInfoGetAllForType(
+    ffi.Pointer<ffi.Uint8> contentType);
+
+/// A generic themed icon name for [contentType], e.g. `text-x-generic`.
+///
+/// Preferred over `g_content_type_get_icon` + [_gIconToString]: a themed GIcon
+/// with several names serializes as `. GThemedIcon name1 name2 …`, which
+/// [XdgIcon] cannot look up. Newly allocated — `g_free` it.
+@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.Uint8>)>(
+    symbol: 'g_content_type_get_generic_icon_name')
+external ffi.Pointer<ffi.Uint8> _gContentTypeGetGenericIconName(
+    ffi.Pointer<ffi.Uint8> contentType);
+
+/// Launches [appInfo] against a `GList*` of URI strings.
+///
+/// **Transfer-none**: the list and the strings in it stay ours to free.
+@ffi.Native<
+    ffi.Int Function(
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<_GList>,
+        ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.NativeType>)>(symbol: 'g_app_info_launch_uris')
+external int _gAppInfoLaunchUris(
+    ffi.Pointer<ffi.NativeType> appInfo,
+    ffi.Pointer<_GList> uris,
+    ffi.Pointer<ffi.NativeType> context,
+    ffi.Pointer<ffi.NativeType> error);
+
+/// Returns the (possibly new) head — always reassign, never discard.
+@ffi.Native<
+    ffi.Pointer<_GList> Function(ffi.Pointer<_GList>,
+        ffi.Pointer<ffi.NativeType>)>(symbol: 'g_list_append')
+external ffi.Pointer<_GList> _gListAppend(
+    ffi.Pointer<_GList> list, ffi.Pointer<ffi.NativeType> data);
+
 /// Minimal view of GLib's `GList` node: a data pointer and a forward link.
 final class _GList extends ffi.Struct {
   external ffi.Pointer<ffi.NativeType> data;
@@ -382,6 +470,156 @@ void launchAppAction(
   } finally {
     if (context != ffi.nullptr) _gObjectUnref(context);
     _gFree(action.cast());
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Opening arbitrary paths
+// ---------------------------------------------------------------------------
+
+/// Resolves a `.desktop` file by absolute path, or null if it is not one.
+///
+/// The companion to [loadAppById] for entries outside `XDG_DATA_DIRS` — which
+/// is what the file picker hands back, and where a user's own launcher lives.
+/// The returned entry's `appInfo` must be unref'd (see [disposeAppEntries]).
+AppEntry? loadAppByPath(String desktopFilePath) {
+  final filename = _stringToNative(desktopFilePath);
+  try {
+    final appInfo = _gDesktopAppInfoNewFromFilename(filename);
+    if (appInfo == ffi.nullptr) return null;
+    // Fall back to the basename minus `.desktop`, matching loadAppById's id
+    // format, for an entry GIO cannot give an id to.
+    final base = desktopFilePath.split('/').last;
+    final fallbackId = base.toLowerCase().endsWith('.desktop')
+        ? base.substring(0, base.length - '.desktop'.length)
+        : base;
+    return _entryFromAppInfo(appInfo, fallbackId: fallbackId);
+  } catch (_) {
+    return null;
+  } finally {
+    _gFree(filename.cast());
+  }
+}
+
+/// Opens [path] with the user's default handler, swallowing any error.
+///
+/// Covers files and folders alike: a directory's content type is
+/// `inode/directory`, whose handler is the file manager, so there is no
+/// separate "open a folder" path.
+bool openPathWithDefault(String path) {
+  // A URI, not a path: GIO needs it percent-encoded.
+  final uri = _stringToNative(Uri.file(path).toString());
+  final context = _launchContext();
+  try {
+    return _gAppInfoLaunchDefaultForUri(uri, context, ffi.nullptr) != 0;
+  } catch (_) {
+    return false;
+  } finally {
+    if (context != ffi.nullptr) _gObjectUnref(context);
+    _gFree(uri.cast());
+  }
+}
+
+/// The content type GIO guesses for [path] from its name, or empty.
+///
+/// [isDirectory] short-circuits: `g_content_type_guess` works from the name
+/// alone and cannot know that `/home/me/Documents` is a folder.
+String contentTypeForPath(String path, {required bool isDirectory}) {
+  if (isDirectory) return 'inode/directory';
+  final name = _stringToNative(path);
+  try {
+    final guess = _gContentTypeGuess(name, ffi.nullptr, 0, ffi.nullptr);
+    if (guess == ffi.nullptr) return '';
+    try {
+      return _nativeToString(guess);
+    } finally {
+      _gFree(guess.cast());
+    }
+  } catch (_) {
+    return '';
+  } finally {
+    _gFree(name.cast());
+  }
+}
+
+/// A themed icon name for [path], for [AppIconImage] / [XdgIcon]. Empty when
+/// GIO can suggest nothing, which the caller answers with its own fallback.
+String iconNameForPath(String path, {required bool isDirectory}) {
+  if (isDirectory) return 'folder';
+  final type = contentTypeForPath(path, isDirectory: false);
+  if (type.isEmpty) return '';
+  final native = _stringToNative(type);
+  try {
+    final icon = _gContentTypeGetGenericIconName(native);
+    if (icon == ffi.nullptr) return '';
+    try {
+      return _nativeToString(icon);
+    } finally {
+      _gFree(icon.cast());
+    }
+  } catch (_) {
+    return '';
+  } finally {
+    _gFree(native.cast());
+  }
+}
+
+/// Applications that declare support for [path]'s content type, best first.
+///
+/// The caller owns every entry's `GAppInfo*` (see [disposeAppEntries]).
+/// Deliberately **not** served from `AppIndex`: its `_rebuild()` unrefs the
+/// pointers it handed out, and this list outlives a refresh inside an open
+/// popup — the same reason `modules/app_directory.dart` loads its own copy.
+///
+/// Unlike [loadInstalledApps] this does not filter on `g_app_info_should_show`:
+/// a handler marked `NoDisplay=true` is hidden from menus but is still a
+/// legitimate "Open with" target.
+List<AppEntry> appsForPath(String path, {required bool isDirectory}) {
+  final type = contentTypeForPath(path, isDirectory: isDirectory);
+  if (type.isEmpty) return const [];
+
+  final native = _stringToNative(type);
+  final entries = <AppEntry>[];
+  try {
+    final head = _gAppInfoGetAllForType(native);
+    var node = head;
+    while (node != ffi.nullptr) {
+      final ref = node.ref;
+      final appInfo = ref.data;
+      node = ref.next;
+      if (appInfo == ffi.nullptr) continue;
+      entries.add(_entryFromAppInfo(appInfo, fallbackId: ''));
+    }
+    // Transfer-full on both levels: the elements are retained in `entries` and
+    // freed by disposeAppEntries, but the list spine is ours to free now.
+    if (head != ffi.nullptr) _gListFree(head);
+  } catch (_) {
+    // Leave whatever was collected; the caller disposes it either way.
+  } finally {
+    _gFree(native.cast());
+  }
+  // GIO returns these in preference order, which is more useful than
+  // alphabetical — the default handler comes first.
+  return entries;
+}
+
+/// Launches [appInfo] with [path] as its single URI argument, swallowing any
+/// error. This is "Open with…" once a handler has been chosen.
+void launchAppWithPath(ffi.Pointer<ffi.NativeType> appInfo, String path) {
+  final uri = _stringToNative(Uri.file(path).toString());
+  final context = _launchContext();
+  // g_app_info_launch_uris is transfer-none, so this one-element list and the
+  // string it points at are both still ours to free.
+  var uris = _gListAppend(ffi.nullptr, uri.cast());
+  try {
+    _gAppInfoLaunchUris(appInfo, uris, context, ffi.nullptr);
+  } catch (_) {
+    // Same posture as launchApp: nothing useful to surface from here.
+  } finally {
+    if (uris != ffi.nullptr) _gListFree(uris);
+    uris = ffi.nullptr;
+    if (context != ffi.nullptr) _gObjectUnref(context);
+    _gFree(uri.cast());
   }
 }
 

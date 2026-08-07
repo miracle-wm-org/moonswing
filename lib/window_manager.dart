@@ -23,8 +23,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter/src/widgets/_window.dart';
 
-/// Hosts a [WindowRegistry] for one panel, rendering [child] alongside every
-/// window registered into it.
+/// Hosts a [WindowRegistry] for one layer-shell window, rendering [child]
+/// alongside every window registered into it.
+///
+/// Named for panels because they were the first users, but it is generic: the
+/// background window wraps one too, so the desktop icon grid can open context
+/// menus. Anything hosting a [PopupHost] or [LayerShellHost] needs one.
 ///
 /// Descendants reach the registry with [registryOf] / [maybeRegistryOf] and
 /// register a [WindowEntry] to open a window; unregistering closes it. See

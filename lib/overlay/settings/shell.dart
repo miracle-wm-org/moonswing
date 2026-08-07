@@ -12,6 +12,9 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
+import 'package:graceful_shell/desktop/desktop_actions.dart';
+import 'package:graceful_shell/desktop/desktop_layout.dart';
+import 'package:graceful_shell/desktop/desktop_store.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 
@@ -22,7 +25,11 @@ import 'package:graceful_shell/theme/theme_store.dart';
 /// change straight back to disk. The running shell is not live-reloaded, so a
 /// persistent banner reminds the user to restart for changes to take effect.
 class ShellSettingsPage extends StatefulWidget {
-  const ShellSettingsPage({super.key});
+  const ShellSettingsPage({super.key, this.initialCategory});
+
+  /// A `_ShellCategory` title to open directly, e.g. `Background`. Null lands
+  /// on the category list, which is the behaviour every existing caller wants.
+  final String? initialCategory;
 
   @override
   _ShellSettingsPageState createState() => _ShellSettingsPageState();
@@ -51,6 +58,7 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
 
   Widget _buildBody() {
     final store = _store;
+    final initial = _shellCategoryByTitle(widget.initialCategory);
     // A nested Navigator lets the Shell pane drill from the category menu into
     // a single category's settings and back, while the outer Settings bar and
     // sidebar (owned by SettingsOverlay) stay put around this pane.
@@ -59,10 +67,29 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
         PageRouteBuilder(
           pageBuilder: (context, _, __) => _ShellHome(store: store),
         ),
+        // A deep link pushes the category *on top of* the landing page rather
+        // than replacing it, so Back still goes where the user expects.
+        if (initial != null)
+          _slideRoute(_ShellCategoryView(category: initial, store: store)),
       ],
     );
   }
 }
+
+_ShellCategory? _shellCategoryByTitle(String? title) {
+  if (title == null) return null;
+  for (final category in _shellCategories) {
+    if (category.title == title) return category;
+  }
+  return null;
+}
+
+/// Whether [title] names a Shell settings category.
+///
+/// The deep-link titles in `SettingsRoute` are plain strings, so this is what
+/// keeps them honest: `test/settings_route_test.dart` asserts every route the
+/// shell can emit actually lands somewhere.
+bool isShellCategory(String title) => _shellCategoryByTitle(title) != null;
 
 /// One selectable settings category shown on the Shell landing page and pushed
 /// as its own view when tapped.
@@ -106,6 +133,12 @@ const List<_ShellCategory> _shellCategories = [
     build: _buildBackground,
   ),
   _ShellCategory(
+    title: 'Desktop',
+    subtitle: 'Icon grid and pinned items',
+    icon: FontAwesomeIcons.tableCells,
+    build: _buildDesktop,
+  ),
+  _ShellCategory(
     title: 'Lock Screen',
     subtitle: 'Wallpaper and unlock',
     icon: FontAwesomeIcons.lock,
@@ -123,6 +156,7 @@ Widget _buildAppearance(ConfigStore store) => _AppearanceSection(store: store);
 Widget _buildModules(ConfigStore store) => _ModulesSection(store: store);
 Widget _buildPanels(ConfigStore store) => _PanelsSection(store: store);
 Widget _buildBackground(ConfigStore store) => _BackgroundSection(store: store);
+Widget _buildDesktop(ConfigStore store) => _DesktopSection(store: store);
 Widget _buildLock(ConfigStore store) => _LockSection(store: store);
 Widget _buildCalendar(ConfigStore store) => _CalendarSection(store: store);
 
@@ -2112,6 +2146,256 @@ class _DropdownItemState extends State<_DropdownItem> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The Desktop category: grid geometry plus the list of pinned items.
+///
+/// Everything here is edited through [DesktopStore] rather than written to
+/// [ConfigStore] directly, so the running grid and the file cannot drift — the
+/// store owns both the in-memory list and the write.
+class _DesktopSection extends StatefulWidget {
+  const _DesktopSection({required this.store});
+
+  final ConfigStore store;
+
+  @override
+  State<_DesktopSection> createState() => _DesktopSectionState();
+}
+
+class _DesktopSectionState extends State<_DesktopSection> {
+  DesktopStore get _desktop => DesktopStore.instance;
+
+  void _setGrid(DesktopConfig Function(DesktopConfig) update) =>
+      _desktop.setGrid(update(_desktop.config));
+
+  Future<void> _addItems({required bool applications}) async {
+    final paths = await showFilePicker(
+      context,
+      filters: applications
+          ? [FilePickerFilter.desktopEntries, FilePickerFilter.all]
+          : [FilePickerFilter.all],
+      allowMultiple: true,
+      allowDirectories: !applications,
+      initialDirectory: applications ? '/usr/share/applications' : null,
+    );
+    if (paths == null || paths.isEmpty) return;
+
+    // The settings panel is not the desktop, so there is no live geometry to
+    // place against; a nominal grid is enough, because addItem only needs
+    // somewhere free and the desktop reflows anything out of range anyway.
+    final geometry = computeGridGeometry(
+      const Size(1920, 1080),
+      _desktop.config,
+    );
+    for (final path in paths) {
+      _desktop.addItem(desktopItemForPath(path), geometry);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _desktop,
+      builder: (context, _) {
+        final config = _desktop.config;
+        final items = _desktop.items;
+
+        return SettingsSection(
+          label: 'Desktop',
+          children: [
+            SettingsRow(
+              label: 'Show desktop icons',
+              control: SettingsToggle(
+                value: config.enabled,
+                onChanged: (v) =>
+                    _setGrid((c) => _copyDesktop(c, enabled: v)),
+              ),
+            ),
+            // Enabling the grid is what creates the background surface when
+            // there is no wallpaper, and that surface is built at startup.
+            const SettingsHint(
+              'Turning desktop icons on or off takes effect after a restart '
+              'when no wallpaper is configured.',
+            ),
+            SettingsRow(
+              label: 'Cell width',
+              control: SettingsNumberField(
+                value: config.cellWidth,
+                isInt: true,
+                onChanged: (v) => _setGrid(
+                    (c) => _copyDesktop(c, cellWidth: v.toDouble())),
+              ),
+            ),
+            SettingsRow(
+              label: 'Cell height',
+              control: SettingsNumberField(
+                value: config.cellHeight,
+                isInt: true,
+                onChanged: (v) => _setGrid(
+                    (c) => _copyDesktop(c, cellHeight: v.toDouble())),
+              ),
+            ),
+            SettingsRow(
+              label: 'Spacing',
+              control: SettingsNumberField(
+                value: config.spacing,
+                isInt: true,
+                onChanged: (v) =>
+                    _setGrid((c) => _copyDesktop(c, spacing: v.toDouble())),
+              ),
+            ),
+            SettingsRow(
+              label: 'Edge padding',
+              control: SettingsNumberField(
+                value: config.padding,
+                isInt: true,
+                onChanged: (v) =>
+                    _setGrid((c) => _copyDesktop(c, padding: v.toDouble())),
+              ),
+            ),
+            SettingsRow(
+              label: 'Icon size',
+              control: SettingsNumberField(
+                value: config.iconSize,
+                isInt: true,
+                onChanged: (v) =>
+                    _setGrid((c) => _copyDesktop(c, iconSize: v.toDouble())),
+              ),
+            ),
+            SettingsRow(
+              label: 'Show labels',
+              control: SettingsToggle(
+                value: config.showLabels,
+                onChanged: (v) =>
+                    _setGrid((c) => _copyDesktop(c, showLabels: v)),
+              ),
+            ),
+            const SettingsHint(
+              'The number of columns and rows is derived from each monitor, so '
+              'the same icons fit displays of different sizes.',
+            ),
+            const SettingsSubLabel('Pinned items'),
+            if (items.isEmpty)
+              const SettingsHint('Nothing pinned yet.')
+            else
+              for (final item in items)
+                _DesktopItemRow(
+                  item: item,
+                  onRemove: () => _desktop.removeItem(item.target),
+                ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _AddButton(
+                  label: 'Add application…',
+                  onTap: () => _addItems(applications: true),
+                ),
+                const SizedBox(width: 8),
+                _AddButton(
+                  label: 'Add file or folder…',
+                  onTap: () => _addItems(applications: false),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// [DesktopConfig] has no `copyWith` — it is a config type, parsed once from
+/// TOML, and every other one in `config.dart` is the same. This is local to the
+/// one place that edits fields individually.
+DesktopConfig _copyDesktop(
+  DesktopConfig c, {
+  bool? enabled,
+  double? cellWidth,
+  double? cellHeight,
+  double? spacing,
+  double? padding,
+  double? iconSize,
+  bool? showLabels,
+}) {
+  return DesktopConfig(
+    enabled: enabled ?? c.enabled,
+    cellWidth: cellWidth ?? c.cellWidth,
+    cellHeight: cellHeight ?? c.cellHeight,
+    spacing: spacing ?? c.spacing,
+    padding: padding ?? c.padding,
+    iconSize: iconSize ?? c.iconSize,
+    showLabels: showLabels ?? c.showLabels,
+    items: c.items,
+  );
+}
+
+/// One pinned item: its label, its path, and a remove button.
+class _DesktopItemRow extends StatelessWidget {
+  const _DesktopItemRow({required this.item, required this.onRemove});
+
+  final DesktopItem item;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final missing = !desktopItemExists(item);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 18,
+            child: FaIcon(
+              switch (item.kind) {
+                DesktopItemKind.app => FontAwesomeIcons.rocket,
+                DesktopItemKind.folder => FontAwesomeIcons.solidFolder,
+                DesktopItemKind.file => FontAwesomeIcons.file,
+              },
+              size: 12,
+              color: theme.accent,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  labelForItem(item),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground,
+                  ),
+                ),
+                Text(
+                  item.target,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: theme.fontFamily,
+                    // A target that has gone missing is called out here rather
+                    // than dropped, matching how the desktop dims it.
+                    color: missing ? const Color(0xFFE06C75) : theme.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SettingsIconButton(
+            icon: FontAwesomeIcons.trash,
+            size: 12,
+            onTap: onRemove,
+          ),
+        ],
       ),
     );
   }

@@ -122,6 +122,51 @@ right = ["battery", "clock"]
     store2.dispose();
   });
 
+  // The signature encodes whether the background *surface* exists, not the two
+  // inputs to that decision, so enabling the grid on a config that already has
+  // a wallpaper must not demand a restart.
+  test('needsRestart tracks the background surface, not its two causes',
+      () async {
+    final bare = Directory.systemTemp.createTempSync('gs_config_store_desktop');
+    final barePath = '${bare.path}/config.toml';
+    File(barePath).writeAsStringSync('''
+[panels.top]
+anchor = "top"
+height = 32
+''');
+
+    // No wallpaper, no grid -> enabling the grid creates the surface.
+    final store = await ConfigStore.loadFrom(barePath);
+    expect(store.needsRestart, isFalse);
+    store.set(['desktop', 'enabled'], true);
+    expect(store.needsRestart, isTrue);
+    store.dispose();
+
+    // A wallpaper already forces the surface, so the grid is free.
+    File(barePath).writeAsStringSync('''
+[panels.top]
+anchor = "top"
+height = 32
+
+[[background.entries]]
+path = "/tmp/w.jpg"
+shown = true
+''');
+    final withWallpaper = await ConfigStore.loadFrom(barePath);
+    withWallpaper.set(['desktop', 'enabled'], true);
+    expect(withWallpaper.needsRestart, isFalse);
+
+    // Grid geometry and the item list are live, never restart-only.
+    withWallpaper.set(['desktop', 'cell_width'], 120);
+    withWallpaper.set(['desktop', 'items'], [
+      {'kind': 'file', 'target': '/tmp/a.txt', 'column': 0, 'row': 0}
+    ]);
+    expect(withWallpaper.needsRestart, isFalse);
+    withWallpaper.dispose();
+
+    bare.deleteSync(recursive: true);
+  });
+
   test('remove deletes a key and persists', () async {
     final store = await ConfigStore.loadFrom(path);
     store.remove(['modules', 'weather', 'refresh_minutes']);

@@ -433,7 +433,7 @@ Older versions kept the palette in a `[theme]` table inside `config.toml`. That 
 
 ## Background
 
-The `[background]` section enables a full-screen wallpaper window displayed behind all other surfaces. It supports images and videos, with optional time-of-day scheduling and animated crossfade transitions between entries.
+The `[background]` section enables a full-screen wallpaper window displayed behind all other surfaces. It rotates through a list of images on a timer, with an animated crossfade between them.
 
 If this section is absent, no background window is created.
 
@@ -441,20 +441,23 @@ If this section is absent, no background window is created.
 [background]
 fit = "fill"
 
-[[background.entries]]
-path = "/home/user/wallpapers/day.jpg"
-time = "08:00"
+interval_minutes = 5
 
 [[background.entries]]
-path = "/home/user/wallpapers/night.mp4"
-time = "20:00"
+path = "/home/user/wallpapers/day.jpg"
+shown = true
+
+[[background.entries]]
+path = "/home/user/wallpapers/dusk.jpg"
+shown = true
 ```
 
 ### Background Settings
 
-| Key   | Type   | Default  | Description                                    |
-| ----- | ------ | -------- | ---------------------------------------------- |
-| `fit` | string | `"fill"` | How the image/video is sized within the screen |
+| Key                | Type   | Default  | Description                                            |
+| ------------------ | ------ | -------- | ------------------------------------------------------ |
+| `fit`              | string | `"fill"` | How the image is sized within the screen                |
+| `interval_minutes` | number | `5`      | Minutes between wallpapers when more than one is shown |
 
 **`fit` values:**
 
@@ -466,24 +469,20 @@ time = "20:00"
 
 ### Background Entries
 
-Each `[[background.entries]]` block defines a piece of media and the time of day it becomes active.
+Each `[[background.entries]]` block names one wallpaper.
 
-| Key    | Type   | Description                                             |
-| ------ | ------ | ------------------------------------------------------- |
-| `path` | string | Absolute path to an image or video file                 |
-| `time` | string | 24-hour time (`"HH:MM"`) when this entry becomes active |
+| Key     | Type    | Default | Description                                            |
+| ------- | ------- | ------- | ------------------------------------------------------ |
+| `path`  | string  |         | Absolute path to an image file                          |
+| `shown` | boolean | `true`  | Whether this wallpaper is in the rotation               |
 
-Entries are selected by finding the latest entry whose `time` is at or before the current time. If the current time is before all entries' times (e.g., a 3am check with the earliest entry at 6am), the last entry from the previous day wraps around.
+Wallpapers are shown in the order they appear, advancing every `interval_minutes`; with one shown entry there is no rotation at all. List order is the presentation order and is never sorted.
 
-Supported image formats: JPEG, PNG, GIF, WebP, BMP, and anything Flutter's `Image` widget can decode.
+Supported image formats: JPEG, PNG, GIF, WebP, BMP, and anything Flutter's `Image` widget can decode. Entries whose path is missing, or is not one of those formats, are pruned by the settings UI.
 
-Supported video formats: MP4, MKV, WebM, MOV, AVI.
+Transitions between wallpapers use a 1.5-second crossfade animation.
 
-Videos loop silently and play without controls.
-
-Transitions between entries use a 1.5-second crossfade animation.
-
-**Single entry (no scheduling):**
+**A single, fixed wallpaper:**
 
 ```toml
 [background]
@@ -491,8 +490,76 @@ fit = "fill"
 
 [[background.entries]]
 path = "/home/user/wallpapers/wallpaper.jpg"
-time = "00:00"
+shown = true
 ```
+
+## Desktop Icons
+
+The `[desktop]` section puts a grid of pinned icons on the wallpaper: applications, files and folders. Double-clicking an item opens it — an application launches, a file opens in its default handler, and a folder opens your file manager. Clicking selects, dragging rearranges, and dropping one icon onto another swaps their places. The grid lines are only drawn while you are dragging.
+
+Right-clicking an icon offers **Open**, **Open with…** (files and folders), **Rename** and **Remove from desktop**. Right-clicking bare desktop offers **Add application…**, **Add file or folder…**, **Organize** (compact the icons) and **Change background…** (jump to the wallpaper settings).
+
+Everything here is also editable under **Settings → Shell → Desktop**, which is where the pinned list is easiest to manage.
+
+```toml
+[desktop]
+enabled = true
+cell_width = 96
+cell_height = 96
+spacing = 12
+padding = 24
+icon_size = 48
+show_labels = true
+
+[[desktop.items]]
+kind = "app"
+target = "/usr/share/applications/firefox.desktop"
+column = 0
+row = 0
+
+[[desktop.items]]
+kind = "folder"
+target = "/home/user/Documents"
+label = "Docs"
+column = 1
+row = 0
+```
+
+### Desktop Settings
+
+| Key           | Type    | Default | Description                                                     |
+| ------------- | ------- | ------- | --------------------------------------------------------------- |
+| `enabled`     | boolean | `false` | Whether the icon grid is drawn at all                            |
+| `cell_width`  | number  | `96`    | Width of one grid cell, in logical pixels (minimum 32)          |
+| `cell_height` | number  | `96`    | Height of one grid cell (minimum 32)                             |
+| `spacing`     | number  | `12`    | Gap between cells                                                |
+| `padding`     | number  | `24`    | Inset from the usable edges of the screen                        |
+| `icon_size`   | number  | `48`    | Rendered icon size within a cell (minimum 8)                     |
+| `show_labels` | boolean | `true`  | Whether each icon's name is drawn under it                       |
+
+The **number of columns and rows is not configurable** — it is derived from each monitor's usable area, so the same icon list fits displays of different sizes. The usable area excludes whatever your panels reserve, so an icon is never hidden behind a bar.
+
+Turning `enabled` on or off takes effect **after a restart** when no wallpaper is configured, because it decides whether the background surface is created at all. With a `[background]` wallpaper already set, the surface exists either way and the change applies live. Every other key here applies live.
+
+### Desktop Items
+
+Each `[[desktop.items]]` block pins one thing. The settings UI and the desktop's own "Add…" menu write these for you.
+
+| Key      | Type   | Default   | Description                                                     |
+| -------- | ------ | --------- | --------------------------------------------------------------- |
+| `target` | string |           | Absolute path. Required — an entry without one is ignored        |
+| `kind`   | string | inferred  | `"app"`, `"file"` or `"folder"`                                  |
+| `label`  | string | derived   | Renames the icon. Omit to use the app's own name or the basename |
+| `column` | number | `0`       | Grid column, counting from 0 at the left                         |
+| `row`    | number | `0`       | Grid row, counting from 0 at the top                             |
+
+`target` is a **path** in every case, including applications — an app is pinned by the path to its `.desktop` file (usually under `/usr/share/applications`), not by a desktop id, so an entry in your own home directory works too.
+
+`kind` is re-derived from the target whenever it disagrees with what is actually on disk, so a hand-edited file cannot end up opening a directory as though it were a document. Clearing a `label` in the rename field restores the original name.
+
+An item whose target no longer exists is drawn dimmed rather than removed, so an unplugged drive or an offline network mount does not cost you your arrangement.
+
+Items on a cell that does not exist on a smaller monitor are drawn in the nearest free cell on that monitor only; the position you gave them is kept, so plugging the larger display back in restores the layout.
 
 ## Lock Screen
 
@@ -663,16 +730,24 @@ max_fps = 0
 
 [background]
 fit = "fill"
+interval_minutes = 15
 
 [[background.entries]]
 path = "/home/user/wallpapers/morning.jpg"
-time = "07:00"
+shown = true
 
 [[background.entries]]
 path = "/home/user/wallpapers/evening.jpg"
-time = "18:00"
+shown = true
 
-[[background.entries]]
-path = "/home/user/wallpapers/night.mp4"
-time = "21:00"
+[desktop]
+enabled = true
+cell_width = 96
+cell_height = 96
+
+[[desktop.items]]
+kind = "app"
+target = "/usr/share/applications/firefox.desktop"
+column = 0
+row = 0
 ```

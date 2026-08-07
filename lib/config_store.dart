@@ -143,7 +143,8 @@ class ConfigStore extends ChangeNotifier {
   /// True when a restart-only field has changed since the store loaded. These
   /// are values that parametrize native layer-shell windows and cannot apply
   /// live: panel `anchor`/`height`/`layer`, the set of panels, and whether the
-  /// background layer exists (has ≥1 entry). Everything else updates live.
+  /// background surface exists at all (a wallpaper entry, or the desktop grid
+  /// being enabled). Everything else updates live.
   bool get needsRestart => _restartSignature() != _startupRestartSignature;
 
   String _restartSignature() {
@@ -161,9 +162,17 @@ class ConfigStore extends ChangeNotifier {
         }
       }
     }
+    // What is restart-only is whether the background *surface* exists, not what
+    // fed that decision. Signing the decision rather than its two inputs means
+    // enabling the desktop grid on a config that already has a wallpaper does
+    // not demand a restart — the surface is already there. Grid geometry and
+    // the item list are live and deliberately absent from the signature.
     final background = _root['background'];
     final entries = background is Map ? background['entries'] : null;
-    parts.add('bg:${entries is List && entries.isNotEmpty}');
+    final hasWallpaper = entries is List && entries.isNotEmpty;
+    final desktop = _root['desktop'];
+    final desktopEnabled = desktop is Map && desktop['enabled'] == true;
+    parts.add('bg:${hasWallpaper || desktopEnabled}');
     return parts.join('|');
   }
 
