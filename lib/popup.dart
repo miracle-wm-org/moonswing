@@ -7,7 +7,7 @@
 //   * [LayerShellHost] — full layer-shell windows (panels/overlays/dialogs)
 //     whose [LayershellWindowController] the module creates itself.
 // Both register a [WindowEntry] into the panel's [WindowRegistry] (supplied by
-// the per-panel [WindowManager]), so they share one windowing mechanism.
+// the per-panel [PanelWindowManager]), so they share one windowing mechanism.
 
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
@@ -17,6 +17,7 @@ import 'package:flutter/src/widgets/_window.dart';
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:flutter/src/widgets/_window_positioner.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/window_manager.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
 
@@ -184,10 +185,14 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // The popup surface defaults to opaque black (fl_view_renderer paints the
     // view background unless it is exactly #00000000), so make it transparent
     // the same way LayershellWindowController does for panels.
-    final native = thisController as WindowControllerLinux;
+    // BaseWindowControllerLinux, not WindowControllerLinux: the latter is the
+    // *regular*-window controller, and a popup's controller only implements the
+    // base interface. Casting to the wrong one compiles and then throws on the
+    // first popup opened.
+    final native = thisController as BaseWindowControllerLinux;
     GtkWindow.fromHandle(native.windowHandle).setAppPaintable(true);
     FlView.fromHandle(native.flutterViewHandle).setBackgroundColor('#00000000');
-    _registry = WindowRegistry.of(context);
+    _registry = PanelWindowManager.registryOf(context);
     // The content is laid out directly under the popup's View, so this box is
     // what actually gives a sized-to-content window its size: tight
     // constraints make the content fill the popup exactly, loose ones are
@@ -250,7 +255,7 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
   }) {
     if (isLayerWindowOpen) return;
     _lsController = controller;
-    _lsRegistry = WindowRegistry.of(context);
+    _lsRegistry = PanelWindowManager.registryOf(context);
     _lsEntry = WindowEntry(controller: controller, builder: (_) => child);
     _lsRegistry!.register(_lsEntry!);
     setState(() {});

@@ -204,10 +204,10 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: "3f24e0e5fe1fe294f45b4c8c78bc139a9645767d"
+      resolved-ref: "53a93e9cf18ff492238e0dcf95fd2e3b1b4f4ef6"
       url: "https://github.com/mattkae/layer_shell.dart.git"
     source: git
-    version: "0.2.0"
+    version: "0.3.0"
   leak_tracker:
     dependency: transitive
     description:
