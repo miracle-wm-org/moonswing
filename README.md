@@ -4,73 +4,47 @@ The shell of your dreams, built with Flutter.
 
 ![Graceful Shell demo](demo.png)
 
-## Dependencies
+## Install
 
-Install the required system libraries before building:
-
-- `libgtk3`
-- `gtk-layer-shell`
-- `libasound2-dev`
-- `libmpv-dev`
-
-On Ubuntu 26.04:
+One command installs the latest nightly snap (amd64):
 
 ```sh
-sudo apt install libgtk-3-dev libgtk-layer-shell-dev libasound2-dev libmpv-dev
+curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh | sh
 ```
 
-The lock screen needs two more libraries at **runtime**. Both are loaded with
-`dlopen`, so the shell builds and runs fine without them — only locking is
-unavailable:
-
-- `libgtk-session-lock0` — the `ext-session-lock-v1` implementation
-- `libpam0g` — password verification (part of the base system, so already installed)
-
-```sh
-sudo apt install libgtk-session-lock0
-```
-
-Your compositor must also implement `ext-session-lock-v1` (Mir/Miracle does).
-
-Screen sharing needs **PipeWire 1.0+** (already running on any current desktop)
-and a compositor implementing `ext-image-copy-capture-v1` — miracle-wm built
-against MirAL 5.6 or newer. Both are checked at start-up; without them the
-shell runs normally and only screen sharing is unavailable. `make install`
-registers the shell as the ScreenCast portal backend (the snap does it on its
-own); see [CONFIG.md](CONFIG.md#screen-sharing).
-
-You also need the [Flutter SDK](https://docs.flutter.dev/get-started/install/linux) on the `master` channel:
-
-```sh
-flutter channel master
-flutter upgrade
-```
-
-## Install the nightly snap (amd64)
-
-Prebuilt classic snaps are published for every commit to `main`. Download the
-latest `graceful-shell_*.snap` from the [nightly release](https://github.com/miracle-wm-org/graceful-shell/releases/tag/nightly),
-then install it:
-
-```sh
-sudo snap install ./graceful-shell_*.snap --classic --dangerous
-```
-
-`--classic` is required (this shell needs full access to the Wayland compositor);
-`--dangerous` allows installing a locally downloaded snap. Once installed, run:
+It downloads the newest `graceful-shell_*.snap` from the [nightly release](https://github.com/miracle-wm-org/graceful-shell/releases/tag/nightly)
+and installs it with `--classic` (the shell needs full access to the Wayland
+compositor) and `--dangerous` (the file is downloaded, not store-signed). It
+asks for `sudo` because `snap install` needs root. Then run:
 
 ```sh
 graceful-shell
 ```
 
+Re-run the same command to update, and to remove:
+
+```sh
+sudo snap remove graceful-shell
+```
+
+Prefer to do it by hand? Download the `.snap` from that release page and:
+
+```sh
+sudo snap install ./graceful-shell_*.snap --classic --dangerous
+```
+
+### What the snap brings, and what it doesn't
+
 The snap bundles `libgtk-session-lock` and the wallpapers, so the lock screen and
-the wallpaper work out of the box. So does **screen sharing**: the install hook
-registers the ScreenCast portal backend machine-wide, the first run adds the
-per-user half, and the shell restarts `xdg-desktop-portal` itself so both are
-picked up — no follow-up commands. `sudo snap remove` undoes all of it. If you
-already have an `~/.config/xdg-desktop-portal/*-portals.conf` naming a different
-ScreenCast backend, that file is your choice and is left alone; the shell says
-so on start-up and tells you the one line to change.
+the wallpaper work out of the box — you do not need anything from
+[Dependencies](#dependencies) below, which is a build-from-source list. So does
+**screen sharing**: the install hook registers the ScreenCast portal backend
+machine-wide, the first run adds the per-user half, and the shell restarts
+`xdg-desktop-portal` itself so both are picked up — no follow-up commands. `sudo
+snap remove` undoes all of it. If you already have an
+`~/.config/xdg-desktop-portal/*-portals.conf` naming a different ScreenCast
+backend, that file is your choice and is left alone; the shell says so on
+start-up and tells you the one line to change.
 
 One thing it cannot install for you:
 
@@ -83,33 +57,74 @@ and the helper binaries the audio and System panes shell out to (`pw-metadata`,
 `speaker-test`, `lspci`) — comes from the host, which is what classic confinement
 is for.
 
-To update, download the newest snap and re-run the install command. To remove:
+## Dependencies
+
+**Only needed to build from source** — skip this whole section if you installed
+the snap.
+
+### Build
+
+- `libgtk3`
+- `gtk-layer-shell`
+- `libasound2-dev`
+- `libmpv-dev`
+
+On Ubuntu 26.04:
 
 ```sh
-sudo snap remove graceful-shell
+sudo apt install libgtk-3-dev libgtk-layer-shell-dev libasound2-dev libmpv-dev
 ```
 
-## Building and installing
+You also need the [Flutter SDK](https://docs.flutter.dev/get-started/install/linux)
+on the `master` channel:
 
-Enable Flutter's experimental windowing API (one-time setup):
+```sh
+flutter channel master
+flutter upgrade
+```
+
+### Runtime
+
+Each of these gates one feature; without it the shell runs normally and only
+that feature is unavailable.
+
+- **Lock screen** — `libgtk-session-lock0` (the `ext-session-lock-v1`
+  implementation) and `libpam0g` (password verification, part of the base system
+  so already installed). Both are loaded with `dlopen`, so the shell builds and
+  runs fine without them. Your compositor must also implement
+  `ext-session-lock-v1` (Mir/Miracle does).
+
+  ```sh
+  sudo apt install libgtk-session-lock0
+  ```
+
+- **Screen sharing** — **PipeWire 1.0+** (already running on any current
+  desktop) and a compositor implementing `ext-image-copy-capture-v1`
+  (miracle-wm built against MirAL 5.6 or newer). Both are checked at start-up.
+  `make install` registers the shell as the ScreenCast portal backend; see
+  [CONFIG.md](CONFIG.md#screen-sharing).
+
+## Building from source
+
+One-time setup — enable Flutter's experimental windowing API:
 
 ```sh
 flutter config --enable-windowing
 ```
 
-Build and install to `~/.local` (default):
+Build and install to `~/.local` (default), or to a custom prefix:
 
 ```sh
 make install
-```
-
-Or install to a custom prefix:
-
-```sh
 make install PREFIX=/usr/local
 ```
 
-This copies the binary, libraries, and the default wallpapers to the prefix. Make sure `$PREFIX/bin` is in your `PATH`.
+This copies the binary, libraries, and the default wallpapers to the prefix. Make
+sure `$PREFIX/bin` is in your `PATH`. Then run:
+
+```sh
+graceful-shell
+```
 
 Optionally, install the lock screen's PAM service file (needs root, and writes
 to `/etc/pam.d` rather than the prefix):
@@ -120,12 +135,6 @@ sudo make install-pam
 
 Without it the lock screen falls back to the system `login` service, which works
 but attributes unlock attempts to `login` in the auth logs.
-
-Once built, simply run:
-
-```sh
-graceful-shell
-```
 
 To uninstall:
 
