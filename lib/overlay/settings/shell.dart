@@ -18,6 +18,7 @@ import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
 import 'package:graceful_shell/launcher/app_index.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/theme/font_catalog.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 
 /// Settings page for graceful-shell's own configuration (`config.toml`).
@@ -399,6 +400,10 @@ class _AppearanceSectionState extends State<_AppearanceSection> {
   final ThemeStore _themes = ThemeStore.instance;
   bool _naming = false;
 
+  /// Started once, here rather than in `build`: this section rebuilds on every
+  /// ThemeStore notify, which includes every frame of a colour-picker drag.
+  final Future<List<String>> _fonts = FontCatalog.instance.list();
+
   static const Map<String, String> _colorLabels = {
     'accent': 'Accent',
     'foreground': 'Foreground',
@@ -502,13 +507,38 @@ class _AppearanceSectionState extends State<_AppearanceSection> {
                 ],
                 SettingsRow(
                   label: 'Font',
-                  control: SettingsTextField(
-                    // Keyed on the theme so switching re-seeds the field —
-                    // SettingsTextField reads `initial` only on first build.
-                    key: ValueKey('font-$active'),
-                    width: 180,
-                    initial: current['font'] as String? ?? 'Ubuntu Sans',
-                    onChanged: (v) => _themes.edit('font', v.trim()),
+                  control: FutureBuilder<List<String>>(
+                    future: _fonts,
+                    builder: (context, snapshot) {
+                      final fonts = snapshot.data;
+                      final value =
+                          current['font'] as String? ?? 'Ubuntu Sans';
+                      if (fonts == null || fonts.isEmpty) {
+                        // Still loading, or no fontconfig on this machine. The
+                        // key stays editable by hand either way.
+                        return SettingsTextField(
+                          // Keyed on the theme so switching re-seeds the field —
+                          // SettingsTextField reads `initial` only on first
+                          // build.
+                          key: ValueKey('font-$active'),
+                          width: 180,
+                          initial: value,
+                          onChanged: (v) => _themes.edit('font', v.trim()),
+                        );
+                      }
+                      return SettingsFontField(
+                        value: value,
+                        // A theme naming a family this machine does not have
+                        // still shows, and stays the selected row, rather than
+                        // reading as somebody else's font.
+                        fonts: fonts.contains(value)
+                            ? fonts
+                            : <String>[value, ...fonts],
+                        locked: builtIn,
+                        onLockedTap: _duplicate,
+                        onChanged: (v) => _themes.edit('font', v),
+                      );
+                    },
                   ),
                 ),
                 SettingsRow(

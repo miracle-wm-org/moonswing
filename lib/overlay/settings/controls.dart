@@ -469,6 +469,406 @@ class _SettingsIconButtonState extends State<SettingsIconButton> {
 }
 
 // ---------------------------------------------------------------------------
+// Font picker
+// ---------------------------------------------------------------------------
+
+/// The height of one row in the font list. Fixed, so the popup can scroll
+/// straight to the selected family by arithmetic instead of measuring.
+const double _kFontRowHeight = 30;
+
+/// A dropdown of installed font families, each row drawn in its own face.
+///
+/// [fonts] is supplied by the caller (see `theme/font_catalog.dart`) rather than
+/// read here, so widget tests pass a list of three and never fork `fc-list`.
+///
+/// The list floats in the *root* overlay for the same reason
+/// [SettingsColorField]'s picker does — the settings content pane is a nested
+/// `Navigator` whose `Overlay` would clip it — and it carries a filter field
+/// because a typical desktop has a few hundred families.
+class SettingsFontField extends StatefulWidget {
+  const SettingsFontField({
+    super.key,
+    required this.value,
+    required this.fonts,
+    required this.onChanged,
+    this.locked = false,
+    this.onLockedTap,
+    this.width = 180,
+  });
+
+  final String value;
+  final List<String> fonts;
+  final ValueChanged<String> onChanged;
+
+  /// Dims the control and routes taps to [onLockedTap] instead of opening the
+  /// list. The theme editor uses this for the shipped, read-only themes.
+  final bool locked;
+  final VoidCallback? onLockedTap;
+
+  final double width;
+
+  @override
+  State<SettingsFontField> createState() => _SettingsFontFieldState();
+}
+
+class _SettingsFontFieldState extends State<SettingsFontField> {
+  final _link = LayerLink();
+  OverlayEntry? _entry;
+  bool _hovered = false;
+
+  @override
+  void didUpdateWidget(SettingsFontField old) {
+    super.didUpdateWidget(old);
+    // Switching themes replaces the value under an open list; leaving it up
+    // would let the next click write the old theme's pick into the new one.
+    if (widget.value != old.value) _close();
+  }
+
+  @override
+  void dispose() {
+    // Not _close(): that repaints the trigger, and this element is on its way
+    // out of the tree.
+    _entry?.remove();
+    _entry = null;
+    super.dispose();
+  }
+
+  void _toggle() {
+    if (widget.locked) {
+      widget.onLockedTap?.call();
+      return;
+    }
+    if (_entry != null) {
+      _close();
+    } else {
+      _open();
+    }
+  }
+
+  void _open() {
+    if (_entry != null) return;
+    final entry = OverlayEntry(builder: (_) => _buildPicker());
+    _entry = entry;
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    setState(() {});
+  }
+
+  void _close() {
+    _entry?.remove();
+    _entry = null;
+    if (mounted) setState(() {});
+  }
+
+  void _select(String family) {
+    _close();
+    widget.onChanged(family);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final open = _entry != null;
+    return Opacity(
+      opacity: widget.locked ? 0.45 : 1.0,
+      child: CompositedTransformTarget(
+        link: _link,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: GestureDetector(
+            onTap: _toggle,
+            child: Container(
+              width: widget.width,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: _hovered ? theme.surfaceHover : theme.controlSurface,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: open ? theme.accent : theme.divider),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.value,
+                      // Drawn in the family it names, so the trigger previews
+                      // the choice as well as reporting it.
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontFamily: widget.value,
+                        color: theme.popupForeground,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  FaIcon(
+                    open
+                        ? FontAwesomeIcons.chevronUp
+                        : FontAwesomeIcons.chevronDown,
+                    size: 10,
+                    color: theme.popupForeground.withValues(alpha: 0.5),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPicker() {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _close,
+          ),
+        ),
+        CompositedTransformFollower(
+          link: _link,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(0, 6),
+          child: _FontPickerPopup(
+            fonts: widget.fonts,
+            selected: widget.value,
+            onSelected: _select,
+            onDismiss: _close,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The floating list itself. Owns the filter text, so typing rebuilds this
+/// widget rather than the [OverlayEntry] that hosts it.
+class _FontPickerPopup extends StatefulWidget {
+  const _FontPickerPopup({
+    required this.fonts,
+    required this.selected,
+    required this.onSelected,
+    required this.onDismiss,
+  });
+
+  final List<String> fonts;
+  final String selected;
+  final ValueChanged<String> onSelected;
+  final VoidCallback onDismiss;
+
+  @override
+  State<_FontPickerPopup> createState() => _FontPickerPopupState();
+}
+
+class _FontPickerPopupState extends State<_FontPickerPopup> {
+  final _search = TextEditingController();
+  final _searchFocus = FocusNode();
+  final _scroll = ScrollController();
+  List<String> _filtered = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _filtered = widget.fonts;
+    // Open scrolled to the current family rather than at the top of a few
+    // hundred rows. After the first layout, not through initialScrollOffset:
+    // a list shorter than the popup has no scroll extent to spend, and the
+    // overscroll leaves every row above the offset built but off-stage.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _revealSelected());
+  }
+
+  void _revealSelected() {
+    if (!mounted || !_scroll.hasClients) return;
+    final index = _filtered.indexOf(widget.selected);
+    if (index <= 0) return;
+    final target = (index * _kFontRowHeight)
+        .clamp(0.0, _scroll.position.maxScrollExtent);
+    if (target > 0) _scroll.jumpTo(target);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    _searchFocus.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _filter(String query) {
+    final q = query.trim().toLowerCase();
+    setState(() {
+      _filtered = q.isEmpty
+          ? widget.fonts
+          : widget.fonts
+              .where((f) => f.toLowerCase().contains(q))
+              .toList(growable: false);
+    });
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.onDismiss();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Focus(
+      // Nested above the search field's node, so it only sees what the editor
+      // declines — Escape here, every editing key still in the field.
+      onKeyEvent: _onKey,
+      child: Container(
+        width: 240,
+        constraints: const BoxConstraints(maxHeight: 300),
+        decoration: BoxDecoration(
+          color: theme.popupBackground,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: theme.divider),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: theme.controlSurface,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: theme.divider),
+                ),
+                child: Row(
+                  children: [
+                    FaIcon(
+                      FontAwesomeIcons.magnifyingGlass,
+                      size: 10,
+                      color: theme.popupForeground.withValues(alpha: 0.4),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: EditableText(
+                        controller: _search,
+                        focusNode: _searchFocus,
+                        autofocus: true,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: theme.popupForeground,
+                          fontFamily: theme.fontFamily,
+                        ),
+                        cursorColor: theme.accent,
+                        backgroundCursorColor: theme.divider,
+                        onChanged: _filter,
+                        // Enter takes the top match, so a full name can be typed
+                        // without reaching for the mouse.
+                        onSubmitted: (_) {
+                          if (_filtered.isNotEmpty) {
+                            widget.onSelected(_filtered.first);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (_filtered.isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Text(
+                  'No matching font',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontFamily: theme.fontFamily,
+                    color: theme.muted,
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  controller: _scroll,
+                  padding: const EdgeInsets.only(bottom: 6),
+                  itemExtent: _kFontRowHeight,
+                  itemCount: _filtered.length,
+                  itemBuilder: (_, i) {
+                    final family = _filtered[i];
+                    return _FontRow(
+                      family: family,
+                      selected: family == widget.selected,
+                      onTap: () => widget.onSelected(family),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FontRow extends StatefulWidget {
+  const _FontRow({
+    required this.family,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String family;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  State<_FontRow> createState() => _FontRowState();
+}
+
+class _FontRowState extends State<_FontRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final bg = widget.selected
+        ? theme.accent.withValues(alpha: 0.15)
+        : _hovered
+            ? theme.surfaceHover
+            : const Color(0x00000000);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          color: bg,
+          child: Text(
+            widget.family,
+            // The point of the row: what the family actually looks like.
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: widget.family,
+              color: widget.selected ? theme.accent : theme.popupForeground,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Colour picker
 // ---------------------------------------------------------------------------
 //
