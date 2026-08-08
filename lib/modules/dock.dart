@@ -5,6 +5,7 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/app_directory.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
@@ -401,6 +402,9 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       context,
       child: ThemeProvider(child: TooltipLabel(text: widget.appName)),
       preferredConstraints: const BoxConstraints(maxWidth: 120, maxHeight: 32),
+      // A hover label must not take down the menu the pointer is travelling
+      // towards. It is still dismissed by anything else opening, and by a click.
+      policy: TransientPolicy.tooltip,
     );
   }
 

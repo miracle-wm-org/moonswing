@@ -6,6 +6,7 @@ import 'package:ubuntu_session/ubuntu_session.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -47,6 +48,10 @@ class SystemState extends State<System>
     openLayerWindow(
       context,
       controller: controller,
+      // Modal: this dialog holds a pending shutdown or reboot, so a click
+      // elsewhere must not answer it. It resolves through Cancel, Confirm,
+      // Escape, or its own timeout.
+      policy: TransientPolicy.modal,
       child: ThemeProvider(
         child: _ConfirmationDialog(
           label: label,

@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 // windowing and positioner pieces this file needs, but not the Linux-specific
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
+import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/window_manager.dart';
 import 'package:layer_shell/layer_shell.dart';
@@ -119,6 +120,62 @@ void setPanelMargin(
   controller.tryForceCommit();
 }
 
+/// Carries the [TransientHandle] of the popup a subtree is rendered inside.
+///
+/// This is what makes nesting work without a single call site passing a parent.
+/// [PopupHost.openPopup] wraps every popup's content in one, so a module that
+/// opens a popup from *inside* another popup's content — the app-directory
+/// category flyout, and the pin-to-dock menu inside that — resolves its parent
+/// from `context`, the same walk that already finds [WindowScope] and the
+/// panel's [WindowRegistry] from three levels deep.
+class TransientScope extends InheritedWidget {
+  const TransientScope({
+    super.key,
+    required this.handle,
+    required super.child,
+  });
+
+  final TransientHandle handle;
+
+  /// The enclosing popup's handle, or null in a panel or the desktop surface.
+  ///
+  /// Deliberately not a `dependOnInheritedWidgetOfExactType`: this is read from
+  /// tap handlers, not from `build`, so there is nothing to rebuild.
+  static TransientHandle? maybeOf(BuildContext context) => context
+      .getInheritedWidgetOfExactType<TransientScope>()
+      ?.handle;
+
+  @override
+  bool updateShouldNotify(TransientScope oldWidget) => false;
+}
+
+/// Dismisses every open transient surface when a pointer goes down on [child].
+///
+/// Wrapped around the two surfaces that cover real screen area and are not
+/// themselves transient — a panel and the desktop/background surface — because
+/// nothing else can tell us the user clicked elsewhere: the Linux popup
+/// controller takes no `gdk_seat_grab`, so the compositor never sends
+/// `popup_done`, and no layer-shell surface reports focus loss.
+///
+/// Translucent, so a click on a panel's empty space dismisses too. It cannot
+/// catch a click on an ordinary application window; nothing available to the
+/// shell can.
+class PopupDismissArea extends StatelessWidget {
+  const PopupDismissArea({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (event) =>
+          PopupCoordinator.instance.dismissFromPointerDown(event),
+      child: child,
+    );
+  }
+}
+
 /// Mixin for [State] classes that own a single popup window.
 ///
 /// Encapsulates the controller/view lifecycle and WindowRegistry registration
@@ -128,6 +185,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   WindowRegistry? _registry;
   WindowEntry? _entry;
   VoidCallback? _onClosed;
+  TransientHandle? _handle;
 
   /// Whether a popup is currently open.
   bool get isPopupOpen => _popupController != null;
@@ -142,6 +200,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     BuildContext context, {
     required Widget child,
     required BoxConstraints preferredConstraints,
+    TransientPolicy policy = TransientPolicy.menu,
+    Object? ownerKey,
   }) {
     final (parentAnchor, childAnchor) =
         popupAnchorsForBar(BarScope.of(context).anchor);
@@ -152,6 +212,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       anchorRect: popupAnchorRect(context),
       parentAnchor: parentAnchor,
       childAnchor: childAnchor,
+      policy: policy,
+      ownerKey: ownerKey,
     );
   }
 
@@ -164,8 +226,21 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     required WindowPositionerAnchor childAnchor,
     WindowPositionerConstraintAdjustment constraintAdjustment = kPopupSlide,
     VoidCallback? onClosed,
+    TransientPolicy policy = TransientPolicy.menu,
+    Object? ownerKey,
   }) {
     if (isPopupOpen) return;
+    // Identity for the reopen guard, defaulting to the host State because one
+    // State owns one popup. A host that opens a *different* popup per trigger —
+    // the tray, whose one State serves every icon — passes something finer, or
+    // clicking the second icon would be mistaken for re-clicking the first.
+    final owner = ownerKey ?? this;
+    // The click that opened this is the same one that just dismissed our own
+    // popup from [PopupDismissArea], which runs first: a [Listener] sits above
+    // every recognizer on the hit-test path. Without this the toggle would
+    // close and immediately reopen, and no bar popup could ever be dismissed
+    // by clicking its own icon.
+    if (PopupCoordinator.instance.consumeReopenGuard(owner)) return;
     _onClosed = onClosed;
     final parentController = WindowScope.of(context);
     final constraints = preferredConstraints.enforce(kMinPopupConstraints);
@@ -194,13 +269,35 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     GtkWindow.fromHandle(native.windowHandle).setAppPaintable(true);
     FlView.fromHandle(native.flutterViewHandle).setBackgroundColor('#00000000');
     _registry = PanelWindowManager.registryOf(context);
+    // Registered before the surface maps, so whatever this displaces is already
+    // on its way out. The parent comes from the context: null in a panel, and
+    // the enclosing popup's handle when a popup opens from inside another's
+    // content.
+    final handle = _handle = PopupCoordinator.instance.open(
+      owner: owner,
+      parent: TransientScope.maybeOf(context),
+      policy: policy,
+      onDismiss: closePopup,
+    );
     // The content is laid out directly under the popup's View, so this box is
     // what actually gives a sized-to-content window its size: tight
     // constraints make the content fill the popup exactly, loose ones are
     // floored at [kMinPopupConstraints].
+    //
+    // The popup renders into its own FlutterView, so the panel's
+    // [PopupDismissArea] never sees a click that lands in here — hence its own
+    // Listener, which spares this popup's chain and dismisses everything else.
     _entry = WindowEntry(
       controller: _popupController!,
-      builder: (_) => ConstrainedBox(constraints: constraints, child: child),
+      builder: (_) => TransientScope(
+        handle: handle,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (event) => PopupCoordinator.instance
+              .dismissFromPointerDown(event, within: handle),
+          child: ConstrainedBox(constraints: constraints, child: child),
+        ),
+      ),
     );
     _registry!.register(_entry!);
     setState(() {});
@@ -208,6 +305,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
 
   /// Closes and destroys the current popup, if any.
   void closePopup() {
+    PopupCoordinator.instance.close(_handle);
+    _handle = null;
     if (_entry != null) {
       _registry?.unregister(_entry!);
       _entry = null;
@@ -240,6 +339,7 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
   LayershellWindowController? _lsController;
   WindowRegistry? _lsRegistry;
   WindowEntry? _lsEntry;
+  TransientHandle? _lsHandle;
 
   /// Whether a layer-shell window is currently open.
   bool get isLayerWindowOpen => _lsController != null;
@@ -249,14 +349,26 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
   ///
   /// If a window is already open this is a no-op — call [closeLayerWindow]
   /// first.
+  /// [onDismissRequested] is what the [PopupCoordinator] calls when something
+  /// else needs this window gone. Windows with an exit animation pass the
+  /// callback that *starts* it — the coordinator must never call
+  /// [closeLayerWindow] itself, or a panel that should slide out would vanish.
   void openLayerWindow(
     BuildContext context, {
     required LayershellWindowController controller,
     required Widget child,
+    TransientPolicy policy = TransientPolicy.menu,
+    VoidCallback? onDismissRequested,
   }) {
     if (isLayerWindowOpen) return;
     _lsController = controller;
     _lsRegistry = PanelWindowManager.registryOf(context);
+    _lsHandle = PopupCoordinator.instance.open(
+      owner: this,
+      parent: TransientScope.maybeOf(context),
+      policy: policy,
+      onDismiss: onDismissRequested ?? closeLayerWindow,
+    );
     _lsEntry = WindowEntry(controller: controller, builder: (_) => child);
     _lsRegistry!.register(_lsEntry!);
     setState(() {});
@@ -264,6 +376,8 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
 
   /// Unregisters and destroys the current layer-shell window, if any.
   void closeLayerWindow() {
+    PopupCoordinator.instance.close(_lsHandle);
+    _lsHandle = null;
     if (_lsEntry != null) {
       _lsRegistry?.unregister(_lsEntry!);
       _lsEntry = null;

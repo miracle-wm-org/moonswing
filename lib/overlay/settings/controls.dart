@@ -631,11 +631,16 @@ class _SettingsFontFieldState extends State<SettingsFontField> {
           targetAnchor: Alignment.bottomLeft,
           followerAnchor: Alignment.topLeft,
           offset: const Offset(0, 6),
-          child: _FontPickerPopup(
-            fonts: widget.fonts,
-            selected: widget.value,
-            onSelected: _select,
-            onDismiss: _close,
+          // Absorbs clicks on the card's own chrome, which would otherwise
+          // fall through to the barrier above — see the colour picker.
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            child: _FontPickerPopup(
+              fonts: widget.fonts,
+              selected: widget.value,
+              onSelected: _select,
+              onDismiss: _close,
+            ),
           ),
         ),
       ],
@@ -879,10 +884,10 @@ class _FontRowState extends State<_FontRow> {
 /// otherwise `#AARRGGBB`.
 String formatHexColor(Color c) {
   final argb = c.toARGB32();
-  final rgb = (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0');
+  final rgb = (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
   final a = (argb >> 24) & 0xFF;
   if (a == 0xFF) return '#$rgb';
-  return '#${a.toRadixString(16).padLeft(2, '0')}$rgb';
+  return '#${a.toRadixString(16).padLeft(2, '0').toUpperCase()}$rgb';
 }
 
 /// A color swatch + hex text field. Clicking the swatch opens a visual color
@@ -932,7 +937,18 @@ class ColorFieldState extends State<SettingsColorField> {
     // Unlike the other controls, this one is re-seeded: switching themes
     // replaces every value under it, and a swatch still showing the previous
     // theme's colour would be a lie.
-    if (widget.initial != old.initial && widget.initial != _controller.text) {
+    //
+    // "Did this change come from me?" is answered on the parsed colours, not on
+    // the strings: what comes back has been through ThemeConfig.formatColor,
+    // whose spelling need not match ours byte for byte, and a re-spelling of
+    // the colour we just wrote is not somebody else re-seeding the field. When
+    // it was a string compare, every drag inside the picker closed the picker.
+    final incoming = parseHexColor(widget.initial);
+    final mine = parseHexColor(_controller.text);
+    final same = incoming != null && mine != null
+        ? incoming == mine
+        : widget.initial == _controller.text;
+    if (widget.initial != old.initial && !same) {
       _controller.text = widget.initial;
       _close();
     }
@@ -1063,9 +1079,20 @@ class ColorFieldState extends State<SettingsColorField> {
           targetAnchor: Alignment.bottomLeft,
           followerAnchor: Alignment.topLeft,
           offset: const Offset(0, 8),
-          child: SettingsColorPicker(
-            initial: parseHexColor(_controller.text) ?? const Color(0xFF000000),
-            onChanged: _apply,
+          // The card's own chrome — its padding, border, and the gaps between
+          // the sliders — is Padding and DecoratedBox, neither of which
+          // hit-tests itself, so a click there used to fall through the Stack
+          // to the barrier above and dismiss. A Listener rather than a
+          // GestureDetector: it takes the card out of the barrier's hit path
+          // without joining the gesture arena, leaving the tap/pan recognizers
+          // inside _draggable untouched.
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            child: SettingsColorPicker(
+              initial:
+                  parseHexColor(_controller.text) ?? const Color(0xFF000000),
+              onChanged: _apply,
+            ),
           ),
         ),
       ],

@@ -91,6 +91,8 @@ class _NotificationsState extends State<Notifications>
     openLayerWindow(
       context,
       controller: controller,
+      // The slide-out, not the teardown — see [_beginClosePanel].
+      onDismissRequested: _beginClosePanel,
       child: ThemeProvider(
         child: _NotificationPanel(
           closingNotifier: _closingNotifier,

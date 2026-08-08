@@ -121,6 +121,10 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
     if (!iconContext.mounted) return;
     openBarPopup(
       iconContext,
+      // One State serves the whole strip, so the reopen guard has to be keyed
+      // per icon: clicking a *different* icon while a menu is open must open
+      // that icon's menu, not be read as re-clicking the one just dismissed.
+      ownerKey: (this, item.id),
       preferredConstraints: const BoxConstraints(
         minWidth: 160,
         maxWidth: 320,

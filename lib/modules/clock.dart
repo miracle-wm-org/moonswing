@@ -100,6 +100,10 @@ class ClockState extends State<Clock> with LayerShellHost<Clock> {
     openLayerWindow(
       context,
       controller: controller,
+      // The coordinator gets the fade-out, not the teardown: dismissing this
+      // straight to closeLayerWindow would make the overlay vanish instead of
+      // playing the exit SettingsOverlay owns.
+      onDismissRequested: _beginCloseOverlay,
       child: ThemeProvider(
         child: SettingsOverlay(
           closingNotifier: _closingNotifier,

@@ -37,6 +37,7 @@ import 'package:graceful_shell/osd/osd_service.dart';
 import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/screencast/picker_controller.dart';
 import 'package:graceful_shell/screencast/picker_overlay.dart';
 import 'package:graceful_shell/screencast/picker_sources.dart';
@@ -336,6 +337,23 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// Drives [ScreencastPickerOverlay]'s fade-out.
   final ValueNotifier<bool> _screencastClosing = ValueNotifier(false);
 
+  /// [PopupCoordinator] registrations for the five root-owned overlays, so a
+  /// bar popup and a full-screen overlay displace each other through one rule
+  /// instead of the hand-rolled pairs this used to carry.
+  ///
+  /// Each is keyed by a sentinel rather than by `this`, because one State owns
+  /// all five and the coordinator identifies a surface by its owner.
+  final Object _settingsOwner = Object();
+  final Object _launcherOwner = Object();
+  final Object _appChooserOwner = Object();
+  final Object _screencastOwner = Object();
+  final Object _filePickerOwner = Object();
+  TransientHandle? _settingsHandle;
+  TransientHandle? _launcherHandle;
+  TransientHandle? _appChooserHandle;
+  TransientHandle? _screencastHandle;
+  TransientHandle? _filePickerHandle;
+
   /// The `ext-session-lock-v1` lock, non-null exactly while the session is
   /// locked. Owned here rather than by the module that offers the Lock button
   /// because the lock spans every monitor and outlives any one panel.
@@ -505,9 +523,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       // SettingsOverlay plays its fade-out then calls _onSettingsClosed.
       _settingsClosing.value = true;
     } else {
-      // Two stacked focus-taking overlay surfaces have no defined focus order,
-      // so the one already up steps aside.
-      if (_launcher != null) _launcherClosing.value = true;
+      // Whatever is up steps aside — two stacked focus-taking overlay surfaces
+      // have no defined focus order. Registering with the coordinator in
+      // [_openSettings] is what does it now.
       _openSettings();
     }
   }
@@ -519,7 +537,6 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (_launcher != null) {
       _launcherClosing.value = true;
     } else {
-      if (_settings != null) _settingsClosing.value = true;
       _openLauncher();
     }
   }
@@ -551,6 +568,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // Full-screen means the whole output, panels included — otherwise the
     // backdrop stops short of the bars and dismiss-on-backdrop has dead strips.
     spanFullOutput(_launcher!);
+    // The coordinator asks for the *fade-out*, never the teardown: it is
+    // `_onLauncherClosed` that destroys the window, once the animation is done.
+    _launcherHandle = PopupCoordinator.instance.open(
+      owner: _launcherOwner,
+      onDismiss: () => _launcherClosing.value = true,
+    );
     setState(() {});
   }
 
@@ -565,10 +588,6 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     final request = ScreencastPickerController.instance.pending;
     if (request != null) {
       if (_screencastPicker != null) return;
-      // Two stacked focus-taking overlays have no defined focus order, and a
-      // consent prompt must be the one on top.
-      if (_settings != null) _settingsClosing.value = true;
-      if (_launcher != null) _launcherClosing.value = true;
       _openScreencastPicker(request);
     } else if (_screencastPicker != null) {
       _screencastClosing.value = true;
@@ -592,6 +611,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       keyboardMode: LayerShellKeyboardMode.onDemand,
     );
     spanFullOutput(_screencastPicker!);
+    // Modal: a consent prompt must displace whatever is up and be displaced by
+    // nothing — dismissing it is a denial, so nothing may answer it for the
+    // user. It resolves only through [ScreencastPickerController].
+    _screencastHandle = PopupCoordinator.instance.open(
+      owner: _screencastOwner,
+      policy: TransientPolicy.modal,
+      onDismiss: () => _screencastClosing.value = true,
+    );
     setState(() {});
   }
 
@@ -602,6 +629,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (removed == null) return;
     _screencastPicker = null;
     _screencastRequest = null;
+    PopupCoordinator.instance.close(_screencastHandle);
+    _screencastHandle = null;
     // A window torn down without the user answering (the shell is shutting
     // down, or the frontend withdrew) still owes the portal a reply.
     ScreencastPickerController.instance.cancel();
@@ -616,6 +645,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     final removed = _launcher;
     if (removed == null) return;
     _launcher = null;
+    PopupCoordinator.instance.close(_launcherHandle);
+    _launcherHandle = null;
     AppIndex.instance.release();
     setState(() {});
     _destroyAfterFrame([removed]);
@@ -642,6 +673,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       monitor: monitor.gdkMonitor,
     );
     spanFullOutput(_settings!);
+    _settingsHandle = PopupCoordinator.instance.open(
+      owner: _settingsOwner,
+      onDismiss: () => _settingsClosing.value = true,
+    );
     setState(() {});
   }
 
@@ -652,6 +687,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     final removed = _settings;
     _settings = null;
     _settingsRoute = null;
+    PopupCoordinator.instance.close(_settingsHandle);
+    _settingsHandle = null;
     setState(() {});
     if (removed != null) _destroyAfterFrame([removed]);
 
@@ -747,6 +784,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       keyboardMode: LayerShellKeyboardMode.onDemand,
     );
     spanFullOutput(_appChooser!);
+    _appChooserHandle = PopupCoordinator.instance.open(
+      owner: _appChooserOwner,
+      onDismiss: _closeAppChooser,
+    );
     setState(() {});
   }
 
@@ -755,6 +796,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (removed == null) return;
     _appChooser = null;
     _appChooserCell = null;
+    PopupCoordinator.instance.close(_appChooserHandle);
+    _appChooserHandle = null;
     AppIndex.instance.release();
     setState(() {});
     _destroyAfterFrame([removed]);
@@ -815,6 +858,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       keyboardMode: LayerShellKeyboardMode.onDemand,
     );
     spanFullOutput(_filePicker!);
+    // Modal for the same reason the screencast picker is: a caller is awaiting
+    // the answer, and only [FilePickerController] may resolve it.
+    _filePickerHandle = PopupCoordinator.instance.open(
+      owner: _filePickerOwner,
+      policy: TransientPolicy.modal,
+      onDismiss: _closeFilePicker,
+    );
     setState(() {});
   }
 
@@ -822,6 +872,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     final removed = _filePicker;
     if (removed == null) return;
     _filePicker = null;
+    PopupCoordinator.instance.close(_filePickerHandle);
+    _filePickerHandle = null;
     setState(() {});
     _destroyAfterFrame([removed]);
   }
@@ -843,6 +895,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   void _onLockRequested() {
     if (!mounted) return;
     if (LockController.instance.isRequested && _sessionLock == null) {
+      // The compositor hides every other surface behind the lock, so anything
+      // still registered would be a popup the user cannot see or reach — and
+      // would still be there on unlock.
+      PopupCoordinator.instance.dismissAll();
       _startLock();
     }
   }
@@ -1208,18 +1264,25 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               // wallpaper until Wayland output enumeration completed.
               child: PanelWindowManager(
                 child: ThemeProvider(
-                  child: DesktopSurface(
-                    background: bgConfig,
-                    desktop: _liveConfig.desktop,
-                    store: DesktopStore.instance,
-                    // Startup panel geometry, like _createSurfaces: the anchor
-                    // a surface was built with cannot change without a restart.
-                    panels: widget.appConfig.panels,
-                    onChangeBackground: () => SettingsController.instance
-                        .open(SettingsRoute.background),
-                    onAddRequested: _onDesktopAddRequested,
-                    onKeyboardRequested: (wanted) => _setDesktopKeyboard(
-                        _monitorKey(surfaces.monitor), wanted),
+                  // A click on the desktop dismisses whatever a *panel* has
+                  // open: the two surfaces have separate registries and no
+                  // shared widget tree, so the coordinator is the only thing
+                  // that can carry the signal across.
+                  child: PopupDismissArea(
+                    child: DesktopSurface(
+                      background: bgConfig,
+                      desktop: _liveConfig.desktop,
+                      store: DesktopStore.instance,
+                      // Startup panel geometry, like _createSurfaces: the
+                      // anchor a surface was built with cannot change without
+                      // a restart.
+                      panels: widget.appConfig.panels,
+                      onChangeBackground: () => SettingsController.instance
+                          .open(SettingsRoute.background),
+                      onAddRequested: _onDesktopAddRequested,
+                      onKeyboardRequested: (wanted) => _setDesktopKeyboard(
+                          _monitorKey(surfaces.monitor), wanted),
+                    ),
                   ),
                 ),
               ),
@@ -1239,9 +1302,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                           child: Builder(builder: (context) {
                             final panel =
                                 _effectivePanel(entry.key, entry.value);
-                            return PanelMain(
-                              panelConfig: panel,
-                              anchor: panel.anchor,
+                            // A click anywhere on the bar — an icon whose
+                            // popup is not open, or bare padding — dismisses
+                            // whatever else the shell has up.
+                            return PopupDismissArea(
+                              child: PanelMain(
+                                panelConfig: panel,
+                                anchor: panel.anchor,
+                              ),
                             );
                           }),
                         ),

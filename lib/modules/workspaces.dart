@@ -6,6 +6,7 @@ import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:miracle/miracle.dart';
@@ -155,6 +156,8 @@ class _MiracleRetryButtonState extends State<_MiracleRetryButton>
         ),
       ),
       preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 64),
+      // A hover label displaces nothing — see the dock's tooltip.
+      policy: TransientPolicy.tooltip,
     );
   }
 
