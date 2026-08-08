@@ -43,6 +43,53 @@ class _DockApp {
   const _DockApp({required this.appId, required this.entry});
 }
 
+// Reorder geometry / bookkeeping (pure; unit-tested in test/dock_reorder_test.dart)
+
+/// Horizontal gap between dock buttons, and the [Row.spacing] the buttons are
+/// laid out with. The slot arithmetic below assumes every icon is the same
+/// width, which holds because they all render at `icon_size`.
+const double kDockSpacing = 4;
+
+/// Which slot a button whose left edge sits at [left] should drop into, given
+/// [count] slots each [step] apart. Slot `i` starts at `i * step`.
+int dockDropIndex(double left, double step, int count) {
+  if (count <= 1 || step <= 0) return 0;
+  final i = (left / step).round();
+  return i < 0
+      ? 0
+      : i > count - 1
+          ? count - 1
+          : i;
+}
+
+/// Moves the element at [from] to [to], shifting the rest along.
+List<T> moveDockItem<T>(List<T> items, int from, int to) {
+  final out = [...items];
+  final item = out.removeAt(from);
+  out.insert(to, item);
+  return out;
+}
+
+/// Rewrites `[modules.dock].apps` for a new on-screen order.
+///
+/// [configIds] can name apps that failed to resolve (an id whose `.desktop`
+/// file is gone), which never appear in the dock and so are absent from
+/// [newOrder]. Those keep their original index; the resolved ids fill the
+/// slots around them, so a reorder cannot silently drop or move an entry the
+/// user cannot see.
+List<String> mergeDockOrder(List<String> configIds, List<String> newOrder) {
+  final resolved = newOrder.toSet();
+  final slots = <String?>[
+    for (final id in configIds) resolved.contains(id) ? null : id,
+  ];
+  if (slots.where((s) => s == null).length != newOrder.length) return newOrder;
+  var next = 0;
+  for (var i = 0; i < slots.length; i++) {
+    if (slots[i] == null) slots[i] = newOrder[next++];
+  }
+  return slots.cast<String>();
+}
+
 // Dock widget
 
 class Dock extends StatefulWidget {
@@ -56,6 +103,36 @@ class Dock extends StatefulWidget {
 
 class DockState extends State<Dock> {
   List<_DockApp> _apps = [];
+
+  /// The pinned-apps row, measured to derive the drag slot pitch.
+  final _appsKey = GlobalKey();
+
+  // --- Drag-to-reorder state -------------------------------------------------
+  //
+  // Dragging is hand-rolled for the same reason the desktop grid's is: Flutter's
+  // [Draggable] needs an [Overlay] ancestor, and a panel has none. Nothing here
+  // reaches [ConfigStore] until the drop — every `set` notifies synchronously
+  // and rebuilds every panel on every monitor, so writing pointer positions
+  // through the config would rebuild the shell dozens of times per gesture.
+
+  /// Index into [_apps] of the button being dragged, or null when idle. The
+  /// list is reordered live as the pointer crosses slot boundaries, so this
+  /// follows the button rather than naming its origin.
+  int? _dragIndex;
+
+  /// Where the press started, in global coordinates, before the drag threshold
+  /// is met.
+  double? _pressGlobalX;
+
+  /// Slot pitch (icon width + [kDockSpacing]) and the pointer's grab offset
+  /// within the dragged button, both in the apps row's local space.
+  double _slotStep = 0;
+  double _grabDx = 0;
+
+  /// Current pointer x in the apps row's local space.
+  double _pointerX = 0;
+
+  bool get _dragging => _dragIndex != null;
 
   @override
   void initState() {
@@ -105,6 +182,89 @@ class DockState extends State<Dock> {
 
   void _launch(_DockApp app) => launchApp(app.entry.appInfo);
 
+  // --- Drag to reorder -------------------------------------------------------
+
+  /// Pointer x in the apps row's local space, or null before it has laid out.
+  double? _localX(double globalX) {
+    final box = _appsKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.globalToLocal(Offset(globalX, 0)).dx;
+  }
+
+  void _onDragStart(double globalX) {
+    _pressGlobalX = globalX;
+  }
+
+  /// Returns the dragged button's offset from its slot, in logical pixels.
+  double _dragOffset(int index) =>
+      (_pointerX - _grabDx) - index * _slotStep;
+
+  void _onDragUpdate(_DockApp app, double globalX) {
+    if (_apps.length < 2) return;
+
+    if (!_dragging) {
+      final press = _pressGlobalX;
+      if (press == null) return;
+      // A mouse wins the pan arena after a single pixel, so hold the drag back
+      // until the pointer has clearly travelled — a jittery click must still
+      // launch the app (see [_DockButton.onDragEnd]).
+      if ((globalX - press).abs() < 6) return;
+      final box = _appsKey.currentContext?.findRenderObject() as RenderBox?;
+      final index = _apps.indexOf(app);
+      final local = _localX(globalX);
+      if (box == null || index < 0 || local == null) return;
+      // Every icon is the same width, so the pitch follows from the row's own
+      // width and needs no per-button measurement.
+      final n = _apps.length;
+      final itemWidth = (box.size.width - kDockSpacing * (n - 1)) / n;
+      _slotStep = itemWidth + kDockSpacing;
+      _grabDx = local - index * _slotStep;
+      setState(() {
+        _pointerX = local;
+        _dragIndex = index;
+      });
+      return;
+    }
+
+    final local = _localX(globalX);
+    if (local == null) return;
+    final from = _dragIndex!;
+    final to = dockDropIndex(local - _grabDx, _slotStep, _apps.length);
+    setState(() {
+      _pointerX = local;
+      if (to != from) {
+        _apps = moveDockItem(_apps, from, to);
+        _dragIndex = to;
+      }
+    });
+  }
+
+  /// Ends the gesture. Returns true when it was a drag (so the caller must not
+  /// also treat it as a click).
+  bool _onDragEnd() {
+    _pressGlobalX = null;
+    if (!_dragging) return false;
+    setState(() => _dragIndex = null);
+    _persistOrder();
+    return true;
+  }
+
+  void _onDragCancel() {
+    _pressGlobalX = null;
+    if (!_dragging) return;
+    setState(() => _dragIndex = null);
+    _persistOrder();
+  }
+
+  void _persistOrder() {
+    final store = ConfigStore.instance;
+    final current = store.getList<String>(['modules', 'dock', 'apps']);
+    final merged =
+        mergeDockOrder(current, _apps.map((a) => a.appId).toList());
+    if (_sameList(current, merged)) return;
+    store.set(['modules', 'dock', 'apps'], merged);
+  }
+
   @override
   Widget build(BuildContext context) {
     final showDirectory = widget.config.showAppDirectory;
@@ -115,25 +275,54 @@ class DockState extends State<Dock> {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      spacing: 4,
+      spacing: kDockSpacing,
       children: [
-        for (final app in _apps)
-          _DockButton(
-            appId: app.appId,
-            appName: app.entry.name,
-            onPressed: () => _launch(app),
-            child: AppIconImage(
-              iconName: app.entry.iconName,
-              name: app.entry.name,
-              size: size,
-              foreground: foreground,
-            ),
-          ),
+        Row(
+          key: _appsKey,
+          mainAxisSize: MainAxisSize.min,
+          spacing: kDockSpacing,
+          children: [
+            for (var i = 0; i < _apps.length; i++)
+              _buildButton(_apps[i], i, size, foreground),
+          ],
+        ),
         if (showDirectory) ...[
           _DockDivider(height: size.toDouble()),
           AppDirectoryButton(iconSize: size),
         ],
       ],
+    );
+  }
+
+  Widget _buildButton(_DockApp app, int index, int size, Color foreground) {
+    final dragging = index == _dragIndex;
+    // Keyed by identity: the list is reordered mid-gesture, and without a key
+    // each button's state (hover, pressed, open tooltip) would stay behind at
+    // its old position and reattach to a different app.
+    final Widget button = _DockButton(
+      key: ObjectKey(app),
+      appId: app.appId,
+      appName: app.entry.name,
+      dragging: dragging,
+      onPressed: () => _launch(app),
+      onDragStart: _onDragStart,
+      onDragUpdate: (globalX) => _onDragUpdate(app, globalX),
+      onDragEnd: _onDragEnd,
+      onDragCancel: _onDragCancel,
+      child: AppIconImage(
+        iconName: app.entry.iconName,
+        name: app.entry.name,
+        size: size,
+        foreground: foreground,
+      ),
+    );
+    if (!dragging) return button;
+    // The dragged button follows the pointer by painting outside its slot;
+    // nothing here clips, and its siblings have already shifted into the order
+    // the drop will persist.
+    return Transform.translate(
+      offset: Offset(_dragOffset(index), 0),
+      child: button,
     );
   }
 }
@@ -157,15 +346,33 @@ class _DockDivider extends StatelessWidget {
 
 class _DockButton extends StatefulWidget {
   const _DockButton({
+    super.key,
     required this.appId,
     required this.appName,
     required this.onPressed,
+    required this.dragging,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.onDragCancel,
     required this.child,
   });
 
   final String appId;
   final String appName;
   final VoidCallback onPressed;
+
+  /// True while this button is the one being dragged.
+  final bool dragging;
+
+  final void Function(double globalX) onDragStart;
+  final void Function(double globalX) onDragUpdate;
+
+  /// Ends the gesture; true when it resolved as a drag, in which case this
+  /// button must not launch its app.
+  final bool Function() onDragEnd;
+  final VoidCallback onDragCancel;
+
   final Widget child;
 
   @override
@@ -176,8 +383,16 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   bool _hovered = false;
   bool _pressed = false;
 
+  @override
+  void didUpdateWidget(_DockButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The pointer is captured for the whole gesture, so no exit event arrives
+    // to take the tooltip down with it.
+    if (widget.dragging && !oldWidget.dragging) closePopup();
+  }
+
   void _openTooltip(BuildContext context) {
-    if (isPopupOpen) return;
+    if (isPopupOpen || widget.dragging) return;
 
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return;
@@ -237,8 +452,12 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       color = theme.surfaceHover;
     }
 
+    if (widget.dragging) color = theme.surfacePressed;
+
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: widget.dragging
+          ? SystemMouseCursors.grabbing
+          : SystemMouseCursors.click,
       onEnter: (_) {
         setState(() => _hovered = true);
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -261,6 +480,22 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         },
         onTapCancel: () => setState(() => _pressed = false),
         onSecondaryTapDown: (_) => _openUnpinMenu(context),
+        // Pan and tap share this detector's arena, so exactly one of them wins:
+        // a pan that never passed the drag threshold launches from onPanEnd,
+        // which is the click a 1px mouse wobble would otherwise have eaten.
+        onPanStart: (d) {
+          setState(() => _pressed = true);
+          widget.onDragStart(d.globalPosition.dx);
+        },
+        onPanUpdate: (d) => widget.onDragUpdate(d.globalPosition.dx),
+        onPanEnd: (_) {
+          setState(() => _pressed = false);
+          if (!widget.onDragEnd()) widget.onPressed();
+        },
+        onPanCancel: () {
+          setState(() => _pressed = false);
+          widget.onDragCancel();
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           padding: const EdgeInsets.all(4),
