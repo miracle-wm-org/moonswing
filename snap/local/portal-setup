@@ -1,0 +1,109 @@
+#!/bin/sh
+# System-wide ScreenCast portal registration, run from the snap's install,
+# post-refresh and remove hooks. Staged as $SNAP/bin/graceful-shell-portal-setup.
+#
+# Classic confinement runs hooks unconfined in the host namespace, so root can
+# write the host's /usr/share. That is the *lowest*-precedence location
+# xdg-desktop-portal searches (portals.conf(5): $XDG_CONFIG_HOME, then
+# $XDG_CONFIG_DIRS, then /etc, then $XDG_DATA_HOME, then $XDG_DATA_DIRS), which
+# is deliberate — it makes the shell the default for every account on the
+# machine without out-ranking anything a user or a sysadmin chose. The
+# per-user, higher-precedence half is the launcher's job, because a hook has no
+# SNAP_REAL_HOME and no idea whose session it is registering for.
+#
+# Nothing here may fail the hook: a non-zero install hook aborts `snap install`,
+# and /usr is read-only on an immutable host. Every write is best-effort; the
+# launcher's per-user copy is what keeps screen sharing working when these fail.
+set -u
+
+marker='# graceful-shell-snap-managed'
+src="${SNAP:-}/share/graceful-shell/portal"
+
+# Every destination hangs off one prefix so a test can point the whole script at
+# a temp directory — the same injectable-root shape lib/system/proc_reader.dart
+# and lib/osd/brightness_monitor.dart use. Empty in production.
+root="${GRACEFUL_PORTAL_TEST_ROOT:-}"
+share_dir="$root/usr/share/xdg-desktop-portal"
+
+# XDG_CURRENT_DESKTOP under miracle-wm is "miracle-wm:mir", and
+# xdg-desktop-portal tries <desktop>-portals.conf for each name in that list
+# before falling back to the generic portals.conf. Write both names: which one
+# is consulted first depends on an ordering the shell does not control.
+conf_names='miracle-wm-portals.conf mir-portals.conf'
+
+# A file is ours if it does not exist yet, or if it carries the marker. Anything
+# else is a distro's or a user's and is left exactly as found.
+is_ours() {
+  [ ! -e "$1" ] || grep -qxF "$marker" "$1" 2>/dev/null
+}
+
+write_managed() { # <src> <dst>
+  [ -r "$1" ] || return 0
+  if ! is_ours "$2"; then
+    echo "graceful-shell: kept existing $2" >&2
+    return 0
+  fi
+  mkdir -p "$(dirname "$2")" 2>/dev/null || return 0
+  # Temp file plus rename: a portal reading the directory never sees a
+  # half-written keyfile.
+  tmp="$2.graceful-tmp.$$"
+  if { cat "$1" && echo "$marker"; } >"$tmp" 2>/dev/null; then
+    chmod 644 "$tmp" 2>/dev/null
+    mv -f "$tmp" "$2" 2>/dev/null || rm -f "$tmp"
+  else
+    rm -f "$tmp"
+  fi
+  return 0
+}
+
+remove_managed() { # <dst>
+  [ -e "$1" ] || return 0
+  if is_ours "$1"; then
+    rm -f "$1" 2>/dev/null
+  fi
+  return 0
+}
+
+do_install() {
+  write_managed "$src/graceful-shell.portal" \
+    "$share_dir/portals/graceful-shell.portal"
+  for name in $conf_names; do
+    write_managed "$src/graceful-shell-portals.conf" "$share_dir/$name"
+  done
+}
+
+do_remove() {
+  remove_managed "$share_dir/portals/graceful-shell.portal"
+  for name in $conf_names; do
+    remove_managed "$share_dir/$name"
+  done
+  # Only the directories this snap could have created, and only while empty.
+  rmdir "$share_dir/portals" "$share_dir" 2>/dev/null
+
+  # The per-user copies. The launcher records every path it created in a
+  # manifest under SNAP_USER_COMMON, so this removes what the snap wrote and
+  # never what `make install-portal` wrote — a machine can have both. The
+  # manifest lists .portal files only: a *-portals.conf carries a preference
+  # the user may have edited, which `make uninstall-portal` also leaves alone.
+  for manifest in "$root"/root/snap/graceful-shell/common/portal-installed \
+                  "$root"/home/*/snap/graceful-shell/common/portal-installed; do
+    [ -r "$manifest" ] || continue
+    while IFS= read -r path; do
+      case "$path" in
+        */xdg-desktop-portal/portals/graceful-shell.portal) rm -f "$path" ;;
+      esac
+    done <"$manifest"
+  done
+  return 0
+}
+
+case "${1:-}" in
+  install) do_install ;;
+  remove)  do_remove ;;
+  *)
+    echo "usage: $0 install|remove" >&2
+    exit 2
+    ;;
+esac
+
+exit 0

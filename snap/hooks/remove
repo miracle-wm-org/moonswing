@@ -1,0 +1,6 @@
+#!/bin/sh
+# Undo the portal registration. Runs while the snap is still mounted, so $SNAP
+# and the per-user manifests under ~/snap are both still readable.
+setup="${SNAP:-}/bin/graceful-shell-portal-setup"
+[ -x "$setup" ] && "$setup" remove
+exit 0

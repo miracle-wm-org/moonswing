@@ -7,13 +7,15 @@ description: |
   a lock screen and the ScreenCast portal backend for Wayland compositors such
   as Miracle WM, built with Flutter.
 
-  Two things a snap cannot install for you:
+  Screen sharing is registered for you: the install hook writes the ScreenCast
+  backend files machine-wide, the launcher adds the per-user half on first run,
+  and it restarts xdg-desktop-portal so both are picked up. Removing the snap
+  undoes it. A `*-portals.conf` of your own naming a different backend is
+  honoured, never overwritten.
 
-  * The PAM service file. `/etc/pam.d/graceful-shell` needs root, so the lock
-    screen falls back to the system `login` service — it still authenticates.
-  * Portal registration on the *first* run. The launcher drops the ScreenCast
-    backend files into your XDG dirs, but xdg-desktop-portal only reads them at
-    start-up: run `systemctl --user restart xdg-desktop-portal` once afterwards.
+  One thing a snap cannot install for you: the PAM service file.
+  `/etc/pam.d/graceful-shell` needs root, so the lock screen falls back to the
+  system `login` service — it still authenticates.
 grade: devel
 confinement: classic
 platforms:
@@ -21,8 +23,9 @@ platforms:
 
 apps:
   graceful-shell:
-    # A wrapper, not the binary: it registers the ScreenCast portal backend on
-    # first run. See snap/local/graceful-shell-wrapper.
+    # A wrapper, not the binary: it registers the per-user half of the
+    # ScreenCast portal backend on first run and restarts xdg-desktop-portal.
+    # See snap/local/graceful-shell-wrapper.
     command: bin/graceful-shell
     environment:
       # Classic confinement runs in the host namespace and does not set up a
@@ -142,9 +145,10 @@ parts:
       - -usr/lib/*/pkgconfig
 
   # The ScreenCast portal backend files. They are *staged*, not installed:
-  # xdg-desktop-portal reads them from XDG_DATA_HOME / XDG_CONFIG_HOME, which a
-  # snap cannot write at build time, so the launcher copies them out on first
-  # run instead.
+  # xdg-desktop-portal reads them from a search path a snap cannot write at
+  # build time, so they are copied out at run time instead — machine-wide by
+  # snap/hooks/install (via bin/graceful-shell-portal-setup below) and per-user
+  # by the launcher, which is the only half with a home directory to write to.
   portal:
     plugin: dump
     source: portal
@@ -152,11 +156,16 @@ parts:
       graceful-shell.portal: share/graceful-shell/portal/graceful-shell.portal
       graceful-shell-portals.conf: share/graceful-shell/portal/graceful-shell-portals.conf
 
+  # Everything in snap/local is organized somewhere under bin/ — nothing may
+  # land at the snap root. portal-setup is the machine-wide half of the portal
+  # registration, shared by the install, post-refresh and remove hooks (which
+  # snapcraft picks up from snap/hooks/ on its own, so they need no part here).
   launcher:
     plugin: dump
     source: snap/local
     organize:
       graceful-shell-wrapper: bin/graceful-shell
+      portal-setup: bin/graceful-shell-portal-setup
 
   # Resolved by shippedDataFile() in lib/config.dart, which looks under
   # /snap/<name>/current — not $SNAP, whose revisioned path would go dead in the

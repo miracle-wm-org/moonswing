@@ -669,11 +669,19 @@ max_fps = 0
 
 - **A compositor with `ext-image-copy-capture-v1`** — miracle-wm built against MirAL 5.6 or newer. Without it the feature disables itself and logs why.
 - **PipeWire 1.0 or newer**, which every current desktop already runs.
-- **The portal files installed**, which `make install` does:
+- **The portal files installed.** Two of them: a `.portal` that tells xdg-desktop-portal the shell implements ScreenCast, and a `-portals.conf` that prefers it over any other backend claiming the same interface.
+
+  From a source build, `make install` (or `make install-portal`) writes:
   - `~/.local/share/xdg-desktop-portal/portals/graceful-shell.portal`
   - `~/.config/xdg-desktop-portal/mir-portals.conf` (only written if absent, so an existing preference is never overwritten)
 
-  After installing, run `systemctl --user restart xdg-desktop-portal`.
+  then run `systemctl --user restart xdg-desktop-portal` once.
+
+  **The snap does all of this for you.** Its install hook writes `/usr/share/xdg-desktop-portal/portals/graceful-shell.portal` and `/usr/share/xdg-desktop-portal/{miracle-wm,mir}-portals.conf`; the launcher writes the same pair under `~/.local/share` and `~/.config` on first run, and restarts xdg-desktop-portal itself. `snap remove` deletes both sets again. Nothing is manual.
+
+  Two names for the conf because `XDG_CURRENT_DESKTOP` is `miracle-wm:mir`, and xdg-desktop-portal tries `<desktop>-portals.conf` for each name in that list before falling back to the generic `portals.conf`. Two *locations* because of precedence: `portals.conf(5)` searches `$XDG_CONFIG_HOME`, then `$XDG_CONFIG_DIRS`, then `/etc`, then `$XDG_DATA_HOME`, then `$XDG_DATA_DIRS`. `/usr/share` is the last of those, which makes the system-wide copy a machine default that never out-ranks a choice you made; only the per-user copy is high enough to beat an existing `~/.config/xdg-desktop-portal/portals.conf`.
+
+  Nothing you wrote is ever edited. If a `~/.config/xdg-desktop-portal/*-portals.conf` already points ScreenCast at another backend it wins, and the shell logs which file and which line to change. Setting `enabled = false` above also stops the snap registering the backend at all, so opting out does not leave a dangling preference behind.
 
 There is deliberately no D-Bus activation file: the shell owns the backend name from session start, so screen sharing cannot start the shell. If the shell is not running, screen sharing is simply unavailable.
 

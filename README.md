@@ -36,8 +36,8 @@ Screen sharing needs **PipeWire 1.0+** (already running on any current desktop)
 and a compositor implementing `ext-image-copy-capture-v1` — miracle-wm built
 against MirAL 5.6 or newer. Both are checked at start-up; without them the
 shell runs normally and only screen sharing is unavailable. `make install`
-registers the shell as the ScreenCast portal backend; see
-[CONFIG.md](CONFIG.md#screen-sharing).
+registers the shell as the ScreenCast portal backend (the snap does it on its
+own); see [CONFIG.md](CONFIG.md#screen-sharing).
 
 You also need the [Flutter SDK](https://docs.flutter.dev/get-started/install/linux) on the `master` channel:
 
@@ -64,14 +64,15 @@ graceful-shell
 ```
 
 The snap bundles `libgtk-session-lock` and the wallpapers, so the lock screen and
-the wallpaper work out of the box. Two things it cannot install for you:
+the wallpaper work out of the box. So does **screen sharing**: the install hook
+registers the ScreenCast portal backend machine-wide, the first run adds the
+per-user half, and the shell restarts `xdg-desktop-portal` itself so both are
+picked up — no follow-up commands. `sudo snap remove` undoes all of it. If you
+already have an `~/.config/xdg-desktop-portal/*-portals.conf` naming a different
+ScreenCast backend, that file is your choice and is left alone; the shell says
+so on start-up and tells you the one line to change.
 
-- **Screen sharing.** The first run drops the ScreenCast portal backend files into
-  your XDG directories, but xdg-desktop-portal only reads them at start-up:
-
-  ```sh
-  systemctl --user restart xdg-desktop-portal
-  ```
+One thing it cannot install for you:
 
 - **The PAM service file.** `/etc/pam.d/graceful-shell` needs root, so the lock
   screen falls back to the system `login` service — it still authenticates, it

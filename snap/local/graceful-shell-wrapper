@@ -1,44 +1,138 @@
 #!/bin/sh
 # Launcher for the classic snap.
 #
-# `make install-portal` registers the shell as the ScreenCast portal backend by
-# writing into XDG_DATA_HOME / XDG_CONFIG_HOME. A snap cannot do that at build
-# time — those paths belong to the user, not the package — so the equivalent
-# happens here on first run. Classic confinement means $HOME is the real home,
-# so an ordinary copy is all it takes.
+# The install hook registers the ScreenCast portal backend machine-wide, under
+# /usr/share (see snap/local/portal-setup). That is the lowest-precedence
+# location xdg-desktop-portal searches, so it is a *default*, not an override —
+# a user who already has ~/.config/xdg-desktop-portal/portals.conf naming
+# another backend would never reach it. Only a per-user, desktop-specific file
+# out-ranks that, and a root hook has no SNAP_REAL_HOME and no idea whose
+# session it is registering for. So the per-user half happens here, on first
+# run, exactly as `make install-portal` does it for a source build.
+#
+# The second half of the job is the restart: xdg-desktop-portal reads all of
+# this once, at start-up. This used to print instructions telling the user to
+# do it; now it is done for them.
+#
+# Classic confinement means $HOME is the real home, so an ordinary copy is all
+# it takes.
 set -eu
 
 real_home="${SNAP_REAL_HOME:-$HOME}"
 data_home="${XDG_DATA_HOME:-$real_home/.local/share}"
 config_home="${XDG_CONFIG_HOME:-$real_home/.config}"
+state_dir="${SNAP_USER_COMMON:-$real_home/snap/graceful-shell/common}"
 
 portal_src="$SNAP/share/graceful-shell/portal"
 portal_dst="$data_home/xdg-desktop-portal/portals/graceful-shell.portal"
-conf_dst="$config_home/xdg-desktop-portal/mir-portals.conf"
+xdp_conf_dir="$config_home/xdg-desktop-portal"
 
-installed_something=
+# XDG_CURRENT_DESKTOP under miracle-wm is "miracle-wm:mir", and
+# xdg-desktop-portal consults <desktop>-portals.conf for each name in that list
+# before the generic portals.conf beside it. Which of the two is reached first
+# depends on an ordering the shell does not control, so write both.
+conf_names='miracle-wm-portals.conf mir-portals.conf'
+
+# What this snap created, for the remove hook to undo. Paths only; the hook
+# filters it down to .portal files, because a *-portals.conf may have been
+# edited by the user afterwards.
+manifest="$state_dir/portal-installed"
+# The revision the portal files were last (re)registered for. A refresh can
+# change what is shipped, so the restart below is once per revision, not once
+# ever.
+stamp="$state_dir/portal-stamp"
+
+note() { echo "graceful-shell: $*" >&2; }
+
+# `[screenshare] enabled = false` in config.toml means the shell will not claim
+# the backend at all (lib/screencast/screencast_service.dart). Registering it
+# anyway would point xdg-desktop-portal at a bus name nobody owns, which breaks
+# ScreenCast outright instead of leaving it with whatever the user chose. No
+# TOML parser in a POSIX shell, so read the one table: unreadable or absent
+# means the default, which is enabled.
+screenshare_enabled() {
+  cfg="$config_home/graceful-shell/config.toml"
+  [ -r "$cfg" ] || return 0
+  sed -n '/^[[:space:]]*\[screenshare\]/,/^[[:space:]]*\[/{ /^[[:space:]]*\[/d; p; }' \
+    "$cfg" 2>/dev/null |
+    grep -qE '^[[:space:]]*enabled[[:space:]]*=[[:space:]]*false' && return 1
+  return 0
+}
+
+# A -portals.conf that already routes ScreenCast somewhere else is the user's
+# stated preference and is never edited or out-ranked — but it is also the one
+# thing that silently defeats all of the above, so say so.
+conflicting_conf() {
+  for name in $conf_names; do
+    f="$xdp_conf_dir/$name"
+    [ -r "$f" ] || continue
+    line=$(grep -E '^[[:space:]]*org\.freedesktop\.impl\.portal\.ScreenCast[[:space:]]*=' \
+      "$f" 2>/dev/null | tail -n 1) || true
+    [ -n "$line" ] || continue
+    case "$line" in
+      *graceful-shell*) continue ;;
+      *) echo "$f"; return 0 ;;
+    esac
+  done
+  return 1
+}
+
+record() {
+  mkdir -p "$state_dir"
+  grep -qxF "$1" "$manifest" 2>/dev/null || echo "$1" >>"$manifest"
+}
 
 # Never overwrite. The .conf carries the user's backend preference and the
 # .portal may have been placed by `make install-portal` from a source build —
 # same rule the Makefile follows.
-if [ ! -e "$portal_dst" ] && [ -r "$portal_src/graceful-shell.portal" ]; then
-  mkdir -p "$(dirname "$portal_dst")"
-  cp "$portal_src/graceful-shell.portal" "$portal_dst"
-  installed_something=1
-fi
+install_absent() { # <src> <dst>
+  if [ -e "$2" ] || [ ! -r "$1" ]; then
+    return 1
+  fi
+  mkdir -p "$(dirname "$2")"
+  cp "$1" "$2"
+  record "$2"
+  return 0
+}
 
-if [ ! -e "$conf_dst" ] && [ -r "$portal_src/graceful-shell-portals.conf" ]; then
-  mkdir -p "$(dirname "$conf_dst")"
-  cp "$portal_src/graceful-shell-portals.conf" "$conf_dst"
-  installed_something=1
-fi
+register_portal() {
+  screenshare_enabled || {
+    note "screen sharing disabled in config.toml; not registering the portal."
+    return 0
+  }
 
-if [ -n "$installed_something" ]; then
-  # xdg-desktop-portal only reads these at start-up, so screen sharing will not
-  # route here until it is restarted.
-  echo "graceful-shell: registered the ScreenCast portal backend." >&2
-  echo "graceful-shell: run 'systemctl --user restart xdg-desktop-portal'" >&2
-  echo "graceful-shell: to enable screen sharing." >&2
+  install_absent "$portal_src/graceful-shell.portal" "$portal_dst" || true
+
+  if conflict=$(conflicting_conf); then
+    note "$conflict already routes ScreenCast elsewhere; leaving it alone."
+    note "to use the shell's picker, set in that file:"
+    note "  org.freedesktop.impl.portal.ScreenCast=graceful-shell"
+  else
+    for name in $conf_names; do
+      install_absent "$portal_src/graceful-shell-portals.conf" \
+        "$xdp_conf_dir/$name" || true
+    done
+  fi
+
+  # xdg-desktop-portal only reads the .portal files and the preferences at
+  # start-up. try-restart, not restart: it is a no-op when the service is not
+  # running, so a session with no systemd user instance — or one where nothing
+  # has activated the portal yet — is not forced to start it. Nothing is
+  # sharing the screen at shell start-up, so this is safe here and nowhere
+  # later. Only the frontend; the backends are not ours to bounce.
+  if systemctl --user try-restart xdg-desktop-portal.service 2>/dev/null; then
+    :
+  else
+    note "could not restart xdg-desktop-portal; screen sharing may need"
+    note "  systemctl --user restart xdg-desktop-portal"
+  fi
+
+  mkdir -p "$state_dir"
+  echo "${SNAP_REVISION:-unknown}" >"$stamp"
+}
+
+if [ "$(cat "$stamp" 2>/dev/null || true)" != "${SNAP_REVISION:-unknown}" ]; then
+  register_portal
 fi
 
 exec "$SNAP/graceful_shell" "$@"
