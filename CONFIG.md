@@ -372,7 +372,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | Key                    | Default       | Description                                                                 |
 | ---------------------- | ------------- | --------------------------------------------------------------------------- |
 | `name`                 | the filename  | Display name shown in the settings picker                                   |
-| `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups                      |
+| `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups. Any fontconfig family name; the settings picker lists the ones installed (via `fc-list`), and falls back to a free-typed field where there is no fontconfig |
 | `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
 | `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series   |
 | `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
