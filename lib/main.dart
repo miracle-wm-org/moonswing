@@ -50,7 +50,6 @@ import 'package:graceful_shell/desktop/app_chooser.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
-import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -96,10 +95,6 @@ void main() async {
 
   await startNotificationService();
   await startStatusNotifierService();
-  // Restores saved calendar tokens from disk only — no network I/O, so an
-  // offline machine or an expired account cannot delay the shell coming up.
-  // The first fetch happens when the user opens the calendar tab.
-  await startCalendarService(appConfig.calendar);
   // Watches the default sink/source and the backlight so the on-screen
   // indicator can react to volume, mic, and brightness changes made anywhere.
   await startOsdService(appConfig.osd);

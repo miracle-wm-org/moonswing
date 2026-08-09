@@ -656,56 +656,21 @@ class PanelConfig {
   }
 }
 
-/// Google OAuth client credentials, from `[calendar.google]`.
-///
-/// The user supplies these from their own Google Cloud "Desktop app" client:
-/// shipping a client ID and secret in the repo would put every user of the
-/// shell on one shared quota, which Google's terms do not allow.
-class GoogleOAuthConfig {
-  final String clientId;
-  final String clientSecret;
-
-  const GoogleOAuthConfig({this.clientId = '', this.clientSecret = ''});
-
-  bool get isComplete => clientId.isNotEmpty && clientSecret.isNotEmpty;
-
-  factory GoogleOAuthConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const GoogleOAuthConfig();
-    return GoogleOAuthConfig(
-      clientId: (map['client_id'] as String? ?? '').trim(),
-      clientSecret: (map['client_secret'] as String? ?? '').trim(),
-    );
-  }
-}
-
-/// The `[calendar]` section. OAuth *tokens* deliberately live outside the
-/// config file — see `CalendarTokenStore`.
+/// The `[calendar]` section. The calendar is a local month grid with no account
+/// integration, so this is only the grid's own presentation.
 class CalendarConfig {
-  final int refreshMinutes;
-
   /// A [DateTime] weekday constant: [DateTime.sunday] or [DateTime.monday].
   final int weekStart;
 
-  final GoogleOAuthConfig? google;
-
-  const CalendarConfig({
-    this.refreshMinutes = 15,
-    this.weekStart = DateTime.sunday,
-    this.google,
-  });
+  const CalendarConfig({this.weekStart = DateTime.sunday});
 
   factory CalendarConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const CalendarConfig();
 
-    final googleMap = map['google'] as Map<String, dynamic>?;
-    final refresh = (map['refresh_minutes'] as num?)?.toInt() ?? 15;
     final weekStart = (map['week_start'] as String? ?? 'sunday').toLowerCase();
 
     return CalendarConfig(
-      // A zero or negative interval would spin the refresh timer hot.
-      refreshMinutes: refresh < 1 ? 1 : refresh,
       weekStart: weekStart == 'monday' ? DateTime.monday : DateTime.sunday,
-      google: googleMap != null ? GoogleOAuthConfig.fromMap(googleMap) : null,
     );
   }
 }

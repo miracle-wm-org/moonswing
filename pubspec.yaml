@@ -23,7 +23,6 @@ dependencies:
   ext_session_lock:
     path: packages/ext_session_lock
   http: ^1.2.0
-  crypto: ^3.0.3
   udev: ^0.0.3
   dbus: ^0.7.11
   font_awesome_flutter: ^11.0.0

@@ -2,7 +2,6 @@
 
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -10,7 +9,6 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/calendar/calendar_store.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/desktop/app_chooser.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
@@ -149,7 +147,7 @@ const List<_ShellCategory> _shellCategories = [
   ),
   _ShellCategory(
     title: 'Calendar',
-    subtitle: 'Connected accounts',
+    subtitle: 'Month grid',
     icon: FontAwesomeIcons.calendarDays,
     build: _buildCalendar,
   ),
@@ -805,9 +803,8 @@ class _NewThemeRowState extends State<_NewThemeRow> {
 // Calendar
 // ---------------------------------------------------------------------------
 
-/// The same OAuth credentials the calendar tab's connect pane asks for, kept
-/// reachable here once an account is connected and that pane is gone. Both
-/// write the same config keys, so there is one source of truth.
+/// The Calendar tab's own settings. The tab is a local month grid — there is no
+/// account integration — so this is presentation only.
 class _CalendarSection extends StatelessWidget {
   const _CalendarSection({required this.store});
 
@@ -815,8 +812,6 @@ class _CalendarSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final calendar = CalendarStore.instance;
-
     return SettingsSection(
       label: 'Calendar',
       children: [
@@ -828,66 +823,6 @@ class _CalendarSection extends StatelessWidget {
             onChanged: (v) => store.set(['calendar', 'week_start'], v),
           ),
         ),
-        SettingsRow(
-          label: 'Refresh every (minutes)',
-          control: SettingsNumberField(
-            isInt: true,
-            value: store.get<int>(['calendar', 'refresh_minutes']) ?? 15,
-            onChanged: (v) =>
-                store.set(['calendar', 'refresh_minutes'], v.toInt()),
-          ),
-        ),
-        const SettingsSubLabel('Google'),
-        const SettingsHint(
-          'Graceful Shell signs in with your own Google OAuth client. Create a '
-          '"Desktop app" client in the Google Cloud Console and enable the '
-          'Calendar API, then paste its credentials here. Sign-in tokens are '
-          'stored separately, outside config.toml.',
-        ),
-        SettingsRow(
-          label: 'Client ID',
-          control: SettingsTextField(
-            width: 220,
-            initial: store.get<String>(['calendar', 'google', 'client_id']) ?? '',
-            onChanged: (v) =>
-                store.set(['calendar', 'google', 'client_id'], v.trim()),
-          ),
-        ),
-        SettingsRow(
-          label: 'Client secret',
-          control: SettingsTextField(
-            width: 220,
-            initial:
-                store.get<String>(['calendar', 'google', 'client_secret']) ?? '',
-            onChanged: (v) =>
-                store.set(['calendar', 'google', 'client_secret'], v.trim()),
-          ),
-        ),
-        ListenableBuilder(
-          listenable: calendar,
-          builder: (context, _) {
-            final account = calendar.google?.account;
-            return SettingsRow(
-              label: 'Account',
-              control: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SettingsHint(account?.email ?? 'Not connected'),
-                  if (account != null) ...[
-                    const SizedBox(width: 8),
-                    SettingsIconButton(
-                      icon: FontAwesomeIcons.rightFromBracket,
-                      size: 12,
-                      onTap: () => calendar.disconnect('google'),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
-        ),
-        if (CalendarStore.instance.google?.isConnected != true)
-          const SettingsHint('Connect from the Calendar tab.'),
       ],
     );
   }

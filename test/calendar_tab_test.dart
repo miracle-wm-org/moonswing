@@ -16,9 +16,15 @@ Future<void> pumpTab(WidgetTester tester) async {
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: const TextStyle(fontSize: 14),
-        child: const ThemeScope(
+        child: ThemeScope(
           theme: theme,
-          child: SizedBox(width: 800, height: 500, child: CalendarTab()),
+          // The week start is injected so the tab never reaches for the
+          // ConfigStore singleton, which no widget test initialises.
+          child: const SizedBox(
+            width: 800,
+            height: 500,
+            child: CalendarTab(weekStart: DateTime.sunday),
+          ),
         ),
       ),
     ),
@@ -84,15 +90,6 @@ void main() {
 
     await tester.tap(find.text('Today'));
     await tester.pump();
-    expect(find.text(thisMonth), findsOneWidget);
-  });
-
-  testWidgets('offers the connect pane when no account is signed in',
-      (tester) async {
-    await pumpTab(tester);
-
-    expect(find.text('Connect Google Calendar'), findsOneWidget);
-    // The grid must stay usable without an account, so it renders regardless.
     expect(find.text(thisMonth), findsOneWidget);
   });
 

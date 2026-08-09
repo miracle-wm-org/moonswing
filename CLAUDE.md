@@ -173,17 +173,12 @@ The flip side, and the trap for the next tab author: **`IndexedStack` keeps ever
 
 ### Calendar (`lib/overlay/calendar/`)
 
-The Calendar tab shows a month grid (usable with no account connected), an agenda for the selected day, and a pane for connecting an account.
+The Calendar tab is a month grid the user can page through, and nothing else. Account integration (Google Calendar, over OAuth) was removed and is unsupported — the tab does no network I/O, holds no credentials, and needs no start-up service, so `main()` starts nothing for it.
 
 | File | Responsibility |
 |------|----------------|
 | `month.dart` | Pure month math — `buildMonthGrid` returns a fixed 6x7 `MonthGrid`, so the panel never changes height between months. Days are built with `DateTime(y, m, n)`, never `add(Duration(days: 1))`, which drifts across DST. |
-| `event.dart` | Provider-agnostic `CalendarEvent` plus `groupByDay` bucketing (a multi-day event lands in every day it covers). |
-| `provider.dart` | The `CalendarProvider` abstraction. Adding CalDAV/Outlook means a new implementation and a new connect pane — the grid, agenda, and store are untouched. `CalendarAuthException` means the grant is dead (drop the account); `CalendarFetchException` is transient (keep tokens and events). |
-| `google_oauth.dart` | Google's installed-app loopback flow with PKCE: binds `127.0.0.1:0`, opens consent with `xdg-open`, exchanges the code for tokens. Uses the user's own "Desktop app" client — see `CONFIG.md`. |
-| `google_provider.dart` | Google Calendar REST v3. Note `end.date` on an all-day event is **exclusive** on the wire and is converted to an inclusive end. |
-| `token_store.dart` | OAuth tokens in a 0600 file under `XDG_DATA_HOME`, deliberately *not* in `config.toml` (which the settings UI rewrites and users share). A TODO tracks moving to the Secret Service D-Bus API. |
-| `calendar_store.dart` | `CalendarStore.instance`, the singleton `ChangeNotifier` the UI watches — same pattern as `NotificationStore`/`TrayStore`. `startCalendarService()` runs from `main()` and only restores tokens from disk; the first network fetch happens when the tab is opened. |
+| `calendar_tab.dart` | The tab: header, weekday row, and the 42 day cells. `weekStart` is a constructor parameter that falls back to `[calendar] week_start` from `ConfigStore`; widget tests inject it, because the singleton throws before `initShared()`. The `ConfigStore` listener is what makes a week-start change in the settings tab re-lay the grid without closing the overlay. |
 
 ### On-screen indicator (`lib/osd/`)
 
