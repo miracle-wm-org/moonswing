@@ -5,8 +5,9 @@ version: 1.0.0+1
 
 environment:
   # dart:ffi NativeCallable (monitor_watcher, lock/pam_authenticator) needs 3.1.0;
-  # math_expressions 3.2 (the launcher's calculator) raises the floor to 3.8.
-  sdk: ^3.8.0
+  # math_expressions 3.2 (the launcher's calculator) raised the floor to 3.8;
+  # timezone 0.11 (the calendar's world clocks) raises it again to 3.10.
+  sdk: ^3.10.0
 
 dependencies:
   flutter:
@@ -33,6 +34,12 @@ dependencies:
   # line pins petitparser ^6. It is also what raises the SDK floor above.
   math_expressions: ^3.2.0
   xdg_icons: ^0.1.2
+  # The IANA time zone database, for the calendar tab's world clocks. Unlike
+  # `intl` — which month.dart deliberately refuses — this is data, not
+  # formatting machinery, and DST transition tables cannot be hand-rolled.
+  # `package:timezone/data/latest.dart` embeds the db as a Dart byte literal,
+  # so there is no asset bundle and no binding to initialise.
+  timezone: ^0.11.1
   media_kit: ^1.1.11
   media_kit_video: ^1.2.5
   media_kit_libs_linux: ^1.0.4

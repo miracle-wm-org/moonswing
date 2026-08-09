@@ -656,13 +656,73 @@ class PanelConfig {
   }
 }
 
+/// One `[[calendar.world_clocks]]` entry: a row in the clock column on the
+/// right of the calendar tab.
+class WorldClock {
+  /// An IANA zone name, e.g. `Europe/London`.
+  ///
+  /// Deliberately not validated here. This file is parsed at start-up and must
+  /// not depend on the timezone database, and a name this build's database
+  /// variant does not carry is still the user's data: the tab renders it as an
+  /// unknown-zone row it can delete rather than dropping it on the next write.
+  final String zone;
+
+  /// Display override. Null falls back to the zone's city segment.
+  final String? label;
+
+  const WorldClock({required this.zone, this.label});
+
+  /// Parses one table, or null when it names no zone.
+  ///
+  /// Type-tested rather than cast throughout: a throw here would be caught by
+  /// [AppConfig.fromMap] and discard the user's *whole* config.
+  static WorldClock? fromMap(Map<String, dynamic> map) {
+    final zone = map['zone'];
+    if (zone is! String || zone.trim().isEmpty) return null;
+
+    final rawLabel = map['label'];
+    return WorldClock(
+      zone: zone.trim(),
+      label:
+          rawLabel is String && rawLabel.trim().isNotEmpty ? rawLabel.trim() : null,
+    );
+  }
+
+  /// The TOML table for this clock. `label` is omitted when the user has not
+  /// renamed it, so a list that was never edited stays minimal.
+  Map<String, dynamic> toMap() => <String, dynamic>{
+        'zone': zone,
+        if (label != null) 'label': label,
+      };
+
+  /// Parses a raw `world_clocks` value into clocks, dropping the invalid ones.
+  ///
+  /// Shared by [CalendarConfig.fromMap] and the calendar tab's own `ConfigStore`
+  /// read, so the two can never disagree about what a valid row is.
+  static List<WorldClock> parseList(Object? raw) => raw is List
+      ? raw
+          .whereType<Map<String, dynamic>>()
+          .map(WorldClock.fromMap)
+          .whereType<WorldClock>()
+          .toList()
+      : const <WorldClock>[];
+}
+
 /// The `[calendar]` section. The calendar is a local month grid with no account
-/// integration, so this is only the grid's own presentation.
+/// integration, so this is only the grid's own presentation plus the clocks
+/// shown beside it.
 class CalendarConfig {
   /// A [DateTime] weekday constant: [DateTime.sunday] or [DateTime.monday].
   final int weekStart;
 
-  const CalendarConfig({this.weekStart = DateTime.sunday});
+  /// The `[[calendar.world_clocks]]` list, in document order — which is also
+  /// the order they are drawn in.
+  final List<WorldClock> worldClocks;
+
+  const CalendarConfig({
+    this.weekStart = DateTime.sunday,
+    this.worldClocks = const <WorldClock>[],
+  });
 
   factory CalendarConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const CalendarConfig();
@@ -671,6 +731,7 @@ class CalendarConfig {
 
     return CalendarConfig(
       weekStart: weekStart == 'monday' ? DateTime.monday : DateTime.sunday,
+      worldClocks: WorldClock.parseList(map['world_clocks']),
     );
   }
 }

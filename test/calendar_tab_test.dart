@@ -9,7 +9,10 @@ import 'package:graceful_shell/scopes.dart';
 
 /// Pumps the tab the way the overlay does: inside a ThemeScope, with the
 /// Directionality and text style the overlay's panel supplies.
-Future<void> pumpTab(WidgetTester tester) async {
+Future<void> pumpTab(
+  WidgetTester tester, {
+  Size size = const Size(800, 456),
+}) async {
   const theme = ThemeConfig();
   await tester.pumpWidget(
     Directionality(
@@ -18,12 +21,20 @@ Future<void> pumpTab(WidgetTester tester) async {
         style: const TextStyle(fontSize: 14),
         child: ThemeScope(
           theme: theme,
-          // The week start is injected so the tab never reaches for the
-          // ConfigStore singleton, which no widget test initialises.
-          child: const SizedBox(
-            width: 800,
-            height: 500,
-            child: CalendarTab(weekStart: DateTime.sunday),
+          // Both config seams are injected so the tab never reaches for the
+          // ConfigStore singleton, which no widget test initialises — passing
+          // only one of them would still hit it.
+          child: SizedBox(
+            width: size.width,
+            height: size.height,
+            // active: false is what keeps the clock column's one-second timer
+            // out of the test zone; a pending timer fails the binding's
+            // end-of-test invariants.
+            child: const CalendarTab(
+              active: false,
+              weekStart: DateTime.sunday,
+              worldClocks: [],
+            ),
           ),
         ),
       ),
@@ -94,9 +105,17 @@ void main() {
   });
 
   testWidgets('lays out without overflowing the overlay panel', (tester) async {
-    // The tab is sized by the overlay's fixed 800x560 panel minus its header,
-    // so a grid that does not fit would silently clip in the real shell.
+    // overlayPanelSize clamps the panel to 800x500 at its smallest, and the tab
+    // gets that minus the ~44px tab header — so this is the tightest the grid
+    // and the clock column ever have to share.
     await pumpTab(tester);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('lays out on a pathologically short surface', (tester) async {
+    // The last clamp in overlayPanelSize is against the output's own height, so
+    // a very short display produces a panel shorter than the 500 minimum.
+    await pumpTab(tester, size: const Size(800, 260));
     expect(tester.takeException(), isNull);
   });
 }

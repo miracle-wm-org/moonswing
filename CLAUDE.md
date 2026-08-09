@@ -163,7 +163,7 @@ Clicking the clock opens a full-screen layer-shell overlay (`lib/overlay/overlay
 
 The body is an `IndexedStack`, not a `switch`: the settings tab hosts `ShellSettingsPage`, which owns a nested `Navigator`, and rebuilding the body on every tab change would tear it down and drop the user back to the category landing page.
 
-The flip side, and the trap for the next tab author: **`IndexedStack` keeps every tab alive once built.** A tab that owns a `Timer` keeps running it while the user is on some other tab. A tab that polls must therefore be told when it is the visible one — see `SystemTab.active`, which drives the lease it holds on `SystemStatsStore`.
+The flip side, and the trap for the next tab author: **`IndexedStack` keeps every tab alive once built.** A tab that owns a `Timer` keeps running it while the user is on some other tab. A tab that polls must therefore be told when it is the visible one — see `SystemTab.active`, which drives the lease it holds on `SystemStatsStore`, and `CalendarTab.active`, which drives the world clocks' one-second tick. Both are **required** parameters, so a call site cannot forget.
 
 - **`lib/overlay/settings/`** — the settings tab: a sidebar (Network / Bluetooth / Display / Audio / Shell) over one page per category. `controls.dart` holds the themed form controls (`SettingsSection`, `SettingsRow`, `SettingsTextField`, `SettingsIconButton`, …) shared with the calendar and system tabs.
 - **`lib/overlay/calendar/`** — the calendar tab, described below.
@@ -173,12 +173,24 @@ The flip side, and the trap for the next tab author: **`IndexedStack` keeps ever
 
 ### Calendar (`lib/overlay/calendar/`)
 
-The Calendar tab is a month grid the user can page through, and nothing else. Account integration (Google Calendar, over OAuth) was removed and is unsupported — the tab does no network I/O, holds no credentials, and needs no start-up service, so `main()` starts nothing for it.
+The Calendar tab is a month grid the user can page through, beside a column holding the local time and the world clocks they have added. Account integration (Google Calendar, over OAuth) was removed and is unsupported — the tab does no network I/O, holds no credentials, and needs no start-up service, so `main()` starts nothing for it.
 
 | File | Responsibility |
 |------|----------------|
-| `month.dart` | Pure month math — `buildMonthGrid` returns a fixed 6x7 `MonthGrid`, so the panel never changes height between months. Days are built with `DateTime(y, m, n)`, never `add(Duration(days: 1))`, which drifts across DST. |
-| `calendar_tab.dart` | The tab: header, weekday row, and the 42 day cells. `weekStart` is a constructor parameter that falls back to `[calendar] week_start` from `ConfigStore`; widget tests inject it, because the singleton throws before `initShared()`. The `ConfigStore` listener is what makes a week-start change in the settings tab re-lay the grid without closing the overlay. |
+| `month.dart` | Pure month math — `buildMonthGrid` returns a fixed 6x7 `MonthGrid`, so the panel never changes height between months. Days are built with `DateTime(y, m, n)`, never `add(Duration(days: 1))`, which drifts across DST. `dayDelta` is the same discipline for the `+1d`/`-1d` badge: both sides go through `DateTime.utc` midnights, because differencing two local dates measures elapsed *time* and `inDays` truncates a 23-hour DST day to 0. |
+| `calendar_tab.dart` | The tab: the month pane, the divider, and the clock column. `weekStart` and `worldClocks` are constructor parameters that fall back to `[calendar] week_start` / `[calendar] world_clocks` from `ConfigStore`; widget tests inject **both**, because the singleton throws before `initShared()` and passing only one still reaches it. The `ConfigStore` listener is what makes a week-start change in the settings tab re-lay the grid, and an added clock appear, without closing the overlay. |
+| `time_zones.dart` | The zone layer: lazy `ensureTimeZonesInitialized`, `worldTimeZoneNames`, `resolveZone`, the pure `rankTimeZones` and formatters, and the `ClockSource` seam (`SystemClockSource` / `FixedClockSource`). |
+| `analog_clock.dart` | The dial. A `StatelessWidget` reads `ThemeScope` and passes plain colours into a `const` painter — the `time_series_chart.dart` convention. |
+| `clock_column.dart` | The column: dial, digital readout, date, and the world-clock rows. Owns the tick. |
+| `timezone_picker.dart` | The `+` and its searchable list, cloned from `SettingsFontField`'s root-overlay dropdown. |
+
+Five things a change here has to keep true:
+
+- **`time_zones.dart` is the only file that imports `package:timezone`.** That is what keeps `rankTimeZones` and the formatters plain unit tests with no database behind them, and `config.dart` — parsed at start-up, long before the overlay exists — free of the dependency. The database is *data*, not the formatting machinery `month.dart` refuses: DST transition tables change by political decision every few months and cannot be hand-rolled.
+- **`initializeTimeZones()` is called lazily, never from `main()`.** `package:timezone/data/latest.dart` embeds the database as a Dart byte literal, so there is no asset bundle and no binding forcing it earlier; the calendar keeps its "starts no service" property and the cost lands on the first overlay open. `standalone.dart` and `browser.dart` are the variants that read from disk or HTTP and are unusable here.
+- **`resolveZone` returns null for an unknown name rather than throwing, and `config.dart` never validates one.** `getLocation` throws, and a hand-edited or deprecated zone in the config would then take down a build. The row renders as "Unknown time zone" with its remove button intact — dropping it at parse time would delete the user's data on the next write.
+- **The list is written straight back through `ConfigStore`; there is no store.** `DesktopStore` exists because the grid renders in N FlutterViews, because drag state is high-frequency and must not reach disk, and because it needs a signature guard against per-keystroke notifies. None applies here: one consumer in one window, and add/remove *are* the persisted events. `set` replaces the whole list — there is no append API, and mutating what `get` returned would neither notify nor save.
+- **The world-clock list is a `ListView` with a fixed `itemExtent`, never a `Column`.** A `Column` overflows the moment the user adds one clock more than the column is tall, and no widget test would catch it because the test picks the count. The dial shrinks under a `LayoutBuilder` for the same reason: `overlayPanelSize`'s last clamp is against the output's own height, so a short display yields a panel under the 800x500 minimum.
 
 ### On-screen indicator (`lib/osd/`)
 

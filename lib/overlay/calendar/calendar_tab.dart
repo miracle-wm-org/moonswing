@@ -3,21 +3,53 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/config_store.dart';
+import 'package:graceful_shell/overlay/calendar/clock_column.dart';
 import 'package:graceful_shell/overlay/calendar/month.dart';
+import 'package:graceful_shell/overlay/calendar/time_zones.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 
-/// The Calendar tab of the overlay: a month grid the user can page through.
+/// The Calendar tab of the overlay: a month grid the user can page through,
+/// beside the local time and the world clocks they have added.
 ///
 /// There is no account integration — the grid is local date arithmetic only, so
-/// the tab needs no network, no credentials and no start-up service.
+/// the tab needs no network, no credentials and no start-up service. The world
+/// clocks are read from and written straight back to [ConfigStore]: unlike the
+/// desktop grid there is one consumer in one window, adding and removing *are*
+/// the persisted events, and a store would need start-up wiring this tab has
+/// deliberately never had.
 class CalendarTab extends StatefulWidget {
-  const CalendarTab({super.key, this.weekStart});
+  const CalendarTab({
+    super.key,
+    required this.active,
+    this.weekStart,
+    this.worldClocks,
+    this.onWorldClocksChanged,
+    this.clock = const SystemClockSource(),
+  });
+
+  /// Whether this is the tab the user is looking at.
+  ///
+  /// Required, not defaulted: the overlay body is an `IndexedStack` that keeps
+  /// every tab alive once built, so a call site that forgot to say would leave
+  /// the clock ticking behind whatever tab the user moved to.
+  final bool active;
 
   /// A [DateTime] weekday constant, or null to read `[calendar] week_start`
   /// from [ConfigStore]. Injected by tests so they never touch the real config.
   final int? weekStart;
+
+  /// The world clocks to show, or null to read `[calendar] world_clocks` from
+  /// [ConfigStore]. The other half of the same injection seam.
+  final List<WorldClock>? worldClocks;
+
+  /// Where an add or a remove goes, or null to write it to [ConfigStore].
+  final ValueChanged<List<WorldClock>>? onWorldClocksChanged;
+
+  /// Where the clock column gets the time and its zone conversions.
+  final ClockSource clock;
 
   @override
   _CalendarTabState createState() => _CalendarTabState();
@@ -53,24 +85,88 @@ class _CalendarTabState extends State<CalendarTab> {
     });
   }
 
-  Widget _buildPane(BuildContext context) => _MonthPane(
-        visibleMonth: _visibleMonth,
-        selectedDay: _selectedDay,
-        weekStart: _weekStart,
-        onMonthChanged: _goToMonth,
-        onDaySelected: (day) => setState(() => _selectedDay = day),
-        onToday: _goToToday,
+  List<WorldClock> get _worldClocks =>
+      widget.worldClocks ??
+      WorldClock.parseList(
+        ConfigStore.instance.get<List>(['calendar', 'world_clocks']),
       );
+
+  /// Writes a whole new list.
+  ///
+  /// [ConfigStore] has no append API, and mutating the list `get` returned
+  /// would neither notify nor schedule a save. The notification is synchronous,
+  /// so the [ListenableBuilder] below puts the new row on screen this frame and
+  /// the atomic write follows on the store's own debounce.
+  void _writeWorldClocks(List<WorldClock> next) {
+    final sink = widget.onWorldClocksChanged;
+    if (sink != null) {
+      sink(next);
+      return;
+    }
+    ConfigStore.instance.set(
+      ['calendar', 'world_clocks'],
+      [for (final clock in next) clock.toMap()],
+    );
+  }
+
+  void _addWorldClock(String zone) {
+    final current = _worldClocks;
+    // Adding one that is already listed is a no-op, not a duplicate row.
+    if (current.any((clock) => clock.zone == zone)) return;
+    _writeWorldClocks([...current, WorldClock(zone: zone)]);
+  }
+
+  void _removeWorldClock(String zone) {
+    final current = _worldClocks;
+    if (!current.any((clock) => clock.zone == zone)) return;
+    _writeWorldClocks(
+      current.where((clock) => clock.zone != zone).toList(),
+    );
+  }
+
+  Widget _buildPane(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: _MonthPane(
+            visibleMonth: _visibleMonth,
+            selectedDay: _selectedDay,
+            weekStart: _weekStart,
+            onMonthChanged: _goToMonth,
+            onDaySelected: (day) => setState(() => _selectedDay = day),
+            onToday: _goToToday,
+          ),
+        ),
+        Container(width: 1, color: theme.divider),
+        SizedBox(
+          width: kClockColumnWidth,
+          child: CalendarClockColumn(
+            active: widget.active,
+            clock: widget.clock,
+            clocks: _worldClocks,
+            onAdd: _addWorldClock,
+            onRemove: _removeWorldClock,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    // Only subscribe when the week start comes from the config: an injected one
+    // Only subscribe when something here comes from the config: injected values
     // cannot change, and touching the singleton would throw in a widget test
-    // that never called initShared().
-    if (widget.weekStart != null) return _buildPane(context);
+    // that never called initShared(). Both seams have to be injected for that
+    // to hold — a test that passes only one still reaches the store.
+    if (widget.weekStart != null && widget.worldClocks != null) {
+      return _buildPane(context);
+    }
 
     // Changing "Week starts on" in the settings tab must re-lay the grid while
-    // the overlay stays open, so this listens rather than snapshotting.
+    // the overlay stays open, and an added clock must appear on the same frame,
+    // so this listens rather than snapshotting.
     return ListenableBuilder(
       listenable: ConfigStore.instance,
       builder: (context, _) => _buildPane(context),

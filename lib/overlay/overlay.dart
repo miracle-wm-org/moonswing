@@ -333,13 +333,14 @@ class _SettingsOverlayState extends State<SettingsOverlay>
           //
           // The flip side is that every tab stays alive once built, so a tab
           // that polls must be told when it is not the visible one and stop.
-          // That is what SystemTab.active is for.
+          // That is what SystemTab.active and CalendarTab.active are for — the
+          // latter drives the world clocks' one-second timer.
           Expanded(
             child: IndexedStack(
               index: _tabs.indexWhere((t) => t.id == _selectedTab),
               sizing: StackFit.expand,
               children: [
-                const CalendarTab(),
+                CalendarTab(active: _selectedTab == 'calendar'),
                 SystemTab(active: _selectedTab == 'system'),
                 const SystemInfoTab(),
                 _buildSettingsBody(theme),

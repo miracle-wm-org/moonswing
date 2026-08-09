@@ -38,6 +38,17 @@ const List<String> monthAbbrev = [
 /// 0 is Sunday, matching [buildMonthGrid]'s default week start.
 const List<String> weekdayInitials = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
+/// Full weekday names, indexed the same way as [weekdayInitials].
+const List<String> weekdayNames = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
 /// Number of days in [month] (1..12) of [year].
 ///
 /// Day 0 of the following month is the last day of this one, so leap years fall
@@ -55,6 +66,18 @@ DateTime dayKey(DateTime d) => DateTime(d.year, d.month, d.day);
 
 bool isSameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
+
+/// Whole calendar days between two wall clocks: +1 when [there] is already
+/// tomorrow relative to [here], -1 when it is still yesterday.
+///
+/// Both sides are re-expressed as UTC midnights before subtracting. Differencing
+/// the two dates as-is would measure elapsed *time*, and `inDays` truncates —
+/// so a 23-hour or 25-hour DST day reports 0 and the badge silently disappears
+/// on the two days of the year it is most likely to be wrong about.
+int dayDelta(DateTime there, DateTime here) =>
+    DateTime.utc(there.year, there.month, there.day)
+        .difference(DateTime.utc(here.year, here.month, here.day))
+        .inDays;
 
 /// A fixed 6x7 block of days covering one month plus the leading and trailing
 /// days needed to fill whole weeks.
