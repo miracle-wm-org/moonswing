@@ -5,6 +5,7 @@ import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:ffi/ffi.dart';
+import 'package:graceful_shell/pulse_log.dart';
 import 'package:pulseaudio/src/generated_bindings.dart';
 
 // ---------------------------------------------------------------------------
@@ -254,11 +255,9 @@ class _DisposeReq {
 class _ReadyRes {
   const _ReadyRes(this.loopAddress);
 
-  /// Address of the isolate's `pa_mainloop`. `pa_mainloop_wakeup` is one of the
-  /// few libpulse calls that is safe from another thread, so the main isolate
-  /// uses this to break the poll the instant it posts a request — without it a
-  /// volume change would sit in the isolate's message queue for up to the poll
-  /// slice.
+  /// Address of the isolate's `pa_mainloop`, so the main isolate can break the
+  /// poll when it posts a request. See [PulseClient._post] for what that is
+  /// and is not worth.
   final int loopAddress;
 }
 
@@ -354,7 +353,6 @@ class _PaIsolate {
   final Pointer<pa_mainloop> loop;
   final Pointer<pa_mainloop_api> api;
   final Pointer<pa_context> ctx;
-  final Pointer<Int> _ret = calloc<Int>();
 
   // Pending PA operations → completion callbacks
   final ops = <Pointer<pa_operation>, void Function()>{};
@@ -404,44 +402,135 @@ class _PaIsolate {
   // Main loop driver
   // ---------------------------------------------------------------------------
 
-  /// How long a single [_loop] turn may stay inside libpulse before handing the
-  /// isolate back to the Dart event loop so queued request messages can run.
-  static const int _sliceUs = 50 * 1000;
+  /// How long one [_loop] turn may block inside `ppoll` waiting for something
+  /// to happen. Only ever spent when the mainloop is completely idle.
+  static const int _idleSliceUs = 50 * 1000;
 
-  static Future<void> _loop() async {
-    final inst = _inst;
-    if (inst == null) return;
-    if (inst.ops.isEmpty) {
-      // `pa_mainloop_poll` maps a ppoll interrupted by a signal (EINTR) onto
-      // "poll returned, nothing was ready" — it does not retry. The Dart VM's
-      // thread interrupter signals every mutator thread at 1 kHz whenever the
-      // profiler is on, which is the default under `flutter run` and
-      // `--profile`, so a 50 ms poll was actually returning after ~1 ms with
-      // nothing to do. Re-arming through `Timer.run` on each of those turned an
-      // idle 20 Hz loop into an ~820 Hz spin — measured at 7 of the shell's 9%
-      // idle CPU, with `pollPositive` and `dispatched` both flat at zero.
-      // So: retry in place, and only go back through the event loop when the
-      // mainloop actually dispatched something or the slice is spent.
-      final slice = Stopwatch()..start();
-      var remainingUs = _sliceUs;
-      while (remainingUs > 0) {
-        if (_pa.pa_mainloop_prepare(inst.loop, remainingUs) < 0) break;
-        if (_pa.pa_mainloop_poll(inst.loop) < 0) break;
-        if (_pa.pa_mainloop_dispatch(inst.loop) != 0) break;
-        remainingUs = _sliceUs - slice.elapsedMicroseconds;
+  /// How long one [_loop] turn may keep *working* before handing the isolate
+  /// back to the Dart event loop, so a burst of events (a level meter, a volume
+  /// key held down) cannot starve [_handleMsg].
+  static const int _activityBudgetUs = 10 * 1000;
+
+  /// How long a cycle that follows real work may block. Long enough for a
+  /// request/reply round trip to the server to land in the same turn, short
+  /// enough that the tail after a burst is not felt.
+  static const int _drainWaitUs = 2 * 1000;
+
+  /// Set once the mainloop reports quit or a hard error. Past that point the
+  /// driver must never call `pa_mainloop_prepare` again: it asserts on its own
+  /// state and `abort()`s the process instead of returning an error.
+  static bool _dead = false;
+
+  // Outcome of one prepare/poll/dispatch cycle.
+  static const int _cycleIdle = 0; // nothing was ready
+  static const int _cycleWorked = 1; // libpulse dispatched something
+  static const int _cycleWoken = 2; // poll returned, nothing to dispatch
+  static const int _cycleDead = 3; // quit requested, or an error
+
+  /// One full turn of the libpulse state machine.
+  ///
+  /// `pa_mainloop_prepare` asserts `state == STATE_PASSIVE` and `abort()`s
+  /// otherwise, and only `pa_mainloop_dispatch` puts the loop back into that
+  /// state — so once `prepare` has succeeded, `dispatch` is not optional, even
+  /// when `poll` failed. The one value that may skip it is `-2`, "quit
+  /// requested", which parks the loop in STATE_QUIT for good.
+  static int _cycle(_PaIsolate inst, int timeoutUs) {
+    if (_pa.pa_mainloop_prepare(inst.loop, timeoutUs) < 0) return _cycleDead;
+    // -2 is the one poll result that parks the loop in STATE_QUIT; every other
+    // negative leaves it in STATE_POLLED, where dispatch is still required.
+    final polled = _pa.pa_mainloop_poll(inst.loop);
+    if (polled == -2) return _cycleDead;
+    final dispatched = _pa.pa_mainloop_dispatch(inst.loop);
+    if (dispatched < 0 || polled < 0) return _cycleDead;
+    if (dispatched > 0) return _cycleWorked;
+    // `polled > 0` with nothing dispatched is the wakeup pipe. It sits in the
+    // pollfd set but has no `pa_io_event`, so it can never be counted as a
+    // dispatched source — which means this is the *only* place a wakeup is
+    // visible. `_post` wrote it, so a request is already sitting in this
+    // isolate's message queue and the event loop is where to be next.
+    if (polled > 0) return _cycleWoken;
+    // Nothing at all: a bare timeout, or a `ppoll` the Dart VM's thread
+    // interrupter cut short. libpulse maps EINTR onto "returned, nothing was
+    // ready" and does not retry, so retrying is this driver's job.
+    return _cycleIdle;
+  }
+
+  /// Answers every operation that has stopped running.
+  ///
+  /// A `PA_OPERATION_CANCELLED` operation is answered too, not dropped: the
+  /// registered callback is what completes the `firstWhere` the main isolate is
+  /// awaiting, and silently forgetting it leaves that future pending for the
+  /// life of the process — and, when this reaping lived inside its own `while
+  /// (ops.isNotEmpty)` branch, wedged the isolate's event loop with it.
+  static void _reapOps(_PaIsolate inst) {
+    if (inst.ops.isEmpty) return;
+    for (final op in inst.ops.keys.toList()) {
+      final state = _pa.pa_operation_get_state(op);
+      if (state == pa_operation_state.PA_OPERATION_RUNNING) continue;
+      if (state == pa_operation_state.PA_OPERATION_CANCELLED) {
+        pulseLog('operation cancelled; answering with what accumulated');
       }
-    } else {
-      while (inst.ops.isNotEmpty) {
-        _pa.pa_mainloop_iterate(inst.loop, 1, inst._ret);
-        for (final op in inst.ops.keys.toList()) {
-          if (_pa.pa_operation_get_state(op) ==
-              pa_operation_state.PA_OPERATION_DONE) {
-            inst.ops.remove(op)!();
-            _pa.pa_operation_unref(op);
-          }
-        }
-      }
+      inst.ops.remove(op)!();
+      _pa.pa_operation_unref(op);
     }
+  }
+
+  /// Drives libpulse for a bounded slice, then re-arms through the Dart event
+  /// loop so [_handleMsg] gets a turn.
+  ///
+  /// The rule is expressed on the pair (poll result, dispatched count):
+  ///
+  /// * dispatched > 0 — real work. **Keep cycling.** Delivering one external
+  ///   volume change takes several cycles back to back (read the subscription
+  ///   event, flush the `get_sink_info_by_index` its callback issued, read that
+  ///   reply); returning to the Dart event loop in between is what used to
+  ///   strand it, and is why a change made *through* this client — which had a
+  ///   `pa_operation` in flight and so ran a different, continuous driver —
+  ///   was the only kind that ever reached the OSD.
+  /// * poll > 0, dispatched == 0 — the wakeup pipe. **Yield now**, a request is
+  ///   queued.
+  /// * both zero — idle, or EINTR. **Retry in place** for the rest of the
+  ///   slice. This is the anti-spin case: re-arming through `Timer.run` on
+  ///   every signal-interrupted poll turned an idle 20 Hz loop into an ~820 Hz
+  ///   spin, 7 of the shell's 9% idle CPU.
+  static void _loop() {
+    final inst = _inst;
+    if (inst == null || _dead) return;
+
+    final turn = Stopwatch()..start();
+    var worked = false;
+    var done = false;
+
+    while (!done) {
+      final elapsed = turn.elapsedMicroseconds;
+      final int timeoutUs;
+      if (worked) {
+        final remaining = _activityBudgetUs - elapsed;
+        if (remaining <= 0) break;
+        timeoutUs = remaining < _drainWaitUs ? remaining : _drainWaitUs;
+      } else {
+        final remaining = _idleSliceUs - elapsed;
+        if (remaining <= 0) break;
+        timeoutUs = remaining;
+      }
+
+      switch (_cycle(inst, timeoutUs)) {
+        case _cycleDead:
+          _dead = true;
+          pulseLog('mainloop quit or failed; driver stopped');
+          return;
+        case _cycleWorked:
+          worked = true;
+        case _cycleWoken:
+          done = true;
+        case _cycleIdle:
+          // Nothing more to drain, so the burst is over.
+          if (worked) done = true;
+      }
+      _reapOps(inst);
+    }
+
+    _reapOps(inst);
     Timer.run(_loop);
   }
 
@@ -527,6 +616,8 @@ class _PaIsolate {
       Pointer<pa_context> c, int type, int idx, Pointer<Void> ud) {
     final facility = type & PA_SUBSCRIPTION_EVENT_FACILITY_MASK;
     final eventType = type & PA_SUBSCRIPTION_EVENT_TYPE_MASK;
+    pulseLog('subscribe: facility=0x${facility.toRadixString(16)} '
+        'event=0x${eventType.toRadixString(16)} index=$idx');
 
     Pointer<pa_operation> op = nullptr;
 
@@ -562,7 +653,14 @@ class _PaIsolate {
     final op = _pa.pa_context_get_server_info(
         _inst!.ctx, Pointer.fromFunction(_onServerInfo), pId.cast());
     _inst!.ops[op] = () {
-      _inst!.port.send(_inst!.accum.remove(id)!);
+      // Unlike every other list query this one does not pre-seed `accum`, so a
+      // cancelled operation reaches here with nothing to send. Answer anyway —
+      // the main isolate is awaiting this id and would otherwise wait forever.
+      _inst!.port.send(_inst!.accum.remove(id) ??
+          _ServerInfoRes(
+            id,
+            const PaServerInfo(defaultSinkName: '', defaultSourceName: ''),
+          ));
       calloc.free(pId);
     };
   }
@@ -606,7 +704,9 @@ class _PaIsolate {
   static void _onSinkInfoChanged(Pointer<pa_context> c,
       Pointer<pa_sink_info> info, int eol, Pointer<Void> ud) {
     if (eol > 0 || info.address == 0) return;
-    _inst!.port.send(_SinkChangedRes(_sinkFromNative(info.ref)));
+    final sink = _sinkFromNative(info.ref);
+    pulseLog('sink changed: ${sink.name} vol=${sink.volume} mute=${sink.mute}');
+    _inst!.port.send(_SinkChangedRes(sink));
   }
 
   static PaSink _sinkFromNative(pa_sink_info s) {
@@ -655,7 +755,10 @@ class _PaIsolate {
   static void _onSourceInfoChanged(Pointer<pa_context> c,
       Pointer<pa_source_info> info, int eol, Pointer<Void> ud) {
     if (eol > 0 || info.address == 0) return;
-    _inst!.port.send(_SourceChangedRes(_sourceFromNative(info.ref)));
+    final source = _sourceFromNative(info.ref);
+    pulseLog(
+        'source changed: ${source.name} vol=${source.volume} mute=${source.mute}');
+    _inst!.port.send(_SourceChangedRes(source));
   }
 
   static PaSource _sourceFromNative(pa_source_info s) {
@@ -1075,7 +1178,6 @@ class _PaIsolate {
     _pa.pa_context_disconnect(inst.ctx);
     _pa.pa_context_unref(inst.ctx);
     _pa.pa_mainloop_free(inst.loop);
-    calloc.free(inst._ret);
     Isolate.current.kill(priority: Isolate.immediate);
   }
 }
@@ -1130,6 +1232,14 @@ class PulseClient {
   /// message posted to it is not seen until that poll returns. Waking the
   /// mainloop right after the send is what keeps the poll slice long (cheap at
   /// idle) without making requests wait for it.
+  ///
+  /// Two things bound how much this buys. `pa_mainloop_wakeup` writes a byte to
+  /// a pipe that has no `pa_io_event`, so the wake is invisible to
+  /// `pa_mainloop_dispatch` and only the driver's own (poll > 0, dispatched ==
+  /// 0) rule notices it — see `_PaIsolate._cycle`. And `pa_mainloop_prepare`
+  /// drains that pipe unconditionally before every poll, so a byte written
+  /// while the isolate is between turns is swallowed; that request simply waits
+  /// for the message queue, which the driver reaches at the end of each turn.
   Pointer<pa_mainloop>? _loop;
   late final PulseAudioBindings? _wakeBindings = () {
     try {

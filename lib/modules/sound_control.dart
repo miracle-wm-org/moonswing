@@ -44,6 +44,20 @@ class SoundControlState extends State<SoundControl>
       await client.initialize();
       _client = client;
 
+      // Subscribe before the first query, never after. This subscription is the
+      // only thing that keeps the reading live, and a query that throws or
+      // never answers would otherwise cost it for the rest of the session.
+      // `_defaultSinkName` is empty until the queries land, which just drops
+      // the events until then.
+      _sinkChangedSub = client.onSinkChanged.listen((sink) {
+        if (sink.name == _defaultSinkName && mounted) {
+          setState(() {
+            _volume = sink.volume;
+            _muted = sink.mute;
+          });
+        }
+      });
+
       final serverInfo = await client.getServerInfo();
       _defaultSinkName = serverInfo.defaultSinkName;
 
@@ -59,17 +73,8 @@ class SoundControlState extends State<SoundControl>
           break;
         }
       }
-
-      _sinkChangedSub = client.onSinkChanged.listen((sink) {
-        if (sink.name == _defaultSinkName && mounted) {
-          setState(() {
-            _volume = sink.volume;
-            _muted = sink.mute;
-          });
-        }
-      });
-    } catch (_) {
-      // PulseAudio unavailable
+    } catch (e) {
+      debugPrint('Sound module unavailable: $e');
     }
   }
 
