@@ -1,6 +1,19 @@
 # Graceful
 
-The shell of your dreams, built with Flutter.
+A largely AI-coded, very unserious, just for funzies desktop
+environment for Linux, built entirely in Flutter.
+
+The purpose of this project is to:
+
+1. Stress test Flutter
+2. Explore the bounds of building new desktops for Wayland
+3. Experiment with new Wayland protocols, portals, and everything else
+4. Have fun and build something fun
+
+**Use this project at your own risk!** This project will never have real
+releases and may be entirely unstable. The nightly snap will be the only
+supported packaging from my end. The config format is subject to change
+at any time.
 
 ![Graceful Shell demo](demo.png)
 
