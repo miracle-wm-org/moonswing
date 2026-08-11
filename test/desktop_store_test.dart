@@ -130,10 +130,58 @@ row = 0
       expect(store.isDragging, isFalse);
     });
 
-    test('renaming an item also selects it', () async {
+    test('renaming an item also selects it, and only it', () async {
       final (store, _) = await open();
+      store.selectAll(['/tmp/a.txt', '/tmp/b.txt']);
       store.beginRename('/tmp/b.txt');
-      expect(store.selectedTarget, '/tmp/b.txt');
+      expect(store.selectedTargets, {'/tmp/b.txt'});
+    });
+
+    // The rubber band calls selectAll on every pan update, and this store is
+    // watched by every monitor's desktop surface.
+    test('selectAll notifies once and never writes', () async {
+      final (store, config) = await open();
+      var notifications = 0;
+      store.addListener(() => notifications++);
+      final before = await itemsOnDisk();
+
+      store.selectAll(['/tmp/a.txt', '/tmp/b.txt']);
+
+      expect(notifications, 1);
+      expect(store.selectedTargets, {'/tmp/a.txt', '/tmp/b.txt'});
+      await config.flush();
+      expect(await itemsOnDisk(), before);
+    });
+
+    test('selectAll with an unchanged set does not notify', () async {
+      final (store, _) = await open();
+      store.selectAll(['/tmp/a.txt', '/tmp/b.txt']);
+      var notifications = 0;
+      store.addListener(() => notifications++);
+      // Same set, different order.
+      store.selectAll(['/tmp/b.txt', '/tmp/a.txt']);
+      expect(notifications, 0);
+    });
+
+    test('select replaces a multi-selection with one target', () async {
+      final (store, _) = await open();
+      store.selectAll(['/tmp/a.txt', '/tmp/b.txt']);
+      store.select('/tmp/a.txt');
+      expect(store.selectedTargets, {'/tmp/a.txt'});
+      expect(store.isSelected('/tmp/b.txt'), isFalse);
+      store.select(null);
+      expect(store.selectedTargets, isEmpty);
+    });
+
+    // The selection is handed out read-only so a caller cannot widen it behind
+    // the store's back and skip the notification.
+    test('selectedTargets cannot be mutated by a caller', () async {
+      final (store, _) = await open();
+      store.select('/tmp/a.txt');
+      expect(
+        () => store.selectedTargets.add('/tmp/b.txt'),
+        throwsUnsupportedError,
+      );
     });
   });
 
@@ -215,7 +263,7 @@ row = 0
       store.beginRename('/tmp/a.txt');
       store.removeItem('/tmp/a.txt');
 
-      expect(store.selectedTarget, isNull);
+      expect(store.selectedTargets, isEmpty);
       expect(store.renamingTarget, isNull);
       await config.flush();
       expect((await itemsOnDisk()).map((m) => m['target']), ['/tmp/b.txt']);
@@ -226,6 +274,60 @@ row = 0
       var notifications = 0;
       store.addListener(() => notifications++);
       store.removeItem('/tmp/nope.txt');
+      expect(notifications, 0);
+    });
+
+    // Each _commit is a ConfigStore.set, whose notification is synchronous and
+    // rebuilds every panel on every monitor — so a five-icon selection must not
+    // be five of them.
+    test('removeItems writes once for the whole selection', () async {
+      final (store, config) = await open();
+      store.selectAll(['/tmp/a.txt', '/tmp/b.txt']);
+      var notifications = 0;
+      store.addListener(() => notifications++);
+
+      store.removeItems(store.selectedTargets);
+
+      expect(notifications, 1);
+      expect(store.selectedTargets, isEmpty);
+      await config.flush();
+      expect(await itemsOnDisk(), isEmpty);
+    });
+
+    test('removeItems keeps the survivors selected', () async {
+      final (store, _) = await open();
+      store.selectAll(['/tmp/a.txt', '/tmp/b.txt']);
+      store.removeItems(['/tmp/a.txt']);
+      expect(store.selectedTargets, {'/tmp/b.txt'});
+    });
+
+    test('removeItems with nothing pinned does not notify', () async {
+      final (store, _) = await open();
+      var notifications = 0;
+      store.addListener(() => notifications++);
+      store.removeItems(['/tmp/nope.txt', '/tmp/also-nope.txt']);
+      expect(notifications, 0);
+    });
+  });
+
+  group('moveGroupBy', () {
+    test('persists every member of the group', () async {
+      final (store, config) = await open();
+      store.moveGroupBy({'/tmp/a.txt', '/tmp/b.txt'}, 0, 1, _grid);
+      await config.flush();
+
+      final onDisk = await itemsOnDisk();
+      final a = onDisk.firstWhere((m) => m['target'] == '/tmp/a.txt');
+      final b = onDisk.firstWhere((m) => m['target'] == '/tmp/b.txt');
+      expect((a['column'], a['row']), (0, 1));
+      expect((b['column'], b['row']), (1, 1));
+    });
+
+    test('a group move that clamps to zero writes nothing', () async {
+      final (store, _) = await open();
+      var notifications = 0;
+      store.addListener(() => notifications++);
+      store.moveGroupBy({'/tmp/a.txt', '/tmp/b.txt'}, -2, 0, _grid);
       expect(notifications, 0);
     });
   });
@@ -297,7 +399,7 @@ row = 0
       final (store, config) = await open();
       store.select('/tmp/a.txt');
       config.set(['theme'], 'glassy');
-      expect(store.selectedTarget, '/tmp/a.txt');
+      expect(store.selectedTargets, {'/tmp/a.txt'});
       expect(store.items.map((i) => i.target), ['/tmp/a.txt', '/tmp/b.txt']);
     });
 
@@ -313,7 +415,18 @@ row = 0
       config.set(['desktop', 'items'], [
         {'kind': 'file', 'target': '/tmp/a.txt', 'column': 0, 'row': 0},
       ]);
-      expect(store.selectedTarget, isNull);
+      expect(store.selectedTargets, isEmpty);
+    });
+
+    // Only the vanished target goes: an external edit must not drop the icons
+    // that are still there out of the selection.
+    test('an external removal prunes only the target that vanished', () async {
+      final (store, config) = await open();
+      store.selectAll(['/tmp/a.txt', '/tmp/b.txt']);
+      config.set(['desktop', 'items'], [
+        {'kind': 'file', 'target': '/tmp/a.txt', 'column': 0, 'row': 0},
+      ]);
+      expect(store.selectedTargets, {'/tmp/a.txt'});
     });
   });
 

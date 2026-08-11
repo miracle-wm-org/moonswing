@@ -43,6 +43,7 @@ DesktopItemMenu _menu({
   VoidCallback? onRename,
   VoidCallback? onRemove,
   List<AppEntry> Function()? handlers,
+  int selectionCount = 1,
 }) {
   return DesktopItemMenu(
     item: item,
@@ -51,6 +52,7 @@ DesktopItemMenu _menu({
     onRename: onRename ?? () {},
     onRemove: onRemove ?? () {},
     handlers: handlers ?? () => const [],
+    selectionCount: selectionCount,
   );
 }
 
@@ -62,6 +64,17 @@ void main() {
       expect(find.text('Open with…'), findsOneWidget);
       expect(find.text('Rename'), findsOneWidget);
       expect(find.text('Remove from desktop'), findsOneWidget);
+    });
+
+    // With a band selection the rows that only make sense for one icon go
+    // away, and the destructive one says how much it will take.
+    testWidgets('counts the selection and drops the single-item rows',
+        (tester) async {
+      await pumpMenu(tester, _menu(selectionCount: 3));
+      expect(find.text('Open 3 items'), findsOneWidget);
+      expect(find.text('Remove 3 items from desktop'), findsOneWidget);
+      expect(find.text('Rename'), findsNothing);
+      expect(find.text('Open with…'), findsNothing);
     });
 
     // "Open with" is meaningless for an application: the row is absent rather

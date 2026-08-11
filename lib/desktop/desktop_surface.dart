@@ -115,10 +115,17 @@ class _DesktopSurfaceState extends State<DesktopSurface>
   }
 
   void _onItemMenu(DesktopItem item, Offset position) {
+    // Frozen here rather than read in the callbacks: the popup is a separate
+    // surface and the selection could change under it, and a menu that said
+    // "Remove 3 items" must not go on to remove some other number.
+    final selected = Set<String>.of(widget.store.selectedTargets);
+    final multiple = selected.length > 1;
+
     _openMenu(
       position,
       DesktopItemMenu(
         item: item,
+        selectionCount: selected.length,
         handlers: () {
           _releaseHandlers();
           _handlers = openWithCandidates(item);
@@ -126,7 +133,15 @@ class _DesktopSurfaceState extends State<DesktopSurface>
         },
         onOpen: () {
           closePopup();
-          openDesktopItem(item);
+          if (!multiple) {
+            openDesktopItem(item);
+            return;
+          }
+          for (final selection in widget.store.items) {
+            if (selected.contains(selection.target)) {
+              openDesktopItem(selection);
+            }
+          }
         },
         onOpenWith: (handler) {
           openDesktopItemWith(item, handler);
@@ -138,7 +153,8 @@ class _DesktopSurfaceState extends State<DesktopSurface>
         },
         onRemove: () {
           closePopup();
-          widget.store.removeItem(item.target);
+          // One commit for the whole selection, not one per icon.
+          widget.store.removeItems(multiple ? selected : {item.target});
         },
       ),
     );

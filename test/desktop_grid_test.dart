@@ -130,7 +130,7 @@ void main() {
       // pending, and testWidgets fails the test if one outlives the tree.
       await tester.tap(tileFor(fileA));
       await tester.pumpAndSettle();
-      expect(store.selectedTarget, fileA.path);
+      expect(store.selectedTargets, {fileA.path});
       expect(
         tester.widget<DesktopIconTile>(tileFor(fileA)).selected,
         isTrue,
@@ -139,7 +139,7 @@ void main() {
       // Bottom-right corner: past both icons, so this is bare desktop.
       await tester.tapAt(const Offset(350, 250));
       await tester.pumpAndSettle();
-      expect(store.selectedTarget, isNull);
+      expect(store.selectedTargets, isEmpty);
     });
 
     testWidgets('clicking a second icon moves the selection', (tester) async {
@@ -151,7 +151,7 @@ void main() {
       await tester.tap(tileFor(fileB));
       await tester.pumpAndSettle();
 
-      expect(store.selectedTarget, fileB.path);
+      expect(store.selectedTargets, {fileB.path});
       expect(tester.widget<DesktopIconTile>(tileFor(fileA)).selected, isFalse);
       expect(tester.widget<DesktopIconTile>(tileFor(fileB)).selected, isTrue);
     });
@@ -165,9 +165,168 @@ void main() {
 
       final gesture = await tester.startGesture(tester.getCenter(tileFor(fileA)));
       await tester.pump();
-      expect(store.selectedTarget, fileA.path);
+      expect(store.selectedTargets, {fileA.path});
       await gesture.up();
       await tester.pumpAndSettle();
+    });
+
+    // Pressing to *drag* a group must not throw the group away first, so
+    // pointer-down leaves an already-selected icon's selection alone.
+    testWidgets('pressing a member of a multi-selection does not collapse it',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.selectAll([fileA.path, fileB.path]);
+      await tester.pump();
+
+      final gesture = await tester.startGesture(tester.getCenter(tileFor(fileA)));
+      await tester.pump();
+      expect(store.selectedTargets, {fileA.path, fileB.path});
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    // ...and the completed tap is what narrows it back down, so a user can get
+    // to one icon without first clicking bare desktop.
+    testWidgets('clicking a member of a multi-selection collapses onto it',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.selectAll([fileA.path, fileB.path]);
+      await tester.pump();
+
+      await tester.tap(tileFor(fileA));
+      // Past kDoubleTapTimeout: with onDoubleTap registered the tap recognizer
+      // only wins the arena once the double-tap window has closed, which is the
+      // documented cost of collapsing on the *completed* tap.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pumpAndSettle();
+      expect(store.selectedTargets, {fileA.path});
+    });
+  });
+
+  group('band select', () {
+    /// Drags a marquee from [from] to [to] in steps, so the intermediate
+    /// updates actually run — `tester.drag` sends a single move event.
+    Future<TestGesture> band(
+      WidgetTester tester,
+      Offset from,
+      Offset to, {
+      int steps = 4,
+    }) async {
+      final gesture = await tester.startGesture(from);
+      for (var i = 1; i <= steps; i++) {
+        await gesture.moveTo(Offset.lerp(from, to, i / steps)!);
+        await tester.pump();
+      }
+      return gesture;
+    }
+
+    testWidgets('selects every icon the box touches', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+
+      // From bare desktop at the bottom right up across both icons.
+      final gesture = await band(tester, const Offset(350, 250), const Offset(50, 50));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(store.selectedTargets, {fileA.path, fileB.path});
+      expect(tester.widget<DesktopIconTile>(tileFor(fileA)).selected, isTrue);
+      expect(tester.widget<DesktopIconTile>(tileFor(fileB)).selected, isTrue);
+    });
+
+    testWidgets('the box is drawn only while the drag is in flight',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      expect(find.byType(DesktopSelectionBand), findsNothing);
+
+      final gesture = await band(tester, const Offset(350, 250), const Offset(50, 50));
+      expect(find.byType(DesktopSelectionBand), findsOneWidget);
+      expect(
+        tester.getRect(find.byType(DesktopSelectionBand)),
+        const Rect.fromLTRB(50, 50, 350, 250),
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(DesktopSelectionBand), findsNothing);
+    });
+
+    // The lines exist to show where an *icon* will land, so a marquee must not
+    // begin a drag.
+    testWidgets('does not light the grid lines', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+
+      final gesture = await band(tester, const Offset(350, 250), const Offset(50, 50));
+      expect(store.isDragging, isFalse);
+      expect(
+        find.byWidgetPredicate(
+            (w) => w is CustomPaint && w.painter is DesktopGridLines),
+        findsNothing,
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a new band replaces the previous selection', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.selectAll([fileA.path, fileB.path]);
+      await tester.pump();
+
+      // Starts on bare cell (2,1) — a press on a tile would drag it instead —
+      // and reaches only into B's cell (1,0).
+      final gesture = await band(tester, const Offset(250, 150), const Offset(150, 50));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(store.selectedTargets, {fileB.path});
+    });
+
+    testWidgets('a band over bare desktop clears the selection', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.select(fileA.path);
+      await tester.pump();
+
+      final gesture = await band(tester, const Offset(210, 110), const Offset(390, 290));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(store.selectedTargets, isEmpty);
+    });
+
+    // The pan recognizer is primary-button only, so the empty-space menu is
+    // still reachable by dragging off a right-press.
+    testWidgets('a right-drag does not band', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+
+      final gesture = await tester.startGesture(const Offset(350, 250),
+          buttons: kSecondaryButton);
+      await gesture.moveTo(const Offset(50, 50));
+      await tester.pump();
+      expect(find.byType(DesktopSelectionBand), findsNothing);
+      expect(store.selectedTargets, isEmpty);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a plain click on bare desktop still clears a multi-selection',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.selectAll([fileA.path, fileB.path]);
+      await tester.pump();
+
+      await tester.tapAt(const Offset(350, 250));
+      await tester.pumpAndSettle();
+      expect(store.selectedTargets, isEmpty);
     });
   });
 
@@ -250,6 +409,59 @@ void main() {
     });
   });
 
+  group('multi drag', () {
+    testWidgets('dragging a member moves the whole selection', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.selectAll([fileA.path, fileB.path]);
+      await tester.pump();
+
+      // A is at (0,0) and B at (1,0); one cell down moves both.
+      await tester.drag(tileFor(fileA), const Offset(0, 100));
+      await tester.pumpAndSettle();
+
+      final a = store.items.firstWhere((i) => i.target == fileA.path);
+      final b = store.items.firstWhere((i) => i.target == fileB.path);
+      expect((a.column, a.row), (0, 1));
+      expect((b.column, b.row), (1, 1));
+    });
+
+    testWidgets('dragging an unselected icon selects it and moves it alone',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.select(fileA.path);
+      await tester.pump();
+
+      await tester.drag(tileFor(fileB), const Offset(0, 100));
+      await tester.pumpAndSettle();
+
+      final a = store.items.firstWhere((i) => i.target == fileA.path);
+      final b = store.items.firstWhere((i) => i.target == fileB.path);
+      expect(store.selectedTargets, {fileB.path});
+      expect((a.column, a.row), (0, 0));
+      expect((b.column, b.row), (1, 1));
+    });
+
+    // One ghost per member, holding its relative cell, so the group keeps its
+    // shape under the cursor. Two tiles plus two ghosts.
+    testWidgets('draws a ghost for every member of the group', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      store.selectAll([fileA.path, fileB.path]);
+      await tester.pump();
+
+      final gesture = await tester.startGesture(tester.getCenter(tileFor(fileA)));
+      await gesture.moveBy(const Offset(0, 100));
+      await tester.pump();
+      expect(find.byType(DesktopIconTile), findsNWidgets(4));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(DesktopIconTile), findsNWidgets(2));
+    });
+  });
+
   group('context menus', () {
     testWidgets('right-clicking an item reports it and selects it',
         (tester) async {
@@ -264,7 +476,42 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(menuItem?.target, fileB.path);
-      expect(store.selectedTarget, fileB.path);
+      expect(store.selectedTargets, {fileB.path});
+    });
+
+    // The menu acts on the selection, so right-clicking inside one must not
+    // silently shrink it to the icon under the cursor.
+    testWidgets('right-clicking a member keeps the whole selection',
+        (tester) async {
+      final store = openStore();
+      DesktopItem? menuItem;
+      await pumpGrid(tester, store, onItemMenu: (item, _) => menuItem = item);
+      store.selectAll([fileA.path, fileB.path]);
+      await tester.pump();
+
+      final gesture =
+          await tester.startGesture(tester.getCenter(tileFor(fileA)),
+              buttons: kSecondaryButton);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(menuItem?.target, fileA.path);
+      expect(store.selectedTargets, {fileA.path, fileB.path});
+    });
+
+    testWidgets('right-clicking a non-member narrows onto it', (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store, onItemMenu: (_, __) {});
+      store.select(fileA.path);
+      await tester.pump();
+
+      final gesture =
+          await tester.startGesture(tester.getCenter(tileFor(fileB)),
+              buttons: kSecondaryButton);
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(store.selectedTargets, {fileB.path});
     });
 
     testWidgets('right-clicking empty space reports the cell under the cursor',

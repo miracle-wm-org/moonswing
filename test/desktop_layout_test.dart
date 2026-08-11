@@ -375,4 +375,130 @@ void main() {
       expect(reflowed, hasLength(full.length + 1));
     });
   });
+
+  group('targetsInRect', () {
+    final g = computeGridGeometry(const Size(300, 200), _plain); // 3x2
+    final items = [_item('/a', 0, 0), _item('/b', 1, 0), _item('/c', 0, 1)];
+
+    test('catches every cell the band touches', () {
+      expect(
+        targetsInRect(items, g, const Rect.fromLTRB(50, 50, 150, 150)),
+        {'/a', '/b', '/c'},
+      );
+    });
+
+    test('ignores cells the band does not reach', () {
+      expect(
+        targetsInRect(items, g, const Rect.fromLTRB(210, 10, 290, 90)),
+        isEmpty,
+      );
+    });
+
+    // A band is built with Rect.fromPoints, so a drag up and to the left is the
+    // same rect as the drag back down and to the right.
+    test('is direction-agnostic once the rect is normalized', () {
+      final forward = Rect.fromPoints(const Offset(50, 50), const Offset(150, 150));
+      final backward = Rect.fromPoints(const Offset(150, 150), const Offset(50, 50));
+      expect(
+        targetsInRect(items, g, backward),
+        targetsInRect(items, g, forward),
+      );
+    });
+
+    // What makes a plain click on bare desktop still clear the selection: the
+    // press produces a band of no area before the pan is even recognized.
+    test('a zero-area band catches nothing', () {
+      expect(
+        targetsInRect(items, g, Rect.fromPoints(const Offset(50, 50), const Offset(50, 50))),
+        isEmpty,
+      );
+    });
+
+    // Overlap is strict, so a band that stops exactly on a cell boundary has
+    // not touched the cell beyond it.
+    test('a band that only touches a cell edge does not catch it', () {
+      expect(
+        targetsInRect(items, g, const Rect.fromLTRB(100, 0, 200, 100)),
+        {'/b'},
+      );
+    });
+
+    // The band must select what is on screen, which for an off-grid item is
+    // wherever the reflow seated it.
+    test('measured against the rendered list, a stray is caught where drawn', () {
+      final authored = [_item('/a', 0, 0), _item('/stray', 20, 0)];
+      const whole = Rect.fromLTRB(0, 0, 300, 200);
+      expect(targetsInRect(authored, g, whole), {'/a'});
+      expect(
+        targetsInRect(reflowIntoGrid(authored, g), g, whole),
+        {'/a', '/stray'},
+      );
+    });
+  });
+
+  group('moveItemsBy', () {
+    final g = computeGridGeometry(const Size(300, 200), _plain); // 3x2
+
+    test('translates the whole group', () {
+      final items = [_item('/a', 0, 0), _item('/b', 1, 0)];
+      final next = moveItemsBy(items, {'/a', '/b'}, 1, 1, g);
+      expect((next[0].column, next[0].row), (1, 1));
+      expect((next[1].column, next[1].row), (2, 1));
+    });
+
+    // N=1 has to stay exactly what moveItemTo does, or dropping one icon on
+    // another would stop swapping.
+    test('with one target it reproduces the swap', () {
+      final items = [_item('/a', 0, 0), _item('/b', 1, 0)];
+      final next = moveItemsBy(items, {'/a'}, 1, 0, g);
+      expect((next[0].column, next[0].row), (1, 0));
+      expect((next[1].column, next[1].row), (0, 0));
+    });
+
+    test('displaces a bystander into a cell the group vacated', () {
+      final items = [_item('/a', 0, 0), _item('/b', 0, 1), _item('/c', 1, 0)];
+      final next = moveItemsBy(items, {'/a', '/b'}, 1, 0, g);
+      final byTarget = {for (final i in next) i.target: (i.column, i.row)};
+      expect(byTarget['/a'], (1, 0));
+      expect(byTarget['/b'], (1, 1));
+      expect(byTarget['/c'], (0, 0));
+    });
+
+    // The group slides along the edge rather than piling into it, so the
+    // arrangement survives an overshoot.
+    test('clamps the group rigidly at the edge', () {
+      final items = [_item('/a', 0, 0), _item('/b', 1, 0)];
+      final next = moveItemsBy(items, {'/a', '/b'}, 5, 0, g);
+      expect((next[0].column, next[0].row), (1, 0));
+      expect((next[1].column, next[1].row), (2, 0));
+    });
+
+    test('returns the identical list when the delta clamps to zero', () {
+      final items = [_item('/a', 0, 0), _item('/b', 1, 0)];
+      expect(identical(moveItemsBy(items, {'/a', '/b'}, -3, 0, g), items), isTrue);
+    });
+
+    test('returns the identical list for a zero delta', () {
+      final items = [_item('/a', 0, 0)];
+      expect(identical(moveItemsBy(items, {'/a'}, 0, 0, g), items), isTrue);
+    });
+
+    test('returns the identical list when no target matches', () {
+      final items = [_item('/a', 0, 0)];
+      expect(identical(moveItemsBy(items, {'/nope'}, 1, 0, g), items), isTrue);
+    });
+
+    // A group wider than the grid inverts the clamp range, which num.clamp
+    // asserts on.
+    test('a group wider than the grid does not throw', () {
+      final items = [_item('/a', 0, 0), _item('/b', 5, 0)];
+      expect(() => moveItemsBy(items, {'/a', '/b'}, 1, 0, g), returnsNormally);
+    });
+
+    test('does not mutate the input list', () {
+      final items = [_item('/a', 0, 0), _item('/b', 1, 0)];
+      moveItemsBy(items, {'/a', '/b'}, 1, 1, g);
+      expect((items[0].column, items[0].row), (0, 0));
+    });
+  });
 }

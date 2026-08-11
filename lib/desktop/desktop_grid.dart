@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/app_info.dart';
@@ -91,6 +92,25 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// rather than in the store because it changes every frame and the store's
   /// mutations are what reach `config.toml`.
   Offset? _dragPosition;
+
+  /// Everything moving with the drag: the pressed icon, plus the rest of the
+  /// selection when it was pressed as a member of one. Local for [_dragPosition]'s
+  /// reason — it is derived from the selection at press time and never persisted.
+  Set<String> _dragGroup = const {};
+
+  /// The rubber band's two corners, surface-local, while one is being drawn.
+  /// Also local, and also per-frame.
+  Offset? _bandStart;
+  Offset? _bandEnd;
+
+  Rect? get _bandRect {
+    final start = _bandStart;
+    final end = _bandEnd;
+    if (start == null || end == null) return null;
+    // fromPoints normalizes, so a band drawn up and to the left is the same
+    // rect as one drawn down and to the right.
+    return Rect.fromPoints(start, end);
+  }
 
   @override
   void initState() {
@@ -230,14 +250,50 @@ class DesktopLayerState extends State<DesktopLayer> {
           children: [
             // Empty-space handling sits *under* the icons, so an icon's own
             // gestures win without either needing to know about the other.
+            // `RenderStack` stops at the first child that accepts and the tiles
+            // are `HitTestBehavior.opaque`, so a drag that begins on an icon
+            // never reaches this detector — which is what lets the rubber band
+            // share it with the icon drag and need no coordination between them.
+            //
+            // This detector fills the Stack, so `localPosition` is already the
+            // surface-local space the grid math works in.
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
+                // The band is anchored where the button went down, not where
+                // the pan slop was crossed: with the default `.start` the
+                // pending slop delta is folded into the reported start
+                // position, so the corner would jump away from the press.
+                dragStartBehavior: DragStartBehavior.down,
                 onTap: () => store.select(null),
                 onSecondaryTapDown: (details) => widget.onEmptyMenu?.call(
                   nearestCell(geometry, details.localPosition),
                   details.localPosition,
                 ),
+                // The band replaces the selection rather than extending it, and
+                // there is no threshold to tune: the pan recognizer withholds
+                // `onPanStart` until the touch slop is exceeded, so a plain
+                // click still resolves as `onTap` and still clears. It is also
+                // primary-button only by default, so the empty-space menu above
+                // is untouched.
+                onPanStart: (details) {
+                  setState(() {
+                    _bandStart = details.localPosition;
+                    _bandEnd = details.localPosition;
+                  });
+                  store.selectAll(const <String>[]);
+                },
+                onPanUpdate: (details) {
+                  setState(() => _bandEnd = details.localPosition);
+                  final band = _bandRect;
+                  if (band == null) return;
+                  // Against the reflowed list, so the band selects what is on
+                  // screen. `selectAll` no-ops when the set is unchanged, so a
+                  // move that crosses no new icon notifies nothing.
+                  store.selectAll(targetsInRect(items, geometry, band));
+                },
+                onPanEnd: (_) => _endBand(),
+                onPanCancel: _endBand,
               ),
             ),
             if (store.isDragging)
@@ -254,8 +310,11 @@ class DesktopLayerState extends State<DesktopLayer> {
             for (final item in items)
               _positioned(context, item, geometry, store),
             if (_dragPosition case final position?)
-              if (_itemFor(items, store.draggingTarget) case final dragged?)
-                _ghost(dragged, position, geometry, store),
+              ..._ghosts(items, position, geometry, store),
+            // Over the icons, so the band is never hidden behind the thing it
+            // is selecting.
+            if (_bandRect case final band?)
+              DesktopSelectionBand(rect: band, color: theme.accent),
           ],
         );
       },
@@ -275,7 +334,7 @@ class DesktopLayerState extends State<DesktopLayer> {
       iconName: _iconNames[item.target] ?? '',
       iconSize: store.config.iconSize,
       showLabel: store.config.showLabels,
-      selected: store.selectedTarget == item.target,
+      selected: store.isSelected(item.target),
       hovered: _hovered == item.target,
       missing: !desktopItemExists(item),
     );
@@ -301,7 +360,7 @@ class DesktopLayerState extends State<DesktopLayer> {
       );
     }
 
-    final dragging = store.draggingTarget == item.target;
+    final dragging = _dragGroup.contains(item.target);
 
     return Positioned(
       key: ValueKey(item.target),
@@ -325,23 +384,43 @@ class DesktopLayerState extends State<DesktopLayer> {
         // against the pan below — either way the highlight would lag the click
         // by a visible fraction of a second. A Listener fires immediately and
         // competes with nothing.
+        //
+        // Pressing an icon that is *already* selected leaves the selection
+        // alone, so pressing a member of a band selection to drag the group
+        // does not discard the group first. Narrowing back to one happens on
+        // the completed tap below, which only pays the double-tap delay in the
+        // multi-selection case.
         child: Listener(
-          onPointerDown: (_) => store.select(item.target),
+          onPointerDown: (_) {
+            if (!store.isSelected(item.target)) store.select(item.target);
+          },
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (store.selectedTargets.length > 1) store.select(item.target);
+            },
             onDoubleTap: () => _open(item),
             onSecondaryTapDown: (details) => widget.onItemMenu
                 ?.call(item, _toSurface(details.globalPosition)),
             onPanStart: (details) {
               store.beginDrag(item.target);
-              setState(
-                  () => _dragPosition = _toSurface(details.globalPosition));
+              setState(() {
+                // The group is frozen at press time: the whole selection when
+                // this icon is one of several selected, else just this icon.
+                _dragGroup = store.isSelected(item.target)
+                    ? Set<String>.of(store.selectedTargets)
+                    : {item.target};
+                _dragPosition = _toSurface(details.globalPosition);
+              });
             },
             onPanUpdate: (details) => setState(
                 () => _dragPosition = _toSurface(details.globalPosition)),
-            onPanEnd: (_) => _finishDrag(geometry, store),
+            onPanEnd: (_) => _finishDrag(item, geometry, store),
             onPanCancel: () {
-              setState(() => _dragPosition = null);
+              setState(() {
+                _dragPosition = null;
+                _dragGroup = const {};
+              });
               store.endDrag();
             },
             child: Opacity(opacity: dragging ? 0.3 : 1.0, child: tile),
@@ -351,7 +430,34 @@ class DesktopLayerState extends State<DesktopLayer> {
     );
   }
 
-  /// The icon that follows the cursor during a drag, centred under it.
+  /// The icons that follow the cursor during a drag: the pressed one centred
+  /// under it, and the rest of its group holding their relative cells, so a
+  /// group keeps its shape and the drop is predictable.
+  Iterable<Widget> _ghosts(
+    List<DesktopItem> items,
+    Offset position,
+    DesktopGridGeometry geometry,
+    DesktopStore store,
+  ) {
+    final anchor = _itemFor(items, store.draggingTarget);
+    if (anchor == null) return const [];
+    return [
+      for (final item in items)
+        if (_dragGroup.contains(item.target))
+          _ghost(
+            item,
+            position +
+                Offset(
+                  (item.column - anchor.column) * geometry.columnPitch,
+                  (item.row - anchor.row) * geometry.rowPitch,
+                ),
+            geometry,
+            store,
+          ),
+    ];
+  }
+
+  /// One dragged icon, centred on [position].
   Widget _ghost(
     DesktopItem item,
     Offset position,
@@ -360,6 +466,7 @@ class DesktopLayerState extends State<DesktopLayer> {
   ) {
     final size = geometry.cellSize;
     return Positioned(
+      key: ValueKey('ghost:${item.target}'),
       left: position.dx - size.width / 2,
       top: position.dy - size.height / 2,
       width: size.width,
@@ -396,15 +503,82 @@ class DesktopLayerState extends State<DesktopLayer> {
     return box.globalToLocal(global);
   }
 
-  void _finishDrag(DesktopGridGeometry geometry, DesktopStore store) {
+  void _endBand() => setState(() {
+        _bandStart = null;
+        _bandEnd = null;
+      });
+
+  /// Resolves a drop. [anchor] is the *rendered* item that was dragged, so the
+  /// delta a group moves by is measured against the cell the user was actually
+  /// looking at rather than the one the config authored.
+  void _finishDrag(
+    DesktopItem anchor,
+    DesktopGridGeometry geometry,
+    DesktopStore store,
+  ) {
     final position = _dragPosition;
-    final target = store.draggingTarget;
-    setState(() => _dragPosition = null);
+    final group = _dragGroup;
+    setState(() {
+      _dragPosition = null;
+      _dragGroup = const {};
+    });
     store.endDrag();
-    if (position == null || target == null) return;
-    // The drop lands on whichever cell the ghost's centre is nearest, so what
-    // the user sees is what they get; moveTo swaps if that cell is taken.
-    store.moveTo(target, nearestCell(geometry, position));
+    if (position == null) return;
+
+    // The drop lands on whichever cell the anchor ghost's centre is nearest, so
+    // what the user sees is what they get.
+    final cell = nearestCell(geometry, position);
+    if (group.length <= 1) {
+      // moveTo swaps if that cell is taken.
+      store.moveTo(anchor.target, cell);
+      return;
+    }
+
+    // A group moves by the delta the anchor travelled, which is what keeps its
+    // shape; moveItemsBy clamps that delta to the grid and displaces bystanders.
+    store.moveGroupBy(
+      group,
+      cell.column - anchor.column,
+      cell.row - anchor.row,
+      geometry,
+    );
+  }
+}
+
+/// The rubber-band selection box: a translucent wash of the shell's accent
+/// colour under a heavier outline of the same, so it reads as one transient
+/// object over any wallpaper.
+///
+/// A [DecoratedBox] rather than a [CustomPainter] — it is one rounded rect, and
+/// the grid's only painter is [DesktopGridLines], which `desktop_grid_test.dart`
+/// asserts is the *only* thing on the CustomPaint path. Colours arrive as
+/// parameters, the `time_series_chart.dart` convention.
+class DesktopSelectionBand extends StatelessWidget {
+  const DesktopSelectionBand({
+    super.key,
+    required this.rect,
+    required this.color,
+  });
+
+  final Rect rect;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fromRect(
+      rect: rect,
+      // The band is painted over the icons and must not eat the pointer that is
+      // still drawing it.
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.18),
+            border: Border.all(color: color, width: 2),
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+      ),
+    );
   }
 }
 

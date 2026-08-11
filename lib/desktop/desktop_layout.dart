@@ -248,6 +248,145 @@ List<DesktopItem> moveItemTo(
   return next;
 }
 
+/// The targets whose cell overlaps [rect], which is in the same surface-local
+/// pixel space as [DesktopGridGeometry.cellRect].
+///
+/// [items] must be the list the grid is *rendering* — the output of
+/// [reflowIntoGrid] — so a selection band picks what the user can see rather
+/// than what the config authored.
+///
+/// Overlap is [Rect.overlaps], which is strict: a band whose edge exactly
+/// touches a cell does not select it, and a band that has not moved (a zero-area
+/// rect) selects nothing. That last one is what lets a plain click on bare
+/// desktop still clear the selection.
+Set<String> targetsInRect(
+  List<DesktopItem> items,
+  DesktopGridGeometry g,
+  Rect rect,
+) {
+  if (rect.isEmpty) return const {};
+  return {
+    for (final item in items)
+      if (g.cellRect(item.column, item.row).overlaps(rect)) item.target,
+  };
+}
+
+/// Translates every item in [targets] by ([dColumn], [dRow]).
+///
+/// The delta is clamped so the whole group stays inside [g]: a group dragged
+/// past an edge slides along it rather than losing its shape or losing members
+/// off the grid.
+///
+/// Non-selected items standing in the group's destination cells are displaced,
+/// preferring the cells the group **vacated** — which is what makes a one-item
+/// group behave exactly like [moveItemTo]'s swap — and falling back to
+/// [nearestFreeCell] otherwise. A displaced item with nowhere to go is left
+/// where it is rather than silently stacked.
+///
+/// Returns the identical list when there is nothing to do, so a group drag that
+/// ends where it started costs no config write. Note this resolves against
+/// whatever list it is given while the caller measured the delta against the
+/// rendered one; they differ only for items [reflowIntoGrid] pulled in, which is
+/// the same split [moveItemTo] already has.
+List<DesktopItem> moveItemsBy(
+  List<DesktopItem> items,
+  Set<String> targets,
+  int dColumn,
+  int dRow,
+  DesktopGridGeometry g,
+) {
+  final moving = [
+    for (final item in items)
+      if (targets.contains(item.target)) item,
+  ];
+  if (moving.isEmpty) return items;
+
+  var minColumn = moving.first.column;
+  var maxColumn = moving.first.column;
+  var minRow = moving.first.row;
+  var maxRow = moving.first.row;
+  for (final item in moving) {
+    minColumn = math.min(minColumn, item.column);
+    maxColumn = math.max(maxColumn, item.column);
+    minRow = math.min(minRow, item.row);
+    maxRow = math.max(maxRow, item.row);
+  }
+  final dc = _clampDelta(dColumn, -minColumn, g.columns - 1 - maxColumn);
+  final dr = _clampDelta(dRow, -minRow, g.rows - 1 - maxRow);
+  if (dc == 0 && dr == 0) return items;
+
+  final destinations = <String, GridCell>{
+    for (final item in moving)
+      item.target: (column: item.column + dc, row: item.row + dr),
+  };
+  final taken = destinations.values.toSet();
+  final vacated = {
+    for (final item in moving) (column: item.column, row: item.row),
+  }.difference(taken);
+
+  // First pass: move the group, and note which bystanders it landed on. Their
+  // cells are left alone for now so the second pass can see what is free.
+  final next = List<DesktopItem>.of(items);
+  final displaced = <int>[];
+  for (var i = 0; i < items.length; i++) {
+    final item = items[i];
+    final destination = destinations[item.target];
+    if (destination != null) {
+      next[i] = item.copyWith(
+        column: destination.column,
+        row: destination.row,
+      );
+      continue;
+    }
+    final cell = (column: item.column, row: item.row);
+    if (taken.contains(cell)) {
+      displaced.add(i);
+      continue;
+    }
+    taken.add(cell);
+  }
+
+  final free = vacated.difference(taken);
+  for (final index in displaced) {
+    final item = items[index];
+    final from = (column: item.column, row: item.row);
+    final cell = _nearestOf(free, from) ?? nearestFreeCell(g, taken, from);
+    // Nowhere left: leave it where it was. Stacking it under a group member
+    // would lose it entirely.
+    if (cell == null) continue;
+    free.remove(cell);
+    taken.add(cell);
+    next[index] = item.copyWith(column: cell.column, row: cell.row);
+  }
+  return next;
+}
+
+/// Clamps a group delta, tolerating a range that has inverted — which happens
+/// when a member is already outside the grid, and must not throw from
+/// [num.clamp].
+int _clampDelta(int delta, int lower, int upper) =>
+    upper < lower ? 0 : delta.clamp(lower, upper);
+
+/// The member of [candidates] closest to [preferred], ties broken column-major
+/// so the result does not depend on set iteration order.
+GridCell? _nearestOf(Set<GridCell> candidates, GridCell preferred) {
+  GridCell? best;
+  var bestDistance = double.infinity;
+  for (final cell in candidates) {
+    final dc = (cell.column - preferred.column).toDouble();
+    final dr = (cell.row - preferred.row).toDouble();
+    final distance = dc * dc + dr * dr;
+    if (distance > bestDistance) continue;
+    if (distance == bestDistance && best != null) {
+      if (cell.column > best.column) continue;
+      if (cell.column == best.column && cell.row > best.row) continue;
+    }
+    bestDistance = distance;
+    best = cell;
+  }
+  return best;
+}
+
 /// Appends [item] at its own cell if that is free, else at the nearest free
 /// cell. Never displaces an existing item; returns the list unchanged when the
 /// target is already pinned or the grid is full.

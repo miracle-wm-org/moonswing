@@ -187,6 +187,7 @@ class DesktopItemMenu extends StatefulWidget {
     required this.onRename,
     required this.onRemove,
     required this.handlers,
+    this.selectionCount = 1,
   });
 
   final DesktopItem item;
@@ -194,6 +195,14 @@ class DesktopItemMenu extends StatefulWidget {
   final void Function(AppEntry handler) onOpenWith;
   final VoidCallback onRename;
   final VoidCallback onRemove;
+
+  /// How many icons the menu acts on. Greater than one when the user
+  /// right-clicked a member of a band selection — [item] is then just the one
+  /// under the cursor, and the callbacks are the host's to fan out.
+  ///
+  /// A right-click on a *non*-member needs no special case: the press has
+  /// already narrowed the selection to that icon, so the count is 1.
+  final int selectionCount;
 
   /// Resolved lazily by the host, which also owns and disposes the entries —
   /// they carry live `GAppInfo*`s.
@@ -229,14 +238,21 @@ class _DesktopItemMenuState extends State<DesktopItemMenu> {
       );
     }
 
+    // Several icons selected: the rows that only make sense for one are absent
+    // rather than disabled, the rule "Open with…" already follows for apps.
+    // "Open with…" because a selection can span kinds and there is no single
+    // item to resolve handlers for; "Rename" because renaming is in-place
+    // editing of one label.
+    final multiple = widget.selectionCount > 1;
+
     // "Open with" is meaningless for an application, so the row is absent
     // rather than disabled — there is nothing for it to mean.
-    final canOpenWith = widget.item.kind != DesktopItemKind.app;
+    final canOpenWith = !multiple && widget.item.kind != DesktopItemKind.app;
 
     return DesktopMenuCard(
       entries: [
         DesktopMenuEntry(
-          label: 'Open',
+          label: multiple ? 'Open ${widget.selectionCount} items' : 'Open',
           icon: FontAwesomeIcons.arrowUpRightFromSquare,
           onTap: widget.onOpen,
         ),
@@ -246,13 +262,16 @@ class _DesktopItemMenuState extends State<DesktopItemMenu> {
             icon: FontAwesomeIcons.listUl,
             onTap: () => setState(() => _handlers = widget.handlers()),
           ),
+        if (!multiple)
+          DesktopMenuEntry(
+            label: 'Rename',
+            icon: FontAwesomeIcons.pen,
+            onTap: widget.onRename,
+          ),
         DesktopMenuEntry(
-          label: 'Rename',
-          icon: FontAwesomeIcons.pen,
-          onTap: widget.onRename,
-        ),
-        DesktopMenuEntry(
-          label: 'Remove from desktop',
+          label: multiple
+              ? 'Remove ${widget.selectionCount} items from desktop'
+              : 'Remove from desktop',
           icon: FontAwesomeIcons.trash,
           onTap: widget.onRemove,
         ),

@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/foundation.dart';
 
 import 'package:graceful_shell/config.dart';
@@ -13,7 +15,7 @@ import 'package:graceful_shell/desktop/desktop_layout.dart';
 /// typed config and re-applies every module's options via `Module.loadAll`.
 ///
 /// The split that matters is persisted vs. ephemeral. [items] and [config] are
-/// written back through [ConfigStore]; [selectedTarget], [draggingTarget] and
+/// written back through [ConfigStore]; [selectedTargets], [draggingTarget] and
 /// [renamingTarget] are not, and never touch the disk. Every `ConfigStore.set`
 /// notifies synchronously and rebuilds every panel on every monitor, so a drag
 /// persists once **on drop** rather than per-frame — routing pointer positions
@@ -41,7 +43,12 @@ class DesktopStore extends ChangeNotifier {
   /// grid on every monitor for an unrelated edit.
   String _signature = '';
 
-  String? _selected;
+  /// The selection, which the rubber band makes a set rather than a single
+  /// target. Mutated in place and exposed read-only, so a caller cannot widen
+  /// it behind the store's back and skip the notification.
+  final Set<String> _selected = <String>{};
+  late final Set<String> _selectedView = UnmodifiableSetView(_selected);
+
   String? _renaming;
   String? _dragging;
 
@@ -49,7 +56,9 @@ class DesktopStore extends ChangeNotifier {
   List<DesktopItem> get items => List.unmodifiable(_desktop.items);
   bool get enabled => _desktop.enabled;
 
-  String? get selectedTarget => _selected;
+  Set<String> get selectedTargets => _selectedView;
+  bool isSelected(String target) => _selected.contains(target);
+
   String? get renamingTarget => _renaming;
   String? get draggingTarget => _dragging;
 
@@ -88,9 +97,20 @@ class DesktopStore extends ChangeNotifier {
   // Ephemeral state — notify, never write
   // ---------------------------------------------------------------------------
 
-  void select(String? target) {
-    if (_selected == target) return;
-    _selected = target;
+  /// Replaces the selection with [target] alone, or clears it when null.
+  void select(String? target) =>
+      selectAll(target == null ? const <String>[] : [target]);
+
+  /// Replaces the selection wholesale. What the rubber band calls on every pan
+  /// update, which is why the no-op guard matters: this store is watched by
+  /// every monitor's desktop surface, and a notification per pointer move would
+  /// rebuild all of them at pointer rate.
+  void selectAll(Iterable<String> targets) {
+    final next = targets.toSet();
+    if (setEquals(_selected, next)) return;
+    _selected
+      ..clear()
+      ..addAll(next);
     notifyListeners();
   }
 
@@ -109,9 +129,11 @@ class DesktopStore extends ChangeNotifier {
   void beginRename(String target) {
     if (_renaming == target) return;
     _renaming = target;
-    // Renaming something implies selecting it, so the chrome agrees with the
-    // edit rather than highlighting a different icon.
-    _selected = target;
+    // Renaming something implies selecting it *alone*, so the chrome agrees
+    // with the edit rather than highlighting a different icon — or several.
+    _selected
+      ..clear()
+      ..add(target);
     notifyListeners();
   }
 
@@ -148,12 +170,23 @@ class DesktopStore extends ChangeNotifier {
     _commit(next);
   }
 
-  void removeItem(String target) {
-    if (!_desktop.items.any((item) => item.target == target)) return;
-    if (_selected == target) _selected = null;
-    if (_renaming == target) _renaming = null;
-    if (_dragging == target) _dragging = null;
-    _commit(_desktop.items.where((item) => item.target != target).toList());
+  void removeItem(String target) => removeItems([target]);
+
+  /// Unpins every target in [targets] with a **single** commit.
+  ///
+  /// One write rather than one per item: `_commit` goes through
+  /// `ConfigStore.set`, whose notification is synchronous and rebuilds every
+  /// panel on every monitor, so removing a five-icon selection one at a time
+  /// would do that five times over.
+  void removeItems(Iterable<String> targets) {
+    final doomed = targets.toSet();
+    if (!_desktop.items.any((item) => doomed.contains(item.target))) return;
+    _selected.removeAll(doomed);
+    if (_renaming != null && doomed.contains(_renaming)) _renaming = null;
+    if (_dragging != null && doomed.contains(_dragging)) _dragging = null;
+    _commit(
+      _desktop.items.where((item) => !doomed.contains(item.target)).toList(),
+    );
   }
 
   /// Moves [target] to [cell], swapping with whatever is already there.
@@ -162,6 +195,20 @@ class DesktopStore extends ChangeNotifier {
   /// [moveItemTo] returns the identical list and this returns early.
   void moveTo(String target, GridCell cell) {
     final next = moveItemTo(_desktop.items, target, cell);
+    if (identical(next, _desktop.items)) return;
+    _commit(next);
+  }
+
+  /// Translates a whole selection, for a drag that started on one of several
+  /// selected icons. Writes nothing when the clamped delta is zero — the same
+  /// contract [moveTo] has.
+  void moveGroupBy(
+    Set<String> targets,
+    int dColumn,
+    int dRow,
+    DesktopGridGeometry geometry,
+  ) {
+    final next = moveItemsBy(_desktop.items, targets, dColumn, dRow, geometry);
     if (identical(next, _desktop.items)) return;
     _commit(next);
   }
@@ -241,7 +288,7 @@ class DesktopStore extends ChangeNotifier {
     _signature = signature;
     // An item that vanished from under a selection (a hand edit, or another
     // surface removing it) must not leave the chrome pointing at nothing.
-    if (_selected != null && !_hasTarget(_selected!)) _selected = null;
+    _selected.removeWhere((target) => !_hasTarget(target));
     if (_renaming != null && !_hasTarget(_renaming!)) _renaming = null;
     notifyListeners();
   }
