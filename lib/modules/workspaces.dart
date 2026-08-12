@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/shell_services.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:miracle/miracle.dart';
 
@@ -77,30 +79,49 @@ class WorkspacesState extends State<Workspaces> {
     });
   }
 
+  /// The placeholder that stands in for the workspace row while something it
+  /// needs is still on its way. One button's worth of space, so the modules
+  /// beside it do not shuffle sideways when the row arrives.
+  Widget _pending(ThemeConfig theme) => Padding(
+        padding: const EdgeInsets.all(4.0),
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: Center(
+            child: LoadingIndicator(
+              color: theme.foreground.withValues(alpha: 0.6),
+              size: 12,
+            ),
+          ),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final connection = _connection;
 
     if (connection == null) {
-      return Padding(
-        padding: const EdgeInsets.all(4.0),
-        child: (_manager?.connecting ?? false)
-            ? SizedBox(
-                width: 24,
-                height: 24,
-                child: Center(
-                  child: LoadingIndicator(
-                    color: theme.foreground.withValues(alpha: 0.6),
-                    size: 12,
-                  ),
-                ),
-              )
-            : const _MiracleRetryButton(),
-      );
+      // The IPC connect is started after the shell's first frame, so for the
+      // first moments the manager is not yet even *connecting*. Asking the
+      // service registry as well is what keeps the retry button — which means
+      // "this failed" — from flashing up before anything has been tried.
+      final pending = (_manager?.connecting ?? false) ||
+          ShellServicesScope.isLoading(context, ShellService.miracle);
+      return pending
+          ? _pending(theme)
+          : const Padding(
+              padding: EdgeInsets.all(4.0),
+              child: _MiracleRetryButton(),
+            );
     }
 
-    final outputName = DisplayScope.of(context).name;
+    // Bars paint before Wayland output enumeration finishes, so which display
+    // this one is on may not be known yet. Filtering on an unknown name would
+    // render an empty row that then popped full.
+    final outputName = DisplayScope.of(context)?.name;
+    if (outputName == null) return _pending(theme);
+
     final visibleWorkspaces =
         _workspaces.where((ws) => ws.output == outputName).toList();
     return Padding(
