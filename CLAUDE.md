@@ -52,13 +52,29 @@ Graceful Shell is a **Flutter Linux desktop application** that renders Wayland l
 
 ### Startup flow (`lib/main.dart`)
 
+`main()` is split in two by `runWidget`, and which side of that line a piece of start-up work sits on is the whole design. Above it is only what the first frame cannot be drawn without; below it is everything else.
+
 1. All `Module` subclasses are registered in the global registry.
-2. `AppConfig.load()` reads `~/.config/graceful-shell/config.toml`, calls `Module.loadAll()` to push per-module config into each registered module, and returns typed config objects.
-3. `startThemeService()` seeds the shipped themes into `~/.config/graceful-shell/themes/` and resolves the one `config.toml` names, before anything paints.
-4. A `MiracleConnection` is opened for Miracle WM IPC (workspace events).
-5. Wayland outputs are enumerated via `WaylandClient` to correlate with GDK monitors.
-6. Flutter's experimental multi-window API (`ExtendedWindowingOwnerLinux`) creates one `LayershellWindowController` per panel per monitor and optional background controllers.
-7. `runWidget` builds a `ViewCollection` containing all layer-shell windows wrapped in their scope providers.
+2. `AppConfig.load()` reads `~/.config/graceful-shell/config.toml`, calls `Module.loadAll()` to push per-module config into each registered module, and returns typed config objects. `ConfigStore.initShared()` then reads the same file into the live, writable store.
+3. `startThemeService()` seeds the shipped themes into `~/.config/graceful-shell/themes/` and resolves the one `config.toml` names; `startDesktopService()` reads the pinned icons; `startSystemStatsService()` configures the stats store without starting it polling. All three are synchronous reads of already-parsed config.
+4. `initSessionLock()` installs the windowing owner, then `runWidget` builds a `ViewCollection` containing all layer-shell windows wrapped in their scope providers. Flutter's experimental multi-window API (`ExtendedWindowingOwnerLinux`) creates one `LayershellWindowController` per panel per monitor and optional background controllers, from `_GracefulShellRootState.initState`.
+5. A post-frame callback hands every remaining start-up task to `ShellServices` — Wayland outputs and global shortcuts, Miracle IPC, the notification daemon, the tray watcher, PulseAudio and the backlight, the ScreenCast portal backend, and the application index.
+
+Steps 1–3 are the only `await`s before the first frame, and they are two reads of one small TOML file: every native window's geometry comes out of them, so there is genuinely nothing to render until they land.
+
+### Global start-up state (`lib/shell_services.dart`)
+
+`ShellServices` is a `ChangeNotifier` holding a `ServiceStatus` (`loading` / `ready` / `failed`) per `ShellService`, and `ShellServicesScope` is the `InheritedNotifier` that hands it to a window's subtree. `main()` gives it each task instead of awaiting one, and any widget that needs a task's result reads `ShellServicesScope.isLoading(context, …)` and shows a loader until it settles.
+
+Five things a change here has to keep true:
+
+- **Nothing below `runWidget` may be awaited above it.** Every one of these is either I/O the shell cannot make faster (a D-Bus name request, a socket connect, a Wayland round-trip) or a walk of the whole system, and none of them is needed to *paint* — that is what made the shell take seconds to show a bar. A new service belongs in `_startShellServices`, with a `ShellService` value and a consumer that knows how to render its absence.
+- **The tasks start from a post-frame callback, and `run` gives each its own event-loop turn.** The application index is thousands of FFI round-trips with no suspension point in them; started any earlier — or on a microtask alongside the others — it would hold the isolate straight through the frame it is supposed to come *after*. Registration order is therefore turn order: the I/O-bound ones go first so their round-trips are already in flight, and `applications` goes last.
+- **A loader is not decoration; it is the difference between "not yet" and "none".** Every one of these services fails soft, so an empty list is a legitimate final state. `LauncherOverlay` and `AppChooserCard` take a `loading` flag for exactly this — "No applications" is a lie the user acts on. Both also re-rank in `didUpdateWidget`, because the index can land *under* an already-open launcher.
+- **`ShellServicesScope.isLoading` answers false when there is no scope.** A module built alone in a widget test has no `main()` behind it, so nothing is pending and a loader would never come down. That default is what keeps the modules testable in isolation, and it is why the getter is on the scope rather than on the store.
+- **It is not a singleton.** Unlike `OsdStore`/`TrayStore`/`ThemeStore` it is constructed in `main()` and passed to `GracefulShellRoot`, the way `MiracleManager` is, so a test can build one carrying whatever statuses the case needs. `_GracefulShellRootState` also *listens* to it, because the launcher and the chooser are handed `AppIndex.instance.searchable` from the root's own `build` — the scope only rebuilds widgets that read a status through it.
+
+The visible consequence is that panels paint before the shell knows which physical display each one is on. `DisplayScope.output` is therefore nullable, `_outputFor` refuses its first-output fallback while `ShellService.displays` is still loading (an output is tracked as soon as its global is advertised but carries no name until its `done`, so mid-enumeration `outputs.first` is simply whichever arrived first — and the wrong display means the wrong workspaces), and `modules/workspaces.dart` renders one button's worth of spinner until either the output or the IPC connection arrives.
 
 ### Module system (`lib/module.dart`, `lib/modules/`)
 
@@ -95,14 +111,17 @@ Six things a change here has to keep true:
 
 ### Scopes (`lib/scopes.dart`)
 
-Four `InheritedWidget` scopes are provided around every panel's widget tree:
+Five `InheritedWidget` scopes are provided around every panel's widget tree:
 
 | Scope | Provides |
 |-------|----------|
 | `ThemeScope` | `ThemeConfig` (colors, font) — never constructed directly; see `ThemeProvider` below |
+| `ShellServicesScope` | `ShellServices` (how far along each global start-up task is) — see `lib/shell_services.dart` |
 | `MiracleScope` | `MiracleConnection` (workspace IPC) |
-| `DisplayScope` | `WaylandOutput` (the monitor this panel is on) |
+| `DisplayScope` | `WaylandOutput?` (the monitor this panel is on — null until output enumeration lands, see the startup flow) |
 | `BarScope` | `anchor` string (`'top'`, `'bottom'`, `'left'`, `'right'`) |
+
+`ThemeScope` and `ShellServicesScope` go together on *every* window, not just the panels — `_GracefulShellRootState._windowChrome` is the single place that pairs them, and every `LayerShellWindow`/`SessionLockWindow` child in `main.dart` goes through it.
 
 ### Configuration (`lib/config.dart`)
 

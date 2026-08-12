@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// Width of the chooser card. Fixed, like the launcher's: a list that resized
@@ -34,11 +35,16 @@ class AppChooserCard extends StatefulWidget {
     required this.apps,
     required this.onSelected,
     required this.onCancel,
+    this.loading = false,
   });
 
   final List<SearchableApp> apps;
   final ValueChanged<AppEntry> onSelected;
   final VoidCallback onCancel;
+
+  /// Whether [apps] is still being built — the index is enumerated after the
+  /// shell's first frame, so an empty list may just mean "not yet".
+  final bool loading;
 
   @override
   State<AppChooserCard> createState() => _AppChooserCardState();
@@ -56,6 +62,19 @@ class _AppChooserCardState extends State<AppChooserCard> {
   void initState() {
     super.initState();
     _results = _rank('');
+  }
+
+  /// Re-ranks when the index lands under an already-open chooser, keeping
+  /// whatever the user has typed so far.
+  @override
+  void didUpdateWidget(AppChooserCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.apps, oldWidget.apps)) {
+      setState(() {
+        _results = _rank(_query.text);
+        _highlighted = 0;
+      });
+    }
   }
 
   @override
@@ -161,15 +180,17 @@ class _AppChooserCardState extends State<AppChooserCard> {
                 height: kAppChooserListHeight,
                 child: _results.isEmpty
                     ? Center(
-                        child: Text(
-                          'No matching applications.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontFamily: theme.fontFamily,
-                            color: theme.popupForeground
-                                .withValues(alpha: 0.5),
-                          ),
-                        ),
+                        child: widget.loading
+                            ? LoadingIndicator(color: theme.muted, size: 18)
+                            : Text(
+                                'No matching applications.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontFamily: theme.fontFamily,
+                                  color: theme.popupForeground
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ),
                       )
                     : ListView.builder(
                         controller: _scroll,
@@ -366,11 +387,15 @@ class AppChooserOverlay extends StatelessWidget {
     required this.apps,
     required this.onSelected,
     required this.onCancel,
+    this.loading = false,
   });
 
   final List<SearchableApp> apps;
   final ValueChanged<AppEntry> onSelected;
   final VoidCallback onCancel;
+
+  /// Passed through to [AppChooserCard] — see its `loading`.
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -398,6 +423,7 @@ class AppChooserOverlay extends StatelessWidget {
               ),
               AppChooserCard(
                 apps: apps,
+                loading: loading,
                 onSelected: onSelected,
                 onCancel: onCancel,
               ),
@@ -419,6 +445,7 @@ class AppChooserOverlay extends StatelessWidget {
 Future<AppEntry?> showAppChooser(
   BuildContext context, {
   required List<SearchableApp> apps,
+  bool loading = false,
 }) {
   final overlay = Overlay.of(context, rootOverlay: true);
   final completer = Completer<AppEntry?>();
@@ -433,6 +460,7 @@ Future<AppEntry?> showAppChooser(
   entry = OverlayEntry(
     builder: (context) => AppChooserOverlay(
       apps: apps,
+      loading: loading,
       onSelected: close,
       onCancel: () => close(null),
     ),

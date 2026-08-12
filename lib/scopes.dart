@@ -53,13 +53,20 @@ class DisplayScope extends InheritedWidget {
     required super.child,
   });
 
-  final WaylandOutput output;
+  /// The output this bar is on, or null while the shell is still enumerating
+  /// them.
+  ///
+  /// Nullable because output enumeration is no longer awaited before the first
+  /// frame: a bar paints as soon as its geometry is known and learns which
+  /// physical display it is on a moment later. Consumers show a loader for that
+  /// moment rather than an empty row that then pops full.
+  final WaylandOutput? output;
 
-  static WaylandOutput of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<DisplayScope>()!.output;
+  static WaylandOutput? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<DisplayScope>()?.output;
 
   @override
-  bool updateShouldNotify(DisplayScope old) => output.name != old.output.name;
+  bool updateShouldNotify(DisplayScope old) => output?.name != old.output?.name;
 }
 
 /// Provides [ThemeConfig] to the widget subtree.

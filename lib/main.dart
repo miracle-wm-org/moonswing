@@ -43,6 +43,7 @@ import 'package:graceful_shell/screencast/picker_overlay.dart';
 import 'package:graceful_shell/screencast/picker_sources.dart';
 import 'package:graceful_shell/screencast/screencast_log.dart';
 import 'package:graceful_shell/screencast/screencast_service.dart';
+import 'package:graceful_shell/shell_services.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
@@ -81,6 +82,11 @@ void main() async {
   // AppConfig.load() writes the default config on first run and applies the
   // module subtables; the shared ConfigStore then reads that same file and
   // becomes the single live source of truth the shell watches.
+  //
+  // These two are the only awaits left before the first frame, and they have to
+  // be: every native window's geometry is read out of them, so there is
+  // genuinely nothing to render until they land. Everything else the shell used
+  // to wait on now starts in [_startShellServices], after it has painted.
   final appConfig = await AppConfig.load();
   final store = await ConfigStore.initShared();
 
@@ -93,34 +99,119 @@ void main() async {
   // theme store it watches ConfigStore for its own subtree only.
   startDesktopService(store);
 
-  await startNotificationService();
-  await startStatusNotifierService();
-  // Watches the default sink/source and the backlight so the on-screen
-  // indicator can react to volume, mic, and brightness changes made anywhere.
-  await startOsdService(appConfig.osd);
   // Configures the system stats store, but does not start it polling — the
   // first lease (the bar module, or the monitor tab being opened) does that.
   startSystemStatsService();
-  // Enumerates installed applications now, while nothing is on screen, so the
-  // launcher can paint the instant its shortcut fires.
-  startAppIndexService();
-  // Claims the xdg-desktop-portal ScreenCast backend name, so apps asking to
-  // share their screen get the shell's own picker. Fails soft on a compositor
-  // without ext-image-copy-capture, or with no PipeWire.
+
   screencastLog = (message) => debugPrint('screencast: $message');
-  if (appConfig.screenshare.enabled) {
-    await startScreencastService(
-      picker: ScreencastPickerController.instance,
-      maxFrameRate: appConfig.screenshare.maxFps,
-    );
-  }
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.
   final miracle = MiracleManager();
-  await miracle.connect();
 
-  final WaylandClient waylandClient = WaylandClient();
+  // Live registry of outputs, kept current as monitors are plugged in and out.
+  // Empty until [_connectDisplays] has enumerated them, which is why panels
+  // render before they know which display they are on.
+  final outputs = OutputTracker();
+
+  final waylandClient = WaylandClient();
+  final services = ShellServices();
+
+  // Installs a windowing owner that handles layer-shell *and* session-lock
+  // windows; it subclasses the layer-shell one, so panels/popups are unaffected.
+  initSessionLock();
+
+  // Layer-shell controllers are created from within the widget tree (see
+  // [_GracefulShellRootState.initState]), not here in main(), so that the GTK
+  // windowing system is fully initialized before the first surface is created.
+  runWidget(GracefulShellRoot(
+    appConfig: appConfig,
+    store: store,
+    miracle: miracle,
+    outputs: outputs,
+    services: services,
+  ));
+
+  // Start-up I/O runs after the shell is on screen, never before it. The
+  // post-frame callback is what makes that ordering real: the application index
+  // in particular is a synchronous walk of every installed `.desktop` file, and
+  // starting it any earlier would hold the isolate through the frame it is
+  // supposed to come after.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _startShellServices(
+      services: services,
+      appConfig: appConfig,
+      miracle: miracle,
+      outputs: outputs,
+      waylandClient: waylandClient,
+    );
+  });
+}
+
+/// Hands every global start-up task to [services], which runs them off the
+/// first frame and publishes how far along each one is.
+///
+/// Order matters only in that it is the order the tasks get their first
+/// event-loop turn in: the ones that block on I/O go first so their round-trips
+/// are already in flight, and the application index — the one task that does
+/// its work synchronously — goes last.
+void _startShellServices({
+  required ShellServices services,
+  required AppConfig appConfig,
+  required MiracleManager miracle,
+  required OutputTracker outputs,
+  required WaylandClient waylandClient,
+}) {
+  services.run(
+    ShellService.displays,
+    () => _connectDisplays(waylandClient, outputs, appConfig),
+  );
+
+  // `connect()` never throws: a failure leaves the manager disconnected with a
+  // reason the workspaces module renders a retry button from.
+  services.run(ShellService.miracle, miracle.connect);
+
+  services.run(ShellService.notifications, startNotificationService);
+  services.run(ShellService.tray, startStatusNotifierService);
+
+  // Watches the default sink/source and the backlight so the on-screen
+  // indicator can react to volume, mic, and brightness changes made anywhere.
+  services.run(ShellService.audio, () => startOsdService(appConfig.osd));
+
+  // Claims the xdg-desktop-portal ScreenCast backend name, so apps asking to
+  // share their screen get the shell's own picker. Fails soft on a compositor
+  // without ext-image-copy-capture, or with no PipeWire.
+  if (appConfig.screenshare.enabled) {
+    services.run(
+      ShellService.screencast,
+      () => startScreencastService(
+        picker: ScreencastPickerController.instance,
+        maxFrameRate: appConfig.screenshare.maxFps,
+      ),
+    );
+  } else {
+    services.skip(ShellService.screencast);
+  }
+
+  // Enumerates installed applications while the shell is already on screen, so
+  // the launcher can paint the instant its shortcut fires. Until it lands the
+  // launcher and the app choosers show a loader instead of "No applications".
+  services.run(ShellService.applications, () async {
+    startAppIndexService();
+  });
+}
+
+/// Opens the Wayland connection, registers the shell's global shortcuts, and
+/// enumerates the compositor's outputs into [outputs].
+///
+/// Completes once every output present at start-up has reported its properties.
+/// The registry callbacks stay connected for the lifetime of the client, so
+/// `wl_output` globals advertised afterwards are tracked too.
+Future<void> _connectDisplays(
+  WaylandClient waylandClient,
+  OutputTracker outputs,
+  AppConfig appConfig,
+) async {
   await waylandClient.connect();
 
   // Registers the shell's global shortcuts (Ctrl+Shift+S to open settings by
@@ -131,10 +222,6 @@ void main() async {
   final inputTriggers =
       startInputTriggerService(waylandClient, shortcuts: appConfig.shortcuts);
 
-  // Live registry of outputs, kept current as monitors are plugged in and out.
-  // The registry callbacks below stay connected for the lifetime of the client,
-  // so `wl_output` globals advertised after startup are tracked too.
-  final outputs = OutputTracker();
   final outputCompleters = <Completer<void>>[];
   WaylandRegistry? waylandRegistry;
   waylandRegistry = waylandClient.getRegistry(
@@ -175,20 +262,6 @@ void main() async {
     debugPrint('input-trigger: compositor did not advertise the '
         'ext-input-trigger globals; global shortcuts are unavailable');
   }
-
-  // Installs a windowing owner that handles layer-shell *and* session-lock
-  // windows; it subclasses the layer-shell one, so panels/popups are unaffected.
-  initSessionLock();
-
-  // Layer-shell controllers are created from within the widget tree (see
-  // [_GracefulShellRootState.initState]), not here in main(), so that the GTK
-  // windowing system is fully initialized before the first surface is created.
-  runWidget(GracefulShellRoot(
-    appConfig: appConfig,
-    store: store,
-    miracle: miracle,
-    outputs: outputs,
-  ));
 }
 
 /// Live set of Wayland outputs, kept in sync with the compositor's `wl_output`
@@ -228,6 +301,7 @@ class GracefulShellRoot extends StatefulWidget {
     required this.store,
     required this.miracle,
     required this.outputs,
+    required this.services,
   });
 
   /// The config captured at startup. Native layer-shell windows (panels /
@@ -237,6 +311,10 @@ class GracefulShellRoot extends StatefulWidget {
   final ConfigStore store;
   final MiracleManager miracle;
   final OutputTracker outputs;
+
+  /// How far along the global start-up tasks are. Provided to every window's
+  /// subtree so the widgets that need one can show a loader until it lands.
+  final ShellServices services;
 
   @override
   State<GracefulShellRoot> createState() => _GracefulShellRootState();
@@ -393,6 +471,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     SettingsController.instance.addListener(_onSettingsRouteRequested);
     FilePickerController.instance.addListener(_onFilePickRequested);
     ThemeStore.instance.addListener(_onThemeChanged);
+    // The launcher and the app chooser are handed `AppIndex.instance.searchable`
+    // from this build, so the root itself has to rebuild when the index lands —
+    // [ShellServicesScope] only covers widgets that read a status through it.
+    widget.services.addListener(_onServicesChanged);
     // startThemeService() resolved the palette back in main(), so the margin is
     // known before the first surface is built and no bar is created flush and
     // then nudged.
@@ -1087,18 +1169,23 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
   }
 
+  /// A global start-up task settled. Rebuilds so the overlays that were handed
+  /// a half-loaded world — today the launcher's and the chooser's app lists —
+  /// get the finished one, and so their loaders come down.
+  void _onServicesChanged() {
+    if (mounted) setState(() {});
+  }
+
   void _onOutputsChanged() {
     // Outputs were added/removed or finished reporting their properties;
     // rebuild so each panel re-resolves the display it renders on.
     if (mounted) setState(() {});
   }
 
-  /// Resolves the Wayland output backing [monitor] for [DisplayScope]. Falls
-  /// back to the first known output if an exact match is not (yet) available,
-  /// or null only when no outputs are known at all.
+  /// Resolves the Wayland output backing [monitor] for [DisplayScope], or null
+  /// while the shell does not (yet) know which one it is.
   WaylandOutput? _outputFor(MonitorInfo monitor) {
     final outputs = widget.outputs.outputs;
-    if (outputs.isEmpty) return null;
     for (final output in outputs) {
       if (output.make == monitor.manufacturer &&
           output.model == monitor.model &&
@@ -1106,6 +1193,16 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           output.y == monitor.position.dy.toInt()) {
         return output;
       }
+    }
+    // The first-output fallback covers a monitor that GDK and Wayland describe
+    // differently, and it is only safe once every output has reported: an
+    // output is tracked as soon as its global is advertised but carries no name
+    // or geometry until its `done`, so mid-enumeration `outputs.first` is
+    // simply whichever one arrived first — and handing a bar the wrong display
+    // would show it another monitor's workspaces. Until then it gets none, and
+    // the modules that need one show a loader.
+    if (outputs.isEmpty || widget.services.isLoading(ShellService.displays)) {
+      return null;
     }
     return outputs.first;
   }
@@ -1167,6 +1264,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     SettingsController.instance.removeListener(_onSettingsRouteRequested);
     FilePickerController.instance.removeListener(_onFilePickRequested);
     ThemeStore.instance.removeListener(_onThemeChanged);
+    widget.services.removeListener(_onServicesChanged);
     _monitorWatcher.dispose();
     // Drop the lock windows, but never send an unlock on the way out: if the
     // shell is going away while the session is locked, the session must stay
@@ -1218,6 +1316,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     );
   }
 
+  /// The ambient providers every window in the shell gets.
+  ///
+  /// An `InheritedWidget` cannot span FlutterViews and the shell renders into
+  /// one view per panel per monitor plus a window for every popup, overlay, OSD
+  /// card and lock surface — so the palette and the start-up service state are
+  /// installed once per window rather than once for the tree. [ThemeProvider]
+  /// stays the only thing that constructs a [ThemeScope].
+  Widget _windowChrome(Widget child) => ShellServicesScope(
+        services: widget.services,
+        child: ThemeProvider(child: child),
+      );
+
   @override
   Widget build(BuildContext context) {
     // Iterate the *startup* panels — those own the layer-shell controllers —
@@ -1249,21 +1359,21 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               // Flutter matches the remaining views onto their FlutterViews.
               key: ObjectKey(surfaces.background!),
               controller: surfaces.background!,
-              // PanelWindowManager and ThemeProvider are what let the desktop
-              // grid open popups: LayerShellWindow already supplies the View
-              // and the WindowScope, but PopupHost also needs a WindowRegistry,
-              // and popup content is built outside the parent's ThemeScope.
+              // PanelWindowManager and the window chrome are what let the
+              // desktop grid open popups: LayerShellWindow already supplies the
+              // View and the WindowScope, but PopupHost also needs a
+              // WindowRegistry, and popup content is built outside the parent's
+              // ThemeScope.
               //
               // Deliberately no DisplayScope: the grid takes its geometry from
-              // a LayoutBuilder, and gating on `_outputFor` would mean no
-              // wallpaper until Wayland output enumeration completed.
+              // a LayoutBuilder and never needs the output at all.
               child: PanelWindowManager(
-                child: ThemeProvider(
+                child: _windowChrome(
                   // A click on the desktop dismisses whatever a *panel* has
                   // open: the two surfaces have separate registries and no
                   // shared widget tree, so the coordinator is the only thing
                   // that can carry the signal across.
-                  child: PopupDismissArea(
+                  PopupDismissArea(
                     child: DesktopSurface(
                       background: bgConfig,
                       desktop: _liveConfig.desktop,
@@ -1282,45 +1392,46 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 ),
               ),
             ),
-          if (_outputFor(surfaces.monitor) case final output?)
-            for (final entry in startupPanels.entries)
-              if (surfaces.panels[entry.key] case final controller?)
-                LayerShellWindow(
-                  key: ObjectKey(controller),
-                  controller: controller,
-                  child: PanelWindowManager(
-                    child: ThemeProvider(
-                      child: MiracleScope(
-                        manager: widget.miracle,
-                        child: DisplayScope(
-                          output: output,
-                          child: Builder(builder: (context) {
-                            final panel =
-                                _effectivePanel(entry.key, entry.value);
-                            // A click anywhere on the bar — an icon whose
-                            // popup is not open, or bare padding — dismisses
-                            // whatever else the shell has up.
-                            return PopupDismissArea(
-                              child: PanelMain(
-                                panelConfig: panel,
-                                anchor: panel.anchor,
-                              ),
-                            );
-                          }),
-                        ),
+          // Not gated on the output being known. Output enumeration is no
+          // longer awaited before the first frame, so a bar that waited for it
+          // would be a bar the user watches appear a beat after login; it
+          // paints now and [DisplayScope] fills in a moment later.
+          for (final entry in startupPanels.entries)
+            if (surfaces.panels[entry.key] case final controller?)
+              LayerShellWindow(
+                key: ObjectKey(controller),
+                controller: controller,
+                child: PanelWindowManager(
+                  child: _windowChrome(
+                    MiracleScope(
+                      manager: widget.miracle,
+                      child: DisplayScope(
+                        output: _outputFor(surfaces.monitor),
+                        child: Builder(builder: (context) {
+                          final panel =
+                              _effectivePanel(entry.key, entry.value);
+                          // A click anywhere on the bar — an icon whose
+                          // popup is not open, or bare padding — dismisses
+                          // whatever else the shell has up.
+                          return PopupDismissArea(
+                            child: PanelMain(
+                              panelConfig: panel,
+                              anchor: panel.anchor,
+                            ),
+                          );
+                        }),
                       ),
                     ),
                   ),
                 ),
+              ),
           // The indicator is not tied to any panel, so it lives here beside the
           // background rather than inside a module's window registry.
           if (_osd[_monitorKey(surfaces.monitor)] case final osd?)
             LayerShellWindow(
               key: ObjectKey(osd),
               controller: osd,
-              child: ThemeProvider(
-                child: OsdWindow(store: OsdStore.instance),
-              ),
+              child: _windowChrome(OsdWindow(store: OsdStore.instance)),
             ),
         ],
         // The settings overlay opened by the global shortcut. A single window
@@ -1329,8 +1440,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           LayerShellWindow(
             key: ObjectKey(settings),
             controller: settings,
-            child: ThemeProvider(
-              child: SettingsOverlay(
+            child: _windowChrome(
+              SettingsOverlay(
                 closingNotifier: _settingsClosing,
                 onClosed: _onSettingsClosed,
                 route: _settingsRoute,
@@ -1343,9 +1454,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           LayerShellWindow(
             key: ObjectKey(chooser),
             controller: chooser,
-            child: ThemeProvider(
-              child: AppChooserOverlay(
+            child: _windowChrome(
+              AppChooserOverlay(
                 apps: AppIndex.instance.searchable,
+                // The index is built after the first frame now, so a chooser
+                // opened during start-up gets an empty list and a loader.
+                loading:
+                    widget.services.isLoading(ShellService.applications),
                 onSelected: (app) {
                   final cell = _appChooserCell;
                   _closeAppChooser();
@@ -1370,8 +1485,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           LayerShellWindow(
             key: ObjectKey(picker),
             controller: picker,
-            child: ThemeProvider(
-              child: FilePickerWindow(
+            child: _windowChrome(
+              FilePickerWindow(
                 request: request,
                 onResult: (paths) {
                   FilePickerController.instance.complete(paths);
@@ -1386,11 +1501,15 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           LayerShellWindow(
             key: ObjectKey(launcher),
             controller: launcher,
-            child: ThemeProvider(
-              child: LauncherOverlay(
+            child: _windowChrome(
+              LauncherOverlay(
                 closingNotifier: _launcherClosing,
                 onClosed: _onLauncherClosed,
                 apps: AppIndex.instance.searchable,
+                // Ctrl+Space can beat the index to the finish line. A loader
+                // says so; "No applications" would be a lie the user acts on.
+                loading:
+                    widget.services.isLoading(ShellService.applications),
                 onLaunch: (app) => launchApp(app.appInfo),
                 onLaunchAction: (app, action) =>
                     launchAppAction(app.appInfo, action.id),
@@ -1405,8 +1524,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           LayerShellWindow(
             key: ObjectKey(picker),
             controller: picker,
-            child: ThemeProvider(
-              child: Builder(builder: (context) {
+            child: _windowChrome(
+              Builder(builder: (context) {
                 final connection = screencastService?.connection;
                 final sources = connection == null
                     ? (monitors: <PickerSource>[], windows: <PickerSource>[])
@@ -1432,8 +1551,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           SessionLockWindow(
             key: ObjectKey(controller),
             controller: controller,
-            child: ThemeProvider(
-              child: LockScreen(
+            child: _windowChrome(
+              LockScreen(
                 config: _liveConfig.lock,
                 onUnlocked: _unlockSession,
               ),

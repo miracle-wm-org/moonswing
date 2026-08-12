@@ -22,6 +22,7 @@ import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/launcher/expression.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// Width of the card. Fixed: the rows need a bounded width, and a launcher that
@@ -49,6 +50,7 @@ class LauncherOverlay extends StatefulWidget {
     required this.apps,
     required this.onLaunch,
     this.onLaunchAction,
+    this.loading = false,
   });
 
   final ValueNotifier<bool> closingNotifier;
@@ -56,6 +58,11 @@ class LauncherOverlay extends StatefulWidget {
 
   /// The searchable index to rank against.
   final List<SearchableApp> apps;
+
+  /// Whether [apps] is still being built. The index is enumerated after the
+  /// shell's first frame, so the shortcut can beat it — and an empty list that
+  /// means "not yet" must not read as "you have no applications".
+  final bool loading;
 
   final void Function(AppEntry app) onLaunch;
   final void Function(AppEntry app, AppAction action)? onLaunchAction;
@@ -98,6 +105,22 @@ class _LauncherOverlayState extends State<LauncherOverlay>
     _controller.forward();
     _results = rankApps(widget.apps, '');
     widget.closingNotifier.addListener(_onClosingChanged);
+  }
+
+  /// Re-ranks when the index lands under an already-open launcher — the root
+  /// rebuilds this widget with the finished list, and the user is by then
+  /// probably part-way through a query, so the current one is re-applied rather
+  /// than reset.
+  @override
+  void didUpdateWidget(LauncherOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.apps, oldWidget.apps)) {
+      setState(() {
+        _results = rankApps(widget.apps, _query);
+        _selected = 0;
+        _flyoutRow = null;
+      });
+    }
   }
 
   @override
@@ -328,6 +351,21 @@ class _LauncherOverlayState extends State<LauncherOverlay>
 
   Widget _buildResults(ThemeConfig theme) {
     if (_results.isEmpty) {
+      if (widget.loading) {
+        return Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LoadingIndicator(color: theme.muted, size: 18),
+              const SizedBox(height: 12),
+              Text(
+                'Indexing applications…',
+                style: TextStyle(color: theme.muted, fontSize: 13),
+              ),
+            ],
+          ),
+        );
+      }
       return Center(
         child: Text(
           _query.isEmpty ? 'No applications' : 'No matching applications',
