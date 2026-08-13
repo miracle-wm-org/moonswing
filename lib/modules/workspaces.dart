@@ -102,6 +102,14 @@ class WorkspacesState extends State<Workspaces> {
     final connection = _connection;
 
     if (connection == null) {
+      // Not running under Miracle at all. Nothing failed and nothing can be
+      // retried, so the module takes no space — the same way the shell drops
+      // global shortcuts on a compositor without ext-input-trigger instead of
+      // parking a broken control on the bar. Checked before the pending case
+      // because it is known from process start, so there is no spinner to
+      // flash first.
+      if (_manager?.unavailable ?? false) return const SizedBox.shrink();
+
       // The IPC connect is started after the shell's first frame, so for the
       // first moments the manager is not yet even *connecting*. Asking the
       // service registry as well is what keeps the retry button — which means

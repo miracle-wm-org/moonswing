@@ -76,6 +76,16 @@ Five things a change here has to keep true:
 
 The visible consequence is that panels paint before the shell knows which physical display each one is on. `DisplayScope.output` is therefore nullable, `_outputFor` refuses its first-output fallback while `ShellService.displays` is still loading (an output is tracked as soon as its global is advertised but carries no name until its `done`, so mid-enumeration `outputs.first` is simply whichever arrived first — and the wrong display means the wrong workspaces), and `modules/workspaces.dart` renders one button's worth of spinner until either the output or the IPC connection arrives.
 
+### Miracle IPC (`lib/miracle_manager.dart`)
+
+`MiracleManager` owns the shell's single `MiracleConnection`, and its whole job is that the shell is usable without one. It separates *absent* from *failed*, because only one of those is a problem:
+
+- **`unavailable` — no `MIRACLESOCK` — is not an error, and `connect()` returns before it starts.** `Platform.environment` is a snapshot taken at process start, so an unset variable can never become set while this process lives; and starting Miracle afterwards would not help either, since it exports the path only to the sessions *it* starts. So there is nothing to retry, nothing failed, and `lastError` stays null. `workspaces.dart` checks `unavailable` **before** the pending case and renders `SizedBox.shrink()` — no spinner to flash, and no retry button, which would mean "this failed" and could never succeed. This is the same soft degradation as a compositor without `ext-input-trigger` or `ext-image-copy-capture`: one line of notice, guarded so a retry cannot repeat it, and the feature simply is not there.
+- **A socket that exists and will not open is the failed case, and keeps the retry.** `lastError` is set, the module renders `_MiracleRetryButton`, and its tooltip shows the reason — `_describe` strips the address/errno tail `SocketException.toString()` adds.
+- **No stack traces on either path.** A `debugPrintStack` for a routine, expected condition is what made a shell running perfectly well without Miracle read as a shell that had crashed. Every failure here is one the shell is designed to live through, and the reason is already in the message; the notices are prefixed `miracle:` like the other absent-feature lines.
+
+The constructor takes an optional `socketPath` so a test can exercise both halves without forking a process to change its own environment.
+
 ### Module system (`lib/module.dart`, `lib/modules/`)
 
 `Module` is an abstract class with three responsibilities:
