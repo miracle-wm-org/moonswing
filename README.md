@@ -52,7 +52,7 @@ FYI! The snap cannot install the PAM service file for you.
   screen falls back to the system `login` service — it still authenticates, it
   just attributes unlock attempts to `login` in the auth logs.
 
-## Local Install
+## Building Locally
 
 ### Dependencies
 
