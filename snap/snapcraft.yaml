@@ -31,7 +31,19 @@ apps:
       # Classic confinement runs in the host namespace and does not set up a
       # library search path. Point the loader at the staged libs (libmpv.so.1
       # and its deps live under usr/lib/<triplet>; Flutter plugins in lib).
-      LD_LIBRARY_PATH: $SNAP/usr/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu/pulseaudio:$SNAP/lib:$LD_LIBRARY_PATH
+      #
+      # The three subdirectories are not decoration: Debian keeps those libs
+      # out of the triplet dir and makes the soname link beside them from a
+      # maintainer script snapcraft never runs, so a staged copy the loader
+      # cannot see is the same as no copy at all. blas/ and lapack/ hold the
+      # update-alternatives implementations, and they are reached through
+      # libmpv -> libavfilter -> libpocketsphinx/libsphinxbase — ffmpeg's asr
+      # filter, which this shell never invokes. It still cannot be dropped:
+      # DT_NEEDED is resolved at load, so a missing one aborts start-up rather
+      # than falling back, and on a host with no BLAS installed (Ubuntu 26.04
+      # ships none) that is "libblas.so.3: cannot open shared object file"
+      # before a single frame.
+      LD_LIBRARY_PATH: $SNAP/usr/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu/blas:$SNAP/usr/lib/x86_64-linux-gnu/lapack:$SNAP/usr/lib/x86_64-linux-gnu/pulseaudio:$SNAP/lib:$LD_LIBRARY_PATH
 
 parts:
   graceful-shell:
