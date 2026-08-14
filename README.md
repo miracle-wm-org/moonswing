@@ -46,36 +46,15 @@ Prefer to do it by hand? Download the `.snap` from that release page and:
 sudo snap install ./graceful-shell_*.snap --classic --dangerous
 ```
 
-### What the snap brings, and what it doesn't
-
-The snap bundles `libgtk-session-lock` and the wallpapers, so the lock screen and
-the wallpaper work out of the box — you do not need anything from
-[Dependencies](#dependencies) below, which is a build-from-source list. So does
-**screen sharing**: the install hook registers the ScreenCast portal backend
-machine-wide, the first run adds the per-user half, and the shell restarts
-`xdg-desktop-portal` itself so both are picked up — no follow-up commands. `sudo
-snap remove` undoes all of it. If you already have an
-`~/.config/xdg-desktop-portal/*-portals.conf` naming a different ScreenCast
-backend, that file is your choice and is left alone; the shell says so on
-start-up and tells you the one line to change.
-
-One thing it cannot install for you:
+FYI! The snap cannot install the PAM service file for you.
 
 - **The PAM service file.** `/etc/pam.d/graceful-shell` needs root, so the lock
   screen falls back to the system `login` service — it still authenticates, it
   just attributes unlock attempts to `login` in the auth logs.
 
-Everything else — PipeWire, PAM, udev, D-Bus, icon themes, the `Ubuntu Sans` font,
-and the helper binaries the audio and System panes shell out to (`pw-metadata`,
-`speaker-test`, `lspci`) — comes from the host, which is what classic confinement
-is for.
+## Local Install
 
-## Dependencies
-
-**Only needed to build from source** — skip this whole section if you installed
-the snap.
-
-### Build
+### Dependencies
 
 - `libgtk3`
 - `gtk-layer-shell`
@@ -88,42 +67,23 @@ On Ubuntu 26.04:
 sudo apt install libgtk-3-dev libgtk-layer-shell-dev libasound2-dev libmpv-dev
 ```
 
-You also need the [Flutter SDK](https://docs.flutter.dev/get-started/install/linux)
-on the `master` channel:
+You will also need Flutter:
 
 ```sh
+sudo snap install flutter --classic
 flutter channel master
 flutter upgrade
-```
-
-### Runtime
-
-Each of these gates one feature; without it the shell runs normally and only
-that feature is unavailable.
-
-- **Lock screen** — `libgtk-session-lock0` (the `ext-session-lock-v1`
-  implementation) and `libpam0g` (password verification, part of the base system
-  so already installed). Both are loaded with `dlopen`, so the shell builds and
-  runs fine without them. Your compositor must also implement
-  `ext-session-lock-v1` (Mir/Miracle does).
-
-  ```sh
-  sudo apt install libgtk-session-lock0
-  ```
-
-- **Screen sharing** — **PipeWire 1.0+** (already running on any current
-  desktop) and a compositor implementing `ext-image-copy-capture-v1`
-  (miracle-wm built against MirAL 5.6 or newer). Both are checked at start-up.
-  `make install` registers the shell as the ScreenCast portal backend; see
-  [CONFIG.md](CONFIG.md#screen-sharing).
-
-## Building from source
-
-One-time setup — enable Flutter's experimental windowing API:
-
-```sh
 flutter config --enable-windowing
 ```
+
+Some dependencies are needed for the runtime to work properly, but they
+are not necessary if you plan to to not use these features:
+
+```sh
+sudo apt install libgtk-session-lock0  # Lock screen
+```
+
+### Building
 
 Build and install to `~/.local` (default), or to a custom prefix:
 
@@ -132,8 +92,7 @@ make install
 make install PREFIX=/usr/local
 ```
 
-This copies the binary, libraries, and the default wallpapers to the prefix. Make
-sure `$PREFIX/bin` is in your `PATH`. Then run:
+Then run:
 
 ```sh
 graceful-shell
@@ -159,5 +118,5 @@ sudo make uninstall-pam   # if you installed the PAM service file
 ## Running in development
 
 ```sh
-flutter run -d linux
+flutter run
 ```
