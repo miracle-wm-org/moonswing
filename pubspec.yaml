@@ -27,6 +27,11 @@ dependencies:
   udev: ^0.0.3
   dbus: ^0.7.11
   font_awesome_flutter: ^11.0.0
+  # The loading indicators. `SpinKitRing` is what `LoadingIndicator`
+  # (lib/loading_indicator.dart) renders, and that widget is the only thing in
+  # the shell that shows an operation is in flight — see the comment there for
+  # why there is exactly one of them.
+  flutter_spinkit: ^5.2.2
   pulseaudio: ^0.0.8
   ffi: ^2.1.3
   toml: ^0.18.0

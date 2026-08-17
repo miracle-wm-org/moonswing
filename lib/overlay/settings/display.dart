@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:wayland/wayland.dart';
 
@@ -577,7 +578,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         _buildHeader(theme),
         Container(height: 1, color: theme.divider),
         const Expanded(
-          child: Center(child: _DisplayLoadingIndicator(size: 22)),
+          child: Center(child: LoadingIndicator(size: 22)),
         ),
       ],
     );
@@ -1423,7 +1424,7 @@ class _ActionButtonState extends State<_ActionButton> {
           ),
           child: Center(
             child: widget.loading
-                ? const _DisplayLoadingIndicator(size: 14)
+                ? const LoadingIndicator(size: 14)
                 : Text(
                     widget.label,
                     style: TextStyle(
@@ -1435,56 +1436,6 @@ class _ActionButtonState extends State<_ActionButton> {
                     ),
                   ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _DisplayLoadingIndicator
-// ---------------------------------------------------------------------------
-
-class _DisplayLoadingIndicator extends StatefulWidget {
-  const _DisplayLoadingIndicator({this.size = 16.0});
-
-  final double size;
-
-  @override
-  _DisplayLoadingIndicatorState createState() =>
-      _DisplayLoadingIndicatorState();
-}
-
-class _DisplayLoadingIndicatorState extends State<_DisplayLoadingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => Transform.rotate(
-        angle: _ctrl.value * 2 * math.pi,
-        child: FaIcon(
-          FontAwesomeIcons.circleNotch,
-          size: widget.size,
-          color: theme.popupForeground.withValues(alpha: 0.6),
         ),
       ),
     );
