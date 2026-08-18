@@ -1,11 +1,11 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
@@ -259,51 +259,6 @@ Future<void> disconnectBluetoothDevice(BluetoothDevice device) async {
 // ---------------------------------------------------------------------------
 // Helper widgets
 // ---------------------------------------------------------------------------
-
-class _BtLoadingIndicator extends StatefulWidget {
-  const _BtLoadingIndicator({this.size = 16.0});
-
-  final double size;
-
-  @override
-  _BtLoadingIndicatorState createState() => _BtLoadingIndicatorState();
-}
-
-class _BtLoadingIndicatorState extends State<_BtLoadingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => Transform.rotate(
-        angle: _ctrl.value * 2 * math.pi,
-        child: FaIcon(
-          FontAwesomeIcons.circleNotch,
-          size: widget.size,
-          color: theme.popupForeground.withValues(alpha: 0.6),
-        ),
-      ),
-    );
-  }
-}
 
 class _BtConnectedBadge extends StatelessWidget {
   const _BtConnectedBadge();
@@ -570,7 +525,7 @@ class _BluetoothDeviceItemState extends State<_BluetoothDeviceItem> {
 
     Widget trailing;
     if (widget.actioning) {
-      trailing = const _BtLoadingIndicator(size: 14);
+      trailing = const LoadingIndicator(size: 14);
     } else if (d.connected) {
       trailing = Row(
         mainAxisSize: MainAxisSize.min,
@@ -798,7 +753,7 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
               if (_togglingPower)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  child: _BtLoadingIndicator(size: 12),
+                  child: LoadingIndicator(size: 12),
                 )
               else if (_powered != null)
                 _BtPowerToggle(powered: _powered!, onTap: _togglePower),
@@ -867,7 +822,7 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const _BtLoadingIndicator(size: 22),
+            const LoadingIndicator(size: 22),
             const SizedBox(height: 12),
             Text(
               'Scanning for devices…',

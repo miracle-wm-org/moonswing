@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -221,10 +221,18 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const SizedBox(
+      // The 16x16 box is kept around the 14px loader: this sits in a panel row
+      // and the placeholder must not be narrower than the reading that
+      // replaces it, or the modules beside it shuffle sideways when it lands.
+      return SizedBox(
         width: 16,
         height: 16,
-        child: _Spinner(),
+        child: Center(
+          child: LoadingIndicator(
+            color: ThemeScope.of(context).foreground,
+            size: 14,
+          ),
+        ),
       );
     }
 
@@ -324,51 +332,6 @@ class _WeatherForecastPopup extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _Spinner extends StatefulWidget {
-  const _Spinner();
-
-  @override
-  _SpinnerState createState() => _SpinnerState();
-}
-
-class _SpinnerState extends State<_Spinner>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 1),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Transform.rotate(
-          angle: _controller.value * 2 * pi,
-          child: child,
-        );
-      },
-      child: Text(
-        '◐',
-        style:
-            TextStyle(fontSize: 14, color: ThemeScope.of(context).foreground),
       ),
     );
   }

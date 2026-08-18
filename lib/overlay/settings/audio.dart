@@ -2,12 +2,12 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:math' as math;
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
@@ -38,55 +38,6 @@ class _DropdownItem<T> {
 
   final T value;
   final String label;
-}
-
-// ---------------------------------------------------------------------------
-// _LoadingIndicator
-// ---------------------------------------------------------------------------
-
-class _LoadingIndicator extends StatefulWidget {
-  const _LoadingIndicator({this.size = 16.0});
-
-  final double size;
-
-  @override
-  _LoadingIndicatorState createState() => _LoadingIndicatorState();
-}
-
-class _LoadingIndicatorState extends State<_LoadingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => Transform.rotate(
-        angle: _ctrl.value * 2 * math.pi,
-        child: FaIcon(
-          FontAwesomeIcons.circleNotch,
-          size: widget.size,
-          color: theme.popupForeground.withValues(alpha: 0.6),
-        ),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -137,7 +88,7 @@ class _ActionButtonState extends State<_ActionButton> {
               BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
           child: Center(
             child: widget.loading
-                ? const _LoadingIndicator(size: 14)
+                ? const LoadingIndicator(size: 14)
                 : Text(
                     widget.label,
                     style: TextStyle(
@@ -891,7 +842,7 @@ class _AudioSettingsPageState extends State<AudioSettingsPage> {
       children: [
         _buildHeader(theme),
         Container(height: 1, color: theme.divider),
-        const Expanded(child: Center(child: _LoadingIndicator(size: 22))),
+        const Expanded(child: Center(child: LoadingIndicator(size: 22))),
       ],
     );
   }
@@ -1087,7 +1038,7 @@ class _OutputTabState extends State<_OutputTab> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     if (_error != null) return _buildRetry(theme, _error!);
-    if (_loading) return const Center(child: _LoadingIndicator(size: 22));
+    if (_loading) return const Center(child: LoadingIndicator(size: 22));
     return _buildContent(theme);
   }
 
@@ -1382,7 +1333,7 @@ class _InputTabState extends State<_InputTab> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     if (_error != null) return _buildRetry(theme, _error!);
-    if (_loading) return const Center(child: _LoadingIndicator(size: 22));
+    if (_loading) return const Center(child: LoadingIndicator(size: 22));
     return _buildContent(theme);
   }
 
@@ -1520,7 +1471,7 @@ class _InputTabState extends State<_InputTab> {
               ),
               const SizedBox(width: 12),
               _togglingNoiseSupp
-                  ? const _LoadingIndicator(size: 18)
+                  ? const LoadingIndicator(size: 18)
                   : _EnableToggle(
                       enabled: _noiseSuppEnabled,
                       onTap: _toggleNoiseSupp,
@@ -1592,7 +1543,7 @@ class _AppsTabState extends State<_AppsTab> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     if (_error != null) return _buildRetry(theme, _error!);
-    if (_loading) return const Center(child: _LoadingIndicator(size: 22));
+    if (_loading) return const Center(child: LoadingIndicator(size: 22));
     final inputs = _sinkInputs!;
     final sinks = _sinks!;
     if (inputs.isEmpty) {
@@ -1904,7 +1855,7 @@ class _ProfilesTabState extends State<_ProfilesTab> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     if (_error != null) return _buildRetry(theme, _error!);
-    if (_loading) return const Center(child: _LoadingIndicator(size: 22));
+    if (_loading) return const Center(child: LoadingIndicator(size: 22));
     return _buildContent(theme);
   }
 
@@ -1989,7 +1940,7 @@ class _ProfilesTabState extends State<_ProfilesTab> {
                 ),
               ),
               _togglingMono
-                  ? const _LoadingIndicator(size: 18)
+                  ? const LoadingIndicator(size: 18)
                   : _EnableToggle(enabled: _monoEnabled, onTap: _toggleMono),
             ],
           ),
@@ -2273,7 +2224,7 @@ class _AdvancedTabState extends State<_AdvancedTab> {
         const _SectionLabel('PipeWire Settings'),
         const SizedBox(height: 12),
         if (_loadingSettings)
-          const Center(child: _LoadingIndicator(size: 18))
+          const Center(child: LoadingIndicator(size: 18))
         else if (_settingsError != null)
           Text(_settingsError!,
               style: TextStyle(fontSize: 12, color: theme.accent))

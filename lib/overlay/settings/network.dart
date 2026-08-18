@@ -1,61 +1,16 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/modules/network.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
 // Settings page — shared helper widgets
 // ---------------------------------------------------------------------------
-
-class _LoadingIndicator extends StatefulWidget {
-  const _LoadingIndicator({this.size = 16.0});
-
-  final double size;
-
-  @override
-  _LoadingIndicatorState createState() => _LoadingIndicatorState();
-}
-
-class _LoadingIndicatorState extends State<_LoadingIndicator>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => Transform.rotate(
-        angle: _ctrl.value * 2 * math.pi,
-        child: FaIcon(
-          FontAwesomeIcons.circleNotch,
-          size: widget.size,
-          color: theme.popupForeground.withValues(alpha: 0.6),
-        ),
-      ),
-    );
-  }
-}
 
 class _ConnectedBadge extends StatelessWidget {
   const _ConnectedBadge();
@@ -131,7 +86,7 @@ class _ActionButtonState extends State<_ActionButton> {
           ),
           child: Center(
             child: widget.loading
-                ? const _LoadingIndicator(size: 14)
+                ? const LoadingIndicator(size: 14)
                 : Text(
                     widget.label,
                     style: TextStyle(
@@ -501,7 +456,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       );
     }
     if (_networks == null) {
-      return const Center(child: _LoadingIndicator(size: 22));
+      return const Center(child: LoadingIndicator(size: 22));
     }
     if (_networks!.isEmpty) {
       return Center(
