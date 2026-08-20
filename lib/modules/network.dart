@@ -491,8 +491,10 @@ class NetworkState extends State<Network> with PopupHost<Network> {
 
     openBarPopup(
       context,
-      preferredConstraints:
-          const BoxConstraints.tightFor(width: 220, height: 110),
+      // Loose, so the popup hugs its content: on ethernet the signal-strength
+      // rows are not built at all, and a tight box would reserve their height
+      // anyway. The maxima are a runaway guard, not a size.
+      preferredConstraints: const BoxConstraints(maxWidth: 320, maxHeight: 400),
       child: ThemeProvider(
         child: _NetworkPopupContent(info: _info),
       ),

@@ -206,10 +206,11 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
 
     openBarPopup(
       context,
-      preferredConstraints:
-          const BoxConstraints.tightFor(width: 260, height: 300),
+      // Loose, so the card is exactly as tall as the number of days the API
+      // actually returned. The maxima are a runaway guard, not a size.
+      preferredConstraints: const BoxConstraints(maxWidth: 420, maxHeight: 600),
       child: ThemeProvider(
-        child: _WeatherForecastPopup(
+        child: WeatherForecastPopup(
           forecast: _forecast,
           unitLabel: unitLabel,
           weatherCondition: _weatherCondition,
@@ -265,8 +266,9 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
   }
 }
 
-class _WeatherForecastPopup extends StatelessWidget {
-  const _WeatherForecastPopup({
+class WeatherForecastPopup extends StatelessWidget {
+  const WeatherForecastPopup({
+    super.key,
     required this.forecast,
     required this.unitLabel,
     required this.weatherCondition,
@@ -280,30 +282,42 @@ class _WeatherForecastPopup extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
 
+    // A Table rather than a column of Rows, because the popup is sized to its
+    // content and MainAxisAlignment.spaceBetween — what these rows used to use
+    // to line their columns up — means nothing without a bounded width.
+    // IntrinsicColumnWidth sizes each of the four columns to its widest cell and
+    // keeps them aligned across every row, which is what spaceBetween was only
+    // approximating, and it replaces the hand-rolled SizedBox(width: 32) that
+    // used to stand in for a day-label column. With no flex column the table
+    // shrink-wraps, so the card ends up as wide as its widest day.
+    Widget cell(Widget child, {EdgeInsets? padding}) => Padding(
+          padding: padding ?? const EdgeInsets.symmetric(vertical: 4),
+          child: child,
+        );
+
     final rows = forecast.map((day) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            SizedBox(
-              width: 32,
-              child: Text(day.dayLabel,
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-            ),
+      return TableRow(
+        children: [
+          cell(Text(day.dayLabel,
+              style: const TextStyle(fontWeight: FontWeight.w600))),
+          cell(
             Text(weatherCondition(day.weatherCode)),
-            Text(
-              '${day.tempMax.round()}° / ${day.tempMin.round()}°',
-              style: TextStyle(color: theme.popupForeground),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          ),
+          cell(Text(
+            '${day.tempMax.round()}° / ${day.tempMin.round()}°',
+            style: TextStyle(color: theme.popupForeground),
+          )),
+          cell(
             Text(
               '💧${day.precipProbability}%',
               style: TextStyle(
                   color: theme.popupForeground.withValues(alpha: 0.7),
                   fontSize: 12),
             ),
-          ],
-        ),
+            padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+          ),
+        ],
       );
     }).toList();
 
@@ -327,7 +341,11 @@ class _WeatherForecastPopup extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                ...rows,
+                Table(
+                  defaultColumnWidth: const IntrinsicColumnWidth(),
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  children: rows,
+                ),
               ],
             ),
           ),

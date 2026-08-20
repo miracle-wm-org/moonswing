@@ -91,9 +91,18 @@ class SoundControlState extends State<SoundControl>
 
     openBarPopup(
       context,
+      // Height hugs the content; width stays pinned, on both counts
+      // deliberately. A slider has no intrinsic length — _VolumeSlider paints
+      // through a CustomPaint sized `double.infinity` along its axis, so it
+      // takes whatever it is given — and this is the one popup that rebuilds
+      // while open, swapping its label between `Muted`, `5%` and `100%` on
+      // every drag. Flutter's Linux popup does not set the positioner's
+      // reactive flag, so a popup that resizes after mapping keeps its original
+      // anchor placement; a content-width one would walk away from the bar
+      // under the pointer.
       preferredConstraints: isVertical
-          ? const BoxConstraints.tightFor(width: 80, height: 200)
-          : const BoxConstraints.tightFor(width: 240, height: 50),
+          ? const BoxConstraints(minWidth: 80, maxWidth: 80, maxHeight: 320)
+          : const BoxConstraints(minWidth: 240, maxWidth: 240, maxHeight: 200),
       child: ThemeProvider(
         child: _SoundPopupContent(
           volume: _volume,

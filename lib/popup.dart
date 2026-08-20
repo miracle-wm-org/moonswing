@@ -266,8 +266,41 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // base interface. Casting to the wrong one compiles and then throws on the
     // first popup opened.
     final native = thisController as BaseWindowControllerLinux;
-    GtkWindow.fromHandle(native.windowHandle).setAppPaintable(true);
+    final gtkWindow = GtkWindow.fromHandle(native.windowHandle);
+    gtkWindow.setAppPaintable(true);
     FlView.fromHandle(native.flutterViewHandle).setBackgroundColor('#00000000');
+    // A sized-to-content popup has to be told its size before it maps, or it is
+    // positioned as though it were some other size.
+    //
+    // PopupWindowControllerLinux resolves the placement exactly once, from its
+    // own constructor, and GTK3 does not set the positioner's reactive flag —
+    // so `gdk_window_move_to_rect` is evaluated against whatever size the GTK
+    // window has at map time and is never revisited. The window is mapped from
+    // the engine's first-frame callback, but fl_view_renderer only applies the
+    // content size when it *presents* a frame, which is after that. So the
+    // popup maps at GTK's default 200x200 and shrinks to its content
+    // afterwards, having already been placed as a 200x200 window.
+    //
+    // That matters because [popupAnchorsForBar] returns edge-*centred* anchors:
+    // on a top or bottom bar the popup is centred horizontally on its trigger,
+    // so its x is `anchorCentre - width / 2` and a wrong width offsets it by
+    // half the error. A 128-wide system menu placed as though it were 200 wide
+    // lands 36px to the side of its button, which is far enough that the
+    // constraint adjustment then slides it somewhere else entirely.
+    //
+    // This was invisible for as long as every call site passed
+    // `BoxConstraints.tightFor(...)`: those windows really were the size GTK
+    // had mapped them at, and the ones that were near 200x200 were simply
+    // lucky. A post-frame callback runs after the frame that laid the content
+    // out but before that frame is presented — the last moment at which the
+    // size can still reach GTK ahead of the map.
+    final contentKey = GlobalKey();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (thisController!.isDestroyed) return;
+      final size = contentKey.currentContext?.size;
+      if (size == null) return;
+      gtkWindow.resize(size.width.ceil(), size.height.ceil());
+    });
     _registry = PanelWindowManager.registryOf(context);
     // Registered before the surface maps, so whatever this displaces is already
     // on its way out. The parent comes from the context: null in a panel, and
@@ -295,7 +328,10 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
           behavior: HitTestBehavior.translucent,
           onPointerDown: (event) => PopupCoordinator.instance
               .dismissFromPointerDown(event, within: handle),
-          child: ConstrainedBox(constraints: constraints, child: child),
+          // Keyed so the post-frame callback above can measure what the
+          // content actually laid out to and hand that size to GTK.
+          child: ConstrainedBox(
+              key: contentKey, constraints: constraints, child: child),
         ),
       ),
     );

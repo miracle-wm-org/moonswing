@@ -81,10 +81,11 @@ class SystemState extends State<System>
 
     openBarPopup(
       context,
-      preferredConstraints:
-          const BoxConstraints.tightFor(width: 200, height: 202),
+      // Loose, so the menu hugs its buttons instead of the hand-computed
+      // 200x202 this used to pin. The maxima are a runaway guard, not a size.
+      preferredConstraints: const BoxConstraints(maxWidth: 320, maxHeight: 400),
       child: ThemeProvider(
-        child: _SystemPopupContent(
+        child: SystemPopupContent(
           onShowConfirmation: _showConfirmation,
           onLock: _lock,
         ),
@@ -118,8 +119,9 @@ class SystemState extends State<System>
   }
 }
 
-class _SystemPopupContent extends StatelessWidget {
-  const _SystemPopupContent({
+class SystemPopupContent extends StatelessWidget {
+  const SystemPopupContent({
+    super.key,
     required this.onShowConfirmation,
     required this.onLock,
   });
@@ -138,44 +140,55 @@ class _SystemPopupContent extends StatelessWidget {
           child: Container(
             color: theme.popupBackground,
             padding: const EdgeInsets.all(8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _SystemButton(
-                  icon: FontAwesomeIcons.lock,
-                  label: 'Lock',
-                  onTap: onLock,
-                ),
-                const SizedBox(height: 4),
-                _SystemButton(
-                  icon: FontAwesomeIcons.arrowRightFromBracket,
-                  label: 'Log Out',
-                  onTap: () => onShowConfirmation('Log Out', () async {
-                    final session = UbuntuSession();
-                    await session.logout();
-                  }),
-                ),
-                const SizedBox(height: 4),
-                _SystemButton(
-                  icon: FontAwesomeIcons.powerOff,
-                  label: 'Shut Down',
-                  onTap: () => onShowConfirmation('Shut Down', () async {
-                    final session = UbuntuSession();
-                    await session.shutdown();
-                  }),
-                ),
-                const SizedBox(height: 4),
-                _SystemButton(
-                  icon: FontAwesomeIcons.moon,
-                  label: 'Sleep',
-                  onTap: () => onShowConfirmation('Sleep', () async {
-                    final manager = SystemdSessionManager();
-                    await manager.connect();
-                    await manager.suspend(false);
-                    await manager.close();
-                  }),
-                ),
-              ],
+            // The popup is sized to content, so the menu is only as wide as its
+            // widest label. [_SystemButton] is a default Row holding an
+            // [Expanded] label, though, so left to itself each button would fill
+            // whatever maximum the constraints allow and the popup would just be
+            // that maximum wide. IntrinsicWidth measures the widest button and
+            // `stretch` gives every button that width, which both keeps the
+            // Expanded bounded and keeps the hover highlights flush with each
+            // other. Four children makes the extra layout pass free.
+            child: IntrinsicWidth(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _SystemButton(
+                    icon: FontAwesomeIcons.lock,
+                    label: 'Lock',
+                    onTap: onLock,
+                  ),
+                  const SizedBox(height: 4),
+                  _SystemButton(
+                    icon: FontAwesomeIcons.arrowRightFromBracket,
+                    label: 'Log Out',
+                    onTap: () => onShowConfirmation('Log Out', () async {
+                      final session = UbuntuSession();
+                      await session.logout();
+                    }),
+                  ),
+                  const SizedBox(height: 4),
+                  _SystemButton(
+                    icon: FontAwesomeIcons.powerOff,
+                    label: 'Shut Down',
+                    onTap: () => onShowConfirmation('Shut Down', () async {
+                      final session = UbuntuSession();
+                      await session.shutdown();
+                    }),
+                  ),
+                  const SizedBox(height: 4),
+                  _SystemButton(
+                    icon: FontAwesomeIcons.moon,
+                    label: 'Sleep',
+                    onTap: () => onShowConfirmation('Sleep', () async {
+                      final manager = SystemdSessionManager();
+                      await manager.connect();
+                      await manager.suspend(false);
+                      await manager.close();
+                    }),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
