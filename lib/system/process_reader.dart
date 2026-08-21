@@ -58,10 +58,6 @@ class ProcessReader {
     return processes;
   }
 
-  /// Reads the command line for a single PID, for the cache to fill on first
-  /// sight of a process.
-  String? readCmdline(int pid) => _readCmdline('$procRoot/$pid/cmdline');
-
   /// Re-reads one process, for the kill path's identity check.
   ProcessRaw? statOf(int pid) {
     final line = _readOrNull('$procRoot/$pid/stat');

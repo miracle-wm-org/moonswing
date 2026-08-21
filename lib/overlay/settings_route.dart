@@ -67,6 +67,7 @@ class SettingsController extends ChangeNotifier {
 
   /// Monotonic count of open requests. Exposed for tests; the root reacts to
   /// [notifyListeners], not to this value.
+  @visibleForTesting
   int get openCount => _openCount;
 
   /// Asks the shell to show the settings overlay at [route].

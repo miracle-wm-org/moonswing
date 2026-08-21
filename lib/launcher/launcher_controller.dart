@@ -24,6 +24,7 @@ class LauncherController extends ChangeNotifier {
 
   /// Monotonic count of toggle requests. Exposed for tests; the root reacts to
   /// [notifyListeners], not to this value.
+  @visibleForTesting
   int get toggleCount => _toggleCount;
 
   /// Asks the shell to open the launcher, or to close it if it is already up.

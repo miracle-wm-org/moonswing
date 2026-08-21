@@ -86,10 +86,12 @@ class ShellServices extends ChangeNotifier {
   bool isLoading(ShellService service) =>
       statusOf(service) == ServiceStatus.loading;
 
+  @visibleForTesting
   bool isReady(ShellService service) =>
       statusOf(service) == ServiceStatus.ready;
 
   /// Why [service] failed, or null when it did not (or has not yet).
+  @visibleForTesting
   String? errorOf(ShellService service) => _errors[service];
 
   /// Starts [task] for [service] and settles the status when it finishes.
