@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:toml/toml.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/module.dart';
 
@@ -211,57 +212,41 @@ class ThemeConfig {
 
   factory ThemeConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ThemeConfig();
-    // Every read is type-tested rather than cast: a theme file is hand-editable
-    // and a wrongly-typed value should cost that one key, not the theme.
-    String? str(String key) {
-      final raw = map[key];
-      return raw is String ? raw : null;
-    }
-
-    // A theme file is hand-editable, so every number is clamped into a range
-    // that cannot crash a painter. NaN and ±Infinity both fall back rather than
-    // clamp: infinity survives clamp(), and `double.nan.toInt()` throws.
-    double num_(String key, double fallback, double max) {
-      final raw = map[key];
-      if (raw is! num) return fallback;
-      final value = raw.toDouble();
-      if (!value.isFinite) return fallback;
-      return value.clamp(0.0, max);
-    }
+    // A theme file is hand-editable, so every read goes through TomlReader —
+    // a wrongly-typed value costs that one key, not the theme — and every
+    // number is clamped into a range that cannot crash a painter.
+    Color color(String key, Color fallback) =>
+        _parseColor(map.stringOrNull(key), fallback);
 
     return ThemeConfig(
-      foreground: _parseColor(str('foreground'), const Color(0xFFF3F4F4)),
-      accent: _parseColor(str('accent'), const Color(0xFF853953)),
-      surfaceHover: _parseColor(str('surface_hover'), const Color(0xFF853953)),
-      surfacePressed:
-          _parseColor(str('surface_pressed'), const Color(0xFF612D53)),
+      foreground: color('foreground', const Color(0xFFF3F4F4)),
+      accent: color('accent', const Color(0xFF853953)),
+      surfaceHover: color('surface_hover', const Color(0xFF853953)),
+      surfacePressed: color('surface_pressed', const Color(0xFF612D53)),
       workspaceBackground:
-          _parseColor(str('workspace_background'), const Color(0xFF2C2C2C)),
-      popupBackground:
-          _parseColor(str('popup_background'), const Color(0xFF2C2C2C)),
-      popupForeground:
-          _parseColor(str('popup_foreground'), const Color(0xFFF3F4F4)),
-      controlSurface:
-          _parseColor(str('control_surface'), const Color(0xFF39393D)),
-      sliderTrack: _parseColor(str('slider_track'), const Color(0xFF612D53)),
-      muted: _parseColor(str('muted'), const Color(0xFF853953)),
-      divider: _parseColor(str('divider'), const Color(0x33F3F4F4)),
-      panelBackground:
-          _parseColor(str('panel_background'), const Color(0xEE2C2C2C)),
-      panelGradient: map['panel_gradient'] is bool
-          ? map['panel_gradient'] as bool
-          : true,
-      panelMargin: num_('panel_margin', 0.0, 256.0).round(),
-      panelRadius: num_('panel_radius', 0.0, 64.0),
-      panelBorder: _parseColor(str('panel_border'), const Color(0x33F3F4F4)),
-      panelBorderWidth: num_('panel_border_width', 0.0, 16.0),
-      popupRadius: num_('popup_radius', 8.0, 64.0),
-      popupBorder: _parseColor(str('popup_border'), const Color(0x33F3F4F4)),
-      popupBorderWidth: num_('popup_border_width', 1.0, 16.0),
-      scrim: _parseColor(str('scrim'), const Color(0x882C2C2C)),
+          color('workspace_background', const Color(0xFF2C2C2C)),
+      popupBackground: color('popup_background', const Color(0xFF2C2C2C)),
+      popupForeground: color('popup_foreground', const Color(0xFFF3F4F4)),
+      controlSurface: color('control_surface', const Color(0xFF39393D)),
+      sliderTrack: color('slider_track', const Color(0xFF612D53)),
+      muted: color('muted', const Color(0xFF853953)),
+      divider: color('divider', const Color(0x33F3F4F4)),
+      panelBackground: color('panel_background', const Color(0xEE2C2C2C)),
+      panelGradient: map.boolOr('panel_gradient', true),
+      panelMargin:
+          map.doubleOr('panel_margin', 0.0, min: 0.0, max: 256.0).round(),
+      panelRadius: map.doubleOr('panel_radius', 0.0, min: 0.0, max: 64.0),
+      panelBorder: color('panel_border', const Color(0x33F3F4F4)),
+      panelBorderWidth:
+          map.doubleOr('panel_border_width', 0.0, min: 0.0, max: 16.0),
+      popupRadius: map.doubleOr('popup_radius', 8.0, min: 0.0, max: 64.0),
+      popupBorder: color('popup_border', const Color(0x33F3F4F4)),
+      popupBorderWidth:
+          map.doubleOr('popup_border_width', 1.0, min: 0.0, max: 16.0),
+      scrim: color('scrim', const Color(0x882C2C2C)),
       // A negative or NaN sigma throws inside ImageFilter.blur.
-      blur: num_('blur', 24.0, 100.0),
-      fontFamily: str('font') ?? 'Ubuntu Sans',
+      blur: map.doubleOr('blur', 24.0, min: 0.0, max: 100.0),
+      fontFamily: map.stringOrNull('font') ?? 'Ubuntu Sans',
     );
   }
 
@@ -409,9 +394,10 @@ class BackgroundEntry {
   const BackgroundEntry({required this.path, this.shown = true});
 
   factory BackgroundEntry.fromMap(Map<String, dynamic> map) {
-    final path = map['path'] as String? ?? '';
-    final shown = map['shown'] as bool? ?? true;
-    return BackgroundEntry(path: path, shown: shown);
+    return BackgroundEntry(
+      path: map.stringOr('path', ''),
+      shown: map.boolOr('shown', true),
+    );
   }
 }
 
@@ -427,19 +413,11 @@ class BackgroundConfig {
   });
 
   factory BackgroundConfig.fromMap(Map<String, dynamic> map) {
-    final fitStr = map['fit'] as String? ?? 'fill';
-    final rawInterval = map['interval_minutes'];
-    final interval = rawInterval is num ? rawInterval.toInt() : 5;
-    final rawEntries = map['entries'] as List<dynamic>? ?? [];
-    // List order is the canonical presentation order — do not sort.
-    final entries = rawEntries
-        .whereType<Map<String, dynamic>>()
-        .map(BackgroundEntry.fromMap)
-        .toList();
     return BackgroundConfig(
-      fit: BackgroundFit.fromString(fitStr),
-      intervalMinutes: interval < 1 ? 1 : interval,
-      entries: entries,
+      fit: BackgroundFit.fromString(map.stringOr('fit', 'fill')),
+      intervalMinutes: map.intOr('interval_minutes', 5, min: 1),
+      // List order is the canonical presentation order — do not sort.
+      entries: map.tableListOr('entries').map(BackgroundEntry.fromMap).toList(),
     );
   }
 }
@@ -520,33 +498,27 @@ class DesktopItem {
   }
 
   /// Parses one `[[desktop.items]]` table, or null when it names no target.
-  ///
-  /// Type-tested rather than cast throughout: a throw here would be caught by
-  /// [AppConfig.fromMap] and discard the user's *whole* config.
   static DesktopItem? fromMap(Map<String, dynamic> map) {
+    // The target is deliberately stored verbatim, not trimmed: a path with
+    // surrounding whitespace is legal on Linux, and rewriting it would point
+    // the item at a different file.
     final target = map['target'];
     if (target is! String || target.trim().isEmpty) return null;
 
-    final rawKind = map['kind'];
+    final rawKind = map.stringOrNull('kind');
     // A stored kind is trusted only when it still matches reality; `app` is the
     // exception, since a `.desktop` file is legitimately both.
-    var kind = rawKind is String
+    var kind = rawKind != null
         ? DesktopItemKind.fromString(rawKind)
         : inferDesktopItemKind(target);
     if (kind != DesktopItemKind.app) kind = inferDesktopItemKind(target);
 
-    final rawLabel = map['label'];
-    final label =
-        rawLabel is String && rawLabel.trim().isNotEmpty ? rawLabel : null;
-
-    final rawColumn = map['column'];
-    final rawRow = map['row'];
     return DesktopItem(
       kind: kind,
       target: target,
-      label: label,
-      column: rawColumn is num && rawColumn >= 0 ? rawColumn.toInt() : 0,
-      row: rawRow is num && rawRow >= 0 ? rawRow.toInt() : 0,
+      label: map.stringOrNull('label'),
+      column: map.intOr('column', 0, min: 0),
+      row: map.intOr('row', 0, min: 0),
     );
   }
 
@@ -595,33 +567,23 @@ class DesktopConfig {
   });
 
   factory DesktopConfig.fromMap(Map<String, dynamic> map) {
-    double dimension(String key, double fallback, double floor) {
-      final raw = map[key];
-      if (raw is! num) return fallback;
-      final value = raw.toDouble();
-      return value < floor ? floor : value;
-    }
-
-    final rawItems = map['items'];
     // Document order is preserved; cells, not list position, decide layout.
-    final items = rawItems is List
-        ? rawItems
-            .whereType<Map<String, dynamic>>()
-            .map(DesktopItem.fromMap)
-            .whereType<DesktopItem>()
-            .toList()
-        : <DesktopItem>[];
+    final items = map
+        .tableListOr('items')
+        .map(DesktopItem.fromMap)
+        .whereType<DesktopItem>()
+        .toList();
 
     return DesktopConfig(
-      enabled: map['enabled'] is bool ? map['enabled'] as bool : false,
+      enabled: map.boolOr('enabled', false),
       // A cell smaller than its icon would clip; floors keep a hand-edited
       // config from producing an unusable grid rather than rejecting it.
-      cellWidth: dimension('cell_width', 96, 32),
-      cellHeight: dimension('cell_height', 96, 32),
-      spacing: dimension('spacing', 12, 0),
-      padding: dimension('padding', 24, 0),
-      iconSize: dimension('icon_size', 48, 8),
-      showLabels: map['show_labels'] is bool ? map['show_labels'] as bool : true,
+      cellWidth: map.doubleOr('cell_width', 96, min: 32),
+      cellHeight: map.doubleOr('cell_height', 96, min: 32),
+      spacing: map.doubleOr('spacing', 12, min: 0),
+      padding: map.doubleOr('padding', 24, min: 0),
+      iconSize: map.doubleOr('icon_size', 48, min: 8),
+      showLabels: map.boolOr('show_labels', true),
       items: items,
     );
   }
@@ -647,16 +609,10 @@ class LayoutConfig {
   factory LayoutConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const LayoutConfig();
     return LayoutConfig(
-      left: _parseModuleList(map['left']),
-      center: _parseModuleList(map['center']),
-      right: _parseModuleList(map['right']),
+      left: map.stringListOr('left'),
+      center: map.stringListOr('center'),
+      right: map.stringListOr('right'),
     );
-  }
-
-  static List<String> _parseModuleList(dynamic value) {
-    if (value == null) return [];
-    if (value is! List) return [];
-    return value.whereType<String>().toList();
   }
 
   Set<String> get enabledModules => {...left, ...center, ...right};
@@ -680,14 +636,13 @@ class PanelConfig {
   });
 
   factory PanelConfig.fromMap(String name, Map<String, dynamic> map) {
-    final layoutMap = map['layout'] as Map<String, dynamic>?;
     return PanelConfig(
       name: name,
-      height: map['height'] as int? ?? 32,
-      paddingHorizontal: map['padding_horizontal'] as int? ?? 8,
-      anchor: map['anchor'] as String? ?? 'top',
-      layer: map['layer'] as String? ?? 'top',
-      layout: LayoutConfig.fromMap(layoutMap),
+      height: map.intOr('height', 32),
+      paddingHorizontal: map.intOr('padding_horizontal', 8),
+      anchor: map.stringOr('anchor', 'top'),
+      layer: map.stringOr('layer', 'top'),
+      layout: LayoutConfig.fromMap(map.tableOrNull('layout')),
     );
   }
 }
@@ -709,19 +664,10 @@ class WorldClock {
   const WorldClock({required this.zone, this.label});
 
   /// Parses one table, or null when it names no zone.
-  ///
-  /// Type-tested rather than cast throughout: a throw here would be caught by
-  /// [AppConfig.fromMap] and discard the user's *whole* config.
   static WorldClock? fromMap(Map<String, dynamic> map) {
-    final zone = map['zone'];
-    if (zone is! String || zone.trim().isEmpty) return null;
-
-    final rawLabel = map['label'];
-    return WorldClock(
-      zone: zone.trim(),
-      label:
-          rawLabel is String && rawLabel.trim().isNotEmpty ? rawLabel.trim() : null,
-    );
+    final zone = map.stringOrNull('zone');
+    if (zone == null) return null;
+    return WorldClock(zone: zone, label: map.stringOrNull('label'));
   }
 
   /// The TOML table for this clock. `label` is omitted when the user has not
@@ -763,7 +709,7 @@ class CalendarConfig {
   factory CalendarConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const CalendarConfig();
 
-    final weekStart = (map['week_start'] as String? ?? 'sunday').toLowerCase();
+    final weekStart = map.stringOr('week_start', 'sunday').toLowerCase();
 
     return CalendarConfig(
       weekStart: weekStart == 'monday' ? DateTime.monday : DateTime.sunday,
@@ -791,12 +737,11 @@ class OsdConfig {
 
   factory OsdConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const OsdConfig();
-    final hideDelay = (map['hide_delay_ms'] as num?)?.toInt() ?? 1500;
     return OsdConfig(
-      enabled: map['enabled'] as bool? ?? true,
+      enabled: map.boolOr('enabled', true),
       // A zero delay would hide the indicator before it finished fading in.
-      hideDelayMs: hideDelay < 100 ? 100 : hideDelay,
-      margin: (map['margin'] as num?)?.toInt() ?? 96,
+      hideDelayMs: map.intOr('hide_delay_ms', 1500, min: 100),
+      margin: map.intOr('margin', 96),
     );
   }
 }
@@ -824,18 +769,10 @@ class ScreenshareConfig {
 
   factory ScreenshareConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ScreenshareConfig();
-    // Type-test, never cast: a wrongly-typed value must not throw out of
-    // AppConfig.fromMap, whose caller answers by discarding the *entire*
-    // config.
-    final rawEnabled = map['enabled'];
-    final rawPreviewFps = map['preview_fps'];
-    final rawMaxFps = map['max_fps'];
-    final previewFps = rawPreviewFps is num ? rawPreviewFps.toInt() : 10;
-    final maxFps = rawMaxFps is num ? rawMaxFps.toInt() : 0;
     return ScreenshareConfig(
-      enabled: rawEnabled is bool ? rawEnabled : true,
-      previewFps: previewFps.clamp(1, 60),
-      maxFps: maxFps < 0 ? 0 : maxFps,
+      enabled: map.boolOr('enabled', true),
+      previewFps: map.intOr('preview_fps', 10, min: 1, max: 60),
+      maxFps: map.intOr('max_fps', 0, min: 0),
     );
   }
 }
@@ -866,22 +803,13 @@ class LockConfig {
 
   factory LockConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const LockConfig();
-    // Every read is type-tested rather than cast: a wrongly-typed value here
-    // would otherwise throw out of AppConfig.fromMap, and the caller responds
-    // to that by discarding the *whole* config, not just this table.
-    final rawBackground = map['background'];
-    final background = rawBackground is String ? rawBackground.trim() : null;
-    final rawSigma = map['blur_sigma'];
-    final sigma = rawSigma is num ? rawSigma.toDouble() : 18.0;
-    final rawFit = map['fit'];
-    final rawShowUsername = map['show_username'];
     return LockConfig(
-      background: (background == null || background.isEmpty) ? null : background,
-      fit: BackgroundFit.fromString(rawFit is String ? rawFit : 'fill'),
-      showUsername: rawShowUsername is bool ? rawShowUsername : true,
+      background: map.stringOrNull('background'),
+      fit: BackgroundFit.fromString(map.stringOr('fit', 'fill')),
+      showUsername: map.boolOr('show_username', true),
       // A negative sigma throws inside ImageFilter.blur; clamp rather than
       // let a hand-edited config crash the lock screen.
-      blurSigma: sigma.isNaN ? 18.0 : sigma.clamp(0.0, 100.0),
+      blurSigma: map.doubleOr('blur_sigma', 18.0, min: 0.0, max: 100.0),
     );
   }
 }
@@ -1112,7 +1040,13 @@ max_fps = 0
       final document = await TomlDocument.load(configPath);
       final map = document.toMap();
       return AppConfig.fromMap(map);
-    } catch (_) {
+    } catch (e) {
+      // A TOML syntax error is the one failure that still costs the whole
+      // file — everything past the parser degrades per field (TomlReader).
+      // Say so on stderr: silently reverting every panel to defaults reads
+      // as a broken shell, not a broken config.
+      stderr.writeln('graceful-shell: failed to parse $configPath: $e — '
+          'using the default configuration');
       return const AppConfig();
     }
   }
@@ -1122,54 +1056,40 @@ max_fps = 0
   /// rebuilding an [AppConfig] from a live config map re-applies per-module
   /// options as a side effect.
   factory AppConfig.fromMap(Map<String, dynamic> map) {
-    final modulesMap = map['modules'] as Map<String, dynamic>?;
-    Module.loadAll(modulesMap);
+    Module.loadAll(map.tableOrNull('modules'));
 
     final panels = <String, PanelConfig>{};
-
-    if (map.containsKey('panels')) {
-      final panelsMap = map['panels'] as Map<String, dynamic>;
-      for (final entry in panelsMap.entries) {
-        panels[entry.key] = PanelConfig.fromMap(
-          entry.key,
-          entry.value as Map<String, dynamic>,
-        );
-      }
+    final panelsMap = map.tableOrNull('panels') ?? const <String, dynamic>{};
+    for (final entry in panelsMap.entries) {
+      final value = entry.value;
+      if (value is! Map<String, dynamic>) continue;
+      panels[entry.key] = PanelConfig.fromMap(entry.key, value);
     }
 
-    final backgroundMap = map['background'] as Map<String, dynamic>?;
+    final backgroundMap = map.tableOrNull('background');
     final background =
         backgroundMap != null ? BackgroundConfig.fromMap(backgroundMap) : null;
 
-    final desktopMap = map['desktop'];
-    final desktop = desktopMap is Map<String, dynamic>
+    final desktopMap = map.tableOrNull('desktop');
+    final desktop = desktopMap != null
         ? DesktopConfig.fromMap(desktopMap)
         : const DesktopConfig();
 
-    // Type-tested, not cast: `theme` used to be a table and is now a name, so
-    // an un-migrated config still has a map here. Casting would throw out of
-    // this factory, and the caller answers that by discarding the *whole*
-    // config — a stale [theme] table must cost the theme, nothing else.
-    final rawTheme = map['theme'];
-    final themeName = rawTheme is String && rawTheme.trim().isNotEmpty
-        ? rawTheme.trim()
-        : kDefaultThemeName;
-    final calendarMap = map['calendar'] as Map<String, dynamic>?;
-    final osdMap = map['osd'] as Map<String, dynamic>?;
-    final lockMap = map['lock'] as Map<String, dynamic>?;
-    final shortcutsMap = map['shortcuts'] as Map<String, dynamic>?;
-    final screenshareMap = map['screenshare'] as Map<String, dynamic>?;
+    // `theme` used to be a table and is now a name, so an un-migrated config
+    // still has a map here — a stale [theme] table must cost the theme,
+    // nothing else.
+    final themeName = map.stringOrNull('theme') ?? kDefaultThemeName;
 
     return AppConfig(
       panels: panels.isEmpty ? const {'default': PanelConfig()} : panels,
       background: background,
       desktop: desktop,
       themeName: themeName,
-      calendar: CalendarConfig.fromMap(calendarMap),
-      osd: OsdConfig.fromMap(osdMap),
-      lock: LockConfig.fromMap(lockMap),
-      shortcuts: ShortcutsConfig.fromMap(shortcutsMap),
-      screenshare: ScreenshareConfig.fromMap(screenshareMap),
+      calendar: CalendarConfig.fromMap(map.tableOrNull('calendar')),
+      osd: OsdConfig.fromMap(map.tableOrNull('osd')),
+      lock: LockConfig.fromMap(map.tableOrNull('lock')),
+      shortcuts: ShortcutsConfig.fromMap(map.tableOrNull('shortcuts')),
+      screenshare: ScreenshareConfig.fromMap(map.tableOrNull('screenshare')),
     );
   }
 }

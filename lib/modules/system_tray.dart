@@ -7,6 +7,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/dbus_menu.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
@@ -38,15 +39,11 @@ class SystemTrayConfig {
 
   factory SystemTrayConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const SystemTrayConfig();
-    double asDouble(dynamic v, double fallback) =>
-        v is num ? v.toDouble() : fallback;
     return SystemTrayConfig(
-      iconSize: asDouble(map['icon_size'], 16),
-      collapsedOverlap: asDouble(map['collapsed_overlap'], 10),
-      expandedSpacing: asDouble(map['expanded_spacing'], 6),
-      hiddenItems:
-          (map['hidden_items'] as List?)?.whereType<String>().toList() ??
-              const [],
+      iconSize: map.doubleOr('icon_size', 16),
+      collapsedOverlap: map.doubleOr('collapsed_overlap', 10),
+      expandedSpacing: map.doubleOr('expanded_spacing', 6),
+      hiddenItems: map.stringListOr('hidden_items'),
     );
   }
 }

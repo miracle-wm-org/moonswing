@@ -5,6 +5,7 @@ import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -22,7 +23,7 @@ class NetworkConfig {
   factory NetworkConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const NetworkConfig();
     return NetworkConfig(
-      pollSeconds: map['poll_seconds'] as int? ?? 10,
+      pollSeconds: map.intOr('poll_seconds', 10),
     );
   }
 }

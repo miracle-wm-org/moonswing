@@ -123,14 +123,16 @@ Five `InheritedWidget` scopes are provided around every panel's widget tree:
 
 `ThemeScope` and `ShellServicesScope` go together on *every* window, not just the panels — `_GracefulShellRootState._windowChrome` is the single place that pairs them, and every `LayerShellWindow`/`SessionLockWindow` child in `main.dart` goes through it.
 
-### Configuration (`lib/config.dart`)
+### Configuration (`lib/config.dart`, `lib/config_reader.dart`)
 
 `AppConfig.load()` reads TOML and produces:
 - `Map<String, PanelConfig>` — one entry per named panel section.
 - `String themeName` — the *name* of the active theme, not the palette. Resolving it is `ThemeStore`'s job (see Theming below).
 - `BackgroundConfig?` — optional wallpaper config from `[background]`.
 
-If the config file is absent, a default two-panel layout is written to disk and defaults are used. Parse errors fall back silently to defaults.
+If the config file is absent, a default two-panel layout is written to disk and defaults are used.
+
+**Every field read goes through `TomlReader` (`lib/config_reader.dart`), and the invariant it carries is the one rule of this layer: a wrongly-typed value costs that one key, never the whole table.** A throw out of any `fromMap` — a module's included, because `Module.loadAll` runs inside `AppConfig.fromMap` — is caught by `AppConfig.load`, which answers by discarding the user's *entire* config. The readers therefore type-test and coerce (`height = 32.0` is a TOML float; `intOr` lands it as 32), treat NaN/infinity as absent (infinity survives `clamp()`, and `nan.toInt()` throws), and clamp via `min:`/`max:` where a painter or timer needs a sane range. New config classes and new module options use these readers; never a bare `as X?` cast. Only a TOML *syntax* error still costs the whole file, and that path logs to stderr rather than reverting silently. `test/config_golden_test.dart` pins the defaults, the built-in themes, and the per-field degradation behaviour.
 
 ### Theming (`lib/theme/`)
 

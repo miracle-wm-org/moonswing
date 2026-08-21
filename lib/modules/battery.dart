@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:udev/udev.dart';
@@ -13,7 +14,7 @@ class BatteryConfig {
   factory BatteryConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const BatteryConfig();
     return BatteryConfig(
-      pollSeconds: map['poll_seconds'] as int? ?? 30,
+      pollSeconds: map.intOr('poll_seconds', 30),
     );
   }
 }

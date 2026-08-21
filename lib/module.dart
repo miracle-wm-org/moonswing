@@ -21,7 +21,11 @@ abstract class Module {
   /// Calls [loadConfig] on every registered module using [modulesMap].
   static void loadAll(Map<String, dynamic>? modulesMap) {
     for (final module in _registry.values) {
-      module.loadConfig(modulesMap?[module.configKey] as Map<String, dynamic>?);
+      // Type-tested, not cast: a `[modules.<key>]` that is not a table must
+      // cost that module its options, not throw out of AppConfig.fromMap and
+      // cost the user the whole config.
+      final sub = modulesMap?[module.configKey];
+      module.loadConfig(sub is Map<String, dynamic> ? sub : null);
     }
   }
 

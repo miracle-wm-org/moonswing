@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:layer_shell/layer_shell.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
@@ -15,7 +16,7 @@ class ClockConfig {
   factory ClockConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ClockConfig();
     return ClockConfig(
-      showDate: map['show_date'] as bool? ?? true,
+      showDate: map.boolOr('show_date', true),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
@@ -21,8 +22,8 @@ class WeatherConfig {
   factory WeatherConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const WeatherConfig();
     return WeatherConfig(
-      unit: map['unit'] as String? ?? 'fahrenheit',
-      refreshMinutes: map['refresh_minutes'] as int? ?? 10,
+      unit: map.stringOr('unit', 'fahrenheit'),
+      refreshMinutes: map.intOr('refresh_minutes', 10),
     );
   }
 }

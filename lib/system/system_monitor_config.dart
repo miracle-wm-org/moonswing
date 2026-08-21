@@ -1,3 +1,4 @@
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/system/process_reader.dart';
 
 /// Everything under `[modules.system_monitor]`.
@@ -45,28 +46,17 @@ class SystemMonitorConfig {
 
   factory SystemMonitorConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const SystemMonitorConfig();
-
-    int intOr(String key, int fallback) {
-      final v = map[key];
-      return v is int ? v : fallback;
-    }
-
-    bool boolOr(String key, bool fallback) {
-      final v = map[key];
-      return v is bool ? v : fallback;
-    }
-
     return SystemMonitorConfig(
-      pollSeconds: intOr('poll_seconds', 2).clamp(1, 60),
-      tempUnit: map['temp_unit'] as String? ?? 'celsius',
-      historySamples: intOr('history_samples', 120).clamp(10, 600),
+      pollSeconds: map.intOr('poll_seconds', 2, min: 1, max: 60),
+      tempUnit: map.stringOr('temp_unit', 'celsius'),
+      historySamples: map.intOr('history_samples', 120, min: 10, max: 600),
       cpuPercentMode: map['cpu_percent_mode'] == 'core'
           ? CpuPercentMode.core
           : CpuPercentMode.machine,
-      showKernelThreads: boolOr('show_kernel_threads', false),
-      confirmKill: boolOr('confirm_kill', true),
-      killGraceSeconds: intOr('kill_grace_seconds', 5).clamp(1, 60),
-      diskPollSeconds: intOr('disk_poll_seconds', 30).clamp(5, 600),
+      showKernelThreads: map.boolOr('show_kernel_threads', false),
+      confirmKill: map.boolOr('confirm_kill', true),
+      killGraceSeconds: map.intOr('kill_grace_seconds', 5, min: 1, max: 60),
+      diskPollSeconds: map.intOr('disk_poll_seconds', 30, min: 5, max: 600),
     );
   }
 }

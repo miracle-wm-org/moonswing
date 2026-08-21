@@ -97,6 +97,59 @@ void main() {
     });
   });
 
+  group('a wrongly-typed field costs that field, never the config', () {
+    // TOML distinguishes 32 from 32.0, and a hand-edited file can hold
+    // either — or a string, or a whole table — where any field is expected.
+    // The old `as int?` casts threw here, and AppConfig.load answered a throw
+    // by silently discarding the user's entire config.
+
+    test('a float where an int is expected coerces', () {
+      final config = AppConfig.fromMap({
+        'panels': {
+          'top': {'height': 32.0, 'padding_horizontal': 8.5},
+        },
+      });
+      expect(config.panels['top']!.height, 32);
+      expect(config.panels['top']!.paddingHorizontal, 8);
+    });
+
+    test('a wrongly-typed field falls back alone', () {
+      final config = AppConfig.fromMap({
+        'panels': {
+          'top': {'height': 'tall', 'anchor': 'bottom'},
+        },
+        'osd': {'enabled': 'yes', 'margin': 40},
+        'calendar': {'week_start': 3},
+      });
+      // The bad key falls back; its neighbours in the same table survive.
+      expect(config.panels['top']!.height, 32);
+      expect(config.panels['top']!.anchor, 'bottom');
+      expect(config.osd.enabled, isTrue);
+      expect(config.osd.margin, 40);
+      expect(config.calendar.weekStart, DateTime.sunday);
+    });
+
+    test('a wrongly-typed table costs that table alone', () {
+      final config = AppConfig.fromMap({
+        'panels': 'nope',
+        'lock': {'blur_sigma': 4.0},
+      });
+      expect(config.panels.keys.toList(), ['default']);
+      expect(config.lock.blurSigma, 4.0);
+    });
+
+    test('a non-table panel entry is skipped, not fatal', () {
+      final config = AppConfig.fromMap({
+        'panels': {
+          'top': {'height': 40},
+          'broken': 7,
+        },
+      });
+      expect(config.panels.keys.toList(), ['top']);
+      expect(config.panels['top']!.height, 40);
+    });
+  });
+
   group('built-in themes parse losslessly', () {
     // Renders values comparable across the TOML/typed boundary: colours are
     // normalized to #RRGGBB / #AARRGGBB uppercase, numbers to doubles.

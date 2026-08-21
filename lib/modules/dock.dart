@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/app_info.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/app_directory.dart';
 import 'package:graceful_shell/module.dart';
@@ -26,10 +27,9 @@ class DockConfig {
   factory DockConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const DockConfig();
     return DockConfig(
-      apps: (map['apps'] as List<dynamic>?)?.whereType<String>().toList() ??
-          const [],
-      iconSize: map['icon_size'] as int? ?? 24,
-      showAppDirectory: map['show_app_directory'] as bool? ?? true,
+      apps: map.stringListOr('apps'),
+      iconSize: map.intOr('icon_size', 24),
+      showAppDirectory: map.boolOr('show_app_directory', true),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -13,7 +14,7 @@ class MediaPlayerConfig {
   factory MediaPlayerConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const MediaPlayerConfig();
     return MediaPlayerConfig(
-      maxTextWidth: (map['max_text_width'] as num?)?.toDouble() ?? 200.0,
+      maxTextWidth: map.doubleOr('max_text_width', 200.0),
     );
   }
 }
