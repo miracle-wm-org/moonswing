@@ -383,6 +383,26 @@ class _DockButton extends StatefulWidget {
 class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   bool _hovered = false;
   bool _pressed = false;
+  // Which of the two things this host's one popup slot is currently holding.
+  // A tooltip follows the pointer out; a context menu must not, or it could
+  // never be reached — the menu is its own surface, so travelling towards it
+  // reads as leaving the icon.
+  bool _menuOpen = false;
+
+  @override
+  void dispose() {
+    closePopup();
+    super.dispose();
+  }
+
+  @override
+  void closePopup() {
+    // Every close path funnels through here, including the ones this module
+    // does not drive: the coordinator holds this method as its `onDismiss`,
+    // and a compositor destroy routes through PopupDelegate to it as well.
+    _menuOpen = false;
+    super.closePopup();
+  }
 
   @override
   void didUpdateWidget(_DockButton oldWidget) {
@@ -417,6 +437,10 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         context,
         // Loose: the menu sizes to its content (see [ContextMenuCard]).
         preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
+        // Its own reopen-guard slot, so a primary click that dismisses the menu
+        // does not leave a guard armed under the *tooltip*'s identity and eat
+        // the next hover label.
+        ownerKey: (this, 'menu'),
         child: ThemeProvider(
           child: PopupBounceIn(
             child: ContextMenuCard(
@@ -424,8 +448,11 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
                 ContextMenuItem(
                   label: 'Unpin from dock',
                   onTap: () {
-                    _unpin();
+                    // Close first: _unpin writes through ConfigStore, which
+                    // notifies synchronously and rebuilds the dock without
+                    // this button — disposing this State mid-callback.
                     closePopup();
+                    _unpin();
                   },
                 ),
               ],
@@ -433,6 +460,9 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
           ),
         ),
       );
+      // Only if it really opened — openBarPopup declines a re-open, and a flag
+      // set with no popup behind it would strand the *next* tooltip.
+      _menuOpen = isPopupOpen;
     });
   }
 
@@ -473,7 +503,10 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
           _hovered = false;
           _pressed = false;
         });
-        closePopup();
+        // Only the hover label follows the pointer out. The context menu stays
+        // until something dismisses it: its own item, a click elsewhere
+        // (PopupDismissArea), or another popup opening.
+        if (!_menuOpen) closePopup();
       },
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
