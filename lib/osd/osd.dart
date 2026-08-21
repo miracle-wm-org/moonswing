@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/osd/osd_store.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// Logical size of the OSD layer-shell window. The window is kept tight around
@@ -114,12 +115,8 @@ class _OsdWindowState extends State<OsdWindow>
             ),
           ),
           child: Center(
-            child: Container(
+            child: PopupCard(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              decoration: BoxDecoration(
-                color: theme.popupBackground,
-                borderRadius: BorderRadius.circular(12),
-              ),
               child: Row(
                 children: [
                   SizedBox(

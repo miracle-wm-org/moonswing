@@ -365,6 +365,10 @@ panel_margin         = 0
 panel_radius         = 0.0
 panel_border         = "#33EBDBB2"
 panel_border_width   = 0.0
+
+popup_radius         = 8.0
+popup_border         = "#33EBDBB2"
+popup_border_width   = 1.0
 ```
 
 Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `AA` is the alpha channel). `"#33FFFFFF"` is white at ~20% opacity. Alpha is what makes a translucent theme translucent: panel and popup surfaces composite against the desktop behind them.
@@ -379,7 +383,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `surface_hover`        | `#853953`     | Button background when hovered                                              |
 | `surface_pressed`      | `#612D53`     | Button background when pressed; the mid stop of the panel gradient          |
 | `workspace_background` | `#2C2C2C`     | Unfocused workspace button; the dark end of the panel gradient              |
-| `popup_background`     | `#2C2C2C`     | Background of popups, flyouts and the overlay panel                         |
+| `popup_background`     | `#2C2C2C`     | Background of popups, flyouts, menus, the OSD card and the overlay panel    |
 | `popup_foreground`     | `#F3F4F4`     | Text and icons inside popups                                                |
 | `control_surface`      | `#39393D`     | Cards, inputs and tiles inside popups and the settings pages                |
 | `slider_track`         | `#612D53`     | The unfilled portion of sliders and usage bars                              |
@@ -391,6 +395,9 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `panel_radius`         | `0.0`         | Corner rounding of each bar (see below for which corners)                   |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
 | `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
+| `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card (all four)      |
+| `popup_border`         | `#33F3F4F4`   | Their rim color; drawn only when `popup_border_width` is above zero        |
+| `popup_border_width`   | `1.0`         | Their rim thickness, or `0` for no rim                                     |
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
@@ -422,6 +429,16 @@ The gap is real, not painted: the bar's surface genuinely shrinks, so **windows 
 `panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
 
 All three follow a theme switch live; no restart is needed.
+
+### Popups
+
+`popup_radius`, `popup_border` and `popup_border_width` are the bar's three shape keys again, for everything that floats *over* it: popups, context menus, category flyouts, the tray menus, the app chooser, the confirmation dialogs and the on-screen indicator. They read exactly like their `panel_` counterparts — **width is the switch** for the rim, and a translucent card wants one for the same reason a translucent bar does.
+
+The one difference is corners. A popup **always rounds all four**, with no equivalent of the flush-bar rule above: there is no screen edge behind a popup to cut a wedge out of, so there is no pair of corners worth sparing.
+
+Sensible defaults are shipped rather than zero — `8.0` with a 1px rim — because that is the shape the shell's menus have always drawn. A theme that says nothing about popups gets that, including a theme file written before these keys existed.
+
+Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
 
 ### About `blur`
 

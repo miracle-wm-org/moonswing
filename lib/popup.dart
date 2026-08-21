@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/window_manager.dart';
 import 'package:layer_shell/layer_shell.dart';
@@ -496,12 +497,11 @@ class TooltipLabel extends StatelessWidget {
     final theme = ThemeScope.of(context);
     return Directionality(
       textDirection: TextDirection.ltr,
-      child: Container(
+      // The background is the theme's, at the alpha the theme chose. This used
+      // to force .withAlpha(100) on top of it, which under a translucent theme
+      // compounded into the least legible surface in the shell.
+      child: PopupCard(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: theme.popupBackground.withAlpha(100),
-          borderRadius: BorderRadius.circular(8),
-        ),
         child: Center(
           child: Text(
             text,

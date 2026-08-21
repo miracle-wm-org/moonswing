@@ -56,6 +56,15 @@ panel_margin         = 0
 panel_radius         = 0.0
 panel_border         = "#33F3F4F4"
 panel_border_width   = 0.0
+
+# Popups: rounded cards with a hairline rim, which is the shape the shell's
+# menus have always drawn — now stated once instead of hardcoded at fifteen
+# call sites. Unlike the bar a popup rounds all four corners: nothing sits
+# behind it to cut a wedge out of. The rim colour is `divider`, which is what
+# those menus used.
+popup_radius         = 8.0
+popup_border         = "#33F3F4F4"
+popup_border_width   = 1.0
 ''';
 
 const String _dracula = '''
@@ -91,6 +100,11 @@ panel_margin         = 0
 panel_radius         = 0.0
 panel_border         = "#33F8F8F2"
 panel_border_width   = 0.0
+
+# The same card shape as graceful; the rim takes Dracula's own divider.
+popup_radius         = 8.0
+popup_border         = "#33F8F8F2"
+popup_border_width   = 1.0
 ''';
 
 const String _glassy = '''
@@ -137,4 +151,12 @@ panel_margin         = 8
 panel_radius         = 12.0
 panel_border         = "#40FFFFFF"
 panel_border_width   = 1.0
+
+# Popups are the bar's material: the same 12px corner and the same rim, so a
+# menu reads as a pane dropped out of the pane it came from. The rim is
+# panel_border rather than the softer `divider` — a card floating over a busy
+# wallpaper needs an edge, not a hairline.
+popup_radius         = 12.0
+popup_border         = "#40FFFFFF"
+popup_border_width   = 1.0
 ''';

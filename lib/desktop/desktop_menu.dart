@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// One row of a desktop context menu.
@@ -26,10 +27,11 @@ class DesktopMenuEntry {
 
 /// The themed card both desktop context menus render into.
 ///
-/// Shaped like `ContextMenuCard` in `modules/app_directory.dart` — same
-/// popupBackground, divider border, 8px radius and IntrinsicWidth so the popup
-/// sizes to content — but with room for a leading icon and a disabled state,
-/// which "Open with…" needs.
+/// The surface is shared with `ContextMenuCard` in `modules/app_directory.dart`
+/// — both render into a [PopupCard], so the theme's popup shape reaches them
+/// from one place — as is the IntrinsicWidth that lets the popup size to
+/// content. Only the rows differ: this one has room for a leading icon and a
+/// disabled state, which "Open with…" needs.
 class DesktopMenuCard extends StatelessWidget {
   const DesktopMenuCard({
     super.key,
@@ -59,12 +61,7 @@ class DesktopMenuCard extends StatelessWidget {
           fontSize: 13,
         ),
         child: IntrinsicWidth(
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.popupBackground,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: theme.divider, width: 1),
-            ),
+          child: PopupCard(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
               mainAxisSize: MainAxisSize.min,

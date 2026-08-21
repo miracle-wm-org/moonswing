@@ -15,10 +15,16 @@ void main() {
         'panel_margin': 'lots',
         'panel_radius': true,
         'panel_border_width': [1, 2],
+        'popup_radius': 'round',
+        'popup_border_width': {'a': 1},
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
+      // The popup fallbacks are not zero, so a garbled value must land on the
+      // shipped card shape rather than on the panel's flush-and-square one.
+      expect(theme.popupRadius, 8.0);
+      expect(theme.popupBorderWidth, 1.0);
     });
 
     test('a negative value clamps to zero', () {
@@ -26,11 +32,17 @@ void main() {
         'panel_margin': -5,
         'panel_radius': -1.0,
         'panel_border_width': -0.5,
+        'popup_radius': -1.0,
+        'popup_border_width': -0.5,
         'blur': -10.0,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
+      // Clamped, not fallen back: zero is a legitimate popup shape — a square
+      // card with no rim — and a negative one is the nearest thing to it.
+      expect(theme.popupRadius, 0.0);
+      expect(theme.popupBorderWidth, 0.0);
       expect(theme.blur, 0.0);
     });
 
@@ -39,11 +51,15 @@ void main() {
         'panel_margin': 100000,
         'panel_radius': 1e9,
         'panel_border_width': 999,
+        'popup_radius': 1e9,
+        'popup_border_width': 999,
         'blur': 5000.0,
       });
       expect(theme.panelMargin, 256);
       expect(theme.panelRadius, 64.0);
       expect(theme.panelBorderWidth, 16.0);
+      expect(theme.popupRadius, 64.0);
+      expect(theme.popupBorderWidth, 16.0);
       expect(theme.blur, 100.0);
     });
 
@@ -55,11 +71,15 @@ void main() {
         'panel_margin': double.nan,
         'panel_radius': double.nan,
         'panel_border_width': double.nan,
+        'popup_radius': double.nan,
+        'popup_border_width': double.nan,
         'blur': double.nan,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
+      expect(theme.popupRadius, 8.0);
+      expect(theme.popupBorderWidth, 1.0);
       expect(theme.blur, 24.0);
     });
 
@@ -69,10 +89,14 @@ void main() {
       final theme = ThemeConfig.fromMap({
         'panel_margin': double.infinity,
         'panel_radius': double.negativeInfinity,
+        'popup_radius': double.infinity,
+        'popup_border_width': double.negativeInfinity,
         'blur': double.infinity,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
+      expect(theme.popupRadius, 8.0);
+      expect(theme.popupBorderWidth, 1.0);
       expect(theme.blur, 24.0);
     });
 
@@ -83,6 +107,15 @@ void main() {
       });
       expect(theme.panelBorder, const ThemeConfig().panelBorder);
       expect(theme.panelBorderWidth, 2.0);
+    });
+
+    test('a malformed popup rim colour costs only that key', () {
+      final theme = ThemeConfig.fromMap({
+        'popup_border': 'not a colour',
+        'popup_border_width': 2.0,
+      });
+      expect(theme.popupBorder, const ThemeConfig().popupBorder);
+      expect(theme.popupBorderWidth, 2.0);
     });
   });
 
@@ -108,6 +141,18 @@ void main() {
       expect(base, isNot(const ThemeConfig(panelBorderWidth: 1.0)));
     });
 
+    test('popup_radius', () {
+      expect(base, isNot(const ThemeConfig(popupRadius: 12.0)));
+    });
+
+    test('popup_border', () {
+      expect(base, isNot(const ThemeConfig(popupBorder: Color(0xFFFF0000))));
+    });
+
+    test('popup_border_width', () {
+      expect(base, isNot(const ThemeConfig(popupBorderWidth: 2.0)));
+    });
+
     test('and hashCode moves with them', () {
       final hashes = {
         base.hashCode,
@@ -115,8 +160,11 @@ void main() {
         const ThemeConfig(panelRadius: 12.0).hashCode,
         const ThemeConfig(panelBorder: Color(0xFFFF0000)).hashCode,
         const ThemeConfig(panelBorderWidth: 1.0).hashCode,
+        const ThemeConfig(popupRadius: 12.0).hashCode,
+        const ThemeConfig(popupBorder: Color(0xFFFF0000)).hashCode,
+        const ThemeConfig(popupBorderWidth: 2.0).hashCode,
       };
-      expect(hashes, hasLength(5));
+      expect(hashes, hasLength(8));
     });
   });
 
@@ -129,12 +177,27 @@ void main() {
     expect(theme.panelBorderWidth, 0.0);
   });
 
+  test('the popup defaults are the card shape the menus already drew', () {
+    // These are not the panel's flush-and-square defaults, and deliberately
+    // so. The shell's menus have always been rounded with a hairline rim; a
+    // zero default would have made every one of them square the moment they
+    // started reading the theme. It is also what a user theme forked before
+    // these keys existed resolves to, since its file has none of them.
+    const theme = ThemeConfig();
+    expect(theme.popupRadius, 8.0);
+    expect(theme.popupBorderWidth, 1.0);
+    expect(theme.popupBorder, theme.divider);
+  });
+
   test('the new keys round-trip through toMap', () {
     const theme = ThemeConfig(
       panelMargin: 8,
       panelRadius: 12.0,
       panelBorder: Color(0x40FFFFFF),
       panelBorderWidth: 1.5,
+      popupRadius: 10.0,
+      popupBorder: Color(0x40FFFFFF),
+      popupBorderWidth: 2.0,
     );
     expect(ThemeConfig.fromMap(theme.toMap()), theme);
   });

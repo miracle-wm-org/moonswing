@@ -8,6 +8,7 @@ import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
@@ -137,8 +138,7 @@ class SystemPopupContent extends StatelessWidget {
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 13),
         child: PopupBounceIn(
-          child: Container(
-            color: theme.popupBackground,
+          child: PopupCard(
             padding: const EdgeInsets.all(8),
             // The popup is sized to content, so the menu is only as wide as its
             // widest label. [_SystemButton] is a default Row holding an
@@ -315,56 +315,54 @@ class _ConfirmationDialogState extends State<_ConfirmationDialog> {
         child: Container(
           color: const Color(0xAA000000),
           child: Center(
-            child: Container(
+            child: SizedBox(
               width: 380,
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                color: theme.popupBackground,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Are you sure that you want to ${widget.label.toLowerCase()}?',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: theme.popupForeground,
-                      fontSize: 16,
-                      fontFamily: theme.fontFamily,
-                      decoration: TextDecoration.none,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Cancels automatically in $_secondsRemaining seconds',
-                    style: TextStyle(
-                      color: theme.popupForeground.withValues(alpha: 0.6),
-                      fontSize: 12,
-                      fontFamily: theme.fontFamily,
-                      decoration: TextDecoration.none,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _DialogButton(
-                        label: 'Cancel',
-                        onTap: _cancel,
-                        primary: false,
+              child: PopupCard(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Are you sure that you want to ${widget.label.toLowerCase()}?',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.popupForeground,
+                        fontSize: 16,
+                        fontFamily: theme.fontFamily,
+                        decoration: TextDecoration.none,
+                        fontWeight: FontWeight.normal,
                       ),
-                      const SizedBox(width: 12),
-                      _DialogButton(
-                        label: widget.label,
-                        onTap: _confirm,
-                        primary: true,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Cancels automatically in $_secondsRemaining seconds',
+                      style: TextStyle(
+                        color: theme.popupForeground.withValues(alpha: 0.6),
+                        fontSize: 12,
+                        fontFamily: theme.fontFamily,
+                        decoration: TextDecoration.none,
+                        fontWeight: FontWeight.normal,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _DialogButton(
+                          label: 'Cancel',
+                          onTap: _cancel,
+                          primary: false,
+                        ),
+                        const SizedBox(width: 12),
+                        _DialogButton(
+                          label: widget.label,
+                          onTap: _confirm,
+                          primary: true,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

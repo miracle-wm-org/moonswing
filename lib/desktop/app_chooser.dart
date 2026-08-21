@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/loading_indicator.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// Width of the chooser card. Fixed, like the launcher's: a list that resized
@@ -151,13 +152,7 @@ class _AppChooserCardState extends State<AppChooserCard> {
     return Center(
       child: SizedBox(
         width: kAppChooserWidth,
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.popupBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.divider),
-          ),
-          clipBehavior: Clip.antiAlias,
+        child: PopupCard(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

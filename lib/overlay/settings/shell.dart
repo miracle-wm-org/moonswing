@@ -416,6 +416,7 @@ class _AppearanceSectionState extends State<_AppearanceSection> {
     'divider': 'Divider',
     'panel_background': 'Panel background',
     'panel_border': 'Panel border',
+    'popup_border': 'Popup border',
     'scrim': 'Overlay scrim',
   };
 
@@ -591,6 +592,38 @@ class _AppearanceSectionState extends State<_AppearanceSection> {
                   'corners; one with no margin rounds only the two facing the '
                   "screen, so the display's own corners stay square. The "
                   'border draws only at a width above zero.',
+                ),
+                const SizedBox(height: 8),
+                SettingsRow(
+                  label: 'Popup corner radius',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_radius-$active'),
+                    // The fallbacks are the ThemeConfig defaults, not 0: a
+                    // theme file written before these keys existed has neither,
+                    // and a field reading 0 while the shell paints 8 would be
+                    // an edit the user never made.
+                    value: current['popup_radius'] as num? ?? 8,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                        'popup_radius', v.toDouble().clamp(0.0, 64.0)),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Popup border width',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_border_width-$active'),
+                    value: current['popup_border_width'] as num? ?? 1,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                        'popup_border_width', v.toDouble().clamp(0.0, 16.0)),
+                  ),
+                ),
+                const SettingsHint(
+                  'Popup, menu, flyout and on-screen-indicator cards. Unlike '
+                  'the bar they round all four corners — nothing sits behind '
+                  'them to cut a corner out of. The rim is what gives a '
+                  'translucent card an edge over a busy wallpaper, and draws '
+                  'only at a width above zero.',
                 ),
                 const SizedBox(height: 8),
                 SettingsRow(

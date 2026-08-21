@@ -31,6 +31,8 @@ void main() {
       'panel_margin',
       'panel_radius',
       'panel_border_width',
+      'popup_radius',
+      'popup_border_width',
     };
     for (final entry in kBuiltInThemes.entries) {
       final map = TomlDocument.parse(entry.value).toMap();
@@ -84,6 +86,32 @@ void main() {
     // Floating means all four corners round.
     expect(panelCornerRadius(theme: glassy),
         BorderRadius.circular(glassy.panelRadius));
+  });
+
+  test('glassy popups are made of the same material as its bar', () {
+    // The reported bug: glassy's bar was rounded and rimmed while its popups
+    // were flat rectangles. A menu should read as a pane dropped out of the
+    // pane it came from, so the two shapes are pinned to each other.
+    final glassy =
+        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['glassy']!).toMap());
+    expect(glassy.popupRadius, glassy.panelRadius);
+    expect(glassy.popupBorder, glassy.panelBorder);
+    expect(glassy.popupBorderWidth, greaterThan(0));
+    expect(glassy.popupBorder.a, greaterThan(0),
+        reason: 'a rim with a transparent colour draws nothing');
+  });
+
+  test('every shipped theme gives its popups a shape', () {
+    // A shipped theme may turn its bar's rounding off — graceful and dracula
+    // both do — but a popup has no screen edge to sit flush against, so a
+    // square shipped card would only ever be an oversight.
+    for (final entry in kBuiltInThemes.entries) {
+      final theme =
+          ThemeConfig.fromMap(TomlDocument.parse(entry.value).toMap());
+      expect(theme.popupRadius, greaterThan(0), reason: 'in ${entry.key}');
+      expect(theme.popupBorderWidth, greaterThan(0), reason: 'in ${entry.key}');
+      expect(theme.popupBorder.a, greaterThan(0), reason: 'in ${entry.key}');
+    }
   });
 
   test('toMap round-trips through TOML unchanged', () {

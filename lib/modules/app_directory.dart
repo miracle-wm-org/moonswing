@@ -22,6 +22,7 @@ import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
@@ -271,8 +272,8 @@ class _AppDirectoryState extends State<_AppDirectory>
               child: MouseRegion(
                 onEnter: (_) => _cancelClose(),
                 onExit: (_) => _scheduleClose(),
-                child: _FlyoutCard(
-                  theme: theme,
+                child: PopupCard(
+                  padding: const EdgeInsets.all(6),
                   child: _AppListView(
                     apps: apps,
                     iconSize: widget.iconSize,
@@ -321,11 +322,7 @@ class _AppDirectoryState extends State<_AppDirectory>
           ),
           child: Focus(
             onKeyEvent: _onKey,
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.popupBackground,
-                borderRadius: BorderRadius.circular(10),
-              ),
+            child: PopupCard(
               padding: const EdgeInsets.all(8),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -391,27 +388,6 @@ class _AppDirectoryState extends State<_AppDirectory>
           ),
         );
       },
-    );
-  }
-}
-
-/// Rounded, themed card wrapping a category flyout's contents.
-class _FlyoutCard extends StatelessWidget {
-  const _FlyoutCard({required this.theme, required this.child});
-
-  final ThemeConfig theme;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.popupBackground,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.divider, width: 1),
-      ),
-      padding: const EdgeInsets.all(6),
-      child: child,
     );
   }
 }
@@ -717,12 +693,7 @@ class ContextMenuCard extends StatelessWidget {
         // IntrinsicWidth so the card hugs its widest row (stretch alone would
         // fill the incoming max width), letting the popup size to content.
         child: IntrinsicWidth(
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.popupBackground,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: theme.divider, width: 1),
-            ),
+          child: PopupCard(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
               mainAxisSize: MainAxisSize.min,

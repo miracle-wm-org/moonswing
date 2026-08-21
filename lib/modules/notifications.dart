@@ -253,6 +253,11 @@ class _NotificationPanelState extends State<_NotificationPanel>
           child: SlideTransition(
             position: _slideAnimation,
             child: PopupBounceIn(
+              // Deliberately not a PopupCard. This is a full-height surface
+              // anchored to the screen's right edge, not a floating card:
+              // rounding it would cut wallpaper wedges out of the display's
+              // own corners — the case panelCornerRadius refuses for a flush
+              // bar — and a rim would draw a line down the screen edge.
               child: Container(
                 color: theme.popupBackground,
                 child: Column(

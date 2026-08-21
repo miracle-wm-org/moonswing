@@ -132,6 +132,26 @@ class ThemeConfig {
   /// the default decoration stays exactly what it was before rims existed.
   final double panelBorderWidth;
 
+  /// A popup card's corner rounding.
+  ///
+  /// Unlike [panelRadius] this rounds all four corners unconditionally. The
+  /// pair a flush bar spares are the ones against the screen edge, where
+  /// rounding would cut wallpaper wedges out of the display's own corners; a
+  /// popup floats over a transparent surface with nothing behind it to cut
+  /// into, so it has no such pair.
+  final double popupRadius;
+
+  /// The colour of a popup card's rim. Only drawn when [popupBorderWidth] > 0.
+  final Color popupBorder;
+
+  /// A popup card's rim thickness, or 0 for no rim.
+  ///
+  /// Width, not alpha, is the off switch, for the same reason as
+  /// [panelBorderWidth]: at 0 no `Border` is built at all, and a `Border` in a
+  /// decoration carries a [BoxDecoration.padding] that a `Container` silently
+  /// adds to its child's.
+  final double popupBorderWidth;
+
   /// The wash painted over the screen behind a full-screen overlay (the
   /// settings panel, the launcher card).
   final Color scrim;
@@ -164,6 +184,9 @@ class ThemeConfig {
     this.panelRadius = 0.0,
     this.panelBorder = const Color(0x33F3F4F4),
     this.panelBorderWidth = 0.0,
+    this.popupRadius = 8.0,
+    this.popupBorder = const Color(0x33F3F4F4),
+    this.popupBorderWidth = 1.0,
     this.scrim = const Color(0x882C2C2C),
     this.blur = 24.0,
     this.fontFamily = 'Ubuntu Sans',
@@ -232,6 +255,9 @@ class ThemeConfig {
       panelRadius: num_('panel_radius', 0.0, 64.0),
       panelBorder: _parseColor(str('panel_border'), const Color(0x33F3F4F4)),
       panelBorderWidth: num_('panel_border_width', 0.0, 16.0),
+      popupRadius: num_('popup_radius', 8.0, 64.0),
+      popupBorder: _parseColor(str('popup_border'), const Color(0x33F3F4F4)),
+      popupBorderWidth: num_('popup_border_width', 1.0, 16.0),
       scrim: _parseColor(str('scrim'), const Color(0x882C2C2C)),
       // A negative or NaN sigma throws inside ImageFilter.blur.
       blur: num_('blur', 24.0, 100.0),
@@ -262,6 +288,9 @@ class ThemeConfig {
         'panel_radius': panelRadius,
         'panel_border': formatColor(panelBorder),
         'panel_border_width': panelBorderWidth,
+        'popup_radius': popupRadius,
+        'popup_border': formatColor(popupBorder),
+        'popup_border_width': popupBorderWidth,
         'scrim': formatColor(scrim),
       };
 
@@ -281,6 +310,7 @@ class ThemeConfig {
     'divider',
     'panel_background',
     'panel_border',
+    'popup_border',
     'scrim',
   ];
 
@@ -304,6 +334,9 @@ class ThemeConfig {
       other.panelRadius == panelRadius &&
       other.panelBorder == panelBorder &&
       other.panelBorderWidth == panelBorderWidth &&
+      other.popupRadius == popupRadius &&
+      other.popupBorder == popupBorder &&
+      other.popupBorderWidth == popupBorderWidth &&
       other.scrim == scrim &&
       other.blur == blur &&
       other.fontFamily == fontFamily;
@@ -329,6 +362,9 @@ class ThemeConfig {
         panelRadius,
         panelBorder,
         panelBorderWidth,
+        popupRadius,
+        popupBorder,
+        popupBorderWidth,
         scrim,
         blur,
         fontFamily,

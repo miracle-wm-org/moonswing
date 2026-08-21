@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:http/http.dart' as http;
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -326,8 +327,7 @@ class WeatherForecastPopup extends StatelessWidget {
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 13),
         child: PopupBounceIn(
-          child: Container(
-            color: theme.popupBackground,
+          child: PopupCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,

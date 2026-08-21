@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/system/format.dart';
 import 'package:graceful_shell/system/models.dart';
@@ -176,8 +177,9 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 12),
         child: PopupBounceIn(
-          child: Container(
-            color: theme.popupBackground,
+          child: PopupCard(
+            // Clipped by default, and it earns it here: no padding, and the
+            // tab bar, the divider and the charts all paint to their own edges.
             child: ListenableBuilder(
               listenable: _store,
               builder: (context, _) => Column(

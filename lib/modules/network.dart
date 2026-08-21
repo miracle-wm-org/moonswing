@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
@@ -571,7 +572,6 @@ class _NetworkPopupContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final fg = theme.popupForeground;
-    final bg = theme.popupBackground;
 
     // ignore: deprecated_member_use
     final labelStyle = TextStyle(fontSize: 11, color: fg.withOpacity(0.6));
@@ -582,8 +582,7 @@ class _NetworkPopupContent extends StatelessWidget {
     return Directionality(
       textDirection: TextDirection.ltr,
       child: PopupBounceIn(
-        child: Container(
-          color: bg,
+        child: PopupCard(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

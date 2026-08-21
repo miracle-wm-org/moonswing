@@ -10,6 +10,7 @@ import 'package:xdg_icons/xdg_icons.dart';
 import 'package:graceful_shell/dbus_menu.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -448,11 +449,7 @@ class _TrayMenuState extends State<_TrayMenu> {
           fontFamily: theme.fontFamily,
           fontSize: 13,
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.popupBackground,
-            borderRadius: BorderRadius.circular(8),
-          ),
+        child: PopupCard(
           padding: const EdgeInsets.symmetric(vertical: 6),
           child: Column(
             mainAxisSize: MainAxisSize.min,

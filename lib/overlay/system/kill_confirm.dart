@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/system/models.dart';
 import 'package:graceful_shell/system/process_killer.dart';
@@ -11,9 +12,10 @@ enum KillSeverity { terminate, force }
 
 /// The confirmation card, shown over the process table.
 ///
-/// A scrim plus a card in the panel's own idiom — `popupBackground`, an accent
-/// border, 8px radius — rather than a Material dialog, which the shell does not
-/// use anywhere.
+/// A scrim plus a [PopupCard] rather than a Material dialog, which the shell
+/// does not use anywhere. The one thing it does not take from the theme is its
+/// rim: the accent border marks a destructive action, so it overrides
+/// `popup_border` rather than following it.
 class KillConfirm extends StatelessWidget {
   const KillConfirm({
     super.key,
@@ -44,83 +46,83 @@ class KillConfirm extends StatelessWidget {
           ),
         ),
         Center(
-          child: Container(
+          child: SizedBox(
             width: 380,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.popupBackground,
-              borderRadius: BorderRadius.circular(8),
+            child: PopupCard(
+              // The accent rim is what marks a destructive action, so it
+              // overrides the theme's popup_border rather than following it.
               border: Border.all(color: theme.accent, width: 1.5),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  isForce ? 'Force quit ${process.name}?' : 'Quit ${process.name}?',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontFamily: theme.fontFamily,
-                    fontWeight: FontWeight.w600,
-                    color: theme.popupForeground,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  isForce
-                      // Spelling out the consequence, because this is the path
-                      // that loses an editor's unsaved buffer.
-                      ? 'PID ${process.pid} ignored the request to quit. Forcing it '
-                          'will end it immediately, without giving it a chance to '
-                          'save.'
-                      : 'PID ${process.pid} will be asked to shut down.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: theme.fontFamily,
-                    height: 1.4,
-                    color: theme.popupForeground.withValues(alpha: 0.7),
-                  ),
-                ),
-                if (process.cmdline.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: theme.controlSurface,
-                      borderRadius: BorderRadius.circular(4),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isForce ? 'Force quit ${process.name}?' : 'Quit ${process.name}?',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontFamily: theme.fontFamily,
+                      fontWeight: FontWeight.w600,
+                      color: theme.popupForeground,
                     ),
-                    child: Text(
-                      process.cmdline,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontFamily: theme.fontFamily,
-                        color: theme.popupForeground.withValues(alpha: 0.55),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isForce
+                        // Spelling out the consequence, because this is the path
+                        // that loses an editor's unsaved buffer.
+                        ? 'PID ${process.pid} ignored the request to quit. Forcing it '
+                            'will end it immediately, without giving it a chance to '
+                            'save.'
+                        : 'PID ${process.pid} will be asked to shut down.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: theme.fontFamily,
+                      height: 1.4,
+                      color: theme.popupForeground.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  if (process.cmdline.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: theme.controlSurface,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        process.cmdline,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: theme.fontFamily,
+                          color: theme.popupForeground.withValues(alpha: 0.55),
+                        ),
                       ),
                     ),
+                  ],
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      SettingsOptionButton(
+                        label: 'Cancel',
+                        selected: false,
+                        onTap: onCancel,
+                      ),
+                      const SizedBox(width: 8),
+                      SettingsOptionButton(
+                        label: isForce ? 'Force quit' : 'Quit',
+                        selected: true,
+                        onTap: onConfirm,
+                      ),
+                    ],
                   ),
                 ],
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    SettingsOptionButton(
-                      label: 'Cancel',
-                      selected: false,
-                      onTap: onCancel,
-                    ),
-                    const SizedBox(width: 8),
-                    SettingsOptionButton(
-                      label: isForce ? 'Force quit' : 'Quit',
-                      selected: true,
-                      onTap: onConfirm,
-                    ),
-                  ],
-                ),
-              ],
+              ),
             ),
           ),
         ),

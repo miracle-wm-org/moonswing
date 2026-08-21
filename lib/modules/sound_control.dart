@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
@@ -257,8 +258,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 13),
         child: PopupBounceIn(
-          child: Container(
-            color: theme.popupBackground,
+          child: PopupCard(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: content,
           ),
