@@ -439,6 +439,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   late final MonitorWatcher _monitorWatcher;
   bool _syncScheduled = false;
 
+  /// Every external listenable the root watches, with its handler. Wired in
+  /// [initState] and drained in [dispose] from this one list, so the add and
+  /// remove sides can never drift apart.
+  late final List<(Listenable, VoidCallback)> _subscriptions;
+
   /// The current config the widget tree renders from. Kept in sync with
   /// [GracefulShellRoot.store] by [_onConfigChanged] so theme, panel layout,
   /// per-module options, and the background image update live. Window geometry
@@ -461,20 +466,26 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _hasBackgroundSurface =
         (appConfig.background?.entries.isNotEmpty ?? false) ||
             appConfig.desktop.enabled;
-    widget.store.addListener(_onConfigChanged);
-    widget.outputs.addListener(_onOutputsChanged);
-    OsdStore.instance.addListener(_onOsdChanged);
-    InputTriggerStore.instance.addListener(_onSettingsTriggered);
-    LauncherController.instance.addListener(_onLauncherTriggered);
-    ScreencastPickerController.instance.addListener(_onScreencastPickChanged);
-    LockController.instance.addListener(_onLockRequested);
-    SettingsController.instance.addListener(_onSettingsRouteRequested);
-    FilePickerController.instance.addListener(_onFilePickRequested);
-    ThemeStore.instance.addListener(_onThemeChanged);
-    // The launcher and the app chooser are handed `AppIndex.instance.searchable`
-    // from this build, so the root itself has to rebuild when the index lands —
-    // [ShellServicesScope] only covers widgets that read a status through it.
-    widget.services.addListener(_onServicesChanged);
+    _subscriptions = [
+      (widget.store, _onConfigChanged),
+      (widget.outputs, _onOutputsChanged),
+      (OsdStore.instance, _onOsdChanged),
+      (InputTriggerStore.instance, _onSettingsTriggered),
+      (LauncherController.instance, _onLauncherTriggered),
+      (ScreencastPickerController.instance, _onScreencastPickChanged),
+      (LockController.instance, _onLockRequested),
+      (SettingsController.instance, _onSettingsRouteRequested),
+      (FilePickerController.instance, _onFilePickRequested),
+      (ThemeStore.instance, _onThemeChanged),
+      // The launcher and the app chooser are handed
+      // `AppIndex.instance.searchable` from this build, so the root itself has
+      // to rebuild when the index lands — [ShellServicesScope] only covers
+      // widgets that read a status through it.
+      (widget.services, _onServicesChanged),
+    ];
+    for (final (listenable, handler) in _subscriptions) {
+      listenable.addListener(handler);
+    }
     // startThemeService() resolved the palette back in main(), so the margin is
     // known before the first surface is built and no bar is created flush and
     // then nudged.
@@ -1253,19 +1264,17 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   @override
   void dispose() {
-    widget.store.removeListener(_onConfigChanged);
-    widget.outputs.removeListener(_onOutputsChanged);
-    OsdStore.instance.removeListener(_onOsdChanged);
-    InputTriggerStore.instance.removeListener(_onSettingsTriggered);
-    LauncherController.instance.removeListener(_onLauncherTriggered);
-    ScreencastPickerController.instance
-        .removeListener(_onScreencastPickChanged);
-    LockController.instance.removeListener(_onLockRequested);
-    SettingsController.instance.removeListener(_onSettingsRouteRequested);
-    FilePickerController.instance.removeListener(_onFilePickRequested);
-    ThemeStore.instance.removeListener(_onThemeChanged);
-    widget.services.removeListener(_onServicesChanged);
+    for (final (listenable, handler) in _subscriptions) {
+      listenable.removeListener(handler);
+    }
     _monitorWatcher.dispose();
+    // Answer the pending picks before tearing their windows down: the UI that
+    // would answer them is going away, and an unanswered pick strands its
+    // caller — for the screencast picker, a D-Bus `Start` call — forever.
+    // Our listeners are already removed, so neither notify reaches this
+    // dying State.
+    FilePickerController.instance.complete(null);
+    ScreencastPickerController.instance.cancel();
     // Drop the lock windows, but never send an unlock on the way out: if the
     // shell is going away while the session is locked, the session must stay
     // locked. abandon() sends no Wayland request at all — after `locked` the
@@ -1287,14 +1296,38 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ctrl.destroy();
     }
     _osd.clear();
-    _settings?.destroy();
+    // All five root-owned overlays, symmetrically: window, coordinator
+    // registration, and the AppIndex bracket the launcher and app chooser
+    // hold while their rows are on screen.
+    final releaseIndexFor = [_launcher, _appChooser];
+    for (final overlay in [
+      _settings,
+      _launcher,
+      _appChooser,
+      _screencastPicker,
+      _filePicker,
+    ]) {
+      overlay?.destroy();
+    }
     _settings = null;
-    _settingsClosing.dispose();
-    _launcher?.destroy();
     _launcher = null;
-    _launcherClosing.dispose();
-    _screencastPicker?.destroy();
+    _appChooser = null;
     _screencastPicker = null;
+    _filePicker = null;
+    for (final handle in [
+      _settingsHandle,
+      _launcherHandle,
+      _appChooserHandle,
+      _screencastHandle,
+      _filePickerHandle,
+    ]) {
+      PopupCoordinator.instance.close(handle);
+    }
+    for (final open in releaseIndexFor) {
+      if (open != null) AppIndex.instance.release();
+    }
+    _settingsClosing.dispose();
+    _launcherClosing.dispose();
     _screencastClosing.dispose();
     super.dispose();
   }

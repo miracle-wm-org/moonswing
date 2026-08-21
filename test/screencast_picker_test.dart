@@ -116,6 +116,16 @@ void main() {
       controller.complete(const PickResult([PickedMonitor('DP-1')]));
       expect((await second)!.sources, hasLength(1));
     });
+
+    test('dispose declines an outstanding pick', () async {
+      // A shell tearing down still owes the portal's Start call an answer —
+      // an unresolved future here is a D-Bus call that hangs forever.
+      final controller = ScreencastPickerController.forTesting();
+      controller.addListener(() {});
+      final pending = controller.pick(_request);
+      controller.dispose();
+      expect(await pending, isNull);
+    });
   });
 
   group('ScreencastPickerOverlay', () {

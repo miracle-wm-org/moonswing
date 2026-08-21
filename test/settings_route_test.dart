@@ -14,7 +14,7 @@ void main() {
       controller.open(SettingsRoute.background);
 
       expect(notifications, 1);
-      expect(controller.openCount, 1);
+      expect(controller.signalCount, 1);
       expect(controller.pending, SettingsRoute.background);
 
       controller.consume();
@@ -54,7 +54,7 @@ void main() {
       controller.open(SettingsRoute.background);
       controller.open(SettingsRoute.desktop);
       expect(controller.pending, SettingsRoute.desktop);
-      expect(controller.openCount, 2);
+      expect(controller.signalCount, 2);
     });
   });
 
