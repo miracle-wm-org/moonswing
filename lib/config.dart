@@ -984,7 +984,11 @@ class AppConfig {
   // the shell were later reinstalled somewhere else. Falls back to the XDG data
   // dir when nothing is installed yet, which is where `make install` will put
   // it.
-  static String _buildDefaultConfig(String homeDir) {
+  //
+  // Public for the golden test, which parses this document and asserts every
+  // field it names lands unchanged in the typed config.
+  @visibleForTesting
+  static String buildDefaultConfig(String homeDir) {
     final wallpaper = shippedDataFile('wallpaper.jpg') ??
         '$homeDir/.local/share/graceful-shell/wallpaper.jpg';
     final lockWallpaper = shippedDataFile('lock-wallpaper.jpg') ??
@@ -1092,12 +1096,12 @@ max_fps = 0
     if (!await file.exists()) {
       try {
         await file.parent.create(recursive: true);
-        await file.writeAsString(_buildDefaultConfig(homeDir));
+        await file.writeAsString(buildDefaultConfig(homeDir));
       } catch (_) {
         // Could not write default config; proceed with defaults
       }
       try {
-        final doc = TomlDocument.parse(_buildDefaultConfig(homeDir));
+        final doc = TomlDocument.parse(buildDefaultConfig(homeDir));
         return AppConfig.fromMap(doc.toMap());
       } catch (_) {
         return const AppConfig();
