@@ -1,11 +1,13 @@
 // ignore_for_file: library_private_types_in_public_api
 
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// Themed form controls shared by the panels inside the settings overlay.
@@ -1466,6 +1468,184 @@ class _ThumbPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ThumbPainter old) => old.t != t;
+}
+
+// ---------------------------------------------------------------------------
+// Confirmation
+// ---------------------------------------------------------------------------
+
+/// A modal "are you sure?" card for a destructive settings action.
+///
+/// A scrim plus a [PopupCard] rather than a Material dialog, which the shell
+/// does not use anywhere; this is the same shape as `KillConfirm` in
+/// `overlay/system/kill_confirm.dart`, generalized so the settings panes do not
+/// grow a third hand-rolled copy. The one thing it does not take from the theme
+/// is its rim: the accent border marks a destructive action, so it overrides
+/// `popup_border` rather than following it.
+///
+/// [warning] is a second paragraph for a consequence the user cannot see from
+/// the row they clicked — removing the last panel, say. Null when there is
+/// none, so the card does not carry an empty line.
+class SettingsConfirmCard extends StatelessWidget {
+  const SettingsConfirmCard({
+    super.key,
+    required this.title,
+    required this.message,
+    required this.confirmLabel,
+    required this.onCancel,
+    required this.onConfirm,
+    this.warning,
+  });
+
+  final String title;
+  final String message;
+  final String? warning;
+  final String confirmLabel;
+  final VoidCallback onCancel;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final warning = this.warning;
+    return Focus(
+      autofocus: true,
+      // Escape cancels, matching the power menu's confirmation
+      // (`modules/system.dart`). The card is modal, so nothing below it is
+      // competing for the key.
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          onCancel();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Stack(
+        children: [
+          // Tapping the scrim cancels, which is the least surprising thing a
+          // click outside a confirmation can do.
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: onCancel,
+              child: Container(color: const Color(0x99000000)),
+            ),
+          ),
+          Center(
+            child: SizedBox(
+              width: 380,
+              child: PopupCard(
+                border: Border.all(color: theme.accent, width: 1.5),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontFamily: theme.fontFamily,
+                        fontWeight: FontWeight.w600,
+                        color: theme.popupForeground,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      message,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontFamily: theme.fontFamily,
+                        height: 1.4,
+                        color: theme.popupForeground.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    if (warning != null) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: theme.accent.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          warning,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: theme.fontFamily,
+                            height: 1.4,
+                            color: theme.popupForeground.withValues(alpha: 0.9),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        SettingsOptionButton(
+                          label: 'Cancel',
+                          selected: false,
+                          onTap: onCancel,
+                        ),
+                        const SizedBox(width: 8),
+                        SettingsOptionButton(
+                          label: confirmLabel,
+                          selected: true,
+                          onTap: onConfirm,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows a [SettingsConfirmCard] in the nearest *root* [Overlay], resolving to
+/// true if the user confirmed and false if they cancelled or dismissed it.
+///
+/// The root overlay for the same reason [SettingsColorField]'s picker uses one:
+/// the Shell settings pane is a nested `Navigator`, and a scrim inserted into
+/// its overlay — or built into a scrolled section — would cover the pane's
+/// content while leaving the sidebar and header live. Cloned from
+/// `showAppChooser` in `desktop/app_chooser.dart`.
+Future<bool> showSettingsConfirm(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  String? warning,
+}) {
+  final overlay = Overlay.of(context, rootOverlay: true);
+  final completer = Completer<bool>();
+  late OverlayEntry entry;
+
+  void close(bool result) {
+    if (completer.isCompleted) return;
+    entry.remove();
+    completer.complete(result);
+  }
+
+  entry = OverlayEntry(
+    builder: (_) => SettingsConfirmCard(
+      title: title,
+      message: message,
+      warning: warning,
+      confirmLabel: confirmLabel,
+      onCancel: () => close(false),
+      onConfirm: () => close(true),
+    ),
+  );
+  overlay.insert(entry);
+  return completer.future;
 }
 
 /// Editable ordered list of strings. When [suggestions] is provided, new items

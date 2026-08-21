@@ -1148,6 +1148,51 @@ class _PanelsSectionState extends State<_PanelsSection> {
     });
   }
 
+  /// Deletes `[panels.<name>]` outright, behind a confirmation.
+  ///
+  /// No restart wiring is needed: `ConfigStore._restartSignature` folds every
+  /// panel key, so dropping one raises the restart banner on its own.
+  Future<void> _removePanel(String name) async {
+    final title = _title(name);
+    final names = store.panelNames;
+    // Read before the await: the count is what the warning is about, and the
+    // name is what survives the removal renumbering every index after it.
+    final isLast = names.length <= 1;
+    final selectedName =
+        names.isEmpty ? null : names[_selected.clamp(0, names.length - 1)];
+    final confirmed = await showSettingsConfirm(
+      context,
+      title: 'Remove the $title panel?',
+      message: 'The $title panel and everything under it \u2014 its geometry '
+          'and its module layout \u2014 are deleted from config.toml. This '
+          'cannot be undone.',
+      warning: isLast
+          // Not hypothetical: AppConfig.fromMap substitutes a single default
+          // panel when `[panels]` is empty, so saying nothing here would make
+          // the panel look like it came back on its own.
+          ? 'This is the last panel. With none configured, the shell falls '
+              'back to a single default panel the next time it starts.'
+          : null,
+      confirmLabel: 'Remove',
+    );
+    if (!confirmed || !mounted) return;
+    store.remove(['panels', name]);
+    setState(() {
+      _adding = false;
+      final remaining = store.panelNames;
+      // Follow the panel the user was editing rather than the index holding
+      // it: removing a tab to its left shifts it down one, and clamping alone
+      // would silently land the form on a different panel. Removing the
+      // selected one falls back to whatever now occupies its slot.
+      final kept = selectedName == null || selectedName == name
+          ? -1
+          : remaining.indexOf(selectedName);
+      _selected = kept >= 0
+          ? kept
+          : (remaining.isEmpty ? 0 : _selected.clamp(0, remaining.length - 1));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final names = store.panelNames;
@@ -1192,6 +1237,7 @@ class _PanelsSectionState extends State<_PanelsSection> {
                     _selected = i;
                     _adding = false;
                   }),
+                  onRemove: () => _removePanel(names[i]),
                 ),
               _PanelTab(
                 label: 'Add panel',
@@ -1337,12 +1383,17 @@ class _PanelTab extends StatefulWidget {
     required this.selected,
     required this.onTap,
     this.icon,
+    this.onRemove,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
   final FaIconData? icon;
+
+  /// Deletes the panel this tab names. Null on the "Add panel" tab, which is
+  /// the one tab with nothing to delete.
+  final VoidCallback? onRemove;
 
   @override
   State<_PanelTab> createState() => _PanelTabState();
@@ -1396,7 +1447,69 @@ class _PanelTabState extends State<_PanelTab> {
                       widget.selected ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
+              if (widget.onRemove != null) ...[
+                const SizedBox(width: 6),
+                // The slot is occupied whether or not the button is in it: a
+                // tab that grew on hover would shove every tab to its right
+                // along inside the scrolling strip, under the pointer.
+                SizedBox.square(
+                  dimension: _kPanelTabCloseSize,
+                  child: widget.selected || _hovered
+                      ? _PanelTabClose(onTap: widget.onRemove!)
+                      : null,
+                ),
+              ],
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The side of the square reserved for a tab's remove button.
+const double _kPanelTabCloseSize = 18;
+
+/// The x on a panel tab.
+///
+/// Its own recognizer nested inside the tab's: the gesture arena resolves to
+/// the deepest competitor, so a click here removes the panel rather than also
+/// selecting the tab. Not a [SettingsIconButton] — that control is 26 square,
+/// sized for a form row, and would out-measure the tab's own text.
+class _PanelTabClose extends StatefulWidget {
+  const _PanelTabClose({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  State<_PanelTabClose> createState() => _PanelTabCloseState();
+}
+
+class _PanelTabCloseState extends State<_PanelTabClose> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hovered ? theme.surfaceHover : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: FaIcon(
+            FontAwesomeIcons.xmark,
+            size: 10,
+            color: _hovered
+                ? theme.accent
+                : theme.popupForeground.withValues(alpha: 0.5),
           ),
         ),
       ),

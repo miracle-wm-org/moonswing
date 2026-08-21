@@ -167,6 +167,35 @@ shown = true
     bare.deleteSync(recursive: true);
   });
 
+  // What the Panels & Layout remove button does: one call drops the whole
+  // `[panels.<name>]` sub-table, and the panel set is restart-only, so the
+  // banner comes up without the settings UI wiring anything.
+  test('removing a panel drops its whole table and demands a restart',
+      () async {
+    // Two panels on disk, so the removal is of a panel that was there at load
+    // — adding one and taking it away again returns to the startup signature,
+    // which is correct and would prove nothing.
+    final seed = await ConfigStore.loadFrom(path);
+    seed.set(['panels', 'bottom', 'anchor'], 'bottom');
+    await seed.save();
+    seed.dispose();
+
+    final store = await ConfigStore.loadFrom(path);
+    expect(store.panelNames, containsAll(<String>['top', 'bottom']));
+    expect(store.needsRestart, isFalse);
+
+    // One call takes the whole sub-table, `[panels.top.layout]` included.
+    store.remove(['panels', 'top']);
+    expect(store.panelNames, ['bottom']);
+    expect(store.needsRestart, isTrue);
+
+    await store.save();
+    final reparsed = (await TomlDocument.load(path)).toMap();
+    expect((reparsed['panels'] as Map).containsKey('top'), isFalse);
+    expect((reparsed['panels'] as Map).containsKey('bottom'), isTrue);
+    store.dispose();
+  });
+
   test('remove deletes a key and persists', () async {
     final store = await ConfigStore.loadFrom(path);
     store.remove(['modules', 'weather', 'refresh_minutes']);
