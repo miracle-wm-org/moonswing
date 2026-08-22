@@ -32,11 +32,11 @@ ffi.DynamicLibrary? openFirstLibrary(List<String> sonames) {
 }
 
 typedef _GdkDisplayGetDefaultC = ffi.Pointer<ffi.Void> Function();
-typedef _GdkDisplayGetDefaultDart = ffi.Pointer<ffi.Void> Function();
+typedef GdkDisplayGetDefaultDart = ffi.Pointer<ffi.Void> Function();
 
 /// `gdk_display_get_default()`.
-final _GdkDisplayGetDefaultDart gdkDisplayGetDefault = processLibrary
-    .lookupFunction<_GdkDisplayGetDefaultC, _GdkDisplayGetDefaultDart>(
+final GdkDisplayGetDefaultDart gdkDisplayGetDefault = processLibrary
+    .lookupFunction<_GdkDisplayGetDefaultC, GdkDisplayGetDefaultDart>(
         'gdk_display_get_default');
 
 // gulong g_signal_connect_data(gpointer instance, const gchar *detailed_signal,
