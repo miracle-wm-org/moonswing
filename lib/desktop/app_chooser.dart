@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
+import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -109,14 +110,9 @@ class _AppChooserCardState extends State<AppChooserCard> {
 
   void _scrollToHighlighted() {
     if (!_scroll.hasClients) return;
-    final top = _highlighted * kAppChooserRowHeight;
-    final bottom = top + kAppChooserRowHeight;
-    final offset = _scroll.offset;
-    if (top < offset) {
-      _scroll.jumpTo(top);
-    } else if (bottom > offset + kAppChooserListHeight) {
-      _scroll.jumpTo(bottom - kAppChooserListHeight);
-    }
+    final offset =
+        revealRowOffset(_highlighted, kAppChooserRowHeight, _scroll.position);
+    if (offset != null) _scroll.jumpTo(offset);
   }
 
   void _accept() {
