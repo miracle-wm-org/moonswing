@@ -19,6 +19,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:layer_shell/layer_shell.dart' show WindowPositionerAnchor;
 
 import 'package:graceful_shell/app_info.dart';
+import 'package:graceful_shell/desktop/desktop_menu.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/popup.dart';
@@ -438,36 +439,23 @@ class _AppListViewState extends State<_AppListView>
       parentAnchor: WindowPositionerAnchor.topLeft,
       childAnchor: WindowPositionerAnchor.topLeft,
       constraintAdjustment: kPopupSlide,
-      // Loose: the menu sizes to its content (see [ContextMenuCard]).
+      // Loose: the menu sizes to its content (see [DesktopMenuCard]).
       preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
       onClosed: widget.onMenuClosed,
       child: ThemeProvider(
-        child: Builder(builder: (context) {
-          final theme = ThemeScope.of(context);
-          return Directionality(
-            textDirection: TextDirection.ltr,
-            child: DefaultTextStyle(
-              style: TextStyle(
-                color: theme.popupForeground,
-                fontFamily: theme.fontFamily,
-                fontSize: 13,
+        child: PopupBounceIn(
+          child: DesktopMenuCard(
+            entries: [
+              DesktopMenuEntry(
+                label: 'Pin to dock',
+                onTap: () {
+                  widget.onPin(app);
+                  closePopup();
+                },
               ),
-              child: PopupBounceIn(
-                child: ContextMenuCard(
-                  items: [
-                    ContextMenuItem(
-                      label: 'Pin to dock',
-                      onTap: () {
-                        widget.onPin(app);
-                        closePopup();
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }),
+            ],
+          ),
+        ),
       ),
     );
     widget.onMenuOpened?.call();
@@ -661,85 +649,3 @@ class _MenuRowState extends State<_MenuRow> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Shared context-menu widgets (used here for "Pin" and by the dock for "Unpin")
-// ---------------------------------------------------------------------------
-
-/// A single row in a [ContextMenuCard].
-class ContextMenuItem {
-  const ContextMenuItem({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-}
-
-/// A rounded, themed context-menu card rendering a column of [ContextMenuItem]s.
-/// Reads its theme from the enclosing [ThemeScope], so callers must provide one.
-class ContextMenuCard extends StatelessWidget {
-  const ContextMenuCard({super.key, required this.items});
-
-  final List<ContextMenuItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: DefaultTextStyle(
-        style: TextStyle(
-          color: theme.popupForeground,
-          fontFamily: theme.fontFamily,
-          fontSize: 13,
-        ),
-        // IntrinsicWidth so the card hugs its widest row (stretch alone would
-        // fill the incoming max width), letting the popup size to content.
-        child: IntrinsicWidth(
-          child: PopupCard(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final item in items)
-                  _ContextMenuRow(theme: theme, item: item),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ContextMenuRow extends StatefulWidget {
-  const _ContextMenuRow({required this.theme, required this.item});
-
-  final ThemeConfig theme;
-  final ContextMenuItem item;
-
-  @override
-  State<_ContextMenuRow> createState() => _ContextMenuRowState();
-}
-
-class _ContextMenuRowState extends State<_ContextMenuRow> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.item.onTap,
-        child: Container(
-          color: _hovered ? theme.surfaceHover : const Color(0x00000000),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(widget.item.label,
-              style: TextStyle(color: theme.popupForeground, fontSize: 13)),
-        ),
-      ),
-    );
-  }
-}
