@@ -3,9 +3,10 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:wayland/wayland.dart';
 
@@ -623,7 +624,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 _DisplayDiagram(
                   heads: manager.heads,
                   edits: _edits,
-                  theme: theme,
                   onPositionChanged: (headId, x, y) {
                     setState(() {
                       final edit = _edits[headId];
@@ -658,7 +658,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                           return _DisplayCard(
                             head: head,
                             edit: edit,
-                            theme: theme,
                             onEditChanged: (newEdit) {
                               setState(() => _edits[head.id] = newEdit);
                             },
@@ -694,13 +693,12 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 ),
               ),
             ),
-          _ActionButton(
+          SettingsActionButton(
             label: 'Apply Changes',
             onTap: _apply,
             primary: true,
             loading: _applying,
             enabled: _hasChanges && !_applying,
-            theme: theme,
           ),
         ],
       ),
@@ -724,13 +722,11 @@ class _DisplayDiagram extends StatefulWidget {
   const _DisplayDiagram({
     required this.heads,
     required this.edits,
-    required this.theme,
     required this.onPositionChanged,
   });
 
   final List<ZwlrOutputHeadV1> heads;
   final Map<int, _DisplayEdit> edits;
-  final ThemeConfig theme;
   final void Function(int headId, int x, int y) onPositionChanged;
 
   @override
@@ -749,6 +745,7 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
     return LayoutBuilder(builder: (context, constraints) {
       const padding = 12.0;
       const height = 148.0;
@@ -784,11 +781,12 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
 
       return Container(
         height: height,
-        color: widget.theme.popupBackground.withValues(alpha: 0.6),
+        color: theme.popupBackground.withValues(alpha: 0.6),
         child: Stack(
           children: [
             for (var i = 0; i < widget.heads.length; i++)
               _buildHeadRect(
+                theme,
                 widget.heads[i],
                 i,
                 scale,
@@ -803,6 +801,7 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
   }
 
   Widget _buildHeadRect(
+    ThemeConfig theme,
     ZwlrOutputHeadV1 head,
     int colorIndex,
     double scale,
@@ -862,7 +861,7 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
                   head.name,
                   style: TextStyle(
                     fontSize: 11,
-                    fontFamily: widget.theme.fontFamily,
+                    fontFamily: theme.fontFamily,
                     color: color,
                     fontWeight: FontWeight.w600,
                   ),
@@ -886,13 +885,11 @@ class _DisplayCard extends StatelessWidget {
   const _DisplayCard({
     required this.head,
     required this.edit,
-    required this.theme,
     required this.onEditChanged,
   });
 
   final ZwlrOutputHeadV1 head;
   final _DisplayEdit edit;
-  final ThemeConfig theme;
   final ValueChanged<_DisplayEdit> onEditChanged;
 
   static const _scales = [1.0, 1.25, 1.5, 1.75, 2.0];
@@ -905,27 +902,23 @@ class _DisplayCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.popupBackground,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: theme.divider),
-      ),
+    final theme = ThemeScope.of(context);
+    return PopupCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildCardHeader(),
+          _buildCardHeader(theme),
           if (edit.enabled) ...[
             Container(height: 1, color: theme.divider),
-            _buildCardBody(),
+            _buildCardBody(theme),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildCardHeader() {
+  Widget _buildCardHeader(ThemeConfig theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -956,60 +949,63 @@ class _DisplayCard extends StatelessWidget {
               ],
             ),
           ),
-          _EnableToggle(
-            enabled: edit.enabled,
-            theme: theme,
-            onTap: () => onEditChanged(edit.copyWith(enabled: !edit.enabled)),
+          SettingsToggle(
+            value: edit.enabled,
+            onChanged: (v) => onEditChanged(edit.copyWith(enabled: v)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCardBody() {
+  Widget _buildCardBody(ThemeConfig theme) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildLabel('Resolution'),
+          _buildLabel('Resolution', theme),
           const SizedBox(height: 6),
-          _ModeDropdown(
-            modes: head.sortedModes,
-            selectedMode: edit.selectedMode,
-            theme: theme,
-            onModeSelected: (mode) =>
+          SettingsDropdown<ZwlrOutputModeV1>(
+            items: [
+              for (final mode in head.sortedModes)
+                SettingsDropdownItem(
+                  value: mode,
+                  label: mode.label,
+                  detail: mode.preferred ? 'preferred' : null,
+                ),
+            ],
+            selected: edit.selectedMode,
+            onSelected: (mode) =>
                 onEditChanged(edit.copyWith(selectedMode: mode)),
           ),
           const SizedBox(height: 14),
-          _buildLabel('Scale'),
+          _buildLabel('Scale', theme),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: _scales.map((s) {
               final sel = (edit.scale - s).abs() < 0.01;
-              return _OptionButton(
+              return SettingsOptionButton(
                 label: '$s×',
                 selected: sel,
-                theme: theme,
                 onTap: () => onEditChanged(edit.copyWith(scale: s)),
               );
             }).toList(),
           ),
           const SizedBox(height: 14),
-          _buildLabel('Rotation'),
+          _buildLabel('Rotation', theme),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: _transforms.map((t) {
               final sel = edit.transform == t.$1;
-              return _OptionButton(
+              return SettingsOptionButton(
                 label: t.$2,
                 selected: sel,
-                theme: theme,
                 onTap: () => onEditChanged(edit.copyWith(transform: t.$1)),
               );
             }).toList(),
@@ -1019,7 +1015,9 @@ class _DisplayCard extends StatelessWidget {
     );
   }
 
-  Widget _buildLabel(String text) {
+  // Not [SettingsSectionLabel]: same style, but that control upper-cases its
+  // text and these labels are title-cased ('Resolution', 'Scale', 'Rotation').
+  Widget _buildLabel(String text, ThemeConfig theme) {
     return Text(
       text,
       style: TextStyle(
@@ -1028,416 +1026,6 @@ class _DisplayCard extends StatelessWidget {
         color: theme.popupForeground.withValues(alpha: 0.5),
         fontWeight: FontWeight.w500,
         letterSpacing: 0.5,
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _EnableToggle
-// ---------------------------------------------------------------------------
-
-class _EnableToggle extends StatefulWidget {
-  const _EnableToggle({
-    required this.enabled,
-    required this.theme,
-    required this.onTap,
-  });
-
-  final bool enabled;
-  final ThemeConfig theme;
-  final VoidCallback onTap;
-
-  @override
-  _EnableToggleState createState() => _EnableToggleState();
-}
-
-class _EnableToggleState extends State<_EnableToggle> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final color = widget.enabled ? theme.accent : theme.divider;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 44,
-          height: 24,
-          decoration: BoxDecoration(
-            color: _hovered ? color.withValues(alpha: 0.8) : color,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeInOut,
-                left: widget.enabled ? 22 : 2,
-                top: 2,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFFFFF),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _ModeDropdown — inline expanding mode selector
-// ---------------------------------------------------------------------------
-
-class _ModeDropdown extends StatefulWidget {
-  const _ModeDropdown({
-    required this.modes,
-    required this.selectedMode,
-    required this.theme,
-    required this.onModeSelected,
-  });
-
-  final List<ZwlrOutputModeV1> modes;
-  final ZwlrOutputModeV1? selectedMode;
-  final ThemeConfig theme;
-  final ValueChanged<ZwlrOutputModeV1> onModeSelected;
-
-  @override
-  _ModeDropdownState createState() => _ModeDropdownState();
-}
-
-class _ModeDropdownState extends State<_ModeDropdown> {
-  bool _open = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final current = widget.selectedMode;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _DropdownTrigger(
-          label: current?.label ?? '—',
-          open: _open,
-          theme: theme,
-          onTap: () => setState(() => _open = !_open),
-        ),
-        if (_open)
-          Container(
-            margin: const EdgeInsets.only(top: 2),
-            constraints: const BoxConstraints(maxHeight: 160),
-            decoration: BoxDecoration(
-              color: theme.controlSurface,
-              border: Border.all(color: theme.divider),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: widget.modes.length,
-              itemBuilder: (_, i) {
-                final mode = widget.modes[i];
-                final sel = mode.id == widget.selectedMode?.id;
-                return _ModeListItem(
-                  mode: mode,
-                  selected: sel,
-                  theme: theme,
-                  onTap: () {
-                    widget.onModeSelected(mode);
-                    setState(() => _open = false);
-                  },
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _DropdownTrigger extends StatefulWidget {
-  const _DropdownTrigger({
-    required this.label,
-    required this.open,
-    required this.theme,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool open;
-  final ThemeConfig theme;
-  final VoidCallback onTap;
-
-  @override
-  _DropdownTriggerState createState() => _DropdownTriggerState();
-}
-
-class _DropdownTriggerState extends State<_DropdownTrigger> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final bg =
-        _hovered ? theme.surfaceHover : theme.controlSurface;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: theme.divider),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                  ),
-                ),
-              ),
-              FaIcon(
-                widget.open
-                    ? FontAwesomeIcons.chevronUp
-                    : FontAwesomeIcons.chevronDown,
-                size: 10,
-                color: theme.popupForeground.withValues(alpha: 0.5),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ModeListItem extends StatefulWidget {
-  const _ModeListItem({
-    required this.mode,
-    required this.selected,
-    required this.theme,
-    required this.onTap,
-  });
-
-  final ZwlrOutputModeV1 mode;
-  final bool selected;
-  final ThemeConfig theme;
-  final VoidCallback onTap;
-
-  @override
-  _ModeListItemState createState() => _ModeListItemState();
-}
-
-class _ModeListItemState extends State<_ModeListItem> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final bg = widget.selected
-        ? theme.accent.withValues(alpha: 0.15)
-        : _hovered
-            ? theme.surfaceHover
-            : const Color(0x00000000);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          color: bg,
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.mode.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: theme.fontFamily,
-                    color:
-                        widget.selected ? theme.accent : theme.popupForeground,
-                  ),
-                ),
-              ),
-              if (widget.mode.preferred)
-                Text(
-                  'preferred',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground.withValues(alpha: 0.4),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _OptionButton — pill toggle for scale / transform
-// ---------------------------------------------------------------------------
-
-class _OptionButton extends StatefulWidget {
-  const _OptionButton({
-    required this.label,
-    required this.selected,
-    required this.theme,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final ThemeConfig theme;
-  final VoidCallback onTap;
-
-  @override
-  _OptionButtonState createState() => _OptionButtonState();
-}
-
-class _OptionButtonState extends State<_OptionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final Color bg;
-    if (widget.selected) {
-      bg = theme.accent;
-    } else if (_hovered) {
-      bg = theme.surfaceHover;
-    } else {
-      bg = theme.controlSurface;
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: widget.selected ? theme.accent : theme.divider,
-            ),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: theme.fontFamily,
-              color: widget.selected
-                  ? const Color(0xFFFFFFFF)
-                  : theme.popupForeground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _ActionButton — reuse pattern from network.dart
-// ---------------------------------------------------------------------------
-
-class _ActionButton extends StatefulWidget {
-  const _ActionButton({
-    required this.label,
-    required this.onTap,
-    required this.theme,
-    this.primary = false,
-    this.loading = false,
-    this.enabled = true,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final ThemeConfig theme;
-  final bool primary;
-  final bool loading;
-  final bool enabled;
-
-  @override
-  _ActionButtonState createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<_ActionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    final canTap = widget.enabled && !widget.loading;
-    final Color bg;
-    if (widget.primary) {
-      bg = _hovered && canTap
-          ? theme.accent.withValues(alpha: 0.85)
-          : canTap
-              ? theme.accent
-              : theme.accent.withValues(alpha: 0.4);
-    } else {
-      bg = _hovered && canTap ? theme.surfaceHover : theme.divider;
-    }
-
-    return MouseRegion(
-      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: canTap ? widget.onTap : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Center(
-            child: widget.loading
-                ? const LoadingIndicator(size: 14)
-                : Text(
-                    widget.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontFamily: theme.fontFamily,
-                      color: widget.primary
-                          ? const Color(0xFFFFFFFF)
-                          : theme.popupForeground,
-                    ),
-                  ),
-          ),
-        ),
       ),
     );
   }
