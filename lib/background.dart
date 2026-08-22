@@ -4,6 +4,12 @@ import 'package:flutter/widgets.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'config.dart';
+import 'media_paths.dart';
+
+// [isVideoPath] was defined here before the predicates moved to
+// `lib/media_paths.dart`, and its importers still reach it through this file;
+// `config.dart` re-exports the rest of that library, as it always provided it.
+export 'media_paths.dart' show isVideoPath;
 
 BoxFit boxFitFor(BackgroundFit fit) {
   switch (fit) {
@@ -14,11 +20,6 @@ BoxFit boxFitFor(BackgroundFit fit) {
     case BackgroundFit.natural:
       return BoxFit.none;
   }
-}
-
-bool isVideoPath(String path) {
-  final lower = path.toLowerCase();
-  return videoExtensions.any(lower.endsWith);
 }
 
 /// Renders a wallpaper from a filesystem path, picking the image or video

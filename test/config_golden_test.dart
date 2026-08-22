@@ -41,7 +41,7 @@ void main() {
   group('the generated default config parses to what it says', () {
     late AppConfig config;
     setUpAll(() {
-      final toml = AppConfig.buildDefaultConfig('/home/golden');
+      final toml = buildDefaultConfig('/home/golden');
       config = AppConfig.fromMap(TomlDocument.parse(toml).toMap());
     });
 

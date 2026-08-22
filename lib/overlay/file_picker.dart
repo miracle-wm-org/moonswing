@@ -27,7 +27,8 @@ import 'package:graceful_shell/overlay/settings/controls.dart';
 
 /// A named set of file extensions the picker will show. An empty [extensions]
 /// set matches every file ("All files"). Extensions are stored with a leading
-/// dot and matched case-insensitively, mirroring [isImagePath] in `config.dart`.
+/// dot and matched case-insensitively, mirroring [isImagePath] in
+/// `lib/media_paths.dart`.
 class FilePickerFilter {
   const FilePickerFilter({required this.label, required this.extensions});
 
