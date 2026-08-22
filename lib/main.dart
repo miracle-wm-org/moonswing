@@ -32,6 +32,7 @@ import 'package:graceful_shell/launcher/launcher_controller.dart';
 import 'package:graceful_shell/launcher/launcher_overlay.dart';
 import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/lock/lock_screen.dart';
+import 'package:graceful_shell/lock/session_lock_host.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/osd/osd.dart';
 import 'package:graceful_shell/osd/osd_service.dart';
@@ -400,14 +401,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the user answers, but the overlay stays mounted through its fade-out.
   PickRequest? _screencastRequest;
 
-  /// The `ext-session-lock-v1` lock, non-null exactly while the session is
-  /// locked. Owned here rather than by the module that offers the Lock button
-  /// because the lock spans every monitor and outlives any one panel.
-  SessionLock? _sessionLock;
-
-  /// One lock surface per monitor, keyed like [_surfaces]. Outputs without one
-  /// are blanked by the compositor, so a missing entry is safe, never a leak.
-  final Map<String, SessionLockWindowController> _lockWindows = {};
+  /// The `ext-session-lock-v1` lifecycle. Owned by the root rather than by
+  /// the module that offers the Lock button because the lock spans every
+  /// monitor and outlives any one panel; everything else about it lives in
+  /// [SessionLockHost].
+  late final SessionLockHost _lockHost;
 
   late final MonitorWatcher _monitorWatcher;
   bool _syncScheduled = false;
@@ -436,6 +434,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     super.initState();
     final appConfig = widget.appConfig;
     _liveConfig = appConfig;
+    _lockHost = SessionLockHost(onChanged: () {
+      if (mounted) setState(() {});
+    });
     _hasBackgroundSurface =
         (appConfig.background?.entries.isNotEmpty ?? false) ||
             appConfig.desktop.enabled;
@@ -846,130 +847,16 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the session to be locked.
   void _onLockRequested() {
     if (!mounted) return;
-    if (LockController.instance.isRequested && _sessionLock == null) {
+    if (LockController.instance.isRequested && !_lockHost.isLocked) {
       // The compositor hides every other surface behind the lock, so anything
       // still registered would be a popup the user cannot see or reach — and
       // would still be there on unlock.
       PopupCoordinator.instance.dismissAll();
-      _startLock();
+      _lockHost.lock({
+        for (final entry in _surfaces.entries)
+          entry.key: entry.value.monitor.gdkMonitor,
+      });
     }
-  }
-
-  /// Locks the session and puts a lock surface on every monitor.
-  ///
-  /// Ordering matters and mirrors gtk-session-lock's own example: prepare the
-  /// lock, ask the compositor to lock, *then* create the surfaces. Each
-  /// [SessionLockWindowController] claims its GTK window's surface before the
-  /// window is realized.
-  void _startLock() {
-    if (_sessionLock != null) return;
-
-    if (!SessionLock.isSupported) {
-      final reason = SessionLock.isAvailable
-          ? 'the compositor does not implement ext-session-lock-v1'
-          : 'libgtk-session-lock is not installed';
-      debugPrint('lock: cannot lock the session — $reason');
-      LockController.instance.markFailed(reason);
-      return;
-    }
-
-    debugPrint('lock: available=${SessionLock.isAvailable} '
-        'supported=${SessionLock.isSupported} '
-        'protocol=${SessionLock.protocolVersion}');
-
-    final lock = SessionLock(
-      onLocked: () =>
-          debugPrint('lock: compositor confirmed the session is locked'),
-      onFinished: _onLockFinished,
-    );
-    try {
-      lock.prepare();
-      debugPrint('lock: prepared, handle=0x${lock.handle.address.toRadixString(16)}');
-      lock.lock();
-      debugPrint('lock: lock request sent');
-    } catch (error) {
-      debugPrint('lock: failed to lock the session: $error');
-      lock.release();
-      LockController.instance.markFailed('$error');
-      return;
-    }
-
-    _sessionLock = lock;
-    for (final entry in _surfaces.entries) {
-      try {
-        final controller = SessionLockWindowController(
-          sessionLock: lock,
-          monitor: entry.value.monitor.gdkMonitor,
-        );
-        _lockWindows[entry.key] = controller;
-        // Sampled before the window is realized: false means the lock surface
-        // was never registered, so GDK will map an ordinary toplevel — a
-        // floating window instead of a lock surface. Otherwise silent apart
-        // from a g_critical on stderr.
-        debugPrint('lock: ${entry.key} attached=${controller.attachedAsLockSurface}');
-      } catch (error) {
-        // A monitor we could not build a surface for is blanked by the
-        // compositor, so the session stays covered either way.
-        debugPrint('lock: no lock surface for ${entry.key}: $error');
-      }
-    }
-
-    LockController.instance.markActive();
-    setState(() {});
-
-    // Re-check once the windows have been presented: `attached` above only
-    // proves the handlers were connected, this proves the role survived
-    // realize + map.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      for (final entry in _lockWindows.entries) {
-        debugPrint('lock: ${entry.key} isLockWindow after map='
-            '${entry.value.isLockWindow}');
-      }
-    });
-  }
-
-  /// The compositor ended the lock without us asking (it refused the lock, or
-  /// took it away). The session may well still be locked, so drop our lock
-  /// object without sending an unlock.
-  void _onLockFinished() {
-    if (!mounted) return;
-    _teardownLock(unlock: false);
-  }
-
-  /// PAM accepted the password: release the lock and restore the session.
-  void _unlockSession() {
-    if (!mounted) return;
-    _teardownLock(unlock: true);
-  }
-
-  void _teardownLock({required bool unlock}) {
-    final lock = _sessionLock;
-    if (lock == null) return;
-    _sessionLock = null;
-
-    final removed = _lockWindows.values.toList();
-    _lockWindows.clear();
-    LockController.instance.clear();
-
-    // Detach the views this frame, then tear down the native side once that
-    // frame has rendered — destroying a window Flutter is still rendering into
-    // would use a freed FlView.
-    //
-    // The lock is released *before* the windows are destroyed: the protocol
-    // says lock surfaces should be destroyed after the unlock request, and
-    // unlockAndDestroy() syncs with the compositor, without which the server
-    // may kill the connection with a protocol error mid-teardown.
-    setState(() {});
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (unlock) {
-        lock.unlockAndDestroy();
-      } else {
-        lock.release();
-      }
-      for (final controller in removed) {
-        controller.destroy();
-      }
-    });
   }
 
   /// Coalesces bursts of `monitor-added` / `monitor-removed` signals (a single
@@ -1001,7 +888,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         removed.addAll(_surfaces.remove(key)!.controllers);
         final osd = _osd.remove(key);
         if (osd != null) removed.add(osd);
-        final lock = _lockWindows.remove(key);
+        final lock = _lockHost.removeMonitor(key);
         if (lock != null) removedLocks.add(lock);
         changed = true;
       }
@@ -1015,16 +902,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         if (_osd.isNotEmpty) _osd[entry.key] = _createOsd(entry.value);
         // Likewise a monitor plugged in while locked: without a lock surface
         // the compositor would just blank it.
-        if (_sessionLock case final lock?) {
-          try {
-            _lockWindows[entry.key] = SessionLockWindowController(
-              sessionLock: lock,
-              monitor: entry.value.gdkMonitor,
-            );
-          } catch (error) {
-            debugPrint('lock: no lock surface for ${entry.key}: $error');
-          }
-        }
+        _lockHost.addMonitor(entry.key, entry.value.gdkMonitor);
         changed = true;
       }
     }
@@ -1139,17 +1017,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // dying State.
     FilePickerController.instance.complete(null);
     ScreencastPickerController.instance.cancel();
-    // Drop the lock windows, but never send an unlock on the way out: if the
-    // shell is going away while the session is locked, the session must stay
-    // locked. abandon() sends no Wayland request at all — after `locked` the
-    // only legal destructor is unlock_and_destroy, which would do the opposite
-    // of what we want; disconnecting instead leaves the session locked.
-    for (final ctrl in _lockWindows.values) {
-      ctrl.destroy();
-    }
-    _lockWindows.clear();
-    _sessionLock?.abandon();
-    _sessionLock = null;
+    // Abandons rather than unlocks: a shell dying while the session is locked
+    // must leave it locked. See [SessionLockHost.dispose].
+    _lockHost.dispose();
     for (final surfaces in _surfaces.values) {
       for (final ctrl in surfaces.controllers) {
         ctrl.destroy();
@@ -1423,14 +1293,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         // The lock screen. These surfaces exist only while the session is
         // locked; the compositor hides every other surface — including the
         // panels above — for as long as they do.
-        for (final controller in _lockWindows.values)
+        for (final controller in _lockHost.windows)
           SessionLockWindow(
             key: ObjectKey(controller),
             controller: controller,
             child: _windowChrome(
               LockScreen(
                 config: _liveConfig.lock,
-                onUnlocked: _unlockSession,
+                onUnlocked: _lockHost.unlock,
               ),
             ),
           ),
