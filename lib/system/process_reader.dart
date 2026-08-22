@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:graceful_shell/system/file_read.dart';
 import 'package:graceful_shell/system/models.dart';
 
 /// How a process's CPU percentage is scaled.
@@ -45,7 +46,7 @@ class ProcessReader {
 
       // A process can exit between listSync() and the read below, which makes
       // its whole directory vanish mid-walk. That is normal, not an error.
-      final statLine = _readOrNull('${entry.path}/stat');
+      final statLine = readStringOrNull('${entry.path}/stat');
       if (statLine == null) continue;
 
       final cmdline = skipCmdlineFor.contains(pid)
@@ -60,29 +61,17 @@ class ProcessReader {
 
   /// Re-reads one process, for the kill path's identity check.
   ProcessRaw? statOf(int pid) {
-    final line = _readOrNull('$procRoot/$pid/stat');
+    final line = readStringOrNull('$procRoot/$pid/stat');
     if (line == null) return null;
     return parseStatLine(line, cmdline: null);
-  }
-
-  String? _readOrNull(String path) {
-    try {
-      return File(path).readAsStringSync();
-    } catch (_) {
-      return null;
-    }
   }
 
   /// `/proc/<pid>/cmdline` is NUL-separated, and is *empty* for kernel threads —
   /// which is the cheapest kernel-thread test there is.
   String? _readCmdline(String path) {
-    final raw = _readOrNull(path);
+    final raw = readStringOrNull(path);
     if (raw == null) return null;
-    return raw
-        .split('\x00')
-        .where((s) => s.isNotEmpty)
-        .join(' ')
-        .trim();
+    return raw.split('\x00').where((s) => s.isNotEmpty).join(' ').trim();
   }
 }
 
@@ -168,21 +157,25 @@ List<ProcessRow> computeProcessRows({
         systemUptimeSeconds - process.starttimeTicks / kUserHz;
     final cmdline = process.cmdline ?? cmdlineCache[process.pid] ?? '';
 
-    rows.add(ProcessRow(
-      pid: process.pid,
-      name: process.name,
-      ppid: process.ppid,
-      state: process.state,
-      threads: process.threads,
-      rssKb: process.rssKb,
-      starttimeTicks: process.starttimeTicks,
-      cpuPercent: cpuPercent,
-      uptime: Duration(seconds: uptimeSeconds.clamp(0, double.maxFinite).round()),
-      cmdline: cmdline,
-      // A process with no command line at all is a kernel thread. Everything
-      // else — including one whose cmdline we skipped and have cached — is not.
-      isKernelThread: cmdline.isEmpty,
-    ));
+    rows.add(
+      ProcessRow(
+        pid: process.pid,
+        name: process.name,
+        ppid: process.ppid,
+        state: process.state,
+        threads: process.threads,
+        rssKb: process.rssKb,
+        starttimeTicks: process.starttimeTicks,
+        cpuPercent: cpuPercent,
+        uptime: Duration(
+          seconds: uptimeSeconds.clamp(0, double.maxFinite).round(),
+        ),
+        cmdline: cmdline,
+        // A process with no command line at all is a kernel thread. Everything
+        // else — including one whose cmdline we skipped and have cached — is not.
+        isKernelThread: cmdline.isEmpty,
+      ),
+    );
   }
 
   return rows;
