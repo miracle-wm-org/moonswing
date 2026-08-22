@@ -363,6 +363,12 @@ class _PaIsolate {
   // Channel count cache for sink inputs (index → channels)
   final sinkInputChannels = <int, int>{};
 
+  // Channel count caches for sinks and sources (name → channels), filled as
+  // their infos arrive. A volume set must be as wide as the device: writing 2
+  // channels to a mono or surround device sets the wrong width.
+  final sinkChannels = <String, int>{};
+  final sourceChannels = <String, int>{};
+
   // Level metering stream
   Pointer<pa_stream> levelStream = nullptr;
 
@@ -718,9 +724,11 @@ class _PaIsolate {
         ch >= 2 ? _pa.pa_cvolume_get_balance(pVol, pMap).clamp(-1.0, 1.0) : 0.0;
     calloc.free(pVol);
     calloc.free(pMap);
+    final name = s.name.cast<Utf8>().toDartString();
+    _inst!.sinkChannels[name] = ch;
     return PaSink(
       index: s.index,
-      name: s.name.cast<Utf8>().toDartString(),
+      name: name,
       description: s.description.cast<Utf8>().toDartString(),
       mute: s.mute == 1,
       volume: avgVol,
@@ -765,9 +773,11 @@ class _PaIsolate {
     final pVol = calloc<pa_cvolume>()..ref = s.volume;
     final avgVol = _pa.pa_cvolume_avg(pVol) / PA_VOLUME_NORM;
     calloc.free(pVol);
+    final name = s.name.cast<Utf8>().toDartString();
+    _inst!.sourceChannels[name] = s.channel_map.channels;
     return PaSource(
       index: s.index,
-      name: s.name.cast<Utf8>().toDartString(),
+      name: name,
       description: s.description.cast<Utf8>().toDartString(),
       mute: s.mute == 1,
       volume: avgVol,
@@ -780,9 +790,12 @@ class _PaIsolate {
 
   static void _setSinkVolume(int id, String name, double vol) {
     using((Arena a) {
+      // As wide as the device: 2 hardcoded here set the wrong width on mono
+      // and surround sinks. The cache is filled by every sink-info parse.
+      final ch = _inst!.sinkChannels[name] ?? 2;
       final pVol = a<pa_cvolume>();
       _pa.pa_cvolume_init(pVol);
-      _pa.pa_cvolume_set(pVol, 2, (vol * PA_VOLUME_NORM).ceil());
+      _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_sink_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
       _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
@@ -832,9 +845,10 @@ class _PaIsolate {
 
   static void _setSourceVolume(int id, String name, double vol) {
     using((Arena a) {
+      final ch = _inst!.sourceChannels[name] ?? 2;
       final pVol = a<pa_cvolume>();
       _pa.pa_cvolume_init(pVol);
-      _pa.pa_cvolume_set(pVol, 2, (vol * PA_VOLUME_NORM).ceil());
+      _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_source_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
       _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
