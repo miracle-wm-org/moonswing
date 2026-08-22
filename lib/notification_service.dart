@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'dbus_service_object.dart';
+
 /// A single notification received from the FreeDesktop notification daemon
 /// protocol.
 class NotificationItem {
@@ -120,31 +122,34 @@ class NotificationStore extends ChangeNotifier {
 
 /// D-Bus object that implements the org.freedesktop.Notifications interface,
 /// allowing the shell to act as the system notification daemon.
-class NotificationServer extends DBusObject {
+class NotificationServer extends DBusServiceObject {
   NotificationServer()
       : super(DBusObjectPath('/org/freedesktop/Notifications'));
+
+  static const _interface = 'org.freedesktop.Notifications';
 
   final NotificationStore _store = NotificationStore.instance;
 
   @override
-  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
-    try {
-      switch (methodCall.name) {
-        case 'GetCapabilities':
-          return _handleGetCapabilities();
-        case 'GetServerInformation':
-          return _handleGetServerInformation();
-        case 'Notify':
-          return _handleNotify(methodCall.values);
-        case 'CloseNotification':
-          return await _handleCloseNotification(methodCall.values);
-        default:
-          return DBusMethodErrorResponse.unknownMethod();
-      }
-    } catch (e) {
-      return DBusMethodErrorResponse.invalidArgs();
-    }
-  }
+  late final List<DBusServiceInterface> interfaces = [
+    DBusServiceInterface(
+      _interface,
+      methods: {
+        'GetCapabilities':
+            DBusServiceMethod((call) async => _handleGetCapabilities()),
+        'GetServerInformation':
+            DBusServiceMethod((call) async => _handleGetServerInformation()),
+        'Notify': DBusServiceMethod((call) async => _handleNotify(call.values)),
+        'CloseNotification':
+            DBusServiceMethod((call) => _handleCloseNotification(call.values)),
+      },
+      signals: [
+        DBusIntrospectSignal('NotificationClosed'),
+        DBusIntrospectSignal('ActionInvoked'),
+      ],
+      onError: (call, error) => DBusMethodErrorResponse.invalidArgs(),
+    ),
+  ];
 
   DBusMethodResponse _handleGetCapabilities() {
     return DBusMethodSuccessResponse([
@@ -205,7 +210,7 @@ class NotificationServer extends DBusObject {
     final id = (values[0] as DBusUint32).value;
     _store.dismiss(id);
     await emitSignal(
-      'org.freedesktop.Notifications',
+      _interface,
       'NotificationClosed',
       [DBusUint32(id), const DBusUint32(3)], // reason 3 = closed by call
     );
@@ -216,29 +221,10 @@ class NotificationServer extends DBusObject {
   /// callback wired up in [startNotificationService].
   Future<void> emitActionInvoked(int id, String actionKey) async {
     await emitSignal(
-      'org.freedesktop.Notifications',
+      _interface,
       'ActionInvoked',
       [DBusUint32(id), DBusString(actionKey)],
     );
-  }
-
-  @override
-  List<DBusIntrospectInterface> introspect() {
-    return [
-      DBusIntrospectInterface(
-        'org.freedesktop.Notifications',
-        methods: [
-          DBusIntrospectMethod('GetCapabilities'),
-          DBusIntrospectMethod('GetServerInformation'),
-          DBusIntrospectMethod('Notify'),
-          DBusIntrospectMethod('CloseNotification'),
-        ],
-        signals: [
-          DBusIntrospectSignal('NotificationClosed'),
-          DBusIntrospectSignal('ActionInvoked'),
-        ],
-      ),
-    ];
   }
 }
 

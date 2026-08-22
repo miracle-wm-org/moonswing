@@ -235,6 +235,22 @@ void main() {
       ));
       expect(response, isA<DBusMethodErrorResponse>());
     });
+
+    test('a wrong interface name answers unknown-interface, even for a method '
+        'this object does serve', () async {
+      final response = await backend.handleMethodCall(DBusMethodCall(
+        sender: _frontend,
+        interface: 'org.freedesktop.impl.portal.RemoteDesktop',
+        name: 'CreateSession',
+        values: _sessionArgs('com.example.App'),
+      ));
+      expect(
+        (response as DBusMethodErrorResponse).errorName,
+        'org.freedesktop.DBus.Error.UnknownInterface',
+      );
+      // The guard fired before dispatch: no session was created.
+      expect(client.registered, isEmpty);
+    });
   });
 
   group('happy path', () {

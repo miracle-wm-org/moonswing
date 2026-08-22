@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dbus/dbus.dart';
 
+import '../dbus_service_object.dart';
 import 'pick_types.dart';
 import 'screencast_log.dart';
 
@@ -17,9 +18,11 @@ import 'screencast_log.dart';
 /// - A [PortalRequest] exported at the `handle` path for the duration of
 ///   `Start`, so the frontend can cancel a pick that's still on screen.
 ///
-/// Modeled on `StatusNotifierWatcher` (`lib/status_notifier_service.dart`):
-/// interface-checked `handleMethodCall`, property overrides, and
-/// `nameOwnerChanged` peer-death tracking.
+/// Like `StatusNotifierWatcher` (`lib/status_notifier_service.dart`), each
+/// object declares its bus surface through `DBusServiceObject`
+/// (`lib/dbus_service_object.dart`) — methods, properties and introspection
+/// from one table — and the backend adds `nameOwnerChanged` peer-death
+/// tracking.
 
 const String screenCastInterface = 'org.freedesktop.impl.portal.ScreenCast';
 const String sessionInterface = 'org.freedesktop.impl.portal.Session';
@@ -101,7 +104,7 @@ class _SessionState {
   ActiveCast? cast;
 }
 
-class ScreenCastPortalBackend extends DBusObject {
+class ScreenCastPortalBackend extends DBusServiceObject {
   ScreenCastPortalBackend(this._client, this._engine)
       : super(DBusObjectPath('/org/freedesktop/portal/desktop'));
 
@@ -114,27 +117,57 @@ class ScreenCastPortalBackend extends DBusObject {
     _nameOwnerSub = _client.nameOwnerChanged.listen(_onNameOwnerChanged);
   }
 
+  static DBusIntrospectArgument _arg(
+          String signature, DBusArgumentDirection direction, String name) =>
+      DBusIntrospectArgument(DBusSignature(signature), direction, name: name);
+
+  /// `CreateSession` and `SelectSources` share one signature.
+  static final List<DBusIntrospectArgument> _sessionMethodArgs = [
+    _arg('o', DBusArgumentDirection.in_, 'handle'),
+    _arg('o', DBusArgumentDirection.in_, 'session_handle'),
+    _arg('s', DBusArgumentDirection.in_, 'app_id'),
+    _arg('a{sv}', DBusArgumentDirection.in_, 'options'),
+    _arg('u', DBusArgumentDirection.out, 'response'),
+    _arg('a{sv}', DBusArgumentDirection.out, 'results'),
+  ];
+
+  static final List<DBusIntrospectArgument> _startMethodArgs = [
+    _arg('o', DBusArgumentDirection.in_, 'handle'),
+    _arg('o', DBusArgumentDirection.in_, 'session_handle'),
+    _arg('s', DBusArgumentDirection.in_, 'app_id'),
+    _arg('s', DBusArgumentDirection.in_, 'parent_window'),
+    _arg('a{sv}', DBusArgumentDirection.in_, 'options'),
+    _arg('u', DBusArgumentDirection.out, 'response'),
+    _arg('a{sv}', DBusArgumentDirection.out, 'results'),
+  ];
+
   @override
-  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
-    if (methodCall.interface != screenCastInterface) {
-      return DBusMethodErrorResponse.unknownInterface();
-    }
-    try {
-      switch (methodCall.name) {
-        case 'CreateSession':
-          return await _createSession(methodCall);
-        case 'SelectSources':
-          return await _selectSources(methodCall);
-        case 'Start':
-          return await _start(methodCall);
-        default:
-          return DBusMethodErrorResponse.unknownMethod();
-      }
-    } catch (e) {
-      screencastLog('ScreenCast portal ${methodCall.name} failed: $e');
-      return _result(_responseError);
-    }
-  }
+  late final List<DBusServiceInterface> interfaces = [
+    DBusServiceInterface(
+      screenCastInterface,
+      methods: {
+        'CreateSession':
+            DBusServiceMethod(_createSession, args: _sessionMethodArgs),
+        'SelectSources':
+            DBusServiceMethod(_selectSources, args: _sessionMethodArgs),
+        'Start': DBusServiceMethod(_start, args: _startMethodArgs),
+      },
+      properties: {
+        // Version 2: before restore/persist (4+) and virtual monitors (5) —
+        // the frontend won't send options this backend doesn't understand.
+        'version':
+            DBusServiceProperty(DBusSignature('u'), () => const DBusUint32(2)),
+        'AvailableSourceTypes': DBusServiceProperty(DBusSignature('u'),
+            () => DBusUint32(_engine.availableSourceTypes)),
+        'AvailableCursorModes': DBusServiceProperty(DBusSignature('u'),
+            () => const DBusUint32(cursorModeHidden | cursorModeEmbedded)),
+      },
+      onError: (call, error) {
+        screencastLog('ScreenCast portal ${call.name} failed: $error');
+        return _result(_responseError);
+      },
+    ),
+  ];
 
   static DBusMethodResponse _result(int response,
           [Map<String, DBusValue> results = const {}]) =>
@@ -301,89 +334,6 @@ class ScreenCastPortalBackend extends DBusObject {
     }
   }
 
-  @override
-  Future<DBusMethodResponse> getProperty(String interface, String name) async {
-    if (interface != screenCastInterface) {
-      return DBusMethodErrorResponse.unknownProperty();
-    }
-    switch (name) {
-      case 'version':
-        // Version 2: before restore/persist (4+) and virtual monitors (5) —
-        // the frontend won't send options this backend doesn't understand.
-        return DBusGetPropertyResponse(const DBusUint32(2));
-      case 'AvailableSourceTypes':
-        return DBusGetPropertyResponse(
-            DBusUint32(_engine.availableSourceTypes));
-      case 'AvailableCursorModes':
-        return DBusGetPropertyResponse(
-            const DBusUint32(cursorModeHidden | cursorModeEmbedded));
-      default:
-        return DBusMethodErrorResponse.unknownProperty();
-    }
-  }
-
-  @override
-  Future<DBusMethodResponse> getAllProperties(String interface) async {
-    if (interface != screenCastInterface) {
-      return DBusGetAllPropertiesResponse({});
-    }
-    return DBusGetAllPropertiesResponse({
-      'version': const DBusUint32(2),
-      'AvailableSourceTypes': DBusUint32(_engine.availableSourceTypes),
-      'AvailableCursorModes':
-          const DBusUint32(cursorModeHidden | cursorModeEmbedded),
-    });
-  }
-
-  @override
-  List<DBusIntrospectInterface> introspect() {
-    DBusIntrospectArgument arg(String signature, DBusArgumentDirection dir,
-            String name) =>
-        DBusIntrospectArgument(DBusSignature(signature), dir, name: name);
-    final inArg = DBusArgumentDirection.in_;
-    final outArg = DBusArgumentDirection.out;
-    return [
-      DBusIntrospectInterface(
-        screenCastInterface,
-        methods: [
-          DBusIntrospectMethod('CreateSession', args: [
-            arg('o', inArg, 'handle'),
-            arg('o', inArg, 'session_handle'),
-            arg('s', inArg, 'app_id'),
-            arg('a{sv}', inArg, 'options'),
-            arg('u', outArg, 'response'),
-            arg('a{sv}', outArg, 'results'),
-          ]),
-          DBusIntrospectMethod('SelectSources', args: [
-            arg('o', inArg, 'handle'),
-            arg('o', inArg, 'session_handle'),
-            arg('s', inArg, 'app_id'),
-            arg('a{sv}', inArg, 'options'),
-            arg('u', outArg, 'response'),
-            arg('a{sv}', outArg, 'results'),
-          ]),
-          DBusIntrospectMethod('Start', args: [
-            arg('o', inArg, 'handle'),
-            arg('o', inArg, 'session_handle'),
-            arg('s', inArg, 'app_id'),
-            arg('s', inArg, 'parent_window'),
-            arg('a{sv}', inArg, 'options'),
-            arg('u', outArg, 'response'),
-            arg('a{sv}', outArg, 'results'),
-          ]),
-        ],
-        properties: [
-          DBusIntrospectProperty('version', DBusSignature('u'),
-              access: DBusPropertyAccess.read),
-          DBusIntrospectProperty('AvailableSourceTypes', DBusSignature('u'),
-              access: DBusPropertyAccess.read),
-          DBusIntrospectProperty('AvailableCursorModes', DBusSignature('u'),
-              access: DBusPropertyAccess.read),
-        ],
-      ),
-    ];
-  }
-
   Future<void> dispose() async {
     await _nameOwnerSub?.cancel();
     await closeAllSessions();
@@ -391,69 +341,47 @@ class ScreenCastPortalBackend extends DBusObject {
 }
 
 /// `org.freedesktop.impl.portal.Session` — one per session handle.
-class PortalSession extends DBusObject {
+class PortalSession extends DBusServiceObject {
   PortalSession(super.path, this._backend);
 
   final ScreenCastPortalBackend _backend;
 
   @override
-  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
-    if (methodCall.interface != sessionInterface) {
-      return DBusMethodErrorResponse.unknownInterface();
-    }
-    if (methodCall.name != 'Close') {
-      return DBusMethodErrorResponse.unknownMethod();
-    }
-    await _backend.closeSession(this);
-    return DBusMethodSuccessResponse([]);
-  }
-
-  @override
-  Future<DBusMethodResponse> getProperty(String interface, String name) async {
-    if (interface == sessionInterface && name == 'version') {
-      return DBusGetPropertyResponse(const DBusUint32(1));
-    }
-    return DBusMethodErrorResponse.unknownProperty();
-  }
-
-  @override
-  List<DBusIntrospectInterface> introspect() => [
-        DBusIntrospectInterface(
-          sessionInterface,
-          methods: [DBusIntrospectMethod('Close')],
-          signals: [DBusIntrospectSignal('Closed')],
-          properties: [
-            DBusIntrospectProperty('version', DBusSignature('u'),
-                access: DBusPropertyAccess.read),
-          ],
-        ),
-      ];
+  late final List<DBusServiceInterface> interfaces = [
+    DBusServiceInterface(
+      sessionInterface,
+      methods: {
+        'Close': DBusServiceMethod((call) async {
+          await _backend.closeSession(this);
+          return DBusMethodSuccessResponse([]);
+        }),
+      },
+      properties: {
+        'version':
+            DBusServiceProperty(DBusSignature('u'), () => const DBusUint32(1)),
+      },
+      signals: [DBusIntrospectSignal('Closed')],
+    ),
+  ];
 }
 
 /// `org.freedesktop.impl.portal.Request` — exported for the duration of a
 /// `Start` call; `Close` cancels the pick, resolving `Start` with response 1.
-class PortalRequest extends DBusObject {
+class PortalRequest extends DBusServiceObject {
   PortalRequest(super.path, this._onClose);
 
   final void Function() _onClose;
 
   @override
-  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
-    if (methodCall.interface != requestInterface) {
-      return DBusMethodErrorResponse.unknownInterface();
-    }
-    if (methodCall.name != 'Close') {
-      return DBusMethodErrorResponse.unknownMethod();
-    }
-    _onClose();
-    return DBusMethodSuccessResponse([]);
-  }
-
-  @override
-  List<DBusIntrospectInterface> introspect() => [
-        DBusIntrospectInterface(
-          requestInterface,
-          methods: [DBusIntrospectMethod('Close')],
-        ),
-      ];
+  late final List<DBusServiceInterface> interfaces = [
+    DBusServiceInterface(
+      requestInterface,
+      methods: {
+        'Close': DBusServiceMethod((call) async {
+          _onClose();
+          return DBusMethodSuccessResponse([]);
+        }),
+      },
+    ),
+  ];
 }
