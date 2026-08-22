@@ -18,6 +18,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
+import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/overlay/file_picker_controller.dart';
@@ -80,18 +81,9 @@ Future<List<String>?> showFilePicker(
   bool allowDirectories = false,
   String? initialDirectory,
 }) {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  final completer = Completer<List<String>?>();
-  late OverlayEntry entry;
-
-  void close(List<String>? result) {
-    if (completer.isCompleted) return;
-    entry.remove();
-    completer.complete(result);
-  }
-
-  entry = OverlayEntry(
-    builder: (context) => _FilePickerDialog(
+  return showRootModal<List<String>?>(
+    context,
+    (close) => _FilePickerDialog(
       filters: filters.isEmpty ? const [FilePickerFilter.all] : filters,
       allowMultiple: allowMultiple,
       allowDirectories: allowDirectories,
@@ -99,8 +91,6 @@ Future<List<String>?> showFilePicker(
       onResult: close,
     ),
   );
-  overlay.insert(entry);
-  return completer.future;
 }
 
 // ---------------------------------------------------------------------------

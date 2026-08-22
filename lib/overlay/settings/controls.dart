@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
@@ -1679,18 +1680,9 @@ Future<bool> showSettingsConfirm(
   required String confirmLabel,
   String? warning,
 }) {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  final completer = Completer<bool>();
-  late OverlayEntry entry;
-
-  void close(bool result) {
-    if (completer.isCompleted) return;
-    entry.remove();
-    completer.complete(result);
-  }
-
-  entry = OverlayEntry(
-    builder: (_) => SettingsConfirmCard(
+  return showRootModal<bool>(
+    context,
+    (close) => SettingsConfirmCard(
       title: title,
       message: message,
       warning: warning,
@@ -1699,8 +1691,6 @@ Future<bool> showSettingsConfirm(
       onConfirm: () => close(true),
     ),
   );
-  overlay.insert(entry);
-  return completer.future;
 }
 
 /// Editable ordered list of strings. When [suggestions] is provided, new items

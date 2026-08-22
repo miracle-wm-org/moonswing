@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/search_list.dart';
@@ -438,24 +439,13 @@ Future<AppEntry?> showAppChooser(
   required List<SearchableApp> apps,
   bool loading = false,
 }) {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  final completer = Completer<AppEntry?>();
-  late OverlayEntry entry;
-
-  void close(AppEntry? result) {
-    if (completer.isCompleted) return;
-    entry.remove();
-    completer.complete(result);
-  }
-
-  entry = OverlayEntry(
-    builder: (context) => AppChooserOverlay(
+  return showRootModal<AppEntry?>(
+    context,
+    (close) => AppChooserOverlay(
       apps: apps,
       loading: loading,
       onSelected: close,
       onCancel: () => close(null),
     ),
   );
-  overlay.insert(entry);
-  return completer.future;
 }
