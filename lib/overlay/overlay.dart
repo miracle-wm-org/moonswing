@@ -1,9 +1,10 @@
 // ignore_for_file: library_private_types_in_public_api
 
-import 'dart:ui';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/overlay_fade_scaffold.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_tab.dart';
 import 'package:graceful_shell/overlay/settings/audio.dart';
@@ -114,11 +115,7 @@ class SettingsOverlay extends StatefulWidget {
   _SettingsOverlayState createState() => _SettingsOverlayState();
 }
 
-class _SettingsOverlayState extends State<SettingsOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-  late final Animation<double> _opacity;
+class _SettingsOverlayState extends State<SettingsOverlay> {
   final _focusNode = FocusNode();
 
   // The animated panel lives inside an Overlay so descendants (e.g. the theme
@@ -140,21 +137,26 @@ class _SettingsOverlayState extends State<SettingsOverlay>
     // reopens the overlay to retarget it.
     _selectedTab = widget.route?.tab ?? 'calendar';
     _selectedCategory = widget.route?.category ?? 'network';
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 240),
-    );
-    _scale = Tween<double>(begin: 0.92, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
     _panelEntry = OverlayEntry(
-      builder: (context) => _buildAnimated(ThemeScope.of(context)),
+      builder: (context) {
+        final theme = ThemeScope.of(context);
+        return FadeOverlayScaffold(
+          closing: widget.closingNotifier,
+          onClosed: widget.onClosed,
+          duration: ShellDurations.overlayEntrance,
+          beginScale: 0.92,
+          // No backdrop-tap dismiss, deliberately: the settings panel is a
+          // workspace, and a stray click on the scrim losing an in-progress
+          // edit would be worse than needing Escape or the close button.
+          child: LayoutBuilder(
+            // As the scaffold's child this is built once per surface-size
+            // change, not on every animation frame.
+            builder: (context, constraints) =>
+                _buildPanel(theme, overlayPanelSize(constraints.biggest)),
+          ),
+        );
+      },
     );
-    _controller.forward();
-    widget.closingNotifier.addListener(_onClosingChanged);
   }
 
   void _selectCategory(String cat) {
@@ -167,20 +169,12 @@ class _SettingsOverlayState extends State<SettingsOverlay>
     _panelEntry.markNeedsBuild();
   }
 
-  void _onClosingChanged() {
-    if (widget.closingNotifier.value) {
-      _controller.reverse().then((_) => widget.onClosed());
-    }
-  }
-
   void _requestClose() {
     widget.closingNotifier.value = true;
   }
 
   @override
   void dispose() {
-    widget.closingNotifier.removeListener(_onClosingChanged);
-    _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
@@ -217,45 +211,6 @@ class _SettingsOverlayState extends State<SettingsOverlay>
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildAnimated(ThemeConfig theme) {
-    // LayoutBuilder outside AnimatedBuilder, so the panel is sized once per
-    // surface-size change rather than on every frame of the open animation.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            final scrim = Container(
-              color: theme.scrim,
-              child: Center(
-                child: Transform.scale(
-                  scale: _scale.value,
-                  child: child,
-                ),
-              ),
-            );
-            return Opacity(
-              opacity: _opacity.value,
-              // The filter only reaches what Flutter has drawn behind it, and
-              // on a transparent layer-shell surface that is nothing — the
-              // desktop belongs to the compositor. It is kept because it does
-              // soften the scrim under the panel, and skipped entirely at 0 so
-              // a theme that sets `blur = 0` pays nothing for it.
-              child: theme.blur > 0
-                  ? BackdropFilter(
-                      filter: ImageFilter.blur(
-                          sigmaX: theme.blur, sigmaY: theme.blur),
-                      child: scrim,
-                    )
-                  : scrim,
-            );
-          },
-          child: _buildPanel(theme, overlayPanelSize(constraints.biggest)),
-        );
-      },
     );
   }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
@@ -58,7 +59,6 @@ class Weather extends StatefulWidget {
 class WeatherState extends State<Weather> with PopupHost<Weather> {
   String _weatherText = '';
   bool _loading = true;
-  bool _hovered = false;
   List<DayForecast> _forecast = [];
   Timer? _refreshTimer;
 
@@ -242,7 +242,6 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
     if (_weatherText.isEmpty) return const SizedBox.shrink();
 
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || isPopupOpen;
     final text = Text(
       _weatherText,
       style: TextStyle(fontSize: 16, color: theme.foreground),
@@ -250,20 +249,10 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
 
     if (_forecast.isEmpty) return text;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTapDown: (_) => _togglePopup(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0x28FFFFFF) : null,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: text,
-        ),
-      ),
+    return BarButton(
+      active: isPopupOpen,
+      onTapDown: (_) => _togglePopup(context),
+      child: text,
     );
   }
 }

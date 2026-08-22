@@ -3,6 +3,28 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/miracle_manager.dart';
 import 'package:wayland/wayland.dart';
 
+/// The nearest [S], or a [FlutterError] naming the missing scope — the
+/// `PanelWindowManager.registryOf` pattern, so a widget built outside its
+/// provider fails with a diagnosis instead of a bare null-check crash.
+S _of<S extends InheritedWidget>(BuildContext context, String provider) {
+  final scope = context.dependOnInheritedWidgetOfExactType<S>();
+  assert(() {
+    if (scope == null) {
+      throw FlutterError.fromParts(<DiagnosticsNode>[
+        ErrorSummary('No $S found in context.'),
+        ErrorDescription(
+          '${context.widget.runtimeType} widgets must be built inside a '
+          '$provider, which is what provides the $S.',
+        ),
+        context.describeOwnershipChain(
+            'The ownership chain for the affected widget is'),
+      ]);
+    }
+    return true;
+  }());
+  return scope!;
+}
+
 /// Provides the shell's [MiracleManager] to the widget subtree.
 ///
 /// The manager — not the connection — is scoped, because the connection can
@@ -19,7 +41,10 @@ class MiracleScope extends InheritedWidget {
   final MiracleManager manager;
 
   static MiracleManager of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<MiracleScope>()!.manager;
+      _of<MiracleScope>(context, 'MiracleScope').manager;
+
+  static MiracleManager? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<MiracleScope>()?.manager;
 
   @override
   bool updateShouldNotify(MiracleScope old) => manager != old.manager;
@@ -38,8 +63,12 @@ class BarScope extends InheritedWidget {
   /// One of: `'top'`, `'bottom'`, `'left'`, `'right'`.
   final String anchor;
 
-  static BarScope of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<BarScope>()!;
+  /// The anchor itself — every caller wants the value, not the widget.
+  static String of(BuildContext context) =>
+      _of<BarScope>(context, 'BarScope').anchor;
+
+  static String? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<BarScope>()?.anchor;
 
   @override
   bool updateShouldNotify(BarScope old) => anchor != old.anchor;
@@ -62,6 +91,8 @@ class DisplayScope extends InheritedWidget {
   /// moment rather than an empty row that then pops full.
   final WaylandOutput? output;
 
+  /// Deliberately `maybeOf`-shaped: null means "not known yet" as much as
+  /// "no scope", and every consumer already renders that state.
   static WaylandOutput? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<DisplayScope>()?.output;
 
@@ -70,6 +101,9 @@ class DisplayScope extends InheritedWidget {
 }
 
 /// Provides [ThemeConfig] to the widget subtree.
+///
+/// Never constructed directly outside `ThemeProvider` — see the theming
+/// section of CLAUDE.md.
 class ThemeScope extends InheritedWidget {
   const ThemeScope({
     super.key,
@@ -80,7 +114,10 @@ class ThemeScope extends InheritedWidget {
   final ThemeConfig theme;
 
   static ThemeConfig of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<ThemeScope>()!.theme;
+      _of<ThemeScope>(context, 'ThemeProvider').theme;
+
+  static ThemeConfig? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<ThemeScope>()?.theme;
 
   @override
   bool updateShouldNotify(ThemeScope old) => theme != old.theme;

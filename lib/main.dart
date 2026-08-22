@@ -46,6 +46,7 @@ import 'package:graceful_shell/screencast/picker_sources.dart';
 import 'package:graceful_shell/screencast/screencast_log.dart';
 import 'package:graceful_shell/screencast/screencast_service.dart';
 import 'package:graceful_shell/shell_services.dart';
+import 'package:graceful_shell/shell_text_root.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
@@ -1071,7 +1072,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// stays the only thing that constructs a [ThemeScope].
   Widget _windowChrome(Widget child) => ShellServicesScope(
         services: widget.services,
-        child: ThemeProvider(child: child),
+        // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
+        // font family every window's text should inherit.
+        child: ThemeProvider(child: ShellTextRoot(child: child)),
       );
 
   @override

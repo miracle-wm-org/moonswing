@@ -121,7 +121,19 @@ Five `InheritedWidget` scopes are provided around every panel's widget tree:
 | `DisplayScope` | `WaylandOutput?` (the monitor this panel is on — null until output enumeration lands, see the startup flow) |
 | `BarScope` | `anchor` string (`'top'`, `'bottom'`, `'left'`, `'right'`) |
 
-`ThemeScope` and `ShellServicesScope` go together on *every* window, not just the panels — `_GracefulShellRootState._windowChrome` is the single place that pairs them, and every `LayerShellWindow`/`SessionLockWindow` child in `main.dart` goes through it.
+`ThemeScope` and `ShellServicesScope` go together on *every* window, not just the panels — `_GracefulShellRootState._windowChrome` is the single place that pairs them (plus `ShellTextRoot`, below), and every `LayerShellWindow`/`SessionLockWindow` child in `main.dart` goes through it.
+
+Every scope resolves through one `_of<S>` helper with `registryOf`-style `FlutterError` diagnostics, and offers `maybeOf`; `BarScope.of` returns the anchor *string* (every caller wants the value), and `DisplayScope.of` is deliberately `maybeOf`-shaped — null means "not known yet" as much as "no scope".
+
+### Shared UI primitives (`lib/theme/tokens.dart`, `lib/hover_region.dart`, `lib/bar_button.dart`, `lib/shell_text_root.dart`, `lib/overlay_fade_scaffold.dart`)
+
+The layer below the theme, and what new UI reaches for before hand-rolling:
+
+- **`tokens.dart`** — `ShellDurations` / `ShellRadii` / `ShellFontSizes`, plus `kErrorColor` (the one error red) and `kOnAccent`. A theme decides colours and shape; these decide the sizes and timings that read as "the shell" regardless of theme. A literal that matches a token is a token.
+- **`HoverRegion`** — `builder: (context, hovered) => …`. The shell has no Material, and dozens of `StatefulWidget`s used to exist only to carry `bool _hovered`; never write that class again.
+- **`BarButton`** — the chrome around a bar module's clickable area. Its hover fill is `theme.surfaceHover` at a wash alpha — the hand-rolled copies all hard-coded `0x28FFFFFF`, which made bar hover the one hover in the shell no theme could touch.
+- **`ShellTextRoot`** — the `Directionality` + theme-font `DefaultTextStyle` preamble, applied once in `_windowChrome` so every window's text inherits the theme's `fontFamily` when a `TextStyle` names none. This is what keeps a settings page from drifting off-theme one forgotten `fontFamily:` at a time; per-window copies of the preamble are being retired.
+- **`FadeOverlayScaffold`** — the scrim + optional blur + centred scale-in card, and the owner of the `closing`-notifier handshake (reverse, *then* `onClosed`, which is what may tear the window down). The settings, launcher and screencast overlays all sit on it.
 
 ### Controllers (`lib/request_controller.dart`)
 

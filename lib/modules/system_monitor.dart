@@ -51,7 +51,7 @@ class SystemMonitorState extends State<SystemMonitor>
       return;
     }
 
-    final anchor = BarScope.of(context).anchor;
+    final anchor = BarScope.of(context);
     final isVertical = anchor == 'left' || anchor == 'right';
 
     openBarPopup(

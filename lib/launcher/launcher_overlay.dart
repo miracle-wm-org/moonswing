@@ -5,7 +5,6 @@
 // callbacks — so widget tests can drive it without touching GIO or actually
 // spawning applications.
 
-import 'dart:ui';
 
 import 'package:flutter/gestures.dart'
     show
@@ -23,6 +22,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/launcher/expression.dart';
 import 'package:graceful_shell/loading_indicator.dart';
+import 'package:graceful_shell/overlay_fade_scaffold.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// Width of the card. Fixed: the rows need a bounded width, and a launcher that
@@ -71,12 +71,7 @@ class LauncherOverlay extends StatefulWidget {
   State<LauncherOverlay> createState() => _LauncherOverlayState();
 }
 
-class _LauncherOverlayState extends State<LauncherOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-  late final Animation<double> _opacity;
-
+class _LauncherOverlayState extends State<LauncherOverlay> {
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'launcher-search');
   final _scrollController = ScrollController();
@@ -92,19 +87,7 @@ class _LauncherOverlayState extends State<LauncherOverlay>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 160),
-    );
-    _scale = Tween<double>(begin: 0.96, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    _controller.forward();
     _results = rankApps(widget.apps, '');
-    widget.closingNotifier.addListener(_onClosingChanged);
   }
 
   /// Re-ranks when the index lands under an already-open launcher — the root
@@ -125,18 +108,10 @@ class _LauncherOverlayState extends State<LauncherOverlay>
 
   @override
   void dispose() {
-    widget.closingNotifier.removeListener(_onClosingChanged);
-    _controller.dispose();
     _searchController.dispose();
     _searchFocus.dispose();
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _onClosingChanged() {
-    if (widget.closingNotifier.value) {
-      _controller.reverse().then((_) => widget.onClosed());
-    }
   }
 
   void _requestClose() {
@@ -266,35 +241,14 @@ class _LauncherOverlayState extends State<LauncherOverlay>
           ),
           child: Focus(
             onKeyEvent: _onKey,
-            child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                final backdrop = GestureDetector(
-                  // The shell has no input-region support, so this surface
-                  // swallows every click on the monitor — including on the
-                  // bar button that opened it. Without dismiss-on-backdrop a
-                  // mouse-only user would have no way out.
-                  behavior: HitTestBehavior.opaque,
-                  onTap: _requestClose,
-                  child: Container(
-                    color: theme.scrim,
-                    child: Center(
-                      child: Transform.scale(scale: _scale.value, child: child),
-                    ),
-                  ),
-                );
-                return Opacity(
-                  opacity: _opacity.value,
-                  // See overlay.dart: this softens the scrim, not the desktop.
-                  child: theme.blur > 0
-                      ? BackdropFilter(
-                          filter: ImageFilter.blur(
-                              sigmaX: theme.blur, sigmaY: theme.blur),
-                          child: backdrop,
-                        )
-                      : backdrop,
-                );
-              },
+            // The shell has no input-region support, so this surface swallows
+            // every click on the monitor — including on the bar button that
+            // opened it. Without dismiss-on-backdrop a mouse-only user would
+            // have no way out.
+            child: FadeOverlayScaffold(
+              closing: widget.closingNotifier,
+              onClosed: widget.onClosed,
+              onBackdropTap: _requestClose,
               child: _buildCard(theme),
             ),
           ),

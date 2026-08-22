@@ -85,7 +85,7 @@ class SoundControlState extends State<SoundControl>
       return;
     }
 
-    final anchor = BarScope.of(context).anchor;
+    final anchor = BarScope.of(context);
     final client = _client;
     final sinkName = _defaultSinkName;
     final isVertical = anchor == 'top' || anchor == 'bottom';
