@@ -450,18 +450,15 @@ class _TabButton extends StatelessWidget {
 // Module registration
 // ---------------------------------------------------------------------------
 
-class SystemMonitorModule extends Module {
-  @override
-  String get configKey => 'system_monitor';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
+final Module systemMonitorModule = Module.simple<SystemMonitorConfig>(
+  configKey: 'system_monitor',
+  fromMap: (map) {
+    final config = SystemMonitorConfig.fromMap(map);
     // The store, not the widget, owns the config: the overlay's System tab
-    // reads the same settings and must see them even when no panel carries this
-    // module.
-    SystemStatsStore.instance.configure(SystemMonitorConfig.fromMap(map));
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => const SystemMonitor();
-}
+    // reads the same settings and must see them even when no panel carries
+    // this module.
+    SystemStatsStore.instance.configure(config);
+    return config;
+  },
+  builder: (context, config) => const SystemMonitor(),
+);

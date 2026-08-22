@@ -435,13 +435,7 @@ class _SliderPainter extends CustomPainter {
       old.activeThumbColor != activeThumbColor;
 }
 
-class SoundControlModule extends Module {
-  @override
-  String get configKey => 'sound_control';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {}
-
-  @override
-  WidgetBuilder get builder => (_) => const SoundControl();
-}
+final Module soundControlModule = Module.plain(
+  configKey: 'sound_control',
+  builder: (_) => const SoundControl(),
+);

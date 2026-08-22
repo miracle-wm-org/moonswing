@@ -599,17 +599,8 @@ class _NetworkPopupContent extends StatelessWidget {
 // Module
 // ---------------------------------------------------------------------------
 
-class NetworkModule extends Module {
-  NetworkConfig _config = const NetworkConfig();
-
-  @override
-  String get configKey => 'network';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = NetworkConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => Network(config: _config);
-}
+final Module networkModule = Module.simple(
+  configKey: 'network',
+  fromMap: NetworkConfig.fromMap,
+  builder: (context, config) => Network(config: config),
+);

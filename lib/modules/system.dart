@@ -423,13 +423,7 @@ class _DialogButtonState extends State<_DialogButton> {
   }
 }
 
-class SystemModule extends Module {
-  @override
-  String get configKey => 'system';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {}
-
-  @override
-  WidgetBuilder get builder => (_) => const System();
-}
+final Module systemModule = Module.plain(
+  configKey: 'system',
+  builder: (_) => const System(),
+);

@@ -83,7 +83,7 @@ The visible consequence is that panels paint before the shell knows which physic
 - `loadConfig(map)` — called once at startup with the module's TOML subtable.
 - `builder` — a `WidgetBuilder` that returns the widget rendered inside the panel.
 
-Modules are registered before config is loaded (`Module.register(...)` in `main()`) and retrieved by name at render time (`Module.lookup(name)`). Adding a new module means subclassing `Module`, implementing these three members, and calling `Module.register()` in `main.dart`.
+Modules are registered before config is loaded (`Module.register(...)` in `main()`) and retrieved by name at render time (`Module.lookup(name)`). Adding a module means one `Module.simple(configKey:, fromMap:, builder:)` (or `Module.plain` for a module with no options) as a top-level `final` in its file, plus `Module.register(<name>Module)` in `main.dart` — fourteen subclasses used to spell that identical class by hand. `test/module_registry_test.dart` pins the registry. The one non-trivial `fromMap` is the system monitor's, which pushes its config into `SystemStatsStore` as a side effect, because the overlay's System tab reads the same settings even when no panel carries the module.
 
 ### Layer-shell windowing (`package:layer_shell`, `lib/window_manager.dart`, `lib/popup.dart`)
 
@@ -148,6 +148,8 @@ The "seam" singletons that let something deep in a surface's tree ask the root f
 
 If the config file is absent, a default two-panel layout is written to disk and defaults are used.
 
+`config.dart` holds the app/panel/section types and *re-exports* the pieces that live with their subsystems, so importers need not care where a type moved: `ThemeConfig` in `lib/theme/theme_config.dart` (its 23 keys spelled once in a const table driving `fromMap`/`toMap`/`colorKeys`/`==`/`hashCode`), the desktop model in `lib/desktop/desktop_config.dart`, the default-config TOML in `lib/default_config.dart`, and the media-extension predicates (`isImagePath`/`isVideoPath` and their sets) in `lib/media_paths.dart`.
+
 **Every field read goes through `TomlReader` (`lib/config_reader.dart`), and the invariant it carries is the one rule of this layer: a wrongly-typed value costs that one key, never the whole table.** A throw out of any `fromMap` — a module's included, because `Module.loadAll` runs inside `AppConfig.fromMap` — is caught by `AppConfig.load`, which answers by discarding the user's *entire* config. The readers therefore type-test and coerce (`height = 32.0` is a TOML float; `intOr` lands it as 32), treat NaN/infinity as absent (infinity survives `clamp()`, and `nan.toInt()` throws), and clamp via `min:`/`max:` where a painter or timer needs a sane range. New config classes and new module options use these readers; never a bare `as X?` cast. Only a TOML *syntax* error still costs the whole file, and that path logs to stderr rather than reverting silently. `test/config_golden_test.dart` pins the defaults, the built-in themes, and the per-field degradation behaviour.
 
 ### Theming (`lib/theme/`)
@@ -156,6 +158,7 @@ A theme is a file, not a config section. Each one is a flat TOML table under `~/
 
 | File | Responsibility |
 |------|----------------|
+| `theme_config.dart` | `ThemeConfig` — the palette type itself, moved here from `config.dart` (which still re-exports it). Each of its 23 keys is spelled once, in a const key table that drives `fromMap`/`toMap`/`colorKeys`/`==`/`hashCode`; the const constructor with per-field defaults survives unchanged. |
 | `builtin_themes.dart` | `kBuiltInThemes` — slug to full TOML text for `graceful` (the default, and the palette earlier versions hard-coded), `dracula`, and `glassy`. Embedded as constants rather than installed to a share dir because nothing in the shell resolves paths relative to the bundle; the wallpapers the Makefile *does* install are found only via a hardcoded `$HOME/.local/share`, which breaks under a custom `PREFIX`. Seeding from a constant works identically in `flutter run`, `make install`, and the snap. |
 | `theme_store.dart` | `ThemeStore.instance` + `startThemeService()` — the same singleton-`ChangeNotifier` shape as `OsdStore`/`AppIndex`. Owns the resolved palette, the catalogue, seeding, `select`/`create`/`edit`/`delete`, and a debounced atomic write lifted from `ConfigStore.save()`. |
 | `theme_provider.dart` | `ThemeProvider` — a `ListenableBuilder` on the store wrapping a `ThemeScope`. |
@@ -203,6 +206,8 @@ The body is an `IndexedStack`, not a `switch`: the settings tab hosts `ShellSett
 The flip side, and the trap for the next tab author: **`IndexedStack` keeps every tab alive once built.** A tab that owns a `Timer` keeps running it while the user is on some other tab. A tab that polls must therefore be told when it is the visible one — see `SystemTab.active`, which drives the lease it holds on `SystemStatsStore`, and `CalendarTab.active`, which drives the world clocks' one-second tick. Both are **required** parameters, so a call site cannot forget.
 
 - **`lib/overlay/settings/`** — the settings tab: a sidebar (Network / Bluetooth / Display / Audio / Shell) over one page per category. `controls.dart` holds the themed form controls (`SettingsSection`, `SettingsRow`, `SettingsToggle`, `SettingsActionButton`, `SettingsDropdown<T>`, `SettingsBadge`, `SettingsRescanButton`, `SettingsTextField`, `SettingsIconButton`, …) shared with the calendar and system tabs. **Pages under `overlay/settings/` import `controls.dart`; they never redeclare a control.** This is a greppable rule like the ThemeScope one — the four big pages each used to carry private clones with 6–11-line drifts, which is how the audio and bluetooth pages lost the theme font and the display page froze its palette (its clones took `ThemeConfig` as a constructor parameter). A control the library lacks gets *added to the library*, generalized from the best copy. `test/settings_shared_controls_test.dart` pins the theme-font half of this.
+
+  The two big pages are split along their own seams: `settings/shell/` holds one file per Shell category (`appearance.dart`, `modules.dart`, `panels.dart`, `background.dart`, `desktop.dart`, `lock.dart`, `calendar.dart` — `shell.dart` keeps the page scaffold, the category table, and the nested Navigator), and `settings/audio/` one file per audio tab plus `audio_slider.dart`/`level_meter.dart`. Two structural rules live in those splits: the modules section's rows are a declarative `_ModuleSetting` table whose defaults are read off each module's *const config object*, so they cannot drift from `fromMap`; and the appearance section's `ListenableBuilder`s are scoped to the theme-value subtrees, because `ThemeStore` notifies on every frame of a colour-picker drag.
 - **`lib/overlay/calendar/`** — the calendar tab, described below.
 - **`lib/overlay/system/`** — the system monitor tab, described below.
 

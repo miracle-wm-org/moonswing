@@ -187,17 +187,8 @@ class BatteryState extends State<Battery> {
   }
 }
 
-class BatteryModule extends Module {
-  BatteryConfig _config = const BatteryConfig();
-
-  @override
-  String get configKey => 'battery';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = BatteryConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => Battery(config: _config);
-}
+final Module batteryModule = Module.simple(
+  configKey: 'battery',
+  fromMap: BatteryConfig.fromMap,
+  builder: (context, config) => Battery(config: config),
+);

@@ -178,17 +178,8 @@ class ClockState extends State<Clock> with LayerShellHost<Clock> {
   }
 }
 
-class ClockModule extends Module {
-  ClockConfig _config = const ClockConfig();
-
-  @override
-  String get configKey => 'clock';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = ClockConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => Clock(config: _config);
-}
+final Module clockModule = Module.simple(
+  configKey: 'clock',
+  fromMap: ClockConfig.fromMap,
+  builder: (context, config) => Clock(config: config),
+);

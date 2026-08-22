@@ -548,17 +548,8 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   }
 }
 
-class DockModule extends Module {
-  DockConfig _config = const DockConfig();
-
-  @override
-  String get configKey => 'dock';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = DockConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => Dock(config: _config);
-}
+final Module dockModule = Module.simple(
+  configKey: 'dock',
+  fromMap: DockConfig.fromMap,
+  builder: (context, config) => Dock(config: config),
+);

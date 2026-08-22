@@ -68,19 +68,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
 
-  Module.register(WorkspacesModule());
-  Module.register(MediaPlayerModule());
-  Module.register(SoundControlModule());
-  Module.register(BatteryModule());
-  Module.register(WeatherModule());
-  Module.register(ClockModule());
-  Module.register(DockModule());
-  Module.register(SystemMonitorModule());
-  Module.register(NotificationsModule());
-  Module.register(NetworkModule());
-  Module.register(SystemModule());
-  Module.register(SystemTrayModule());
-  Module.register(LauncherModule());
+  Module.register(workspacesModule);
+  Module.register(mediaPlayerModule);
+  Module.register(soundControlModule);
+  Module.register(batteryModule);
+  Module.register(weatherModule);
+  Module.register(clockModule);
+  Module.register(dockModule);
+  Module.register(systemMonitorModule);
+  Module.register(notificationsModule);
+  Module.register(networkModule);
+  Module.register(systemModule);
+  Module.register(systemTrayModule);
+  Module.register(launcherModule);
 
   // AppConfig.load() writes the default config on first run and applies the
   // module subtables; the shared ConfigStore then reads that same file and

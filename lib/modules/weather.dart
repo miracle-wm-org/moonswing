@@ -345,17 +345,8 @@ class WeatherForecastPopup extends StatelessWidget {
   }
 }
 
-class WeatherModule extends Module {
-  WeatherConfig _config = const WeatherConfig();
-
-  @override
-  String get configKey => 'weather';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = WeatherConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => Weather(config: _config);
-}
+final Module weatherModule = Module.simple(
+  configKey: 'weather',
+  fromMap: WeatherConfig.fromMap,
+  builder: (context, config) => Weather(config: config),
+);

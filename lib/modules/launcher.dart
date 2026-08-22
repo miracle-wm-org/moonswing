@@ -89,18 +89,8 @@ class LauncherConfig {
   }
 }
 
-class LauncherModule extends Module {
-  LauncherConfig _config = const LauncherConfig();
-
-  @override
-  String get configKey => 'launcher';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = LauncherConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder =>
-      (context) => LauncherButton(iconSize: _config.iconSize);
-}
+final Module launcherModule = Module.simple(
+  configKey: 'launcher',
+  fromMap: LauncherConfig.fromMap,
+  builder: (context, config) => LauncherButton(iconSize: config.iconSize),
+);

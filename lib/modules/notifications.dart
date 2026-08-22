@@ -440,13 +440,7 @@ class _NotificationCard extends StatelessWidget {
   }
 }
 
-class NotificationsModule extends Module {
-  @override
-  String get configKey => 'notifications';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {}
-
-  @override
-  WidgetBuilder get builder => (_) => const Notifications();
-}
+final Module notificationsModule = Module.plain(
+  configKey: 'notifications',
+  builder: (_) => const Notifications(),
+);

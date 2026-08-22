@@ -461,17 +461,8 @@ class _PanelIconButtonState extends State<_PanelIconButton> {
   }
 }
 
-class MediaPlayerModule extends Module {
-  MediaPlayerConfig _config = const MediaPlayerConfig();
-
-  @override
-  String get configKey => 'media_player';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = MediaPlayerConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => MediaPlayer(config: _config);
-}
+final Module mediaPlayerModule = Module.simple(
+  configKey: 'media_player',
+  fromMap: MediaPlayerConfig.fromMap,
+  builder: (context, config) => MediaPlayer(config: config),
+);

@@ -48,20 +48,11 @@ class SystemTrayConfig {
   }
 }
 
-class SystemTrayModule extends Module {
-  SystemTrayConfig _config = const SystemTrayConfig();
-
-  @override
-  String get configKey => 'system_tray';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = SystemTrayConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (_) => SystemTray(config: _config);
-}
+final Module systemTrayModule = Module.simple(
+  configKey: 'system_tray',
+  fromMap: SystemTrayConfig.fromMap,
+  builder: (context, config) => SystemTray(config: config),
+);
 
 /// Panel widget that renders the registered StatusNotifierItem icons.
 ///
