@@ -8,7 +8,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/underline_tabs.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -31,502 +33,6 @@ Future<int?> _findModuleIndex(PulseClient client, String moduleName) async {
     }
   } catch (_) {}
   return null;
-}
-
-class _DropdownItem<T> {
-  const _DropdownItem({required this.value, required this.label});
-
-  final T value;
-  final String label;
-}
-
-// ---------------------------------------------------------------------------
-// _ActionButton
-// ---------------------------------------------------------------------------
-
-class _ActionButton extends StatefulWidget {
-  const _ActionButton({
-    required this.label,
-    required this.onTap,
-    this.primary = false,
-    this.loading = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool primary;
-  final bool loading;
-
-  @override
-  _ActionButtonState createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<_ActionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final canTap = !widget.loading;
-    final Color bg;
-    if (widget.primary) {
-      bg = _hovered && canTap
-          ? theme.accent.withValues(alpha: 0.85)
-          : theme.accent;
-    } else {
-      bg = _hovered && canTap ? theme.surfaceHover : theme.divider;
-    }
-    return MouseRegion(
-      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: canTap ? widget.onTap : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration:
-              BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
-          child: Center(
-            child: widget.loading
-                ? const LoadingIndicator(size: 14)
-                : Text(
-                    widget.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: widget.primary
-                          ? const Color(0xFFFFFFFF)
-                          : theme.popupForeground,
-                    ),
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _EnableToggle
-// ---------------------------------------------------------------------------
-
-class _EnableToggle extends StatefulWidget {
-  const _EnableToggle({required this.enabled, required this.onTap});
-
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  _EnableToggleState createState() => _EnableToggleState();
-}
-
-class _EnableToggleState extends State<_EnableToggle> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final color = widget.enabled ? theme.accent : theme.divider;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 44,
-          height: 24,
-          decoration: BoxDecoration(
-            color: _hovered ? color.withValues(alpha: 0.8) : color,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Stack(
-            children: [
-              AnimatedPositioned(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeInOut,
-                left: widget.enabled ? 22 : 2,
-                top: 2,
-                child: Container(
-                  width: 20,
-                  height: 20,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFFFFFF),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _OptionButton
-// ---------------------------------------------------------------------------
-
-class _OptionButton extends StatefulWidget {
-  const _OptionButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  _OptionButtonState createState() => _OptionButtonState();
-}
-
-class _OptionButtonState extends State<_OptionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final Color bg;
-    if (widget.selected) {
-      bg = theme.accent;
-    } else if (_hovered) {
-      bg = theme.surfaceHover;
-    } else {
-      bg = theme.controlSurface;
-    }
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: widget.selected ? theme.accent : theme.divider),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12,
-              color: widget.selected
-                  ? const Color(0xFFFFFFFF)
-                  : theme.popupForeground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _SectionLabel
-// ---------------------------------------------------------------------------
-
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Text(
-      text.toUpperCase(),
-      style: TextStyle(
-        fontSize: 11,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.5),
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.5,
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _AudioTabBar + _AudioTabItem
-// ---------------------------------------------------------------------------
-
-class _AudioTabBar extends StatelessWidget {
-  const _AudioTabBar({
-    required this.tabs,
-    required this.selectedIndex,
-    required this.onTabSelected,
-  });
-
-  final List<String> tabs;
-  final int selectedIndex;
-  final ValueChanged<int> onTabSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: Row(
-        children: [
-          for (int i = 0; i < tabs.length; i++)
-            _AudioTabItem(
-              label: tabs[i],
-              selected: i == selectedIndex,
-              onTap: () => onTabSelected(i),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AudioTabItem extends StatefulWidget {
-  const _AudioTabItem({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  _AudioTabItemState createState() => _AudioTabItemState();
-}
-
-class _AudioTabItemState extends State<_AudioTabItem> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: widget.selected ? theme.accent : const Color(0x00000000),
-                width: 2,
-              ),
-            ),
-          ),
-          child: Center(
-            child: Text(
-              widget.label,
-              style: TextStyle(
-                fontSize: 13,
-                fontFamily: theme.fontFamily,
-                color: widget.selected
-                    ? theme.accent
-                    : _hovered
-                        ? theme.popupForeground
-                        : theme.popupForeground.withValues(alpha: 0.6),
-                fontWeight:
-                    widget.selected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// _AudioDropdown<T> — generic inline-expanding dropdown
-// ---------------------------------------------------------------------------
-
-class _AudioDropdown<T> extends StatefulWidget {
-  // ignore: prefer_const_constructors_in_immutables
-  _AudioDropdown({
-    required this.items,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  final List<_DropdownItem<T>> items;
-  final T? selected;
-  final ValueChanged<T> onSelected;
-
-  @override
-  _AudioDropdownState<T> createState() => _AudioDropdownState<T>();
-}
-
-class _AudioDropdownState<T> extends State<_AudioDropdown<T>> {
-  bool _open = false;
-
-  String get _selectedLabel {
-    for (final item in widget.items) {
-      if (item.value == widget.selected) return item.label;
-    }
-    return '—';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _DropdownTrigger(
-          label: _selectedLabel,
-          open: _open,
-          onTap: () => setState(() => _open = !_open),
-        ),
-        if (_open)
-          Container(
-            margin: const EdgeInsets.only(top: 2),
-            constraints: const BoxConstraints(maxHeight: 160),
-            decoration: BoxDecoration(
-              color: theme.controlSurface,
-              border: Border.all(color: theme.divider),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: widget.items.length,
-              itemBuilder: (_, i) {
-                final item = widget.items[i];
-                final selected = item.value == widget.selected;
-                return _DropdownListItem(
-                  label: item.label,
-                  selected: selected,
-                  onTap: () {
-                    widget.onSelected(item.value);
-                    setState(() => _open = false);
-                  },
-                );
-              },
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _DropdownTrigger extends StatefulWidget {
-  const _DropdownTrigger({
-    required this.label,
-    required this.open,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool open;
-  final VoidCallback onTap;
-
-  @override
-  _DropdownTriggerState createState() => _DropdownTriggerState();
-}
-
-class _DropdownTriggerState extends State<_DropdownTrigger> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final bg =
-        _hovered ? theme.surfaceHover : theme.controlSurface;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: theme.divider),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              FaIcon(
-                widget.open
-                    ? FontAwesomeIcons.chevronUp
-                    : FontAwesomeIcons.chevronDown,
-                size: 10,
-                color: theme.popupForeground.withValues(alpha: 0.5),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DropdownListItem extends StatefulWidget {
-  const _DropdownListItem({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  _DropdownListItemState createState() => _DropdownListItemState();
-}
-
-class _DropdownListItemState extends State<_DropdownListItem> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final bg = widget.selected
-        ? theme.accent.withValues(alpha: 0.15)
-        : _hovered
-            ? theme.surfaceHover
-            : const Color(0x00000000);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          color: bg,
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: theme.fontFamily,
-              color: widget.selected ? theme.accent : theme.popupForeground,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -875,10 +381,23 @@ class _AudioSettingsPageState extends State<AudioSettingsPage> {
       children: [
         _buildHeader(theme),
         Container(height: 1, color: theme.divider),
-        _AudioTabBar(
-          tabs: _tabs,
-          selectedIndex: _selectedTab,
-          onTabSelected: (i) => setState(() => _selectedTab = i),
+        SizedBox(
+          height: 40,
+          child: Row(
+            // Stretch so each tab's underline sits on the divider below the
+            // strip rather than floating at the tab's intrinsic height.
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (int i = 0; i < _tabs.length; i++)
+                UnderlineTab(
+                  label: _tabs[i],
+                  selected: i == _selectedTab,
+                  fontSize: 13,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  onTap: () => setState(() => _selectedTab = i),
+                ),
+            ],
+          ),
         ),
         Container(height: 1, color: theme.divider),
         Expanded(child: _buildTabContent()),
@@ -1053,7 +572,7 @@ class _OutputTabState extends State<_OutputTab> {
           const SizedBox(height: 12),
           SizedBox(
             width: 100,
-            child: _ActionButton(
+            child: SettingsActionButton(
               label: 'Retry',
               onTap: () {
                 setState(() {
@@ -1072,16 +591,16 @@ class _OutputTabState extends State<_OutputTab> {
   Widget _buildContent(ThemeConfig theme) {
     final sinks = _sinks!;
     final items = sinks
-        .map((s) => _DropdownItem<String>(value: s.name, label: s.description))
+        .map((s) => SettingsDropdownItem<String>(value: s.name, label: s.description))
         .toList();
     final volPct = (_volume * 100).round();
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const _SectionLabel('Output Device'),
+        const SettingsSectionLabel('Output Device'),
         const SizedBox(height: 8),
-        _AudioDropdown<String>(
+        SettingsDropdown<String>(
           items: items,
           selected: _defaultSinkName,
           onSelected: _selectSink,
@@ -1089,7 +608,7 @@ class _OutputTabState extends State<_OutputTab> {
         const SizedBox(height: 20),
         Row(
           children: [
-            const _SectionLabel('Volume'),
+            const SettingsSectionLabel('Volume'),
             const Spacer(),
             MouseRegion(
               cursor: SystemMouseCursors.click,
@@ -1138,7 +657,7 @@ class _OutputTabState extends State<_OutputTab> {
         ],
         if (_channelCount >= 2) ...[
           const SizedBox(height: 20),
-          const _SectionLabel('Balance'),
+          const SettingsSectionLabel('Balance'),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -1167,7 +686,7 @@ class _OutputTabState extends State<_OutputTab> {
           ),
         ],
         const SizedBox(height: 20),
-        _ActionButton(
+        SettingsActionButton(
           label: 'Test Speakers',
           loading: _testingAudio,
           onTap: _testSpeakers,
@@ -1348,7 +867,7 @@ class _InputTabState extends State<_InputTab> {
           const SizedBox(height: 12),
           SizedBox(
             width: 100,
-            child: _ActionButton(
+            child: SettingsActionButton(
               label: 'Retry',
               onTap: () {
                 setState(() {
@@ -1367,16 +886,16 @@ class _InputTabState extends State<_InputTab> {
   Widget _buildContent(ThemeConfig theme) {
     final sources = _sources!;
     final items = sources
-        .map((s) => _DropdownItem<String>(value: s.name, label: s.description))
+        .map((s) => SettingsDropdownItem<String>(value: s.name, label: s.description))
         .toList();
     final volPct = (_volume * 100).round();
 
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const _SectionLabel('Input Device'),
+        const SettingsSectionLabel('Input Device'),
         const SizedBox(height: 8),
-        _AudioDropdown<String>(
+        SettingsDropdown<String>(
           items: items,
           selected: _defaultSourceName,
           onSelected: _selectSource,
@@ -1384,7 +903,7 @@ class _InputTabState extends State<_InputTab> {
         const SizedBox(height: 20),
         Row(
           children: [
-            const _SectionLabel('Gain'),
+            const SettingsSectionLabel('Gain'),
             const Spacer(),
             MouseRegion(
               cursor: SystemMouseCursors.click,
@@ -1432,11 +951,11 @@ class _InputTabState extends State<_InputTab> {
           ),
         ],
         const SizedBox(height: 20),
-        const _SectionLabel('Input Level'),
+        const SettingsSectionLabel('Input Level'),
         const SizedBox(height: 8),
         _LevelMeter(level: _level),
         const SizedBox(height: 20),
-        const _SectionLabel('Noise Suppression'),
+        const SettingsSectionLabel('Noise Suppression'),
         const SizedBox(height: 8),
         if (!_noiseSuppAvailable)
           Text(
@@ -1472,9 +991,11 @@ class _InputTabState extends State<_InputTab> {
               const SizedBox(width: 12),
               _togglingNoiseSupp
                   ? const LoadingIndicator(size: 18)
-                  : _EnableToggle(
-                      enabled: _noiseSuppEnabled,
-                      onTap: _toggleNoiseSupp,
+                  // The handler flips from its own state, so the tapped-for
+                  // value is ignored — same contract the old onTap had.
+                  : SettingsToggle(
+                      value: _noiseSuppEnabled,
+                      onChanged: (_) => _toggleNoiseSupp(),
                     ),
             ],
           ),
@@ -1577,7 +1098,7 @@ class _AppsTabState extends State<_AppsTab> {
           const SizedBox(height: 12),
           SizedBox(
             width: 100,
-            child: _ActionButton(
+            child: SettingsActionButton(
               label: 'Retry',
               onTap: () {
                 setState(() {
@@ -1655,7 +1176,7 @@ class _SinkInputItemState extends State<_SinkInputItem> {
         : '${widget.input.appName} — ${widget.input.mediaName}';
 
     final sinkItems = widget.sinks
-        .map((s) => _DropdownItem<String>(value: s.name, label: s.description))
+        .map((s) => SettingsDropdownItem<String>(value: s.name, label: s.description))
         .toList();
     final currentSink = widget.sinks
         .where((s) => s.index == widget.input.sinkIndex)
@@ -1754,7 +1275,7 @@ class _SinkInputItemState extends State<_SinkInputItem> {
                     color: theme.popupForeground.withValues(alpha: 0.6)),
               ),
               Expanded(
-                child: _AudioDropdown<String>(
+                child: SettingsDropdown<String>(
                   items: sinkItems,
                   selected: currentSinkName,
                   onSelected: _moveTo,
@@ -1870,7 +1391,7 @@ class _ProfilesTabState extends State<_ProfilesTab> {
           const SizedBox(height: 12),
           SizedBox(
             width: 100,
-            child: _ActionButton(
+            child: SettingsActionButton(
               label: 'Retry',
               onTap: () {
                 setState(() {
@@ -1941,7 +1462,10 @@ class _ProfilesTabState extends State<_ProfilesTab> {
               ),
               _togglingMono
                   ? const LoadingIndicator(size: 18)
-                  : _EnableToggle(enabled: _monoEnabled, onTap: _toggleMono),
+                  : SettingsToggle(
+                      value: _monoEnabled,
+                      onChanged: (_) => _toggleMono(),
+                    ),
             ],
           ),
         ),
@@ -1983,7 +1507,7 @@ class _ProfileCardState extends State<_ProfileCard> {
     final availableProfiles =
         widget.card.profiles.where((p) => p.available).toList();
     final profileItems = availableProfiles
-        .map((p) => _DropdownItem<String>(value: p.name, label: p.description))
+        .map((p) => SettingsDropdownItem<String>(value: p.name, label: p.description))
         .toList();
 
     return Container(
@@ -2040,7 +1564,7 @@ class _ProfileCardState extends State<_ProfileCard> {
                         color: theme.muted),
                   )
                 else
-                  _AudioDropdown<String>(
+                  SettingsDropdown<String>(
                     items: profileItems,
                     selected: _activeProfile,
                     onSelected: (p) {
@@ -2221,7 +1745,7 @@ class _AdvancedTabState extends State<_AdvancedTab> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const _SectionLabel('PipeWire Settings'),
+        const SettingsSectionLabel('PipeWire Settings'),
         const SizedBox(height: 12),
         if (_loadingSettings)
           const Center(child: LoadingIndicator(size: 18))
@@ -2245,7 +1769,7 @@ class _AdvancedTabState extends State<_AdvancedTab> {
             spacing: 8,
             runSpacing: 8,
             children: _sampleRates
-                .map((r) => _OptionButton(
+                .map((r) => SettingsOptionButton(
                       label: '${r ~/ 1000} kHz',
                       selected: _sampleRate == r,
                       onTap: () => _setSampleRate(r),
@@ -2269,7 +1793,7 @@ class _AdvancedTabState extends State<_AdvancedTab> {
             spacing: 8,
             runSpacing: 8,
             children: _quanta
-                .map((q) => _OptionButton(
+                .map((q) => SettingsOptionButton(
                       label: '$q',
                       selected: _quantum == q,
                       onTap: () => _setQuantum(q),
@@ -2280,7 +1804,7 @@ class _AdvancedTabState extends State<_AdvancedTab> {
         const SizedBox(height: 24),
         Container(height: 1, color: theme.divider),
         const SizedBox(height: 16),
-        const _SectionLabel('Audio Log'),
+        const SettingsSectionLabel('Audio Log'),
         const SizedBox(height: 8),
         Container(
           height: 160,
@@ -2314,7 +1838,7 @@ class _AdvancedTabState extends State<_AdvancedTab> {
         Row(
           children: [
             Expanded(
-              child: _ActionButton(
+              child: SettingsActionButton(
                 label: 'Restart Audio',
                 onTap: _restartAudio,
                 primary: true,
@@ -2323,7 +1847,7 @@ class _AdvancedTabState extends State<_AdvancedTab> {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _ActionButton(
+              child: SettingsActionButton(
                 label: 'Clear Log',
                 onTap: () => setState(() => _logLines.clear()),
               ),

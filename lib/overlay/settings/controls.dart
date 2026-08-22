@@ -7,10 +7,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/hover_region.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 
 /// Themed form controls shared by the panels inside the settings overlay.
 ///
@@ -301,6 +303,243 @@ class _SettingsOptionButtonState extends State<SettingsOptionButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A stretch-to-fit action button: accent-filled when [primary], quiet
+/// otherwise. Shows a [LoadingIndicator] and refuses taps while [loading] or
+/// not [enabled].
+///
+/// Extracted from the `_ActionButton` clones in the audio and display panes
+/// (display's carried the superset: the [enabled] flag and the theme font).
+class SettingsActionButton extends StatelessWidget {
+  const SettingsActionButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.primary = false,
+    this.loading = false,
+    this.enabled = true,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool primary;
+  final bool loading;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final canTap = enabled && !loading;
+    return HoverRegion(
+      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      builder: (context, hovered) {
+        final Color bg;
+        if (primary) {
+          bg = hovered && canTap
+              ? theme.accent.withValues(alpha: 0.85)
+              : canTap
+                  ? theme.accent
+                  : theme.accent.withValues(alpha: 0.4);
+        } else {
+          bg = hovered && canTap ? theme.surfaceHover : theme.divider;
+        }
+        return GestureDetector(
+          onTap: canTap ? onTap : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+            ),
+            child: Center(
+              child: loading
+                  ? const LoadingIndicator(size: 14)
+                  : Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.body,
+                        fontFamily: theme.fontFamily,
+                        color: primary ? kOnAccent : theme.popupForeground,
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One row of a [SettingsDropdown]: the [value] it stands for, the [label]
+/// shown for it, and an optional dim [detail] tag after the label (the display
+/// pane marks its preferred mode this way).
+class SettingsDropdownItem<T> {
+  const SettingsDropdownItem({
+    required this.value,
+    required this.label,
+    this.detail,
+  });
+
+  final T value;
+  final String label;
+  final String? detail;
+}
+
+/// Inline-expanding dropdown: a bordered trigger showing the selected item's
+/// label and, while open, a scrollable list of the items pushed into the
+/// layout below it — not floated over it, so it needs no Overlay and cannot
+/// be clipped by a nested Navigator's. Selecting an item reports it through
+/// [onSelected] and closes the list; a [selected] value no item carries shows
+/// an em dash.
+///
+/// Extracted from the `_AudioDropdown`/`_ModeDropdown` clones in the audio
+/// and display panes. For a searchable list that floats in the root overlay
+/// instead, see [SettingsFontField] / `AnchoredSearchDropdown`.
+class SettingsDropdown<T> extends StatefulWidget {
+  const SettingsDropdown({
+    super.key,
+    required this.items,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<SettingsDropdownItem<T>> items;
+  final T? selected;
+  final ValueChanged<T> onSelected;
+
+  @override
+  State<SettingsDropdown<T>> createState() => _SettingsDropdownState<T>();
+}
+
+class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
+  bool _open = false;
+
+  String get _selectedLabel {
+    for (final item in widget.items) {
+      if (item.value == widget.selected) return item.label;
+    }
+    return '—';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildTrigger(),
+        if (_open)
+          Container(
+            margin: const EdgeInsets.only(top: 2),
+            constraints: const BoxConstraints(maxHeight: 160),
+            decoration: BoxDecoration(
+              color: theme.controlSurface,
+              border: Border.all(color: theme.divider),
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: widget.items.length,
+              itemBuilder: (_, i) => _buildItem(widget.items[i]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTrigger() {
+    return HoverRegion(
+      builder: (context, hovered) {
+        final theme = ThemeScope.of(context);
+        return GestureDetector(
+          onTap: () => setState(() => _open = !_open),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: hovered ? theme.surfaceHover : theme.controlSurface,
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+              border: Border.all(color: theme.divider),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _selectedLabel,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.body,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                FaIcon(
+                  _open
+                      ? FontAwesomeIcons.chevronUp
+                      : FontAwesomeIcons.chevronDown,
+                  size: 10,
+                  color: theme.popupForeground.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildItem(SettingsDropdownItem<T> item) {
+    final selected = item.value == widget.selected;
+    final detail = item.detail;
+    return HoverRegion(
+      builder: (context, hovered) {
+        final theme = ThemeScope.of(context);
+        final Color bg;
+        if (selected) {
+          bg = theme.accent.withValues(alpha: 0.15);
+        } else if (hovered) {
+          bg = theme.surfaceHover;
+        } else {
+          bg = const Color(0x00000000);
+        }
+        return GestureDetector(
+          onTap: () {
+            widget.onSelected(item.value);
+            setState(() => _open = false);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            color: bg,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.body,
+                      fontFamily: theme.fontFamily,
+                      color: selected ? theme.accent : theme.popupForeground,
+                    ),
+                  ),
+                ),
+                if (detail != null)
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground.withValues(alpha: 0.4),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
