@@ -5,6 +5,8 @@ import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
+import 'package:graceful_shell/native/ffi_util.dart';
+
 import 'user_identity.dart';
 
 /// Outcome of an unlock attempt.
@@ -113,15 +115,7 @@ class PamAuthenticator {
 
 /// The blocking PAM conversation. Runs on its own isolate.
 PamResult _authenticateSync(String service, String username, String password) {
-  ffi.DynamicLibrary? opened;
-  for (final name in const ['libpam.so.0', 'libpam.so']) {
-    try {
-      opened = ffi.DynamicLibrary.open(name);
-      break;
-    } catch (_) {
-      // Try the next candidate.
-    }
-  }
+  final opened = openFirstLibrary(const ['libpam.so.0', 'libpam.so']);
   if (opened == null) return PamResult.unavailable;
   final lib = opened;
 
