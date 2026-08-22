@@ -1695,3 +1695,350 @@ Future<bool> showSettingsConfirm(
 
 /// Editable ordered list of strings. When [suggestions] is provided, new items
 /// are added from a dropdown of those values; otherwise a free-form text field
+/// is shown. Existing items can be reordered and removed.
+class SettingsStringListEditor extends StatefulWidget {
+  const SettingsStringListEditor({
+    super.key,
+    required this.items,
+    required this.onChanged,
+    this.suggestions,
+    this.addHint,
+    this.width = 260,
+  });
+
+  final List<String> items;
+  final ValueChanged<List<String>> onChanged;
+  final List<String>? suggestions;
+  final String? addHint;
+
+  /// Fixed editor width. Pass `null` to stretch to the parent's width (used on
+  /// the Panels page, where the list sits full-width under its label).
+  final double? width;
+
+  @override
+  State<SettingsStringListEditor> createState() =>
+      _SettingsStringListEditorState();
+}
+
+class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
+  final _addController = TextEditingController();
+  final _addFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _addFocus.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _addController.dispose();
+    _addFocus.dispose();
+    super.dispose();
+  }
+
+  void _emit(List<String> list) => widget.onChanged(list);
+
+  void _add(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return;
+    _emit([...widget.items, v]);
+  }
+
+  void _removeAt(int i) {
+    final list = [...widget.items]..removeAt(i);
+    _emit(list);
+  }
+
+  void _move(int i, int delta) {
+    final j = i + delta;
+    if (j < 0 || j >= widget.items.length) return;
+    final list = [...widget.items];
+    final tmp = list[i];
+    list[i] = list[j];
+    list[j] = tmp;
+    _emit(list);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final column = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < widget.items.length; i++)
+          _row(context, i, widget.items[i]),
+        const SizedBox(height: 6),
+        _buildAdder(context),
+      ],
+    );
+    final width = widget.width;
+    return width == null ? column : SizedBox(width: width, child: column);
+  }
+
+  Widget _row(BuildContext context, int i, String item) {
+    final theme = ThemeScope.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: theme.controlSurface,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: theme.divider),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                item,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground,
+                ),
+              ),
+            ),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.chevronUp,
+              size: 10,
+              onTap: () => _move(i, -1),
+            ),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.chevronDown,
+              size: 10,
+              onTap: () => _move(i, 1),
+            ),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.xmark,
+              size: 12,
+              onTap: () => _removeAt(i),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdder(BuildContext context) {
+    final suggestions = widget.suggestions;
+    if (suggestions != null) {
+      return _AddDropdown(
+        options: suggestions,
+        onSelected: _add,
+      );
+    }
+    final theme = ThemeScope.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.popupBackground,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                  color: _addFocus.hasFocus ? theme.accent : theme.divider),
+            ),
+            child: Stack(
+              children: [
+                if (_addController.text.isEmpty)
+                  Text(
+                    widget.addHint ?? 'add…',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.popupForeground.withValues(alpha: 0.35),
+                      fontFamily: theme.fontFamily,
+                    ),
+                  ),
+                EditableText(
+                  controller: _addController,
+                  focusNode: _addFocus,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: theme.popupForeground,
+                    fontFamily: theme.fontFamily,
+                  ),
+                  cursorColor: theme.accent,
+                  backgroundCursorColor: theme.divider,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (v) {
+                    _add(v);
+                    _addController.clear();
+                    setState(() {});
+                    _addFocus.requestFocus();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        SettingsIconButton(
+          icon: FontAwesomeIcons.plus,
+          onTap: () {
+            _add(_addController.text);
+            _addController.clear();
+            setState(() {});
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// A dropdown that expands to a list of [options] and reports the chosen value.
+class _AddDropdown extends StatefulWidget {
+  const _AddDropdown({required this.options, required this.onSelected});
+
+  final List<String> options;
+  final ValueChanged<String> onSelected;
+
+  @override
+  State<_AddDropdown> createState() => _AddDropdownState();
+}
+
+class _AddDropdownState extends State<_AddDropdown> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SettingsAddButton(
+          label: _open ? 'Close' : 'Add module',
+          onTap: () => setState(() => _open = !_open),
+        ),
+        if (_open)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            constraints: const BoxConstraints(maxHeight: 180),
+            decoration: BoxDecoration(
+              color: theme.controlSurface,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.divider),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final o in widget.options)
+                    _DropdownItem(
+                      label: o,
+                      onTap: () {
+                        widget.onSelected(o);
+                        setState(() => _open = false);
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DropdownItem extends StatefulWidget {
+  const _DropdownItem({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_DropdownItem> createState() => _DropdownItemState();
+}
+
+class _DropdownItemState extends State<_DropdownItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          color: _hovered ? theme.surfaceHover : const Color(0x00000000),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A plus-labelled button for appending to a collection: the string-list
+/// editor's dropdown toggle, and the Background and Desktop sections' add
+/// actions.
+class SettingsAddButton extends StatefulWidget {
+  const SettingsAddButton({super.key, required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<SettingsAddButton> createState() => _SettingsAddButtonState();
+}
+
+class _SettingsAddButtonState extends State<SettingsAddButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _hovered ? theme.surfaceHover : theme.controlSurface,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: theme.divider),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(FontAwesomeIcons.plus,
+                  size: 11,
+                  color: _hovered ? theme.popupForeground : theme.accent),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
