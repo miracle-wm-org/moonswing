@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/module.dart';
@@ -459,7 +460,6 @@ class NetworkState extends State<Network> with PopupHost<Network> {
   NetworkInfo _info = NetworkInfo.none;
   Timer? _timer;
 
-  bool _hovered = false;
 
   @override
   void initState() {
@@ -520,23 +520,14 @@ class NetworkState extends State<Network> with PopupHost<Network> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || isPopupOpen;
     final isNone = _info.type == NetworkType.none;
     // ignore: deprecated_member_use
     final dimColor = theme.foreground.withOpacity(0.4);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTapDown: (_) => _togglePopup(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0x28FFFFFF) : null,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: Row(
+    return BarButton(
+      active: isPopupOpen,
+      onTapDown: (_) => _togglePopup(context),
+      child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               FaIcon(
@@ -554,8 +545,6 @@ class NetworkState extends State<Network> with PopupHost<Network> {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }

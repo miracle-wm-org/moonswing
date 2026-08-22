@@ -216,7 +216,10 @@ class _TrayIconButtonState extends State<_TrayIconButton> {
         onTapDown: (_) => widget.onPressed(context),
         child: Container(
           decoration: BoxDecoration(
-            color: _hovered ? const Color(0x28FFFFFF) : null,
+            // The one hover in the shell that used to ignore the theme.
+            color: _hovered
+                ? ThemeScope.of(context).surfaceHover.withValues(alpha: 0.16)
+                : null,
             borderRadius: BorderRadius.circular(4),
           ),
           alignment: Alignment.center,

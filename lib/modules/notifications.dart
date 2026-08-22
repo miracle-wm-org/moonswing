@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/popup.dart';
@@ -118,18 +119,10 @@ class _NotificationsState extends State<Notifications>
     final hasUnread = count > 0;
     final isOpen = isLayerWindowOpen;
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => _togglePanel(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isOpen ? const Color(0x28FFFFFF) : null,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: AnimatedBuilder(
+    return BarButton(
+      active: isOpen,
+      onTapDown: (_) => _togglePanel(context),
+      child: AnimatedBuilder(
             animation: _shakeAnimation,
             builder: (context, child) {
               return Transform.translate(
@@ -173,8 +166,6 @@ class _NotificationsState extends State<Notifications>
               ],
             ),
           ),
-        ),
-      ),
     );
   }
 }
