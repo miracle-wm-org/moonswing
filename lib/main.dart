@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ffi' as ffi;
 // ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: implementation_imports
 import 'package:flutter/widgets.dart';
@@ -358,14 +359,24 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// would sit on the overlay layer eating clicks.
   final Map<String, LayershellWindowController> _osd = {};
 
-  /// The settings overlay window, opened by the global shortcut (Ctrl+Shift+S).
-  /// Unlike the OSD there is a single instance, not one per monitor, and it
-  /// takes keyboard focus. Non-null exactly while the overlay is on screen.
-  LayershellWindowController? _settings;
-
-  /// Drives the settings overlay's fade-out. Flipping true asks [SettingsOverlay]
-  /// to play its exit animation and then call back into [_onSettingsClosed].
-  final ValueNotifier<bool> _settingsClosing = ValueNotifier(false);
+  /// The five root-owned full-screen overlays. Each [_OverlayWindow] carries
+  /// the window controller, its [PopupCoordinator] registration, and the
+  /// closing notifier — the bookkeeping every overlay used to hand-roll
+  /// separately, which is how `dispose` once missed two of them.
+  ///
+  /// The settings overlay is opened by the global shortcut (Ctrl+Shift+S);
+  /// the launcher by its shortcut or the magnifier module; the app chooser by
+  /// the desktop's "Add application…"; the two pickers exist only while a
+  /// request is outstanding. The pickers are modal: a consent prompt must
+  /// displace whatever is up and be displaced by nothing — dismissing one is
+  /// a denial, and only its controller may resolve it.
+  final _OverlayWindow _settings = _OverlayWindow();
+  final _OverlayWindow _launcher = _OverlayWindow(acquiresAppIndex: true);
+  final _OverlayWindow _appChooser = _OverlayWindow(acquiresAppIndex: true);
+  final _OverlayWindow _screencastPicker =
+      _OverlayWindow(policy: TransientPolicy.modal);
+  final _OverlayWindow _filePicker =
+      _OverlayWindow(policy: TransientPolicy.modal);
 
   /// The page the open (or about-to-open) settings overlay was asked for. Null
   /// is the default landing page.
@@ -376,56 +387,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// holds the destination across those two frames.
   SettingsRoute? _pendingSettingsRoute;
 
-  /// The file picker's window, open only while a request is outstanding — like
-  /// the OSD and the screencast picker, and unlike the panels.
-  LayershellWindowController? _filePicker;
-
   /// Monitor keys whose background surface currently takes keyboard focus for
   /// an in-place desktop rename. Empty is the normal state.
   final Set<String> _desktopKeyboard = {};
 
-  /// The application chooser opened by the desktop's "Add application…", and
-  /// the cell the new icon should land in. Both non-null exactly while it is
-  /// on screen.
-  LayershellWindowController? _appChooser;
+  /// The cell the app chooser's pick should land in; non-null exactly while
+  /// the chooser is on screen.
   GridCell? _appChooserCell;
 
-  /// The application launcher's window, shaped exactly like [_settings]: one
-  /// instance, keyboard-focusing, non-null exactly while it is on screen.
-  LayershellWindowController? _launcher;
-
-  /// Drives [LauncherOverlay]'s fade-out, as [_settingsClosing] does for the
-  /// settings overlay.
-  final ValueNotifier<bool> _launcherClosing = ValueNotifier(false);
-
-  /// The screen-share consent picker's window, shaped like [_launcher]. Exists
-  /// only while an app's portal `Start` call is blocked awaiting a choice.
-  LayershellWindowController? _screencastPicker;
-
-  /// The request the open picker is answering, captured when the window was
-  /// created — the controller clears its own `pending` the moment the user
-  /// answers, but the overlay stays mounted through its fade-out.
+  /// The request the open screencast picker is answering, captured when the
+  /// window was created — the controller clears its own `pending` the moment
+  /// the user answers, but the overlay stays mounted through its fade-out.
   PickRequest? _screencastRequest;
-
-  /// Drives [ScreencastPickerOverlay]'s fade-out.
-  final ValueNotifier<bool> _screencastClosing = ValueNotifier(false);
-
-  /// [PopupCoordinator] registrations for the five root-owned overlays, so a
-  /// bar popup and a full-screen overlay displace each other through one rule
-  /// instead of the hand-rolled pairs this used to carry.
-  ///
-  /// Each is keyed by a sentinel rather than by `this`, because one State owns
-  /// all five and the coordinator identifies a surface by its owner.
-  final Object _settingsOwner = Object();
-  final Object _launcherOwner = Object();
-  final Object _appChooserOwner = Object();
-  final Object _screencastOwner = Object();
-  final Object _filePickerOwner = Object();
-  TransientHandle? _settingsHandle;
-  TransientHandle? _launcherHandle;
-  TransientHandle? _appChooserHandle;
-  TransientHandle? _screencastHandle;
-  TransientHandle? _filePickerHandle;
 
   /// The `ext-session-lock-v1` lock, non-null exactly while the session is
   /// locked. Owned here rather than by the module that offers the Lock button
@@ -607,9 +580,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// if it is up, open it otherwise.
   void _onSettingsTriggered() {
     if (!mounted) return;
-    if (_settings != null) {
+    if (_settings.isOpen) {
       // SettingsOverlay plays its fade-out then calls _onSettingsClosed.
-      _settingsClosing.value = true;
+      _settings.closing.value = true;
     } else {
       // Whatever is up steps aside — two stacked focus-taking overlay surfaces
       // have no defined focus order. Registering with the coordinator in
@@ -622,8 +595,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the same way the settings overlay does.
   void _onLauncherTriggered() {
     if (!mounted) return;
-    if (_launcher != null) {
-      _launcherClosing.value = true;
+    if (_launcher.isOpen) {
+      _launcher.closing.value = true;
     } else {
       _openLauncher();
     }
@@ -639,29 +612,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// `onDemand` keyboard mode is enough for the search field to be typeable
   /// immediately, because miracle focuses every layer-shell window it maps.
   void _openLauncher() {
-    _launcherClosing.value = false;
-    // The rows hold GAppInfo pointers, so hold off any index rebuild until the
-    // launcher is gone.
-    AppIndex.instance.acquire();
-    _launcher = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: const [
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-        LayerShellEdge.left,
-        LayerShellEdge.right,
-      ],
-      keyboardMode: LayerShellKeyboardMode.onDemand,
-    );
-    // Full-screen means the whole output, panels included — otherwise the
-    // backdrop stops short of the bars and dismiss-on-backdrop has dead strips.
-    spanFullOutput(_launcher!);
-    // The coordinator asks for the *fade-out*, never the teardown: it is
-    // `_onLauncherClosed` that destroys the window, once the animation is done.
-    _launcherHandle = PopupCoordinator.instance.open(
-      owner: _launcherOwner,
-      onDismiss: () => _launcherClosing.value = true,
-    );
+    _launcher.open();
     setState(() {});
   }
 
@@ -675,50 +626,23 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (!mounted) return;
     final request = ScreencastPickerController.instance.pending;
     if (request != null) {
-      if (_screencastPicker != null) return;
-      _openScreencastPicker(request);
-    } else if (_screencastPicker != null) {
-      _screencastClosing.value = true;
+      if (_screencastPicker.isOpen) return;
+      // Like the launcher (and unlike settings) no monitor is passed, so the
+      // compositor puts the picker on the focused output — where the user is.
+      _screencastRequest = request;
+      _screencastPicker.open();
+      setState(() {});
+    } else if (_screencastPicker.isOpen) {
+      _screencastPicker.closing.value = true;
     }
-  }
-
-  /// Opens the picker as a full-screen overlay-layer window. Like the launcher
-  /// (and unlike settings) it passes no monitor, so the compositor puts it on
-  /// the focused output — where the user is.
-  void _openScreencastPicker(PickRequest request) {
-    _screencastClosing.value = false;
-    _screencastRequest = request;
-    _screencastPicker = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: const [
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-        LayerShellEdge.left,
-        LayerShellEdge.right,
-      ],
-      keyboardMode: LayerShellKeyboardMode.onDemand,
-    );
-    spanFullOutput(_screencastPicker!);
-    // Modal: a consent prompt must displace whatever is up and be displaced by
-    // nothing — dismissing it is a denial, so nothing may answer it for the
-    // user. It resolves only through [ScreencastPickerController].
-    _screencastHandle = PopupCoordinator.instance.open(
-      owner: _screencastOwner,
-      policy: TransientPolicy.modal,
-      onDismiss: () => _screencastClosing.value = true,
-    );
-    setState(() {});
   }
 
   /// Called by [ScreencastPickerOverlay] once its fade-out has finished.
   void _onScreencastPickerClosed() {
     if (!mounted) return;
-    final removed = _screencastPicker;
+    final removed = _screencastPicker.take();
     if (removed == null) return;
-    _screencastPicker = null;
     _screencastRequest = null;
-    PopupCoordinator.instance.close(_screencastHandle);
-    _screencastHandle = null;
     // A window torn down without the user answering (the shell is shutting
     // down, or the frontend withdrew) still owes the portal a reply.
     ScreencastPickerController.instance.cancel();
@@ -730,12 +654,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the fade-out, or immediately when an application was launched.
   void _onLauncherClosed() {
     if (!mounted) return;
-    final removed = _launcher;
+    final removed = _launcher.take();
     if (removed == null) return;
-    _launcher = null;
-    PopupCoordinator.instance.close(_launcherHandle);
-    _launcherHandle = null;
-    AppIndex.instance.release();
     setState(() {});
     _destroyAfterFrame([removed]);
   }
@@ -746,25 +666,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the same recipe the clock uses to open this overlay from a panel.
   void _openSettings([SettingsRoute? route]) {
     if (_surfaces.isEmpty) return;
-    final monitor = _surfaces.values.first.monitor;
     _settingsRoute = route;
-    _settingsClosing.value = false;
-    _settings = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: const [
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-        LayerShellEdge.left,
-        LayerShellEdge.right,
-      ],
-      keyboardMode: LayerShellKeyboardMode.onDemand,
-      monitor: monitor.gdkMonitor,
-    );
-    spanFullOutput(_settings!);
-    _settingsHandle = PopupCoordinator.instance.open(
-      owner: _settingsOwner,
-      onDismiss: () => _settingsClosing.value = true,
-    );
+    _settings.open(monitor: _surfaces.values.first.monitor.gdkMonitor);
     setState(() {});
   }
 
@@ -772,11 +675,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// shortcut or its own Escape handler), so the native window can be torn down.
   void _onSettingsClosed() {
     if (!mounted) return;
-    final removed = _settings;
-    _settings = null;
+    final removed = _settings.take();
     _settingsRoute = null;
-    PopupCoordinator.instance.close(_settingsHandle);
-    _settingsHandle = null;
     setState(() {});
     if (removed != null) _destroyAfterFrame([removed]);
 
@@ -802,13 +702,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (route == null) return;
     SettingsController.instance.consume();
 
-    if (_settings == null) {
+    if (!_settings.isOpen) {
       _openSettings(route);
       return;
     }
     if (_settingsRoute == route) return;
     _pendingSettingsRoute = route;
-    _settingsClosing.value = true;
+    _settings.closing.value = true;
   }
 
   /// "Add application…" / "Add file or folder…" from the desktop's empty-space
@@ -858,35 +758,17 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// `GAppInfo` pointers from the index, so the index is pinned for the
   /// window's lifetime exactly as `_openLauncher` does.
   void _openAppChooser(GridCell cell) {
-    if (_appChooser != null) return;
-    AppIndex.instance.acquire();
+    if (_appChooser.isOpen) return;
     _appChooserCell = cell;
-    _appChooser = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: const [
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-        LayerShellEdge.left,
-        LayerShellEdge.right,
-      ],
-      keyboardMode: LayerShellKeyboardMode.onDemand,
-    );
-    spanFullOutput(_appChooser!);
-    _appChooserHandle = PopupCoordinator.instance.open(
-      owner: _appChooserOwner,
-      onDismiss: _closeAppChooser,
-    );
+    // A direct close on dismiss: the chooser has no exit animation to play.
+    _appChooser.open(onDismiss: _closeAppChooser);
     setState(() {});
   }
 
   void _closeAppChooser() {
-    final removed = _appChooser;
+    final removed = _appChooser.take();
     if (removed == null) return;
-    _appChooser = null;
     _appChooserCell = null;
-    PopupCoordinator.instance.close(_appChooserHandle);
-    _appChooserHandle = null;
-    AppIndex.instance.release();
     setState(() {});
     _destroyAfterFrame([removed]);
   }
@@ -928,40 +810,22 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (!mounted) return;
     final request = FilePickerController.instance.pending;
     if (request == null) {
-      if (_filePicker != null) _closeFilePicker();
+      if (_filePicker.isOpen) _closeFilePicker();
       return;
     }
-    if (_filePicker != null) return;
+    if (_filePicker.isOpen) return;
 
     // Like the launcher, no monitor: the compositor puts it on the focused
-    // output, which is where the user just right-clicked.
-    _filePicker = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: const [
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-        LayerShellEdge.left,
-        LayerShellEdge.right,
-      ],
-      keyboardMode: LayerShellKeyboardMode.onDemand,
-    );
-    spanFullOutput(_filePicker!);
-    // Modal for the same reason the screencast picker is: a caller is awaiting
-    // the answer, and only [FilePickerController] may resolve it.
-    _filePickerHandle = PopupCoordinator.instance.open(
-      owner: _filePickerOwner,
-      policy: TransientPolicy.modal,
-      onDismiss: _closeFilePicker,
-    );
+    // output, which is where the user just right-clicked. A dismissal closes
+    // directly — cancelling a modal picker has no exit animation — and only
+    // [FilePickerController] may resolve the awaited pick.
+    _filePicker.open(onDismiss: _closeFilePicker);
     setState(() {});
   }
 
   void _closeFilePicker() {
-    final removed = _filePicker;
+    final removed = _filePicker.take();
     if (removed == null) return;
-    _filePicker = null;
-    PopupCoordinator.instance.close(_filePickerHandle);
-    _filePickerHandle = null;
     setState(() {});
     _destroyAfterFrame([removed]);
   }
@@ -1296,10 +1160,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ctrl.destroy();
     }
     _osd.clear();
-    // All five root-owned overlays, symmetrically: window, coordinator
-    // registration, and the AppIndex bracket the launcher and app chooser
-    // hold while their rows are on screen.
-    final releaseIndexFor = [_launcher, _appChooser];
+    // All five root-owned overlays, symmetrically: each dispose covers the
+    // window, the coordinator registration, the AppIndex bracket, and the
+    // closing notifier.
     for (final overlay in [
       _settings,
       _launcher,
@@ -1307,28 +1170,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       _screencastPicker,
       _filePicker,
     ]) {
-      overlay?.destroy();
+      overlay.dispose();
     }
-    _settings = null;
-    _launcher = null;
-    _appChooser = null;
-    _screencastPicker = null;
-    _filePicker = null;
-    for (final handle in [
-      _settingsHandle,
-      _launcherHandle,
-      _appChooserHandle,
-      _screencastHandle,
-      _filePickerHandle,
-    ]) {
-      PopupCoordinator.instance.close(handle);
-    }
-    for (final open in releaseIndexFor) {
-      if (open != null) AppIndex.instance.release();
-    }
-    _settingsClosing.dispose();
-    _launcherClosing.dispose();
-    _screencastClosing.dispose();
     super.dispose();
   }
 
@@ -1469,13 +1312,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         ],
         // The settings overlay opened by the global shortcut. A single window
         // (not per-monitor), so it lives outside the per-monitor loop above.
-        if (_settings case final settings?)
+        if (_settings.controller case final settings?)
           LayerShellWindow(
             key: ObjectKey(settings),
             controller: settings,
             child: _windowChrome(
               SettingsOverlay(
-                closingNotifier: _settingsClosing,
+                closingNotifier: _settings.closing,
                 onClosed: _onSettingsClosed,
                 route: _settingsRoute,
               ),
@@ -1483,7 +1326,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           ),
         // The application chooser opened by the desktop's "Add application…".
         // A single window, like the launcher, so it lives outside the loop.
-        if (_appChooser case final chooser?)
+        if (_appChooser.controller case final chooser?)
           LayerShellWindow(
             key: ObjectKey(chooser),
             controller: chooser,
@@ -1513,7 +1356,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           ),
         // The file picker asked for by a surface that cannot host a modal —
         // today the desktop grid, which is on the background layer.
-        if ((_filePicker, FilePickerController.instance.pending)
+        if ((_filePicker.controller, FilePickerController.instance.pending)
             case (final picker?, final request?))
           LayerShellWindow(
             key: ObjectKey(picker),
@@ -1530,13 +1373,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           ),
         // The application launcher. Like the settings overlay it is a single
         // window rather than one per monitor, so it lives outside the loop.
-        if (_launcher case final launcher?)
+        if (_launcher.controller case final launcher?)
           LayerShellWindow(
             key: ObjectKey(launcher),
             controller: launcher,
             child: _windowChrome(
               LauncherOverlay(
-                closingNotifier: _launcherClosing,
+                closingNotifier: _launcher.closing,
                 onClosed: _onLauncherClosed,
                 apps: AppIndex.instance.searchable,
                 // Ctrl+Space can beat the index to the finish line. A loader
@@ -1552,7 +1395,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         // The screen-share consent picker, open only while an application's
         // portal request is waiting on an answer. Single window, like the
         // launcher, so it lives outside the per-monitor loop.
-        if ((_screencastPicker, _screencastRequest)
+        if ((_screencastPicker.controller, _screencastRequest)
             case (final picker?, final request?))
           LayerShellWindow(
             key: ObjectKey(picker),
@@ -1568,7 +1411,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                   request: request,
                   monitors: sources.monitors,
                   windows: sources.windows,
-                  closingNotifier: _screencastClosing,
+                  closingNotifier: _screencastPicker.closing,
                   onClosed: _onScreencastPickerClosed,
                   onConfirm: (picked) => ScreencastPickerController.instance
                       .complete(PickResult(picked)),
@@ -1709,5 +1552,98 @@ class _PanelMainState extends State<PanelMain> {
         ),
       ),
     );
+  }
+}
+
+/// One root-owned full-screen overlay window.
+///
+/// Owns the four things every such overlay needs and that each of the five
+/// used to carry as loose fields: the [LayershellWindowController], the
+/// [PopupCoordinator] registration (keyed by a sentinel [owner], because one
+/// State owns all five and the coordinator identifies a surface by owner),
+/// the [closing] notifier that drives a graceful fade-out, and the AppIndex
+/// bracket for windows whose rows hold `GAppInfo` pointers.
+///
+/// The deltas between the five are constructor arguments, not subclasses:
+/// [policy] (modal for the consent pickers), [acquiresAppIndex] (launcher and
+/// app chooser), and [open]'s `monitor` (the settings overlay pins to the
+/// first monitor; the rest pass none, so the compositor places them on its
+/// focused output — where the user is).
+class _OverlayWindow {
+  _OverlayWindow({
+    this.policy = TransientPolicy.menu,
+    this.acquiresAppIndex = false,
+  });
+
+  final TransientPolicy policy;
+
+  /// Whether the window's content holds `GAppInfo` pointers from [AppIndex] —
+  /// the index defers refreshes while it is open (`_openLauncher`'s rule).
+  final bool acquiresAppIndex;
+
+  final Object owner = Object();
+
+  /// Drives the content's fade-out. The coordinator's dismiss flips it; the
+  /// content plays its exit animation and calls back into the root, which
+  /// calls [take].
+  final ValueNotifier<bool> closing = ValueNotifier(false);
+
+  LayershellWindowController? controller;
+  TransientHandle? _handle;
+
+  bool get isOpen => controller != null;
+
+  /// Creates the native window and registers with the coordinator.
+  ///
+  /// The window is always overlay-layer, all-edges, keyboard `onDemand` —
+  /// full-screen means the whole output, panels included, or the backdrop
+  /// stops short of the bars and dismiss-on-backdrop has dead strips (hence
+  /// [spanFullOutput]). [onDismiss] is what the coordinator calls to ask for
+  /// a *graceful* close; the default flips [closing] and lets the content
+  /// animate out. Pass a direct close for content with no exit animation.
+  void open({ffi.Pointer<ffi.NativeType>? monitor, VoidCallback? onDismiss}) {
+    if (isOpen) return;
+    closing.value = false;
+    if (acquiresAppIndex) AppIndex.instance.acquire();
+    final created = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+      monitor: monitor,
+    );
+    spanFullOutput(created);
+    controller = created;
+    // The coordinator asks for the fade-out, never the teardown: the content
+    // destroys the window once its animation is done.
+    _handle = PopupCoordinator.instance.open(
+      owner: owner,
+      policy: policy,
+      onDismiss: onDismiss ?? () => closing.value = true,
+    );
+  }
+
+  /// Unregisters and hands back the controller for `_destroyAfterFrame`, or
+  /// null when already closed. The caller detaches the view (setState) before
+  /// the native window dies.
+  LayershellWindowController? take() {
+    final removed = controller;
+    if (removed == null) return null;
+    controller = null;
+    PopupCoordinator.instance.close(_handle);
+    _handle = null;
+    if (acquiresAppIndex) AppIndex.instance.release();
+    return removed;
+  }
+
+  /// Root teardown: window, registration, index bracket, notifier — all of
+  /// it, so `dispose` cannot be asymmetric with what an open overlay holds.
+  void dispose() {
+    take()?.destroy();
+    closing.dispose();
   }
 }
