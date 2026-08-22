@@ -633,6 +633,9 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
   }
 
   Future<void> _scan() async {
+    // Re-entered from async continuations (a connect finishing, a retry), so
+    // the State may be gone by the time this runs.
+    if (!mounted) return;
     setState(() {
       _devices = null;
       _scanError = null;

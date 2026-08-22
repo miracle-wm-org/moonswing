@@ -347,6 +347,9 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   }
 
   Future<void> _scan() async {
+    // Re-entered from async continuations (a connect finishing), so the
+    // State may be gone by the time this runs.
+    if (!mounted) return;
     setState(() {
       _networks = null;
       _scanError = null;

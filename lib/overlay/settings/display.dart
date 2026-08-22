@@ -531,12 +531,13 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     await _waylandClient?.close();
     _waylandClient = null;
     _manager = null;
-    if (mounted) {
-      setState(() {
-        _loaded = false;
-        _edits = {};
-      });
-    }
+    // A dispose during the close: nothing left to rebuild — and _connect()
+    // must not start a fresh session against a dead State.
+    if (!mounted) return;
+    setState(() {
+      _loaded = false;
+      _edits = {};
+    });
     _connect();
   }
 
