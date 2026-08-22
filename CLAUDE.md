@@ -178,6 +178,10 @@ The settings UI for this is `_AppearanceSection` in `lib/overlay/settings/shell.
 
 Two things the font row has to keep true, both now owned by `AnchoredSearchDropdown` (`lib/search_list.dart`), which `SettingsFontField` and the calendar's time-zone picker are thin wrappers over. **It floats in the *root* overlay and takes its list as a parameter**, for the reasons `SettingsColorField` documents: the settings content pane is a nested `Navigator` whose `Overlay` would clip a list hanging below the row, and a control that read `FontCatalog` itself could not be widget-tested without forking `fc-list`. The `Future` is started in the state's field initialiser, never in `build` — this section rebuilds on every `ThemeStore` notify, which includes every frame of a colour-picker drag. **The row degrades rather than locks out.** With no fontconfig the catalogue is empty and the row falls back to the free-typed `SettingsTextField` it used to be, so `font` is never a key the UI can no longer set; and a theme naming a family this machine does not have is prepended to the list rather than dropped, or the picker would silently disown the value it is showing.
 
+### D-Bus plumbing (`lib/dbus_service_object.dart`, `lib/dbus_clients.dart`)
+
+Every `DBusObject` the shell exports extends `DBusServiceObject`: an interface table (methods, read-only properties, signals) declared once drives `handleMethodCall`'s interface guard and dispatch, `getProperty`, `getAllProperties`, and `introspect` — the five objects used to list their members two or three times each, which is how one lost its interface guard and another's `GetAll` returned nothing. The file is Flutter-free, because the screencast portal must stay compilable into `tool/screencast_spike.dart`. One-shot queries share the process-wide clients in `dbus_clients.dart` rather than opening a `DBusClient` per call — the bluetooth page is the documented exception (BlueZ scopes discovery to the requesting connection, so its per-operation client is what guarantees discovery stops). Long-lived services own their connections as before.
+
 ### Notification service (`lib/notification_service.dart`)
 
 Implements the FreeDesktop `org.freedesktop.Notifications` D-Bus interface via the `dbus` package. `startNotificationService()` registers on the session bus so the shell receives desktop notifications, which the `NotificationsModule` displays.
@@ -305,7 +309,7 @@ The shell **is** the xdg-desktop-portal ScreenCast backend. When an app asks to 
 
 | Layer | Files | Responsibility |
 |-------|-------|----------------|
-| Native shims | `native/glib_source.dart`, `native/libc.dart` | `GlibFdWatch` (`g_unix_fd_add`); `memfd_create`/`mmap`/`memcpy`. |
+| Native shims | `native/glib_source.dart`, `native/libc.dart`, `native/ffi_util.dart` | `GlibFdWatch` (`g_unix_fd_add`); `memfd_create`/`mmap`/`memcpy`; the shared dlopen plumbing (`processLibrary`, `openFirstLibrary` soname fallback, the one `g_signal_connect_data` binding). `packages/ext_session_lock` keeps its own copies — it cannot import the app package without a cycle. |
 | Wayland FFI | `wayland_ffi/wl_ffi.dart`, `wl_types.dart`, `wl_interfaces.dart`, `wl_proxy.dart`, `wl_protocols.dart` | libwayland-client bindings, the `wl_interface` graph, listener vtables, and typed proxy wrappers. |
 | Capture | `screencast/capture_connection.dart`, `capture_session.dart` | The registry/outputs/toplevels, and one continuous capture per source. |
 | PipeWire | `pipewire/pw_ffi.dart`, `spa_pod.dart`, `spa_constants.dart`, `video_stream.dart` | libpipewire bindings, SPA pod build/parse, and the video-source stream. |
