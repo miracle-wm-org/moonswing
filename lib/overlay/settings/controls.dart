@@ -321,6 +321,7 @@ class SettingsActionButton extends StatelessWidget {
     this.primary = false,
     this.loading = false,
     this.enabled = true,
+    this.compact = false,
   });
 
   final String label;
@@ -328,6 +329,11 @@ class SettingsActionButton extends StatelessWidget {
   final bool primary;
   final bool loading;
   final bool enabled;
+
+  /// The dense inline form used beside a list row (the bluetooth pane's
+  /// Connect/Disconnect): tighter padding and the secondary font size, sized
+  /// to its label rather than stretched under a form.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +355,9 @@ class SettingsActionButton extends StatelessWidget {
         return GestureDetector(
           onTap: canTap ? onTap : null,
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            padding: compact
+                ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
+                : const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(ShellRadii.control),
@@ -360,11 +368,101 @@ class SettingsActionButton extends StatelessWidget {
                   : Text(
                       label,
                       style: TextStyle(
-                        fontSize: ShellFontSizes.body,
+                        fontSize: compact
+                            ? ShellFontSizes.secondary
+                            : ShellFontSizes.body,
                         fontFamily: theme.fontFamily,
                         color: primary ? kOnAccent : theme.popupForeground,
                       ),
                     ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A small accent-tinted pill marking a list row's state — "Connected" on the
+/// network and bluetooth device lists.
+///
+/// Extracted from the `_ConnectedBadge` clones in the network and bluetooth
+/// panes, identical but for the network one carrying the theme font (the
+/// superset). The label is a parameter because the state a row wants to
+/// announce is not always "Connected".
+class SettingsBadge extends StatelessWidget {
+  const SettingsBadge(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.accent.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.accent, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: ShellFontSizes.caption,
+          fontFamily: theme.fontFamily,
+          color: theme.accent,
+        ),
+      ),
+    );
+  }
+}
+
+/// A quiet refresh affordance: a rotate-arrows icon beside its [label],
+/// transparent at rest with a hover fill. The default label is "Scan"; the
+/// error states pass "Retry".
+///
+/// Extracted from the `_RescanButton` clones in the network and bluetooth
+/// panes, identical but for the network one carrying the theme font (the
+/// superset). Not folded into [SettingsIconButton]: this is a labelled pill
+/// with a hover-filled background, not a bare icon, and it carries no spin
+/// state — both panes rebuild into a full-body loader while scanning.
+class SettingsRescanButton extends StatelessWidget {
+  const SettingsRescanButton({super.key, required this.onTap, this.label = 'Scan'});
+
+  final VoidCallback onTap;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return HoverRegion(
+      builder: (context, hovered) {
+        final theme = ThemeScope.of(context);
+        return GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: hovered ? theme.surfaceHover : null,
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(
+                  FontAwesomeIcons.arrowsRotate,
+                  size: 11,
+                  color: theme.popupForeground.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.secondary,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
             ),
           ),
         );

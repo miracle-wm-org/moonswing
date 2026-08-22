@@ -6,103 +6,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/modules/network.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
 // Settings page — shared helper widgets
 // ---------------------------------------------------------------------------
-
-class _ConnectedBadge extends StatelessWidget {
-  const _ConnectedBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: theme.accent.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.accent, width: 1),
-      ),
-      child: Text(
-        'Connected',
-        style: TextStyle(
-          fontSize: 11,
-          fontFamily: theme.fontFamily,
-          color: theme.accent,
-        ),
-      ),
-    );
-  }
-}
-
-class _ActionButton extends StatefulWidget {
-  const _ActionButton({
-    required this.label,
-    required this.onTap,
-    this.primary = false,
-    this.loading = false,
-    this.enabled = true,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool primary;
-  final bool loading;
-  final bool enabled;
-
-  @override
-  _ActionButtonState createState() => _ActionButtonState();
-}
-
-class _ActionButtonState extends State<_ActionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final canTap = widget.enabled && !widget.loading;
-    final Color bg;
-    if (widget.primary) {
-      bg = _hovered && canTap
-          ? theme.accent.withValues(alpha: 0.85)
-          : theme.accent;
-    } else {
-      bg = _hovered && canTap ? theme.surfaceHover : theme.divider;
-    }
-
-    return MouseRegion(
-      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: canTap ? widget.onTap : null,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Center(
-            child: widget.loading
-                ? const LoadingIndicator(size: 14)
-                : Text(
-                    widget.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontFamily: theme.fontFamily,
-                      color: widget.primary
-                          ? const Color(0xFFFFFFFF)
-                          : theme.popupForeground,
-                    ),
-                  ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 class _PasswordField extends StatefulWidget {
   const _PasswordField({
@@ -164,59 +73,6 @@ class _PasswordFieldState extends State<_PasswordField> {
         obscureText: true,
         autofocus: true,
         onSubmitted: widget.onSubmitted,
-      ),
-    );
-  }
-}
-
-class _RescanButton extends StatefulWidget {
-  const _RescanButton({required this.onTap, this.label = 'Scan'});
-
-  final VoidCallback onTap;
-  final String label;
-
-  @override
-  _RescanButtonState createState() => _RescanButtonState();
-}
-
-class _RescanButtonState extends State<_RescanButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: _hovered ? theme.surfaceHover : null,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(
-                FontAwesomeIcons.arrowsRotate,
-                size: 11,
-                color: theme.popupForeground.withValues(alpha: 0.7),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.7),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -296,7 +152,7 @@ class _NetworkListItemState extends State<_NetworkListItem> {
                 ),
               ),
               if (n.isConnected)
-                const _ConnectedBadge()
+                const SettingsBadge('Connected')
               else if (n.secured)
                 FaIcon(
                   FontAwesomeIcons.lock,
@@ -427,7 +283,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                   ),
                 ),
               ),
-              _RescanButton(onTap: _scan),
+              SettingsRescanButton(onTap: _scan),
             ],
           ),
         ),
@@ -453,7 +309,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            _RescanButton(onTap: _scan, label: 'Retry'),
+            SettingsRescanButton(onTap: _scan, label: 'Retry'),
           ],
         ),
       );
@@ -570,7 +426,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                   Row(
                     children: [
                       Expanded(
-                        child: _ActionButton(
+                        child: SettingsActionButton(
                           label: 'Connect',
                           onTap: _doConnect,
                           primary: true,
@@ -580,7 +436,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: _ActionButton(
+                        child: SettingsActionButton(
                           label: 'Cancel',
                           onTap: _cancelConnect,
                           enabled: !_isConnecting,
