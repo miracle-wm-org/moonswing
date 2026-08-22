@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/overlay_fade_scaffold.dart';
 import 'package:graceful_shell/theme/tokens.dart';
+import 'package:graceful_shell/underline_tabs.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/overlay/calendar/calendar_tab.dart';
 import 'package:graceful_shell/overlay/settings/audio.dart';
@@ -242,8 +243,9 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
                   child: Row(
                     children: [
                       for (final tab in _tabs)
-                        _TabButton(
-                          tab: tab,
+                        UnderlineTab(
+                          label: tab.label,
+                          icon: tab.icon,
                           selected: _selectedTab == tab.id,
                           onTap: () => _selectTab(tab.id),
                         ),
@@ -338,81 +340,6 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       default:
         return const SizedBox.shrink();
     }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Tab bar
-// ---------------------------------------------------------------------------
-
-class _TabButton extends StatefulWidget {
-  const _TabButton({
-    required this.tab,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final _OverlayTab tab;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_TabButton> createState() => _TabButtonState();
-}
-
-class _TabButtonState extends State<_TabButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final Color foreground;
-    if (widget.selected) {
-      foreground = theme.accent;
-    } else if (_hovered) {
-      foreground = theme.popupForeground;
-    } else {
-      foreground = theme.popupForeground.withValues(alpha: 0.6);
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          decoration: BoxDecoration(
-            // The underline sits on the header's bottom border, so the selected
-            // tab reads as continuous with the content below it.
-            border: Border(
-              bottom: BorderSide(
-                color: widget.selected ? theme.accent : const Color(0x00000000),
-                width: 2,
-              ),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(widget.tab.icon, size: 13, color: foreground),
-              const SizedBox(width: 8),
-              Text(
-                widget.tab.label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontFamily: theme.fontFamily,
-                  color: foreground,
-                  fontWeight:
-                      widget.selected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

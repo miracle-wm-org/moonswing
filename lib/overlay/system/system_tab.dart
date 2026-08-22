@@ -4,6 +4,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/overlay/system/overview_page.dart';
 import 'package:graceful_shell/overlay/system/process_table.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/underline_tabs.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
 
 enum _SubTab { overview, processes }
@@ -104,15 +105,21 @@ class _SystemTabState extends State<SystemTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          _SubTabButton(
+          UnderlineTab(
             icon: FontAwesomeIcons.gaugeHigh,
+            iconSize: 11,
+            fontSize: 12,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             label: 'Overview',
             selected: _tab == _SubTab.overview,
             onTap: () => setState(() => _tab = _SubTab.overview),
           ),
           const SizedBox(width: 4),
-          _SubTabButton(
+          UnderlineTab(
             icon: FontAwesomeIcons.listUl,
+            iconSize: 11,
+            fontSize: 12,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             label: 'Processes',
             selected: _tab == _SubTab.processes,
             onTap: () => setState(() => _tab = _SubTab.processes),
@@ -123,76 +130,3 @@ class _SystemTabState extends State<SystemTab> {
   }
 }
 
-/// The underline treatment the system monitor's bar popup already uses, so the
-/// two surfaces of the same feature look like each other.
-class _SubTabButton extends StatefulWidget {
-  const _SubTabButton({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final FaIconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_SubTabButton> createState() => _SubTabButtonState();
-}
-
-class _SubTabButtonState extends State<_SubTabButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final Color color;
-    if (widget.selected) {
-      color = theme.accent;
-    } else if (_hovered) {
-      color = theme.popupForeground;
-    } else {
-      color = theme.popupForeground.withValues(alpha: 0.6);
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: widget.selected ? theme.accent : const Color(0x00000000),
-                width: 2,
-              ),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(widget.icon, size: 11, color: color),
-              const SizedBox(width: 6),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: theme.fontFamily,
-                  fontWeight:
-                      widget.selected ? FontWeight.w600 : FontWeight.normal,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

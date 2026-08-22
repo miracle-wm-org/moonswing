@@ -99,9 +99,9 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
   OverlayEntry? _entry;
 
   @override
-  void didUpdateWidget(AnchoredSearchDropdown<T> old) {
-    super.didUpdateWidget(old);
-    if (widget.closeKey != old.closeKey) _close();
+  void didUpdateWidget(AnchoredSearchDropdown<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.closeKey != oldWidget.closeKey) _close();
   }
 
   @override
