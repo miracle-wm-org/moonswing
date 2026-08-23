@@ -94,6 +94,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"battery"` - Battery status monitor
 - `"network"` - Network connectivity (ethernet or WiFi name and IP address)
 - `"weather"` - Weather display
+- `"notifications"` - Notification bell and the notification panel
 - `"clock"` - Date and time
 - `"dock"` - Application launcher dock
 
@@ -214,10 +215,33 @@ Escape or a click on the blurred backdrop dismisses the launcher.
 
 ```toml
 [panels.bottom.layout]
-right = ["media_player", "launcher"]
+right = ["media_player", "notifications", "launcher"]
 ```
 
 The launcher lists the same applications any menu would: those `g_app_info_should_show()` accepts. An entry with `NoDisplay=true`, or one restricted with `OnlyShowIn=GNOME;`, will not appear.
+
+### Notifications
+
+A bell that shakes and shows a count when a notification arrives, and opens the
+notification panel on click — a full-height surface that slides in from the
+right edge over everything else on screen, listing what has arrived with each
+notification's actions and a **Clear all**. The shell is the desktop's
+notification daemon, so this is where notifications from every application land.
+
+No configurable settings.
+
+**This module is in the default bottom panel, but adding it to an existing
+config is manual** — the default config file is only written when none exists.
+Add `"notifications"` to a panel's layout:
+
+```toml
+[panels.bottom.layout]
+right = ["media_player", "notifications", "launcher"]
+```
+
+The panel ignores the bars' exclusive zones and draws on the overlay layer, so
+it covers the full height of the output and passes over the panels rather than
+being pushed between them.
 
 ### Sound Control
 

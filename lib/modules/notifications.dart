@@ -86,8 +86,13 @@ class _NotificationsState extends State<Notifications>
       ],
       width: panelWidth,
       // height omitted: top+bottom anchoring makes this full-height.
-      // exclusiveZone omitted: no space reservation per requirements.
     );
+    // The panel spans the whole output edge-to-edge and draws over the bars.
+    // Without this the compositor honours their exclusive zones and shrinks
+    // the surface to the gap *between* them, so the slide-in would start and
+    // end short of the screen edges; `overlay` above then puts it over them
+    // rather than under.
+    spanFullOutput(controller);
 
     openLayerWindow(
       context,
@@ -243,25 +248,29 @@ class _NotificationPanelState extends State<_NotificationPanel>
           ),
           child: SlideTransition(
             position: _slideAnimation,
-            child: PopupBounceIn(
-              // Deliberately not a PopupCard. This is a full-height surface
-              // anchored to the screen's right edge, not a floating card:
-              // rounding it would cut wallpaper wedges out of the display's
-              // own corners — the case panelCornerRadius refuses for a flush
-              // bar — and a rim would draw a line down the screen edge.
-              child: Container(
-                color: theme.popupBackground,
-                child: Column(
-                  children: [
-                    _buildHeader(theme, items.isNotEmpty),
-                    Container(height: 1, color: theme.divider),
-                    Expanded(
-                      child: items.isEmpty
-                          ? _buildEmpty(theme)
-                          : _buildList(theme, items),
-                    ),
-                  ],
-                ),
+            // The slide is the whole entrance: no PopupBounceIn. Its scale
+            // pivots on the centre, which on a full-height edge-anchored
+            // surface pulls the panel away from the screen edge it is anchored
+            // to and shows a gap that closes as it settles — the bounce reads
+            // as a floating card, which this deliberately is not.
+            //
+            // Deliberately not a PopupCard either. This is a full-height
+            // surface anchored to the screen's right edge, not a floating
+            // card: rounding it would cut wallpaper wedges out of the
+            // display's own corners — the case panelCornerRadius refuses for a
+            // flush bar — and a rim would draw a line down the screen edge.
+            child: Container(
+              color: theme.popupBackground,
+              child: Column(
+                children: [
+                  _buildHeader(theme, items.isNotEmpty),
+                  Container(height: 1, color: theme.divider),
+                  Expanded(
+                    child: items.isEmpty
+                        ? _buildEmpty(theme)
+                        : _buildList(theme, items),
+                  ),
+                ],
               ),
             ),
           ),

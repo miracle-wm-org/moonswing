@@ -63,7 +63,8 @@ void main() {
       expect(bottom.layer, 'top');
       expect(bottom.layout.left, isEmpty);
       expect(bottom.layout.center, ['dock']);
-      expect(bottom.layout.right, ['media_player', 'launcher']);
+      expect(bottom.layout.right,
+          ['media_player', 'notifications', 'launcher']);
     });
 
     test('background', () {
