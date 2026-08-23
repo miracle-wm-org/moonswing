@@ -332,6 +332,53 @@ class ZwlrOutputConfigurationHeadV1 extends WaylandObject {
 // Pending edit state
 // ---------------------------------------------------------------------------
 
+/// What the compositor last told us about a head.
+///
+/// Compared against the head's current values to tell a genuine external
+/// reconfiguration apart from the echo — or the silence — that follows our own
+/// apply. See `_DisplaySettingsPageState._reconcileEdits`.
+class _HeadState {
+  const _HeadState({
+    required this.enabled,
+    required this.modeId,
+    required this.scale,
+    required this.transform,
+    required this.positionX,
+    required this.positionY,
+  });
+
+  factory _HeadState.fromHead(ZwlrOutputHeadV1 head) => _HeadState(
+        enabled: head.enabled,
+        modeId: head.currentMode?.id,
+        scale: head.scale,
+        transform: head.transform,
+        positionX: head.positionX,
+        positionY: head.positionY,
+      );
+
+  final bool enabled;
+  final int? modeId;
+  final double scale;
+  final int transform;
+  final int positionX;
+  final int positionY;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _HeadState &&
+      other.enabled == enabled &&
+      other.modeId == modeId &&
+      (other.scale - scale).abs() < 0.001 &&
+      other.transform == transform &&
+      other.positionX == positionX &&
+      other.positionY == positionY;
+
+  // scale is compared with a tolerance, so it stays out of the hash.
+  @override
+  int get hashCode =>
+      Object.hash(enabled, modeId, transform, positionX, positionY);
+}
+
 class _DisplayEdit {
   bool enabled;
   ZwlrOutputModeV1? selectedMode;
@@ -393,7 +440,10 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   ZwlrOutputManagerV1? _manager;
   bool _loaded = false;
   String? _error;
-  Map<int, _DisplayEdit> _edits = {};
+  final Map<int, _DisplayEdit> _edits = {};
+  final Map<int, _HeadState> _lastHead = {};
+  /// The user has edits this session's apply has not committed yet.
+  bool _dirty = false;
   bool _applying = false;
   String? _applyError;
 
@@ -449,30 +499,33 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     setState(() => _loaded = true);
   }
 
-  void _initEditsIfNeeded() {
+  /// Fold the compositor's view of the heads into `_edits`, which is what the
+  /// diagram and the cards render from.
+  ///
+  /// An entry is (re)seeded only when the head itself moved since we last
+  /// looked. What a *successful* apply put on screen is already in `_edits`, and
+  /// a compositor that answers it by echoing nothing — or by echoing the
+  /// positions it held before the apply — must not be allowed to drag the
+  /// diagram back to the arrangement the user just left. Re-seeding
+  /// unconditionally is the bug this method exists to prevent; a `putIfAbsent`
+  /// that never re-seeds is the one before it, which is why an external change
+  /// (hotplug, another tool) still lands here.
+  void _reconcileEdits() {
     final manager = _manager;
     if (manager == null) return;
+    final live = <int>{};
     for (final head in manager.heads) {
-      _edits.putIfAbsent(head.id, () => _DisplayEdit.fromHead(head));
+      live.add(head.id);
+      final state = _HeadState.fromHead(head);
+      final previous = _lastHead[head.id];
+      _lastHead[head.id] = state;
+      // Unchanged since we last looked, or the user is mid-edit: their values
+      // stand. A first sighting always seeds.
+      if (previous != null && (previous == state || _dirty)) continue;
+      _edits[head.id] = _DisplayEdit.fromHead(head);
     }
-  }
-
-  bool get _hasChanges {
-    final manager = _manager;
-    if (manager == null) return false;
-    for (final head in manager.heads) {
-      final edit = _edits[head.id];
-      if (edit == null) continue;
-      if (edit.enabled != head.enabled) return true;
-      if (edit.positionX != head.positionX) return true;
-      if (edit.positionY != head.positionY) return true;
-      if (edit.enabled) {
-        if (edit.selectedMode?.id != head.currentMode?.id) return true;
-        if ((edit.scale - head.scale).abs() > 0.01) return true;
-        if (edit.transform != head.transform) return true;
-      }
-    }
-    return false;
+    _edits.removeWhere((id, _) => !live.contains(id));
+    _lastHead.removeWhere((id, _) => !live.contains(id));
   }
 
   Future<void> _apply() async {
@@ -488,11 +541,12 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       onSucceeded: () {
         config?.destroy();
         if (!mounted) return;
+        // `_edits` is what the compositor now holds — keep it. Clearing it and
+        // re-reading the heads is what used to put the old arrangement back.
         setState(() {
           _applying = false;
-          _edits = {};
+          _dirty = false;
         });
-        _reload();
       },
       onFailed: () {
         config?.destroy();
@@ -530,20 +584,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     config.apply();
   }
 
-  Future<void> _reload() async {
-    await _waylandClient?.close();
-    _waylandClient = null;
-    _manager = null;
-    // A dispose during the close: nothing left to rebuild — and _connect()
-    // must not start a fresh session against a dead State.
-    if (!mounted) return;
-    setState(() {
-      _loaded = false;
-      _edits = {};
-    });
-    _connect();
-  }
-
   @override
   void dispose() {
     _manager?.stop();
@@ -556,7 +596,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     final theme = ThemeScope.of(context);
     if (_error != null) return _buildError(theme);
     if (!_loaded) return _buildLoading(theme);
-    _initEditsIfNeeded();
+    _reconcileEdits();
     return _buildLoaded(theme);
   }
 
@@ -628,6 +668,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                   edits: _edits,
                   onPositionsChanged: (positions) {
                     setState(() {
+                      _dirty = true;
                       positions.forEach((headId, pos) {
                         final edit = _edits[headId];
                         if (edit != null) {
@@ -665,7 +706,10 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                             head: head,
                             edit: edit,
                             onEditChanged: (newEdit) {
-                              setState(() => _edits[head.id] = newEdit);
+                              setState(() {
+                                _dirty = true;
+                                _edits[head.id] = newEdit;
+                              });
                             },
                           );
                         },
@@ -704,7 +748,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
             onTap: _apply,
             primary: true,
             loading: _applying,
-            enabled: _hasChanges && !_applying,
+            enabled: _dirty && !_applying,
           ),
         ],
       ),
