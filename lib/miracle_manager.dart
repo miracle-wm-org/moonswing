@@ -24,6 +24,21 @@ class MiracleManager extends ChangeNotifier {
   /// Whether a [connect] attempt is currently in flight.
   bool get connecting => _connecting;
 
+  /// Bumped whenever the set of Wayland outputs changes, so consumers can
+  /// re-query state that Miracle silently re-homed.
+  ///
+  /// Miracle moves a removed output's workspaces onto another output without
+  /// emitting a workspace event, so a bar that only refetches on
+  /// [EventWorkspace] keeps a stale `workspace -> output` mapping until the next
+  /// unrelated workspace event. Its `output` event would say *that* something
+  /// changed (never what), but subscribing to [SubscriptionType.output] is not
+  /// an option: `miracle.dart`'s `Event.fromJson` throws `UnsupportedError` for
+  /// that type, from inside the socket data handler. The shell's own
+  /// `OutputTracker` sees the same reconfiguration over `wl_output`, so `main()`
+  /// wires it to [notifyTopologyChanged] instead.
+  int get outputsRevision => _outputsRevision;
+  int _outputsRevision = 0;
+
   /// Why the shell is not connected — the last [connect] failure, or the reason
   /// a live connection dropped. Null while connected or before the first
   /// attempt. Short enough to show the user in a tooltip.
@@ -57,6 +72,12 @@ class MiracleManager extends ChangeNotifier {
       _connecting = false;
       notifyListeners();
     }
+  }
+
+  /// The set of outputs changed; whatever was cached per output is suspect.
+  void notifyTopologyChanged() {
+    _outputsRevision++;
+    notifyListeners();
   }
 
   /// Drops [connection] when its socket dies, so the bars fall back to the

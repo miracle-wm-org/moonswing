@@ -50,12 +50,13 @@ void main() {
         ..y = y;
 
   MonitorInfo monitor({
+    String connector = 'DP-1',
     String manufacturer = 'Acme',
     String model = 'X1',
     Offset position = Offset.zero,
   }) =>
       MonitorInfo(
-        connector: 'DP-1',
+        connector: connector,
         model: model,
         manufacturer: manufacturer,
         gdkMonitor: ffi.nullptr,
@@ -151,14 +152,73 @@ void main() {
 
   testWidgets('a monitor is matched on position, not just make and model',
       (tester) async {
+    // The geometry pass, which is what answers for a GDK build that reports no
+    // connector at all — hence the empty one here. With a connector present
+    // that name is the answer, and this pair of identical panels is exactly the
+    // case it would otherwise have to be told apart by position.
     services.skip(ShellService.displays);
     final left = output(name: 'DP-1', make: 'Acme', model: 'X1');
     final right = output(name: 'DP-2', make: 'Acme', model: 'X1', x: 1920);
     outputs.add(1, left);
     outputs.add(2, right);
 
-    await build(tester, monitor(position: const Offset(1920, 0)));
+    await build(
+        tester, monitor(connector: '', position: const Offset(1920, 0)));
     expect(shown(tester), 'DP-2');
+  });
+
+  testWidgets('a repositioned display keeps its own output', (tester) async {
+    // The regression this whole matcher exists for. `MonitorInfo` is a snapshot
+    // taken when the panel's surface was created, so after the user swaps the
+    // two displays around its position is stale — while the outputs report
+    // their new geometry immediately. Matching on position alone left *both*
+    // panels unmatched, and both then took the same `outputs.first`.
+    services.skip(ShellService.displays);
+    final left = output(name: 'DP-1', make: 'Acme', model: 'X1');
+    final right = output(name: 'DP-2', make: 'Acme', model: 'X1', x: 1920);
+    outputs.add(1, left);
+    outputs.add(2, right);
+
+    await build(
+        tester, monitor(connector: 'DP-2', position: const Offset(1920, 0)));
+    expect(shown(tester), 'DP-2');
+
+    // The displays swap sides. Nothing tells the shell's `MonitorInfo` about it.
+    left.x = 1920;
+    right.x = 0;
+    outputs.markChanged();
+    await tester.pump();
+    expect(shown(tester), 'DP-2');
+
+    // ...and the other panel is unmoved too, rather than joining it.
+    await build(tester, monitor(connector: 'DP-1', position: Offset.zero));
+    expect(shown(tester), 'DP-1');
+  });
+
+  testWidgets('the connector name beats another output matching on geometry',
+      (tester) async {
+    services.skip(ShellService.displays);
+    // Two identical panels, and the stale position now describes the *other*
+    // one — the swap above, seen from one panel.
+    outputs.add(1, output(name: 'DP-1', make: 'Acme', model: 'X1', x: 1920));
+    outputs.add(2, output(name: 'DP-2', make: 'Acme', model: 'X1'));
+
+    await build(tester, monitor(connector: 'DP-1', position: Offset.zero));
+    expect(shown(tester), 'DP-1');
+  });
+
+  testWidgets('the fallback is refused when there is more than one output',
+      (tester) async {
+    // With several displays an unmatched panel has no honest answer, and
+    // handing every one of them `outputs.first` is what put one monitor's
+    // workspaces on all the bars. The module renders its loader instead.
+    services.skip(ShellService.displays);
+    outputs.add(1, output(name: 'HDMI-A-1', make: 'Other', model: 'Z9'));
+    outputs.add(
+        2, output(name: 'HDMI-A-2', make: 'Other', model: 'Z9', x: 1920));
+
+    await build(tester, monitor(connector: 'DP-9'));
+    expect(shown(tester), '<none>');
   });
 
   group('resolveOutput', () {
@@ -166,6 +226,19 @@ void main() {
       final m = monitor();
       expect(resolveOutput(m, const [], enumerating: true), isNull);
       expect(resolveOutput(m, const [], enumerating: false), isNull);
+    });
+  });
+
+  group('OutputTracker', () {
+    test('a global re-advertised without a remove replaces its entry', () {
+      final first = output(name: 'DP-1', make: 'Acme', model: 'X1');
+      final second = output(name: 'DP-2', make: 'Acme', model: 'X1', x: 1920);
+      outputs.add(1, first);
+      outputs.add(1, second);
+
+      // The stale one would otherwise sit *ahead* of its replacement, which is
+      // where every by-order read finds it.
+      expect(outputs.outputs, [second]);
     });
   });
 }

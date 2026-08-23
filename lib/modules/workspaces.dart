@@ -26,6 +26,9 @@ class WorkspacesState extends State<Workspaces> {
   MiracleConnection? _connection;
   StreamSubscription<Event>? _events;
 
+  /// The [MiracleManager.outputsRevision] this row's list was fetched against.
+  int _outputsRevision = 0;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -49,6 +52,22 @@ class WorkspacesState extends State<Workspaces> {
     // Rebuild even when the connection itself is unchanged — the connecting
     // flag drives the spinner.
     setState(_syncConnection);
+    _refetchIfOutputsMoved();
+  }
+
+  /// Re-queries the workspace list when the shell's output set has changed
+  /// since it was fetched.
+  ///
+  /// Miracle re-homes a removed output's workspaces onto another output without
+  /// emitting a workspace event, so the cached `workspace -> output` mapping
+  /// this row filters on can be stale with nothing on the event stream to say
+  /// so. [MiracleManager.outputsRevision] is the shell's own `wl_output` view of
+  /// the same reconfiguration.
+  void _refetchIfOutputsMoved() {
+    final revision = _manager?.outputsRevision ?? 0;
+    if (revision == _outputsRevision) return;
+    _outputsRevision = revision;
+    _connection?.getWorkspaces().then(_updateWorkspaces);
   }
 
   /// Attaches to the manager's current connection, tearing down the listener on
@@ -62,6 +81,7 @@ class WorkspacesState extends State<Workspaces> {
     _events = null;
     _connection = connection;
     _workspaces = <WorkspaceResult>[];
+    _outputsRevision = _manager?.outputsRevision ?? 0;
 
     if (connection == null) return;
     _events = connection.listen((Event event) {
@@ -119,8 +139,11 @@ class WorkspacesState extends State<Workspaces> {
     // Bars paint before Wayland output enumeration finishes, so which display
     // this one is on may not be known yet. Filtering on an unknown name would
     // render an empty row that then popped full.
+    // `WaylandOutput.name` is non-nullable and starts empty, so an output that
+    // is bound but has not delivered its `name` yet would otherwise pass this
+    // guard and filter every workspace away — an empty row, not a loader.
     final outputName = DisplayScope.of(context)?.name;
-    if (outputName == null) return _pending(theme);
+    if (outputName == null || outputName.isEmpty) return _pending(theme);
 
     final visibleWorkspaces =
         _workspaces.where((ws) => ws.output == outputName).toList();

@@ -121,6 +121,12 @@ void main() async {
   // render before they know which display they are on.
   final outputs = OutputTracker();
 
+  // A display reconfiguration can re-home workspaces onto another output with
+  // no IPC event to say so, so the compositor's own view of them is re-queried
+  // whenever the shell's output set moves. This is the whole subscription:
+  // nothing here is torn down, both objects live for the process.
+  outputs.addListener(miracle.notifyTopologyChanged);
+
   final waylandClient = WaylandClient();
   final services = ShellServices();
 
@@ -307,7 +313,12 @@ class GracefulShellRoot extends StatefulWidget {
 class _MonitorSurfaces {
   _MonitorSurfaces(this.monitor, this.background, this.panels);
 
-  final MonitorInfo monitor;
+  /// The GDK description of this monitor, as of the last enumeration.
+  ///
+  /// Mutable, and refreshed by [_GracefulShellRootState._syncMonitors] when the
+  /// monitor is reconfigured in place: [MonitorInfo] is a snapshot, and a panel
+  /// carrying a stale position could no longer be matched to its `wl_output`.
+  MonitorInfo monitor;
   final LayershellWindowController? background;
   final Map<String, LayershellWindowController> panels;
 
@@ -437,6 +448,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (SettingsController.instance, _onSettingsRouteRequested),
       (FilePickerController.instance, _onFilePickRequested),
       (ThemeStore.instance, _onThemeChanged),
+      // The only signal a *reconfigured* (rather than plugged or unplugged)
+      // monitor produces: GDK emits neither `monitor-added` nor
+      // `monitor-removed` for a reposition, but every output reports its new
+      // geometry over `wl_output`, which the tracker answers with a notify.
+      (widget.outputs, _scheduleMonitorSync),
     ];
     for (final (listenable, handler) in _subscriptions) {
       listenable.addListener(handler);
@@ -892,16 +908,27 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
 
     for (final entry in incoming.entries) {
-      if (!_surfaces.containsKey(entry.key)) {
-        _surfaces[entry.key] = _createSurfaces(entry.value);
-        // A monitor plugged in mid-indicator gets one too, so the card is not
-        // missing from the display the user may well be looking at.
-        if (_osd.isNotEmpty) _osd[entry.key] = _createOsd(entry.value);
-        // Likewise a monitor plugged in while locked: without a lock surface
-        // the compositor would just blank it.
-        _lockHost.addMonitor(entry.key, entry.value.gdkMonitor);
-        changed = true;
+      final existing = _surfaces[entry.key];
+      if (existing != null) {
+        // The same monitor, described differently — a reposition, a mode or
+        // scale change. Nothing native is recreated; the snapshot is simply
+        // replaced, so `DisplayProvider` stops matching its `wl_output` against
+        // a position the monitor left behind.
+        if (!_sameMonitor(existing.monitor, entry.value)) {
+          existing.monitor = entry.value;
+          changed = true;
+        }
+        continue;
       }
+
+      _surfaces[entry.key] = _createSurfaces(entry.value);
+      // A monitor plugged in mid-indicator gets one too, so the card is not
+      // missing from the display the user may well be looking at.
+      if (_osd.isNotEmpty) _osd[entry.key] = _createOsd(entry.value);
+      // Likewise a monitor plugged in while locked: without a lock surface
+      // the compositor would just blank it.
+      _lockHost.addMonitor(entry.key, entry.value.gdkMonitor);
+      changed = true;
     }
 
     if (!changed) return;
@@ -918,6 +945,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       });
     }
   }
+
+  /// Whether two enumerations describe the same monitor the same way.
+  ///
+  /// [MonitorInfo] carries no `==`, and the fields that matter here are the ones
+  /// [resolveOutput] and the lock host read: the identity strings, the position
+  /// it is matched on, and the `GdkMonitor` the native windows were given.
+  bool _sameMonitor(MonitorInfo a, MonitorInfo b) =>
+      a.connector == b.connector &&
+      a.manufacturer == b.manufacturer &&
+      a.model == b.model &&
+      a.position == b.position &&
+      a.gdkMonitor.address == b.gdkMonitor.address;
 
   /// Rebuilds a fresh typed config from the store (which also re-applies
   /// per-module options via [Module.loadAll]) and rebuilds the tree. Runs in a

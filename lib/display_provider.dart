@@ -14,6 +14,12 @@ class OutputTracker extends ChangeNotifier {
   final Map<int, WaylandOutput> _byGlobal = {};
 
   void add(int global, WaylandOutput output) {
+    // A global re-advertised without a preceding remove replaces its entry
+    // rather than joining it: the stale [WaylandOutput] would otherwise stay
+    // *ahead* of its replacement in [outputs], keeping its old name and
+    // geometry where every by-order read would find it first.
+    final previous = _byGlobal[global];
+    if (previous != null) outputs.remove(previous);
     _byGlobal[global] = output;
     outputs.add(output);
     notifyListeners();
@@ -34,22 +40,46 @@ class OutputTracker extends ChangeNotifier {
 /// Resolves the [WaylandOutput] backing [monitor], or null while the shell does
 /// not (yet) know which one it is.
 ///
+/// The connector name is tried first and is the answer in every ordinary case:
+/// GDK's connector and `wl_output.name` are the same string (`DP-1`), it is
+/// what everything downstream keys on — `modules/workspaces.dart` filters
+/// `WorkspaceResult.output` against it — and, unlike geometry, it survives a
+/// display being repositioned. That matters because [MonitorInfo] is a
+/// *snapshot*: the position in it is whatever GDK reported when the panel's
+/// surface was created, while an output's `x`/`y` are updated in place on every
+/// `wl_output.geometry`. Matching on the pair meant that after a reposition
+/// *no* panel matched and every one of them took the fallback below — the same
+/// object for all of them, so every bar showed one monitor's workspaces.
+///
+/// The make/model/position tuple stays as the second pass, for a GDK build that
+/// reports no connector at all.
+///
 /// [enumerating] is whether [ShellService.displays] is still loading, and it
-/// gates the *fallback only*. An exact make/model/position match is
-/// trustworthy at any point; the fallback is not, because an output is tracked
-/// as soon as its global is advertised but carries no name or geometry until
-/// its `done` — so mid-enumeration `outputs.first` is simply whichever one
-/// arrived first, and handing a bar the wrong display would show it another
-/// monitor's workspaces. Until then it gets none, and the modules that need one
-/// show a loader.
+/// gates the *fallback only*. An exact match is trustworthy at any point; the
+/// fallback is not, because an output is tracked as soon as its global is
+/// advertised but carries no name or geometry until its `done` — so
+/// mid-enumeration `outputs.first` is simply whichever one arrived first, and
+/// handing a bar the wrong display would show it another monitor's workspaces.
+/// Until then it gets none, and the modules that need one show a loader.
 ///
 /// The fallback itself covers a monitor that GDK and Wayland describe
-/// differently.
+/// differently, and is taken **only when there is exactly one output** — with
+/// one display there is nothing to be wrong about. With several, guessing hands
+/// every unmatched panel the same output, which is the failure this function
+/// exists to avoid; "not known yet" is the honest answer and the modules that
+/// need one already render it.
 WaylandOutput? resolveOutput(
   MonitorInfo monitor,
   List<WaylandOutput> outputs, {
   required bool enumerating,
 }) {
+  if (monitor.connector.isNotEmpty) {
+    for (final output in outputs) {
+      // An output that has not delivered its `name` yet holds '', which matches
+      // no connector — so this cannot fire mid-enumeration.
+      if (output.name == monitor.connector) return output;
+    }
+  }
   for (final output in outputs) {
     if (output.make == monitor.manufacturer &&
         output.model == monitor.model &&
@@ -58,7 +88,7 @@ WaylandOutput? resolveOutput(
       return output;
     }
   }
-  if (outputs.isEmpty || enumerating) return null;
+  if (outputs.length != 1 || enumerating) return null;
   return outputs.first;
 }
 
