@@ -495,6 +495,12 @@ Each `[[background.entries]]` block names one wallpaper.
 
 Wallpapers are shown in the order they appear, advancing every `interval_minutes`; with one shown entry there is no rotation at all. List order is the presentation order and is never sorted.
 
+### Installed wallpapers
+
+Settings > Shell > Background also lists every wallpaper the distribution installed — Ubuntu's `/usr/share/backgrounds`, Fedora's per-release sets, the KDE packages under `/usr/share/wallpapers`, and the same two directory names under any other `$XDG_DATA_DIRS` entry (plus Debian's `desktop-base` theme and `/usr/share/pixmaps/backgrounds`). Nothing has to be configured for them to appear, and picking one adds the ordinary `[[background.entries]]` block above.
+
+These are discovered on every visit rather than written to `config.toml`, which is what makes them permanent: they carry no remove button in the settings UI, and deselecting one simply returns it to the Available list. Removal is offered for wallpapers you added yourself. A KDE wallpaper package is listed once, at its largest resolution, rather than once per resolution it ships.
+
 Supported image formats: JPEG, PNG, GIF, WebP, BMP, and anything Flutter's `Image` widget can decode. Entries whose path is missing, or is not one of those formats, are pruned by the settings UI.
 
 Transitions between wallpapers use a 1.5-second crossfade animation.
