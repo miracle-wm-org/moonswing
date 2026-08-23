@@ -125,6 +125,48 @@ Offset popupShadowAnchorOffset(
   return Offset(dx, dy);
 }
 
+/// The constraints a shadowed popup's *window* is given, grown from the card's.
+///
+/// [PopupWindowController]'s `constraints` are not layout constraints. The
+/// Linux backend adds a *sized-to-content* view, which the engine registers
+/// with an unbounded `1x1 .. G_MAXSIZE` metrics range — so nothing here ever
+/// reaches Flutter's layout — and turns them into the GTK window's
+/// `GDK_HINT_MIN_SIZE`/`GDK_HINT_MAX_SIZE` geometry hints instead. They cap the
+/// *surface*, and with a shadow the surface is the card plus
+/// [popupShadowInsets].
+///
+/// This is the third piece of the shadow arithmetic, and it is the one that was
+/// missing: the padding grows the content and the [popupShadowAnchorOffset]
+/// puts the card back on its button, but GTK clamped the `gtkWindow.resize` in
+/// [PopupHost.openPopup] back to the card's own maximum. Every popup that pins
+/// a width by passing `minWidth == maxWidth` — the app directory and its
+/// category flyout, the sound slider, the system monitor's
+/// [BoxConstraints.tightFor] — therefore mapped a window exactly as wide as its
+/// card while rendering that card `insets.left` inside it: the card came out
+/// half the shadow's reach off-centre from its button with its far side clipped,
+/// and the compositor placed the too-small window as though that were the popup.
+/// The loose-constrained menus, whose content sat well under their maximum, were
+/// never clamped and stayed put, which is what made it look like only some
+/// popups had drifted.
+///
+/// An infinite maximum stays infinite — the backend maps that onto its own
+/// `_kMaxWindowDimensions` — and a shadowless theme's zero insets hand the
+/// card's constraints straight back, so turning the shadow off restores the
+/// exact pre-shadow geometry here as well as everywhere else.
+BoxConstraints popupWindowConstraints(BoxConstraints card, EdgeInsets shadow) {
+  if (shadow == EdgeInsets.zero) return card;
+  return BoxConstraints(
+    minWidth: card.minWidth + shadow.horizontal,
+    maxWidth: card.maxWidth.isFinite
+        ? card.maxWidth + shadow.horizontal
+        : card.maxWidth,
+    minHeight: card.minHeight + shadow.vertical,
+    maxHeight: card.maxHeight.isFinite
+        ? card.maxHeight + shadow.vertical
+        : card.maxHeight,
+  );
+}
+
 /// Computes the parent-window-local anchor rect for the widget behind [context].
 Rect popupAnchorRect(BuildContext context) {
   final box = context.findRenderObject() as RenderBox;
@@ -316,7 +358,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         offset: popupShadowAnchorOffset(childAnchor, shadowInsets),
         constraintAdjustment: constraintAdjustment,
       ),
-      constraints: constraints,
+      // The *window's* constraints, not the card's: these become GTK geometry
+      // hints capping the surface, which the shadow has just grown. See
+      // [popupWindowConstraints] — the [ConstrainedBox] below is what still
+      // holds the card to what the call site asked for.
+      constraints: popupWindowConstraints(constraints, shadowInsets),
       delegate: PopupDelegate(onDestroyed: () {
         if (_popupController == thisController) closePopup();
       }),
