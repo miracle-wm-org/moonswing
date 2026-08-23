@@ -182,8 +182,9 @@ void _startShellServices({
   services.run(ShellService.audio, () => startOsdService(appConfig.osd));
 
   // Claims the xdg-desktop-portal ScreenCast backend name, so apps asking to
-  // share their screen get the shell's own picker. Fails soft on a compositor
-  // without ext-image-copy-capture, or with no PipeWire.
+  // share their screen get the shell's own picker. A compositor without
+  // ext-image-copy-capture or a machine with no PipeWire throws, which `run`
+  // records as `failed` — the shell keeps going, but the status is truthful.
   if (appConfig.screenshare.enabled) {
     services.run(
       ShellService.screencast,

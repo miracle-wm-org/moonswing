@@ -229,20 +229,39 @@ class NotificationServer extends DBusServiceObject {
 }
 
 /// Registers this shell as the FreeDesktop notification daemon on the session
-/// D-Bus. If another daemon is already running, this fails silently so the
-/// shell continues to work without notifications.
+/// D-Bus.
+///
+/// Another daemon already owning `org.freedesktop.Notifications` is a graceful
+/// decline — the shell yields to it, logs, and returns, and keeps working
+/// without notifications. Anything else — the bus unreachable, the object
+/// export or the name request itself erroring — throws, and
+/// `ShellServices.run` records the service as failed.
 Future<void> startNotificationService() async {
+  final client = DBusClient.session();
   try {
-    final client = DBusClient.session();
     final server = NotificationServer();
 
+    // Export before requesting the name, so a call arriving the instant the
+    // name is granted already finds the object.
+    await client.registerObject(server);
+
+    final reply = await client.requestName('org.freedesktop.Notifications',
+        flags: {DBusRequestNameFlag.doNotQueue});
+    if (reply != DBusRequestNameReply.primaryOwner &&
+        reply != DBusRequestNameReply.alreadyOwner) {
+      debugPrint('Notification daemon already running; '
+          'the shell yields and will not show notifications');
+      await client.close();
+      return;
+    }
+
+    // Only the daemon that owns the name emits ActionInvoked, so this is wired
+    // after the name is won — never toward a client the decline path closed.
     NotificationStore.instance.setActionInvokedCallback(
       (id, actionKey) => server.emitActionInvoked(id, actionKey),
     );
-
-    await client.registerObject(server);
-    await client.requestName('org.freedesktop.Notifications');
-  } catch (e) {
-    debugPrint('Notification service unavailable: $e');
+  } catch (_) {
+    unawaited(client.close());
+    rethrow;
   }
 }

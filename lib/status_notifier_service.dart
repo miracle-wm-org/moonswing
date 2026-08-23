@@ -469,13 +469,17 @@ class StatusNotifierWatcher extends DBusServiceObject {
 /// Starts system-tray support on the session bus.
 ///
 /// If no `org.kde.StatusNotifierWatcher` exists yet, the shell becomes the
-/// watcher (and its own host). If another watcher already owns the name (e.g.
-/// gnome-shell in a mixed desktop session), the shell instead attaches to it as
-/// a host and mirrors its registered items — so the tray works either way.
-/// Fails silently, like [startNotificationService].
+/// watcher (and its own host). Another watcher already owning the name (e.g.
+/// gnome-shell in a mixed desktop session) is not even a decline — the shell
+/// attaches to it as a host and mirrors its registered items, so the tray
+/// works either way. Genuine errors — the bus unreachable, a name
+/// request erroring, the watcher object failing to export — throw, and
+/// `ShellServices.run` records the service as failed. (A flaky *foreign*
+/// watcher stays soft inside [_startHostConsumer]: the shell has yielded, and
+/// still listens for registrations even when that watcher answers nothing.)
 Future<void> startStatusNotifierService() async {
+  final client = DBusClient.session();
   try {
-    final client = DBusClient.session();
     _sessionClient = client;
 
     final hostName = 'org.kde.StatusNotifierHost-$pid';
@@ -501,8 +505,10 @@ Future<void> startStatusNotifierService() async {
       // Another watcher owns the name — consume it as a host.
       await _startHostConsumer(client, hostName);
     }
-  } catch (e) {
-    debugPrint('System tray service unavailable: $e');
+  } catch (_) {
+    _sessionClient = null;
+    unawaited(client.close());
+    rethrow;
   }
 }
 

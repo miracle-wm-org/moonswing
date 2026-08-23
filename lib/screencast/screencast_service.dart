@@ -19,9 +19,19 @@ ScreencastService? _service;
 /// the capture connection off this for previews.
 ScreencastService? get screencastService => _service;
 
-/// Starts the ScreenCast portal backend. Fail-soft like every other service:
-/// missing libraries, missing compositor globals, no PipeWire daemon, or a
-/// taken bus name each just disable screen sharing with a log line.
+/// Starts the ScreenCast portal backend.
+///
+/// One graceful decline: [kScreencastBusName] already taken means another
+/// backend instance owns it, so this logs and returns and screen sharing
+/// stays with the owner. Everything else that used to be a log line —
+/// PipeWire missing, no display to reach, a compositor without
+/// ext-image-copy-capture, a bus or export error — throws, so
+/// `ShellServices.run` records the service as failed rather than "ready with
+/// screen sharing dead". (The spike tool calls this outside `run` and
+/// surfaces a throw as an uncaught, non-zero exit — the same signal its FAIL
+/// path gives.) A `[screenshare] enabled = false` config never even reaches
+/// here: `main.dart` skips the service, and the bus name goes unclaimed on
+/// purpose.
 ///
 /// [picker] is how consent is obtained — the shell passes
 /// `ScreencastPickerController.instance`, which raises the layer-shell
@@ -36,29 +46,28 @@ Future<void> startScreencastService({
   bool attachToGlibLoop = true,
   int maxFrameRate = 0,
 }) async {
+  if (!PipewireVideoStream.ensureInit()) {
+    throw StateError('PipeWire not present');
+  }
+  final connection =
+      CaptureConnection.connect(attachToGlibLoop: attachToGlibLoop);
+  if (connection == null) {
+    throw StateError('cannot reach the display');
+  }
+
+  DBusClient? client;
   try {
-    if (!PipewireVideoStream.ensureInit()) {
-      screencastLog('unavailable: PipeWire not present');
-      return;
-    }
-    final connection =
-        CaptureConnection.connect(attachToGlibLoop: attachToGlibLoop);
-    if (connection == null) {
-      screencastLog('unavailable: cannot reach the display');
-      return;
-    }
     if (!connection.supported) {
-      screencastLog('unavailable: compositor lacks ext-image-copy-capture '
+      throw StateError('compositor lacks ext-image-copy-capture '
           '(needs miracle-wm with MirAL >= 5.6)');
-      connection.dispose();
-      return;
     }
 
-    final client = DBusClient.session();
+    client = DBusClient.session();
     final reply = await client.requestName(kScreencastBusName,
         flags: {DBusRequestNameFlag.doNotQueue});
     if (reply != DBusRequestNameReply.primaryOwner &&
         reply != DBusRequestNameReply.alreadyOwner) {
+      // The one graceful decline: yield the name to whoever owns it.
       screencastLog('unavailable: $kScreencastBusName is already taken');
       await client.close();
       connection.dispose();
@@ -79,8 +88,11 @@ Future<void> startScreencastService({
     _service = ScreencastService._(connection, client, backend);
     screencastLog('portal backend up as $kScreencastBusName '
         '(windows: ${connection.windowCaptureSupported})');
-  } catch (e) {
-    screencastLog('unavailable: $e');
+  } catch (_) {
+    final failedClient = client;
+    if (failedClient != null) unawaited(failedClient.close());
+    connection.dispose();
+    rethrow;
   }
 }
 
