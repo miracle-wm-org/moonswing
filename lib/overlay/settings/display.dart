@@ -2,10 +2,12 @@
 
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/display_layout.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:wayland/wayland.dart';
@@ -624,13 +626,17 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 _DisplayDiagram(
                   heads: manager.heads,
                   edits: _edits,
-                  onPositionChanged: (headId, x, y) {
+                  onPositionsChanged: (positions) {
                     setState(() {
-                      final edit = _edits[headId];
-                      if (edit != null) {
-                        _edits[headId] =
-                            edit.copyWith(positionX: x, positionY: y);
-                      }
+                      positions.forEach((headId, pos) {
+                        final edit = _edits[headId];
+                        if (edit != null) {
+                          _edits[headId] = edit.copyWith(
+                            positionX: pos.x,
+                            positionY: pos.y,
+                          );
+                        }
+                      });
                     });
                   },
                 ),
@@ -722,78 +728,93 @@ class _DisplayDiagram extends StatefulWidget {
   const _DisplayDiagram({
     required this.heads,
     required this.edits,
-    required this.onPositionChanged,
+    required this.onPositionsChanged,
   });
 
   final List<ZwlrOutputHeadV1> heads;
   final Map<int, _DisplayEdit> edits;
-  final void Function(int headId, int x, int y) onPositionChanged;
+
+  /// One call per pointer move while dragging (a single entry), and one on
+  /// drop carrying every head the settle moved.
+  final void Function(Map<int, ({int x, int y})> positions) onPositionsChanged;
 
   @override
   _DisplayDiagramState createState() => _DisplayDiagramState();
 }
 
 class _DisplayDiagramState extends State<_DisplayDiagram> {
-  // Accumulated fractional drag offset (in display pixels) per head id.
+  static const double _height = 260;
+  static const double _padding = 16;
+
+  // Accumulated *unsnapped* drag position (in logical pixels) per head id. The
+  // reported position is snapped; this one is not, so the rect does not fight
+  // the cursor between snap targets and sub-pixel deltas are not lost to
+  // rounding.
   final Map<int, Offset> _dragAccum = {};
 
-  int _headPxW(ZwlrOutputHeadV1 head, _DisplayEdit edit) =>
-      (edit.selectedMode ?? head.currentMode)?.width ?? 1920;
+  // The fit is frozen for the duration of a gesture. Recomputing it per pointer
+  // move made the whole view zoom and re-anchor continuously, and made the pan
+  // delta non-linear because it is divided by this scale.
+  DiagramFit? _frozenFit;
+  int? _draggingId;
 
-  int _headPxH(ZwlrOutputHeadV1 head, _DisplayEdit edit) =>
-      (edit.selectedMode ?? head.currentMode)?.height ?? 1080;
+  DisplayBox? _boxFor(ZwlrOutputHeadV1 head) {
+    final edit = widget.edits[head.id];
+    // A disabled head has no position; it is neither drawn, fitted nor snapped
+    // against. It stays toggleable in the card list below.
+    if (edit == null || !edit.enabled) return null;
+    final mode = edit.selectedMode ?? head.currentMode;
+    final size = logicalSizeOf(
+      mode?.width ?? 1920,
+      mode?.height ?? 1080,
+      edit.scale,
+      edit.transform,
+    );
+    return (
+      id: head.id,
+      x: edit.positionX,
+      y: edit.positionY,
+      w: math.max(1, size.width.round()),
+      h: math.max(1, size.height.round()),
+    );
+  }
+
+  List<DisplayBox> _boxes() {
+    final boxes = <DisplayBox>[];
+    for (final head in widget.heads) {
+      final box = _boxFor(head);
+      if (box != null) boxes.add(box);
+    }
+    return boxes;
+  }
+
+  void _endDrag(int headId) {
+    _dragAccum.remove(headId);
+    final settled = rebaseToOrigin(relinkDisconnected(_boxes()));
+    widget.onPositionsChanged({
+      for (final b in settled) b.id: (x: b.x, y: b.y),
+    });
+    setState(() {
+      _frozenFit = null;
+      _draggingId = null;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final boxes = _boxes();
     return LayoutBuilder(builder: (context, constraints) {
-      const padding = 12.0;
-      const height = 148.0;
-      final w = constraints.maxWidth;
-
-      // Compute bounding box in display-pixel space.
-      int minX = 0, minY = 0, maxX = 1, maxY = 1;
-      bool first = true;
-      for (final head in widget.heads) {
-        final edit = widget.edits[head.id];
-        if (edit == null) continue;
-        final pw = _headPxW(head, edit);
-        final ph = _headPxH(head, edit);
-        if (first) {
-          minX = edit.positionX;
-          minY = edit.positionY;
-          maxX = edit.positionX + pw;
-          maxY = edit.positionY + ph;
-          first = false;
-        } else {
-          minX = math.min(minX, edit.positionX);
-          minY = math.min(minY, edit.positionY);
-          maxX = math.max(maxX, edit.positionX + pw);
-          maxY = math.max(maxY, edit.positionY + ph);
-        }
-      }
-
-      final totalW = (maxX - minX).toDouble();
-      final totalH = (maxY - minY).toDouble();
-      final scaleX = (w - padding * 2) / totalW;
-      final scaleY = (height - padding * 2) / totalH;
-      final scale = math.min(scaleX, scaleY).clamp(0.00001, double.infinity);
+      final viewport = Size(constraints.maxWidth, _height);
+      final fit = _frozenFit ?? fitBoxes(boxes, viewport, padding: _padding);
 
       return Container(
-        height: height,
+        height: _height,
         color: theme.popupBackground.withValues(alpha: 0.6),
         child: Stack(
           children: [
             for (var i = 0; i < widget.heads.length; i++)
-              _buildHeadRect(
-                theme,
-                widget.heads[i],
-                i,
-                scale,
-                minX,
-                minY,
-                padding,
-              ),
+              _buildHeadRect(theme, widget.heads[i], i, boxes, fit),
           ],
         ),
       );
@@ -804,70 +825,79 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
     ThemeConfig theme,
     ZwlrOutputHeadV1 head,
     int colorIndex,
-    double scale,
-    int minX,
-    int minY,
-    double padding,
+    List<DisplayBox> boxes,
+    DiagramFit fit,
   ) {
-    final edit = widget.edits[head.id];
-    if (edit == null) return const SizedBox.shrink();
+    DisplayBox? box;
+    for (final b in boxes) {
+      if (b.id == head.id) box = b;
+    }
+    if (box == null) return const SizedBox.shrink();
 
-    final pw = _headPxW(head, edit);
-    final ph = _headPxH(head, edit);
-    final diagX = padding + (edit.positionX - minX) * scale;
-    final diagY = padding + (edit.positionY - minY) * scale;
-    final diagW = pw * scale;
-    final diagH = ph * scale;
+    final rect = diagramRect(box, fit);
     final color = _diagramColors[colorIndex % _diagramColors.length];
-    final disabled = !edit.enabled;
+    final dragging = _draggingId == head.id;
+    final moving = box;
 
     return Positioned(
-      left: diagX,
-      top: diagY,
-      width: diagW,
-      height: diagH,
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
       child: GestureDetector(
+        dragStartBehavior: DragStartBehavior.down,
         onPanStart: (_) {
           _dragAccum[head.id] = Offset(
-            edit.positionX.toDouble(),
-            edit.positionY.toDouble(),
+            moving.x.toDouble(),
+            moving.y.toDouble(),
           );
+          setState(() {
+            _frozenFit = fit;
+            _draggingId = head.id;
+          });
         },
         onPanUpdate: (details) {
           final accum = _dragAccum[head.id];
           if (accum == null) return;
-          final newAccum = accum + details.delta / scale;
-          _dragAccum[head.id] = newAccum;
-          widget.onPositionChanged(
-            head.id,
-            newAccum.dx.round(),
-            newAccum.dy.round(),
+          final next = accum + details.delta / fit.scale;
+          _dragAccum[head.id] = next;
+          final others = [
+            for (final b in boxes)
+              if (b.id != head.id) b,
+          ];
+          final snapped = snapPosition(
+            moving: moving,
+            others: others,
+            desiredX: next.dx.round(),
+            desiredY: next.dy.round(),
           );
+          widget.onPositionsChanged({
+            head.id: (x: snapped.x, y: snapped.y),
+          });
         },
-        onPanEnd: (_) => _dragAccum.remove(head.id),
+        onPanEnd: (_) => _endDrag(head.id),
+        onPanCancel: () => _endDrag(head.id),
         child: MouseRegion(
-          cursor: SystemMouseCursors.grab,
-          child: Opacity(
-            opacity: disabled ? 0.35 : 1.0,
-            child: Container(
-              margin: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.25),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: color, width: 1.5),
-              ),
-              child: Center(
-                child: Text(
-                  head.name,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: theme.fontFamily,
-                    color: color,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
+          cursor:
+              dragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
+          child: Container(
+            margin: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: color, width: dragging ? 2.5 : 1.5),
+            ),
+            child: Center(
+              child: Text(
+                head.name,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: theme.fontFamily,
+                  color: color,
+                  fontWeight: FontWeight.w600,
                 ),
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
             ),
           ),
