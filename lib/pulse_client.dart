@@ -112,148 +112,61 @@ class PaModule {
 
 // ---------------------------------------------------------------------------
 // Isolate messages
+//
+// Requests cross the SendPort as one generic envelope: an id, a kind, and a
+// positional args list of sendable primitives. The isolate answers with a
+// [_Reply] carrying the same id and an optional payload (null for
+// fire-and-await-done requests). Adding a request is one [_ReqKind] member,
+// one [_PaIsolate._handleMsg] case unpacking the args into the handler, and a
+// one-line public method on [PulseClient].
+//
+// Everything the isolate pushes *unrequested* — the ready handshake, device
+// change notifications, level-meter frames — keeps its own event class below:
+// those carry no requesting id, so they are events, not replies.
 // ---------------------------------------------------------------------------
 
-class _GetServerInfoReq {
-  const _GetServerInfoReq(this.id);
+enum _ReqKind {
+  getServerInfo,
+  getSinkList,
+  getSourceList,
+  setSinkVolume,
+  setSinkVolumeBalance,
+  setSinkMute,
+  setDefaultSink,
+  setSourceVolume,
+  setSourceMute,
+  setDefaultSource,
+  getSinkInputList,
+  setSinkInputVolume,
+  setSinkInputMute,
+  moveSinkInput,
+  getCardList,
+  setCardProfile,
+  getModuleList,
+  loadModule,
+  unloadModule,
+  startLevelMeter,
+  stopLevelMeter,
+  dispose,
+}
+
+class _Request {
+  const _Request(this.id, this.kind, [this.args = const []]);
   final int id;
+  final _ReqKind kind;
+  final List<Object?> args;
 }
 
-class _GetSinkListReq {
-  const _GetSinkListReq(this.id);
+class _Reply {
+  const _Reply(this.id, [this.payload]);
   final int id;
+  final Object? payload;
 }
 
-class _GetSourceListReq {
-  const _GetSourceListReq(this.id);
-  final int id;
-}
+// --- events (pushed from the isolate; not answers to any request) ---
 
-class _SetSinkVolumeReq {
-  const _SetSinkVolumeReq(this.id, this.name, this.vol);
-  final int id;
-  final String name;
-  final double vol;
-}
-
-class _SetSinkVolumeBalanceReq {
-  const _SetSinkVolumeBalanceReq(
-      this.id, this.name, this.vol, this.balance, this.channelCount);
-  final int id;
-  final String name;
-  final double vol;
-  final double balance;
-  final int channelCount;
-}
-
-class _SetSinkMuteReq {
-  const _SetSinkMuteReq(this.id, this.name, this.mute);
-  final int id;
-  final String name;
-  final bool mute;
-}
-
-class _SetDefaultSinkReq {
-  const _SetDefaultSinkReq(this.id, this.name);
-  final int id;
-  final String name;
-}
-
-class _SetSourceVolumeReq {
-  const _SetSourceVolumeReq(this.id, this.name, this.vol);
-  final int id;
-  final String name;
-  final double vol;
-}
-
-class _SetSourceMuteReq {
-  const _SetSourceMuteReq(this.id, this.name, this.mute);
-  final int id;
-  final String name;
-  final bool mute;
-}
-
-class _SetDefaultSourceReq {
-  const _SetDefaultSourceReq(this.id, this.name);
-  final int id;
-  final String name;
-}
-
-class _GetSinkInputListReq {
-  const _GetSinkInputListReq(this.id);
-  final int id;
-}
-
-class _SetSinkInputVolumeReq {
-  const _SetSinkInputVolumeReq(this.id, this.idx, this.vol);
-  final int id;
-  final int idx;
-  final double vol;
-}
-
-class _SetSinkInputMuteReq {
-  const _SetSinkInputMuteReq(this.id, this.idx, this.mute);
-  final int id;
-  final int idx;
-  final bool mute;
-}
-
-class _MoveSinkInputReq {
-  const _MoveSinkInputReq(this.id, this.inputIdx, this.sinkName);
-  final int id;
-  final int inputIdx;
-  final String sinkName;
-}
-
-class _GetCardListReq {
-  const _GetCardListReq(this.id);
-  final int id;
-}
-
-class _SetCardProfileReq {
-  const _SetCardProfileReq(this.id, this.cardName, this.profileName);
-  final int id;
-  final String cardName;
-  final String profileName;
-}
-
-class _GetModuleListReq {
-  const _GetModuleListReq(this.id);
-  final int id;
-}
-
-class _LoadModuleReq {
-  const _LoadModuleReq(this.id, this.name, this.args);
-  final int id;
-  final String name;
-  final String args;
-}
-
-class _UnloadModuleReq {
-  const _UnloadModuleReq(this.id, this.index);
-  final int id;
-  final int index;
-}
-
-class _StartLevelMeterReq {
-  const _StartLevelMeterReq(this.id, this.sourceName);
-  final int id;
-  final String sourceName;
-}
-
-class _StopLevelMeterReq {
-  const _StopLevelMeterReq(this.id);
-  final int id;
-}
-
-class _DisposeReq {
-  const _DisposeReq();
-}
-
-// --- responses ---
-
-class _ReadyRes {
-  const _ReadyRes(this.loopAddress);
+class _ReadyEvent {
+  const _ReadyEvent(this.loopAddress);
 
   /// Address of the isolate's `pa_mainloop`, so the main isolate can break the
   /// poll when it posts a request. See [PulseClient._post] for what that is
@@ -261,75 +174,28 @@ class _ReadyRes {
   final int loopAddress;
 }
 
-class _DoneRes {
-  const _DoneRes(this.id);
-  final int id;
-}
-
-class _ServerInfoRes {
-  const _ServerInfoRes(this.id, this.info);
-  final int id;
-  final PaServerInfo info;
-}
-
-class _SinkListRes {
-  const _SinkListRes(this.id, this.list);
-  final int id;
-  final List<PaSink> list;
-}
-
-class _SourceListRes {
-  const _SourceListRes(this.id, this.list);
-  final int id;
-  final List<PaSource> list;
-}
-
-class _SinkInputListRes {
-  const _SinkInputListRes(this.id, this.list);
-  final int id;
-  final List<PaSinkInput> list;
-}
-
-class _CardListRes {
-  const _CardListRes(this.id, this.list);
-  final int id;
-  final List<PaCard> list;
-}
-
-class _ModuleListRes {
-  const _ModuleListRes(this.id, this.list);
-  final int id;
-  final List<PaModule> list;
-}
-
-class _LoadModuleRes {
-  const _LoadModuleRes(this.id, this.moduleIndex);
-  final int id;
-  final int moduleIndex;
-}
-
-class _LevelRes {
-  const _LevelRes(this.level);
+class _LevelEvent {
+  const _LevelEvent(this.level);
   final double level;
 }
 
-class _SinkChangedRes {
-  const _SinkChangedRes(this.sink);
+class _SinkChangedEvent {
+  const _SinkChangedEvent(this.sink);
   final PaSink sink;
 }
 
-class _SinkRemovedRes {
-  const _SinkRemovedRes(this.index);
+class _SinkRemovedEvent {
+  const _SinkRemovedEvent(this.index);
   final int index;
 }
 
-class _SourceChangedRes {
-  const _SourceChangedRes(this.source);
+class _SourceChangedEvent {
+  const _SourceChangedEvent(this.source);
   final PaSource source;
 }
 
-class _SourceRemovedRes {
-  const _SourceRemovedRes(this.index);
+class _SourceRemovedEvent {
+  const _SourceRemovedEvent(this.index);
   final int index;
 }
 
@@ -544,57 +410,58 @@ class _PaIsolate {
   // Message dispatch
   // ---------------------------------------------------------------------------
 
+  /// Unpacks a [_Request] envelope into its handler. This table is the one
+  /// place the positional args list is interpreted, so each case is where a
+  /// kind's arg order and types are defined.
   static void _handleMsg(dynamic msg) {
-    switch (msg) {
-      case _DisposeReq():
+    if (msg is! _Request) return;
+    final id = msg.id;
+    final a = msg.args;
+    switch (msg.kind) {
+      case _ReqKind.dispose:
         _dispose();
-      case _GetServerInfoReq(:final id):
+      case _ReqKind.getServerInfo:
         _getServerInfo(id);
-      case _GetSinkListReq(:final id):
+      case _ReqKind.getSinkList:
         _getSinkList(id);
-      case _GetSourceListReq(:final id):
+      case _ReqKind.getSourceList:
         _getSourceList(id);
-      case _SetSinkVolumeReq(:final id, :final name, :final vol):
-        _setSinkVolume(id, name, vol);
-      case _SetSinkVolumeBalanceReq(
-          :final id,
-          :final name,
-          :final vol,
-          :final balance,
-          :final channelCount
-        ):
-        _setSinkVolumeBalance(id, name, vol, balance, channelCount);
-      case _SetSinkMuteReq(:final id, :final name, :final mute):
-        _setSinkMute(id, name, mute);
-      case _SetDefaultSinkReq(:final id, :final name):
-        _setDefaultSink(id, name);
-      case _SetSourceVolumeReq(:final id, :final name, :final vol):
-        _setSourceVolume(id, name, vol);
-      case _SetSourceMuteReq(:final id, :final name, :final mute):
-        _setSourceMute(id, name, mute);
-      case _SetDefaultSourceReq(:final id, :final name):
-        _setDefaultSource(id, name);
-      case _GetSinkInputListReq(:final id):
+      case _ReqKind.setSinkVolume:
+        _setSinkVolume(id, a[0] as String, a[1] as double);
+      case _ReqKind.setSinkVolumeBalance:
+        _setSinkVolumeBalance(
+            id, a[0] as String, a[1] as double, a[2] as double, a[3] as int);
+      case _ReqKind.setSinkMute:
+        _setSinkMute(id, a[0] as String, a[1] as bool);
+      case _ReqKind.setDefaultSink:
+        _setDefaultSink(id, a[0] as String);
+      case _ReqKind.setSourceVolume:
+        _setSourceVolume(id, a[0] as String, a[1] as double);
+      case _ReqKind.setSourceMute:
+        _setSourceMute(id, a[0] as String, a[1] as bool);
+      case _ReqKind.setDefaultSource:
+        _setDefaultSource(id, a[0] as String);
+      case _ReqKind.getSinkInputList:
         _getSinkInputList(id);
-      case _SetSinkInputVolumeReq(:final id, :final idx, :final vol):
-        _setSinkInputVolume(id, idx, vol);
-      case _SetSinkInputMuteReq(:final id, :final idx, :final mute):
-        _setSinkInputMute(id, idx, mute);
-      case _MoveSinkInputReq(:final id, :final inputIdx, :final sinkName):
-        _moveSinkInput(id, inputIdx, sinkName);
-      case _GetCardListReq(:final id):
+      case _ReqKind.setSinkInputVolume:
+        _setSinkInputVolume(id, a[0] as int, a[1] as double);
+      case _ReqKind.setSinkInputMute:
+        _setSinkInputMute(id, a[0] as int, a[1] as bool);
+      case _ReqKind.moveSinkInput:
+        _moveSinkInput(id, a[0] as int, a[1] as String);
+      case _ReqKind.getCardList:
         _getCardList(id);
-      case _SetCardProfileReq(:final id, :final cardName, :final profileName):
-        _setCardProfile(id, cardName, profileName);
-      case _GetModuleListReq(:final id):
+      case _ReqKind.setCardProfile:
+        _setCardProfile(id, a[0] as String, a[1] as String);
+      case _ReqKind.getModuleList:
         _getModuleList(id);
-      case _LoadModuleReq(:final id, :final name, :final args):
-        _loadModule(id, name, args);
-      case _UnloadModuleReq(:final id, :final index):
-        _unloadModule(id, index);
-      case _StartLevelMeterReq(:final id, :final sourceName):
-        _startLevelMeter(id, sourceName);
-      case _StopLevelMeterReq(:final id):
+      case _ReqKind.loadModule:
+        _loadModule(id, a[0] as String, a[1] as String);
+      case _ReqKind.unloadModule:
+        _unloadModule(id, a[0] as int);
+      case _ReqKind.startLevelMeter:
+        _startLevelMeter(id, a[0] as String);
+      case _ReqKind.stopLevelMeter:
         _stopLevelMeter(id);
     }
   }
@@ -610,7 +477,7 @@ class _PaIsolate {
           c, Pointer.fromFunction(_onSubscribe), nullptr);
       _pa.pa_context_subscribe(
           c, pa_subscription_mask.PA_SUBSCRIPTION_MASK_ALL, nullptr, nullptr);
-      _inst!.port.send(_ReadyRes(_inst!.loop.address));
+      _inst!.port.send(_ReadyEvent(_inst!.loop.address));
     }
   }
 
@@ -633,14 +500,14 @@ class _PaIsolate {
         break;
       case PA_SUBSCRIPTION_EVENT_SINK:
         if (eventType == PA_SUBSCRIPTION_EVENT_REMOVE) {
-          _inst!.port.send(_SinkRemovedRes(idx));
+          _inst!.port.send(_SinkRemovedEvent(idx));
         } else {
           op = _pa.pa_context_get_sink_info_by_index(
               c, idx, Pointer.fromFunction(_onSinkInfoChanged), nullptr);
         }
       case PA_SUBSCRIPTION_EVENT_SOURCE:
         if (eventType == PA_SUBSCRIPTION_EVENT_REMOVE) {
-          _inst!.port.send(_SourceRemovedRes(idx));
+          _inst!.port.send(_SourceRemovedEvent(idx));
         } else {
           op = _pa.pa_context_get_source_info_by_index(
               c, idx, Pointer.fromFunction(_onSourceInfoChanged), nullptr);
@@ -662,11 +529,10 @@ class _PaIsolate {
       // Unlike every other list query this one does not pre-seed `accum`, so a
       // cancelled operation reaches here with nothing to send. Answer anyway —
       // the main isolate is awaiting this id and would otherwise wait forever.
-      _inst!.port.send(_inst!.accum.remove(id) ??
-          _ServerInfoRes(
-            id,
-            const PaServerInfo(defaultSinkName: '', defaultSourceName: ''),
-          ));
+      _inst!.port.send(_Reply(
+          id,
+          _inst!.accum.remove(id) ??
+              const PaServerInfo(defaultSinkName: '', defaultSourceName: '')));
       calloc.free(pId);
     };
   }
@@ -675,12 +541,9 @@ class _PaIsolate {
       Pointer<pa_context> c, Pointer<pa_server_info> info, Pointer<Void> ud) {
     final id = ud.cast<Int>().value;
     final s = info.ref;
-    _inst!.accum[id] = _ServerInfoRes(
-      id,
-      PaServerInfo(
-        defaultSinkName: s.default_sink_name.cast<Utf8>().toDartString(),
-        defaultSourceName: s.default_source_name.cast<Utf8>().toDartString(),
-      ),
+    _inst!.accum[id] = PaServerInfo(
+      defaultSinkName: s.default_sink_name.cast<Utf8>().toDartString(),
+      defaultSourceName: s.default_source_name.cast<Utf8>().toDartString(),
     );
   }
 
@@ -695,7 +558,7 @@ class _PaIsolate {
         _inst!.ctx, Pointer.fromFunction(_onSinkListInfo), pId.cast());
     _inst!.ops[op] = () {
       final list = _inst!.accum.remove(id) as List<PaSink>;
-      _inst!.port.send(_SinkListRes(id, list));
+      _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
     };
   }
@@ -712,7 +575,7 @@ class _PaIsolate {
     if (eol > 0 || info.address == 0) return;
     final sink = _sinkFromNative(info.ref);
     pulseLog('sink changed: ${sink.name} vol=${sink.volume} mute=${sink.mute}');
-    _inst!.port.send(_SinkChangedRes(sink));
+    _inst!.port.send(_SinkChangedEvent(sink));
   }
 
   static PaSink _sinkFromNative(pa_sink_info s) {
@@ -748,7 +611,7 @@ class _PaIsolate {
         _inst!.ctx, Pointer.fromFunction(_onSourceListInfo), pId.cast());
     _inst!.ops[op] = () {
       final list = _inst!.accum.remove(id) as List<PaSource>;
-      _inst!.port.send(_SourceListRes(id, list));
+      _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
     };
   }
@@ -766,7 +629,7 @@ class _PaIsolate {
     final source = _sourceFromNative(info.ref);
     pulseLog(
         'source changed: ${source.name} vol=${source.volume} mute=${source.mute}');
-    _inst!.port.send(_SourceChangedRes(source));
+    _inst!.port.send(_SourceChangedEvent(source));
   }
 
   static PaSource _sourceFromNative(pa_source_info s) {
@@ -798,7 +661,7 @@ class _PaIsolate {
       _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_sink_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -815,7 +678,7 @@ class _PaIsolate {
       _pa.pa_cvolume_set_balance(pVol, pMap, balance);
       final op = _pa.pa_context_set_sink_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -827,7 +690,7 @@ class _PaIsolate {
           mute ? 1 : 0,
           nullptr,
           nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -835,7 +698,7 @@ class _PaIsolate {
     using((Arena a) {
       final op = _pa.pa_context_set_default_sink(
           _inst!.ctx, name.toNativeUtf8(allocator: a).cast(), nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -851,7 +714,7 @@ class _PaIsolate {
       _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_source_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -863,7 +726,7 @@ class _PaIsolate {
           mute ? 1 : 0,
           nullptr,
           nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -871,7 +734,7 @@ class _PaIsolate {
     using((Arena a) {
       final op = _pa.pa_context_set_default_source(
           _inst!.ctx, name.toNativeUtf8(allocator: a).cast(), nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -886,7 +749,7 @@ class _PaIsolate {
         _inst!.ctx, Pointer.fromFunction(_onSinkInputInfo), pId.cast());
     _inst!.ops[op] = () {
       final list = _inst!.accum.remove(id) as List<PaSinkInput>;
-      _inst!.port.send(_SinkInputListRes(id, list));
+      _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
     };
   }
@@ -941,21 +804,21 @@ class _PaIsolate {
       _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_sink_input_volume(
           _inst!.ctx, idx, pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
   static void _setSinkInputMute(int id, int idx, bool mute) {
     final op = _pa.pa_context_set_sink_input_mute(
         _inst!.ctx, idx, mute ? 1 : 0, nullptr, nullptr);
-    _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+    _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
   }
 
   static void _moveSinkInput(int id, int inputIdx, String sinkName) {
     using((Arena a) {
       final op = _pa.pa_context_move_sink_input_by_name(_inst!.ctx, inputIdx,
           sinkName.toNativeUtf8(allocator: a).cast(), nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -970,7 +833,7 @@ class _PaIsolate {
         _inst!.ctx, Pointer.fromFunction(_onCardInfo), pId.cast());
     _inst!.ops[op] = () {
       final list = _inst!.accum.remove(id) as List<PaCard>;
-      _inst!.port.send(_CardListRes(id, list));
+      _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
     };
   }
@@ -1036,7 +899,7 @@ class _PaIsolate {
           profileName.toNativeUtf8(allocator: a).cast(),
           nullptr,
           nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
     });
   }
 
@@ -1051,7 +914,7 @@ class _PaIsolate {
         _inst!.ctx, Pointer.fromFunction(_onModuleInfo), pId.cast());
     _inst!.ops[op] = () {
       final list = _inst!.accum.remove(id) as List<PaModule>;
-      _inst!.port.send(_ModuleListRes(id, list));
+      _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
     };
   }
@@ -1078,7 +941,7 @@ class _PaIsolate {
           pId.cast());
       _inst!.ops[op] = () {
         final idx = _inst!.accum.remove(id) as int;
-        _inst!.port.send(_LoadModuleRes(id, idx));
+        _inst!.port.send(_Reply(id, idx));
         calloc.free(pId);
       };
     });
@@ -1093,7 +956,7 @@ class _PaIsolate {
   static void _unloadModule(int id, int index) {
     final op =
         _pa.pa_context_unload_module(_inst!.ctx, index, nullptr, nullptr);
-    _inst!.ops[op] = () => _inst!.port.send(_DoneRes(id));
+    _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
   }
 
   // ---------------------------------------------------------------------------
@@ -1112,7 +975,7 @@ class _PaIsolate {
       final stream = _pa.pa_stream_new(_inst!.ctx,
           'level-meter'.toNativeUtf8(allocator: a).cast(), pSpec, nullptr);
       if (stream.address == 0) {
-        _inst!.port.send(_DoneRes(id));
+        _inst!.port.send(_Reply(id));
         return;
       }
 
@@ -1127,12 +990,12 @@ class _PaIsolate {
 
       if (ret < 0) {
         _pa.pa_stream_unref(stream);
-        _inst!.port.send(_DoneRes(id));
+        _inst!.port.send(_Reply(id));
         return;
       }
 
       _inst!.levelStream = stream;
-      _inst!.port.send(_DoneRes(id));
+      _inst!.port.send(_Reply(id));
     });
   }
 
@@ -1164,7 +1027,7 @@ class _PaIsolate {
     calloc.free(ppData);
     calloc.free(pNbytes);
 
-    _inst!.port.send(_LevelRes(level.clamp(0.0, 1.0)));
+    _inst!.port.send(_LevelEvent(level.clamp(0.0, 1.0)));
   }
 
   static void _stopLevelMeter(int id) {
@@ -1174,7 +1037,7 @@ class _PaIsolate {
       _pa.pa_stream_unref(stream);
       _inst!.levelStream = nullptr;
     }
-    _inst?.port.send(_DoneRes(id));
+    _inst?.port.send(_Reply(id));
   }
 
   // ---------------------------------------------------------------------------
@@ -1230,7 +1093,7 @@ class PulseClient {
 
     _broadcast.listen((msg) {
       if (msg is SendPort) _sendPort = msg;
-      if (msg is _ReadyRes) {
+      if (msg is _ReadyEvent) {
         _loop = Pointer<pa_mainloop>.fromAddress(msg.loopAddress);
         if (!_initCompleter.isCompleted) _initCompleter.complete();
       }
@@ -1273,7 +1136,7 @@ class PulseClient {
     // Drop the pointer before the isolate frees the mainloop, so a late _post
     // cannot wake freed memory.
     _loop = null;
-    _sendPort.send(const _DisposeReq());
+    _sendPort.send(const _Request(-1, _ReqKind.dispose));
     _recv.close();
     _instance = null;
   }
@@ -1281,28 +1144,28 @@ class PulseClient {
   // --- event streams ---
 
   Stream<PaSink> get onSinkChanged => _broadcast
-      .where((m) => m is _SinkChangedRes)
-      .cast<_SinkChangedRes>()
+      .where((m) => m is _SinkChangedEvent)
+      .cast<_SinkChangedEvent>()
       .map((m) => m.sink);
 
   Stream<int> get onSinkRemoved => _broadcast
-      .where((m) => m is _SinkRemovedRes)
-      .cast<_SinkRemovedRes>()
+      .where((m) => m is _SinkRemovedEvent)
+      .cast<_SinkRemovedEvent>()
       .map((m) => m.index);
 
   Stream<PaSource> get onSourceChanged => _broadcast
-      .where((m) => m is _SourceChangedRes)
-      .cast<_SourceChangedRes>()
+      .where((m) => m is _SourceChangedEvent)
+      .cast<_SourceChangedEvent>()
       .map((m) => m.source);
 
   Stream<int> get onSourceRemoved => _broadcast
-      .where((m) => m is _SourceRemovedRes)
-      .cast<_SourceRemovedRes>()
+      .where((m) => m is _SourceRemovedEvent)
+      .cast<_SourceRemovedEvent>()
       .map((m) => m.index);
 
   Stream<double> get _levelStream => _broadcast
-      .where((m) => m is _LevelRes)
-      .cast<_LevelRes>()
+      .where((m) => m is _LevelEvent)
+      .cast<_LevelEvent>()
       .map((m) => m.level);
 
   // --- helpers ---
@@ -1313,204 +1176,103 @@ class PulseClient {
     }
   }
 
-  // --- server info ---
-
-  Future<PaServerInfo> getServerInfo() {
+  /// Posts [kind] to the isolate and completes when its [_Reply] arrives.
+  Future<void> _call(_ReqKind kind, [List<Object?> args = const []]) {
     _assertReady();
     final id = _id;
-    _post(_GetServerInfoReq(id));
+    _post(_Request(id, kind, args));
     return _broadcast
-        .firstWhere((m) => m is _ServerInfoRes && m.id == id)
-        .then((m) => (m as _ServerInfoRes).info);
+        .firstWhere((m) => m is _Reply && m.id == id)
+        .then((_) {});
   }
+
+  /// Posts [kind] to the isolate and completes with its [_Reply]'s payload.
+  Future<T> _callFor<T>(_ReqKind kind, [List<Object?> args = const []]) {
+    _assertReady();
+    final id = _id;
+    _post(_Request(id, kind, args));
+    return _broadcast
+        .firstWhere((m) => m is _Reply && m.id == id)
+        .then((m) => (m as _Reply).payload as T);
+  }
+
+  // --- server info ---
+
+  Future<PaServerInfo> getServerInfo() => _callFor(_ReqKind.getServerInfo);
 
   // --- sinks ---
 
-  Future<List<PaSink>> getSinkList() {
-    _assertReady();
-    final id = _id;
-    _post(_GetSinkListReq(id));
-    return _broadcast
-        .firstWhere((m) => m is _SinkListRes && m.id == id)
-        .then((m) => (m as _SinkListRes).list);
-  }
+  Future<List<PaSink>> getSinkList() => _callFor(_ReqKind.getSinkList);
 
-  Future<void> setSinkVolume(String name, double vol) {
-    _assertReady();
-    final id = _id;
-    _post(_SetSinkVolumeReq(id, name, vol));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setSinkVolume(String name, double vol) =>
+      _call(_ReqKind.setSinkVolume, [name, vol]);
 
   Future<void> setSinkVolumeBalance(
-      String name, double vol, double balance, int channelCount) {
-    _assertReady();
-    final id = _id;
-    _post(_SetSinkVolumeBalanceReq(id, name, vol, balance, channelCount));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+          String name, double vol, double balance, int channelCount) =>
+      _call(_ReqKind.setSinkVolumeBalance, [name, vol, balance, channelCount]);
 
-  Future<void> setSinkMute(String name, bool mute) {
-    _assertReady();
-    final id = _id;
-    _post(_SetSinkMuteReq(id, name, mute));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setSinkMute(String name, bool mute) =>
+      _call(_ReqKind.setSinkMute, [name, mute]);
 
-  Future<void> setDefaultSink(String name) {
-    _assertReady();
-    final id = _id;
-    _post(_SetDefaultSinkReq(id, name));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setDefaultSink(String name) =>
+      _call(_ReqKind.setDefaultSink, [name]);
 
   // --- sources ---
 
-  Future<List<PaSource>> getSourceList() {
-    _assertReady();
-    final id = _id;
-    _post(_GetSourceListReq(id));
-    return _broadcast
-        .firstWhere((m) => m is _SourceListRes && m.id == id)
-        .then((m) => (m as _SourceListRes).list);
-  }
+  Future<List<PaSource>> getSourceList() => _callFor(_ReqKind.getSourceList);
 
-  Future<void> setSourceVolume(String name, double vol) {
-    _assertReady();
-    final id = _id;
-    _post(_SetSourceVolumeReq(id, name, vol));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setSourceVolume(String name, double vol) =>
+      _call(_ReqKind.setSourceVolume, [name, vol]);
 
-  Future<void> setSourceMute(String name, bool mute) {
-    _assertReady();
-    final id = _id;
-    _post(_SetSourceMuteReq(id, name, mute));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setSourceMute(String name, bool mute) =>
+      _call(_ReqKind.setSourceMute, [name, mute]);
 
-  Future<void> setDefaultSource(String name) {
-    _assertReady();
-    final id = _id;
-    _post(_SetDefaultSourceReq(id, name));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setDefaultSource(String name) =>
+      _call(_ReqKind.setDefaultSource, [name]);
 
   // --- sink inputs (per-app) ---
 
-  Future<List<PaSinkInput>> getSinkInputList() {
-    _assertReady();
-    final id = _id;
-    _post(_GetSinkInputListReq(id));
-    return _broadcast
-        .firstWhere((m) => m is _SinkInputListRes && m.id == id)
-        .then((m) => (m as _SinkInputListRes).list);
-  }
+  Future<List<PaSinkInput>> getSinkInputList() =>
+      _callFor(_ReqKind.getSinkInputList);
 
-  Future<void> setSinkInputVolume(int idx, double vol) {
-    _assertReady();
-    final id = _id;
-    _post(_SetSinkInputVolumeReq(id, idx, vol));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setSinkInputVolume(int idx, double vol) =>
+      _call(_ReqKind.setSinkInputVolume, [idx, vol]);
 
-  Future<void> setSinkInputMute(int idx, bool mute) {
-    _assertReady();
-    final id = _id;
-    _post(_SetSinkInputMuteReq(id, idx, mute));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setSinkInputMute(int idx, bool mute) =>
+      _call(_ReqKind.setSinkInputMute, [idx, mute]);
 
-  Future<void> moveSinkInput(int inputIdx, String sinkName) {
-    _assertReady();
-    final id = _id;
-    _post(_MoveSinkInputReq(id, inputIdx, sinkName));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> moveSinkInput(int inputIdx, String sinkName) =>
+      _call(_ReqKind.moveSinkInput, [inputIdx, sinkName]);
 
   // --- cards & profiles ---
 
-  Future<List<PaCard>> getCardList() {
-    _assertReady();
-    final id = _id;
-    _post(_GetCardListReq(id));
-    return _broadcast
-        .firstWhere((m) => m is _CardListRes && m.id == id)
-        .then((m) => (m as _CardListRes).list);
-  }
+  Future<List<PaCard>> getCardList() => _callFor(_ReqKind.getCardList);
 
-  Future<void> setCardProfile(String cardName, String profileName) {
-    _assertReady();
-    final id = _id;
-    _post(_SetCardProfileReq(id, cardName, profileName));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> setCardProfile(String cardName, String profileName) =>
+      _call(_ReqKind.setCardProfile, [cardName, profileName]);
 
   // --- modules ---
 
-  Future<List<PaModule>> getModuleList() {
-    _assertReady();
-    final id = _id;
-    _post(_GetModuleListReq(id));
-    return _broadcast
-        .firstWhere((m) => m is _ModuleListRes && m.id == id)
-        .then((m) => (m as _ModuleListRes).list);
-  }
+  Future<List<PaModule>> getModuleList() => _callFor(_ReqKind.getModuleList);
 
-  Future<int> loadModule(String name, String args) {
-    _assertReady();
-    final id = _id;
-    _post(_LoadModuleReq(id, name, args));
-    return _broadcast
-        .firstWhere((m) => m is _LoadModuleRes && m.id == id)
-        .then((m) => (m as _LoadModuleRes).moduleIndex);
-  }
+  Future<int> loadModule(String name, String args) =>
+      _callFor(_ReqKind.loadModule, [name, args]);
 
-  Future<void> unloadModule(int index) {
-    _assertReady();
-    final id = _id;
-    _post(_UnloadModuleReq(id, index));
-    return _broadcast
-        .firstWhere((m) => m is _DoneRes && m.id == id)
-        .then((_) {});
-  }
+  Future<void> unloadModule(int index) =>
+      _call(_ReqKind.unloadModule, [index]);
 
   // --- level metering ---
 
   Stream<double> startLevelMeter(String sourceName) {
     _assertReady();
-    final id = _id;
-    _post(_StartLevelMeterReq(id, sourceName));
-    // Wait for the _DoneRes before streaming, but return the stream immediately.
-    // Levels arrive as _LevelRes events on the broadcast stream.
+    _post(_Request(_id, _ReqKind.startLevelMeter, [sourceName]));
+    // The isolate answers with a _Reply nobody awaits; the stream is returned
+    // immediately and levels arrive as _LevelEvent frames on the broadcast.
     return _levelStream;
   }
 
   void stopLevelMeter() {
     if (!_initCompleter.isCompleted) return;
-    final id = _id;
-    _post(_StopLevelMeterReq(id));
+    _post(_Request(_id, _ReqKind.stopLevelMeter));
   }
 }
