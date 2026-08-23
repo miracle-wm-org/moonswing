@@ -61,8 +61,6 @@ class ConfigStore extends ChangeNotifier {
 
   /// Loads and parses the config file into a mutable map. Falls back to an
   /// empty document if the file is missing or unparseable.
-  static Future<ConfigStore> load() => loadFrom(AppConfig.resolveConfigPath());
-
   /// Loads a store from an explicit [path]. Exposed for tests so they never
   /// touch the user's real `config.toml`.
   @visibleForTesting

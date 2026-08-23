@@ -12,7 +12,7 @@ void main() {
       controller.toggle();
 
       expect(fires, 2);
-      expect(controller.toggleCount, 2);
+      expect(controller.signalCount, 2);
     });
 
     test('the controller carries no window state of its own', () {

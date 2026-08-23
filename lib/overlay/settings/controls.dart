@@ -6,9 +6,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/root_modal.dart';
+import 'package:graceful_shell/hover_region.dart';
+import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
+import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 
 /// Themed form controls shared by the panels inside the settings overlay.
 ///
@@ -303,6 +308,341 @@ class _SettingsOptionButtonState extends State<SettingsOptionButton> {
   }
 }
 
+/// A stretch-to-fit action button: accent-filled when [primary], quiet
+/// otherwise. Shows a [LoadingIndicator] and refuses taps while [loading] or
+/// not [enabled].
+///
+/// Extracted from the `_ActionButton` clones in the audio and display panes
+/// (display's carried the superset: the [enabled] flag and the theme font).
+class SettingsActionButton extends StatelessWidget {
+  const SettingsActionButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.primary = false,
+    this.loading = false,
+    this.enabled = true,
+    this.compact = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool primary;
+  final bool loading;
+  final bool enabled;
+
+  /// The dense inline form used beside a list row (the bluetooth pane's
+  /// Connect/Disconnect): tighter padding and the secondary font size, sized
+  /// to its label rather than stretched under a form.
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final canTap = enabled && !loading;
+    return HoverRegion(
+      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      builder: (context, hovered) {
+        final Color bg;
+        if (primary) {
+          bg = hovered && canTap
+              ? theme.accent.withValues(alpha: 0.85)
+              : canTap
+                  ? theme.accent
+                  : theme.accent.withValues(alpha: 0.4);
+        } else {
+          bg = hovered && canTap ? theme.surfaceHover : theme.divider;
+        }
+        return GestureDetector(
+          onTap: canTap ? onTap : null,
+          child: Container(
+            padding: compact
+                ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
+                : const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+            ),
+            child: Center(
+              child: loading
+                  ? const LoadingIndicator(size: 14)
+                  : Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: compact
+                            ? ShellFontSizes.secondary
+                            : ShellFontSizes.body,
+                        fontFamily: theme.fontFamily,
+                        color: primary ? kOnAccent : theme.popupForeground,
+                      ),
+                    ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// A small accent-tinted pill marking a list row's state — "Connected" on the
+/// network and bluetooth device lists.
+///
+/// Extracted from the `_ConnectedBadge` clones in the network and bluetooth
+/// panes, identical but for the network one carrying the theme font (the
+/// superset). The label is a parameter because the state a row wants to
+/// announce is not always "Connected".
+class SettingsBadge extends StatelessWidget {
+  const SettingsBadge(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.accent.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.accent, width: 1),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: ShellFontSizes.caption,
+          fontFamily: theme.fontFamily,
+          color: theme.accent,
+        ),
+      ),
+    );
+  }
+}
+
+/// A quiet refresh affordance: a rotate-arrows icon beside its [label],
+/// transparent at rest with a hover fill. The default label is "Scan"; the
+/// error states pass "Retry".
+///
+/// Extracted from the `_RescanButton` clones in the network and bluetooth
+/// panes, identical but for the network one carrying the theme font (the
+/// superset). Not folded into [SettingsIconButton]: this is a labelled pill
+/// with a hover-filled background, not a bare icon, and it carries no spin
+/// state — both panes rebuild into a full-body loader while scanning.
+class SettingsRescanButton extends StatelessWidget {
+  const SettingsRescanButton({super.key, required this.onTap, this.label = 'Scan'});
+
+  final VoidCallback onTap;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return HoverRegion(
+      builder: (context, hovered) {
+        final theme = ThemeScope.of(context);
+        return GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: hovered ? theme.surfaceHover : null,
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(
+                  FontAwesomeIcons.arrowsRotate,
+                  size: 11,
+                  color: theme.popupForeground.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.secondary,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One row of a [SettingsDropdown]: the [value] it stands for, the [label]
+/// shown for it, and an optional dim [detail] tag after the label (the display
+/// pane marks its preferred mode this way).
+class SettingsDropdownItem<T> {
+  const SettingsDropdownItem({
+    required this.value,
+    required this.label,
+    this.detail,
+  });
+
+  final T value;
+  final String label;
+  final String? detail;
+}
+
+/// Inline-expanding dropdown: a bordered trigger showing the selected item's
+/// label and, while open, a scrollable list of the items pushed into the
+/// layout below it — not floated over it, so it needs no Overlay and cannot
+/// be clipped by a nested Navigator's. Selecting an item reports it through
+/// [onSelected] and closes the list; a [selected] value no item carries shows
+/// an em dash.
+///
+/// Extracted from the `_AudioDropdown`/`_ModeDropdown` clones in the audio
+/// and display panes. For a searchable list that floats in the root overlay
+/// instead, see [SettingsFontField] / `AnchoredSearchDropdown`.
+class SettingsDropdown<T> extends StatefulWidget {
+  const SettingsDropdown({
+    super.key,
+    required this.items,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<SettingsDropdownItem<T>> items;
+  final T? selected;
+  final ValueChanged<T> onSelected;
+
+  @override
+  State<SettingsDropdown<T>> createState() => _SettingsDropdownState<T>();
+}
+
+class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
+  bool _open = false;
+
+  String get _selectedLabel {
+    for (final item in widget.items) {
+      if (item.value == widget.selected) return item.label;
+    }
+    return '—';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildTrigger(),
+        if (_open)
+          Container(
+            margin: const EdgeInsets.only(top: 2),
+            constraints: const BoxConstraints(maxHeight: 160),
+            decoration: BoxDecoration(
+              color: theme.controlSurface,
+              border: Border.all(color: theme.divider),
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+            ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: widget.items.length,
+              itemBuilder: (_, i) => _buildItem(widget.items[i]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTrigger() {
+    return HoverRegion(
+      builder: (context, hovered) {
+        final theme = ThemeScope.of(context);
+        return GestureDetector(
+          onTap: () => setState(() => _open = !_open),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: hovered ? theme.surfaceHover : theme.controlSurface,
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+              border: Border.all(color: theme.divider),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _selectedLabel,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.body,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                FaIcon(
+                  _open
+                      ? FontAwesomeIcons.chevronUp
+                      : FontAwesomeIcons.chevronDown,
+                  size: 10,
+                  color: theme.popupForeground.withValues(alpha: 0.5),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildItem(SettingsDropdownItem<T> item) {
+    final selected = item.value == widget.selected;
+    final detail = item.detail;
+    return HoverRegion(
+      builder: (context, hovered) {
+        final theme = ThemeScope.of(context);
+        final Color bg;
+        if (selected) {
+          bg = theme.accent.withValues(alpha: 0.15);
+        } else if (hovered) {
+          bg = theme.surfaceHover;
+        } else {
+          bg = const Color(0x00000000);
+        }
+        return GestureDetector(
+          onTap: () {
+            widget.onSelected(item.value);
+            setState(() => _open = false);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            color: bg,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    item.label,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.body,
+                      fontFamily: theme.fontFamily,
+                      color: selected ? theme.accent : theme.popupForeground,
+                    ),
+                  ),
+                ),
+                if (detail != null)
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground.withValues(alpha: 0.4),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Bordered single-line text input backed by [EditableText] (the codebase does
 /// not use Material). Seeds its controller once from [initial]; subsequent
 /// parent rebuilds do not clobber in-progress edits.
@@ -483,11 +823,10 @@ const double _kFontRowHeight = 30;
 /// [fonts] is supplied by the caller (see `theme/font_catalog.dart`) rather than
 /// read here, so widget tests pass a list of three and never fork `fc-list`.
 ///
-/// The list floats in the *root* overlay for the same reason
-/// [SettingsColorField]'s picker does — the settings content pane is a nested
-/// `Navigator` whose `Overlay` would clip it — and it carries a filter field
-/// because a typical desktop has a few hundred families.
-class SettingsFontField extends StatefulWidget {
+/// A thin wrapper over [AnchoredSearchDropdown], which owns the root-overlay
+/// float, the filter field, and the keyboard navigation; only the trigger,
+/// the ranking, and the rendered-in-its-own-face row live here.
+class SettingsFontField extends StatelessWidget {
   const SettingsFontField({
     super.key,
     required this.value,
@@ -510,367 +849,84 @@ class SettingsFontField extends StatefulWidget {
   final double width;
 
   @override
-  State<SettingsFontField> createState() => _SettingsFontFieldState();
-}
-
-class _SettingsFontFieldState extends State<SettingsFontField> {
-  final _link = LayerLink();
-  OverlayEntry? _entry;
-  bool _hovered = false;
-
-  @override
-  void didUpdateWidget(SettingsFontField old) {
-    super.didUpdateWidget(old);
-    // Switching themes replaces the value under an open list; leaving it up
-    // would let the next click write the old theme's pick into the new one.
-    if (widget.value != old.value) _close();
-  }
-
-  @override
-  void dispose() {
-    // Not _close(): that repaints the trigger, and this element is on its way
-    // out of the tree.
-    _entry?.remove();
-    _entry = null;
-    super.dispose();
-  }
-
-  void _toggle() {
-    if (widget.locked) {
-      widget.onLockedTap?.call();
-      return;
-    }
-    if (_entry != null) {
-      _close();
-    } else {
-      _open();
-    }
-  }
-
-  void _open() {
-    if (_entry != null) return;
-    final entry = OverlayEntry(builder: (_) => _buildPicker());
-    _entry = entry;
-    Overlay.of(context, rootOverlay: true).insert(entry);
-    setState(() {});
-  }
-
-  void _close() {
-    _entry?.remove();
-    _entry = null;
-    if (mounted) setState(() {});
-  }
-
-  void _select(String family) {
-    _close();
-    widget.onChanged(family);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final open = _entry != null;
-    return Opacity(
-      opacity: widget.locked ? 0.45 : 1.0,
-      child: CompositedTransformTarget(
-        link: _link,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: GestureDetector(
-            onTap: _toggle,
-            child: Container(
-              width: widget.width,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: _hovered ? theme.surfaceHover : theme.controlSurface,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: open ? theme.accent : theme.divider),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.value,
-                      // Drawn in the family it names, so the trigger previews
-                      // the choice as well as reporting it.
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontFamily: widget.value,
-                        color: theme.popupForeground,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  FaIcon(
-                    open
-                        ? FontAwesomeIcons.chevronUp
-                        : FontAwesomeIcons.chevronDown,
-                    size: 10,
-                    color: theme.popupForeground.withValues(alpha: 0.5),
-                  ),
-                ],
-              ),
-            ),
+    return AnchoredSearchDropdown<String>(
+      // Switching themes replaces the value under an open list; leaving it up
+      // would let the next click write the old theme's pick into the new one.
+      closeKey: value,
+      rowHeight: _kFontRowHeight,
+      emptyText: 'No matching font',
+      filter: (query) {
+        final q = query.trim().toLowerCase();
+        return q.isEmpty
+            ? fonts
+            : fonts
+                .where((f) => f.toLowerCase().contains(q))
+                .toList(growable: false);
+      },
+      // Open highlighted-and-scrolled to the current family rather than at
+      // the top of a few hundred rows.
+      initialHighlight: (items) => items.indexOf(value),
+      onSelected: onChanged,
+      itemBuilder: (context, family, highlighted) {
+        final theme = ThemeScope.of(context);
+        return Text(
+          family,
+          // The point of the row: what the family actually looks like.
+          style: TextStyle(
+            fontSize: 13,
+            fontFamily: family,
+            color: highlighted ? theme.accent : theme.popupForeground,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPicker() {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _close,
-          ),
-        ),
-        CompositedTransformFollower(
-          link: _link,
-          targetAnchor: Alignment.bottomLeft,
-          followerAnchor: Alignment.topLeft,
-          offset: const Offset(0, 6),
-          // Absorbs clicks on the card's own chrome, which would otherwise
-          // fall through to the barrier above — see the colour picker.
-          child: Listener(
-            behavior: HitTestBehavior.opaque,
-            child: _FontPickerPopup(
-              fonts: widget.fonts,
-              selected: widget.value,
-              onSelected: _select,
-              onDismiss: _close,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The floating list itself. Owns the filter text, so typing rebuilds this
-/// widget rather than the [OverlayEntry] that hosts it.
-class _FontPickerPopup extends StatefulWidget {
-  const _FontPickerPopup({
-    required this.fonts,
-    required this.selected,
-    required this.onSelected,
-    required this.onDismiss,
-  });
-
-  final List<String> fonts;
-  final String selected;
-  final ValueChanged<String> onSelected;
-  final VoidCallback onDismiss;
-
-  @override
-  State<_FontPickerPopup> createState() => _FontPickerPopupState();
-}
-
-class _FontPickerPopupState extends State<_FontPickerPopup> {
-  final _search = TextEditingController();
-  final _searchFocus = FocusNode();
-  final _scroll = ScrollController();
-  List<String> _filtered = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _filtered = widget.fonts;
-    // Open scrolled to the current family rather than at the top of a few
-    // hundred rows. After the first layout, not through initialScrollOffset:
-    // a list shorter than the popup has no scroll extent to spend, and the
-    // overscroll leaves every row above the offset built but off-stage.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _revealSelected());
-  }
-
-  void _revealSelected() {
-    if (!mounted || !_scroll.hasClients) return;
-    final index = _filtered.indexOf(widget.selected);
-    if (index <= 0) return;
-    final target = (index * _kFontRowHeight)
-        .clamp(0.0, _scroll.position.maxScrollExtent);
-    if (target > 0) _scroll.jumpTo(target);
-  }
-
-  @override
-  void dispose() {
-    _search.dispose();
-    _searchFocus.dispose();
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  void _filter(String query) {
-    final q = query.trim().toLowerCase();
-    setState(() {
-      _filtered = q.isEmpty
-          ? widget.fonts
-          : widget.fonts
-              .where((f) => f.toLowerCase().contains(q))
-              .toList(growable: false);
-    });
-    if (_scroll.hasClients) _scroll.jumpTo(0);
-  }
-
-  KeyEventResult _onKey(FocusNode _, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
-      widget.onDismiss();
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Focus(
-      // Nested above the search field's node, so it only sees what the editor
-      // declines — Escape here, every editing key still in the field.
-      onKeyEvent: _onKey,
-      child: Container(
-        width: 240,
-        constraints: const BoxConstraints(maxHeight: 300),
-        decoration: BoxDecoration(
-          color: theme.popupBackground,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: theme.divider),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8),
+          overflow: TextOverflow.ellipsis,
+        );
+      },
+      triggerBuilder: (context, open, toggle) {
+        final theme = ThemeScope.of(context);
+        return Opacity(
+          opacity: locked ? 0.45 : 1.0,
+          child: HoverRegion(
+            builder: (context, hovered) => GestureDetector(
+              onTap: locked ? (onLockedTap ?? () {}) : toggle,
               child: Container(
+                width: width,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: theme.controlSurface,
+                  color: hovered ? theme.surfaceHover : theme.controlSurface,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: theme.divider),
+                  border:
+                      Border.all(color: open ? theme.accent : theme.divider),
                 ),
                 child: Row(
                   children: [
-                    FaIcon(
-                      FontAwesomeIcons.magnifyingGlass,
-                      size: 10,
-                      color: theme.popupForeground.withValues(alpha: 0.4),
-                    ),
-                    const SizedBox(width: 8),
                     Expanded(
-                      child: EditableText(
-                        controller: _search,
-                        focusNode: _searchFocus,
-                        autofocus: true,
+                      child: Text(
+                        value,
+                        // Drawn in the family it names, so the trigger
+                        // previews the choice as well as reporting it.
                         style: TextStyle(
                           fontSize: 13,
+                          fontFamily: value,
                           color: theme.popupForeground,
-                          fontFamily: theme.fontFamily,
                         ),
-                        cursorColor: theme.accent,
-                        backgroundCursorColor: theme.divider,
-                        onChanged: _filter,
-                        // Enter takes the top match, so a full name can be typed
-                        // without reaching for the mouse.
-                        onSubmitted: (_) {
-                          if (_filtered.isNotEmpty) {
-                            widget.onSelected(_filtered.first);
-                          }
-                        },
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    FaIcon(
+                      open
+                          ? FontAwesomeIcons.chevronUp
+                          : FontAwesomeIcons.chevronDown,
+                      size: 10,
+                      color: theme.popupForeground.withValues(alpha: 0.5),
                     ),
                   ],
                 ),
               ),
             ),
-            if (_filtered.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                child: Text(
-                  'No matching font',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: theme.fontFamily,
-                    color: theme.muted,
-                  ),
-                ),
-              )
-            else
-              Flexible(
-                child: ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.only(bottom: 6),
-                  itemExtent: _kFontRowHeight,
-                  itemCount: _filtered.length,
-                  itemBuilder: (_, i) {
-                    final family = _filtered[i];
-                    return _FontRow(
-                      family: family,
-                      selected: family == widget.selected,
-                      onTap: () => widget.onSelected(family),
-                    );
-                  },
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FontRow extends StatefulWidget {
-  const _FontRow({
-    required this.family,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String family;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  State<_FontRow> createState() => _FontRowState();
-}
-
-class _FontRowState extends State<_FontRow> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final bg = widget.selected
-        ? theme.accent.withValues(alpha: 0.15)
-        : _hovered
-            ? theme.surfaceHover
-            : const Color(0x00000000);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          alignment: Alignment.centerLeft,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          color: bg,
-          child: Text(
-            widget.family,
-            // The point of the row: what the family actually looks like.
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: widget.family,
-              color: widget.selected ? theme.accent : theme.popupForeground,
-            ),
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -1624,18 +1680,9 @@ Future<bool> showSettingsConfirm(
   required String confirmLabel,
   String? warning,
 }) {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  final completer = Completer<bool>();
-  late OverlayEntry entry;
-
-  void close(bool result) {
-    if (completer.isCompleted) return;
-    entry.remove();
-    completer.complete(result);
-  }
-
-  entry = OverlayEntry(
-    builder: (_) => SettingsConfirmCard(
+  return showRootModal<bool>(
+    context,
+    (close) => SettingsConfirmCard(
       title: title,
       message: message,
       warning: warning,
@@ -1644,9 +1691,354 @@ Future<bool> showSettingsConfirm(
       onConfirm: () => close(true),
     ),
   );
-  overlay.insert(entry);
-  return completer.future;
 }
 
 /// Editable ordered list of strings. When [suggestions] is provided, new items
 /// are added from a dropdown of those values; otherwise a free-form text field
+/// is shown. Existing items can be reordered and removed.
+class SettingsStringListEditor extends StatefulWidget {
+  const SettingsStringListEditor({
+    super.key,
+    required this.items,
+    required this.onChanged,
+    this.suggestions,
+    this.addHint,
+    this.width = 260,
+  });
+
+  final List<String> items;
+  final ValueChanged<List<String>> onChanged;
+  final List<String>? suggestions;
+  final String? addHint;
+
+  /// Fixed editor width. Pass `null` to stretch to the parent's width (used on
+  /// the Panels page, where the list sits full-width under its label).
+  final double? width;
+
+  @override
+  State<SettingsStringListEditor> createState() =>
+      _SettingsStringListEditorState();
+}
+
+class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
+  final _addController = TextEditingController();
+  final _addFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _addFocus.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _addController.dispose();
+    _addFocus.dispose();
+    super.dispose();
+  }
+
+  void _emit(List<String> list) => widget.onChanged(list);
+
+  void _add(String value) {
+    final v = value.trim();
+    if (v.isEmpty) return;
+    _emit([...widget.items, v]);
+  }
+
+  void _removeAt(int i) {
+    final list = [...widget.items]..removeAt(i);
+    _emit(list);
+  }
+
+  void _move(int i, int delta) {
+    final j = i + delta;
+    if (j < 0 || j >= widget.items.length) return;
+    final list = [...widget.items];
+    final tmp = list[i];
+    list[i] = list[j];
+    list[j] = tmp;
+    _emit(list);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final column = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < widget.items.length; i++)
+          _row(context, i, widget.items[i]),
+        const SizedBox(height: 6),
+        _buildAdder(context),
+      ],
+    );
+    final width = widget.width;
+    return width == null ? column : SizedBox(width: width, child: column);
+  }
+
+  Widget _row(BuildContext context, int i, String item) {
+    final theme = ThemeScope.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: theme.controlSurface,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: theme.divider),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                item,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground,
+                ),
+              ),
+            ),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.chevronUp,
+              size: 10,
+              onTap: () => _move(i, -1),
+            ),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.chevronDown,
+              size: 10,
+              onTap: () => _move(i, 1),
+            ),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.xmark,
+              size: 12,
+              onTap: () => _removeAt(i),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAdder(BuildContext context) {
+    final suggestions = widget.suggestions;
+    if (suggestions != null) {
+      return _AddDropdown(
+        options: suggestions,
+        onSelected: _add,
+      );
+    }
+    final theme = ThemeScope.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.popupBackground,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                  color: _addFocus.hasFocus ? theme.accent : theme.divider),
+            ),
+            child: Stack(
+              children: [
+                if (_addController.text.isEmpty)
+                  Text(
+                    widget.addHint ?? 'add…',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: theme.popupForeground.withValues(alpha: 0.35),
+                      fontFamily: theme.fontFamily,
+                    ),
+                  ),
+                EditableText(
+                  controller: _addController,
+                  focusNode: _addFocus,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: theme.popupForeground,
+                    fontFamily: theme.fontFamily,
+                  ),
+                  cursorColor: theme.accent,
+                  backgroundCursorColor: theme.divider,
+                  onChanged: (_) => setState(() {}),
+                  onSubmitted: (v) {
+                    _add(v);
+                    _addController.clear();
+                    setState(() {});
+                    _addFocus.requestFocus();
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        SettingsIconButton(
+          icon: FontAwesomeIcons.plus,
+          onTap: () {
+            _add(_addController.text);
+            _addController.clear();
+            setState(() {});
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// A dropdown that expands to a list of [options] and reports the chosen value.
+class _AddDropdown extends StatefulWidget {
+  const _AddDropdown({required this.options, required this.onSelected});
+
+  final List<String> options;
+  final ValueChanged<String> onSelected;
+
+  @override
+  State<_AddDropdown> createState() => _AddDropdownState();
+}
+
+class _AddDropdownState extends State<_AddDropdown> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SettingsAddButton(
+          label: _open ? 'Close' : 'Add module',
+          onTap: () => setState(() => _open = !_open),
+        ),
+        if (_open)
+          Container(
+            margin: const EdgeInsets.only(top: 4),
+            constraints: const BoxConstraints(maxHeight: 180),
+            decoration: BoxDecoration(
+              color: theme.controlSurface,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: theme.divider),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final o in widget.options)
+                    _DropdownItem(
+                      label: o,
+                      onTap: () {
+                        widget.onSelected(o);
+                        setState(() => _open = false);
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _DropdownItem extends StatefulWidget {
+  const _DropdownItem({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_DropdownItem> createState() => _DropdownItemState();
+}
+
+class _DropdownItemState extends State<_DropdownItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          color: _hovered ? theme.surfaceHover : const Color(0x00000000),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A plus-labelled button for appending to a collection: the string-list
+/// editor's dropdown toggle, and the Background and Desktop sections' add
+/// actions.
+class SettingsAddButton extends StatefulWidget {
+  const SettingsAddButton({super.key, required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<SettingsAddButton> createState() => _SettingsAddButtonState();
+}
+
+class _SettingsAddButtonState extends State<SettingsAddButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _hovered ? theme.surfaceHover : theme.controlSurface,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: theme.divider),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(FontAwesomeIcons.plus,
+                  size: 11,
+                  color: _hovered ? theme.popupForeground : theme.accent),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

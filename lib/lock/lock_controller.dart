@@ -20,9 +20,11 @@ class LockController extends ChangeNotifier {
   bool get isRequested => _requested;
 
   /// True while the lock windows exist.
+  @visibleForTesting
   bool get isActive => _active;
 
   /// Why the last lock attempt failed, if it did.
+  @visibleForTesting
   String? get lastError => _lastError;
 
   /// Asks the shell to lock the session. Ignored when already locking.

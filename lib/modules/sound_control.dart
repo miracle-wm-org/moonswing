@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/popup.dart';
@@ -24,7 +25,6 @@ class SoundControlState extends State<SoundControl>
   PulseClient? _client;
   StreamSubscription<PaSink>? _sinkChangedSub;
 
-  bool _hovered = false;
 
   @override
   void initState() {
@@ -85,7 +85,7 @@ class SoundControlState extends State<SoundControl>
       return;
     }
 
-    final anchor = BarScope.of(context).anchor;
+    final anchor = BarScope.of(context);
     final client = _client;
     final sinkName = _defaultSinkName;
     final isVertical = anchor == 'top' || anchor == 'bottom';
@@ -128,19 +128,10 @@ class SoundControlState extends State<SoundControl>
     if (!_available) return const SizedBox.shrink();
 
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || isPopupOpen;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTapDown: (_) => _togglePopup(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0x28FFFFFF) : null,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: Row(
+    return BarButton(
+      active: isPopupOpen,
+      onTapDown: (_) => _togglePopup(context),
+      child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               FaIcon(
@@ -155,8 +146,6 @@ class SoundControlState extends State<SoundControl>
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }
@@ -446,13 +435,7 @@ class _SliderPainter extends CustomPainter {
       old.activeThumbColor != activeThumbColor;
 }
 
-class SoundControlModule extends Module {
-  @override
-  String get configKey => 'sound_control';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {}
-
-  @override
-  WidgetBuilder get builder => (_) => const SoundControl();
-}
+final Module soundControlModule = Module.plain(
+  configKey: 'sound_control',
+  builder: (_) => const SoundControl(),
+);

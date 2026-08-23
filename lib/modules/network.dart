@@ -2,9 +2,12 @@
 
 import 'dart:async';
 import 'package:dbus/dbus.dart';
+import 'package:graceful_shell/dbus_clients.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -21,9 +24,105 @@ class NetworkConfig {
 
   factory NetworkConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const NetworkConfig();
-    return NetworkConfig(
-      pollSeconds: map['poll_seconds'] as int? ?? 10,
+    return NetworkConfig(pollSeconds: map.intOr('poll_seconds', 10));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
+
+/// The connection status for the whole shell.
+///
+/// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
+/// `SystemStatsStore`'s lease rule: the NetworkManager queries run only while
+/// at least one widget holds a lease, so a two-monitor setup shares one poller
+/// instead of running one round of D-Bus calls per bar.
+class NetworkStatusStore extends ChangeNotifier {
+  NetworkStatusStore._();
+
+  static final NetworkStatusStore instance = NetworkStatusStore._();
+
+  @visibleForTesting
+  factory NetworkStatusStore.forTesting({
+    NetworkConfig config = const NetworkConfig(),
+  }) {
+    final store = NetworkStatusStore._();
+    store.configure(config);
+    return store;
+  }
+
+  NetworkConfig _config = const NetworkConfig();
+
+  /// Applies [config]; the module's `fromMap` pushes it here. A cadence change
+  /// while leased restarts the timer at the new interval.
+  void configure(NetworkConfig config) {
+    final cadenceChanged = config.pollSeconds != _config.pollSeconds;
+    _config = config;
+    if (cadenceChanged && _timer != null) {
+      _stopTimer();
+      _startTimer();
+    }
+  }
+
+  NetworkInfo _info = NetworkInfo.none;
+  NetworkInfo get info => _info;
+
+  int _leases = 0;
+  Timer? _timer;
+
+  /// A poll is a chain of D-Bus round-trips; a tick that arrives while the
+  /// previous chain is still in flight is dropped, not queued behind it.
+  bool _pollInFlight = false;
+
+  /// Take a lease. The first active lease starts polling, and polls once
+  /// immediately so the bar never waits a full interval for its first reading.
+  void acquire() {
+    _leases++;
+    if (_timer == null) {
+      _startTimer();
+      unawaited(_poll());
+    }
+  }
+
+  void release() {
+    if (_leases > 0) _leases--;
+    if (_leases == 0) _stopTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(
+      Duration(seconds: _config.pollSeconds),
+      (_) => unawaited(_poll()),
     );
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  Future<void> _poll() async {
+    if (_pollInFlight) return;
+    _pollInFlight = true;
+    try {
+      final info = await _queryNetworkInfo();
+      // A release can land while the D-Bus round-trips are in flight —
+      // cancelling the timer does not cancel the awaits already running.
+      // A released store drops the result rather than notifying listeners
+      // that no longer exist.
+      if (_leases == 0) return;
+      _info = info;
+      notifyListeners();
+    } finally {
+      _pollInFlight = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopTimer();
+    super.dispose();
   }
 }
 
@@ -93,7 +192,7 @@ const _nmConnSettingsIface =
     'org.freedesktop.NetworkManager.Settings.Connection';
 
 Future<NetworkInfo> _queryNetworkInfo() async {
-  final client = DBusClient.system();
+  final client = systemBus;
   try {
     final nmObj = DBusRemoteObject(
       client,
@@ -107,8 +206,7 @@ Future<NetworkInfo> _queryNetworkInfo() async {
       [],
       replySignature: DBusSignature('ao'),
     );
-    final devicePaths = (devicesResult.returnValues[0] as DBusArray)
-        .children
+    final devicePaths = (devicesResult.returnValues[0] as DBusArray).children
         .cast<DBusObjectPath>();
 
     for (final devPath in devicePaths) {
@@ -127,21 +225,27 @@ Future<NetworkInfo> _queryNetworkInfo() async {
       String ip = '';
       int prefix = 0;
       try {
-        final ip4Val = await devObj.getProperty(_nmDevIface, 'Ip4Config')
-            as DBusObjectPath;
+        final ip4Val =
+            await devObj.getProperty(_nmDevIface, 'Ip4Config')
+                as DBusObjectPath;
         if (ip4Val.value != '/') {
-          final ip4Obj =
-              DBusRemoteObject(client, name: _nmService, path: ip4Val);
+          final ip4Obj = DBusRemoteObject(
+            client,
+            name: _nmService,
+            path: ip4Val,
+          );
           final addrDataVal =
               await ip4Obj.getProperty(_nmIp4Iface, 'AddressData') as DBusArray;
           if (addrDataVal.children.isNotEmpty) {
             final first = (addrDataVal.children.first as DBusDict).children;
-            ip = ((first[const DBusString('address')] as DBusVariant).value
-                    as DBusString)
-                .value;
-            prefix = ((first[const DBusString('prefix')] as DBusVariant).value
-                    as DBusUint32)
-                .value;
+            ip =
+                ((first[const DBusString('address')] as DBusVariant).value
+                        as DBusString)
+                    .value;
+            prefix =
+                ((first[const DBusString('prefix')] as DBusVariant).value
+                        as DBusUint32)
+                    .value;
           }
         }
       } catch (_) {}
@@ -160,15 +264,20 @@ Future<NetworkInfo> _queryNetworkInfo() async {
         String ssid = 'WiFi';
         int strength = 0;
         try {
-          final apVal = await devObj.getProperty(
-              _nmWifiIface, 'ActiveAccessPoint') as DBusObjectPath;
+          final apVal =
+              await devObj.getProperty(_nmWifiIface, 'ActiveAccessPoint')
+                  as DBusObjectPath;
           if (apVal.value != '/') {
-            final apObj =
-                DBusRemoteObject(client, name: _nmService, path: apVal);
+            final apObj = DBusRemoteObject(
+              client,
+              name: _nmService,
+              path: apVal,
+            );
             final ssidVal =
                 await apObj.getProperty(_nmApIface, 'Ssid') as DBusArray;
             ssid = String.fromCharCodes(
-                ssidVal.children.cast<DBusByte>().map((b) => b.value));
+              ssidVal.children.cast<DBusByte>().map((b) => b.value),
+            );
             final strengthVal =
                 await apObj.getProperty(_nmApIface, 'Strength') as DBusByte;
             strength = strengthVal.value;
@@ -186,18 +295,14 @@ Future<NetworkInfo> _queryNetworkInfo() async {
     }
   } catch (_) {
     // NetworkManager unavailable or query error
-  } finally {
-    await client.close();
   }
   return NetworkInfo.none;
 }
 
 DBusDict _innerDict(Map<String, DBusValue> map) {
-  return DBusDict(
-    DBusSignature('s'),
-    DBusSignature('v'),
-    {for (final e in map.entries) DBusString(e.key): DBusVariant(e.value)},
-  );
+  return DBusDict(DBusSignature('s'), DBusSignature('v'), {
+    for (final e in map.entries) DBusString(e.key): DBusVariant(e.value),
+  });
 }
 
 DBusDict _buildConnectionDict(AvailableNetwork network, String? password) {
@@ -225,7 +330,7 @@ DBusDict _buildConnectionDict(AvailableNetwork network, String? password) {
 }
 
 Future<List<AvailableNetwork>> scanNetworks() async {
-  final client = DBusClient.system();
+  final client = systemBus;
   final results = <AvailableNetwork>[];
   try {
     final nmObj = DBusRemoteObject(
@@ -240,8 +345,7 @@ Future<List<AvailableNetwork>> scanNetworks() async {
       [],
       replySignature: DBusSignature('ao'),
     );
-    final devicePaths = (devicesResult.returnValues[0] as DBusArray)
-        .children
+    final devicePaths = (devicesResult.returnValues[0] as DBusArray).children
         .cast<DBusObjectPath>();
 
     // Build map of saved WiFi profiles: SSID → connection path
@@ -258,8 +362,7 @@ Future<List<AvailableNetwork>> scanNetworks() async {
         [],
         replySignature: DBusSignature('ao'),
       );
-      final connPaths = (connsResult.returnValues[0] as DBusArray)
-          .children
+      final connPaths = (connsResult.returnValues[0] as DBusArray).children
           .cast<DBusObjectPath>();
       for (final cp in connPaths) {
         try {
@@ -302,30 +405,30 @@ Future<List<AvailableNetwork>> scanNetworks() async {
         final stateVal =
             await devObj.getProperty(_nmDevIface, 'State') as DBusUint32;
         if (stateVal.value == 100) {
-          results.add(AvailableNetwork(
-            type: NetworkType.ethernet,
-            name: 'Ethernet',
-            signal: 100,
-            secured: false,
-            isConnected: true,
-            devicePath: devPath,
-          ));
+          results.add(
+            AvailableNetwork(
+              type: NetworkType.ethernet,
+              name: 'Ethernet',
+              signal: 100,
+              secured: false,
+              isConnected: true,
+              devicePath: devPath,
+            ),
+          );
         }
       } else if (deviceType == 2) {
         // WiFi
         var activeApPath = DBusObjectPath('/');
         try {
-          activeApPath = await devObj.getProperty(
-              _nmWifiIface, 'ActiveAccessPoint') as DBusObjectPath;
+          activeApPath =
+              await devObj.getProperty(_nmWifiIface, 'ActiveAccessPoint')
+                  as DBusObjectPath;
         } catch (_) {}
 
         try {
-          await devObj.callMethod(
-            _nmWifiIface,
-            'RequestScan',
-            [DBusDict(DBusSignature('s'), DBusSignature('v'), {})],
-            replySignature: DBusSignature(''),
-          );
+          await devObj.callMethod(_nmWifiIface, 'RequestScan', [
+            DBusDict(DBusSignature('s'), DBusSignature('v'), {}),
+          ], replySignature: DBusSignature(''));
           await Future.delayed(const Duration(milliseconds: 1500));
         } catch (_) {}
 
@@ -336,14 +439,16 @@ Future<List<AvailableNetwork>> scanNetworks() async {
             [],
             replySignature: DBusSignature('ao'),
           );
-          final apPaths = (apsResult.returnValues[0] as DBusArray)
-              .children
+          final apPaths = (apsResult.returnValues[0] as DBusArray).children
               .cast<DBusObjectPath>();
 
           for (final apPath in apPaths) {
             try {
-              final apObj =
-                  DBusRemoteObject(client, name: _nmService, path: apPath);
+              final apObj = DBusRemoteObject(
+                client,
+                name: _nmService,
+                path: apPath,
+              );
 
               final ssidBytes =
                   await apObj.getProperty(_nmApIface, 'Ssid') as DBusArray;
@@ -364,21 +469,25 @@ Future<List<AvailableNetwork>> scanNetworks() async {
               final rsnFlagsVal =
                   await apObj.getProperty(_nmApIface, 'RsnFlags') as DBusUint32;
 
-              final secured = (flagsVal.value & 0x1) != 0 ||
+              final secured =
+                  (flagsVal.value & 0x1) != 0 ||
                   wpaFlagsVal.value != 0 ||
                   rsnFlagsVal.value != 0;
 
-              results.add(AvailableNetwork(
-                type: NetworkType.wifi,
-                name: ssid,
-                signal: strengthVal.value,
-                secured: secured,
-                isConnected: apPath.value == activeApPath.value &&
-                    activeApPath.value != '/',
-                devicePath: devPath,
-                apPath: apPath,
-                savedConnectionPath: savedBySsid[ssid],
-              ));
+              results.add(
+                AvailableNetwork(
+                  type: NetworkType.wifi,
+                  name: ssid,
+                  signal: strengthVal.value,
+                  secured: secured,
+                  isConnected:
+                      apPath.value == activeApPath.value &&
+                      activeApPath.value != '/',
+                  devicePath: devPath,
+                  apPath: apPath,
+                  savedConnectionPath: savedBySsid[ssid],
+                ),
+              );
             } catch (_) {}
           }
         } catch (_) {}
@@ -386,8 +495,6 @@ Future<List<AvailableNetwork>> scanNetworks() async {
     }
   } catch (_) {
     // NM unavailable
-  } finally {
-    await client.close();
   }
 
   // Sort: connected first, then by signal descending
@@ -405,39 +512,24 @@ Future<void> connectToNetwork({
   required AvailableNetwork network,
   String? password,
 }) async {
-  final client = DBusClient.system();
-  try {
-    final nmObj = DBusRemoteObject(
-      client,
-      name: _nmService,
-      path: DBusObjectPath('/org/freedesktop/NetworkManager'),
-    );
+  final nmObj = DBusRemoteObject(
+    systemBus,
+    name: _nmService,
+    path: DBusObjectPath('/org/freedesktop/NetworkManager'),
+  );
 
-    if (network.savedConnectionPath != null) {
-      await nmObj.callMethod(
-        _nmService,
-        'ActivateConnection',
-        [
-          network.savedConnectionPath!,
-          network.devicePath,
-          network.apPath ?? DBusObjectPath('/'),
-        ],
-        replySignature: DBusSignature('o'),
-      );
-    } else {
-      await nmObj.callMethod(
-        _nmService,
-        'AddAndActivateConnection',
-        [
-          _buildConnectionDict(network, password),
-          network.devicePath,
-          network.apPath ?? DBusObjectPath('/'),
-        ],
-        replySignature: DBusSignature('oo'),
-      );
-    }
-  } finally {
-    await client.close();
+  if (network.savedConnectionPath != null) {
+    await nmObj.callMethod(_nmService, 'ActivateConnection', [
+      network.savedConnectionPath!,
+      network.devicePath,
+      network.apPath ?? DBusObjectPath('/'),
+    ], replySignature: DBusSignature('o'));
+  } else {
+    await nmObj.callMethod(_nmService, 'AddAndActivateConnection', [
+      _buildConnectionDict(network, password),
+      network.devicePath,
+      network.apPath ?? DBusObjectPath('/'),
+    ], replySignature: DBusSignature('oo'));
   }
 }
 
@@ -446,38 +538,26 @@ Future<void> connectToNetwork({
 // ---------------------------------------------------------------------------
 
 class Network extends StatefulWidget {
-  const Network({super.key, required this.config});
-
-  final NetworkConfig config;
+  const Network({super.key});
 
   @override
   NetworkState createState() => NetworkState();
 }
 
 class NetworkState extends State<Network> with PopupHost<Network> {
-  NetworkInfo _info = NetworkInfo.none;
-  Timer? _timer;
-
-  bool _hovered = false;
+  final NetworkStatusStore _store = NetworkStatusStore.instance;
 
   @override
   void initState() {
     super.initState();
-    _poll();
-    _timer = Timer.periodic(
-        Duration(seconds: widget.config.pollSeconds), (_) => _poll());
+    _store.acquire();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _store.release();
     closePopup();
     super.dispose();
-  }
-
-  Future<void> _poll() async {
-    final info = await _queryNetworkInfo();
-    if (mounted) setState(() => _info = info);
   }
 
   // -------------------------------------------------------------------------
@@ -496,9 +576,7 @@ class NetworkState extends State<Network> with PopupHost<Network> {
       // rows are not built at all, and a tight box would reserve their height
       // anyway. The maxima are a runaway guard, not a size.
       preferredConstraints: const BoxConstraints(maxWidth: 320, maxHeight: 400),
-      child: ThemeProvider(
-        child: _NetworkPopupContent(info: _info),
-      ),
+      child: ThemeProvider(child: _NetworkPopupContent(info: _store.info)),
     );
   }
 
@@ -506,8 +584,8 @@ class NetworkState extends State<Network> with PopupHost<Network> {
   // Bar widget
   // -------------------------------------------------------------------------
 
-  FaIconData _networkIcon() {
-    switch (_info.type) {
+  FaIconData _networkIcon(NetworkInfo info) {
+    switch (info.type) {
       case NetworkType.ethernet:
         return FontAwesomeIcons.ethernet;
       case NetworkType.wifi:
@@ -519,33 +597,29 @@ class NetworkState extends State<Network> with PopupHost<Network> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || isPopupOpen;
-    final isNone = _info.type == NetworkType.none;
     // ignore: deprecated_member_use
     final dimColor = theme.foreground.withOpacity(0.4);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTapDown: (_) => _togglePopup(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0x28FFFFFF) : null,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+    return ListenableBuilder(
+      listenable: _store,
+      builder: (context, _) {
+        final info = _store.info;
+        final isNone = info.type == NetworkType.none;
+
+        return BarButton(
+          active: isPopupOpen,
+          onTapDown: (_) => _togglePopup(context),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               FaIcon(
-                _networkIcon(),
+                _networkIcon(info),
                 size: 12,
                 color: isNone ? dimColor : theme.foreground,
               ),
               const SizedBox(width: 4),
               Text(
-                _info.name,
+                info.name,
                 style: TextStyle(
                   fontSize: 16,
                   color: isNone ? dimColor : theme.foreground,
@@ -553,8 +627,8 @@ class NetworkState extends State<Network> with PopupHost<Network> {
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -609,17 +683,14 @@ class _NetworkPopupContent extends StatelessWidget {
 // Module
 // ---------------------------------------------------------------------------
 
-class NetworkModule extends Module {
-  NetworkConfig _config = const NetworkConfig();
-
-  @override
-  String get configKey => 'network';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = NetworkConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => Network(config: _config);
-}
+final Module networkModule = Module.simple<NetworkConfig>(
+  configKey: 'network',
+  fromMap: (map) {
+    final config = NetworkConfig.fromMap(map);
+    // The store, not the widget, owns the config: polling continues across
+    // widget rebuilds, and every bar instance shares the one poller.
+    NetworkStatusStore.instance.configure(config);
+    return config;
+  },
+  builder: (context, config) => const Network(),
+);

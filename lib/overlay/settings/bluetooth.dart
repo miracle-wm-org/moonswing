@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
@@ -260,27 +261,6 @@ Future<void> disconnectBluetoothDevice(BluetoothDevice device) async {
 // Helper widgets
 // ---------------------------------------------------------------------------
 
-class _BtConnectedBadge extends StatelessWidget {
-  const _BtConnectedBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: theme.accent.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: theme.accent, width: 1),
-      ),
-      child: Text(
-        'Connected',
-        style: TextStyle(fontSize: 11, color: theme.accent),
-      ),
-    );
-  }
-}
-
 class _BtUnpairedBadge extends StatelessWidget {
   const _BtUnpairedBadge();
 
@@ -302,176 +282,6 @@ class _BtUnpairedBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 11,
           color: theme.popupForeground.withValues(alpha: 0.5),
-        ),
-      ),
-    );
-  }
-}
-
-class _BtActionButton extends StatefulWidget {
-  const _BtActionButton({
-    required this.label,
-    required this.onTap,
-    this.primary = false,
-  });
-
-  final String label;
-  final VoidCallback onTap;
-  final bool primary;
-
-  @override
-  _BtActionButtonState createState() => _BtActionButtonState();
-}
-
-class _BtActionButtonState extends State<_BtActionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final Color bg;
-    if (widget.primary) {
-      bg = _hovered ? theme.accent.withValues(alpha: 0.85) : theme.accent;
-    } else {
-      bg = _hovered ? theme.surfaceHover : theme.divider;
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Center(
-            child: Text(
-              widget.label,
-              style: TextStyle(
-                fontSize: 12,
-                color: widget.primary
-                    ? const Color(0xFFFFFFFF)
-                    : theme.popupForeground,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BtRescanButton extends StatefulWidget {
-  const _BtRescanButton({required this.onTap, this.label = 'Scan'});
-
-  final VoidCallback onTap;
-  final String label;
-
-  @override
-  _BtRescanButtonState createState() => _BtRescanButtonState();
-}
-
-class _BtRescanButtonState extends State<_BtRescanButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: _hovered ? theme.surfaceHover : null,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(
-                FontAwesomeIcons.arrowsRotate,
-                size: 11,
-                color: theme.popupForeground.withValues(alpha: 0.7),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: theme.popupForeground.withValues(alpha: 0.7),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BtPowerToggle extends StatefulWidget {
-  const _BtPowerToggle({required this.powered, required this.onTap});
-
-  final bool powered;
-  final VoidCallback onTap;
-
-  @override
-  _BtPowerToggleState createState() => _BtPowerToggleState();
-}
-
-class _BtPowerToggleState extends State<_BtPowerToggle> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final Color bg;
-    final Color fg;
-    if (widget.powered) {
-      bg = _hovered
-          ? theme.accent.withValues(alpha: 0.2)
-          : theme.accent.withValues(alpha: 0.12);
-      fg = theme.accent;
-    } else {
-      bg = _hovered ? theme.surfaceHover : const Color(0x00000000);
-      fg = theme.popupForeground.withValues(alpha: 0.5);
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: widget.powered
-                ? Border.all(
-                    color: theme.accent.withValues(alpha: 0.4), width: 1)
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(FontAwesomeIcons.powerOff, size: 11, color: fg),
-              const SizedBox(width: 6),
-              Text(
-                widget.powered ? 'On' : 'Off',
-                style: TextStyle(fontSize: 12, color: fg),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -530,16 +340,21 @@ class _BluetoothDeviceItemState extends State<_BluetoothDeviceItem> {
       trailing = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const _BtConnectedBadge(),
+          const SettingsBadge('Connected'),
           const SizedBox(width: 8),
-          _BtActionButton(label: 'Disconnect', onTap: widget.onDisconnect),
+          SettingsActionButton(
+            label: 'Disconnect',
+            onTap: widget.onDisconnect,
+            compact: true,
+          ),
         ],
       );
     } else if (d.paired) {
-      trailing = _BtActionButton(
+      trailing = SettingsActionButton(
         label: 'Connect',
         onTap: widget.onConnect,
         primary: true,
+        compact: true,
       );
     } else {
       trailing = const _BtUnpairedBadge();
@@ -633,6 +448,9 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
   }
 
   Future<void> _scan() async {
+    // Re-entered from async continuations (a connect finishing, a retry), so
+    // the State may be gone by the time this runs.
+    if (!mounted) return;
     setState(() {
       _devices = null;
       _scanError = null;
@@ -756,10 +574,10 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
                   child: LoadingIndicator(size: 12),
                 )
               else if (_powered != null)
-                _BtPowerToggle(powered: _powered!, onTap: _togglePower),
+                SettingsToggle(value: _powered!, onChanged: (_) => _togglePower()),
               if (_powered == true && _devices != null) ...[
                 const SizedBox(width: 4),
-                _BtRescanButton(onTap: _scan),
+                SettingsRescanButton(onTap: _scan),
               ],
             ],
           ),
@@ -782,7 +600,7 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            _BtRescanButton(onTap: _scan, label: 'Retry'),
+            SettingsRescanButton(onTap: _scan, label: 'Retry'),
           ],
         ),
       );
@@ -807,10 +625,11 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
               ),
             ),
             const SizedBox(height: 16),
-            _BtActionButton(
+            SettingsActionButton(
               label: 'Turn On',
               onTap: _togglePower,
               primary: true,
+              compact: true,
             ),
           ],
         ),

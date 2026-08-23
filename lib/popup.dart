@@ -205,7 +205,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     Object? ownerKey,
   }) {
     final (parentAnchor, childAnchor) =
-        popupAnchorsForBar(BarScope.of(context).anchor);
+        popupAnchorsForBar(BarScope.of(context));
     openPopup(
       context,
       child: child,

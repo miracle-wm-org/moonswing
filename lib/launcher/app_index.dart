@@ -2,6 +2,7 @@ import 'dart:ffi' as ffi;
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
+import 'package:graceful_shell/native/ffi_util.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 
@@ -97,27 +98,8 @@ void startAppIndexService() => AppIndex.instance.start();
 // GAppInfoMonitor
 // ---------------------------------------------------------------------------
 
-final ffi.DynamicLibrary _process = ffi.DynamicLibrary.process();
-
 typedef _GAppInfoMonitorGetC = ffi.Pointer<ffi.Void> Function();
 typedef _GAppInfoMonitorGetDart = ffi.Pointer<ffi.Void> Function();
-
-typedef _GSignalConnectDataC = ffi.Uint64 Function(
-  ffi.Pointer<ffi.Void> instance,
-  ffi.Pointer<Utf8> detailedSignal,
-  ffi.Pointer<ffi.Void> handler,
-  ffi.Pointer<ffi.Void> data,
-  ffi.Pointer<ffi.Void> destroyData,
-  ffi.Uint32 connectFlags,
-);
-typedef _GSignalConnectDataDart = int Function(
-  ffi.Pointer<ffi.Void> instance,
-  ffi.Pointer<Utf8> detailedSignal,
-  ffi.Pointer<ffi.Void> handler,
-  ffi.Pointer<ffi.Void> data,
-  ffi.Pointer<ffi.Void> destroyData,
-  int connectFlags,
-);
 
 /// Watches GIO for applications being installed or removed.
 ///
@@ -128,12 +110,10 @@ typedef _GSignalConnectDataDart = int Function(
 class _AppInfoMonitor {
   _AppInfoMonitor(this.onChanged) {
     try {
-      final monitorGet =
-          _process.lookupFunction<_GAppInfoMonitorGetC, _GAppInfoMonitorGetDart>(
+      final monitorGet = processLibrary
+          .lookupFunction<_GAppInfoMonitorGetC, _GAppInfoMonitorGetDart>(
               'g_app_info_monitor_get');
-      final signalConnect =
-          _process.lookupFunction<_GSignalConnectDataC, _GSignalConnectDataDart>(
-              'g_signal_connect_data');
+      final signalConnect = gSignalConnectData;
 
       final monitor = monitorGet();
       if (monitor.address == 0) return;

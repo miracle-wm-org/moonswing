@@ -86,13 +86,33 @@ class ShellServices extends ChangeNotifier {
   bool isLoading(ShellService service) =>
       statusOf(service) == ServiceStatus.loading;
 
+  @visibleForTesting
   bool isReady(ShellService service) =>
       statusOf(service) == ServiceStatus.ready;
 
   /// Why [service] failed, or null when it did not (or has not yet).
+  @visibleForTesting
   String? errorOf(ShellService service) => _errors[service];
 
   /// Starts [task] for [service] and settles the status when it finishes.
+  ///
+  /// The contract with the `start*Service` functions:
+  ///
+  /// * **Genuine failure throws.** The session bus unreachable, a name request
+  ///   that errored, an FFI load failure for something the service cannot run
+  ///   without — the task lets it propagate. This method is the catch-all: it
+  ///   records [ServiceStatus.failed] with the reason and logs it, so nothing
+  ///   escapes to the zone handler and the shell carries on without whatever
+  ///   the service provided.
+  /// * **A graceful decline is not a failure.** Another daemon already owning
+  ///   the notification or tray name is the shell *yielding* to it, and a
+  ///   feature switched off in `config.toml` has nothing to do; the task logs
+  ///   and returns normally, settling [ServiceStatus.ready] — "declined" and
+  ///   "finished" are the same answer to "should I show a spinner?".
+  ///
+  /// A service that swallows its own genuine failures makes
+  /// [ServiceStatus.failed] unreachable and its loader resolve to "ready" with
+  /// the feature dead — which is the lie this contract exists to prevent.
   ///
   /// The task is started on its own event-loop turn rather than immediately or
   /// on a microtask. A task that does its work synchronously before its first
@@ -100,9 +120,6 @@ class ShellServices extends ChangeNotifier {
   /// suspension point in them — would otherwise hold the isolate through every
   /// other task registered beside it, and the engine would never get a frame in
   /// edgewise. One turn each lets the cheap ones get their I/O in flight first.
-  ///
-  /// Never throws: these services all fail soft, so an error is recorded and
-  /// printed, and the shell carries on without whatever it provided.
   void run(ShellService service, Future<void> Function() task) {
     if (_started.contains(service)) return;
     _started.add(service);

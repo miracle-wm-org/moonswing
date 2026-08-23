@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:graceful_shell/system/file_read.dart';
 import 'package:graceful_shell/system/models.dart';
 
 /// The cheap `/proc` and `/sys` reads: six small files, fast enough to do on the
@@ -22,7 +23,7 @@ class ProcReader {
   /// Parses `/proc/stat`: the aggregate `cpu` line, every `cpuN` line, and
   /// `btime`.
   CpuSample? readCpu() {
-    final lines = _readLines('$procRoot/stat');
+    final lines = readLinesOrNull('$procRoot/stat');
     if (lines == null) return null;
 
     CpuTimes? aggregate;
@@ -43,9 +44,10 @@ class ProcReader {
       } else if (line.startsWith('btime ')) {
         final seconds = int.tryParse(line.substring(6).trim());
         if (seconds != null) {
-          bootTime =
-              DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true)
-                  .toLocal();
+          bootTime = DateTime.fromMillisecondsSinceEpoch(
+            seconds * 1000,
+            isUtc: true,
+          ).toLocal();
         }
       }
     }
@@ -58,8 +60,7 @@ class ProcReader {
     final parts = line.split(RegExp(r'\s+'));
     if (parts.length < 5) return null;
 
-    int at(int i) =>
-        parts.length > i ? (int.tryParse(parts[i]) ?? 0) : 0;
+    int at(int i) => parts.length > i ? (int.tryParse(parts[i]) ?? 0) : 0;
 
     final user = at(1);
     final nice = at(2);
@@ -86,7 +87,7 @@ class ProcReader {
   }
 
   MemorySample readMemory() {
-    final lines = _readLines('$procRoot/meminfo');
+    final lines = readLinesOrNull('$procRoot/meminfo');
     if (lines == null) return const MemorySample();
 
     var total = 0,
@@ -130,7 +131,7 @@ class ProcReader {
   }
 
   LoadAverage? readLoad() {
-    final text = _readString('$procRoot/loadavg');
+    final text = readStringOrNull('$procRoot/loadavg');
     if (text == null) return null;
     final parts = text.trim().split(RegExp(r'\s+'));
     if (parts.length < 3) return null;
@@ -145,7 +146,7 @@ class ProcReader {
   /// a process started `starttimeTicks / kUserHz` seconds after boot, so it has
   /// been alive for `uptime - starttimeTicks / kUserHz`.
   double? readUptimeSeconds() {
-    final text = _readString('$procRoot/uptime');
+    final text = readStringOrNull('$procRoot/uptime');
     if (text == null) return null;
     return double.tryParse(text.trim().split(RegExp(r'\s+')).first);
   }
@@ -153,7 +154,7 @@ class ProcReader {
   /// The CPU's marketing name, from the first `model name` line of
   /// `/proc/cpuinfo`.
   String? readCpuModel() {
-    final lines = _readLines('$procRoot/cpuinfo');
+    final lines = readLinesOrNull('$procRoot/cpuinfo');
     if (lines == null) return null;
     for (final line in lines) {
       if (line.startsWith('model name')) {
@@ -170,7 +171,7 @@ class ProcReader {
   /// Docker or a VPN has a dozen `veth*`/`tun*` devices, and any heuristic that
   /// chooses one of them is wrong on somebody's machine.
   NetSample? readNet() {
-    final lines = _readLines('$procRoot/net/dev');
+    final lines = readLinesOrNull('$procRoot/net/dev');
     if (lines == null) return null;
 
     var rx = 0, tx = 0;
@@ -195,12 +196,13 @@ class ProcReader {
     List<Directory> zones;
     try {
       if (!root.existsSync()) return null;
-      zones = root
-          .listSync()
-          .whereType<Directory>()
-          .where((d) => d.path.split('/').last.startsWith('thermal_zone'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+      zones =
+          root
+              .listSync()
+              .whereType<Directory>()
+              .where((d) => d.path.split('/').last.startsWith('thermal_zone'))
+              .toList()
+            ..sort((a, b) => a.path.compareTo(b.path));
     } catch (_) {
       return null;
     }
@@ -209,7 +211,7 @@ class ProcReader {
     Directory? fallback;
 
     for (final zone in zones) {
-      final type = _readString('${zone.path}/type')?.trim().toLowerCase();
+      final type = readStringOrNull('${zone.path}/type')?.trim().toLowerCase();
       if (type == null) continue;
       if (!File('${zone.path}/temp').existsSync()) continue;
 
@@ -226,29 +228,10 @@ class ProcReader {
     final zone = preferred ?? fallback;
     if (zone == null) return null;
 
-    final milliCelsius =
-        int.tryParse(_readString('${zone.path}/temp')?.trim() ?? '');
+    final milliCelsius = int.tryParse(
+      readStringOrNull('${zone.path}/temp')?.trim() ?? '',
+    );
     return milliCelsius == null ? null : milliCelsius / 1000.0;
-  }
-
-  List<String>? _readLines(String path) {
-    try {
-      final file = File(path);
-      if (!file.existsSync()) return null;
-      return file.readAsLinesSync();
-    } catch (_) {
-      return null;
-    }
-  }
-
-  String? _readString(String path) {
-    try {
-      final file = File(path);
-      if (!file.existsSync()) return null;
-      return file.readAsStringSync();
-    } catch (_) {
-      return null;
-    }
   }
 }
 
@@ -263,12 +246,15 @@ List<CoreUsage> computeCoreUsage(CpuSample prev, CpuSample curr) {
   final result = <CoreUsage>[];
   for (var i = 0; i < curr.cores.length && i < prev.cores.length; i++) {
     final core = curr.cores[i];
-    result.add(CoreUsage(
-      index: i,
-      percent: CpuTimes.usageBetween(prev.cores[i], core),
-      busyTime:
-          Duration(seconds: (core.user + core.nice + core.system) ~/ kUserHz),
-    ));
+    result.add(
+      CoreUsage(
+        index: i,
+        percent: CpuTimes.usageBetween(prev.cores[i], core),
+        busyTime: Duration(
+          seconds: (core.user + core.nice + core.system) ~/ kUserHz,
+        ),
+      ),
+    );
   }
   return result;
 }

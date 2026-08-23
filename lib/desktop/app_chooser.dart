@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
+import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -109,14 +111,9 @@ class _AppChooserCardState extends State<AppChooserCard> {
 
   void _scrollToHighlighted() {
     if (!_scroll.hasClients) return;
-    final top = _highlighted * kAppChooserRowHeight;
-    final bottom = top + kAppChooserRowHeight;
-    final offset = _scroll.offset;
-    if (top < offset) {
-      _scroll.jumpTo(top);
-    } else if (bottom > offset + kAppChooserListHeight) {
-      _scroll.jumpTo(bottom - kAppChooserListHeight);
-    }
+    final offset =
+        revealRowOffset(_highlighted, kAppChooserRowHeight, _scroll.position);
+    if (offset != null) _scroll.jumpTo(offset);
   }
 
   void _accept() {
@@ -442,24 +439,13 @@ Future<AppEntry?> showAppChooser(
   required List<SearchableApp> apps,
   bool loading = false,
 }) {
-  final overlay = Overlay.of(context, rootOverlay: true);
-  final completer = Completer<AppEntry?>();
-  late OverlayEntry entry;
-
-  void close(AppEntry? result) {
-    if (completer.isCompleted) return;
-    entry.remove();
-    completer.complete(result);
-  }
-
-  entry = OverlayEntry(
-    builder: (context) => AppChooserOverlay(
+  return showRootModal<AppEntry?>(
+    context,
+    (close) => AppChooserOverlay(
       apps: apps,
       loading: loading,
       onSelected: close,
       onCancel: () => close(null),
     ),
   );
-  overlay.insert(entry);
-  return completer.future;
 }

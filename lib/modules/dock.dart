@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/app_info.dart';
+import 'package:graceful_shell/desktop/desktop_menu.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/app_directory.dart';
 import 'package:graceful_shell/module.dart';
@@ -26,10 +28,9 @@ class DockConfig {
   factory DockConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const DockConfig();
     return DockConfig(
-      apps: (map['apps'] as List<dynamic>?)?.whereType<String>().toList() ??
-          const [],
-      iconSize: map['icon_size'] as int? ?? 24,
-      showAppDirectory: map['show_app_directory'] as bool? ?? true,
+      apps: map.stringListOr('apps'),
+      iconSize: map.intOr('icon_size', 24),
+      showAppDirectory: map.boolOr('show_app_directory', true),
     );
   }
 }
@@ -435,7 +436,7 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       if (!mounted) return;
       openBarPopup(
         context,
-        // Loose: the menu sizes to its content (see [ContextMenuCard]).
+        // Loose: the menu sizes to its content (see [DesktopMenuCard]).
         preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
         // Its own reopen-guard slot, so a primary click that dismisses the menu
         // does not leave a guard armed under the *tooltip*'s identity and eat
@@ -443,9 +444,9 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         ownerKey: (this, 'menu'),
         child: ThemeProvider(
           child: PopupBounceIn(
-            child: ContextMenuCard(
-              items: [
-                ContextMenuItem(
+            child: DesktopMenuCard(
+              entries: [
+                DesktopMenuEntry(
                   label: 'Unpin from dock',
                   onTap: () {
                     // Close first: _unpin writes through ConfigStore, which
@@ -547,17 +548,8 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   }
 }
 
-class DockModule extends Module {
-  DockConfig _config = const DockConfig();
-
-  @override
-  String get configKey => 'dock';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = DockConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => Dock(config: _config);
-}
+final Module dockModule = Module.simple(
+  configKey: 'dock',
+  fromMap: DockConfig.fromMap,
+  builder: (context, config) => Dock(config: config),
+);

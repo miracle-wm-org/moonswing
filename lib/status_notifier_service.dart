@@ -4,6 +4,7 @@ import 'dart:io' show pid;
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:graceful_shell/dbus_menu.dart';
+import 'package:graceful_shell/dbus_service_object.dart';
 
 /// StatusNotifierItem (SNI) system-tray support.
 ///
@@ -358,7 +359,7 @@ Future<void> _startHostConsumer(DBusClient client, String hostName) async {
 }
 
 /// D-Bus object implementing `org.kde.StatusNotifierWatcher`.
-class StatusNotifierWatcher extends DBusObject {
+class StatusNotifierWatcher extends DBusServiceObject {
   StatusNotifierWatcher(this._client)
       : super(DBusObjectPath(_watcherPath));
 
@@ -375,23 +376,39 @@ class StatusNotifierWatcher extends DBusObject {
   }
 
   @override
-  Future<DBusMethodResponse> handleMethodCall(DBusMethodCall methodCall) async {
-    if (methodCall.interface != _watcherInterface) {
-      return DBusMethodErrorResponse.unknownInterface();
-    }
-    try {
-      switch (methodCall.name) {
-        case 'RegisterStatusNotifierItem':
-          return await _registerItem(methodCall);
-        case 'RegisterStatusNotifierHost':
-          return await _registerHost(methodCall);
-        default:
-          return DBusMethodErrorResponse.unknownMethod();
-      }
-    } catch (_) {
-      return DBusMethodErrorResponse.invalidArgs();
-    }
-  }
+  late final List<DBusServiceInterface> interfaces = [
+    DBusServiceInterface(
+      _watcherInterface,
+      methods: {
+        'RegisterStatusNotifierItem': DBusServiceMethod(_registerItem, args: [
+          DBusIntrospectArgument(DBusSignature('s'), DBusArgumentDirection.in_,
+              name: 'service'),
+        ]),
+        'RegisterStatusNotifierHost': DBusServiceMethod(_registerHost, args: [
+          DBusIntrospectArgument(DBusSignature('s'), DBusArgumentDirection.in_,
+              name: 'service'),
+        ]),
+      },
+      properties: {
+        'RegisteredStatusNotifierItems': DBusServiceProperty(
+            DBusSignature('as'), () => DBusArray.string(_registeredServices)),
+        'IsStatusNotifierHostRegistered': DBusServiceProperty(
+            DBusSignature('b'), () => DBusBoolean(_hostRegistered)),
+        'ProtocolVersion':
+            DBusServiceProperty(DBusSignature('i'), () => const DBusInt32(0)),
+      },
+      signals: [
+        DBusIntrospectSignal('StatusNotifierItemRegistered', args: [
+          DBusIntrospectArgument(DBusSignature('s'), DBusArgumentDirection.out),
+        ]),
+        DBusIntrospectSignal('StatusNotifierItemUnregistered', args: [
+          DBusIntrospectArgument(DBusSignature('s'), DBusArgumentDirection.out),
+        ]),
+        DBusIntrospectSignal('StatusNotifierHostRegistered'),
+      ],
+      onError: (call, error) => DBusMethodErrorResponse.invalidArgs(),
+    ),
+  ];
 
   Future<DBusMethodResponse> _registerItem(DBusMethodCall methodCall) async {
     if (methodCall.values.isEmpty) {
@@ -439,77 +456,6 @@ class StatusNotifierWatcher extends DBusObject {
     });
   }
 
-  @override
-  Future<DBusMethodResponse> getProperty(String interface, String name) async {
-    if (interface != _watcherInterface) {
-      return DBusMethodErrorResponse.unknownProperty();
-    }
-    switch (name) {
-      case 'RegisteredStatusNotifierItems':
-        return DBusGetPropertyResponse(DBusArray.string(_registeredServices));
-      case 'IsStatusNotifierHostRegistered':
-        return DBusGetPropertyResponse(DBusBoolean(_hostRegistered));
-      case 'ProtocolVersion':
-        return DBusGetPropertyResponse(const DBusInt32(0));
-      default:
-        return DBusMethodErrorResponse.unknownProperty();
-    }
-  }
-
-  @override
-  Future<DBusMethodResponse> getAllProperties(String interface) async {
-    if (interface != _watcherInterface) {
-      return DBusGetAllPropertiesResponse({});
-    }
-    return DBusGetAllPropertiesResponse({
-      'RegisteredStatusNotifierItems': DBusArray.string(_registeredServices),
-      'IsStatusNotifierHostRegistered': DBusBoolean(_hostRegistered),
-      'ProtocolVersion': const DBusInt32(0),
-    });
-  }
-
-  @override
-  List<DBusIntrospectInterface> introspect() {
-    return [
-      DBusIntrospectInterface(
-        _watcherInterface,
-        methods: [
-          DBusIntrospectMethod('RegisterStatusNotifierItem', args: [
-            DBusIntrospectArgument(
-                DBusSignature('s'), DBusArgumentDirection.in_,
-                name: 'service'),
-          ]),
-          DBusIntrospectMethod('RegisterStatusNotifierHost', args: [
-            DBusIntrospectArgument(
-                DBusSignature('s'), DBusArgumentDirection.in_,
-                name: 'service'),
-          ]),
-        ],
-        signals: [
-          DBusIntrospectSignal('StatusNotifierItemRegistered', args: [
-            DBusIntrospectArgument(
-                DBusSignature('s'), DBusArgumentDirection.out),
-          ]),
-          DBusIntrospectSignal('StatusNotifierItemUnregistered', args: [
-            DBusIntrospectArgument(
-                DBusSignature('s'), DBusArgumentDirection.out),
-          ]),
-          DBusIntrospectSignal('StatusNotifierHostRegistered'),
-        ],
-        properties: [
-          DBusIntrospectProperty('RegisteredStatusNotifierItems',
-              DBusSignature('as'),
-              access: DBusPropertyAccess.read),
-          DBusIntrospectProperty(
-              'IsStatusNotifierHostRegistered', DBusSignature('b'),
-              access: DBusPropertyAccess.read),
-          DBusIntrospectProperty('ProtocolVersion', DBusSignature('i'),
-              access: DBusPropertyAccess.read),
-        ],
-      ),
-    ];
-  }
-
   void dispose() {
     _nameOwnerSub?.cancel();
     for (final tracker in _trackers.values) {
@@ -523,13 +469,17 @@ class StatusNotifierWatcher extends DBusObject {
 /// Starts system-tray support on the session bus.
 ///
 /// If no `org.kde.StatusNotifierWatcher` exists yet, the shell becomes the
-/// watcher (and its own host). If another watcher already owns the name (e.g.
-/// gnome-shell in a mixed desktop session), the shell instead attaches to it as
-/// a host and mirrors its registered items — so the tray works either way.
-/// Fails silently, like [startNotificationService].
+/// watcher (and its own host). Another watcher already owning the name (e.g.
+/// gnome-shell in a mixed desktop session) is not even a decline — the shell
+/// attaches to it as a host and mirrors its registered items, so the tray
+/// works either way. Genuine errors — the bus unreachable, a name
+/// request erroring, the watcher object failing to export — throw, and
+/// `ShellServices.run` records the service as failed. (A flaky *foreign*
+/// watcher stays soft inside [_startHostConsumer]: the shell has yielded, and
+/// still listens for registrations even when that watcher answers nothing.)
 Future<void> startStatusNotifierService() async {
+  final client = DBusClient.session();
   try {
-    final client = DBusClient.session();
     _sessionClient = client;
 
     final hostName = 'org.kde.StatusNotifierHost-$pid';
@@ -555,8 +505,10 @@ Future<void> startStatusNotifierService() async {
       // Another watcher owns the name — consume it as a host.
       await _startHostConsumer(client, hostName);
     }
-  } catch (e) {
-    debugPrint('System tray service unavailable: $e');
+  } catch (_) {
+    _sessionClient = null;
+    unawaited(client.close());
+    rethrow;
   }
 }
 

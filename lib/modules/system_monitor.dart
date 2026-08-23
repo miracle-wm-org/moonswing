@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
@@ -30,7 +31,6 @@ class SystemMonitor extends StatefulWidget {
 class SystemMonitorState extends State<SystemMonitor>
     with PopupHost<SystemMonitor> {
   final SystemStatsStore _store = SystemStatsStore.instance;
-  bool _hovered = false;
 
   @override
   void initState() {
@@ -51,7 +51,7 @@ class SystemMonitorState extends State<SystemMonitor>
       return;
     }
 
-    final anchor = BarScope.of(context).anchor;
+    final anchor = BarScope.of(context);
     final isVertical = anchor == 'left' || anchor == 'right';
 
     openBarPopup(
@@ -71,21 +71,12 @@ class SystemMonitorState extends State<SystemMonitor>
         if (!_store.hasData) return const SizedBox.shrink();
 
         final theme = ThemeScope.of(context);
-        final isActive = _hovered || isPopupOpen;
         final tempC = _store.temperatureCelsius;
 
-        return MouseRegion(
-          onEnter: (_) => setState(() => _hovered = true),
-          onExit: (_) => setState(() => _hovered = false),
-          child: GestureDetector(
-            onTapDown: (_) => _togglePopup(context),
-            child: Container(
-              decoration: BoxDecoration(
-                color: isActive ? const Color(0x28FFFFFF) : null,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              child: Row(
+        return BarButton(
+      active: isPopupOpen,
+      onTapDown: (_) => _togglePopup(context),
+      child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   FaIcon(FontAwesomeIcons.microchip,
@@ -115,9 +106,7 @@ class SystemMonitorState extends State<SystemMonitor>
                   ],
                 ],
               ),
-            ),
-          ),
-        );
+    );
       },
     );
   }
@@ -461,18 +450,15 @@ class _TabButton extends StatelessWidget {
 // Module registration
 // ---------------------------------------------------------------------------
 
-class SystemMonitorModule extends Module {
-  @override
-  String get configKey => 'system_monitor';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
+final Module systemMonitorModule = Module.simple<SystemMonitorConfig>(
+  configKey: 'system_monitor',
+  fromMap: (map) {
+    final config = SystemMonitorConfig.fromMap(map);
     // The store, not the widget, owns the config: the overlay's System tab
-    // reads the same settings and must see them even when no panel carries this
-    // module.
-    SystemStatsStore.instance.configure(SystemMonitorConfig.fromMap(map));
-  }
-
-  @override
-  WidgetBuilder get builder => (context) => const SystemMonitor();
-}
+    // reads the same settings and must see them even when no panel carries
+    // this module.
+    SystemStatsStore.instance.configure(config);
+    return config;
+  },
+  builder: (context, config) => const SystemMonitor(),
+);

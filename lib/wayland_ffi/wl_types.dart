@@ -63,7 +63,6 @@ class WlArgs {
   WlArgs(int count) : _ptr = calloc<ffi.Int64>(math.max(count, 1));
 
   final ffi.Pointer<ffi.Int64> _ptr;
-  final List<ffi.Pointer<Utf8>> _ownedStrings = [];
 
   void setInt(int index, int value) => _ptr[index] = value;
   void setUint(int index, int value) => _ptr[index] = value;
@@ -73,15 +72,6 @@ class WlArgs {
   void setObject(int index, ffi.Pointer<ffi.Void> proxy) =>
       _ptr[index] = proxy.address;
 
-  /// Copies [value] to native memory owned by this argument list; freed with
-  /// [free] after the marshal call (libwayland copies strings into the wire
-  /// buffer synchronously).
-  void setString(int index, String value) {
-    final p = value.toNativeUtf8();
-    _ownedStrings.add(p);
-    _ptr[index] = p.address;
-  }
-
   /// A string argument that borrows an existing native string (e.g. an
   /// interface name from a `wl_interface` struct) — not freed by [free].
   void setStringPtr(int index, ffi.Pointer<Utf8> value) =>
@@ -89,11 +79,5 @@ class WlArgs {
 
   ffi.Pointer<ffi.Void> get pointer => _ptr.cast();
 
-  void free() {
-    for (final p in _ownedStrings) {
-      malloc.free(p);
-    }
-    _ownedStrings.clear();
-    calloc.free(_ptr);
-  }
+  void free() => calloc.free(_ptr);
 }

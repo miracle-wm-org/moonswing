@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:ubuntu_session/ubuntu_session.dart';
 import 'package:layer_shell/layer_shell.dart';
+import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
@@ -21,7 +22,6 @@ class System extends StatefulWidget {
 
 class SystemState extends State<System>
     with PopupHost<System>, LayerShellHost<System> {
-  bool _hovered = false;
 
   @override
   void dispose() {
@@ -97,25 +97,14 @@ class SystemState extends State<System>
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final isActive = _hovered || isPopupOpen;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTapDown: (_) => _togglePopup(context),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isActive ? const Color(0x28FFFFFF) : null,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: FaIcon(
+    return BarButton(
+      active: isPopupOpen,
+      onTapDown: (_) => _togglePopup(context),
+      child: FaIcon(
             FontAwesomeIcons.powerOff,
             size: 12,
             color: theme.foreground,
           ),
-        ),
-      ),
     );
   }
 }
@@ -434,13 +423,7 @@ class _DialogButtonState extends State<_DialogButton> {
   }
 }
 
-class SystemModule extends Module {
-  @override
-  String get configKey => 'system';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {}
-
-  @override
-  WidgetBuilder get builder => (_) => const System();
-}
+final Module systemModule = Module.plain(
+  configKey: 'system',
+  builder: (_) => const System(),
+);

@@ -2,42 +2,7 @@ import 'dart:ffi' as ffi;
 
 import 'package:ffi/ffi.dart';
 
-// Raw GLib/GDK symbols. GTK is already linked into the process (Flutter's Linux
-// embedder pulls it in and gtk-layer-shell links against it), so the symbols
-// resolve from the running process rather than a separately-opened library —
-// the same approach `layer_shell`'s `GdkMonitor.getConnector` uses.
-final ffi.DynamicLibrary _process = ffi.DynamicLibrary.process();
-
-typedef _GdkDisplayGetDefaultC = ffi.Pointer<ffi.Void> Function();
-typedef _GdkDisplayGetDefaultDart = ffi.Pointer<ffi.Void> Function();
-
-final _gdkDisplayGetDefault =
-    _process.lookupFunction<_GdkDisplayGetDefaultC, _GdkDisplayGetDefaultDart>(
-        'gdk_display_get_default');
-
-// gulong g_signal_connect_data(gpointer instance, const gchar *detailed_signal,
-//     GCallback c_handler, gpointer data, GClosureNotify destroy_data,
-//     GConnectFlags connect_flags);
-typedef _GSignalConnectDataC = ffi.Uint64 Function(
-  ffi.Pointer<ffi.Void> instance,
-  ffi.Pointer<Utf8> detailedSignal,
-  ffi.Pointer<ffi.Void> handler,
-  ffi.Pointer<ffi.Void> data,
-  ffi.Pointer<ffi.Void> destroyData,
-  ffi.Uint32 connectFlags,
-);
-typedef _GSignalConnectDataDart = int Function(
-  ffi.Pointer<ffi.Void> instance,
-  ffi.Pointer<Utf8> detailedSignal,
-  ffi.Pointer<ffi.Void> handler,
-  ffi.Pointer<ffi.Void> data,
-  ffi.Pointer<ffi.Void> destroyData,
-  int connectFlags,
-);
-
-final _gSignalConnectData =
-    _process.lookupFunction<_GSignalConnectDataC, _GSignalConnectDataDart>(
-        'g_signal_connect_data');
+import 'package:graceful_shell/native/ffi_util.dart';
 
 /// Watches the default GDK display for monitors being plugged in or unplugged
 /// and invokes [onChanged] whenever the set of monitors changes.
@@ -50,7 +15,7 @@ final _gSignalConnectData =
 class MonitorWatcher {
   MonitorWatcher(this.onChanged) {
     try {
-      final display = _gdkDisplayGetDefault();
+      final display = gdkDisplayGetDefault();
       if (display.address == 0) return;
 
       // The GDK signal signature is
@@ -63,7 +28,7 @@ class MonitorWatcher {
       for (final signal in const ['monitor-added', 'monitor-removed']) {
         final namePtr = signal.toNativeUtf8();
         _signalNames.add(namePtr);
-        _gSignalConnectData(
+        gSignalConnectData(
           display,
           namePtr,
           _callback!.nativeFunction.cast(),

@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:graceful_shell/request_controller.dart';
+
 /// Which page of the settings overlay to land on.
 ///
 /// The overlay's own tab and category are private state seeded in `initState`,
@@ -47,11 +49,9 @@ class SettingsRoute {
 /// open at a particular page" and `_GracefulShellRootState`, which owns the
 /// window.
 ///
-/// Same shape as [LauncherController], with a payload. Deliberately not
-/// `InputTriggerStore`: that store reports *compositor* triggers and its
-/// listener toggles on any notification, so a second signal there would toggle
-/// the overlay shut rather than retarget it.
-class SettingsController extends ChangeNotifier {
+/// A [SignalController] with a payload. (Why not `InputTriggerStore`: see
+/// the base.)
+class SettingsController extends SignalController {
   SettingsController._();
 
   static final SettingsController instance = SettingsController._();
@@ -60,14 +60,9 @@ class SettingsController extends ChangeNotifier {
   factory SettingsController.forTesting() => SettingsController._();
 
   SettingsRoute? _pending;
-  int _openCount = 0;
 
   /// The route the root has not acted on yet, or null.
   SettingsRoute? get pending => _pending;
-
-  /// Monotonic count of open requests. Exposed for tests; the root reacts to
-  /// [notifyListeners], not to this value.
-  int get openCount => _openCount;
 
   /// Asks the shell to show the settings overlay at [route].
   ///
@@ -76,8 +71,7 @@ class SettingsController extends ChangeNotifier {
   /// background…" that dismissed the settings would be nonsense.
   void open([SettingsRoute route = const SettingsRoute()]) {
     _pending = route;
-    _openCount++;
-    notifyListeners();
+    signal();
   }
 
   /// Called by the root once it has acted on [pending].

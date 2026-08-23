@@ -1,8 +1,7 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
 import 'package:graceful_shell/overlay/file_picker.dart';
+import 'package:graceful_shell/request_controller.dart';
 
 /// What to show in a root-owned file picker window.
 @immutable
@@ -26,61 +25,17 @@ class FilePickerRequest {
 /// [showFilePicker] inserts into the nearest root [Overlay], which is fine
 /// inside the settings overlay but useless on the desktop: the background
 /// surface is on the *background* layer, so a picker rendered there would be
-/// drawn underneath every application window and every panel. The root puts one
-/// on the overlay layer instead.
+/// drawn underneath every application window and every panel. The root puts
+/// one on the overlay layer instead.
 ///
-/// Shaped like `ScreencastPickerController`, including its rule: a request with
-/// nothing listening is declined immediately rather than left hanging, so a
-/// headless run or a unit test never awaits a window that will not appear.
-class FilePickerController extends ChangeNotifier {
+/// [pick] resolves to the chosen absolute paths, or null when cancelled —
+/// the decline/supersede/teardown rules are [RequestController]'s.
+class FilePickerController
+    extends RequestController<FilePickerRequest, List<String>> {
   FilePickerController._();
 
   static final FilePickerController instance = FilePickerController._();
 
   @visibleForTesting
   factory FilePickerController.forTesting() => FilePickerController._();
-
-  FilePickerRequest? _pending;
-  Completer<List<String>?>? _completer;
-
-  /// The request awaiting a window, or null.
-  FilePickerRequest? get pending => _pending;
-
-  /// Asks the shell to show a picker, resolving to the chosen absolute paths or
-  /// null if it was cancelled.
-  Future<List<String>?> pick(FilePickerRequest request) {
-    if (!hasListeners) return Future<List<String>?>.value(null);
-
-    // A second request supersedes the first, which is resolved as cancelled —
-    // the same posture the screencast picker takes, and it means no caller is
-    // ever left awaiting a window that has been replaced.
-    _resolve(null);
-
-    final completer = Completer<List<String>?>();
-    _pending = request;
-    _completer = completer;
-    notifyListeners();
-    return completer.future;
-  }
-
-  /// Called by the root once the user answers. Idempotent.
-  void complete(List<String>? paths) {
-    if (_pending == null && _completer == null) return;
-    _resolve(paths);
-    notifyListeners();
-  }
-
-  void _resolve(List<String>? paths) {
-    final completer = _completer;
-    _completer = null;
-    _pending = null;
-    if (completer != null && !completer.isCompleted) completer.complete(paths);
-  }
-
-  @override
-  void dispose() {
-    // A shell tearing down still owes every awaiting caller an answer.
-    _resolve(null);
-    super.dispose();
-  }
 }

@@ -239,16 +239,10 @@ class _WorkspaceButton extends StatefulWidget {
   State<_WorkspaceButton> createState() => _WorkspaceButtonState();
 }
 
-class WorkspacesModule extends Module {
-  @override
-  String get configKey => 'workspaces';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {}
-
-  @override
-  WidgetBuilder get builder => (_) => const Workspaces();
-}
+final Module workspacesModule = Module.plain(
+  configKey: 'workspaces',
+  builder: (_) => const Workspaces(),
+);
 
 class _WorkspaceButtonState extends State<_WorkspaceButton> {
   bool _hovered = false;

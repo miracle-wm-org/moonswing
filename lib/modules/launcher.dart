@@ -7,6 +7,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -82,25 +83,14 @@ class LauncherConfig {
 
   factory LauncherConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const LauncherConfig();
-    final rawSize = map['icon_size'];
     return LauncherConfig(
-      iconSize: rawSize is num ? rawSize.toInt() : 18,
+      iconSize: map.intOr('icon_size', 18),
     );
   }
 }
 
-class LauncherModule extends Module {
-  LauncherConfig _config = const LauncherConfig();
-
-  @override
-  String get configKey => 'launcher';
-
-  @override
-  void loadConfig(Map<String, dynamic>? map) {
-    _config = LauncherConfig.fromMap(map);
-  }
-
-  @override
-  WidgetBuilder get builder =>
-      (context) => LauncherButton(iconSize: _config.iconSize);
-}
+final Module launcherModule = Module.simple(
+  configKey: 'launcher',
+  fromMap: LauncherConfig.fromMap,
+  builder: (context, config) => LauncherButton(iconSize: config.iconSize),
+);

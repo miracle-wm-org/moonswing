@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:graceful_shell/system/file_read.dart';
 import 'package:graceful_shell/system/format.dart';
 import 'package:graceful_shell/system/proc_reader.dart';
 
@@ -61,9 +62,9 @@ class SystemInfoReader {
     Map<String, String>? env,
     ProcReader? proc,
     Future<ProcessResult> Function(String, List<String>)? runner,
-  })  : _env = env ?? Platform.environment,
-        _proc = proc ?? ProcReader(procRoot: procRoot),
-        _run = runner ?? Process.run;
+  }) : _env = env ?? Platform.environment,
+       _proc = proc ?? ProcReader(procRoot: procRoot),
+       _run = runner ?? Process.run;
 
   final String procRoot;
   final String etcRoot;
@@ -77,15 +78,18 @@ class SystemInfoReader {
     final uptimeSeconds = _proc.readUptimeSeconds();
 
     return SystemInfo(
-      hostname: _readString('$procRoot/sys/kernel/hostname')?.trim(),
+      hostname: readStringOrNull('$procRoot/sys/kernel/hostname')?.trim(),
       osName: parseOsReleasePrettyName(
-          _readString('$etcRoot/os-release') ?? ''),
-      kernel: _readString('$procRoot/sys/kernel/osrelease')?.trim(),
+        readStringOrNull('$etcRoot/os-release') ?? '',
+      ),
+      kernel: readStringOrNull('$procRoot/sys/kernel/osrelease')?.trim(),
       architecture: await _runFirstLine('uname', const ['-m']),
       cpuModel: _proc.readCpuModel(),
       cpuCores: cpu != null && cpu.coreCount > 0 ? '${cpu.coreCount}' : null,
       totalMemory: memory.totalKb > 0 ? formatBytesKb(memory.totalKb) : null,
-      totalSwap: memory.swapTotalKb > 0 ? formatBytesKb(memory.swapTotalKb) : null,
+      totalSwap: memory.swapTotalKb > 0
+          ? formatBytesKb(memory.swapTotalKb)
+          : null,
       gpu: parseLspciGpu(await _runFull('lspci', const []) ?? ''),
       desktop: _envValue('XDG_CURRENT_DESKTOP'),
       sessionType: _envValue('XDG_SESSION_TYPE'),
@@ -100,16 +104,6 @@ class SystemInfoReader {
   String? _envValue(String key) {
     final value = _env[key]?.trim();
     return value == null || value.isEmpty ? null : value;
-  }
-
-  String? _readString(String path) {
-    try {
-      final file = File(path);
-      if (!file.existsSync()) return null;
-      return file.readAsStringSync();
-    } catch (_) {
-      return null;
-    }
   }
 
   Future<String?> _runFull(String executable, List<String> args) async {

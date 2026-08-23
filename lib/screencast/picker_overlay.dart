@@ -5,7 +5,6 @@
 // The sources and their preview feeds are injected, so widget tests drive the
 // whole surface without touching Wayland.
 
-import 'dart:ui';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -13,6 +12,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../config.dart';
 import '../scopes.dart';
+import '../overlay_fade_scaffold.dart';
 import 'picker_controller.dart';
 import 'preview.dart';
 
@@ -70,44 +70,9 @@ class ScreencastPickerOverlay extends StatefulWidget {
       _ScreencastPickerOverlayState();
 }
 
-class _ScreencastPickerOverlayState extends State<ScreencastPickerOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-  late final Animation<double> _opacity;
-
+class _ScreencastPickerOverlayState extends State<ScreencastPickerOverlay> {
   final Set<String> _selected = {};
   bool _answered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 160),
-    );
-    _scale = Tween<double>(begin: 0.96, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    _controller.forward();
-    widget.closingNotifier.addListener(_onClosingChanged);
-  }
-
-  @override
-  void dispose() {
-    widget.closingNotifier.removeListener(_onClosingChanged);
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _onClosingChanged() {
-    if (widget.closingNotifier.value) {
-      _controller.reverse().then((_) => widget.onClosed());
-    }
-  }
 
   List<PickerSource> get _allSources => [...widget.monitors, ...widget.windows];
 
@@ -172,33 +137,11 @@ class _ScreencastPickerOverlayState extends State<ScreencastPickerOverlay>
         child: Focus(
           autofocus: true,
           onKeyEvent: _onKey,
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final backdrop = GestureDetector(
-                // No input-region support: this surface swallows every click
-                // on the monitor, so dismiss-on-backdrop is the only way out
-                // for a mouse-only user. Dismissing denies the request.
-                behavior: HitTestBehavior.opaque,
-                onTap: _cancel,
-                child: Container(
-                  color: theme.scrim,
-                  child: Center(
-                    child: Transform.scale(scale: _scale.value, child: child),
-                  ),
-                ),
-              );
-              return Opacity(
-                opacity: _opacity.value,
-                child: theme.blur > 0
-                    ? BackdropFilter(
-                        filter: ImageFilter.blur(
-                            sigmaX: theme.blur, sigmaY: theme.blur),
-                        child: backdrop,
-                      )
-                    : backdrop,
-              );
-            },
+          // Backdrop tap dismisses, and dismissing denies the request.
+          child: FadeOverlayScaffold(
+            closing: widget.closingNotifier,
+            onClosed: widget.onClosed,
+            onBackdropTap: _cancel,
             child: _buildCard(theme),
           ),
         ),
