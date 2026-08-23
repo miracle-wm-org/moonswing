@@ -7,6 +7,8 @@ library;
 
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:graceful_shell/config_reader.dart';
 
 /// What a desktop grid item points at, which decides how it opens.
@@ -118,6 +120,19 @@ class DesktopItem {
         'column': column,
         'row': row,
       };
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DesktopItem &&
+          other.kind == kind &&
+          other.target == target &&
+          other.label == label &&
+          other.column == column &&
+          other.row == row;
+
+  @override
+  int get hashCode => Object.hash(kind, target, label, column, row);
 }
 
 /// Geometry and behaviour of the desktop icon grid.
@@ -174,4 +189,29 @@ class DesktopConfig {
       items: items,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DesktopConfig &&
+          other.enabled == enabled &&
+          other.cellWidth == cellWidth &&
+          other.cellHeight == cellHeight &&
+          other.spacing == spacing &&
+          other.padding == padding &&
+          other.iconSize == iconSize &&
+          other.showLabels == showLabels &&
+          listEquals(other.items, items);
+
+  @override
+  int get hashCode => Object.hash(
+        enabled,
+        cellWidth,
+        cellHeight,
+        spacing,
+        padding,
+        iconSize,
+        showLabels,
+        Object.hashAll(items),
+      );
 }

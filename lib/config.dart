@@ -57,6 +57,16 @@ class BackgroundEntry {
       shown: map.boolOr('shown', true),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BackgroundEntry &&
+          other.path == path &&
+          other.shown == shown;
+
+  @override
+  int get hashCode => Object.hash(path, shown);
 }
 
 class BackgroundConfig {
@@ -78,6 +88,21 @@ class BackgroundConfig {
       entries: map.tableListOr('entries').map(BackgroundEntry.fromMap).toList(),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BackgroundConfig &&
+          other.fit == fit &&
+          other.intervalMinutes == intervalMinutes &&
+          listEquals(other.entries, entries);
+
+  @override
+  int get hashCode => Object.hash(
+        fit,
+        intervalMinutes,
+        Object.hashAll(entries),
+      );
 }
 
 class LayoutConfig {
@@ -107,6 +132,21 @@ class LayoutConfig {
   }
 
   Set<String> get enabledModules => {...left, ...center, ...right};
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LayoutConfig &&
+          listEquals(other.left, left) &&
+          listEquals(other.center, center) &&
+          listEquals(other.right, right);
+
+  @override
+  int get hashCode => Object.hash(
+        Object.hashAll(left),
+        Object.hashAll(center),
+        Object.hashAll(right),
+      );
 }
 
 class PanelConfig {
@@ -136,6 +176,27 @@ class PanelConfig {
       layout: LayoutConfig.fromMap(map.tableOrNull('layout')),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PanelConfig &&
+          other.name == name &&
+          other.height == height &&
+          other.paddingHorizontal == paddingHorizontal &&
+          other.anchor == anchor &&
+          other.layer == layer &&
+          other.layout == layout;
+
+  @override
+  int get hashCode => Object.hash(
+        name,
+        height,
+        paddingHorizontal,
+        anchor,
+        layer,
+        layout,
+      );
 }
 
 /// One `[[calendar.world_clocks]]` entry: a row in the clock column on the
@@ -179,6 +240,16 @@ class WorldClock {
           .whereType<WorldClock>()
           .toList()
       : const <WorldClock>[];
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is WorldClock &&
+          other.zone == zone &&
+          other.label == label;
+
+  @override
+  int get hashCode => Object.hash(zone, label);
 }
 
 /// The `[calendar]` section. The calendar is a local month grid with no account
@@ -207,6 +278,16 @@ class CalendarConfig {
       worldClocks: WorldClock.parseList(map['world_clocks']),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CalendarConfig &&
+          other.weekStart == weekStart &&
+          listEquals(other.worldClocks, worldClocks);
+
+  @override
+  int get hashCode => Object.hash(weekStart, Object.hashAll(worldClocks));
 }
 
 /// The on-screen indicator shown when volume, microphone volume, or screen
@@ -235,6 +316,17 @@ class OsdConfig {
       margin: map.intOr('margin', 96),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is OsdConfig &&
+          other.enabled == enabled &&
+          other.hideDelayMs == hideDelayMs &&
+          other.margin == margin;
+
+  @override
+  int get hashCode => Object.hash(enabled, hideDelayMs, margin);
 }
 
 /// Screen sharing — the shell's xdg-desktop-portal ScreenCast backend.
@@ -266,6 +358,17 @@ class ScreenshareConfig {
       maxFps: map.intOr('max_fps', 0, min: 0),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScreenshareConfig &&
+          other.enabled == enabled &&
+          other.previewFps == previewFps &&
+          other.maxFps == maxFps;
+
+  @override
+  int get hashCode => Object.hash(enabled, previewFps, maxFps);
 }
 
 /// The lock screen: its wallpaper and the chrome drawn over it.
@@ -303,6 +406,18 @@ class LockConfig {
       blurSigma: map.doubleOr('blur_sigma', 18.0, min: 0.0, max: 100.0),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LockConfig &&
+          other.background == background &&
+          other.fit == fit &&
+          other.showUsername == showUsername &&
+          other.blurSigma == blurSigma;
+
+  @override
+  int get hashCode => Object.hash(background, fit, showUsername, blurSigma);
 }
 
 /// Ctrl+Shift+S. The shifted keysym (`S`, not `s`) is what Mir matches on —
@@ -365,6 +480,16 @@ class ShortcutsConfig {
     }
     return spec;
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ShortcutsConfig &&
+          other.openSettings == openSettings &&
+          other.openLauncher == openLauncher;
+
+  @override
+  int get hashCode => Object.hash(openSettings, openLauncher);
 }
 
 class AppConfig {
@@ -484,4 +609,35 @@ class AppConfig {
       screenshare: ScreenshareConfig.fromMap(map.tableOrNull('screenshare')),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppConfig &&
+          mapEquals(other.panels, panels) &&
+          other.background == background &&
+          other.themeName == themeName &&
+          other.desktop == desktop &&
+          other.calendar == calendar &&
+          other.osd == osd &&
+          other.lock == lock &&
+          other.shortcuts == shortcuts &&
+          other.screenshare == screenshare;
+
+  /// Hashed on the panel count alone: equal maps have equal
+  /// lengths, and two maps that are equal can still iterate in
+  /// different orders, so anything finer would break the
+  /// hashCode contract. Nothing here is ever a hash key.
+  @override
+  int get hashCode => Object.hash(
+        panels.length,
+        background,
+        themeName,
+        desktop,
+        calendar,
+        osd,
+        lock,
+        shortcuts,
+        screenshare,
+      );
 }

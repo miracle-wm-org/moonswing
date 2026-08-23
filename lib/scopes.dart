@@ -100,6 +100,43 @@ class DisplayScope extends InheritedWidget {
   bool updateShouldNotify(DisplayScope old) => output?.name != old.output?.name;
 }
 
+/// Provides the live [AppConfig] — the typed view of `config.toml` as the user
+/// is editing it — to the widget subtree.
+///
+/// Never constructed outside `LiveConfigProvider`, the [ThemeScope] rule.
+///
+/// The value cannot be read from `build` at its source: `ConfigStore.appConfig`
+/// rebuilds the whole typed config and re-applies every module's options via
+/// `Module.loadAll` as a side effect, so the shell root derives it in a
+/// listener and publishes it here. What that buys is the rebuild *boundary* —
+/// `ConfigStore` notifies on every keystroke anywhere in the settings UI, and
+/// before this the root answered each one by rebuilding every view it owns.
+///
+/// Window *geometry* is not in here. Anchor, height and layer are frozen at
+/// startup because the native layer-shell surface was created from them; the
+/// startup snapshot stays on `GracefulShellRoot.appConfig`.
+class LiveConfigScope extends InheritedWidget {
+  const LiveConfigScope({
+    super.key,
+    required this.config,
+    required super.child,
+  });
+
+  final AppConfig config;
+
+  static AppConfig of(BuildContext context) =>
+      _of<LiveConfigScope>(context, 'LiveConfigProvider').config;
+
+  static AppConfig? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<LiveConfigScope>()?.config;
+
+  /// Value equality, not identity: `ConfigStore.appConfig` mints a fresh
+  /// [AppConfig] on every read, so identity would make every keystroke a
+  /// change and undo the whole point of the scope.
+  @override
+  bool updateShouldNotify(LiveConfigScope old) => config != old.config;
+}
+
 /// Provides [ThemeConfig] to the widget subtree.
 ///
 /// Never constructed directly outside `ThemeProvider` — see the theming

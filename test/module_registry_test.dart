@@ -70,4 +70,44 @@ void main() {
     });
     expect(Module.lookup('battery'), isNotNull);
   });
+
+  /// The regression test for the thing that keeps `[modules.*]` options live
+  /// now that the shell root no longer rebuilds every panel on every config
+  /// notify: module config is pushed imperatively and read out of `builder` at
+  /// build time, so [Module.configChanges] is the only thing that can tell a
+  /// panel its module moved.
+  test('configChanges fires when a module table moves, and only then', () {
+    Module.register(clockModule);
+    var fired = 0;
+    void onChanged() => fired++;
+    Module.configChanges.addListener(onChanged);
+    addTearDown(() => Module.configChanges.removeListener(onChanged));
+
+    Module.loadAll({
+      'clock': {'show_date': true},
+    });
+    final first = fired;
+    expect(first, greaterThan(0), reason: 'the first load is always a change');
+
+    // The same table again: ConfigStore notifies on every keystroke anywhere
+    // in the settings UI, and re-ranking every module for an unrelated edit is
+    // exactly what this guard exists to prevent.
+    Module.loadAll({
+      'clock': {'show_date': true},
+    });
+    expect(fired, first, reason: 'an identical table is not a change');
+
+    Module.loadAll({
+      'clock': {'show_date': false},
+    });
+    expect(fired, first + 1, reason: 'a moved value is');
+
+    // Once per sweep, not once per module, however many moved.
+    Module.register(batteryModule);
+    Module.loadAll({
+      'clock': {'show_date': true},
+      'battery': {'poll_seconds': 11.0},
+    });
+    expect(fired, first + 2);
+  });
 }

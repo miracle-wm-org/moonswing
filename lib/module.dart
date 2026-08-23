@@ -18,15 +18,40 @@ abstract class Module {
   /// UI to offer the set of modules a panel slot can contain.
   static Iterable<String> get registeredKeys => _registry.keys;
 
-  /// Calls [loadConfig] on every registered module using [modulesMap].
+  static final _ModuleConfigNotifier _configChanges = _ModuleConfigNotifier();
+
+  /// Fires once per [loadAll] in which some module's options actually moved.
+  ///
+  /// Module options are pushed *imperatively* — [loadAll] mutates each
+  /// module's config in place and [builder] closes over it — so nothing about
+  /// a module widget's inputs tells Flutter they changed. For as long as the
+  /// shell root rebuilt every view on every `ConfigStore` notify, that did not
+  /// matter: the panels were rebuilt anyway and each `builder` was re-read.
+  /// Now that they are not, this is what says so, and without it toggling a
+  /// `[modules.*]` option in the settings UI would silently do nothing until
+  /// the next restart.
+  ///
+  /// Panels listen per module (`_PanelMainState._buildModule`), so a
+  /// `[modules.clock]` edit rebuilds the clock and nothing else.
+  static Listenable get configChanges => _configChanges;
+
+  /// Calls [loadConfig] on every registered module using [modulesMap], and
+  /// fires [configChanges] if any of them took a new value.
   static void loadAll(Map<String, dynamic>? modulesMap) {
+    var changed = false;
     for (final module in _registry.values) {
       // Type-tested, not cast: a `[modules.<key>]` that is not a table must
       // cost that module its options, not throw out of AppConfig.fromMap and
       // cost the user the whole config.
       final sub = modulesMap?[module.configKey];
-      module.loadConfig(sub is Map<String, dynamic> ? sub : null);
+      if (module.loadConfig(sub is Map<String, dynamic> ? sub : null)) {
+        changed = true;
+      }
     }
+    // Once for the whole sweep, not once per module: `AppConfig.fromMap` calls
+    // this, and `ConfigStore` notifies on every keystroke anywhere in the
+    // settings UI.
+    if (changed) _configChanges.fire();
   }
 
   /// Builds the standard module: a config parsed by [fromMap], handed to
@@ -62,7 +87,17 @@ abstract class Module {
   /// Loads the configuration for the given module.
   ///
   /// The [map] will be the data provided at [configKey].
-  void loadConfig(Map<String, dynamic>? map);
+  ///
+  /// Returns whether the options actually moved. [loadAll] runs on every
+  /// `ConfigStore` notify — which is every keystroke anywhere in the settings
+  /// UI — and only a true answer wakes [configChanges].
+  bool loadConfig(Map<String, dynamic>? map);
+}
+
+/// [Module.configChanges] behind a `fire()` the registry can call;
+/// `notifyListeners` is `@protected`.
+class _ModuleConfigNotifier extends ChangeNotifier {
+  void fire() => notifyListeners();
 }
 
 class _SimpleModule<C> extends Module {
@@ -76,8 +111,29 @@ class _SimpleModule<C> extends Module {
 
   late C _config = _fromMap(null);
 
+  /// The raw `[modules.<key>]` table [_config] was last built from,
+  /// stringified — the `ConfigStore._restartSignature` / `DesktopStore`
+  /// idiom, and used here for the same reason: the config classes these
+  /// `fromMap`s return are a dozen unrelated types with no value equality
+  /// between them, but the table they came from is always comparable. A false
+  /// positive costs one rebuild; a false negative is impossible for the
+  /// scalars and string lists these tables hold.
+  ///
+  /// Null until the first [loadConfig], so that one always counts as a change
+  /// even when the module has no table at all.
+  String? _signature;
+
   @override
-  void loadConfig(Map<String, dynamic>? map) => _config = _fromMap(map);
+  bool loadConfig(Map<String, dynamic>? map) {
+    final signature = '$map';
+    if (_signature == signature) return false;
+    _signature = signature;
+    // Deliberately behind the guard: the system monitor's `fromMap` pushes
+    // into `SystemStatsStore` as a side effect, and re-running that on every
+    // keystroke is exactly what this is here to stop.
+    _config = _fromMap(map);
+    return true;
+  }
 
   @override
   WidgetBuilder get builder => (context) => _builder(context, _config);

@@ -5,6 +5,7 @@ import 'dart:ffi' as ffi;
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/desktop/desktop_surface.dart';
+import 'package:graceful_shell/display_provider.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/overlay/file_picker_controller.dart';
 import 'package:graceful_shell/overlay/settings_route.dart';
@@ -28,10 +29,12 @@ import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/launcher/app_index.dart';
+import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
 import 'package:graceful_shell/launcher/launcher_overlay.dart';
 import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/lock/lock_screen.dart';
+import 'package:graceful_shell/live_config_provider.dart';
 import 'package:graceful_shell/lock/session_lock_host.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/osd/osd.dart';
@@ -268,32 +271,6 @@ Future<void> _connectDisplays(
   }
 }
 
-/// Live set of Wayland outputs, kept in sync with the compositor's `wl_output`
-/// globals. Panels match against this to resolve which physical display they
-/// render on. Notifies listeners when outputs are added, removed, or their
-/// details (name / geometry) change, so the shell can re-match after a hotplug.
-class OutputTracker extends ChangeNotifier {
-  final List<WaylandOutput> outputs = [];
-  final Map<int, WaylandOutput> _byGlobal = {};
-
-  void add(int global, WaylandOutput output) {
-    _byGlobal[global] = output;
-    outputs.add(output);
-    notifyListeners();
-  }
-
-  void remove(int global) {
-    final output = _byGlobal.remove(global);
-    if (output == null) return;
-    outputs.remove(output);
-    notifyListeners();
-  }
-
-  /// Signals that an existing output's properties changed (e.g. its `done`
-  /// event delivered a new name or geometry) without the set itself changing.
-  void markChanged() => notifyListeners();
-}
-
 /// Root of the widget tree. Owns the lifecycle of every layer-shell window
 /// (backgrounds + panels) on every monitor: it creates them for the monitors
 /// present at startup, then adds and destroys them as monitors are plugged in
@@ -421,7 +398,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// [GracefulShellRoot.store] by [_onConfigChanged] so theme, panel layout,
   /// per-module options, and the background image update live. Window geometry
   /// still comes from [widget.appConfig] (the startup snapshot).
-  late AppConfig _liveConfig;
+  ///
+  /// A notifier rather than a plain field, published through
+  /// [LiveConfigProvider], because `ConfigStore` notifies on every keystroke
+  /// anywhere in the settings UI: answering each one with `setState` here
+  /// rebuilt every view the root owns — every panel on every monitor, the
+  /// backgrounds, the OSD, all five overlays — to deliver a value that at most
+  /// five widgets read.
+  late final ValueNotifier<AppConfig> _liveConfig;
 
   /// The panel margin currently committed to the native surfaces.
   ///
@@ -435,7 +419,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   void initState() {
     super.initState();
     final appConfig = widget.appConfig;
-    _liveConfig = appConfig;
+    _liveConfig = ValueNotifier(appConfig);
     _lockHost = SessionLockHost(onChanged: () {
       if (mounted) setState(() {});
     });
@@ -444,7 +428,6 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
             appConfig.desktop.enabled;
     _subscriptions = [
       (widget.store, _onConfigChanged),
-      (widget.outputs, _onOutputsChanged),
       (OsdStore.instance, _onOsdChanged),
       (InputTriggerStore.instance, _onSettingsTriggered),
       (LauncherController.instance, _onLauncherTriggered),
@@ -453,11 +436,6 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (SettingsController.instance, _onSettingsRouteRequested),
       (FilePickerController.instance, _onFilePickRequested),
       (ThemeStore.instance, _onThemeChanged),
-      // The launcher and the app chooser are handed
-      // `AppIndex.instance.searchable` from this build, so the root itself has
-      // to rebuild when the index lands — [ShellServicesScope] only covers
-      // widgets that read a status through it.
-      (widget.services, _onServicesChanged),
     ];
     for (final (listenable, handler) in _subscriptions) {
       listenable.addListener(handler);
@@ -551,7 +529,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       height: kOsdWindowSize.height.round(),
       monitor: monitor.gdkMonitor,
     );
-    controller.setMargin(LayerShellEdge.bottom, _liveConfig.osd.margin);
+    // A direct read, deliberately: this has no BuildContext and commits to a
+    // native layer surface rather than rendering anything, so it cannot go
+    // through [LiveConfigScope].
+    controller.setMargin(
+        LayerShellEdge.bottom, _liveConfig.value.osd.margin);
     return controller;
   }
 
@@ -924,44 +906,6 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
   }
 
-  /// A global start-up task settled. Rebuilds so the overlays that were handed
-  /// a half-loaded world — today the launcher's and the chooser's app lists —
-  /// get the finished one, and so their loaders come down.
-  void _onServicesChanged() {
-    if (mounted) setState(() {});
-  }
-
-  void _onOutputsChanged() {
-    // Outputs were added/removed or finished reporting their properties;
-    // rebuild so each panel re-resolves the display it renders on.
-    if (mounted) setState(() {});
-  }
-
-  /// Resolves the Wayland output backing [monitor] for [DisplayScope], or null
-  /// while the shell does not (yet) know which one it is.
-  WaylandOutput? _outputFor(MonitorInfo monitor) {
-    final outputs = widget.outputs.outputs;
-    for (final output in outputs) {
-      if (output.make == monitor.manufacturer &&
-          output.model == monitor.model &&
-          output.x == monitor.position.dx.toInt() &&
-          output.y == monitor.position.dy.toInt()) {
-        return output;
-      }
-    }
-    // The first-output fallback covers a monitor that GDK and Wayland describe
-    // differently, and it is only safe once every output has reported: an
-    // output is tracked as soon as its global is advertised but carries no name
-    // or geometry until its `done`, so mid-enumeration `outputs.first` is
-    // simply whichever one arrived first — and handing a bar the wrong display
-    // would show it another monitor's workspaces. Until then it gets none, and
-    // the modules that need one show a loader.
-    if (outputs.isEmpty || widget.services.isLoading(ShellService.displays)) {
-      return null;
-    }
-    return outputs.first;
-  }
-
   /// Rebuilds a fresh typed config from the store (which also re-applies
   /// per-module options via [Module.loadAll]) and rebuilds the tree. Runs in a
   /// listener, never during build, because deriving the config has side effects.
@@ -975,7 +919,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       // config rather than tearing down the running shell.
       return;
     }
-    setState(() => _liveConfig = next);
+    // No [setState]: the value is published through [LiveConfigProvider], so
+    // only the widgets that actually read it rebuild. The root's own build
+    // reads nothing from it.
+    _liveConfig.value = next;
   }
 
   /// Re-floats the bars when the active theme's margin changes.
@@ -1044,24 +991,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     ]) {
       overlay.dispose();
     }
+    _liveConfig.dispose();
     super.dispose();
-  }
-
-  /// Merges live-updatable panel fields (module layout, horizontal padding)
-  /// onto the startup window geometry (anchor/height/layer), which cannot
-  /// change without recreating the native window. Falls back to the startup
-  /// config for panels removed after launch.
-  PanelConfig _effectivePanel(String key, PanelConfig startup) {
-    final live = _liveConfig.panels[key];
-    if (live == null) return startup;
-    return PanelConfig(
-      name: startup.name,
-      height: startup.height,
-      anchor: startup.anchor,
-      layer: startup.layer,
-      paddingHorizontal: live.paddingHorizontal,
-      layout: live.layout,
-    );
   }
 
   /// The ambient providers every window in the shell gets.
@@ -1073,9 +1004,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// stays the only thing that constructs a [ThemeScope].
   Widget _windowChrome(Widget child) => ShellServicesScope(
         services: widget.services,
-        // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
-        // font family every window's text should inherit.
-        child: ThemeProvider(child: ShellTextRoot(child: child)),
+        child: LiveConfigProvider(
+          config: _liveConfig,
+          // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
+          // font family every window's text should inherit.
+          child: ThemeProvider(child: ShellTextRoot(child: child)),
+        ),
       );
 
   @override
@@ -1083,20 +1017,6 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // Iterate the *startup* panels — those own the layer-shell controllers —
     // but render each with the live config merged onto its fixed geometry.
     final startupPanels = widget.appConfig.panels;
-
-    // Background surface existence is startup-only; while it exists, follow
-    // live edits (fit / entry paths) but keep the startup wallpaper if the user
-    // clears every entry (a full removal needs a restart).
-    //
-    // Null here means "surface, but nothing to paint" — the grid-only case.
-    // That must render as *nothing*, not as BackgroundWindow's opaque empty
-    // fill, or a user with icons and no wallpaper gets a black desktop instead
-    // of whatever their compositor draws.
-    final liveBg = _liveConfig.background;
-    final startupBg = widget.appConfig.background;
-    final BackgroundConfig? bgConfig = !_hasBackgroundSurface
-        ? null
-        : (liveBg != null && liveBg.entries.isNotEmpty ? liveBg : startupBg);
 
     return ViewCollection(
       views: [
@@ -1124,20 +1044,40 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                   // shared widget tree, so the coordinator is the only thing
                   // that can carry the signal across.
                   PopupDismissArea(
-                    child: DesktopSurface(
-                      background: bgConfig,
-                      desktop: _liveConfig.desktop,
-                      store: DesktopStore.instance,
-                      // Startup panel geometry, like _createSurfaces: the
-                      // anchor a surface was built with cannot change without
-                      // a restart.
-                      panels: widget.appConfig.panels,
-                      onChangeBackground: () => SettingsController.instance
-                          .open(SettingsRoute.background),
-                      onAddRequested: _onDesktopAddRequested,
-                      onKeyboardRequested: (wanted) => _setDesktopKeyboard(
-                          _monitorKey(surfaces.monitor), wanted),
-                    ),
+                    child: Builder(builder: (context) {
+                      final live = LiveConfigScope.of(context);
+                      // Background surface existence is startup-only; while it
+                      // exists, follow live edits (fit / entry paths) but keep
+                      // the startup wallpaper if the user clears every entry
+                      // (a full removal needs a restart).
+                      //
+                      // Null here means "surface, but nothing to paint" — the
+                      // grid-only case. That must render as *nothing*, not as
+                      // BackgroundWindow's opaque empty fill, or a user with
+                      // icons and no wallpaper gets a black desktop instead of
+                      // whatever their compositor draws.
+                      final liveBg = live.background;
+                      final startupBg = widget.appConfig.background;
+                      final BackgroundConfig? bgConfig = !_hasBackgroundSurface
+                          ? null
+                          : (liveBg != null && liveBg.entries.isNotEmpty
+                              ? liveBg
+                              : startupBg);
+                      return DesktopSurface(
+                        background: bgConfig,
+                        desktop: live.desktop,
+                        store: DesktopStore.instance,
+                        // Startup panel geometry, like _createSurfaces: the
+                        // anchor a surface was built with cannot change
+                        // without a restart.
+                        panels: widget.appConfig.panels,
+                        onChangeBackground: () => SettingsController.instance
+                            .open(SettingsRoute.background),
+                        onAddRequested: _onDesktopAddRequested,
+                        onKeyboardRequested: (wanted) => _setDesktopKeyboard(
+                            _monitorKey(surfaces.monitor), wanted),
+                      );
+                    }),
                   ),
                 ),
               ),
@@ -1155,11 +1095,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                   child: _windowChrome(
                     MiracleScope(
                       manager: widget.miracle,
-                      child: DisplayScope(
-                        output: _outputFor(surfaces.monitor),
+                      child: DisplayProvider(
+                        monitor: surfaces.monitor,
+                        outputs: widget.outputs,
                         child: Builder(builder: (context) {
-                          final panel =
-                              _effectivePanel(entry.key, entry.value);
+                          final panel = effectivePanel(
+                            entry.value,
+                            LiveConfigScope.of(context).panels[entry.key],
+                          );
                           // A click anywhere on the bar — an icon whose
                           // popup is not open, or bare padding — dismisses
                           // whatever else the shell has up.
@@ -1205,26 +1148,27 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
             key: ObjectKey(chooser),
             controller: chooser,
             child: _windowChrome(
-              AppChooserOverlay(
-                apps: AppIndex.instance.searchable,
-                // The index is built after the first frame now, so a chooser
-                // opened during start-up gets an empty list and a loader.
-                loading:
-                    widget.services.isLoading(ShellService.applications),
-                onSelected: (app) {
-                  final cell = _appChooserCell;
-                  _closeAppChooser();
-                  if (cell != null && app.filename.isNotEmpty) {
-                    _pinToDesktop(
-                      DesktopItem(
-                        kind: DesktopItemKind.app,
-                        target: app.filename,
-                      ),
-                      cell,
-                    );
-                  }
-                },
-                onCancel: _closeAppChooser,
+              // The index is built after the first frame now, so a chooser
+              // opened during start-up gets an empty list and a loader.
+              _AppIndexBuilder(
+                builder: (context, apps, loading) => AppChooserOverlay(
+                  apps: apps,
+                  loading: loading,
+                  onSelected: (app) {
+                    final cell = _appChooserCell;
+                    _closeAppChooser();
+                    if (cell != null && app.filename.isNotEmpty) {
+                      _pinToDesktop(
+                        DesktopItem(
+                          kind: DesktopItemKind.app,
+                          target: app.filename,
+                        ),
+                        cell,
+                      );
+                    }
+                  },
+                  onCancel: _closeAppChooser,
+                ),
               ),
             ),
           ),
@@ -1252,17 +1196,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
             key: ObjectKey(launcher),
             controller: launcher,
             child: _windowChrome(
-              LauncherOverlay(
-                closingNotifier: _launcher.closing,
-                onClosed: _onLauncherClosed,
-                apps: AppIndex.instance.searchable,
-                // Ctrl+Space can beat the index to the finish line. A loader
-                // says so; "No applications" would be a lie the user acts on.
-                loading:
-                    widget.services.isLoading(ShellService.applications),
-                onLaunch: (app) => launchApp(app.appInfo),
-                onLaunchAction: (app, action) =>
-                    launchAppAction(app.appInfo, action.id),
+              // Ctrl+Space can beat the index to the finish line. A loader
+              // says so; "No applications" would be a lie the user acts on.
+              _AppIndexBuilder(
+                builder: (context, apps, loading) => LauncherOverlay(
+                  closingNotifier: _launcher.closing,
+                  onClosed: _onLauncherClosed,
+                  apps: apps,
+                  loading: loading,
+                  onLaunch: (app) => launchApp(app.appInfo),
+                  onLaunchAction: (app, action) =>
+                      launchAppAction(app.appInfo, action.id),
+                ),
               ),
             ),
           ),
@@ -1280,7 +1225,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 final sources = connection == null
                     ? (monitors: <PickerSource>[], windows: <PickerSource>[])
                     : buildPickerSources(connection, request,
-                        previewFps: _liveConfig.screenshare.previewFps);
+                        previewFps: LiveConfigScope.of(context)
+                            .screenshare
+                            .previewFps);
                 return ScreencastPickerOverlay(
                   request: request,
                   monitors: sources.monitors,
@@ -1302,15 +1249,33 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
             key: ObjectKey(controller),
             controller: controller,
             child: _windowChrome(
-              LockScreen(
-                config: _liveConfig.lock,
-                onUnlocked: _lockHost.unlock,
-              ),
+              Builder(builder: (context) {
+                return LockScreen(
+                  config: LiveConfigScope.of(context).lock,
+                  onUnlocked: _lockHost.unlock,
+                );
+              }),
             ),
           ),
       ],
     );
   }
+}
+
+/// Merges live-updatable panel fields (module layout, horizontal padding)
+/// onto the startup window geometry (anchor/height/layer), which cannot change
+/// without recreating the native window. Falls back to [startup] for a panel
+/// removed after launch.
+PanelConfig effectivePanel(PanelConfig startup, PanelConfig? live) {
+  if (live == null) return startup;
+  return PanelConfig(
+    name: startup.name,
+    height: startup.height,
+    anchor: startup.anchor,
+    layer: startup.layer,
+    paddingHorizontal: live.paddingHorizontal,
+    layout: live.layout,
+  );
 }
 
 class PanelMain extends StatefulWidget {
@@ -1331,7 +1296,15 @@ class _PanelMainState extends State<PanelMain> {
   Widget _buildModule(String name) {
     final module = Module.lookup(name);
     if (module == null) return const SizedBox.shrink();
-    return Builder(builder: module.builder);
+    // Module options are pushed into the module imperatively and read out of
+    // `builder` at build time, so nothing about this widget's inputs says they
+    // moved — [Module.configChanges] is what does. Listening per module rather
+    // than per panel keeps a `[modules.clock]` edit off every other module in
+    // the bar.
+    return ListenableBuilder(
+      listenable: Module.configChanges,
+      builder: (context, _) => module.builder(context),
+    );
   }
 
   Widget _buildSection(List<String> modules) {
@@ -1520,4 +1493,33 @@ class _OverlayWindow {
     take()?.destroy();
     closing.dispose();
   }
+}
+
+/// Feeds a root-owned overlay the application index, live, so the root does not
+/// have to rebuild every view when the index lands.
+///
+/// Two sources, because they answer different halves of the question. The list
+/// comes from [AppIndex], which notifies when applications are installed or
+/// removed. "Is it built yet" comes from the [ShellServicesScope] that
+/// [_GracefulShellRootState._windowChrome] already installs — and that
+/// dependency is *also* what delivers the very first list, because
+/// [AppIndex.start] fills `searchable` without notifying anybody. A builder
+/// that only listened to the index would sit on its loader forever, which is
+/// why both reads have to happen on this one element rather than in nested
+/// builders where only the inner one sees the list.
+class _AppIndexBuilder extends StatelessWidget {
+  const _AppIndexBuilder({required this.builder});
+
+  final Widget Function(BuildContext context, List<SearchableApp> apps,
+      bool loading) builder;
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: AppIndex.instance,
+        builder: (context, _) => builder(
+          context,
+          AppIndex.instance.searchable,
+          ShellServicesScope.isLoading(context, ShellService.applications),
+        ),
+      );
 }
