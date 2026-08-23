@@ -111,14 +111,28 @@ right = ["battery", "clock"]
 
     store.set(['panels', 'bottom', 'height'], 40);
     expect(store.needsRestart, isTrue);
+    store.dispose();
 
-    final store2 = await ConfigStore.loadFrom(path);
+    // The wallpaper half needs a config that has *no* background surface yet,
+    // and since the desktop grid is on by default that means saying so: a
+    // config silent about `[desktop]` already has the surface, and adding a
+    // wallpaper to one that exists is live (see the builder in main.dart,
+    // which follows `LiveConfigScope` for everything but the surface itself).
+    final gridless = '${tempDir.path}/gridless.toml';
+    await File(gridless).writeAsString('''
+[panels.top]
+anchor = "top"
+height = 32
+
+[desktop]
+enabled = false
+''');
+    final store2 = await ConfigStore.loadFrom(gridless);
+    expect(store2.needsRestart, isFalse);
     store2.set(['background', 'entries'], [
       {'path': '/tmp/w.jpg', 'shown': true}
     ]);
     expect(store2.needsRestart, isTrue);
-
-    store.dispose();
     store2.dispose();
   });
 

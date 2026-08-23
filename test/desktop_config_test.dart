@@ -107,9 +107,9 @@ void main() {
   });
 
   group('DesktopConfig.fromMap', () {
-    test('defaults to a disabled grid with the documented geometry', () {
+    test('defaults to an enabled grid with the documented geometry', () {
       final config = DesktopConfig.fromMap({});
-      expect(config.enabled, isFalse);
+      expect(config.enabled, isTrue);
       expect(config.cellWidth, 96);
       expect(config.cellHeight, 96);
       expect(config.spacing, 12);
