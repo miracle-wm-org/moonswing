@@ -111,14 +111,28 @@ right = ["battery", "clock"]
 
     store.set(['panels', 'bottom', 'height'], 40);
     expect(store.needsRestart, isTrue);
+    store.dispose();
 
-    final store2 = await ConfigStore.loadFrom(path);
+    // The wallpaper half needs a config that has *no* background surface yet,
+    // and since the desktop grid is on by default that means saying so: a
+    // config silent about `[desktop]` already has the surface, and adding a
+    // wallpaper to one that exists is live (see the builder in main.dart,
+    // which follows `LiveConfigScope` for everything but the surface itself).
+    final gridless = '${tempDir.path}/gridless.toml';
+    await File(gridless).writeAsString('''
+[panels.top]
+anchor = "top"
+height = 32
+
+[desktop]
+enabled = false
+''');
+    final store2 = await ConfigStore.loadFrom(gridless);
+    expect(store2.needsRestart, isFalse);
     store2.set(['background', 'entries'], [
       {'path': '/tmp/w.jpg', 'shown': true}
     ]);
     expect(store2.needsRestart, isTrue);
-
-    store.dispose();
     store2.dispose();
   });
 
@@ -133,6 +147,9 @@ right = ["battery", "clock"]
 [panels.top]
 anchor = "top"
 height = 32
+
+[desktop]
+enabled = false
 ''');
 
     // No wallpaper, no grid -> enabling the grid creates the surface.
@@ -140,7 +157,25 @@ height = 32
     expect(store.needsRestart, isFalse);
     store.set(['desktop', 'enabled'], true);
     expect(store.needsRestart, isTrue);
+    // ...and turning it back off destroys it again.
+    store.set(['desktop', 'enabled'], false);
+    expect(store.needsRestart, isFalse);
     store.dispose();
+
+    // The grid is on by default, so a config that names no `[desktop]` section
+    // already has the surface: the signature must agree with the typed config
+    // main() built it from, or the first unrelated edit raises the banner.
+    File(barePath).writeAsStringSync('''
+[panels.top]
+anchor = "top"
+height = 32
+''');
+    final implicit = await ConfigStore.loadFrom(barePath);
+    implicit.set(['desktop', 'enabled'], true);
+    expect(implicit.needsRestart, isFalse);
+    implicit.set(['desktop', 'enabled'], false);
+    expect(implicit.needsRestart, isTrue);
+    implicit.dispose();
 
     // A wallpaper already forces the surface, so the grid is free.
     File(barePath).writeAsStringSync('''

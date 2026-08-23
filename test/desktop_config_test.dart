@@ -107,9 +107,9 @@ void main() {
   });
 
   group('DesktopConfig.fromMap', () {
-    test('defaults to a disabled grid with the documented geometry', () {
+    test('defaults to an enabled grid with the documented geometry', () {
       final config = DesktopConfig.fromMap({});
-      expect(config.enabled, isFalse);
+      expect(config.enabled, isTrue);
       expect(config.cellWidth, 96);
       expect(config.cellHeight, 96);
       expect(config.spacing, 12);
@@ -162,10 +162,18 @@ void main() {
   });
 
   group('AppConfig.fromMap', () {
-    test('an absent [desktop] section is a disabled grid, never null', () {
+    test('an absent [desktop] section is an empty enabled grid, never null',
+        () {
       final config = AppConfig.fromMap({});
-      expect(config.desktop.enabled, isFalse);
+      expect(config.desktop.enabled, isTrue);
       expect(config.desktop.items, isEmpty);
+    });
+
+    test('an explicit `enabled = false` still turns the grid off', () {
+      final config = AppConfig.fromMap({
+        'desktop': {'enabled': false},
+      });
+      expect(config.desktop.enabled, isFalse);
     });
 
     test('reads the [desktop] section when present', () {

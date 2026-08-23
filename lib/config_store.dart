@@ -168,8 +168,16 @@ class ConfigStore extends ChangeNotifier {
     final background = _root['background'];
     final entries = background is Map ? background['entries'] : null;
     final hasWallpaper = entries is List && entries.isNotEmpty;
+    // The grid is on by default, so an absent `[desktop]` section — or a
+    // wrongly-typed `enabled`, which `boolOr` also answers with the default —
+    // is an *enabled* grid. Mirroring `DesktopConfig.fromMap` here is what
+    // keeps this signature agreeing with the surface `main()` actually built
+    // from the typed config; reading `== true` off the raw map would sign a
+    // fresh config as surface-less and raise the banner on the next edit.
     final desktop = _root['desktop'];
-    final desktopEnabled = desktop is Map && desktop['enabled'] == true;
+    final rawDesktopEnabled = desktop is Map ? desktop['enabled'] : null;
+    final desktopEnabled =
+        rawDesktopEnabled is bool ? rawDesktopEnabled : true;
     parts.add('bg:${hasWallpaper || desktopEnabled}');
     return parts.join('|');
   }
@@ -191,21 +199,51 @@ class ConfigStore extends ChangeNotifier {
     });
   }
 
+  /// The current document as TOML, or null when it holds a value TOML cannot
+  /// encode — in which case the write is skipped rather than allowed to
+  /// corrupt the file.
+  String? _encode() {
+    try {
+      return TomlDocument.fromMap(_root).toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Serializes the current document to TOML and writes it atomically.
   Future<void> save() async {
     _saveDebounce?.cancel();
     _saveDebounce = null;
-    final String toml;
-    try {
-      toml = TomlDocument.fromMap(_root).toString();
-    } catch (_) {
-      return; // un-encodable value; skip this write rather than corrupt.
-    }
+    final toml = _encode();
+    if (toml == null) return;
     try {
       final tmp = File('$_path.tmp');
       await tmp.parent.create(recursive: true);
       await tmp.writeAsString(toml, flush: true);
       await tmp.rename(_path);
+    } catch (_) {
+      // Disk error — leave the existing config untouched.
+    }
+  }
+
+  /// The same atomic write, done synchronously — the shape `ThemeStore._write`
+  /// already uses, and the only shape [dispose] can use.
+  ///
+  /// `dispose` cannot await, so calling `save()` there left a write in flight
+  /// *after* the store was gone: in the shell that is a write racing process
+  /// exit, and in a test it is a `.tmp` file landing in a temp directory the
+  /// harness has already started deleting, which surfaces as an unrelated
+  /// `Directory not empty` failure in whichever test happens to lose the race.
+  void _saveSync() {
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
+    final toml = _encode();
+    if (toml == null) return;
+    try {
+      final tmp = File('$_path.tmp');
+      tmp.parent.createSync(recursive: true);
+      tmp.writeAsStringSync(toml, flush: true);
+      tmp.renameSync(_path);
     } catch (_) {
       // Disk error — leave the existing config untouched.
     }
@@ -221,9 +259,10 @@ class ConfigStore extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    // Best-effort flush of any queued change before tearing down.
+    // Best-effort flush of any queued change before tearing down, synchronously
+    // so that nothing outlives the store — see [_saveSync].
     if (_saveDebounce?.isActive ?? false) {
-      save();
+      _saveSync();
     }
     _saveDebounce?.cancel();
     super.dispose();
