@@ -83,7 +83,7 @@ layer = "top"
 
 [panels.bottom.layout]
 center = ["dock"]
-right = ["media_player", "launcher"]
+right = ["media_player", "notifications", "launcher"]
 
 [modules.dock]
 apps = ["firefox_firefox", "org.gnome.Ptyxis", "org.gnome.Nautilus"]
