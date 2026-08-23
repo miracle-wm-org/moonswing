@@ -168,8 +168,16 @@ class ConfigStore extends ChangeNotifier {
     final background = _root['background'];
     final entries = background is Map ? background['entries'] : null;
     final hasWallpaper = entries is List && entries.isNotEmpty;
+    // The grid is on by default, so an absent `[desktop]` section — or a
+    // wrongly-typed `enabled`, which `boolOr` also answers with the default —
+    // is an *enabled* grid. Mirroring `DesktopConfig.fromMap` here is what
+    // keeps this signature agreeing with the surface `main()` actually built
+    // from the typed config; reading `== true` off the raw map would sign a
+    // fresh config as surface-less and raise the banner on the next edit.
     final desktop = _root['desktop'];
-    final desktopEnabled = desktop is Map && desktop['enabled'] == true;
+    final rawDesktopEnabled = desktop is Map ? desktop['enabled'] : null;
+    final desktopEnabled =
+        rawDesktopEnabled is bool ? rawDesktopEnabled : true;
     parts.add('bg:${hasWallpaper || desktopEnabled}');
     return parts.join('|');
   }

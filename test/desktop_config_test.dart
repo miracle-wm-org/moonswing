@@ -162,10 +162,18 @@ void main() {
   });
 
   group('AppConfig.fromMap', () {
-    test('an absent [desktop] section is a disabled grid, never null', () {
+    test('an absent [desktop] section is an empty enabled grid, never null',
+        () {
       final config = AppConfig.fromMap({});
-      expect(config.desktop.enabled, isFalse);
+      expect(config.desktop.enabled, isTrue);
       expect(config.desktop.items, isEmpty);
+    });
+
+    test('an explicit `enabled = false` still turns the grid off', () {
+      final config = AppConfig.fromMap({
+        'desktop': {'enabled': false},
+      });
+      expect(config.desktop.enabled, isFalse);
     });
 
     test('reads the [desktop] section when present', () {

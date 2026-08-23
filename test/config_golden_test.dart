@@ -20,7 +20,7 @@ void main() {
       expect(config.panels.keys.toList(), ['default']);
       expect(config.themeName, kDefaultThemeName);
       expect(config.background, isNull);
-      expect(config.desktop.enabled, isFalse);
+      expect(config.desktop.enabled, isTrue);
       expect(config.calendar.weekStart, DateTime.sunday);
       expect(config.calendar.worldClocks, isEmpty);
       expect(config.osd.enabled, isTrue);
@@ -77,7 +77,7 @@ void main() {
 
     test('theme, desktop, lock, shortcuts, screenshare', () {
       expect(config.themeName, 'graceful');
-      expect(config.desktop.enabled, isFalse);
+      expect(config.desktop.enabled, isTrue);
       expect(config.desktop.cellWidth, 96);
       expect(config.desktop.cellHeight, 96);
       expect(config.desktop.spacing, 12);

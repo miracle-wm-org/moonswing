@@ -141,8 +141,9 @@ class DesktopItem {
 /// than configured, so one item list renders sanely on monitors of different
 /// sizes. See `computeGridGeometry` in `lib/desktop/desktop_layout.dart`.
 class DesktopConfig {
-  /// Whether the grid is drawn at all. Restart-only: it decides whether the
-  /// native background surface is created (see `ConfigStore._restartSignature`).
+  /// Whether the grid is drawn at all. On by default. Restart-only: it decides
+  /// whether the native background surface is created (see
+  /// `ConfigStore._restartSignature`).
   final bool enabled;
 
   final double cellWidth;
@@ -158,7 +159,7 @@ class DesktopConfig {
   final List<DesktopItem> items;
 
   const DesktopConfig({
-    this.enabled = false,
+    this.enabled = true,
     this.cellWidth = 96,
     this.cellHeight = 96,
     this.spacing = 12,
@@ -177,7 +178,7 @@ class DesktopConfig {
         .toList();
 
     return DesktopConfig(
-      enabled: map.boolOr('enabled', false),
+      enabled: map.boolOr('enabled', true),
       // A cell smaller than its icon would clip; floors keep a hand-edited
       // config from producing an unusable grid rather than rejecting it.
       cellWidth: map.doubleOr('cell_width', 96, min: 32),

@@ -83,10 +83,10 @@ row = 0
       expect(store.items.map((i) => i.target), ['/tmp/a.txt', '/tmp/b.txt']);
     });
 
-    test('an unbound store is an empty disabled grid, not a crash', () {
+    test('an unbound store is an empty default grid, not a crash', () {
       final store = DesktopStore.forTesting()..start();
       addTearDown(store.dispose);
-      expect(store.enabled, isFalse);
+      expect(store.enabled, isTrue);
       expect(store.items, isEmpty);
     });
   });
