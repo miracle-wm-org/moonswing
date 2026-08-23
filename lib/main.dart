@@ -43,6 +43,7 @@ import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/screencast/picker_controller.dart';
 import 'package:graceful_shell/screencast/picker_overlay.dart';
 import 'package:graceful_shell/screencast/picker_sources.dart';
@@ -521,19 +522,31 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the surface — and so the region that swallows clicks — no larger than the
   /// card itself.
   LayershellWindowController _createOsd(MonitorInfo monitor) {
+    // The surface is the card plus the theme's shadow: the card's Row has an
+    // Expanded, so it fills the window edge to edge and a shadow would be
+    // clipped on both sides. These windows are created fresh per request, so
+    // reading the store here is enough to follow a theme change with no
+    // listener of its own.
+    final shadow = popupShadowInsets(ThemeStore.instance.theme);
     final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
       anchorEdges: const [LayerShellEdge.bottom],
       keyboardMode: LayerShellKeyboardMode.none,
-      width: kOsdWindowSize.width.round(),
-      height: kOsdWindowSize.height.round(),
+      width: (kOsdWindowSize.width + shadow.horizontal).round(),
+      height: (kOsdWindowSize.height + shadow.vertical).round(),
       monitor: monitor.gdkMonitor,
     );
     // A direct read, deliberately: this has no BuildContext and commits to a
     // native layer surface rather than rendering anything, so it cannot go
     // through [LiveConfigScope].
+    //
+    // The bottom margin gives back what the surface grew by on that edge, or a
+    // shadow would lift the card off the gap the user configured. Floored at 0:
+    // a shadow deeper than the margin cannot push the card off-screen.
+    final margin =
+        (_liveConfig.value.osd.margin - shadow.bottom).round();
     controller.setMargin(
-        LayerShellEdge.bottom, _liveConfig.value.osd.margin);
+        LayerShellEdge.bottom, margin < 0 ? 0 : margin);
     return controller;
   }
 

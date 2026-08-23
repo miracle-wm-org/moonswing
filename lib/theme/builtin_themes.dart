@@ -65,6 +65,17 @@ panel_border_width   = 0.0
 popup_radius         = 8.0
 popup_border         = "#33F3F4F4"
 popup_border_width   = 1.0
+
+# The card's lift. Blur is the reach past the edge and the offset pushes it
+# downward, exactly as a CSS box-shadow reads; a popup grows its own window by
+# that reach so the shadow is not clipped at the surface edge, and is
+# repositioned by the same amount so the card stays put. An alpha of 0 here is
+# the off switch.
+popup_shadow_color   = "#66000000"
+popup_shadow_blur    = 16.0
+popup_shadow_spread  = 0.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 6.0
 ''';
 
 const String _dracula = '''
@@ -105,6 +116,14 @@ panel_border_width   = 0.0
 popup_radius         = 8.0
 popup_border         = "#33F8F8F2"
 popup_border_width   = 1.0
+
+# The same lift as graceful, tinted with Dracula's own background rather than
+# pure black so it reads as part of the palette.
+popup_shadow_color   = "#66191A21"
+popup_shadow_blur    = 16.0
+popup_shadow_spread  = 0.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 6.0
 ''';
 
 const String _glassy = '''
@@ -159,4 +178,14 @@ panel_border_width   = 1.0
 popup_radius         = 12.0
 popup_border         = "#40FFFFFF"
 popup_border_width   = 1.0
+
+# The theme the shadow matters most to: a translucent card over a busy
+# wallpaper has almost no edge of its own, so the lift is deeper and softer than
+# the flat themes'. The negative spread pulls the shape back in a little, which
+# keeps a wide blur from reading as a halo around the card.
+popup_shadow_color   = "#59000000"
+popup_shadow_blur    = 28.0
+popup_shadow_spread  = -2.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 10.0
 ''';

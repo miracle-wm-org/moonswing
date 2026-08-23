@@ -73,6 +73,58 @@ class PopupDelegate extends PopupWindowControllerDelegate {
   }
 }
 
+/// The positioner offset that puts a shadowed popup's *card* where an
+/// unshadowed one's window would have gone.
+///
+/// A popup surface is grown by [popupShadowInsets] so the theme's shadow has
+/// room to paint (see [PopupHost.openPopup]), which leaves the card sitting
+/// `insets` inside its own window. The compositor aligns the *window's*
+/// [childAnchor] point to the anchor rect, so without this every menu in the
+/// shell would visibly walk away from the button that opened it by the shadow's
+/// extent. The offset is the negation of where the card's corresponding point
+/// moved within the grown window.
+///
+/// The halved cases are not a rounding convenience: [popupAnchorsForBar] returns
+/// edge-*centred* anchors, so an asymmetric shadow — any non-zero
+/// `popup_shadow_offset_x` on a top or bottom bar — would otherwise shift every
+/// bar popup sideways by half the asymmetry.
+Offset popupShadowAnchorOffset(
+  WindowPositionerAnchor childAnchor,
+  EdgeInsets insets,
+) {
+  final double dx;
+  switch (childAnchor) {
+    case WindowPositionerAnchor.left:
+    case WindowPositionerAnchor.topLeft:
+    case WindowPositionerAnchor.bottomLeft:
+      dx = -insets.left;
+    case WindowPositionerAnchor.right:
+    case WindowPositionerAnchor.topRight:
+    case WindowPositionerAnchor.bottomRight:
+      dx = insets.right;
+    case WindowPositionerAnchor.center:
+    case WindowPositionerAnchor.top:
+    case WindowPositionerAnchor.bottom:
+      dx = (insets.right - insets.left) / 2;
+  }
+  final double dy;
+  switch (childAnchor) {
+    case WindowPositionerAnchor.top:
+    case WindowPositionerAnchor.topLeft:
+    case WindowPositionerAnchor.topRight:
+      dy = -insets.top;
+    case WindowPositionerAnchor.bottom:
+    case WindowPositionerAnchor.bottomLeft:
+    case WindowPositionerAnchor.bottomRight:
+      dy = insets.bottom;
+    case WindowPositionerAnchor.center:
+    case WindowPositionerAnchor.left:
+    case WindowPositionerAnchor.right:
+      dy = (insets.bottom - insets.top) / 2;
+  }
+  return Offset(dx, dy);
+}
+
 /// Computes the parent-window-local anchor rect for the widget behind [context].
 Rect popupAnchorRect(BuildContext context) {
   final box = context.findRenderObject() as RenderBox;
@@ -245,6 +297,13 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     _onClosed = onClosed;
     final parentController = WindowScope.of(context);
     final constraints = preferredConstraints.enforce(kMinPopupConstraints);
+    // Snapshotted at open, the same discipline [constraints] has and for the
+    // same reason: GTK3 resolves gdk_window_move_to_rect exactly once at map
+    // time (see the comment on the resize below), so neither the surface's size
+    // nor its placement can be revised afterwards. A theme edit while a popup
+    // is open therefore restyles the card — PopupCard reads the scope live —
+    // without resizing the window it sits in.
+    final shadowInsets = popupShadowInsets(ThemeScope.of(context));
     PopupWindowController? thisController;
     _popupController = thisController = PopupWindowController(
       parent: parentController,
@@ -252,6 +311,9 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       positioner: WindowPositioner(
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
+        // Cancels the margin the shadow adds, so the card lands exactly where
+        // an unshadowed popup's window would have.
+        offset: popupShadowAnchorOffset(childAnchor, shadowInsets),
         constraintAdjustment: constraintAdjustment,
       ),
       constraints: constraints,
@@ -321,6 +383,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // The popup renders into its own FlutterView, so the panel's
     // [PopupDismissArea] never sees a click that lands in here — hence its own
     // Listener, which spares this popup's chain and dismisses everything else.
+    //
+    // That Listener also covers the shadow's margin, because the shell has no
+    // input-region support and the margin is part of this surface: a click
+    // there neither dismisses the popup nor reaches what is underneath. Same
+    // class of problem [setPanelMargin] documents, and the reason the margin is
+    // kept to the shadow's actual reach rather than padded generously.
     _entry = WindowEntry(
       controller: _popupController!,
       builder: (_) => TransientScope(
@@ -331,8 +399,20 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
               .dismissFromPointerDown(event, within: handle),
           // Keyed so the post-frame callback above can measure what the
           // content actually laid out to and hand that size to GTK.
-          child: ConstrainedBox(
-              key: contentKey, constraints: constraints, child: child),
+          //
+          // The shadow margin goes *outside* the ConstrainedBox, which is the
+          // whole trick: a BoxShadow paints past its box and the surface clips
+          // at its edge, so the window has to be the card plus the shadow's
+          // reach. Padding the inside instead would shrink the content — and
+          // the popups that pin a width by passing minWidth == maxWidth
+          // (the app directory's list and flyout, the sound slider, which has
+          // no intrinsic length) would silently narrow rather than the window
+          // widening.
+          child: Padding(
+            key: contentKey,
+            padding: shadowInsets,
+            child: ConstrainedBox(constraints: constraints, child: child),
+          ),
         ),
       ),
     );

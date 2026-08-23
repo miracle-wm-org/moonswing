@@ -722,10 +722,21 @@ class SettingsNumberField extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.isInt,
+    this.allowNegative = false,
   });
 
   final num value;
   final bool isInt;
+
+  /// Whether a minus sign may be typed.
+  ///
+  /// Off by default because most settings here are a length or a count that
+  /// cannot be negative, and the filter is the only thing stopping one. The
+  /// shadow offsets and spread are the exception: CSS casts a shadow up and to
+  /// the left with negative values, and shrinks one before blurring. A lone
+  /// `-` mid-typing parses to null, which the handler below already ignores.
+  final bool allowNegative;
+
   final ValueChanged<num> onChanged;
 
   @override
@@ -735,7 +746,9 @@ class SettingsNumberField extends StatelessWidget {
       initial: isInt ? '${value.toInt()}' : _trimDouble(value.toDouble()),
       inputFormatters: [
         FilteringTextInputFormatter.allow(
-          isInt ? RegExp(r'[0-9]') : RegExp(r'[0-9.]'),
+          isInt
+              ? (allowNegative ? RegExp(r'[-0-9]') : RegExp(r'[0-9]'))
+              : (allowNegative ? RegExp(r'[-0-9.]') : RegExp(r'[0-9.]')),
         ),
       ],
       onChanged: (text) {

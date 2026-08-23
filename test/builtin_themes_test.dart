@@ -33,6 +33,10 @@ void main() {
       'panel_border_width',
       'popup_radius',
       'popup_border_width',
+      'popup_shadow_blur',
+      'popup_shadow_spread',
+      'popup_shadow_offset_x',
+      'popup_shadow_offset_y',
     };
     for (final entry in kBuiltInThemes.entries) {
       final map = TomlDocument.parse(entry.value).toMap();

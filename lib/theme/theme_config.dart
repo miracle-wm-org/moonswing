@@ -162,6 +162,40 @@ class ThemeConfig {
   /// adds to its child's.
   final double popupBorderWidth;
 
+  /// The colour of a popup card's shadow.
+  ///
+  /// Alpha *is* the off switch here, unlike [popupBorderWidth]: a shadow
+  /// carries no [BoxDecoration.padding] for a `Container` to silently apply,
+  /// so there is nothing a zero-alpha shadow can shift. At alpha 0 — or with
+  /// [popupShadowBlur], [popupShadowSpread] and both offsets at 0 —
+  /// `popupDecoration` builds no `boxShadow` at all.
+  final Color popupShadowColor;
+
+  /// The shadow's blur radius, in the CSS sense: the distance the falloff
+  /// reaches past the card's edge.
+  ///
+  /// Flutter's [BoxShadow.blurRadius] maps to a sigma the same way CSS does,
+  /// so this doubles as the extent `popupShadowInsets` grows the popup's own
+  /// window by. See `lib/popup_surface.dart`.
+  final double popupShadowBlur;
+
+  /// How far the shadow's shape is grown (or, negative, shrunk) before it is
+  /// blurred. CSS's third length.
+  final double popupShadowSpread;
+
+  /// The shadow's horizontal displacement. Positive is right.
+  final double popupShadowOffsetX;
+
+  /// The shadow's vertical displacement. Positive is down.
+  final double popupShadowOffsetY;
+
+  /// [popupShadowOffsetX] and [popupShadowOffsetY] as one offset.
+  ///
+  /// The two are separate fields because a [_ThemeKey] maps one TOML scalar to
+  /// one accessor; this is what every painter actually wants.
+  Offset get popupShadowOffset =>
+      Offset(popupShadowOffsetX, popupShadowOffsetY);
+
   /// The wash painted over the screen behind a full-screen overlay (the
   /// settings panel, the launcher card).
   final Color scrim;
@@ -197,6 +231,11 @@ class ThemeConfig {
     this.popupRadius = 8.0,
     this.popupBorder = const Color(0x33F3F4F4),
     this.popupBorderWidth = 1.0,
+    this.popupShadowColor = const Color(0x66000000),
+    this.popupShadowBlur = 16.0,
+    this.popupShadowSpread = 0.0,
+    this.popupShadowOffsetX = 0.0,
+    this.popupShadowOffsetY = 6.0,
     this.scrim = const Color(0x882C2C2C),
     this.blur = 24.0,
     this.fontFamily = 'Ubuntu Sans',
@@ -240,6 +279,21 @@ class ThemeConfig {
     _ThemeKey(
         'popup_border_width', _ThemeKeyKind.number, (t) => t.popupBorderWidth,
         min: 0.0, max: 16.0),
+    _ThemeKey(
+        'popup_shadow_color', _ThemeKeyKind.color, (t) => t.popupShadowColor),
+    _ThemeKey('popup_shadow_blur', _ThemeKeyKind.number, (t) => t.popupShadowBlur,
+        min: 0.0, max: 64.0),
+    // Spread and the offsets take negative floors: CSS allows a shadow that is
+    // shrunk before blurring, and one cast upward or to the left.
+    _ThemeKey(
+        'popup_shadow_spread', _ThemeKeyKind.number, (t) => t.popupShadowSpread,
+        min: -32.0, max: 32.0),
+    _ThemeKey('popup_shadow_offset_x', _ThemeKeyKind.number,
+        (t) => t.popupShadowOffsetX,
+        min: -64.0, max: 64.0),
+    _ThemeKey('popup_shadow_offset_y', _ThemeKeyKind.number,
+        (t) => t.popupShadowOffsetY,
+        min: -64.0, max: 64.0),
     _ThemeKey('scrim', _ThemeKeyKind.color, (t) => t.scrim),
   ];
 
@@ -296,6 +350,11 @@ class ThemeConfig {
       popupRadius: v('popup_radius'),
       popupBorder: v('popup_border'),
       popupBorderWidth: v('popup_border_width'),
+      popupShadowColor: v('popup_shadow_color'),
+      popupShadowBlur: v('popup_shadow_blur'),
+      popupShadowSpread: v('popup_shadow_spread'),
+      popupShadowOffsetX: v('popup_shadow_offset_x'),
+      popupShadowOffsetY: v('popup_shadow_offset_y'),
       scrim: v('scrim'),
     );
   }

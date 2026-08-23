@@ -148,5 +148,110 @@ void main() {
       );
       expect(decorationOf(tester).borderRadius, BorderRadius.circular(20.0));
     });
+
+    testWidgets('the shadow reaches the decoration the card paints',
+        (tester) async {
+      const child = SizedBox(width: 100, height: 100);
+      await pumpCard(
+        tester,
+        const ThemeConfig(popupShadowBlur: 12.0, popupShadowOffsetY: 4.0),
+        const PopupCard(child: child),
+      );
+      final shadows = decorationOf(tester).boxShadow!;
+      expect(shadows, hasLength(1));
+      expect(shadows.single.blurRadius, 12.0);
+      expect(shadows.single.offset, const Offset(0, 4));
+    });
+  });
+
+  group('the shadow', () {
+    test('the default palette casts one', () {
+      const theme = ThemeConfig();
+      final shadow = popupShadow(theme)!;
+      expect(shadow.color, theme.popupShadowColor);
+      expect(shadow.blurRadius, 16.0);
+      expect(shadow.spreadRadius, 0.0);
+      expect(shadow.offset, const Offset(0, 6));
+    });
+
+    test('a transparent colour is the off switch', () {
+      // Alpha, not a width, unlike the rim: a shadow carries no
+      // BoxDecoration.padding for a Container to silently apply, so there is
+      // nothing a zero-alpha shadow could shift.
+      const theme = ThemeConfig(popupShadowColor: Color(0x00000000));
+      expect(popupShadow(theme), isNull);
+      expect(popupShadowInsets(theme), EdgeInsets.zero);
+      expect(popupDecoration(theme: theme).boxShadow, isNull);
+    });
+
+    test('no geometry is no shadow', () {
+      // Nothing to draw the card does not already cover, and a BoxShadow would
+      // still cost a layer — and, worse, still grow every popup window.
+      const theme = ThemeConfig(
+        popupShadowBlur: 0.0,
+        popupShadowSpread: 0.0,
+        popupShadowOffsetX: 0.0,
+        popupShadowOffsetY: 0.0,
+      );
+      expect(popupShadow(theme), isNull);
+      expect(popupShadowInsets(theme), EdgeInsets.zero);
+    });
+
+    test('a null boxShadow rather than an empty list', () {
+      // The same normalisation the radius gets, so a shadowless theme builds
+      // exactly the decoration it did before shadows existed.
+      const theme = ThemeConfig(popupShadowColor: Color(0x00000000));
+      expect(popupDecoration(theme: theme).boxShadow, isNull);
+    });
+
+    test('a centred shadow reaches equally on every side', () {
+      const theme = ThemeConfig(
+        popupShadowBlur: 16.0,
+        popupShadowSpread: 0.0,
+        popupShadowOffsetX: 0.0,
+        popupShadowOffsetY: 0.0,
+      );
+      expect(popupShadowInsets(theme), const EdgeInsets.all(16.0));
+    });
+
+    test('an offset shifts the reach without shrinking the total', () {
+      const theme = ThemeConfig(
+        popupShadowBlur: 16.0,
+        popupShadowOffsetX: 4.0,
+        popupShadowOffsetY: 6.0,
+      );
+      expect(
+        popupShadowInsets(theme),
+        const EdgeInsets.only(left: 12, right: 20, top: 10, bottom: 22),
+      );
+    });
+
+    test('spread adds to the reach and a negative one takes it back', () {
+      const grown = ThemeConfig(
+        popupShadowBlur: 10.0,
+        popupShadowSpread: 4.0,
+        popupShadowOffsetY: 0.0,
+      );
+      expect(popupShadowInsets(grown), const EdgeInsets.all(14.0));
+
+      const pulled = ThemeConfig(
+        popupShadowBlur: 10.0,
+        popupShadowSpread: -4.0,
+        popupShadowOffsetY: 0.0,
+      );
+      expect(popupShadowInsets(pulled), const EdgeInsets.all(6.0));
+    });
+
+    test('a side the shadow leaves behind floors at zero', () {
+      // Never negative: a strongly offset shadow must not crop the card itself
+      // out of the window that was grown for it.
+      const theme = ThemeConfig(
+        popupShadowBlur: 4.0,
+        popupShadowOffsetY: 30.0,
+      );
+      final insets = popupShadowInsets(theme);
+      expect(insets.top, 0.0);
+      expect(insets.bottom, 34.0);
+    });
   });
 }

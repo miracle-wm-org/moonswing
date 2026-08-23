@@ -189,6 +189,74 @@ void main() {
     expect(theme.popupBorder, theme.divider);
   });
 
+  group('the popup shadow', () {
+    test('its defaults are the lift the shipped themes draw', () {
+      const theme = ThemeConfig();
+      expect(theme.popupShadowColor, const Color(0x66000000));
+      expect(theme.popupShadowBlur, 16.0);
+      expect(theme.popupShadowSpread, 0.0);
+      expect(theme.popupShadowOffset, const Offset(0, 6));
+    });
+
+    test('a garbled value costs that key alone', () {
+      final theme = ThemeConfig.fromMap({
+        'popup_shadow_color': 'not a colour',
+        'popup_shadow_blur': 'lots',
+        'popup_shadow_spread': [1],
+        'popup_shadow_offset_x': true,
+        'popup_shadow_offset_y': {'a': 1},
+        'popup_radius': 12.0,
+      });
+      const defaults = ThemeConfig();
+      expect(theme.popupShadowColor, defaults.popupShadowColor);
+      expect(theme.popupShadowBlur, defaults.popupShadowBlur);
+      expect(theme.popupShadowSpread, defaults.popupShadowSpread);
+      expect(theme.popupShadowOffset, defaults.popupShadowOffset);
+      // The one well-formed key still lands.
+      expect(theme.popupRadius, 12.0);
+    });
+
+    test('blur clamps non-negative, spread and the offsets do not', () {
+      // A negative blur is meaningless and would throw inside BoxShadow, but a
+      // negative spread shrinks the shape before blurring and a negative offset
+      // casts the shadow up or to the left — both are CSS, and both are what a
+      // theme author reaches for.
+      final theme = ThemeConfig.fromMap({
+        'popup_shadow_blur': -4.0,
+        'popup_shadow_spread': -2.0,
+        'popup_shadow_offset_x': -3.0,
+        'popup_shadow_offset_y': -5.0,
+      });
+      expect(theme.popupShadowBlur, 0.0);
+      expect(theme.popupShadowSpread, -2.0);
+      expect(theme.popupShadowOffset, const Offset(-3, -5));
+    });
+
+    test('the clamps hold at both ends', () {
+      final theme = ThemeConfig.fromMap({
+        'popup_shadow_blur': 1000.0,
+        'popup_shadow_spread': -1000.0,
+        'popup_shadow_offset_x': 1000.0,
+        'popup_shadow_offset_y': -1000.0,
+      });
+      expect(theme.popupShadowBlur, 64.0);
+      expect(theme.popupShadowSpread, -32.0);
+      expect(theme.popupShadowOffset, const Offset(64, -64));
+    });
+
+    test('a TOML integer coerces rather than falling back', () {
+      // `popup_shadow_blur = 20` is what a hand-written theme file looks like.
+      final theme = ThemeConfig.fromMap({'popup_shadow_blur': 20});
+      expect(theme.popupShadowBlur, 20.0);
+    });
+
+    test('an alpha channel survives the colour round-trip', () {
+      final theme = ThemeConfig.fromMap({'popup_shadow_color': '#59102030'});
+      expect(theme.popupShadowColor, const Color(0x59102030));
+      expect(theme.toMap()['popup_shadow_color'], '#59102030');
+    });
+  });
+
   test('the new keys round-trip through toMap', () {
     const theme = ThemeConfig(
       panelMargin: 8,
@@ -198,6 +266,11 @@ void main() {
       popupRadius: 10.0,
       popupBorder: Color(0x40FFFFFF),
       popupBorderWidth: 2.0,
+      popupShadowColor: Color(0x59000000),
+      popupShadowBlur: 28.0,
+      popupShadowSpread: -2.0,
+      popupShadowOffsetX: -3.0,
+      popupShadowOffsetY: 10.0,
     );
     expect(ThemeConfig.fromMap(theme.toMap()), theme);
   });

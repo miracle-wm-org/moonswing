@@ -4,9 +4,15 @@ import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
-/// Logical size of the OSD layer-shell window. The window is kept tight around
-/// the card because the shell has no input-region support — a larger surface
-/// would swallow clicks meant for whatever is underneath it.
+/// Logical size of the OSD *card*. The window is kept tight around it because
+/// the shell has no input-region support — a larger surface would swallow
+/// clicks meant for whatever is underneath it.
+///
+/// The window itself is this grown by `popupShadowInsets`, because the card's
+/// Row has an [Expanded] and so fills the surface edge to edge: a theme's
+/// shadow would be clipped on both sides otherwise. `_createOsd` in `main.dart`
+/// does that inflation, and takes the extra height back off the bottom margin
+/// so the card stays where the user put it.
 const Size kOsdWindowSize = Size(340, 96);
 
 /// The card that appears when volume, microphone volume, or brightness changes.
@@ -115,31 +121,38 @@ class _OsdWindowState extends State<OsdWindow>
             ),
           ),
           child: Center(
-            child: PopupCard(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 24,
-                    child: Center(
-                      child: FaIcon(
-                        _icon(request),
-                        size: 18,
-                        color: theme.popupForeground,
+            // The window was created this much larger than [kOsdWindowSize];
+            // this is what hands that margin back to the shadow instead of to
+            // the card.
+            child: Padding(
+              padding: popupShadowInsets(theme),
+              child: PopupCard(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      child: Center(
+                        child: FaIcon(
+                          _icon(request),
+                          size: 18,
+                          color: theme.popupForeground,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(child: _OsdBar(value: fill)),
-                  const SizedBox(width: 14),
-                  SizedBox(
-                    width: 38,
-                    child: Text(
-                      '${(request.value * 100).round()}%',
-                      textAlign: TextAlign.right,
+                    const SizedBox(width: 16),
+                    Expanded(child: _OsdBar(value: fill)),
+                    const SizedBox(width: 14),
+                    SizedBox(
+                      width: 38,
+                      child: Text(
+                        '${(request.value * 100).round()}%',
+                        textAlign: TextAlign.right,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

@@ -45,6 +45,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
     'panel_background': 'Panel background',
     'panel_border': 'Panel border',
     'popup_border': 'Popup border',
+    'popup_shadow_color': 'Popup shadow',
     'scrim': 'Overlay scrim',
   };
 
@@ -283,12 +284,58 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                         'popup_border_width', v.toDouble().clamp(0.0, 16.0)),
                   ),
                 ),
+                SettingsRow(
+                  label: 'Popup shadow blur',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_shadow_blur-$active'),
+                    value: current['popup_shadow_blur'] as num? ?? 16,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                        'popup_shadow_blur', v.toDouble().clamp(0.0, 64.0)),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Popup shadow spread',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_shadow_spread-$active'),
+                    value: current['popup_shadow_spread'] as num? ?? 0,
+                    isInt: false,
+                    allowNegative: true,
+                    onChanged: (v) => _themes.edit(
+                        'popup_shadow_spread', v.toDouble().clamp(-32.0, 32.0)),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Popup shadow offset X',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_shadow_offset_x-$active'),
+                    value: current['popup_shadow_offset_x'] as num? ?? 0,
+                    isInt: false,
+                    allowNegative: true,
+                    onChanged: (v) => _themes.edit('popup_shadow_offset_x',
+                        v.toDouble().clamp(-64.0, 64.0)),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Popup shadow offset Y',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_shadow_offset_y-$active'),
+                    value: current['popup_shadow_offset_y'] as num? ?? 6,
+                    isInt: false,
+                    allowNegative: true,
+                    onChanged: (v) => _themes.edit('popup_shadow_offset_y',
+                        v.toDouble().clamp(-64.0, 64.0)),
+                  ),
+                ),
                 const SettingsHint(
                   'Popup, menu, flyout and on-screen-indicator cards. Unlike '
                   'the bar they round all four corners — nothing sits behind '
                   'them to cut a corner out of. The rim is what gives a '
                   'translucent card an edge over a busy wallpaper, and draws '
-                  'only at a width above zero.',
+                  'only at a width above zero. The shadow enlarges the popup\'s '
+                  'own window to make room for itself, and the popup is '
+                  'repositioned by the same amount so the card stays where it '
+                  'always sat; a fully transparent shadow colour turns it off.',
                 ),
                 const SizedBox(height: 8),
                 SettingsRow(

@@ -369,6 +369,12 @@ panel_border_width   = 0.0
 popup_radius         = 8.0
 popup_border         = "#33EBDBB2"
 popup_border_width   = 1.0
+
+popup_shadow_color   = "#66000000"
+popup_shadow_blur    = 16.0
+popup_shadow_spread  = 0.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 6.0
 ```
 
 Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `AA` is the alpha channel). `"#33FFFFFF"` is white at ~20% opacity. Alpha is what makes a translucent theme translucent: panel and popup surfaces composite against the desktop behind them.
@@ -398,6 +404,11 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card (all four)      |
 | `popup_border`         | `#33F3F4F4`   | Their rim color; drawn only when `popup_border_width` is above zero        |
 | `popup_border_width`   | `1.0`         | Their rim thickness, or `0` for no rim                                     |
+| `popup_shadow_color`   | `#66000000`   | Their shadow's color; an alpha of `0` turns the shadow off entirely        |
+| `popup_shadow_blur`    | `16.0`        | How far the shadow's falloff reaches past the card (CSS's blur radius)     |
+| `popup_shadow_spread`  | `0.0`         | How far the shadow's shape is grown before blurring; negative shrinks it   |
+| `popup_shadow_offset_x`| `0.0`         | Horizontal displacement; positive is right, negative is left               |
+| `popup_shadow_offset_y`| `6.0`         | Vertical displacement; positive is down, negative is up                    |
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
@@ -437,6 +448,10 @@ All three follow a theme switch live; no restart is needed.
 The one difference is corners. A popup **always rounds all four**, with no equivalent of the flush-bar rule above: there is no screen edge behind a popup to cut a wedge out of, so there is no pair of corners worth sparing.
 
 Sensible defaults are shipped rather than zero — `8.0` with a 1px rim — because that is the shape the shell's menus have always drawn. A theme that says nothing about popups gets that, including a theme file written before these keys existed.
+
+The five `popup_shadow_*` keys are a CSS box-shadow, spelled out: a color, a blur radius, a spread, and an offset on each axis. There is one shadow per theme rather than the stack CSS allows.
+
+**A shadow makes a popup's window bigger.** A popup is its own compositor surface, sized to its content, and a shadow paints *outside* the card — so the shell grows the surface by the shadow's reach (`blur + spread`, shifted by the offset, on each side independently) and then repositions the popup by that same amount, so the card lands exactly where it would have without one. Two consequences worth knowing: a click landing in the shadow's margin hits the popup rather than passing through to what is underneath, and a very large blur on a popup near a screen edge gives the compositor more to slide back on-screen. Setting `popup_shadow_color`'s alpha to `0` removes the margin along with the shadow, restoring the exact geometry of a shell with no shadow at all.
 
 Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
 
