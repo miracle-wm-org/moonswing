@@ -29,6 +29,104 @@ class NetworkConfig {
 }
 
 // ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
+
+/// The connection status for the whole shell.
+///
+/// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
+/// `SystemStatsStore`'s lease rule: the NetworkManager queries run only while
+/// at least one widget holds a lease, so a two-monitor setup shares one poller
+/// instead of running one round of D-Bus calls per bar.
+class NetworkStatusStore extends ChangeNotifier {
+  NetworkStatusStore._();
+
+  static final NetworkStatusStore instance = NetworkStatusStore._();
+
+  @visibleForTesting
+  factory NetworkStatusStore.forTesting({
+    NetworkConfig config = const NetworkConfig(),
+  }) {
+    final store = NetworkStatusStore._();
+    store.configure(config);
+    return store;
+  }
+
+  NetworkConfig _config = const NetworkConfig();
+
+  /// Applies [config]; the module's `fromMap` pushes it here. A cadence change
+  /// while leased restarts the timer at the new interval.
+  void configure(NetworkConfig config) {
+    final cadenceChanged = config.pollSeconds != _config.pollSeconds;
+    _config = config;
+    if (cadenceChanged && _timer != null) {
+      _stopTimer();
+      _startTimer();
+    }
+  }
+
+  NetworkInfo _info = NetworkInfo.none;
+  NetworkInfo get info => _info;
+
+  int _leases = 0;
+  Timer? _timer;
+
+  /// A poll is a chain of D-Bus round-trips; a tick that arrives while the
+  /// previous chain is still in flight is dropped, not queued behind it.
+  bool _pollInFlight = false;
+
+  /// Take a lease. The first active lease starts polling, and polls once
+  /// immediately so the bar never waits a full interval for its first reading.
+  void acquire() {
+    _leases++;
+    if (_timer == null) {
+      _startTimer();
+      unawaited(_poll());
+    }
+  }
+
+  void release() {
+    if (_leases > 0) _leases--;
+    if (_leases == 0) _stopTimer();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(
+      Duration(seconds: _config.pollSeconds),
+      (_) => unawaited(_poll()),
+    );
+  }
+
+  void _stopTimer() {
+    _timer?.cancel();
+    _timer = null;
+  }
+
+  Future<void> _poll() async {
+    if (_pollInFlight) return;
+    _pollInFlight = true;
+    try {
+      final info = await _queryNetworkInfo();
+      // A release can land while the D-Bus round-trips are in flight —
+      // cancelling the timer does not cancel the awaits already running.
+      // A released store drops the result rather than notifying listeners
+      // that no longer exist.
+      if (_leases == 0) return;
+      _info = info;
+      notifyListeners();
+    } finally {
+      _pollInFlight = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopTimer();
+    super.dispose();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Data models
 // ---------------------------------------------------------------------------
 
@@ -440,38 +538,26 @@ Future<void> connectToNetwork({
 // ---------------------------------------------------------------------------
 
 class Network extends StatefulWidget {
-  const Network({super.key, required this.config});
-
-  final NetworkConfig config;
+  const Network({super.key});
 
   @override
   NetworkState createState() => NetworkState();
 }
 
 class NetworkState extends State<Network> with PopupHost<Network> {
-  NetworkInfo _info = NetworkInfo.none;
-  Timer? _timer;
+  final NetworkStatusStore _store = NetworkStatusStore.instance;
 
   @override
   void initState() {
     super.initState();
-    _poll();
-    _timer = Timer.periodic(
-      Duration(seconds: widget.config.pollSeconds),
-      (_) => _poll(),
-    );
+    _store.acquire();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _store.release();
     closePopup();
     super.dispose();
-  }
-
-  Future<void> _poll() async {
-    final info = await _queryNetworkInfo();
-    if (mounted) setState(() => _info = info);
   }
 
   // -------------------------------------------------------------------------
@@ -490,7 +576,7 @@ class NetworkState extends State<Network> with PopupHost<Network> {
       // rows are not built at all, and a tight box would reserve their height
       // anyway. The maxima are a runaway guard, not a size.
       preferredConstraints: const BoxConstraints(maxWidth: 320, maxHeight: 400),
-      child: ThemeProvider(child: _NetworkPopupContent(info: _info)),
+      child: ThemeProvider(child: _NetworkPopupContent(info: _store.info)),
     );
   }
 
@@ -498,8 +584,8 @@ class NetworkState extends State<Network> with PopupHost<Network> {
   // Bar widget
   // -------------------------------------------------------------------------
 
-  FaIconData _networkIcon() {
-    switch (_info.type) {
+  FaIconData _networkIcon(NetworkInfo info) {
+    switch (info.type) {
       case NetworkType.ethernet:
         return FontAwesomeIcons.ethernet;
       case NetworkType.wifi:
@@ -511,31 +597,38 @@ class NetworkState extends State<Network> with PopupHost<Network> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final isNone = _info.type == NetworkType.none;
     // ignore: deprecated_member_use
     final dimColor = theme.foreground.withOpacity(0.4);
 
-    return BarButton(
-      active: isPopupOpen,
-      onTapDown: (_) => _togglePopup(context),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FaIcon(
-            _networkIcon(),
-            size: 12,
-            color: isNone ? dimColor : theme.foreground,
+    return ListenableBuilder(
+      listenable: _store,
+      builder: (context, _) {
+        final info = _store.info;
+        final isNone = info.type == NetworkType.none;
+
+        return BarButton(
+          active: isPopupOpen,
+          onTapDown: (_) => _togglePopup(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(
+                _networkIcon(info),
+                size: 12,
+                color: isNone ? dimColor : theme.foreground,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                info.name,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isNone ? dimColor : theme.foreground,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          Text(
-            _info.name,
-            style: TextStyle(
-              fontSize: 16,
-              color: isNone ? dimColor : theme.foreground,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -590,8 +683,14 @@ class _NetworkPopupContent extends StatelessWidget {
 // Module
 // ---------------------------------------------------------------------------
 
-final Module networkModule = Module.simple(
+final Module networkModule = Module.simple<NetworkConfig>(
   configKey: 'network',
-  fromMap: NetworkConfig.fromMap,
-  builder: (context, config) => Network(config: config),
+  fromMap: (map) {
+    final config = NetworkConfig.fromMap(map);
+    // The store, not the widget, owns the config: polling continues across
+    // widget rebuilds, and every bar instance shares the one poller.
+    NetworkStatusStore.instance.configure(config);
+    return config;
+  },
+  builder: (context, config) => const Network(),
 );
