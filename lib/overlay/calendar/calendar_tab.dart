@@ -10,16 +10,17 @@ import 'package:graceful_shell/overlay/calendar/month.dart';
 import 'package:graceful_shell/overlay/calendar/time_zones.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
 import 'package:graceful_shell/timers/timer_widgets.dart';
 
 /// The Calendar tab of the overlay: a month grid the user can page through,
-/// with the timers and stopwatches strip under it, beside the local time and
-/// the world clocks the user has added.
+/// beside a column holding the local time, the world clocks the user has
+/// added, and the timers and stopwatches under them.
 ///
-/// The strip is `lib/timers/`'s rather than this tab's: it is given the [active]
-/// flag and the store seam and nothing else, because what it starts outlives
-/// the overlay and is rendered in the bar.
+/// The timers section is `lib/timers/`'s rather than this tab's: it is given
+/// the [active] flag and the store seam and nothing else, because what it
+/// starts outlives the overlay and is rendered in the bar.
 ///
 /// There is no account integration — the grid is local date arithmetic only, so
 /// the tab needs no network, no credentials and no start-up service. The world
@@ -142,30 +143,16 @@ class _CalendarTabState extends State<CalendarTab> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // The month keeps the whole of its side now that the timers have moved
+        // under the clocks, so the grid's six rows are as tall as the tab is.
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _MonthPane(
-                  visibleMonth: _visibleMonth,
-                  selectedDay: _selectedDay,
-                  weekStart: _weekStart,
-                  onMonthChanged: _goToMonth,
-                  onDaySelected: (day) => setState(() => _selectedDay = day),
-                  onToday: _goToToday,
-                ),
-              ),
-              Container(height: 1, color: theme.divider),
-              // A fixed strip under the grid rather than a third column: the
-              // panel is 800 wide at its smallest, and a column narrow enough
-              // to fit beside the month and the clocks would have nowhere to
-              // put a readout, its three controls and the composer.
-              SizedBox(
-                height: kTimersPaneHeight,
-                child: TimersPane(active: widget.active, store: widget.timers),
-              ),
-            ],
+          child: _MonthPane(
+            visibleMonth: _visibleMonth,
+            selectedDay: _selectedDay,
+            weekStart: _weekStart,
+            onMonthChanged: _goToMonth,
+            onDaySelected: (day) => setState(() => _selectedDay = day),
+            onToday: _goToToday,
           ),
         ),
         Container(width: 1, color: theme.divider),
@@ -177,6 +164,11 @@ class _CalendarTabState extends State<CalendarTab> {
             clocks: _worldClocks,
             onAdd: _addWorldClock,
             onRemove: _removeWorldClock,
+            // Half of what is below the clocks, rather than a strip along the
+            // bottom of the month: the composer is a labelled field and two
+            // buttons, which reads as a column of controls beside the grid and
+            // not as a band under it.
+            footer: TimersPane(active: widget.active, store: widget.timers),
           ),
         ),
       ],
@@ -254,10 +246,11 @@ class _MonthPane extends StatelessWidget {
                     child: Text(
                       weekdayInitials[(weekStart + i) % 7],
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: ShellFontSizes.secondary,
                         fontFamily: theme.fontFamily,
-                        color: theme.popupForeground.withValues(alpha: 0.45),
+                        color: theme.popupForeground.withValues(alpha: 0.6),
                         fontWeight: FontWeight.w600,
+                        letterSpacing: 0.5,
                       ),
                     ),
                   ),
@@ -319,7 +312,7 @@ class _MonthHeader extends StatelessWidget {
         Text(
           '${monthNames[month.month - 1]} ${month.year}',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: ShellFontSizes.heading,
             fontFamily: theme.fontFamily,
             color: theme.popupForeground,
             fontWeight: FontWeight.w600,
@@ -365,7 +358,7 @@ class _TodayButtonState extends State<_TodayButton> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
             color: _hovered ? theme.surfaceHover : theme.controlSurface,
             borderRadius: BorderRadius.circular(6),
@@ -373,7 +366,7 @@ class _TodayButtonState extends State<_TodayButton> {
           child: Text(
             'Today',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: ShellFontSizes.body,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.85),
             ),
@@ -444,7 +437,7 @@ class _DayCellState extends State<_DayCell> {
             child: Text(
               '${widget.day.day}',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: ShellFontSizes.label,
                 fontFamily: theme.fontFamily,
                 color: foreground,
                 fontWeight: widget.isToday || widget.isSelected

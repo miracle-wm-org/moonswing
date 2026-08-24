@@ -12,7 +12,6 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
@@ -21,18 +20,20 @@ import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/timers/timer_format.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
 
-/// One entry's row in a list. Fixed, so the calendar page's list can be a
-/// [ListView] with an `itemExtent`.
-const double kTimerRowHeight = 42;
-
-/// Height of the calendar page's timers strip.
+/// One entry's row in a list. Fixed, so the lists that render entries can be
+/// [ListView]s with an `itemExtent`.
 ///
-/// Fixed rather than a fraction: the month grid above it keeps whatever is
-/// left, and at the overlay's 800x500 minimum that has to stay a usable six
-/// rows of dates. What is left over goes to the list, which scrolls — the
-/// strip is sized to show the composer and a couple of entries, not every
-/// entry the user can start.
-const double kTimersPaneHeight = 190;
+/// Sized for the row's two lines at the readable sizes the calendar page moved
+/// to, not for the smallest they could be set at.
+const double kTimerRowHeight = 48;
+
+/// What the composer's field starts with.
+///
+/// The primary button is therefore live the moment the pane is drawn: "give me
+/// five minutes" is the overwhelmingly common case, and typing it out was the
+/// entire cost of it. Starting a timer puts the field back to this rather than
+/// emptying it, so the next one is one click away too.
+const String kDefaultTimerDuration = '5:00';
 
 /// Width of the bar popup's card.
 ///
@@ -41,10 +42,6 @@ const double kTimersPaneHeight = 190;
 /// Linux popup resolves its placement once at map time, so a content-width card
 /// would walk away from the bar as the digits changed.
 const double kTimersPopupWidth = 264;
-
-/// What the presets in the composer offer. Minutes, the unit the field's bare
-/// numbers are read as.
-const List<int> kTimerPresetMinutes = [1, 5, 10, 25];
 
 FaIconData timerKindIcon(ShellTimerKind kind) =>
     kind == ShellTimerKind.stopwatch
@@ -132,7 +129,7 @@ class TimerRow extends StatelessWidget {
                 Text(
                   timerSubtitle(entry),
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: ShellFontSizes.caption,
                     fontFamily: theme.fontFamily,
                     color: theme.popupForeground.withValues(alpha: 0.45),
                   ),
@@ -166,7 +163,14 @@ class TimerRow extends StatelessWidget {
   }
 }
 
-/// The duration field, its presets, and the two Start buttons.
+/// The duration field and the two Start buttons.
+///
+/// Two rows rather than one: the composer sits in the calendar's clock column,
+/// which is narrower than a labelled field and two buttons side by side. The
+/// field is labelled where it used to be a bare box — it is the one control on
+/// this page a user has to be told what to put in — and its placeholder spells
+/// out the three forms it takes, which is what the field is asking when it has
+/// been cleared.
 class TimerComposer extends StatefulWidget {
   const TimerComposer({super.key, required this.store});
 
@@ -177,12 +181,12 @@ class TimerComposer extends StatefulWidget {
 }
 
 class _TimerComposerState extends State<TimerComposer> {
-  String _text = '';
+  String _text = kDefaultTimerDuration;
 
   /// Bumped to give [SettingsTextField] a new key, which is how the field is
-  /// cleared: it seeds its controller from `initial` once and never re-reads
-  /// it, so a started timer's text is dropped by rebuilding the field rather
-  /// than by reaching into its state.
+  /// put back to [kDefaultTimerDuration]: it seeds its controller from
+  /// `initial` once and never re-reads it, so a started timer's text is reset
+  /// by rebuilding the field rather than by reaching into its state.
   int _generation = 0;
 
   Duration? get _parsed => parseDurationInput(_text);
@@ -192,7 +196,7 @@ class _TimerComposerState extends State<TimerComposer> {
     if (duration == null) return;
     widget.store.startTimer(duration);
     setState(() {
-      _text = '';
+      _text = kDefaultTimerDuration;
       _generation++;
     });
   }
@@ -205,53 +209,56 @@ class _TimerComposerState extends State<TimerComposer> {
       children: [
         Row(
           children: [
-            SettingsTextField(
-              key: ValueKey(_generation),
-              initial: '',
-              width: 86,
-              hint: '5:00',
-              onChanged: (value) => setState(() => _text = value),
-              onSubmitted: (_) => _startTimer(),
+            // Beside the field rather than over it: every line this composer
+            // takes is a line the list of what is running does not get, and
+            // the section is half a column.
+            Text(
+              'Duration',
+              style: TextStyle(
+                fontSize: ShellFontSizes.body,
+                fontFamily: theme.fontFamily,
+                color: theme.popupForeground.withValues(alpha: 0.75),
+                fontWeight: FontWeight.w500,
+              ),
             ),
-            const SizedBox(width: 8),
-            SettingsActionButton(
-              label: 'Start timer',
-              compact: true,
-              primary: true,
-              // Inert rather than hidden while the field is empty or
-              // half-typed: a button that comes and goes under the pointer is
-              // harder to hit than one that is simply dim.
-              enabled: _parsed != null,
-              onTap: _startTimer,
-            ),
-            const SizedBox(width: 6),
-            SettingsActionButton(
-              label: 'Stopwatch',
-              compact: true,
-              onTap: widget.store.startStopwatch,
+            const SizedBox(width: 10),
+            Expanded(
+              child: SettingsTextField(
+                key: ValueKey(_generation),
+                initial: kDefaultTimerDuration,
+                // What the field accepts, shown where a placeholder goes: it
+                // is the answer to "what may I type here?", and it is asked
+                // exactly when the field has been cleared to type something.
+                hint: '5, 1:30 or 1h30m',
+                onChanged: (value) => setState(() => _text = value),
+                onSubmitted: (_) => _startTimer(),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            Text(
-              'Quick',
-              style: TextStyle(
-                fontSize: 10,
-                fontFamily: theme.fontFamily,
-                color: theme.popupForeground.withValues(alpha: 0.45),
+            Expanded(
+              child: SettingsActionButton(
+                label: 'Start timer',
+                compact: true,
+                primary: true,
+                // Inert rather than hidden while the field is half-typed: a
+                // button that comes and goes under the pointer is harder to hit
+                // than one that is simply dim.
+                enabled: _parsed != null,
+                onTap: _startTimer,
               ),
             ),
             const SizedBox(width: 8),
-            for (final minutes in kTimerPresetMinutes) ...[
-              _PresetChip(
-                label: '${minutes}m',
-                onTap: () =>
-                    widget.store.startTimer(Duration(minutes: minutes)),
+            Expanded(
+              child: SettingsActionButton(
+                label: 'Stopwatch',
+                compact: true,
+                onTap: widget.store.startStopwatch,
               ),
-              const SizedBox(width: 6),
-            ],
+            ),
           ],
         ),
       ],
@@ -259,39 +266,14 @@ class _TimerComposerState extends State<TimerComposer> {
   }
 }
 
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return HoverRegion(
-      builder: (context, hovered) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-          decoration: BoxDecoration(
-            color: hovered ? theme.surfaceHover : theme.controlSurface,
-            borderRadius: BorderRadius.circular(ShellRadii.pill),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground.withValues(alpha: 0.85),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The calendar page's strip: the composer over the list of what is running.
+/// The calendar page's timers section: the composer over the list of what is
+/// running.
+///
+/// It sits under the world clocks in the calendar's clock column and is given
+/// half of what is left below them, so the creator is on screen without a
+/// scroll and the running entries grow into the same space. It adds no
+/// horizontal padding of its own — the column it sits in supplies that, and a
+/// second inset would step the section in from the clocks above it.
 class TimersPane extends StatelessWidget {
   const TimersPane({super.key, required this.active, this.store});
 
@@ -312,15 +294,12 @@ class TimersPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = this.store ?? TimersStore.instance;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
-      child: active
-          ? ListenableBuilder(
-              listenable: store,
-              builder: (context, _) => _buildContent(context, store),
-            )
-          : _buildContent(context, store),
-    );
+    return active
+        ? ListenableBuilder(
+            listenable: store,
+            builder: (context, _) => _buildContent(context, store),
+          )
+        : _buildContent(context, store);
   }
 
   Widget _buildContent(BuildContext context, TimersStore store) {
@@ -334,13 +313,12 @@ class TimersPane extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'TIMERS & STOPWATCHES',
+                'Timers & stopwatches',
                 style: TextStyle(
-                  fontSize: ShellFontSizes.caption,
+                  fontSize: ShellFontSizes.label,
                   fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.5),
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5,
+                  color: theme.popupForeground.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -353,32 +331,49 @@ class TimersPane extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        TimerComposer(store: store),
-        const SizedBox(height: 8),
         Expanded(
-          child: entries.isEmpty
-              ? Align(
-                  alignment: Alignment.topLeft,
-                  child: Text(
-                    'Nothing running. Start one to see it beside the '
-                    'clock.',
-                    style: TextStyle(
-                      fontSize: ShellFontSizes.secondary,
-                      fontFamily: theme.fontFamily,
-                      color: theme.muted,
-                    ),
+          // The composer is the list's first item rather than a fixed header
+          // over it. This section is half of a column whose other half is the
+          // world clocks, and the last clamp in `overlayPanelSize` is against
+          // the output's own height — so on a short display that half can be
+          // shorter than the composer is tall. As a header that overflows; as
+          // an item it scrolls, and the rows keep their fixed extent either
+          // way rather than being a Column that overflows on the entry after
+          // the one that fits.
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            itemCount: entries.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TimerComposer(store: store),
+                      if (entries.isEmpty) ...[
+                        const SizedBox(height: 14),
+                        Text(
+                          'Nothing running. Start one to see it beside the '
+                          'clock.',
+                          style: TextStyle(
+                            fontSize: ShellFontSizes.body,
+                            fontFamily: theme.fontFamily,
+                            color: theme.muted,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                )
-              // A ListView with a fixed extent, never a Column: the user
-              // picks how many entries there are, and a Column overflows
-              // the moment they pick one more than the strip is tall.
-              : ListView.builder(
-                  padding: EdgeInsets.zero,
-                  itemExtent: kTimerRowHeight,
-                  itemCount: entries.length,
-                  itemBuilder: (_, i) =>
-                      TimerRow(entry: entries[i], now: now, store: store),
-                ),
+                );
+              }
+              final entry = entries[index - 1];
+              return SizedBox(
+                height: kTimerRowHeight,
+                child: TimerRow(entry: entry, now: now, store: store),
+              );
+            },
+          ),
         ),
       ],
     );

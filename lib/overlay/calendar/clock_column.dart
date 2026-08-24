@@ -9,17 +9,25 @@ import 'package:graceful_shell/overlay/calendar/month.dart';
 import 'package:graceful_shell/overlay/calendar/time_zones.dart';
 import 'package:graceful_shell/overlay/calendar/timezone_picker.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 
 /// Width of the whole column. Fixed rather than fractional: the overlay panel
 /// is 800 wide at its smallest, and the month grid beside this has to stay
 /// usable at that size.
-const double kClockColumnWidth = 220;
+///
+/// Wider than it was, because the column now carries the timers section under
+/// the world clocks: a duration field, two buttons and an entry's three
+/// controls all have to fit across it, and at 220 they did not.
+const double kClockColumnWidth = 280;
 
 /// The dial at full size. Shrinks on a short surface — see the [LayoutBuilder]
 /// in [_CalendarClockColumnState.build].
 const double kAnalogClockSize = 128;
 
-const double kWorldClockRowHeight = 46;
+/// One world clock's row. Fixed, so the list can be a [ListView] with an
+/// `itemExtent` — sized for the row's two lines at the readable sizes this
+/// column moved to.
+const double kWorldClockRowHeight = 50;
 
 /// The local time, as a dial and a digital readout, over the user's list of
 /// world clocks.
@@ -35,6 +43,7 @@ class CalendarClockColumn extends StatefulWidget {
     required this.onAdd,
     required this.onRemove,
     this.clock = const SystemClockSource(),
+    this.footer,
   });
 
   /// Whether the calendar is the tab the user is looking at.
@@ -48,6 +57,16 @@ class CalendarClockColumn extends StatefulWidget {
   final ValueChanged<String> onAdd;
   final ValueChanged<String> onRemove;
   final ClockSource clock;
+
+  /// What is rendered under the world clocks — the calendar's timers section.
+  ///
+  /// It splits the space below the dial with the clock list, half each, rather
+  /// than being sized to its content: the list and the timers both grow with
+  /// what the user has put in them, and an equal share is the only division
+  /// that does not privilege whichever of the two was given a fixed height.
+  /// Null leaves the whole of that space to the clocks, which is what the
+  /// column's own widget tests pump.
+  final Widget? footer;
 
   @override
   State<CalendarClockColumn> createState() => _CalendarClockColumnState();
@@ -103,10 +122,18 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
     final theme = ThemeScope.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        // On a pathologically short output the dial gives way rather than the
-        // list being squeezed to nothing.
-        final dialSize = constraints.hasBoundedHeight
-            ? (constraints.maxHeight * 0.32).clamp(64.0, kAnalogClockSize)
+        // The dial gives way rather than either list being squeezed to
+        // nothing: it shrinks with the column, and on a pathologically short
+        // output it goes altogether, leaving the digital readout — which says
+        // the same thing in a fifth of the height. Both thresholds are lower
+        // than they were, because the space below is now shared by two
+        // sections instead of held by one.
+        final height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : double.infinity;
+        final showDial = height >= 340;
+        final dialSize = height.isFinite
+            ? (height * 0.16).clamp(64.0, kAnalogClockSize)
             : kAnalogClockSize;
 
         return Padding(
@@ -114,8 +141,10 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(child: AnalogClock(time: _now, size: dialSize)),
-              const SizedBox(height: 10),
+              if (showDial) ...[
+                Center(child: AnalogClock(time: _now, size: dialSize)),
+                const SizedBox(height: 10),
+              ],
               Center(
                 child: Text(
                   formatClockTime(_now),
@@ -133,24 +162,23 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
                   '${weekdayNames[_now.weekday % 7]}, '
                   '${monthAbbrev[_now.month - 1]} ${_now.day}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: ShellFontSizes.body,
                     fontFamily: theme.fontFamily,
-                    color: theme.popupForeground.withValues(alpha: 0.55),
+                    color: theme.popupForeground.withValues(alpha: 0.7),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      'WORLD CLOCKS',
+                      'World clocks',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: ShellFontSizes.label,
                         fontFamily: theme.fontFamily,
-                        color: theme.popupForeground.withValues(alpha: 0.5),
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.5,
+                        color: theme.popupForeground.withValues(alpha: 0.9),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -161,7 +189,7 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Expanded(
                 // A ListView, never a Column: a Column overflows the moment the
                 // user adds one clock more than the column is tall, and no
@@ -183,6 +211,14 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
                         },
                       ),
               ),
+              if (widget.footer != null) ...[
+                const SizedBox(height: 10),
+                Container(height: 1, color: theme.divider),
+                const SizedBox(height: 10),
+                // The same flex as the list above it: half each of whatever the
+                // dial and the readout left.
+                Expanded(child: widget.footer!),
+              ],
             ],
           ),
         );
@@ -203,7 +239,7 @@ class _EmptyClocks extends StatelessWidget {
       child: Text(
         'Add a time zone with +',
         style: TextStyle(
-          fontSize: 12,
+          fontSize: ShellFontSizes.body,
           fontFamily: theme.fontFamily,
           color: theme.muted,
         ),
@@ -266,9 +302,10 @@ class _WorldClockRowState extends State<_WorldClockRow> {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: ShellFontSizes.body,
                       fontFamily: theme.fontFamily,
                       color: theme.popupForeground.withValues(alpha: 0.9),
+                      fontWeight: FontWeight.w500,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -277,7 +314,7 @@ class _WorldClockRowState extends State<_WorldClockRow> {
                         ? 'Unknown time zone'
                         : formatUtcOffset(zone.offset),
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: ShellFontSizes.caption,
                       fontFamily: theme.fontFamily,
                       color: zone == null
                           ? theme.muted
@@ -297,7 +334,7 @@ class _WorldClockRowState extends State<_WorldClockRow> {
                   Text(
                     formatClockTime(zone.time, seconds: false),
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: ShellFontSizes.title,
                       fontFamily: theme.fontFamily,
                       color: theme.popupForeground,
                       fontFeatures: const [FontFeature.tabularFigures()],
@@ -307,7 +344,7 @@ class _WorldClockRowState extends State<_WorldClockRow> {
                     Text(
                       delta,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: ShellFontSizes.caption,
                         fontFamily: theme.fontFamily,
                         color: theme.accent,
                       ),
@@ -330,7 +367,7 @@ class _WorldClockRowState extends State<_WorldClockRow> {
 /// The row's remove button.
 ///
 /// Its own widget rather than [SettingsIconButton] because that one is 26x26,
-/// which does not fit a 46px row that already carries two lines of text.
+/// which does not fit a row that already carries two lines of text.
 class _RemoveButton extends StatefulWidget {
   const _RemoveButton({required this.onTap});
 
