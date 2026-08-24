@@ -8,6 +8,7 @@ import 'package:graceful_shell/modules/media_player.dart' show MediaPlayerConfig
 import 'package:graceful_shell/modules/network.dart' show NetworkConfig;
 import 'package:graceful_shell/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:graceful_shell/modules/weather.dart' show WeatherConfig;
+import 'package:graceful_shell/modules/workspaces.dart' show WorkspacesConfig;
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/system/system_monitor_config.dart'
     show SystemMonitorConfig;
@@ -88,6 +89,31 @@ class _ModuleGroup {
 /// Every row the section renders, in order. Not `const` because reading a
 /// field off a const config object is not a constant expression.
 final List<_ModuleGroup> _moduleGroups = [
+  _ModuleGroup('Workspaces', [
+    _ModuleSetting.toggle(
+      const ['modules', 'workspaces', 'show_app_icons'],
+      'Show app icons',
+      defaultValue: const WorkspacesConfig().showAppIcons,
+    ),
+    _ModuleSetting.number(
+      const ['modules', 'workspaces', 'icon_size'],
+      'Icon size',
+      defaultValue: const WorkspacesConfig().iconSize,
+      isInt: true,
+    ),
+    _ModuleSetting.number(
+      const ['modules', 'workspaces', 'max_icons'],
+      'Max icons per workspace',
+      defaultValue: const WorkspacesConfig().maxIcons,
+      isInt: true,
+    ),
+    _ModuleSetting.number(
+      const ['modules', 'workspaces', 'poll_seconds'],
+      'Poll (seconds)',
+      defaultValue: const WorkspacesConfig().pollSeconds,
+      isInt: true,
+    ),
+  ]),
   _ModuleGroup('Weather', [
     _ModuleSetting.segmented(
       const ['modules', 'weather', 'unit'],

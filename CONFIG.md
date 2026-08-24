@@ -88,7 +88,7 @@ right  = ["sound_control", "battery", "weather", "clock"]
 
 Each key is an ordered array of module names. Valid module names are:
 
-- `"workspaces"` - Workspace switcher (requires Miracle WM)
+- `"workspaces"` - Workspace switcher, with the icons of what is open on each (requires Miracle WM)
 - `"media_player"` - MPRIS media player controls
 - `"sound_control"` - PulseAudio volume display
 - `"battery"` - Battery status monitor
@@ -154,7 +154,32 @@ max_text_width = 200.0
 
 ### Workspaces
 
-No configurable settings.
+```toml
+[modules.workspaces]
+show_app_icons = true
+icon_size = 14
+max_icons = 4
+poll_seconds = 3
+```
+
+| Key              | Type | Default | Description                                                                  |
+| ---------------- | ---- | ------- | ---------------------------------------------------------------------------- |
+| `show_app_icons` | bool | `true`  | Show the icons of the applications open on each workspace                    |
+| `icon_size`      | int  | `14`    | Icon size in pixels (8–64)                                                   |
+| `max_icons`      | int  | `4`     | Icons one workspace shows before the rest collapse into a `+N` (1–16)        |
+| `poll_seconds`   | int  | `3`     | How often the window tree is re-read while the icons are shown (1–60)        |
+
+With `show_app_icons` on, each workspace button carries its number or name
+*and* the icons of what is open on it, so the buttons are no longer all the
+same width — a workspace holding three windows is wider than an empty one. The
+icons come from Miracle's window tree, and an application is drawn once however
+many of its windows are on the workspace.
+
+The tree is read on a timer as well as on every workspace event, because
+Miracle's *window* events cannot be subscribed to from this shell (the IPC
+library throws on every event type but `workspace`). Nothing is read at all
+while `show_app_icons` is off, and one poll serves every panel on every
+monitor.
 
 ### Dock
 

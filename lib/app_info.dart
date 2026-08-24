@@ -127,6 +127,17 @@ external ffi.Pointer<ffi.Pointer<ffi.Uint8>> _gDesktopAppInfoGetKeywords(
 external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetGenericName(
     ffi.Pointer<ffi.NativeType> appInfo);
 
+/// `StartupWMClass=` — the window class the entry declares its windows carry.
+///
+/// The freedesktop-sanctioned way back from a *window* to the application that
+/// opened it, which is what the workspace row needs: a toplevel reports an
+/// `app_id` (or, under XWayland, a WM class) that need not be the desktop-file
+/// id. May be NULL; owned by the appinfo, so read it and never free it.
+@ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'g_desktop_app_info_get_startup_wm_class')
+external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetStartupWmClass(
+    ffi.Pointer<ffi.NativeType> appInfo);
+
 /// A `GdkAppLaunchContext*` for the default display, or NULL. Passing one to
 /// `g_app_info_launch` gives the launched app a startup-notification token, so
 /// it wins the focus race against the overlay closing behind it.
@@ -310,6 +321,11 @@ class AppEntry {
   /// `GenericName=` — "Web Browser" — or empty.
   final String genericName;
 
+  /// `StartupWMClass=` — the window class this entry's windows carry — or
+  /// empty. What maps a compositor `app_id` back to an installed application
+  /// when the two are spelled differently.
+  final String startupWmClass;
+
   /// `Keywords=` — extra search terms the entry declares.
   final List<String> keywords;
 
@@ -332,6 +348,7 @@ class AppEntry {
     required this.appInfo,
     this.filename = '',
     this.genericName = '',
+    this.startupWmClass = '',
     this.keywords = const [],
     this.actions = const [],
   });
@@ -420,6 +437,10 @@ AppEntry _entryFromAppInfo(
   final genericName =
       genericPtr != ffi.nullptr ? _nativeToString(genericPtr) : '';
 
+  final wmClassPtr = _gDesktopAppInfoGetStartupWmClass(appInfo);
+  final startupWmClass =
+      wmClassPtr != ffi.nullptr ? _nativeToString(wmClassPtr) : '';
+
   final actions = <AppAction>[];
   for (final actionId in _strvToList(_gDesktopAppInfoListActions(appInfo))) {
     final namePtr = _stringToNative(actionId);
@@ -439,6 +460,8 @@ AppEntry _entryFromAppInfo(
     iconName: iconName,
     categories: categories,
     genericName: genericName,
+    // Transfer-none, like `filename` below.
+    startupWmClass: startupWmClass,
     keywords: _strvToList(_gDesktopAppInfoGetKeywords(appInfo)),
     actions: actions,
     // Transfer-none, so this is read and never freed.
