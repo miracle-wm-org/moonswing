@@ -88,6 +88,9 @@ right = ["media_player", "notifications", "launcher"]
 [modules.dock]
 apps = ["firefox_firefox", "org.gnome.Ptyxis", "org.gnome.Nautilus"]
 
+# Where the weather is read for is optional: with no `location`/`latitude`/
+# `longitude` the shell detects it from this machine's IP address. Settings >
+# Shell > Modules > Weather searches for a place by name and writes all three.
 [modules.weather]
 unit = "fahrenheit"
 refresh_minutes = 10

@@ -47,6 +47,23 @@ extension TomlReader on Map<String, dynamic> {
     return value;
   }
 
+  /// A double, or null when the key is absent, not a number, not finite, or
+  /// outside [min]/[max].
+  ///
+  /// Out of range is *absent* rather than clamped, unlike [doubleOr]: the
+  /// callers of this are optional coordinates and the like, where a value the
+  /// schema cannot accept is a typo rather than an over-enthusiastic setting,
+  /// and clamping it would silently substitute a plausible-looking answer for
+  /// the one the user meant.
+  double? doubleOrNull(String key, {double? min, double? max}) {
+    final raw = this[key];
+    if (raw is! num || !raw.isFinite) return null;
+    final value = raw.toDouble();
+    if (min != null && value < min) return null;
+    if (max != null && value > max) return null;
+    return value;
+  }
+
   /// The value at [key] when it is a bool; [fallback] otherwise.
   bool boolOr(String key, bool fallback) {
     final raw = this[key];

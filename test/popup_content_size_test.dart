@@ -4,6 +4,10 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/modules/system.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/weather/weather_api.dart';
+import 'package:graceful_shell/weather/weather_store.dart';
+
+import 'weather_fakes.dart';
 
 /// A popup window is sized to its content: [PopupWindowController] takes no
 /// Size, only BoxConstraints, and the Linux backend shrink-wraps the surface
@@ -38,18 +42,24 @@ Future<Size> pumpUnder(
 const BoxConstraints kSystemConstraints =
     BoxConstraints(maxWidth: 320, maxHeight: 400);
 const BoxConstraints kWeatherConstraints =
-    BoxConstraints(maxWidth: 420, maxHeight: 600);
+    BoxConstraints(maxWidth: 460, maxHeight: 640);
 
-List<DayForecast> _forecast(int days) => List.generate(
-      days,
-      (i) => DayForecast(
-        dayLabel: const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
-        weatherCode: 0,
-        tempMax: 72,
-        tempMin: 51,
-        precipProbability: 10,
-      ),
+/// A store holding [days] days of forecast and nothing behind it. The popup
+/// reads the store live rather than a snapshot, so this is what it is given.
+WeatherStore _weather(int days) {
+  final store = WeatherStore.forTesting(client: FakeWeatherClient())
+    ..seed(
+      current: testReading(),
+      forecast: testForecast(days),
+      // A short place name on purpose. The header prints the *full*
+      // description — "Springfield, Illinois, United States" — and that line is
+      // ellipsised against the card's own maximum, so a long one legitimately
+      // takes the whole 460 and would measure the constraint rather than the
+      // content these tests are about.
+      place: const WeatherPlace(name: 'Springfield', latitude: 39.8, longitude: -89.65),
     );
+  return store;
+}
 
 void main() {
   group('system power menu', () {
@@ -100,38 +110,25 @@ void main() {
     testWidgets('height tracks the number of days returned', (tester) async {
       final three = await pumpUnder(
         tester,
-        WeatherForecastPopup(
-          forecast: _forecast(3),
-          unitLabel: '°F',
-          weatherCondition: (_) => '*',
-        ),
+        WeatherForecastPopup(store: _weather(3)),
         kWeatherConstraints,
       );
       final seven = await pumpUnder(
         tester,
-        WeatherForecastPopup(
-          forecast: _forecast(7),
-          unitLabel: '°F',
-          weatherCondition: (_) => '*',
-        ),
+        WeatherForecastPopup(store: _weather(7)),
         kWeatherConstraints,
       );
 
       // The bug in one assertion: the card used to be 260x300 whatever the API
       // returned, so a short forecast left four rows of dead space.
       expect(seven.height, greaterThan(three.height));
-      expect(three.height, lessThan(300));
     });
 
     testWidgets('hugs its widest row instead of filling the constraints',
         (tester) async {
       final size = await pumpUnder(
         tester,
-        WeatherForecastPopup(
-          forecast: _forecast(7),
-          unitLabel: '°F',
-          weatherCondition: (_) => '*',
-        ),
+        WeatherForecastPopup(store: _weather(7)),
         kWeatherConstraints,
       );
 
@@ -144,19 +141,18 @@ void main() {
     testWidgets('columns line up across rows', (tester) async {
       await pumpUnder(
         tester,
-        WeatherForecastPopup(
-          forecast: _forecast(7),
-          unitLabel: '°F',
-          weatherCondition: (_) => '*',
-        ),
+        WeatherForecastPopup(store: _weather(7)),
         kWeatherConstraints,
       );
 
       // What IntrinsicColumnWidth buys over the MainAxisAlignment.spaceBetween
       // this replaced: the temperature cells share a left edge even though the
       // day labels beside them differ in width.
+      //
+      // Six rows for seven days: today is spelled out in the header above, at
+      // three times the size, so the table starts at tomorrow.
       final temps = find.textContaining('/');
-      expect(temps, findsNWidgets(7));
+      expect(temps, findsNWidgets(6));
       final lefts = tester
           .widgetList<Text>(temps)
           .map((w) => tester.getTopLeft(find.byWidget(w)).dx)

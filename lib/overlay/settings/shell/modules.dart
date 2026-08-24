@@ -9,11 +9,12 @@ import 'package:graceful_shell/modules/network.dart' show NetworkConfig;
 import 'package:graceful_shell/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:graceful_shell/modules/weather.dart' show WeatherConfig;
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/shell/weather_location.dart';
 import 'package:graceful_shell/system/system_monitor_config.dart'
     show SystemMonitorConfig;
 
 /// Which control edits a module setting row.
-enum _Kind { toggle, number, segmented, stringList }
+enum _Kind { toggle, number, segmented, stringList, weatherLocation }
 
 /// One `[modules.*]` row: its config path, its label, and which control edits
 /// it.
@@ -59,6 +60,20 @@ class _ModuleSetting {
         isInt = false,
         options = null;
 
+  /// The weather location picker.
+  ///
+  /// The one row here whose control is not a value editor: a location is three
+  /// config keys written together and the only thing that produces them is a
+  /// geocoding lookup, so the control owns its own path list rather than taking
+  /// one — see `weather_location.dart`.
+  const _ModuleSetting.weatherLocation(this.label)
+      : kind = _Kind.weatherLocation,
+        path = const [],
+        defaultValue = null,
+        isInt = false,
+        options = null,
+        addHint = null;
+
   final List<String> path;
   final String label;
   final _Kind kind;
@@ -89,6 +104,7 @@ class _ModuleGroup {
 /// field off a const config object is not a constant expression.
 final List<_ModuleGroup> _moduleGroups = [
   _ModuleGroup('Weather', [
+    const _ModuleSetting.weatherLocation('Location'),
     _ModuleSetting.segmented(
       const ['modules', 'weather', 'unit'],
       'Unit',
@@ -268,6 +284,8 @@ class ModulesSection extends StatelessWidget {
           onChanged: (list) => store.set(path, list),
           addHint: setting.addHint,
         );
+      case _Kind.weatherLocation:
+        return WeatherLocationField(store: store);
     }
   }
 }

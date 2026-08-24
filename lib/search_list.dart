@@ -12,6 +12,8 @@
 /// tables.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -38,7 +40,10 @@ double? revealRowOffset(int index, double rowHeight, ScrollMetrics position) {
 class AnchoredSearchDropdown<T> extends StatefulWidget {
   const AnchoredSearchDropdown({
     super.key,
-    required this.filter,
+    this.filter,
+    this.search,
+    this.searchDebounce = const Duration(milliseconds: 300),
+    this.loadingText = 'Searching…',
     required this.itemBuilder,
     required this.onSelected,
     required this.triggerBuilder,
@@ -49,10 +54,35 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
     this.alignRight = false,
     this.initialHighlight,
     this.closeKey,
-  });
+  }) : assert(filter != null || search != null,
+            'a dropdown needs either a filter or a search');
 
-  /// Ranks the items for a query. Called with `''` when the list opens.
-  final List<T> Function(String query) filter;
+  /// Ranks the items for a query, synchronously. Called with `''` when the list
+  /// opens. Null when the items come from [search] instead.
+  final List<T> Function(String query)? filter;
+
+  /// Ranks the items for a query *asynchronously* — a network lookup rather
+  /// than a ranking of a list already in memory.
+  ///
+  /// Supersedes [filter] when both are given, which is the shape a caller with
+  /// a local list *and* a remote one wants: [filter] answers the first frame
+  /// with what is already known, [search] replaces it when the request lands.
+  ///
+  /// Debounced by [searchDebounce], and answers are applied in request order —
+  /// a slow response for "lon" must not land on top of a fast one for
+  /// "london". A call that throws is reported as no matches; the dropdown is
+  /// not the place to explain a failed HTTP request, and a list that stayed on
+  /// the previous query's results would be showing the wrong ones.
+  final Future<List<T>> Function(String query)? search;
+
+  /// How long typing has to stop before [search] is called. A request per
+  /// keystroke is a request per keystroke against somebody else's API.
+  final Duration searchDebounce;
+
+  /// Shown in place of [emptyText] while a [search] is in flight, so an empty
+  /// list reads as "not yet" rather than "none" — the rule
+  /// `ShellServicesScope` documents for the launcher.
+  final String loadingText;
 
   /// The row's *content*; the generic supplies the row chrome (hover fill,
   /// highlight fill, tap target, fixed [rowHeight]).
@@ -201,10 +231,17 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
   late List<T> _filtered;
   int _highlighted = 0;
 
+  /// Monotonic request id. An async answer whose id is no longer the newest is
+  /// dropped rather than applied — see [AnchoredSearchDropdown.search].
+  int _requestId = 0;
+  bool _searching = false;
+  Timer? _debounce;
+
   @override
   void initState() {
     super.initState();
-    _filtered = widget.config.filter('');
+    _filtered = widget.config.filter?.call('') ?? const [];
+    if (widget.config.search != null) _runSearch('', immediate: true);
     final initial = widget.config.initialHighlight?.call(_filtered);
     if (initial != null && initial > 0 && initial < _filtered.length) {
       _highlighted = initial;
@@ -218,6 +255,7 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _search.dispose();
     _searchFocus.dispose();
     _scroll.dispose();
@@ -225,11 +263,46 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
   }
 
   void _filter(String query) {
-    setState(() {
-      _filtered = widget.config.filter(query);
-      _highlighted = 0;
-    });
-    if (_scroll.hasClients) _scroll.jumpTo(0);
+    final filter = widget.config.filter;
+    if (filter != null) {
+      setState(() {
+        _filtered = filter(query);
+        _highlighted = 0;
+      });
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    }
+    if (widget.config.search != null) _runSearch(query);
+  }
+
+  void _runSearch(String query, {bool immediate = false}) {
+    _debounce?.cancel();
+    // Bumped here rather than in the timer body, so an answer already in flight
+    // for an earlier query is stale the moment the next keystroke lands — not
+    // only once its replacement has been issued.
+    final id = ++_requestId;
+    setState(() => _searching = true);
+
+    Future<void> run() async {
+      List<T> results;
+      try {
+        results = await widget.config.search!(query);
+      } catch (_) {
+        results = const [];
+      }
+      if (!mounted || id != _requestId) return;
+      setState(() {
+        _filtered = results;
+        _highlighted = 0;
+        _searching = false;
+      });
+      if (_scroll.hasClients) _scroll.jumpTo(0);
+    }
+
+    if (immediate) {
+      unawaited(run());
+      return;
+    }
+    _debounce = Timer(widget.config.searchDebounce, () => unawaited(run()));
   }
 
   void _move(int delta) {
@@ -302,7 +375,9 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                 child: Text(
-                  widget.config.emptyText,
+                  _searching
+                      ? widget.config.loadingText
+                      : widget.config.emptyText,
                   style: TextStyle(
                     fontSize: ShellFontSizes.secondary,
                     fontFamily: theme.fontFamily,
