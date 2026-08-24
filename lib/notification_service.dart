@@ -51,6 +51,28 @@ class NotificationItem {
   }
 }
 
+/// Whether the shell actually owns `org.freedesktop.Notifications`.
+///
+/// Deliberately separate from the `ShellService.notifications` `ServiceStatus`.
+/// That one answers "should I show a spinner?", and for it a decline and a
+/// success are the same answer — the start-up task is over either way. This one
+/// answers "are notifications working?", where they are emphatically not: the
+/// name went to somebody else, so every notification on this machine is being
+/// delivered somewhere the shell cannot see, and no amount of waiting changes
+/// that. The UI needs both, which is why neither can be spelled in terms of the
+/// other.
+enum NotificationDaemonStatus {
+  /// The name request has not been answered yet.
+  starting,
+
+  /// The shell owns the name and is receiving notifications.
+  running,
+
+  /// The shell does not own the name — another daemon holds it, or the request
+  /// itself errored. Nothing will arrive until a retry wins the name.
+  unavailable,
+}
+
 /// Singleton ChangeNotifier that holds the current list of notifications.
 class NotificationStore extends ChangeNotifier {
   static final NotificationStore instance = NotificationStore._();
@@ -62,6 +84,90 @@ class NotificationStore extends ChangeNotifier {
   int _nextId = 1;
   final Map<int, Timer> _expireTimers = {};
   void Function(int id, String actionKey)? _onActionInvoked;
+
+  NotificationDaemonStatus _daemonStatus = NotificationDaemonStatus.starting;
+  String? _daemonReason;
+  bool _daemonRetrying = false;
+
+  /// Whether the shell owns the notification bus name — see
+  /// [NotificationDaemonStatus].
+  NotificationDaemonStatus get daemonStatus => _daemonStatus;
+
+  /// True when notifications are broken and the user should be told so.
+  bool get daemonUnavailable =>
+      _daemonStatus == NotificationDaemonStatus.unavailable;
+
+  /// One sentence on *why*, for the banner. Null unless [daemonUnavailable].
+  String? get daemonReason => _daemonReason;
+
+  /// True while [retryDaemon] is in flight, so the button can show a loader
+  /// instead of inviting a second attempt on top of the first.
+  bool get daemonRetrying => _daemonRetrying;
+
+  /// The attempt [retryDaemon] re-runs, defaulting to the real thing.
+  ///
+  /// Injectable so the retry path is a plain unit test: [startNotificationService]
+  /// opens a session bus connection, which no test may depend on being there.
+  @visibleForTesting
+  Future<void> Function() daemonStarter = startNotificationService;
+
+  /// Records that the shell owns the name. Called by
+  /// [startNotificationService] once the request has been won.
+  void reportDaemonRunning() {
+    if (_daemonStatus == NotificationDaemonStatus.running &&
+        _daemonReason == null) {
+      return;
+    }
+    _daemonStatus = NotificationDaemonStatus.running;
+    _daemonReason = null;
+    notifyListeners();
+  }
+
+  /// Records that the shell does *not* own the name, with the sentence the
+  /// banner shows. Both the graceful decline and a genuine error land here —
+  /// the distinction matters to `ShellServices`, not to the user, for whom
+  /// notifications are equally gone either way.
+  void reportDaemonUnavailable(String reason) {
+    if (_daemonStatus == NotificationDaemonStatus.unavailable &&
+        _daemonReason == reason) {
+      return;
+    }
+    _daemonStatus = NotificationDaemonStatus.unavailable;
+    _daemonReason = reason;
+    notifyListeners();
+  }
+
+  /// Puts the daemon state back to what a fresh process has. For tests, which
+  /// share this singleton across cases.
+  @visibleForTesting
+  void resetDaemonState() {
+    _daemonStatus = NotificationDaemonStatus.starting;
+    _daemonReason = null;
+    _daemonRetrying = false;
+    daemonStarter = startNotificationService;
+    notifyListeners();
+  }
+
+  /// Re-runs the name request behind the panel's Retry button.
+  ///
+  /// Failures are swallowed rather than rethrown: [daemonStarter] has already
+  /// recorded the reason by the time it throws, and the rethrow exists for
+  /// `ShellServices.run`, which is long gone by the time a user clicks Retry —
+  /// letting it escape here would only reach the zone handler.
+  Future<void> retryDaemon() async {
+    if (_daemonRetrying) return;
+    if (_daemonStatus == NotificationDaemonStatus.running) return;
+    _daemonRetrying = true;
+    notifyListeners();
+    try {
+      await daemonStarter();
+    } catch (error) {
+      reportDaemonUnavailable('$error');
+    } finally {
+      _daemonRetrying = false;
+      notifyListeners();
+    }
+  }
 
   /// Wired up by [startNotificationService] so the store can emit D-Bus
   /// signals when actions are invoked from the UI.
@@ -236,7 +342,24 @@ class NotificationServer extends DBusServiceObject {
 /// without notifications. Anything else — the bus unreachable, the object
 /// export or the name request itself erroring — throws, and
 /// `ShellServices.run` records the service as failed.
+///
+/// Both outcomes are *also* recorded on [NotificationStore] as a
+/// [NotificationDaemonStatus], and that is not a duplicate of what
+/// `ShellServices` holds. The decline settles `ShellService.notifications` at
+/// `ServiceStatus.ready` — correctly, because nothing is still pending and a
+/// spinner would never come down — but "nothing left to wait for" and
+/// "notifications work" are different claims, and only the second one is what
+/// the bell is telling the user. Without the store's copy the shell renders an
+/// idle bell and an empty panel while every notification on the machine goes
+/// to a daemon it cannot see, which is indistinguishable from a quiet day.
+///
+/// This function is also the retry: [NotificationStore.retryDaemon] re-runs it.
+/// Every failing path closes its own client before returning or throwing, so a
+/// second attempt starts from a clean connection and a run that has already
+/// won the name is never re-entered (the store refuses a retry while
+/// [NotificationDaemonStatus.running]).
 Future<void> startNotificationService() async {
+  final store = NotificationStore.instance;
   final client = DBusClient.session();
   try {
     final server = NotificationServer();
@@ -252,16 +375,25 @@ Future<void> startNotificationService() async {
       debugPrint('Notification daemon already running; '
           'the shell yields and will not show notifications');
       await client.close();
+      store.reportDaemonUnavailable(
+        'Another notification daemon already owns '
+        'org.freedesktop.Notifications, so the shell is not receiving '
+        'notifications.',
+      );
       return;
     }
 
     // Only the daemon that owns the name emits ActionInvoked, so this is wired
     // after the name is won — never toward a client the decline path closed.
-    NotificationStore.instance.setActionInvokedCallback(
+    store.setActionInvokedCallback(
       (id, actionKey) => server.emitActionInvoked(id, actionKey),
     );
-  } catch (_) {
+    store.reportDaemonRunning();
+  } catch (error) {
     unawaited(client.close());
+    store.reportDaemonUnavailable(
+      'The shell could not register as the notification daemon: $error',
+    );
     rethrow;
   }
 }
