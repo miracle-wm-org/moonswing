@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/osd/brightness_monitor.dart';
+import 'package:graceful_shell/osd/osd_audio_tracker.dart';
 import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/pulse_client.dart';
 
@@ -51,36 +52,29 @@ Future<void> _startAudio() async {
   final client = PulseClient();
   await client.initialize();
 
-  var defaultSink = '';
-  var defaultSource = '';
+  // Which devices are the default ones, and what level each was last seen at.
+  // See [OsdAudioTracker] for why that is one object rather than four
+  // variables, and for the rules it applies.
+  final tracker = OsdAudioTracker();
 
-  // Last-known levels, so the shell does not flash an indicator for state it
-  // merely discovered — at start-up, or when the default device moves.
-  double? lastSinkVolume;
-  bool? lastSinkMute;
-  double? lastSourceVolume;
-  bool? lastSourceMute;
+  // Re-seeding is three awaited queries, and the events that trigger one can
+  // arrive faster than it completes — unplugging a dock moves the default sink
+  // and the default source in quick succession. Without this the older
+  // refresh's answer could land last and reinstate the device that has already
+  // been left.
+  var generation = 0;
 
-  // Re-resolve the default devices and re-seed. This is both the start-up
-  // seeding and the answer to a device going away (a headset is unplugged, or
-  // the user picks another output in settings) — the same work either way.
+  // Re-resolve the default devices and re-seed. This is the start-up seeding,
+  // the answer to a device going away (a headset is unplugged), and the answer
+  // to the user picking another device in settings — the same work each time.
   Future<void> refreshDefaults() async {
+    final mine = ++generation;
     try {
-      final info = await client.getServerInfo();
-      defaultSink = info.defaultSinkName;
-      defaultSource = info.defaultSourceName;
-      for (final sink in await client.getSinkList()) {
-        if (sink.name == defaultSink) {
-          lastSinkVolume = sink.volume;
-          lastSinkMute = sink.mute;
-        }
-      }
-      for (final source in await client.getSourceList()) {
-        if (source.name == defaultSource) {
-          lastSourceVolume = source.volume;
-          lastSourceMute = source.mute;
-        }
-      }
+      final server = await client.getServerInfo();
+      final sinks = await client.getSinkList();
+      final sources = await client.getSourceList();
+      if (mine != generation) return;
+      tracker.seed(server: server, sinks: sinks, sources: sources);
     } catch (e) {
       debugPrint('Could not refresh default audio devices: $e');
     }
@@ -89,29 +83,29 @@ Future<void> _startAudio() async {
   // Subscribe before the first query, never after. These handlers are the
   // only thing that ever raises the volume indicator, and a query that throws
   // or never answers would otherwise cost the shell its subscription for the
-  // rest of the session. Until `refreshDefaults` lands, `defaultSink` is
-  // empty and the events are simply dropped.
-  //
-  // PulseAudio emits a sink/source change event for plenty of reasons that
-  // have nothing to do with the level (a stream connecting, a port switch),
-  // so only an actual move in volume or mute raises the indicator.
+  // rest of the session. Until the first `refreshDefaults` lands the tracker
+  // holds no device name, and the events are simply dropped.
   client.onSinkChanged.listen((sink) {
-    if (sink.name != defaultSink) return;
-    if (sink.volume == lastSinkVolume && sink.mute == lastSinkMute) return;
-    lastSinkVolume = sink.volume;
-    lastSinkMute = sink.mute;
+    if (!tracker.observeSink(sink)) return;
     OsdStore.instance.show(OsdKind.volume, sink.volume, muted: sink.mute);
   });
 
   client.onSourceChanged.listen((source) {
-    if (source.name != defaultSource) return;
-    if (source.volume == lastSourceVolume && source.mute == lastSourceMute) {
-      return;
-    }
-    lastSourceVolume = source.volume;
-    lastSourceMute = source.mute;
+    if (!tracker.observeSource(source)) return;
     OsdStore.instance
         .show(OsdKind.microphone, source.volume, muted: source.mute);
+  });
+
+  // A default device moving is reported on PulseAudio's *server* facility and
+  // nowhere else: neither the device being left nor the one being adopted
+  // emits an event of its own. Without this the tracker goes on matching every
+  // event against the name it resolved at start-up, so the card stops
+  // appearing for the whole session the moment the user picks another output —
+  // and the device they are actually listening to is the one it has stopped
+  // reporting on.
+  client.onServerChanged.listen((info) {
+    if (!tracker.defaultsMoved(info)) return;
+    refreshDefaults();
   });
 
   client.onSinkRemoved.listen((_) => refreshDefaults());

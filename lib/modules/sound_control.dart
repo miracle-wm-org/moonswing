@@ -1,4 +1,7 @@
 import 'dart:async';
+// `widgets.dart` re-exports foundation with a `show` list that carries
+// ValueNotifier but not ValueListenable, which is what the popup takes.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/bar_button.dart';
@@ -9,6 +12,20 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
+/// A sink's level as the shell last saw it.
+///
+/// A record, so the notifier below gets structural equality for free and does
+/// not wake its listeners for a PulseAudio event that moved nothing — and
+/// PulseAudio emits plenty of those (a stream connecting, a port switch).
+typedef _SinkLevel = ({double volume, bool muted});
+
+FaIconData _volumeIconFor(_SinkLevel level) {
+  if (level.muted) return FontAwesomeIcons.volumeXmark;
+  if (level.volume <= 0.0) return FontAwesomeIcons.volumeOff;
+  if (level.volume <= 0.5) return FontAwesomeIcons.volumeLow;
+  return FontAwesomeIcons.volumeHigh;
+}
+
 class SoundControl extends StatefulWidget {
   const SoundControl({super.key});
 
@@ -18,13 +35,23 @@ class SoundControl extends StatefulWidget {
 
 class SoundControlState extends State<SoundControl>
     with PopupHost<SoundControl> {
-  double _volume = 0.0;
-  bool _muted = false;
-  bool _available = false;
+  /// The default sink's level.
+  ///
+  /// A notifier rather than a pair of `setState` fields because the popup is
+  /// its own layer-shell window, built once into a `WindowEntry` builder — the
+  /// parent never rebuilds it, so a popup handed a *value* freezes at whatever
+  /// was current when it opened. This is the `ThemeProvider` shape: hand the
+  /// popup something to listen to. It is also what carries a device switch
+  /// into an already-open popup rather than only into the bar.
+  final _level = ValueNotifier<_SinkLevel>((volume: 0.0, muted: false));
+
+  /// The sink every read and write goes to. Re-resolved whenever PulseAudio
+  /// reports the default moving — see the `onServerChanged` listener.
   String _defaultSinkName = '';
+  bool _available = false;
   PulseClient? _client;
   StreamSubscription<PaSink>? _sinkChangedSub;
-
+  StreamSubscription<PaServerInfo>? _serverChangedSub;
 
   @override
   void initState() {
@@ -35,7 +62,9 @@ class SoundControlState extends State<SoundControl>
   @override
   void dispose() {
     _sinkChangedSub?.cancel();
+    _serverChangedSub?.cancel();
     closePopup();
+    _level.dispose();
     super.dispose();
   }
 
@@ -45,37 +74,61 @@ class SoundControlState extends State<SoundControl>
       await client.initialize();
       _client = client;
 
-      // Subscribe before the first query, never after. This subscription is the
-      // only thing that keeps the reading live, and a query that throws or
-      // never answers would otherwise cost it for the rest of the session.
+      // Subscribe before the first query, never after. These subscriptions are
+      // the only thing that keeps the reading live, and a query that throws or
+      // never answers would otherwise cost them for the rest of the session.
       // `_defaultSinkName` is empty until the queries land, which just drops
       // the events until then.
       _sinkChangedSub = client.onSinkChanged.listen((sink) {
-        if (sink.name == _defaultSinkName && mounted) {
-          setState(() {
-            _volume = sink.volume;
-            _muted = sink.mute;
-          });
-        }
+        if (sink.name != _defaultSinkName) return;
+        _level.value = (volume: sink.volume, muted: sink.mute);
+      });
+
+      // A default sink moving is reported on PulseAudio's *server* facility
+      // and nowhere else: the sink being adopted emits no event of its own.
+      // Without this the module goes on filtering every event against the name
+      // it resolved at start-up, so it keeps reporting the level of a device
+      // the user has stopped listening to — and its slider keeps writing to
+      // that device too.
+      _serverChangedSub = client.onServerChanged.listen((info) {
+        if (info.defaultSinkName == _defaultSinkName) return;
+        _adoptDefaultSink(info.defaultSinkName);
       });
 
       final serverInfo = await client.getServerInfo();
-      _defaultSinkName = serverInfo.defaultSinkName;
-
-      final sinks = await client.getSinkList();
-      for (final sink in sinks) {
-        if (sink.name == _defaultSinkName) {
-          if (!mounted) return;
-          setState(() {
-            _volume = sink.volume;
-            _muted = sink.mute;
-            _available = true;
-          });
-          break;
-        }
-      }
+      await _adoptDefaultSink(serverInfo.defaultSinkName);
     } catch (e) {
       debugPrint('Sound module unavailable: $e');
+    }
+  }
+
+  /// Points the module at [name] and reads the level it is currently at.
+  ///
+  /// The name is committed before the query, not after, so an event for the
+  /// newly adopted device that lands while the query is in flight is kept
+  /// rather than filtered out against the name being left.
+  ///
+  /// `_available` is only ever set, never cleared: a sink the shell cannot
+  /// find is far more likely to be a device mid-switch than a machine that has
+  /// lost its audio, and a module that popped out of the bar and re-laid the
+  /// whole panel on every switch would be worse than one showing a stale
+  /// reading for a moment.
+  Future<void> _adoptDefaultSink(String name) async {
+    _defaultSinkName = name;
+    final client = _client;
+    if (client == null) return;
+    try {
+      for (final sink in await client.getSinkList()) {
+        if (sink.name != name) continue;
+        // A second switch may have superseded this one while the list was in
+        // flight; its own call owns the level from then on.
+        if (!mounted || _defaultSinkName != name) return;
+        _level.value = (volume: sink.volume, muted: sink.mute);
+        if (!_available) setState(() => _available = true);
+        return;
+      }
+    } catch (e) {
+      debugPrint('Could not read the default sink: $e');
     }
   }
 
@@ -87,7 +140,6 @@ class SoundControlState extends State<SoundControl>
 
     final anchor = BarScope.of(context);
     final client = _client;
-    final sinkName = _defaultSinkName;
     final isVertical = anchor == 'top' || anchor == 'bottom';
 
     openBarPopup(
@@ -106,21 +158,16 @@ class SoundControlState extends State<SoundControl>
           : const BoxConstraints(minWidth: 240, maxWidth: 240, maxHeight: 200),
       child: ThemeProvider(
         child: _SoundPopupContent(
-          volume: _volume,
-          muted: _muted,
+          level: _level,
           vertical: isVertical,
-          onVolumeChanged: (v) => client?.setSinkVolume(sinkName, v),
-          onMuteToggled: () => client?.setSinkMute(sinkName, !_muted),
+          // `_defaultSinkName` is read at call time, never captured into these
+          // closures: the default sink can move while the popup is open, and a
+          // captured name would go on writing to the device the user left.
+          onVolumeChanged: (v) => client?.setSinkVolume(_defaultSinkName, v),
+          onMuteChanged: (m) => client?.setSinkMute(_defaultSinkName, m),
         ),
       ),
     );
-  }
-
-  FaIconData _volumeIcon() {
-    if (_muted) return FontAwesomeIcons.volumeXmark;
-    if (_volume <= 0.0) return FontAwesomeIcons.volumeOff;
-    if (_volume <= 0.5) return FontAwesomeIcons.volumeLow;
-    return FontAwesomeIcons.volumeHigh;
   }
 
   @override
@@ -128,82 +175,97 @@ class SoundControlState extends State<SoundControl>
     if (!_available) return const SizedBox.shrink();
 
     final theme = ThemeScope.of(context);
-    return BarButton(
-      active: isPopupOpen,
-      onTapDown: (_) => _togglePopup(context),
-      child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(
-                _volumeIcon(),
-                size: 12,
-                color: theme.foreground,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                '${(_volume * 100).round()}%',
-                style: TextStyle(fontSize: 16, color: theme.foreground),
-              ),
-            ],
-          ),
+    return ValueListenableBuilder<_SinkLevel>(
+      valueListenable: _level,
+      builder: (context, level, _) => BarButton(
+        active: isPopupOpen,
+        onTapDown: (_) => _togglePopup(context),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FaIcon(
+              _volumeIconFor(level),
+              size: 12,
+              color: theme.foreground,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${(level.volume * 100).round()}%',
+              style: TextStyle(fontSize: 16, color: theme.foreground),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 class _SoundPopupContent extends StatefulWidget {
   const _SoundPopupContent({
-    required this.volume,
-    required this.muted,
+    required this.level,
     required this.vertical,
     required this.onVolumeChanged,
-    required this.onMuteToggled,
+    required this.onMuteChanged,
   });
 
-  final double volume;
-  final bool muted;
+  /// Listened to rather than read once — see [SoundControlState._level] for
+  /// why a popup cannot be handed a plain value.
+  final ValueListenable<_SinkLevel> level;
   final bool vertical;
   final ValueChanged<double> onVolumeChanged;
-  final VoidCallback onMuteToggled;
+  final ValueChanged<bool> onMuteChanged;
 
   @override
   _SoundPopupContentState createState() => _SoundPopupContentState();
 }
 
 class _SoundPopupContentState extends State<_SoundPopupContent> {
-  late double _volume;
-  late bool _muted;
+  /// A local copy, so a drag paints at the pointer rather than at whatever
+  /// PulseAudio last reported. The slider writes only on release, so the two
+  /// cannot fight mid-gesture.
+  late _SinkLevel _level;
 
   @override
   void initState() {
     super.initState();
-    _volume = widget.volume;
-    _muted = widget.muted;
+    _level = widget.level.value;
+    widget.level.addListener(_onDeviceLevel);
   }
 
-  FaIconData _volumeIcon() {
-    if (_muted) return FontAwesomeIcons.volumeXmark;
-    if (_volume <= 0.0) return FontAwesomeIcons.volumeOff;
-    if (_volume <= 0.5) return FontAwesomeIcons.volumeLow;
-    return FontAwesomeIcons.volumeHigh;
+  @override
+  void dispose() {
+    widget.level.removeListener(_onDeviceLevel);
+    super.dispose();
+  }
+
+  void _onDeviceLevel() {
+    if (!mounted) return;
+    setState(() => _level = widget.level.value);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final muted = _level.muted;
+    final volume = _level.volume;
+
     final muteButton = GestureDetector(
       onTap: () {
-        final newMuted = !_muted;
-        setState(() => _muted = newMuted);
-        widget.onMuteToggled();
+        final newMuted = !muted;
+        setState(() => _level = (volume: volume, muted: newMuted));
+        widget.onMuteChanged(newMuted);
       },
       child: FaIcon(
-        _volumeIcon(),
+        _volumeIconFor(_level),
         size: 14,
-        color: _muted ? theme.muted : theme.popupForeground,
+        color: muted ? theme.muted : theme.popupForeground,
       ),
     );
 
-    final volumeLabel = Text(_muted ? 'Muted' : '${(_volume * 100).round()}%');
+    final volumeLabel = Text(muted ? 'Muted' : '${(volume * 100).round()}%');
+
+    void onChanged(double v) =>
+        setState(() => _level = (volume: v, muted: muted));
 
     final content = widget.vertical
         ? Column(
@@ -214,11 +276,11 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
               SizedBox(
                 height: 120,
                 child: _VolumeSlider(
-                  value: _muted ? 0.0 : _volume,
-                  enabled: !_muted,
+                  value: muted ? 0.0 : volume,
+                  enabled: !muted,
                   axis: Axis.vertical,
-                  onChanged: (v) => setState(() => _volume = v),
-                  onChangeEnd: (v) => widget.onVolumeChanged(v),
+                  onChanged: onChanged,
+                  onChangeEnd: widget.onVolumeChanged,
                 ),
               ),
               const SizedBox(height: 10),
@@ -231,10 +293,10 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
               const SizedBox(width: 8),
               Expanded(
                 child: _VolumeSlider(
-                  value: _muted ? 0.0 : _volume,
-                  enabled: !_muted,
-                  onChanged: (v) => setState(() => _volume = v),
-                  onChangeEnd: (v) => widget.onVolumeChanged(v),
+                  value: muted ? 0.0 : volume,
+                  enabled: !muted,
+                  onChanged: onChanged,
+                  onChangeEnd: widget.onVolumeChanged,
                 ),
               ),
               const SizedBox(width: 8),

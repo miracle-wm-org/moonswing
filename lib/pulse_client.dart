@@ -199,6 +199,19 @@ class _SourceRemovedEvent {
   final int index;
 }
 
+/// The default sink and/or source moved.
+///
+/// PulseAudio reports a default-device change on the **server** facility and
+/// nowhere else: neither the device being left nor the one being adopted emits
+/// a sink/source event of its own. So for any consumer that resolved a device
+/// name once and filters events against it — which is every consumer here —
+/// this is the only notice it will ever get that the name it is holding has
+/// stopped being the default one.
+class _ServerChangedEvent {
+  const _ServerChangedEvent(this.info);
+  final PaServerInfo info;
+}
+
 // ---------------------------------------------------------------------------
 // PA isolate — runs libpulse in a dedicated Dart isolate
 // ---------------------------------------------------------------------------
@@ -496,8 +509,12 @@ class _PaIsolate {
 
     switch (facility) {
       case PA_SUBSCRIPTION_EVENT_SERVER:
-        // no-op for now
-        break;
+        // The default sink or source may have moved. The event carries no
+        // payload, so re-read the server info; like the sink/source fetches
+        // below this one is not routed through `ops` — the info callback
+        // pushes the event itself.
+        op = _pa.pa_context_get_server_info(
+            c, Pointer.fromFunction(_onServerInfoChanged), nullptr);
       case PA_SUBSCRIPTION_EVENT_SINK:
         if (eventType == PA_SUBSCRIPTION_EVENT_REMOVE) {
           _inst!.port.send(_SinkRemovedEvent(idx));
@@ -539,13 +556,42 @@ class _PaIsolate {
 
   static void _onServerInfo(
       Pointer<pa_context> c, Pointer<pa_server_info> info, Pointer<Void> ud) {
+    // A failed query calls back with a null info, which is the case
+    // `_getServerInfo`'s completion already answers for — leave `accum` empty
+    // and let it send the empty default rather than dereferencing this.
+    if (info.address == 0) return;
     final id = ud.cast<Int>().value;
+    _inst!.accum[id] = _serverInfoFromNative(info);
+  }
+
+  /// Unsolicited twin of [_onServerInfo]: no request id in `ud`, and the
+  /// result is pushed as an event rather than accumulated for a [_Reply].
+  static void _onServerInfoChanged(
+      Pointer<pa_context> c, Pointer<pa_server_info> info, Pointer<Void> ud) {
+    if (info.address == 0) return;
+    final resolved = _serverInfoFromNative(info);
+    pulseLog('server changed: sink=${resolved.defaultSinkName} '
+        'source=${resolved.defaultSourceName}');
+    _inst!.port.send(_ServerChangedEvent(resolved));
+  }
+
+  /// A server with no default device at all reports it as a null pointer, not
+  /// as an empty string — which is exactly the state a server event arrives in
+  /// when the last sink has just been unplugged. Dereferencing it here would
+  /// take down the isolate, and with it every volume reading in the shell.
+  static PaServerInfo _serverInfoFromNative(Pointer<pa_server_info> info) {
     final s = info.ref;
-    _inst!.accum[id] = PaServerInfo(
-      defaultSinkName: s.default_sink_name.cast<Utf8>().toDartString(),
-      defaultSourceName: s.default_source_name.cast<Utf8>().toDartString(),
+    return PaServerInfo(
+      defaultSinkName: _stringOrEmpty(s.default_sink_name),
+      defaultSourceName: _stringOrEmpty(s.default_source_name),
     );
   }
+
+  // Typed on `NativeType` rather than on the field's own pointer type: which
+  // of `Pointer<Char>` / `Pointer<Int8>` ffigen emitted for `const char *`
+  // is a detail of the generated bindings, and nothing here needs to know.
+  static String _stringOrEmpty(Pointer<NativeType> p) =>
+      p.address == 0 ? '' : p.cast<Utf8>().toDartString();
 
   // ---------------------------------------------------------------------------
   // Sink list
@@ -1162,6 +1208,13 @@ class PulseClient {
       .where((m) => m is _SourceRemovedEvent)
       .cast<_SourceRemovedEvent>()
       .map((m) => m.index);
+
+  /// Fires when the default sink and/or source moves — see
+  /// [_ServerChangedEvent] for why nothing else reports it.
+  Stream<PaServerInfo> get onServerChanged => _broadcast
+      .where((m) => m is _ServerChangedEvent)
+      .cast<_ServerChangedEvent>()
+      .map((m) => m.info);
 
   Stream<double> get _levelStream => _broadcast
       .where((m) => m is _LevelEvent)
