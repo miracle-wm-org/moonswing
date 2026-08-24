@@ -60,6 +60,21 @@ Size overlayPanelSize(Size available) {
   );
 }
 
+/// The panel's base fill: [ThemeConfig.popupBackground], always opaque.
+///
+/// A theme's `popup_background` carries its author's alpha — `glassy` ships it
+/// at `0xB0` — which is right for a menu of three rows sitting over the
+/// desktop, and wrong for this panel. This is a workspace of small text, chart
+/// strokes and form fields, and reading any of them through whatever the
+/// wallpaper happens to be is what that translucency costs; a dark theme over a
+/// light wallpaper washes the text out altogether. The hue stays the theme's
+/// and only the alpha is overridden, so a theme still colours the panel — it
+/// just cannot make it see-through. Depth comes from the scrim and blur
+/// [FadeOverlayScaffold] paints behind it instead, which dim the desktop
+/// without costing the content any contrast.
+Color overlayPanelFill(ThemeConfig theme) =>
+    theme.popupBackground.withValues(alpha: 1.0);
+
 /// One top-level tab in the overlay. Adding a tab is one entry here plus one
 /// child in the [IndexedStack] that [_SettingsOverlayState] builds.
 class _OverlayTab {
@@ -220,7 +235,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       width: size.width,
       height: size.height,
       decoration: BoxDecoration(
-        color: theme.popupBackground,
+        color: overlayPanelFill(theme),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: theme.accent, width: 1.5),
       ),
