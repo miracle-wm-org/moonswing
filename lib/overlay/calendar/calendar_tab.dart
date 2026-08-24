@@ -10,9 +10,16 @@ import 'package:graceful_shell/overlay/calendar/month.dart';
 import 'package:graceful_shell/overlay/calendar/time_zones.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/timers/timer_store.dart';
+import 'package:graceful_shell/timers/timer_widgets.dart';
 
 /// The Calendar tab of the overlay: a month grid the user can page through,
-/// beside the local time and the world clocks they have added.
+/// with the timers and stopwatches strip under it, beside the local time and
+/// the world clocks the user has added.
+///
+/// The strip is `lib/timers/`'s rather than this tab's: it is given the [active]
+/// flag and the store seam and nothing else, because what it starts outlives
+/// the overlay and is rendered in the bar.
 ///
 /// There is no account integration — the grid is local date arithmetic only, so
 /// the tab needs no network, no credentials and no start-up service. The world
@@ -28,6 +35,7 @@ class CalendarTab extends StatefulWidget {
     this.worldClocks,
     this.onWorldClocksChanged,
     this.clock = const SystemClockSource(),
+    this.timers,
   });
 
   /// Whether this is the tab the user is looking at.
@@ -50,6 +58,11 @@ class CalendarTab extends StatefulWidget {
 
   /// Where the clock column gets the time and its zone conversions.
   final ClockSource clock;
+
+  /// Where the timers strip reads its entries, or null for the singleton every
+  /// other surface in the shell shares. Injected by widget tests, which drive a
+  /// store with no ticker behind it.
+  final TimersStore? timers;
 
   @override
   _CalendarTabState createState() => _CalendarTabState();
@@ -130,13 +143,29 @@ class _CalendarTabState extends State<CalendarTab> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(
-          child: _MonthPane(
-            visibleMonth: _visibleMonth,
-            selectedDay: _selectedDay,
-            weekStart: _weekStart,
-            onMonthChanged: _goToMonth,
-            onDaySelected: (day) => setState(() => _selectedDay = day),
-            onToday: _goToToday,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: _MonthPane(
+                  visibleMonth: _visibleMonth,
+                  selectedDay: _selectedDay,
+                  weekStart: _weekStart,
+                  onMonthChanged: _goToMonth,
+                  onDaySelected: (day) => setState(() => _selectedDay = day),
+                  onToday: _goToToday,
+                ),
+              ),
+              Container(height: 1, color: theme.divider),
+              // A fixed strip under the grid rather than a third column: the
+              // panel is 800 wide at its smallest, and a column narrow enough
+              // to fit beside the month and the clocks would have nowhere to
+              // put a readout, its three controls and the composer.
+              SizedBox(
+                height: kTimersPaneHeight,
+                child: TimersPane(active: widget.active, store: widget.timers),
+              ),
+            ],
           ),
         ),
         Container(width: 1, color: theme.divider),

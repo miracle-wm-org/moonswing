@@ -653,12 +653,26 @@ class SettingsTextField extends StatefulWidget {
     required this.onChanged,
     this.width,
     this.inputFormatters,
+    this.hint,
+    this.onSubmitted,
   });
 
   final String initial;
   final ValueChanged<String> onChanged;
   final double? width;
   final List<TextInputFormatter>? inputFormatters;
+
+  /// Placeholder shown while the field is empty.
+  ///
+  /// [EditableText] has no hint of its own — the shell has no Material — so it
+  /// is painted behind the text and driven by the controller, which is why it
+  /// costs a [ValueListenableBuilder] rather than a `setState` per keystroke.
+  final String? hint;
+
+  /// Enter, for a field whose value is committed rather than merely edited —
+  /// the timers composer, where typing a duration and pressing return is the
+  /// whole interaction.
+  final ValueChanged<String>? onSubmitted;
 
   @override
   _SettingsTextFieldState createState() => _SettingsTextFieldState();
@@ -699,18 +713,49 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
           width: 1,
         ),
       ),
-      child: EditableText(
-        controller: _controller,
-        focusNode: _focusNode,
-        style: TextStyle(
-          fontSize: 13,
-          color: theme.popupForeground,
-          fontFamily: theme.fontFamily,
-        ),
-        cursorColor: theme.accent,
-        backgroundCursorColor: theme.divider,
-        inputFormatters: widget.inputFormatters,
-        onChanged: (v) => widget.onChanged(v),
+      child: Stack(
+        children: [
+          if (widget.hint != null)
+            // Behind the text rather than swapped for it: an IgnorePointer
+            // keeps the tap that should focus the field from landing on the
+            // placeholder, and painting both means the field never changes
+            // height as the first character arrives.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (context, value, _) => value.text.isNotEmpty
+                      ? const SizedBox.shrink()
+                      : Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            widget.hint!,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color:
+                                  theme.popupForeground.withValues(alpha: 0.35),
+                              fontFamily: theme.fontFamily,
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          EditableText(
+            controller: _controller,
+            focusNode: _focusNode,
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.popupForeground,
+              fontFamily: theme.fontFamily,
+            ),
+            cursorColor: theme.accent,
+            backgroundCursorColor: theme.divider,
+            inputFormatters: widget.inputFormatters,
+            onChanged: (v) => widget.onChanged(v),
+            onSubmitted: widget.onSubmitted,
+          ),
+        ],
       ),
     );
   }
