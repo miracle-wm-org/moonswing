@@ -42,6 +42,7 @@ const double _expandedMinHeight = 128;
 const double _forecastMinWidth = 250;
 const double _forecastMinHeight = 190;
 const double _detailsMinHeight = 250;
+const double _highLowMinWidth = 260;
 
 /// The widget's body. Public and store-injectable so a widget test can seed a
 /// reading and pump it with nothing behind it.
@@ -171,17 +172,24 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       );
     }
     if (!expanded) {
-      return _CompactLayout(store: store, reading: reading);
+      // Centred: a `Row` takes its cross-axis size from its tallest child, so
+      // left to itself the compact reading sits against the top of a card the
+      // user has made taller than one row of content.
+      return Center(child: _CompactLayout(store: store, reading: reading));
     }
     return _ExpandedLayout(
       store: store,
       reading: reading,
-      // Two independent decisions, both about pixels rather than cells: a
-      // widget three columns wide on a 48px grid is narrower than one two
-      // columns wide on a 120px one.
+      // Independent decisions, all about pixels rather than cells: a widget
+      // three columns wide on a 48px grid is narrower than one two columns
+      // wide on a 120px one.
       showForecast:
           width >= _forecastMinWidth && height >= _forecastMinHeight,
       showDetails: height >= _detailsMinHeight,
+      // The day's high and low share the reading's row with a 46px icon and
+      // the temperature itself, and it is the one of the three that says least
+      // — the big number above it is today's actual temperature.
+      showHighLow: width >= _highLowMinWidth,
       forecastDays: _forecastDays(width),
     );
   }
@@ -309,6 +317,7 @@ class _ExpandedLayout extends StatelessWidget {
     required this.reading,
     required this.showForecast,
     required this.showDetails,
+    required this.showHighLow,
     required this.forecastDays,
   });
 
@@ -316,6 +325,7 @@ class _ExpandedLayout extends StatelessWidget {
   final WeatherReading reading;
   final bool showForecast;
   final bool showDetails;
+  final bool showHighLow;
   final int forecastDays;
 
   @override
@@ -345,7 +355,7 @@ class _ExpandedLayout extends StatelessWidget {
               ),
             ],
           ),
-        const Spacer(),
+        const Spacer(flex: 5),
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -374,12 +384,18 @@ class _ExpandedLayout extends StatelessWidget {
                 ],
               ),
             ),
-            if (forecast.isNotEmpty)
-              _SkyText(
-                'H ${forecast.first.tempMax.round()}°  '
-                'L ${forecast.first.tempMin.round()}°',
-                size: ShellFontSizes.caption,
-                muted: true,
+            if (showHighLow && forecast.isNotEmpty)
+              // Flexible over the width decision, not instead of it: a theme
+              // with a wide font can still push this past what was budgeted
+              // for it, and an ellipsis is a better answer than an assertion
+              // on a surface nobody reads the console for.
+              Flexible(
+                child: _SkyText(
+                  'H ${forecast.first.tempMax.round()}°  '
+                  'L ${forecast.first.tempMin.round()}°',
+                  size: ShellFontSizes.caption,
+                  muted: true,
+                ),
               ),
           ],
         ),
@@ -399,12 +415,24 @@ class _ExpandedLayout extends StatelessWidget {
 }
 
 /// Feels-like, humidity and wind — each one dropped rather than truncated when
-/// the reading does not carry it.
+/// the reading does not carry it, or the card is not wide enough for it.
+///
+/// The order it sheds them in is deliberate, the media widget's rule: wind goes
+/// before humidity and humidity before feels-like, because feels-like is the
+/// one somebody glances at a weather widget for. And it **measures** rather
+/// than counting characters — the `TrackMarquee` discipline: the same three
+/// readings fit at one theme's font and overflow at another's, and a row that
+/// guessed is a row that reports a flex overflow every frame on a surface whose
+/// console nobody is reading.
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.reading, required this.unit});
 
   final WeatherReading reading;
   final String unit;
+
+  /// The icon, the gap, and the padding after each detail — everything in a
+  /// [_Detail] that is not its text.
+  static const double _chrome = 12 + 4 + 12;
 
   @override
   Widget build(BuildContext context) {
@@ -412,15 +440,53 @@ class _DetailRow extends StatelessWidget {
     final humidity = reading.humidity;
     final wind = reading.windSpeed;
 
-    return Row(
-      children: [
-        if (feels != null)
-          _Detail(icon: kFeelsLikeIcon, value: '${feels.round()}$unit'),
-        if (humidity != null) _Detail(icon: kHumidityIcon, value: '$humidity%'),
-        if (wind != null)
-          _Detail(icon: kWindIcon, value: '${wind.round()} ${_windUnit(unit)}'),
-      ],
+    final candidates = <(IconData, String)>[
+      if (feels != null) (kFeelsLikeIcon, '${feels.round()}$unit'),
+      if (humidity != null) (kHumidityIcon, '$humidity%'),
+      if (wind != null) (kWindIcon, '${wind.round()} ${_windUnit(unit)}'),
+    ];
+    if (candidates.isEmpty) return const SizedBox.shrink();
+
+    const style = TextStyle(fontSize: ShellFontSizes.caption);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        var used = 0.0;
+        final shown = <(IconData, String)>[];
+        for (final candidate in candidates) {
+          final width = _measure(candidate.$2, style) + _chrome;
+          // Break rather than continue: the priority order is the drop order,
+          // and skipping a wide reading to fit a narrow one after it would
+          // leave the wind on screen with the feels-like missing.
+          if (used + width > constraints.maxWidth) break;
+          used += width;
+          shown.add(candidate);
+        }
+        if (shown.isEmpty) return const SizedBox.shrink();
+
+        return Row(
+          children: [
+            for (final detail in shown)
+              // Flexible over the measured decision, not instead of it: the
+              // measurement is made without the theme's own font metrics, so
+              // this is what turns a few pixels of error into an ellipsis
+              // rather than an assertion.
+              Flexible(child: _Detail(icon: detail.$1, value: detail.$2)),
+          ],
+        );
+      },
     );
+  }
+
+  static double _measure(String text, TextStyle style) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final width = painter.width;
+    painter.dispose();
+    return width;
   }
 
   /// Open-Meteo reports wind in the unit system the temperature was asked for:
@@ -451,7 +517,9 @@ class _Detail extends StatelessWidget {
             shadows: kSkyTextShadows,
           ),
           const SizedBox(width: 4),
-          _SkyText(value, size: ShellFontSizes.caption, muted: true),
+          Flexible(
+            child: _SkyText(value, size: ShellFontSizes.caption, muted: true),
+          ),
         ],
       ),
     );
@@ -531,12 +599,16 @@ class _SkyText extends StatelessWidget {
   }
 }
 
+/// The "Add widget…" menu's icon for this type. Named, so a test can build a
+/// [DesktopWidgetSpec] without picking an unrelated glyph.
+const FaIconData weatherDesktopWidgetIcon = FontAwesomeIcons.cloudSun;
+
 /// The registry entry. Registered from `main()` beside the media player's.
 final DesktopWidgetSpec weatherDesktopWidget = DesktopWidgetSpec(
   type: 'weather',
   name: 'Weather',
   description: 'Conditions and forecast, over a live sky',
-  icon: FontAwesomeIcons.cloudSun,
+  icon: weatherDesktopWidgetIcon,
   // Two cells wide is the floor for the media widget's reason: one cell is an
   // icon, and a temperature beside a condition does not fit in the width of a
   // launcher tile. The default is larger than the floor deliberately — 3x2 is

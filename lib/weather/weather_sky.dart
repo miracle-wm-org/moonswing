@@ -154,12 +154,16 @@ const _daySnow = SkyPalette(
   cloudDark: Color(0xFFBCC9D4),
   precipitation: Color(0xFFFFFFFF),
 );
+// Darker than the greyness of real fog, on purpose: the haze bands are painted
+// in near-white and there has to be something for them to be lighter *than*.
+// A palette matched to the fog itself leaves the animation invisible and the
+// condition indistinguishable from overcast.
 const _dayFog = SkyPalette(
-  top: Color(0xFF8D999F),
-  middle: Color(0xFFB2BBC0),
-  horizon: Color(0xFFD3D8DA),
-  cloudLight: Color(0xFFE8ECEE),
-  cloudDark: Color(0xFFBAC2C6),
+  top: Color(0xFF72808A),
+  middle: Color(0xFF95A1A9),
+  horizon: Color(0xFFB6BEC3),
+  cloudLight: Color(0xFFF4F7F9),
+  cloudDark: Color(0xFFAFB9C0),
   precipitation: Color(0xFFE0E5E7),
 );
 
@@ -215,11 +219,11 @@ const _nightSnow = SkyPalette(
   starOpacity: 0.35,
 );
 const _nightFog = SkyPalette(
-  top: Color(0xFF1A2027),
-  middle: Color(0xFF272E36),
-  horizon: Color(0xFF363E47),
-  cloudLight: Color(0xFF4E5761),
-  cloudDark: Color(0xFF2B333B),
+  top: Color(0xFF141A21),
+  middle: Color(0xFF1F262E),
+  horizon: Color(0xFF2C343C),
+  cloudLight: Color(0xFF5C6772),
+  cloudDark: Color(0xFF262E36),
   precipitation: Color(0xFFB9C2CA),
 );
 
@@ -361,12 +365,17 @@ class SkyField {
   /// Seconds between lightning flashes, or 0 when there is none.
   final double lightningPeriod;
 
-  /// How visible the sun or moon is through the cloud. Fully hidden under a
-  /// closed lid rather than merely dimmed — a sun burning through an overcast
-  /// sky is the picture of a *break* in the cloud, which is the one thing an
-  /// overcast reading rules out.
+  /// How visible the sun or moon is through the cloud, 0..1.
+  ///
+  /// Fully hidden under a closed lid rather than merely dimmed — a sun burning
+  /// through an overcast sky is the picture of a *break* in the cloud, which is
+  /// the one thing an overcast reading rules out. Everywhere short of that it
+  /// stays *mostly* visible, which is why the ramp is steep rather than linear:
+  /// the clouds themselves already occlude the disc, so fading it in proportion
+  /// to the cover dims it twice over — and a half-alpha yellow disc over a blue
+  /// sky composites to green.
   double get celestialOpacity =>
-      (1.0 - cloudCover * 1.15).clamp(0.0, 1.0).toDouble();
+      ((1.0 - cloudCover) * 1.7).clamp(0.0, 1.0).toDouble();
 
   /// Builds the layout for one set of conditions.
   ///
@@ -424,14 +433,23 @@ class SkyField {
 
     final fogBands = <SkyFogBand>[];
     if (condition.kind == WeatherKind.fog) {
-      for (var i = 0; i < 4; i++) {
+      // Five bands, spread from near the top to near the bottom edge: fog is
+      // the one condition where the *air* is the weather, so it has to reach
+      // the ground rather than sit in a layer where every other palette leaves
+      // a clear horizon.
+      for (var i = 0; i < 5; i++) {
         fogBands.add(SkyFogBand(
-          y: 0.18 + i * 0.2 + random.nextDouble() * 0.06,
-          height: 0.12 + random.nextDouble() * 0.14,
-          // Alternating directions, so the bands slide past each other rather
-          // than travelling as one sheet.
+          // Separated, with sky between them. Bands wide enough to overlap
+          // blur together into one flat veil, which is a gradient rather than
+          // an animation: what says "fog" is streaks at different heights
+          // sliding across each other.
+          y: 0.16 + i * 0.17 + random.nextDouble() * 0.04,
+          height: 0.06 + random.nextDouble() * 0.05,
+          // A slow oscillation rather than a wrap, and alternating in sign so
+          // the bands slide past each other rather than travelling as one
+          // sheet. Fog does not have a direction to travel in.
           speed: (i.isEven ? 1 : -1) * (0.012 + random.nextDouble() * 0.02),
-          opacity: 0.16 + random.nextDouble() * 0.14,
+          opacity: 0.42 + random.nextDouble() * 0.26,
         ));
       }
     }
@@ -486,12 +504,21 @@ SkyCloud _buildCloud(
 
   return SkyCloud(
     x: slot + jitter,
-    y: (low ? 0.10 : 0.14) + random.nextDouble() * (low ? 0.26 : 0.22),
-    scale: (low ? 0.13 : 0.10) + random.nextDouble() * 0.07,
+    // A wide vertical spread, so the clouds layer at different depths instead
+    // of lining up in one band across the top of the card.
+    y: (low ? 0.08 : 0.10) + random.nextDouble() * (low ? 0.34 : 0.30),
+    // Scaled by the cover as well as by the weather: at 20% the sky wants a
+    // couple of small wisps, and drawing them at overcast size fills the card
+    // with three clouds and calls it "mainly clear".
+    scale: ((low ? 0.13 : 0.10) + random.nextDouble() * 0.06) *
+        (0.62 + 0.5 * cover),
     // Slow, and slower for the big ones: parallax, and a cloud that crosses the
     // card in under a minute is a screensaver.
     speed: (0.004 + random.nextDouble() * 0.009) * (low ? 0.8 : 1.0),
-    opacity: (low ? 0.82 : 0.62) + random.nextDouble() * 0.18 + cover * 0.1,
+    // Nearly opaque, which is what stops the sun behind one from tinting it:
+    // a half-transparent cloud over a yellow disc composites to olive, which
+    // reads as a rendering fault rather than as weather.
+    opacity: 0.9 + random.nextDouble() * 0.1,
     puffs: puffs,
     radii: radii,
   );
@@ -608,11 +635,26 @@ class _WeatherSkyState extends State<WeatherSky>
         night: widget.night,
       );
 
+  /// The last value published, for the frame cap below.
+  double _published = -1;
+
   void _onTick(Duration elapsed) {
+    final now = elapsed.inMicroseconds / 1e6;
+    // Capped at [kSkyFrameInterval]. This painter runs for as long as the
+    // widget is on the desktop — which is to say permanently, on a machine
+    // that may be doing nothing else — and at the display's own rate it is a
+    // repaint every 16ms forever for a decoration. Nothing here moves fast
+    // enough to need that: the quickest thing on the card is a raindrop
+    // crossing it in about a second, and the slowest is a cloud taking two
+    // minutes. This is the same instinct `_cycle` in `pulse_client.dart`
+    // states from the other direction — an idle loop spinning at 820Hz was
+    // most of the shell's idle CPU.
+    if (_published >= 0 && now - _published < kSkyFrameInterval) return;
+    _published = now;
     // Wrapped at an hour. Every motion here is periodic in well under that, and
     // an unbounded seconds counter loses its fractional bits to float precision
     // after a few days of uptime — which a wallpaper widget certainly sees.
-    _time.value = (elapsed.inMicroseconds / 1e6) % 3600;
+    _time.value = now % 3600;
   }
 
   @override
@@ -631,6 +673,11 @@ class _WeatherSkyState extends State<WeatherSky>
     );
   }
 }
+
+/// The shortest gap between repaints, in seconds — 30 per second.
+///
+/// Deliberately below the display's rate; see [_WeatherSkyState._onTick].
+const double kSkyFrameInterval = 1 / 30;
 
 /// Paints a [SkyField].
 ///
@@ -678,6 +725,14 @@ class SkyPainter extends CustomPainter {
   }
 
   /// The sun or the moon, with its glow, behind whatever cloud there is.
+  ///
+  /// Dimmed by **washing out towards haze white**, not by dropping its alpha
+  /// towards the sky. A half-transparent yellow disc composited over a blue
+  /// sky is *green*, and so is a yellow lerped halfway to blue; either one
+  /// reads as a rendering fault rather than as a hazy afternoon. Washed out and
+  /// then faded on a square-root ramp, it goes pale the way a sun behind thin
+  /// cloud does, and disappears exactly when [SkyField.celestialOpacity]
+  /// reaches zero.
   void _paintCelestial(Canvas canvas, Size size, double t) {
     final opacity = field.celestialOpacity;
     if (opacity <= 0.01) return;
@@ -688,9 +743,16 @@ class SkyPainter extends CustomPainter {
     // reads as light rather than as something moving.
     final pulse = 1 + 0.03 * math.sin(t * 0.6);
 
-    final glowColour = field.night
+    // Haze, not sky: what thin cloud does to a sun is take the colour out of
+    // it, not tint it with what is behind.
+    const haze = Color(0xFFF4F6F8);
+    final alpha = math.sqrt(opacity);
+    Color dim(Color colour) =>
+        Color.lerp(colour, haze, 1 - opacity)!.withValues(alpha: alpha);
+
+    final glowColour = dim(field.night
         ? const Color(0xFFB9CFEA)
-        : const Color(0xFFFFE9A8);
+        : const Color(0xFFFFE9A8));
     canvas.drawCircle(
       centre,
       radius * 3.2 * pulse,
@@ -699,7 +761,7 @@ class SkyPainter extends CustomPainter {
           centre,
           radius * 3.2 * pulse,
           [
-            glowColour.withValues(alpha: 0.34 * opacity),
+            glowColour.withValues(alpha: 0.34 * alpha),
             glowColour.withValues(alpha: 0.0),
           ],
         ),
@@ -719,7 +781,7 @@ class SkyPainter extends CustomPainter {
         ));
       canvas.drawPath(
         Path.combine(PathOperation.difference, disc, bite),
-        Paint()..color = const Color(0xFFE9F0F8).withValues(alpha: opacity),
+        Paint()..color = dim(const Color(0xFFE9F0F8)),
       );
     } else {
       canvas.drawCircle(
@@ -729,10 +791,7 @@ class SkyPainter extends CustomPainter {
           ..shader = ui.Gradient.radial(
             centre.translate(-radius * 0.2, -radius * 0.2),
             radius * 1.4 * pulse,
-            [
-              const Color(0xFFFFF6D8).withValues(alpha: opacity),
-              const Color(0xFFFFC94A).withValues(alpha: opacity),
-            ],
+            [dim(const Color(0xFFFFF6D8)), dim(const Color(0xFFFFC94A))],
           ),
       );
     }
@@ -754,17 +813,17 @@ class SkyPainter extends CustomPainter {
           radius: cloud.radii[i] * scale,
         ));
       }
-      // A flat base under the puffs — a cloud's underside is a line, not a row
-      // of scallops.
+      // The body under the puffs — a cloud's underside is one mass, not a row
+      // of scallops. An *ellipse* rather than the rounded rect this started
+      // as: a rect's ends stay square however large the corner radius is next
+      // to a puff three times its height, and at a wide span they read as a
+      // shelf sticking out from under the cloud.
       final bounds = path.getBounds();
-      path.addRRect(RRect.fromRectAndRadius(
-        Rect.fromLTRB(
-          bounds.left + scale * 0.2,
-          origin.dy - scale * 0.05,
-          bounds.right - scale * 0.2,
-          origin.dy + scale * 0.34,
-        ),
-        Radius.circular(scale * 0.3),
+      path.addOval(Rect.fromLTRB(
+        bounds.left + scale * 0.12,
+        origin.dy - scale * 0.30,
+        bounds.right - scale * 0.12,
+        origin.dy + scale * 0.30,
       ));
 
       final shaded = path.getBounds();
@@ -784,27 +843,28 @@ class SkyPainter extends CustomPainter {
   }
 
   void _paintFog(Canvas canvas, Size size, double t) {
+    if (field.fogBands.isEmpty) return;
+    // Blurred, not clipped. A band drawn as a rectangle with a horizontal
+    // gradient has hard edges along its top and bottom however soft its ends
+    // are, and four of those stacked up the card read as venetian blinds. A
+    // blur is the only thing that makes the edge of fog look like fog.
     for (final band in field.fogBands) {
-      final top = band.y * size.height;
       final height = band.height * size.height;
-      final rect = Rect.fromLTWH(0, top, size.width, height);
-      // The band's own drift is the shader's offset, so there are no edges to
-      // wrap: the fog is a full-width wash that slides within itself.
-      final shift = (band.speed * t) % 1.0;
-      canvas.drawRect(
-        rect,
+      final blur = height * 0.7;
+      // Drifts a full width in each direction and is drawn wider than the box
+      // by that much, so it never uncovers an edge.
+      final shift = math.sin(band.speed * t * math.pi * 2) * size.width * 0.25;
+      final rect = Rect.fromLTWH(
+        -size.width * 0.35 + shift,
+        band.y * size.height,
+        size.width * 1.7,
+        height,
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, Radius.circular(height)),
         Paint()
-          ..shader = ui.Gradient.linear(
-            rect.centerLeft.translate(-shift * size.width, 0),
-            rect.centerRight.translate((1 - shift) * size.width, 0),
-            [
-              palette.cloudLight.withValues(alpha: 0),
-              palette.cloudLight.withValues(alpha: band.opacity),
-              palette.cloudLight.withValues(alpha: band.opacity * 0.4),
-              palette.cloudLight.withValues(alpha: 0),
-            ],
-            const [0.0, 0.35, 0.65, 1.0],
-          ),
+          ..color = palette.cloudLight.withValues(alpha: band.opacity)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, blur),
       );
     }
   }

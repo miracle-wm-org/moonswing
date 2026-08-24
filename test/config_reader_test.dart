@@ -61,6 +61,30 @@ void main() {
     });
   });
 
+  group('doubleOrNull', () {
+    test('a number lands as double, anything else is null', () {
+      expect(<String, dynamic>{'k': 1.5}.doubleOrNull('k'), 1.5);
+      expect(<String, dynamic>{'k': 2}.doubleOrNull('k'), 2.0);
+      expect(<String, dynamic>{'k': 'x'}.doubleOrNull('k'), isNull);
+      expect(<String, dynamic>{}.doubleOrNull('k'), isNull);
+      expect(<String, dynamic>{'k': double.nan}.doubleOrNull('k'), isNull);
+      expect(<String, dynamic>{'k': double.infinity}.doubleOrNull('k'), isNull);
+    });
+    test('out of range is absent, not clamped', () {
+      // The difference from doubleOr, and the reason this reader exists: a
+      // latitude of 400 is a typo, and clamping it to 90 would silently show
+      // the user the weather at the North Pole.
+      expect(
+          <String, dynamic>{'k': 400.0}.doubleOrNull('k', min: -90, max: 90),
+          isNull);
+      expect(
+          <String, dynamic>{'k': -400.0}.doubleOrNull('k', min: -90, max: 90),
+          isNull);
+      expect(<String, dynamic>{'k': 45.0}.doubleOrNull('k', min: -90, max: 90),
+          45.0);
+    });
+  });
+
   group('boolOr', () {
     test('bool passes, anything else falls back', () {
       expect(<String, dynamic>{'k': false}.boolOr('k', true), isFalse);

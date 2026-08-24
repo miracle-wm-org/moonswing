@@ -100,9 +100,13 @@ const Map<int, WeatherCondition> _table = {
       kind: WeatherKind.partlyCloudy, label: 'Partly cloudy', cloudCover: 0.5),
   3: WeatherCondition(
       kind: WeatherKind.overcast, label: 'Overcast', cloudCover: 1.0),
-  45: WeatherCondition(kind: WeatherKind.fog, label: 'Fog', cloudCover: 0.85),
+  // A lower nominal cover than the greyness suggests, and deliberately: fog is
+  // the *air* being the weather, drawn as haze bands, and a six-cloud lid over
+  // them would hide the one thing that distinguishes this condition from
+  // overcast.
+  45: WeatherCondition(kind: WeatherKind.fog, label: 'Fog', cloudCover: 0.5),
   48: WeatherCondition(
-      kind: WeatherKind.fog, label: 'Freezing fog', cloudCover: 0.85),
+      kind: WeatherKind.fog, label: 'Freezing fog', cloudCover: 0.5),
   51: WeatherCondition(
       kind: WeatherKind.drizzle,
       label: 'Light drizzle',

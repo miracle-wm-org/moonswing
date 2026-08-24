@@ -6,6 +6,8 @@
 // the suite takes a real lease on a real store, and not one of them may reach
 // for a network the test runner does not have.
 
+import 'dart:async';
+
 import 'package:graceful_shell/weather/weather_api.dart';
 
 const WeatherPlace kTestPlace = WeatherPlace(
@@ -24,6 +26,7 @@ class FakeWeatherClient implements WeatherClient {
     this.snapshot,
     this.results = const [],
     this.failWith,
+    this.pending = false,
   });
 
   WeatherPlace place;
@@ -32,6 +35,14 @@ class FakeWeatherClient implements WeatherClient {
 
   /// When set, [fetch] throws it instead of answering.
   WeatherException? failWith;
+
+  /// When true, [fetch] never completes.
+  ///
+  /// The only way a widget test can hold the store in its loading state: a
+  /// widget takes a lease in `initState`, so the fetch it starts lands during
+  /// the first `pump` and a seeded loading flag is gone before the frame the
+  /// test is looking at.
+  bool pending;
 
   int locateCalls = 0;
   int fetchCalls = 0;
@@ -46,6 +57,7 @@ class FakeWeatherClient implements WeatherClient {
   @override
   Future<WeatherSnapshot> fetch(WeatherPlace place, TemperatureUnit unit) async {
     fetchCalls++;
+    if (pending) return Completer<WeatherSnapshot>().future;
     final failure = failWith;
     if (failure != null) throw failure;
     return snapshot ??
