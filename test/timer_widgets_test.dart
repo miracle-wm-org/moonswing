@@ -38,30 +38,39 @@ Widget _host(Widget child, {Size size = const Size(560, 200)}) {
 Finder _icon(FaIconData icon) =>
     find.byWidgetPredicate((w) => w is FaIcon && w.icon == icon.data);
 
+/// The pane at the shape the calendar gives it: the width of the clock column,
+/// and about the half of it below the world clocks.
+Widget _pane(TimersStore store, {bool active = true}) => _host(
+      TimersPane(active: active, store: store),
+      size: const Size(280, 300),
+    );
+
 void main() {
   group('TimersPane', () {
-    testWidgets('says nothing is running, and offers the presets', (
+    testWidgets('says nothing is running, with a duration already typed', (
       tester,
     ) async {
       final store = _store();
       addTearDown(store.dispose);
-      await tester.pumpWidget(_host(TimersPane(active: true, store: store)));
+      await tester.pumpWidget(_pane(store));
 
       expect(find.textContaining('Nothing running'), findsOneWidget);
-      for (final minutes in kTimerPresetMinutes) {
-        expect(find.text('${minutes}m'), findsOneWidget);
-      }
+      // find.text matches an EditableText by its controller, so this is the
+      // field's seeded value and not a placeholder painted behind it.
+      expect(find.text(kDefaultTimerDuration), findsOneWidget);
     });
 
-    testWidgets('a preset starts a countdown and the row shows it', (
+    testWidgets('the seeded duration starts a countdown on one click', (
       tester,
     ) async {
       var clock = DateTime(2026, 8, 24, 12);
       final store = _store(now: () => clock);
       addTearDown(store.dispose);
-      await tester.pumpWidget(_host(TimersPane(active: true, store: store)));
+      await tester.pumpWidget(_pane(store));
 
-      await tester.tap(find.text('5m'));
+      // Nothing typed: the field arrives at five minutes and the primary
+      // button is live, which is the whole point of seeding it.
+      await tester.tap(find.text('Start timer'));
       await tester.pump();
 
       expect(store.length, 1);
@@ -78,9 +87,11 @@ void main() {
     testWidgets('a typed duration starts a countdown', (tester) async {
       final store = _store();
       addTearDown(store.dispose);
-      await tester.pumpWidget(_host(TimersPane(active: true, store: store)));
+      await tester.pumpWidget(_pane(store));
 
-      // Inert until what is typed parses.
+      // Inert while what is in the field does not parse.
+      await tester.enterText(find.byType(EditableText), 'soon');
+      await tester.pump();
       await tester.tap(find.text('Start timer'));
       await tester.pump();
       expect(store.isEmpty, isTrue);
@@ -92,17 +103,18 @@ void main() {
 
       expect(store.length, 1);
       expect(find.text('02:30'), findsOneWidget);
-      // The field is cleared, so the next timer starts from an empty one.
+      // The field goes back to the default rather than being emptied, so the
+      // next timer is one click away too.
       expect(
         tester.widget<EditableText>(find.byType(EditableText)).controller.text,
-        isEmpty,
+        kDefaultTimerDuration,
       );
     });
 
     testWidgets('the stopwatch button needs no duration', (tester) async {
       final store = _store();
       addTearDown(store.dispose);
-      await tester.pumpWidget(_host(TimersPane(active: true, store: store)));
+      await tester.pumpWidget(_pane(store));
 
       await tester.tap(find.text('Stopwatch'));
       await tester.pump();
@@ -119,7 +131,7 @@ void main() {
       final store = _store(now: () => clock);
       addTearDown(store.dispose);
       final id = store.startStopwatch();
-      await tester.pumpWidget(_host(TimersPane(active: true, store: store)));
+      await tester.pumpWidget(_pane(store));
 
       clock = clock.add(const Duration(seconds: 30));
       await tester.tap(_icon(FontAwesomeIcons.pause));
@@ -147,7 +159,7 @@ void main() {
       final store = _store();
       addTearDown(store.dispose);
       store.startStopwatch();
-      await tester.pumpWidget(_host(TimersPane(active: true, store: store)));
+      await tester.pumpWidget(_pane(store));
       expect(find.text('Stop all'), findsNothing);
 
       store.startTimer(const Duration(minutes: 1));
@@ -162,7 +174,7 @@ void main() {
     testWidgets('an inactive pane does not follow the store', (tester) async {
       final store = _store();
       addTearDown(store.dispose);
-      await tester.pumpWidget(_host(TimersPane(active: false, store: store)));
+      await tester.pumpWidget(_pane(store, active: false));
 
       store.startTimer(const Duration(minutes: 5));
       await tester.pump();
@@ -170,7 +182,7 @@ void main() {
       // The overlay's IndexedStack keeps this alive behind whatever tab the
       // user moved to; it re-reads when it is shown again.
       expect(find.text('05:00'), findsNothing);
-      await tester.pumpWidget(_host(TimersPane(active: true, store: store)));
+      await tester.pumpWidget(_pane(store));
       expect(find.text('05:00'), findsOneWidget);
     });
   });
