@@ -1,7 +1,17 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 
-/// The elevated surface every block on the overview sits on.
+/// A named block of content: its heading, and the elevated surface the content
+/// sits on.
+///
+/// **The heading is outside the surface, not inside it.** It used to be an
+/// 11px half-transparent uppercase line in the card's own padding, which read
+/// as a caption belonging to the first row rather than as the name of the
+/// whole block — at that size and contrast the three System Info sections were
+/// harder to tell apart than the pairs inside them. Set above the surface at
+/// [ShellFontSizes.heading] and full contrast, the page is scannable by its
+/// headings and the card is left holding only data.
 ///
 /// `controlSurface` on `popupBackground` is the one-step elevation the panel
 /// already uses for its controls, so the cards read as part of the same surface
@@ -13,6 +23,7 @@ class SystemCard extends StatelessWidget {
     required this.children,
     this.trailing,
     this.subtitle,
+    this.stretch = false,
   });
 
   final String title;
@@ -22,59 +33,94 @@ class SystemCard extends StatelessWidget {
   final String? subtitle;
   final List<Widget> children;
 
+  /// Let the surface fill the height it is given, rather than sizing to its
+  /// content.
+  ///
+  /// Required by the side-by-side pairs on the overview, which sit in an
+  /// [IntrinsicHeight] row so both surfaces end level. With the heading now
+  /// outside the surface, a content-sized card in that row would draw its
+  /// background only as far as its own rows reach and leave the rest of the
+  /// stretched column bare. Only ever pass this where the height is bounded:
+  /// under an unbounded one (a plain [ListView] child) a flexible column child
+  /// is an error.
+  final bool stretch;
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final subtitle = this.subtitle;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
+    final surface = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: theme.controlSurface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(ShellRadii.card),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+        children: children,
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 2, right: 2, bottom: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Text(
-                  title.toUpperCase(),
+              Row(
+                // The headline figure sits on the heading's own baseline, and
+                // the subtitle goes under both. Aligning the figure against
+                // the heading *block* instead would drop it to the subtitle's
+                // line on the two cards that have one, and leave it level with
+                // the heading on the ones that do not.
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.heading,
+                        fontFamily: theme.fontFamily,
+                        fontWeight: FontWeight.w600,
+                        color: theme.popupForeground,
+                      ),
+                    ),
+                  ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 12),
+                    trailing!,
+                  ],
+                ],
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: ShellFontSizes.body,
                     fontFamily: theme.fontFamily,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 0.5,
-                    color: theme.popupForeground.withValues(alpha: 0.5),
+                    color: theme.popupForeground.withValues(alpha: 0.55),
                   ),
                 ),
-              ),
-              if (trailing != null) trailing!,
+              ],
             ],
           ),
-          if (subtitle != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: theme.fontFamily,
-                color: theme.popupForeground.withValues(alpha: 0.45),
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          ...children,
-        ],
-      ),
+        ),
+        if (stretch) Expanded(child: surface) else surface,
+      ],
     );
   }
 }
 
-/// The headline figure in a [SystemCard]'s header.
+/// The headline figure beside a [SystemCard]'s heading.
 class CardValue extends StatelessWidget {
   const CardValue(this.text, {super.key});
 
@@ -86,7 +132,7 @@ class CardValue extends StatelessWidget {
     return Text(
       text,
       style: TextStyle(
-        fontSize: 13,
+        fontSize: ShellFontSizes.title,
         fontFamily: theme.fontFamily,
         fontWeight: FontWeight.w600,
         color: theme.popupForeground,
@@ -97,38 +143,63 @@ class CardValue extends StatelessWidget {
 
 /// A label/value line inside a card — the vitals list is a column of these.
 class StatLine extends StatelessWidget {
-  const StatLine({super.key, required this.label, required this.value});
+  const StatLine({
+    super.key,
+    required this.label,
+    required this.value,
+    this.labelWidth,
+  });
 
   final String label;
   final String value;
 
+  /// Width of the label column, which puts the value directly beside it.
+  ///
+  /// Null keeps the spread layout — label left, value hard right — which is
+  /// what the narrow cards on the overview want, because at that width the
+  /// two are adjacent anyway and a right-aligned column of figures is easier
+  /// to compare down. On a full-width page it is the wrong shape: System Info
+  /// is up to 1600 logical pixels across, so a spread pair puts a hand's
+  /// breadth of empty card between a label and the value it names. Setting
+  /// this keeps the pair together and lets a long value (a processor model)
+  /// wrap into the space to the right instead of overflowing the row.
+  final double? labelWidth;
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final labelWidth = this.labelWidth;
+
+    final labelText = Text(
+      label,
+      style: TextStyle(
+        fontSize: ShellFontSizes.label,
+        fontFamily: theme.fontFamily,
+        color: theme.popupForeground.withValues(alpha: 0.6),
+      ),
+    );
+    final valueStyle = TextStyle(
+      fontSize: ShellFontSizes.label,
+      fontFamily: theme.fontFamily,
+      fontWeight: FontWeight.w500,
+      color: theme.popupForeground,
+    );
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: theme.fontFamily,
-                color: theme.popupForeground.withValues(alpha: 0.6),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground,
-            ),
-          ),
-        ],
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: labelWidth == null
+            ? [
+                Expanded(child: labelText),
+                const SizedBox(width: 8),
+                Text(value, style: valueStyle),
+              ]
+            : [
+                SizedBox(width: labelWidth, child: labelText),
+                const SizedBox(width: 12),
+                Expanded(child: Text(value, style: valueStyle)),
+              ],
       ),
     );
   }

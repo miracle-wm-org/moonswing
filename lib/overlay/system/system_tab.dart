@@ -105,11 +105,12 @@ class _SystemTabState extends State<SystemTab> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
+          // No size overrides: the strip's defaults are what the overlay's
+          // own tabs use, and a sub-tab set two points smaller than the tab
+          // directly above it read as disabled rather than subordinate.
           UnderlineTab(
             icon: FontAwesomeIcons.gaugeHigh,
-            iconSize: 11,
-            fontSize: 12,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             label: 'Overview',
             selected: _tab == _SubTab.overview,
             onTap: () => setState(() => _tab = _SubTab.overview),
@@ -117,9 +118,7 @@ class _SystemTabState extends State<SystemTab> {
           const SizedBox(width: 4),
           UnderlineTab(
             icon: FontAwesomeIcons.listUl,
-            iconSize: 11,
-            fontSize: 12,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             label: 'Processes',
             selected: _tab == _SubTab.processes,
             onTap: () => setState(() => _tab = _SubTab.processes),

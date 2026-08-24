@@ -60,6 +60,10 @@ abstract final class ShellFontSizes {
 
   /// Section titles and emphasis.
   static const double title = 16;
+
+  /// A section *heading* — the name of a block of content, set outside and
+  /// above the surface it names rather than inside it.
+  static const double heading = 20;
 }
 
 /// The one error red. (`0xFFE05252` was a second one that crept in; keep it
