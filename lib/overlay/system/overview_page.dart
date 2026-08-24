@@ -7,6 +7,7 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/system/format.dart';
 import 'package:graceful_shell/system/models.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/usage_bar.dart';
 
 /// The machine at a glance: CPU with per-core breakdown, memory and swap,
@@ -22,21 +23,21 @@ class OverviewPage extends StatelessWidget {
     final history = store.history;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       children: [
         _buildCpuCard(context, theme, history),
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
         IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(child: _buildMemoryCard(context, theme, history)),
               const SizedBox(width: 12),
-              SizedBox(width: 232, child: _buildVitalsCard(context)),
+              SizedBox(width: 272, child: _buildVitalsCard(context)),
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
         IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -76,9 +77,9 @@ class OverviewPage extends StatelessWidget {
             ),
           ],
           capacity: store.historyCapacity,
-          height: 110,
+          height: 124,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         _buildCoreGrid(theme, cores),
       ],
     );
@@ -93,7 +94,7 @@ class OverviewPage extends StatelessWidget {
     for (var start = 0; start < cores.length; start += columns) {
       final slice = cores.skip(start).take(columns).toList();
       rows.add(Padding(
-        padding: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
             for (var i = 0; i < columns; i++) ...[
@@ -116,11 +117,11 @@ class OverviewPage extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 34,
+          width: 46,
           child: Text(
             'CPU${core.index}',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: ShellFontSizes.secondary,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.55),
             ),
@@ -131,16 +132,16 @@ class OverviewPage extends StatelessWidget {
             value: core.percent / 100,
             fillColor: theme.accent,
             trackColor: theme.sliderTrack,
-            height: 5,
+            height: 7,
           ),
         ),
         SizedBox(
-          width: 32,
+          width: 42,
           child: Text(
             '${core.percent.round()}%',
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: ShellFontSizes.secondary,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.8),
             ),
@@ -161,6 +162,7 @@ class OverviewPage extends StatelessWidget {
 
     return SystemCard(
       title: 'Memory',
+      stretch: true,
       trailing: CardValue(
         '${formatBytesKb(memory.usedKb)} / ${formatBytesKb(memory.totalKb)}'
         '  (${(memory.usedFraction * 100).round()}%)',
@@ -174,9 +176,9 @@ class OverviewPage extends StatelessWidget {
             ),
           ],
           capacity: store.historyCapacity,
-          height: 90,
+          height: 104,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 14),
         _buildMemoryLine(
           theme,
           'Used',
@@ -224,15 +226,15 @@ class OverviewPage extends StatelessWidget {
     Color color,
   ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           SizedBox(
-            width: 42,
+            width: 52,
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: ShellFontSizes.body,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground.withValues(alpha: 0.6),
               ),
@@ -243,17 +245,17 @@ class OverviewPage extends StatelessWidget {
               value: fraction,
               fillColor: color,
               trackColor: theme.sliderTrack,
-              height: 5,
+              height: 7,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           SizedBox(
-            width: 96,
+            width: 116,
             child: Text(
               value,
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: ShellFontSizes.body,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground.withValues(alpha: 0.85),
               ),
@@ -273,6 +275,7 @@ class OverviewPage extends StatelessWidget {
 
     return SystemCard(
       title: 'Vitals',
+      stretch: true,
       children: [
         StatLine(label: 'Uptime', value: formatUptime(store.uptime)),
         StatLine(
@@ -312,35 +315,36 @@ class OverviewPage extends StatelessWidget {
 
     return SystemCard(
       title: 'Network',
+      stretch: true,
       children: [
         Row(
           children: [
             FaIcon(FontAwesomeIcons.arrowDown,
-                size: 10, color: chartPrimary(theme)),
-            const SizedBox(width: 5),
+                size: 13, color: chartPrimary(theme)),
+            const SizedBox(width: 6),
             Text(
               formatRate(rate.rxBytesPerSecond),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: ShellFontSizes.label,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground,
               ),
             ),
             const SizedBox(width: 16),
             FaIcon(FontAwesomeIcons.arrowUp,
-                size: 10, color: chartSecondary(theme)),
-            const SizedBox(width: 5),
+                size: 13, color: chartSecondary(theme)),
+            const SizedBox(width: 6),
             Text(
               formatRate(rate.txBytesPerSecond),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: ShellFontSizes.label,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         TimeSeriesChart(
           series: [
             ChartSeries(
@@ -356,7 +360,7 @@ class OverviewPage extends StatelessWidget {
           // Throughput has no natural ceiling, so both series share an
           // autoscaled axis — that keeps rx and tx directly comparable.
           maxY: null,
-          height: 70,
+          height: 84,
           gridDivisions: 3,
         ),
       ],
@@ -370,12 +374,13 @@ class OverviewPage extends StatelessWidget {
 
     return SystemCard(
       title: 'Disks',
+      stretch: true,
       children: [
         if (disks.isEmpty)
           Text(
             'No filesystems reported',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: ShellFontSizes.label,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.5),
             ),
@@ -388,16 +393,16 @@ class OverviewPage extends StatelessWidget {
 
   Widget _buildDiskRow(ThemeConfig theme, DiskUsage disk) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
           SizedBox(
-            width: 70,
+            width: 88,
             child: Text(
               disk.mountPoint,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: ShellFontSizes.body,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground.withValues(alpha: 0.75),
               ),
@@ -412,17 +417,17 @@ class OverviewPage extends StatelessWidget {
                   ? const Color(0xFFE05252)
                   : theme.accent,
               trackColor: theme.sliderTrack,
-              height: 5,
+              height: 7,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           SizedBox(
-            width: 92,
+            width: 116,
             child: Text(
               '${formatBytes(disk.usedBytes)} / ${formatBytes(disk.totalBytes)}',
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: ShellFontSizes.body,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground.withValues(alpha: 0.85),
               ),

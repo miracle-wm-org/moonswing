@@ -30,42 +30,56 @@ class _SystemInfoTabState extends State<SystemInfoTab> {
     setState(() => _info = info);
   }
 
-  static String _v(String? value) => value ?? '—';
+  /// Width of the label column in every pair on this page.
+  ///
+  /// One value for all three sections, rather than per-section intrinsics, so
+  /// the values line up down the whole page and the eye tracks a single
+  /// column. Sized for the longest label here ("Operating system").
+  static const double _labelWidth = 150;
+
+  /// One pair. The label column is spelled once, here, so no section can drift
+  /// out of the shared column — and the em-dash placeholder for a field this
+  /// machine did not report comes with it.
+  static StatLine _row(String label, String? value) => StatLine(
+        label: label,
+        labelWidth: _labelWidth,
+        value: value ?? '—',
+      );
 
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
       children: [
         SystemCard(
           title: 'Hardware',
           children: [
-            StatLine(label: 'Processor', value: _v(_info.cpuModel)),
-            StatLine(label: 'Cores', value: _v(_info.cpuCores)),
-            StatLine(label: 'Memory', value: _v(_info.totalMemory)),
-            StatLine(label: 'Swap', value: _v(_info.totalSwap)),
-            StatLine(label: 'Graphics', value: _v(_info.gpu)),
+            _row('Processor', _info.cpuModel),
+            _row('Cores', _info.cpuCores),
+            _row('Memory', _info.totalMemory),
+            _row('Swap', _info.totalSwap),
+            _row('Graphics', _info.gpu),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
         SystemCard(
           title: 'Software',
           children: [
-            StatLine(label: 'Operating system', value: _v(_info.osName)),
-            StatLine(label: 'Kernel', value: _v(_info.kernel)),
-            StatLine(label: 'Architecture', value: _v(_info.architecture)),
+            _row('Operating system', _info.osName),
+            _row('Kernel', _info.kernel),
+            _row('Architecture', _info.architecture),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
         SystemCard(
           title: 'Environment',
           children: [
-            StatLine(label: 'Desktop', value: _v(_info.desktop)),
-            StatLine(label: 'Session', value: _v(_info.sessionType)),
-            StatLine(label: 'Shell', value: _v(_info.shell)),
-            StatLine(label: 'Hostname', value: _v(_info.hostname)),
-            StatLine(label: 'Uptime', value: _v(_info.uptime)),
-            StatLine(label: 'Booted', value: _v(_info.bootTime)),
+            _row('Desktop', _info.desktop),
+            _row('Session', _info.sessionType),
+            _row('Shell', _info.shell),
+            _row('Hostname', _info.hostname),
+            _row('Uptime', _info.uptime),
+            _row('Booted', _info.bootTime),
           ],
         ),
       ],

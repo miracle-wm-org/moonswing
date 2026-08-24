@@ -11,6 +11,7 @@ import 'package:graceful_shell/system/models.dart';
 import 'package:graceful_shell/system/process_killer.dart';
 import 'package:graceful_shell/system/process_reader.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/usage_bar.dart';
 
 enum ProcessSortKey { name, pid, cpu, memory, uptime }
@@ -237,7 +238,7 @@ class _ProcessTableState extends State<ProcessTable> {
       child: Row(
         children: [
           SizedBox(
-            width: 220,
+            width: 260,
             child: SettingsTextField(
               initial: '',
               onChanged: (v) => setState(() => _filter = v),
@@ -251,7 +252,7 @@ class _ProcessTableState extends State<ProcessTable> {
                   : '$visible of $total processes · '
                       '${widget.store.threadCount} threads',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: ShellFontSizes.body,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground.withValues(alpha: 0.5),
               ),
@@ -264,7 +265,7 @@ class _ProcessTableState extends State<ProcessTable> {
 
   Widget _buildHeader(ThemeConfig theme) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
           Expanded(
@@ -276,11 +277,11 @@ class _ProcessTableState extends State<ProcessTable> {
               onTap: _sortBy,
             ),
           ),
-          _headerCell(70, 'PID', ProcessSortKey.pid, TextAlign.right),
-          _headerCell(110, 'CPU', ProcessSortKey.cpu, TextAlign.right),
-          _headerCell(130, 'Memory', ProcessSortKey.memory, TextAlign.right),
-          _headerCell(90, 'Uptime', ProcessSortKey.uptime, TextAlign.right),
-          const SizedBox(width: 36),
+          _headerCell(80, 'PID', ProcessSortKey.pid, TextAlign.right),
+          _headerCell(124, 'CPU', ProcessSortKey.cpu, TextAlign.right),
+          _headerCell(148, 'Memory', ProcessSortKey.memory, TextAlign.right),
+          _headerCell(104, 'Uptime', ProcessSortKey.uptime, TextAlign.right),
+          const SizedBox(width: 40),
         ],
       ),
     );
@@ -376,7 +377,7 @@ class _SortHeaderState extends State<_SortHeader> {
             Text(
               widget.label.toUpperCase(),
               style: TextStyle(
-                fontSize: 11,
+                fontSize: ShellFontSizes.secondary,
                 fontFamily: theme.fontFamily,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.5,
@@ -389,7 +390,7 @@ class _SortHeaderState extends State<_SortHeader> {
                 widget.ascending
                     ? FontAwesomeIcons.caretUp
                     : FontAwesomeIcons.caretDown,
-                size: 11,
+                size: 12,
                 color: theme.accent,
               ),
             ],
@@ -466,7 +467,7 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
                 // A process that has been asked to quit is on its way out; dim
                 // it so it stops competing for attention.
                 opacity: widget.terminating && !widget.unresponsive ? 0.45 : 1,
-                child: SizedBox(height: 30, child: _buildMainRow(theme, row)),
+                child: SizedBox(height: 34, child: _buildMainRow(theme, row)),
               ),
               if (widget.expanded) _buildDetail(theme, row),
             ],
@@ -484,30 +485,30 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
             row.name,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: ShellFontSizes.body,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground,
             ),
           ),
         ),
         SizedBox(
-          width: 70,
+          width: 80,
           child: Text(
             '${row.pid}',
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: ShellFontSizes.body,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.55),
             ),
           ),
         ),
-        SizedBox(width: 110, child: _buildMeteredCell(
+        SizedBox(width: 124, child: _buildMeteredCell(
           theme,
           label: '${row.cpuPercent.toStringAsFixed(1)}%',
           fraction: row.cpuPercent / 100,
         )),
-        SizedBox(width: 130, child: _buildMeteredCell(
+        SizedBox(width: 148, child: _buildMeteredCell(
           theme,
           label: formatBytesKb(row.rssKb),
           // Against total RAM, so the bar means the same thing in every row.
@@ -516,18 +517,18 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
               : 0,
         )),
         SizedBox(
-          width: 90,
+          width: 104,
           child: Text(
             formatUptime(row.uptime),
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: ShellFontSizes.body,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.6),
             ),
           ),
         ),
-        SizedBox(width: 36, child: _buildKillButton(theme)),
+        SizedBox(width: 40, child: _buildKillButton(theme)),
       ],
     );
   }
@@ -544,17 +545,17 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
             value: fraction,
             fillColor: theme.accent,
             trackColor: theme.sliderTrack,
-            height: 4,
+            height: 6,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         SizedBox(
-          width: 58,
+          width: 68,
           child: Text(
             label,
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: ShellFontSizes.body,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.85),
             ),
@@ -570,7 +571,7 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
         alignment: Alignment.centerRight,
         child: SettingsIconButton(
           icon: FontAwesomeIcons.skull,
-          size: 12,
+          size: 13,
           onTap: widget.onKill,
         ),
       );
@@ -586,7 +587,7 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
           alignment: Alignment.centerRight,
           child: SettingsIconButton(
             icon: FontAwesomeIcons.xmark,
-            size: 12,
+            size: 13,
             onTap: widget.onKill,
           ),
         ),
@@ -609,12 +610,12 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
             Text(
               row.cmdline,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: ShellFontSizes.secondary,
                 fontFamily: theme.fontFamily,
                 color: theme.popupForeground.withValues(alpha: 0.55),
               ),
             ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             [
               'Parent ${row.ppid}',
@@ -623,7 +624,7 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
               if (started != null) 'Started ${_formatClock(started)}',
             ].join('  ·  '),
             style: TextStyle(
-              fontSize: 11,
+              fontSize: ShellFontSizes.secondary,
               fontFamily: theme.fontFamily,
               color: theme.popupForeground.withValues(alpha: 0.45),
             ),

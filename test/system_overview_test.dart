@@ -97,7 +97,9 @@ void main() {
     await pumpOverview(tester, await seededStore());
 
     expect(tester.takeException(), isNull);
-    for (final card in ['CPU', 'MEMORY', 'VITALS', 'NETWORK', 'DISKS']) {
+    // Headings are set as written now, not upper-cased by the card: they are
+    // section headings above the surface rather than captions inside it.
+    for (final card in ['CPU', 'Memory', 'Vitals', 'Network', 'Disks']) {
       expect(find.text(card), findsOneWidget, reason: '$card card is missing');
     }
   });
@@ -137,7 +139,16 @@ void main() {
       expect(tester.takeException(), isNull,
           reason: 'overview overflowed at $panel');
       expect(find.text('CPU'), findsOneWidget);
-      expect(find.text('DISKS'), findsOneWidget);
+
+      // The page is taller than the shortest panel and the list is lazy, so
+      // the last card has to be scrolled to rather than merely looked for —
+      // asserting it was present would only have said it was above the fold.
+      await tester.scrollUntilVisible(find.text('Disks'), 120);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull,
+          reason: 'overview overflowed at $panel once scrolled');
+      expect(find.text('Disks'), findsOneWidget);
     }
   });
 
