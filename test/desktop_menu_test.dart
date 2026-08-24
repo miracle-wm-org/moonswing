@@ -2,7 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/desktop/desktop_menu.dart';
+import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The menus are pumped bare, with no PanelWindowManager: the popup machinery
@@ -194,6 +196,156 @@ void main() {
       await tester.tap(find.text('Nope'));
       await tester.pump();
       expect(tapped, 0);
+    });
+  });
+
+  group('DesktopEmptyMenu widgets page', () {
+    final spec = DesktopWidgetSpec(
+      type: 'fake',
+      name: 'Fake widget',
+      icon: FontAwesomeIcons.shapes,
+      builder: (context, widget) => const SizedBox.shrink(),
+    );
+
+    // A build with no widget types has nothing to offer, and a disabled row
+    // would be a promise with nothing behind it.
+    testWidgets('hides "Add widget…" when the registry is empty',
+        (tester) async {
+      await pumpMenu(
+        tester,
+        DesktopEmptyMenu(
+          onAddApplication: () {},
+          onAddFile: () {},
+          onOrganize: () {},
+          onChangeBackground: () {},
+        ),
+      );
+      expect(find.text('Add widget…'), findsNothing);
+    });
+
+    testWidgets('lists the specs on a second page and reports the pick',
+        (tester) async {
+      DesktopWidgetSpec? picked;
+      await pumpMenu(
+        tester,
+        DesktopEmptyMenu(
+          widgetSpecs: [spec],
+          onAddWidget: (s) => picked = s,
+          onAddApplication: () {},
+          onAddFile: () {},
+          onOrganize: () {},
+          onChangeBackground: () {},
+        ),
+      );
+
+      await tester.tap(find.text('Add widget…'));
+      await tester.pump();
+      expect(find.text('Add widget'), findsOneWidget);
+      expect(find.text('Organize'), findsNothing);
+
+      await tester.tap(find.text('Fake widget'));
+      await tester.pump();
+      expect(picked?.type, 'fake');
+    });
+
+    testWidgets('Back returns to the first page', (tester) async {
+      await pumpMenu(
+        tester,
+        DesktopEmptyMenu(
+          widgetSpecs: [spec],
+          onAddWidget: (_) {},
+          onAddApplication: () {},
+          onAddFile: () {},
+          onOrganize: () {},
+          onChangeBackground: () {},
+        ),
+      );
+
+      await tester.tap(find.text('Add widget…'));
+      await tester.pump();
+      await tester.tap(find.text('Back'));
+      await tester.pump();
+      expect(find.text('Organize'), findsOneWidget);
+    });
+  });
+
+  group('DesktopWidgetMenu', () {
+    final spec = DesktopWidgetSpec(
+      type: 'fake',
+      name: 'Fake widget',
+      icon: FontAwesomeIcons.shapes,
+      minSpan: (columns: 2, rows: 1),
+      maxSpan: (columns: 4, rows: 3),
+      builder: (context, widget) => const SizedBox.shrink(),
+    );
+
+    const item = DesktopWidgetItem(
+      id: 'fake',
+      type: 'fake',
+      columnSpan: 3,
+      rowSpan: 2,
+    );
+
+    testWidgets('removes, and offers a reset to the type default',
+        (tester) async {
+      var removed = 0;
+      var reset = 0;
+      await pumpMenu(
+        tester,
+        DesktopWidgetMenu(
+          item: item,
+          spec: spec,
+          onRemove: () => removed++,
+          onResetSize: () => reset++,
+        ),
+      );
+
+      expect(find.text('Fake widget'), findsOneWidget);
+      await tester.tap(find.text('Reset size'));
+      await tester.tap(find.text('Remove widget'));
+      await tester.pump();
+      expect((reset, removed), (1, 1));
+    });
+
+    testWidgets('the reset is disabled at the default size', (tester) async {
+      var reset = 0;
+      await pumpMenu(
+        tester,
+        DesktopWidgetMenu(
+          item: const DesktopWidgetItem(
+            id: 'fake',
+            type: 'fake',
+            columnSpan: 2,
+            rowSpan: 1,
+          ),
+          spec: spec,
+          onRemove: () {},
+          onResetSize: () => reset++,
+        ),
+      );
+
+      await tester.tap(find.text('Reset size'));
+      await tester.pump();
+      expect(reset, 0);
+    });
+
+    // A placeholder for a type this build does not have still has to be
+    // removable, and has no default size to reset to.
+    testWidgets('an unknown type offers removal only', (tester) async {
+      var removed = 0;
+      await pumpMenu(
+        tester,
+        DesktopWidgetMenu(
+          item: const DesktopWidgetItem(id: 'x', type: 'from_the_future'),
+          spec: null,
+          onRemove: () => removed++,
+        ),
+      );
+
+      expect(find.text('Reset size'), findsNothing);
+      await tester.tap(find.text('Remove widget'));
+      await tester.pump();
+      expect(removed, 1);
     });
   });
 }

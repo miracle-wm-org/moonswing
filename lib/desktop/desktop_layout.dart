@@ -18,6 +18,10 @@ import 'package:graceful_shell/config.dart';
 /// equality for free, which is what makes `Set<GridCell>` an occupancy test.
 typedef GridCell = ({int column, int row});
 
+/// A rectangle of cells: where a desktop *widget* sits. Also a record, for
+/// [GridCell]'s reason — value equality, and no class to keep in step.
+typedef GridArea = ({int column, int row, int columnSpan, int rowSpan});
+
 /// The resolved grid for one surface.
 ///
 /// [columns] and [rows] are *derived*, never configured: the same item list is
@@ -52,6 +56,27 @@ class DesktopGridGeometry {
         cellSize.width,
         cellSize.height,
       );
+
+  /// The pixel rect a whole [GridArea] covers.
+  ///
+  /// The spanned gutters are *inside* the rect: a 2x1 widget is two cells wide
+  /// plus the one gap between them, so a widget reads as one surface rather
+  /// than as two tiles that happen to touch.
+  Rect areaRect(GridArea area) => Rect.fromLTWH(
+        origin.dx + area.column * columnPitch,
+        origin.dy + area.row * rowPitch,
+        area.columnSpan * cellSize.width + (area.columnSpan - 1) * spacing,
+        area.rowSpan * cellSize.height + (area.rowSpan - 1) * spacing,
+      );
+
+  /// Whether every cell of [area] is inside the grid.
+  bool containsArea(GridArea area) =>
+      area.column >= 0 &&
+      area.row >= 0 &&
+      area.columnSpan >= 1 &&
+      area.rowSpan >= 1 &&
+      area.column + area.columnSpan <= columns &&
+      area.row + area.rowSpan <= rows;
 
   bool contains(GridCell cell) =>
       cell.column >= 0 &&
@@ -222,8 +247,14 @@ Set<GridCell> occupiedCells(List<DesktopItem> items, {String? ignoreTarget}) {
 List<DesktopItem> moveItemTo(
   List<DesktopItem> items,
   String target,
-  GridCell cell,
-) {
+  GridCell cell, {
+  Set<GridCell> blocked = const {},
+}) {
+  // A drop onto a widget is refused outright rather than redirected to a free
+  // cell nearby: the icon snapping back where it came from says "not there",
+  // while an icon that reappears two cells away looks like a bug in the drop.
+  if (blocked.contains(cell)) return items;
+
   final index = items.indexWhere((item) => item.target == target);
   if (index < 0) return items;
 
@@ -293,8 +324,9 @@ List<DesktopItem> moveItemsBy(
   Set<String> targets,
   int dColumn,
   int dRow,
-  DesktopGridGeometry g,
-) {
+  DesktopGridGeometry g, {
+  Set<GridCell> blocked = const {},
+}) {
   final moving = [
     for (final item in items)
       if (targets.contains(item.target)) item,
@@ -319,7 +351,12 @@ List<DesktopItem> moveItemsBy(
     for (final item in moving)
       item.target: (column: item.column + dc, row: item.row + dr),
   };
-  final taken = destinations.values.toSet();
+  // A group landing on a widget is refused whole, [moveItemTo]'s rule: moving
+  // the members that fit and leaving the rest behind would silently break the
+  // arrangement the user was preserving by dragging them together.
+  if (destinations.values.any(blocked.contains)) return items;
+
+  final taken = destinations.values.toSet()..addAll(blocked);
   final vacated = {
     for (final item in moving) (column: item.column, row: item.row),
   }.difference(taken);
@@ -393,13 +430,14 @@ GridCell? _nearestOf(Set<GridCell> candidates, GridCell preferred) {
 List<DesktopItem> placeItem(
   List<DesktopItem> items,
   DesktopItem item,
-  DesktopGridGeometry g,
-) {
+  DesktopGridGeometry g, {
+  Set<GridCell> blocked = const {},
+}) {
   if (items.any((existing) => existing.target == item.target)) return items;
 
   final free = nearestFreeCell(
     g,
-    occupiedCells(items),
+    occupiedCells(items)..addAll(blocked),
     (column: item.column, row: item.row),
   );
   if (free == null) return items;
@@ -414,8 +452,9 @@ List<DesktopItem> placeItem(
 /// lets the caller compare and skip the write.
 List<DesktopItem> organizeItems(
   List<DesktopItem> items,
-  DesktopGridGeometry g,
-) {
+  DesktopGridGeometry g, {
+  Set<GridCell> blocked = const {},
+}) {
   final ordered = List<DesktopItem>.of(items);
   // Stable by construction: List.sort is not stable, so the original index is
   // the final tie-break rather than relying on it.
@@ -430,13 +469,24 @@ List<DesktopItem> organizeItems(
     return indexOf[a.target]!.compareTo(indexOf[b.target]!);
   });
 
+  // The flow steps over cells a widget owns rather than stacking under one:
+  // organize is what the user reaches for to *tidy*, and a compaction that
+  // buried three icons behind the media player would be the opposite.
   final result = <DesktopItem>[];
-  for (var i = 0; i < ordered.length; i++) {
+  var cursor = 0;
+  for (final item in ordered) {
+    var column = g.rows > 0 ? cursor ~/ g.rows : 0;
+    var row = g.rows > 0 ? cursor % g.rows : 0;
     // Items past capacity keep flowing into further rows rather than being
     // dropped — losing a pinned icon to a window resize would be unforgivable.
-    final column = g.rows > 0 ? i ~/ g.rows : 0;
-    final row = g.rows > 0 ? i % g.rows : 0;
-    result.add(ordered[i].copyWith(column: column, row: row));
+    // Past capacity there are no widgets either, so this terminates.
+    while (blocked.contains((column: column, row: row))) {
+      cursor++;
+      column = g.rows > 0 ? cursor ~/ g.rows : 0;
+      row = g.rows > 0 ? cursor % g.rows : 0;
+    }
+    cursor++;
+    result.add(item.copyWith(column: column, row: row));
   }
   return result;
 }
@@ -450,12 +500,19 @@ List<DesktopItem> organizeItems(
 /// restores the layout exactly.
 List<DesktopItem> reflowIntoGrid(
   List<DesktopItem> items,
-  DesktopGridGeometry g,
-) {
+  DesktopGridGeometry g, {
+  Set<GridCell> blocked = const {},
+}) {
   final inRange = <DesktopItem>[];
   final strays = <DesktopItem>[];
   for (final item in items) {
-    if (g.contains((column: item.column, row: item.row))) {
+    final cell = (column: item.column, row: item.row);
+    // A cell a widget covers is "out of range" for the same reason a cell past
+    // the last column is: the icon would be there but the user could neither
+    // see nor click it. This is what a widget reflowed onto a smaller monitor
+    // does to the icons it lands on, and it is render-only — the config still
+    // has the icon where its owner put it.
+    if (g.contains(cell) && !blocked.contains(cell)) {
       inRange.add(item);
     } else {
       strays.add(item);
@@ -463,7 +520,7 @@ List<DesktopItem> reflowIntoGrid(
   }
   if (strays.isEmpty) return items;
 
-  final occupied = occupiedCells(inRange);
+  final occupied = occupiedCells(inRange)..addAll(blocked);
   final result = List<DesktopItem>.of(inRange);
   for (final stray in strays) {
     final free = firstFreeCell(g, occupied);
@@ -477,4 +534,290 @@ List<DesktopItem> reflowIntoGrid(
     result.add(stray.copyWith(column: free.column, row: free.row));
   }
   return result;
+}
+
+// -----------------------------------------------------------------------------
+// Widgets
+//
+// A widget occupies a rectangle of cells rather than one, is identified by its
+// instance id rather than by a path, and — unlike an icon — is never moved by
+// [organizeItems]. Everything below is the span-aware twin of the single-cell
+// helpers above; the two meet through [widgetCells], which is what an icon
+// helper takes as its `blocked` set.
+// -----------------------------------------------------------------------------
+
+/// The area [widget] occupies.
+GridArea areaOf(DesktopWidgetItem widget) => (
+      column: widget.column,
+      row: widget.row,
+      columnSpan: widget.columnSpan,
+      rowSpan: widget.rowSpan,
+    );
+
+/// Every cell in [area].
+Set<GridCell> cellsOfArea(GridArea area) => {
+      for (var c = 0; c < area.columnSpan; c++)
+        for (var r = 0; r < area.rowSpan; r++)
+          (column: area.column + c, row: area.row + r),
+    };
+
+/// The cells [widgets] cover — the `blocked` set every icon helper takes.
+///
+/// [ignoreId] drops one widget's own cells, which is what makes "may this
+/// widget move here?" answerable: a widget always overlaps itself.
+Set<GridCell> widgetCells(
+  Iterable<DesktopWidgetItem> widgets, {
+  String? ignoreId,
+}) {
+  return {
+    for (final widget in widgets)
+      if (widget.id != ignoreId) ...cellsOfArea(areaOf(widget)),
+  };
+}
+
+/// Whether no cell of [area] is in [occupied].
+bool areaFree(GridArea area, Set<GridCell> occupied) {
+  if (occupied.isEmpty) return true;
+  for (final cell in cellsOfArea(area)) {
+    if (occupied.contains(cell)) return false;
+  }
+  return true;
+}
+
+/// [area] clamped so it fits inside [g]: the span first (a 3x2 widget cannot
+/// fit a 2x2 grid), then the origin.
+///
+/// Total, like [nearestCell]: every area has an answer, because the alternative
+/// on a small monitor is a widget that renders nowhere.
+GridArea clampAreaInto(GridArea area, DesktopGridGeometry g) {
+  final columnSpan = area.columnSpan.clamp(1, g.columns);
+  final rowSpan = area.rowSpan.clamp(1, g.rows);
+  return (
+    column: area.column.clamp(0, g.columns - columnSpan),
+    row: area.row.clamp(0, g.rows - rowSpan),
+    columnSpan: columnSpan,
+    rowSpan: rowSpan,
+  );
+}
+
+/// The placement of [area]'s size nearest [area]'s own origin that overlaps
+/// nothing in [occupied], or null when the grid has no room for it at all.
+///
+/// [nearestFreeCell]'s contract, one dimension up: distance is measured in
+/// cells between origins and ties break column-major, so "add a widget here"
+/// is deterministic.
+GridArea? nearestFreeArea(
+  GridArea area,
+  DesktopGridGeometry g,
+  Set<GridCell> occupied,
+) {
+  final wanted = clampAreaInto(area, g);
+  if (areaFree(wanted, occupied)) return wanted;
+
+  GridArea? best;
+  var bestDistance = double.infinity;
+  for (var column = 0; column <= g.columns - wanted.columnSpan; column++) {
+    for (var row = 0; row <= g.rows - wanted.rowSpan; row++) {
+      final candidate = (
+        column: column,
+        row: row,
+        columnSpan: wanted.columnSpan,
+        rowSpan: wanted.rowSpan,
+      );
+      if (!areaFree(candidate, occupied)) continue;
+      final dc = (column - wanted.column).toDouble();
+      final dr = (row - wanted.row).toDouble();
+      final distance = dc * dc + dr * dr;
+      if (distance >= bestDistance) continue;
+      bestDistance = distance;
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+/// Adds [widget] at its own area when that is free, else at the nearest free
+/// one. Returns the list unchanged when the id is taken or nothing fits.
+///
+/// Only *other widgets* block a placement, never icons: an icon in the way is
+/// displaced by the caller ([displaceItemsFrom]), because a desktop with icons
+/// in every visible cell would otherwise refuse to take a widget at all.
+List<DesktopWidgetItem> placeWidget(
+  List<DesktopWidgetItem> widgets,
+  DesktopWidgetItem widget,
+  DesktopGridGeometry g,
+) {
+  if (widgets.any((existing) => existing.id == widget.id)) return widgets;
+  final area = nearestFreeArea(areaOf(widget), g, widgetCells(widgets));
+  if (area == null) return widgets;
+  return [
+    ...widgets,
+    widget.copyWith(
+      column: area.column,
+      row: area.row,
+      columnSpan: area.columnSpan,
+      rowSpan: area.rowSpan,
+    ),
+  ];
+}
+
+/// Moves the widget [id] so its top-left lands on [cell], keeping its span.
+///
+/// The move is clamped into the grid and **refused** when it would overlap
+/// another widget — [moveItemTo]'s rule rather than its swap: two widgets are
+/// two different sizes, so there is no exchange of places to make.
+List<DesktopWidgetItem> moveWidgetTo(
+  List<DesktopWidgetItem> widgets,
+  String id,
+  GridCell cell,
+  DesktopGridGeometry g,
+) {
+  final index = widgets.indexWhere((widget) => widget.id == id);
+  if (index < 0) return widgets;
+  final widget = widgets[index];
+
+  final area = clampAreaInto(
+    (
+      column: cell.column,
+      row: cell.row,
+      columnSpan: widget.columnSpan,
+      rowSpan: widget.rowSpan,
+    ),
+    g,
+  );
+  if (area.column == widget.column && area.row == widget.row) return widgets;
+  if (!areaFree(area, widgetCells(widgets, ignoreId: id))) return widgets;
+
+  final next = List<DesktopWidgetItem>.of(widgets);
+  next[index] = widget.copyWith(column: area.column, row: area.row);
+  return next;
+}
+
+/// Resizes the widget [id] to [area], which carries both the new span and the
+/// new origin — dragging the top-left handle moves the corner as well as the
+/// size.
+///
+/// [minSpan] and [maxSpan] are the type's limits from its
+/// `DesktopWidgetSpec`; the area is clamped to them, then into the grid, and
+/// refused if it overlaps another widget.
+List<DesktopWidgetItem> resizeWidgetTo(
+  List<DesktopWidgetItem> widgets,
+  String id,
+  GridArea area,
+  DesktopGridGeometry g, {
+  required GridSpan minSpan,
+  required GridSpan maxSpan,
+}) {
+  final index = widgets.indexWhere((widget) => widget.id == id);
+  if (index < 0) return widgets;
+  final widget = widgets[index];
+
+  final clamped = clampAreaInto(
+    (
+      column: area.column,
+      row: area.row,
+      columnSpan: area.columnSpan.clamp(minSpan.columns, maxSpan.columns),
+      rowSpan: area.rowSpan.clamp(minSpan.rows, maxSpan.rows),
+    ),
+    g,
+  );
+  if (clamped == areaOf(widget)) return widgets;
+  if (!areaFree(clamped, widgetCells(widgets, ignoreId: id))) return widgets;
+
+  final next = List<DesktopWidgetItem>.of(widgets);
+  next[index] = widget.copyWith(
+    column: clamped.column,
+    row: clamped.row,
+    columnSpan: clamped.columnSpan,
+    rowSpan: clamped.rowSpan,
+  );
+  return next;
+}
+
+/// A widget's size in cells. Named rather than a bare record pair so a spec's
+/// minimum and maximum cannot be passed the wrong way round unnoticed.
+typedef GridSpan = ({int columns, int rows});
+
+/// Pulls widgets whose authored area does not fit [g] into one that does, for
+/// **rendering only** — [reflowIntoGrid]'s contract, and for its reason: the
+/// same config is rendered on every monitor, and the authored area has to
+/// survive unplugging the big one.
+///
+/// A widget that cannot be fitted at all is left where it is and renders
+/// clipped, which is at least visible evidence of what happened.
+List<DesktopWidgetItem> reflowWidgetsIntoGrid(
+  List<DesktopWidgetItem> widgets,
+  DesktopGridGeometry g,
+) {
+  if (widgets.every((widget) => g.containsArea(areaOf(widget)))) return widgets;
+
+  final result = <DesktopWidgetItem>[];
+  final occupied = <GridCell>{};
+  for (final widget in widgets) {
+    final wanted = areaOf(widget);
+    final fits = g.containsArea(wanted) && areaFree(wanted, occupied);
+    final area = fits ? wanted : nearestFreeArea(wanted, g, occupied);
+    if (area == null) {
+      result.add(widget);
+      continue;
+    }
+    occupied.addAll(cellsOfArea(area));
+    result.add(widget.copyWith(
+      column: area.column,
+      row: area.row,
+      columnSpan: area.columnSpan,
+      rowSpan: area.rowSpan,
+    ));
+  }
+  return result;
+}
+
+/// Moves every icon standing in [area] out to the nearest free cell.
+///
+/// What a widget being added, moved or resized does to the icons underneath it.
+/// Widgets take precedence over icons deliberately: an icon has somewhere else
+/// to go and its identity is its target, so nothing is lost by shuffling it,
+/// while refusing the widget move would leave the user unable to place a widget
+/// on a busy desktop at all.
+///
+/// [blocked] is every cell the widgets will occupy *after* the move, so a
+/// displaced icon cannot be pushed under a different widget. An icon with
+/// nowhere to go is left where it is — [reflowIntoGrid] then renders it out
+/// from under the widget, and the config still has its authored cell.
+List<DesktopItem> displaceItemsFrom(
+  List<DesktopItem> items,
+  GridArea area,
+  DesktopGridGeometry g, {
+  Set<GridCell> blocked = const {},
+}) {
+  final cells = cellsOfArea(area);
+  final covered = items.any(
+    (item) => cells.contains((column: item.column, row: item.row)),
+  );
+  if (!covered) return items;
+
+  final taken = <GridCell>{...blocked, ...cells};
+  final moving = <int>[];
+  for (var i = 0; i < items.length; i++) {
+    final cell = (column: items[i].column, row: items[i].row);
+    if (cells.contains(cell)) {
+      moving.add(i);
+      continue;
+    }
+    taken.add(cell);
+  }
+
+  final next = List<DesktopItem>.of(items);
+  for (final index in moving) {
+    final item = items[index];
+    final free = nearestFreeCell(
+      g,
+      taken,
+      (column: item.column, row: item.row),
+    );
+    if (free == null) continue;
+    taken.add(free);
+    next[index] = item.copyWith(column: free.column, row: free.row);
+  }
+  return next;
 }

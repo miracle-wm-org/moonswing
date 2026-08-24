@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/widgets.dart';
 
@@ -7,6 +9,8 @@ import 'package:graceful_shell/desktop/desktop_actions.dart';
 import 'package:graceful_shell/desktop/desktop_icon.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
+import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
+import 'package:graceful_shell/desktop/widgets/desktop_widget_frame.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The interactive icon grid drawn over the wallpaper.
@@ -21,6 +25,7 @@ class DesktopLayer extends StatefulWidget {
     required this.store,
     this.panels = const {},
     this.onItemMenu,
+    this.onWidgetMenu,
     this.onEmptyMenu,
     this.onOpen,
     this.onGeometry,
@@ -36,6 +41,10 @@ class DesktopLayer extends StatefulWidget {
 
   /// Right-click on an item, at a surface-local position.
   final void Function(DesktopItem item, Offset position)? onItemMenu;
+
+  /// Right-click on a widget, at a surface-local position.
+  final void Function(DesktopWidgetItem widget, Offset position)?
+      onWidgetMenu;
 
   /// Right-click on empty space, at a surface-local position, carrying the cell
   /// under the cursor so "add" can drop the new icon where the user clicked.
@@ -97,6 +106,20 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// selection when it was pressed as a member of one. Local for [_dragPosition]'s
   /// reason — it is derived from the selection at press time and never persisted.
   Set<String> _dragGroup = const {};
+
+  /// The id of the widget the pointer is over, so its rim and its resize grips
+  /// are drawn for it alone.
+  String? _hoveredWidget;
+
+  /// How far the widget under a drag has been pulled from its laid-out
+  /// position. Per-frame and never persisted, [_dragPosition]'s rule.
+  Offset? _widgetDragDelta;
+
+  /// The resize in flight: which widget, which corner, and the area the widget
+  /// started at. The preview area is [_resizeArea]; the commit happens once, on
+  /// release.
+  ({String id, DesktopWidgetCorner corner, GridArea start})? _resize;
+  GridArea? _resizeArea;
 
   /// The rubber band's two corners, surface-local, while one is being drawn.
   /// Also local, and also per-frame.
@@ -242,8 +265,14 @@ class DesktopLayerState extends State<DesktopLayer> {
         widget.onGeometry?.call(geometry);
 
         // Render-only: an item authored on a wider monitor is pulled into
-        // range here, and the config keeps its original cell.
-        final items = reflowIntoGrid(store.items, geometry);
+        // range here, and the config keeps its original cell. Widgets reflow
+        // first, because where they end up is what the icons have to avoid.
+        final widgets = reflowWidgetsIntoGrid(store.widgets, geometry);
+        final items = reflowIntoGrid(
+          store.items,
+          geometry,
+          blocked: widgetCells(widgets),
+        );
 
         return Stack(
           key: _surfaceKey,
@@ -307,10 +336,23 @@ class DesktopLayerState extends State<DesktopLayer> {
                   ),
                 ),
               ),
+            // Under the icons: the two never share a cell, so this only
+            // decides what wins if a hand-edited config puts them on top of
+            // each other — and an icon that has vanished behind a widget is
+            // less recoverable than the other way round.
+            for (final widget in widgets)
+              _positionedWidget(context, widget, geometry, store),
             for (final item in items)
               _positioned(context, item, geometry, store),
             if (_dragPosition case final position?)
               ..._ghosts(items, position, geometry, store),
+            // Where a dragged widget will land. The card itself follows the
+            // pointer freely, so without this the drop point is a guess.
+            if (_widgetDropArea(widgets, geometry, store) case final area?)
+              DesktopWidgetPreview(
+                rect: geometry.areaRect(area),
+                color: theme.accent,
+              ),
             // Over the icons, so the band is never hidden behind the thing it
             // is selecting.
             if (_bandRect case final band?)
@@ -427,6 +469,291 @@ class DesktopLayerState extends State<DesktopLayer> {
           ),
         ),
       ),
+    );
+  }
+
+
+  // ---------------------------------------------------------------------------
+  // Widgets
+  // ---------------------------------------------------------------------------
+
+  /// One widget: its card, the chrome saying it is under the pointer, the drag
+  /// that moves it, and the four grips that resize it.
+  ///
+  /// The card is dragged *itself* rather than by a ghost, unlike an icon: an
+  /// icon's ghost exists because a group of them moves together and each needs
+  /// one, while a widget moves alone and a translucent copy of a media player
+  /// beside the real one would just be two media players.
+  Widget _positionedWidget(
+    BuildContext context,
+    DesktopWidgetItem item,
+    DesktopGridGeometry geometry,
+    DesktopStore store,
+  ) {
+    final theme = ThemeScope.of(context);
+    final spec = DesktopWidgetRegistry.lookup(item.type);
+    final laidOut = renderAreaFor(spec, item);
+
+    final resizing = _resize?.id == item.id;
+    final dragging = store.draggingWidget == item.id;
+    // While resizing, the card *is* the preview: it snaps cell by cell, so
+    // there is nothing an outline could say that the card does not.
+    final area = resizing ? (_resizeArea ?? laidOut) : laidOut;
+    var rect = geometry.areaRect(area);
+    if (dragging && _widgetDragDelta != null) {
+      rect = rect.shift(_widgetDragDelta!);
+    }
+
+    final hovered = _hoveredWidget == item.id;
+    final selected = store.selectedWidget == item.id;
+    final showGrips = hovered || selected || resizing || dragging;
+
+    return Positioned.fromRect(
+      key: ValueKey('widget:${item.id}'),
+      rect: rect,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hoveredWidget = item.id),
+        onExit: (_) => setState(() {
+          if (_hoveredWidget == item.id) _hoveredWidget = null;
+        }),
+        child: Stack(
+          // The grips sit on the card's corners and lap over its rim.
+          clipBehavior: Clip.none,
+          children: [
+            Positioned.fill(
+              // A Listener rather than a tap, for the reason the icons'
+              // documents: a tap recognizer here would have to win an arena
+              // against the pan below it before the rim could light up.
+              child: Listener(
+                onPointerDown: (_) => store.selectWidget(item.id),
+                child: GestureDetector(
+                  // Opaque so a drag can start anywhere on the card — the
+                  // widget's own buttons are deeper in the tree and are hit
+                  // first, and a quick press on one resolves as their tap
+                  // rather than as this pan.
+                  behavior: HitTestBehavior.opaque,
+                  dragStartBehavior: DragStartBehavior.down,
+                  onSecondaryTapDown: (details) => widget.onWidgetMenu
+                      ?.call(item, _toSurface(details.globalPosition)),
+                  onPanStart: (_) {
+                    store.beginWidgetDrag(item.id);
+                    setState(() => _widgetDragDelta = Offset.zero);
+                  },
+                  onPanUpdate: (details) => setState(() =>
+                      _widgetDragDelta =
+                          (_widgetDragDelta ?? Offset.zero) + details.delta),
+                  onPanEnd: (_) => _finishWidgetDrag(item, geometry, store),
+                  onPanCancel: () => _cancelWidgetDrag(store),
+                  child: DesktopWidgetFrame(
+                    item: item,
+                    spec: spec,
+                    span: (columns: area.columnSpan, rows: area.rowSpan),
+                    size: rect.size,
+                    selected: selected,
+                    hovered: hovered,
+                  ),
+                ),
+              ),
+            ),
+            if (showGrips)
+              for (final corner in DesktopWidgetCorner.values)
+                Positioned(
+                  left: corner.movesLeftEdge ? -2 : null,
+                  right: corner.movesLeftEdge ? null : -2,
+                  top: corner.movesTopEdge ? -2 : null,
+                  bottom: corner.movesTopEdge ? null : -2,
+                  child: DesktopWidgetResizeGrip(
+                    corner: corner,
+                    color: theme.accent,
+                    onPanStart: (_) => _beginResize(item, laidOut, corner),
+                    onPanUpdate: (details) => _updateResize(
+                      details.globalPosition,
+                      geometry,
+                      spec,
+                    ),
+                    onPanEnd: () => _endResize(geometry, spec, store),
+                  ),
+                ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Where a dragged widget would land if it were dropped now, or null when
+  /// nothing is being dragged.
+  ///
+  /// The card follows the pointer freely, so this is the only thing that says
+  /// which cells the drop resolves to. Measured from the card's own top-left
+  /// plus half a cell, so the widget lands on the cell its corner is *in*
+  /// rather than the one it is nearest by a hair.
+  GridArea? _widgetDropArea(
+    List<DesktopWidgetItem> rendered,
+    DesktopGridGeometry geometry,
+    DesktopStore store,
+  ) {
+    final id = store.draggingWidget;
+    if (id == null) return null;
+    for (final item in rendered) {
+      if (item.id == id) return _widgetDropAreaFor(item, geometry);
+    }
+    return null;
+  }
+
+  /// The same answer for one already-resolved widget.
+  ///
+  /// [rendered] must be the item as the grid **laid it out** — the output of
+  /// `reflowWidgetsIntoGrid` — because that is the rect the delta was measured
+  /// against. Resolving from the authored item instead would drop a reflowed
+  /// widget somewhere the user was not pointing. This is the same
+  /// rendered-versus-authored split the icon drop has.
+  GridArea? _widgetDropAreaFor(
+    DesktopWidgetItem rendered,
+    DesktopGridGeometry geometry,
+  ) {
+    final delta = _widgetDragDelta;
+    if (delta == null) return null;
+    final area = renderAreaFor(
+      DesktopWidgetRegistry.lookup(rendered.type),
+      rendered,
+    );
+    final origin = geometry.areaRect(area).topLeft + delta;
+    final half = Offset(
+      geometry.cellSize.width / 2,
+      geometry.cellSize.height / 2,
+    );
+    final cell = nearestCell(geometry, origin + half);
+    return clampAreaInto(
+      (
+        column: cell.column,
+        row: cell.row,
+        columnSpan: area.columnSpan,
+        rowSpan: area.rowSpan,
+      ),
+      geometry,
+    );
+  }
+
+  void _finishWidgetDrag(
+    DesktopWidgetItem item,
+    DesktopGridGeometry geometry,
+    DesktopStore store,
+  ) {
+    final area = _widgetDropAreaFor(item, geometry);
+    _cancelWidgetDrag(store);
+    if (area == null) return;
+    // Refused (another widget is there) means no write and no move: the card
+    // is already back where it started, because the delta is gone.
+    store.moveWidget(
+      item.id,
+      (column: area.column, row: area.row),
+      geometry,
+    );
+  }
+
+  void _cancelWidgetDrag(DesktopStore store) {
+    setState(() => _widgetDragDelta = null);
+    store.endWidgetDrag();
+  }
+
+  void _beginResize(
+    DesktopWidgetItem item,
+    GridArea area,
+    DesktopWidgetCorner corner,
+  ) {
+    widget.store.selectWidget(item.id);
+    setState(() {
+      _resize = (id: item.id, corner: corner, start: area);
+      _resizeArea = area;
+    });
+  }
+
+  /// Resolves the pointer to a cell and moves the dragged corner to it, leaving
+  /// the opposite corner exactly where it was.
+  void _updateResize(
+    Offset globalPosition,
+    DesktopGridGeometry geometry,
+    DesktopWidgetSpec? spec,
+  ) {
+    final resize = _resize;
+    if (resize == null) return;
+
+    final cell = nearestCell(geometry, _toSurface(globalPosition));
+    final start = resize.start;
+    var left = start.column;
+    var top = start.row;
+    var right = start.column + start.columnSpan - 1;
+    var bottom = start.row + start.rowSpan - 1;
+
+    // Each edge is clamped against its opposite, so dragging a corner past the
+    // far side of the widget stops at one cell instead of inverting it.
+    if (resize.corner.movesLeftEdge) {
+      left = math.min(cell.column, right);
+    } else {
+      right = math.max(cell.column, left);
+    }
+    if (resize.corner.movesTopEdge) {
+      top = math.min(cell.row, bottom);
+    } else {
+      bottom = math.max(cell.row, top);
+    }
+
+    final area = _applySpanLimits(
+      (
+        column: left,
+        row: top,
+        columnSpan: right - left + 1,
+        rowSpan: bottom - top + 1,
+      ),
+      resize.corner,
+      spec,
+    );
+    setState(() => _resizeArea = clampAreaInto(area, geometry));
+  }
+
+  /// Applies the type's minimum and maximum span, keeping the corner the user
+  /// is *not* dragging pinned — clamping the span alone would slide the whole
+  /// widget out from under the pointer at the limit.
+  GridArea _applySpanLimits(
+    GridArea area,
+    DesktopWidgetCorner corner,
+    DesktopWidgetSpec? spec,
+  ) {
+    if (spec == null) return area;
+    final columnSpan =
+        area.columnSpan.clamp(spec.minSpan.columns, spec.maxSpan.columns);
+    final rowSpan = area.rowSpan.clamp(spec.minSpan.rows, spec.maxSpan.rows);
+    return (
+      column: corner.movesLeftEdge
+          ? area.column + area.columnSpan - columnSpan
+          : area.column,
+      row: corner.movesTopEdge ? area.row + area.rowSpan - rowSpan : area.row,
+      columnSpan: columnSpan,
+      rowSpan: rowSpan,
+    );
+  }
+
+  void _endResize(
+    DesktopGridGeometry geometry,
+    DesktopWidgetSpec? spec,
+    DesktopStore store,
+  ) {
+    final resize = _resize;
+    final area = _resizeArea;
+    setState(() {
+      _resize = null;
+      _resizeArea = null;
+    });
+    if (resize == null || area == null) return;
+    store.resizeWidget(
+      resize.id,
+      area,
+      geometry,
+      // No spec (an unknown type) means no limits to enforce beyond the grid's
+      // own; the placeholder is resizable so it can be got out of the way.
+      minSpan: spec?.minSpan ?? (columns: 1, rows: 1),
+      maxSpan: spec?.maxSpan ??
+          (columns: geometry.columns, rows: geometry.rows),
     );
   }
 

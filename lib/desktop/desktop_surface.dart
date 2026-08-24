@@ -12,6 +12,7 @@ import 'package:graceful_shell/desktop/desktop_grid.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_menu.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
+import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
@@ -164,6 +165,10 @@ class _DesktopSurfaceState extends State<DesktopSurface>
     _openMenu(
       position,
       DesktopEmptyMenu(
+        // The registry rather than a constructor parameter: the surface is the
+        // shell, and this is where a compiled-in list is legitimately read. The
+        // menu itself takes it as a parameter so it stays testable.
+        widgetSpecs: DesktopWidgetRegistry.all,
         onAddApplication: () {
           closePopup();
           widget.onAddRequested?.call(applications: true, cell: cell);
@@ -171,6 +176,17 @@ class _DesktopSurfaceState extends State<DesktopSurface>
         onAddFile: () {
           closePopup();
           widget.onAddRequested?.call(applications: false, cell: cell);
+        },
+        onAddWidget: (spec) {
+          closePopup();
+          final geometry = _geometry;
+          if (geometry == null) return;
+          // Placed where the user right-clicked, or as near as the grid allows;
+          // icons underneath are displaced by the store in the same commit.
+          widget.store.addWidget(
+            newWidgetItem(spec, cell, widget.store.widgets),
+            geometry,
+          );
         },
         onOrganize: () {
           closePopup();
@@ -180,6 +196,40 @@ class _DesktopSurfaceState extends State<DesktopSurface>
         onChangeBackground: () {
           closePopup();
           widget.onChangeBackground?.call();
+        },
+      ),
+    );
+  }
+
+  void _onWidgetMenu(DesktopWidgetItem item, Offset position) {
+    final spec = DesktopWidgetRegistry.lookup(item.type);
+    _openMenu(
+      position,
+      DesktopWidgetMenu(
+        item: item,
+        spec: spec,
+        onResetSize: spec == null
+            ? null
+            : () {
+                closePopup();
+                final geometry = _geometry;
+                if (geometry == null) return;
+                widget.store.resizeWidget(
+                  item.id,
+                  (
+                    column: item.column,
+                    row: item.row,
+                    columnSpan: spec.defaultSpan.columns,
+                    rowSpan: spec.defaultSpan.rows,
+                  ),
+                  geometry,
+                  minSpan: spec.minSpan,
+                  maxSpan: spec.maxSpan,
+                );
+              },
+        onRemove: () {
+          closePopup();
+          widget.store.removeWidget(item.id);
         },
       ),
     );
@@ -204,6 +254,7 @@ class _DesktopSurfaceState extends State<DesktopSurface>
               store: widget.store,
               panels: widget.panels,
               onItemMenu: _onItemMenu,
+              onWidgetMenu: _onWidgetMenu,
               onEmptyMenu: _onEmptyMenu,
               onGeometry: (geometry) => _geometry = geometry,
               onKeyboardRequested: widget.onKeyboardRequested,
