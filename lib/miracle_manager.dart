@@ -5,14 +5,15 @@ import 'package:miracle/miracle.dart';
 
 /// Owns the shell's single [MiracleConnection] and its lifecycle.
 ///
-/// The shell may start before Miracle WM is up (or without `MIRACLESOCK` set at
-/// all), so the connection is allowed to be absent and re-established later.
-/// Every panel on every monitor listens to this one notifier, so a retry from
-/// any bar restores workspaces on all of them.
+/// The shell may start before Miracle WM is up (or with no socket in the
+/// environment at all), so the connection is allowed to be absent and
+/// re-established later. Every panel on every monitor listens to this one
+/// notifier, so a retry from any bar restores workspaces on all of them.
 ///
-/// A [MiracleConnection] is single-use — `disconnect()` closes its broadcast
-/// event controller — so each attempt builds a fresh one and a dead connection
-/// is simply dropped rather than disconnected.
+/// A dead connection is dropped rather than disconnected: nothing here needs
+/// `disconnect()`, and dropping it is what makes the identity comparison in
+/// each consumer ([WorkspacesState], [WorkspaceAppsStore]) a reliable "this is
+/// a different connection now".
 class MiracleManager extends ChangeNotifier {
   MiracleConnection? _connection;
   bool _connecting = false;
@@ -23,21 +24,6 @@ class MiracleManager extends ChangeNotifier {
 
   /// Whether a [connect] attempt is currently in flight.
   bool get connecting => _connecting;
-
-  /// Bumped whenever the set of Wayland outputs changes, so consumers can
-  /// re-query state that Miracle silently re-homed.
-  ///
-  /// Miracle moves a removed output's workspaces onto another output without
-  /// emitting a workspace event, so a bar that only refetches on
-  /// [EventWorkspace] keeps a stale `workspace -> output` mapping until the next
-  /// unrelated workspace event. Its `output` event would say *that* something
-  /// changed (never what), but subscribing to [SubscriptionType.output] is not
-  /// an option: `miracle.dart`'s `Event.fromJson` throws `UnsupportedError` for
-  /// that type, from inside the socket data handler. The shell's own
-  /// `OutputTracker` sees the same reconfiguration over `wl_output`, so `main()`
-  /// wires it to [notifyTopologyChanged] instead.
-  int get outputsRevision => _outputsRevision;
-  int _outputsRevision = 0;
 
   /// Why the shell is not connected — the last [connect] failure, or the reason
   /// a live connection dropped. Null while connected or before the first
@@ -61,7 +47,18 @@ class MiracleManager extends ChangeNotifier {
             _onSocketLost(connection, _describe(error)),
         onSocketDone: () => _onSocketLost(connection, 'the socket closed'),
       );
-      await connection.subscribe([SubscriptionType.workspace]);
+      // All three of these feed the workspace row. `window` is what replaced
+      // its window-tree poll, and `output` is what replaced the `wl_output`
+      // proxy the shell used to keep for it: miracle re-homes a removed
+      // output's workspaces onto another one and emits no workspace event
+      // saying so, but it does emit this. Before miracle.dart 2.0 neither
+      // could be decoded — `Event.fromJson` threw from inside the socket's
+      // data handler — which is why this was `workspace` alone.
+      await connection.subscribe([
+        SubscriptionType.workspace,
+        SubscriptionType.window,
+        SubscriptionType.output,
+      ]);
       _connection = connection;
     } catch (e, stack) {
       _connection = null;
@@ -72,12 +69,6 @@ class MiracleManager extends ChangeNotifier {
       _connecting = false;
       notifyListeners();
     }
-  }
-
-  /// The set of outputs changed; whatever was cached per output is suspect.
-  void notifyTopologyChanged() {
-    _outputsRevision++;
-    notifyListeners();
   }
 
   /// Drops [connection] when its socket dies, so the bars fall back to the
@@ -98,14 +89,17 @@ class MiracleManager extends ChangeNotifier {
 
   /// Renders a connect failure as one human-readable line.
   ///
-  /// `MiracleConnection.connect` throws a bare [Exception] when `MIRACLESOCK`
-  /// is unset, and a [SocketException] — whose `toString()` carries an address
-  /// and errno tail no user needs — when the socket won't open.
+  /// `MiracleConnection.connect` throws a [MiracleConnectionException] when
+  /// none of `MIRACLESOCK`/`SWAYSOCK`/`I3SOCK` names a socket, and a
+  /// [SocketException] — whose `toString()` carries an address and errno tail
+  /// no user needs — when the socket won't open. Both of those reach the user
+  /// in the retry button's tooltip, so both are unwrapped to their message.
   String _describe(Object error) {
     if (error is SocketException) {
       final os = error.osError;
       return os == null ? error.message : '${error.message}: ${os.message}';
     }
+    if (error is MiracleConnectionException) return error.message;
     final text = error.toString();
     const prefix = 'Exception: ';
     return text.startsWith(prefix) ? text.substring(prefix.length) : text;

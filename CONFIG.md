@@ -88,7 +88,7 @@ right  = ["sound_control", "battery", "weather", "clock"]
 
 Each key is an ordered array of module names. Valid module names are:
 
-- `"workspaces"` - Workspace switcher (requires Miracle WM)
+- `"workspaces"` - Workspace switcher, with the icons of what is open on each (requires Miracle WM)
 - `"media_player"` - MPRIS media player controls
 - `"sound_control"` - PulseAudio volume display
 - `"battery"` - Battery status monitor
@@ -154,7 +154,30 @@ max_text_width = 200.0
 
 ### Workspaces
 
-No configurable settings.
+```toml
+[modules.workspaces]
+show_app_icons = true
+icon_size = 14
+max_icons = 4
+```
+
+| Key              | Type | Default | Description                                                           |
+| ---------------- | ---- | ------- | --------------------------------------------------------------------- |
+| `show_app_icons` | bool | `true`  | Show the icons of the applications open on each workspace             |
+| `icon_size`      | int  | `14`    | Icon size in pixels (8–64)                                            |
+| `max_icons`      | int  | `4`     | Icons one workspace shows before the rest collapse into a `+N` (1–16) |
+
+With `show_app_icons` on, each workspace button carries its number or name
+*and* the icons of what is open on it, so the buttons are no longer all the
+same width — a workspace holding three windows is wider than an empty one. The
+icons come from Miracle's window tree, and an application is drawn once however
+many of its windows are on the workspace.
+
+The tree is re-read in response to Miracle's own `window`, `workspace` and
+`output` events — never on a timer — and only the window changes that can move
+a window between workspaces count, so switching focus costs nothing. Nothing
+is read at all while `show_app_icons` is off, and one reader serves every panel
+on every monitor.
 
 ### Dock
 
