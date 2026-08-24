@@ -103,7 +103,7 @@ class DesktopWidgetFrame extends StatelessWidget {
               borderRadius: popupCornerRadius(theme),
             ),
       child: PopupCard(
-        padding: const EdgeInsets.all(10),
+        padding: spec?.padding ?? const EdgeInsets.all(10),
         child: spec == null
             ? _UnknownWidget(type: item.type, theme: theme)
             : spec.builder(

@@ -57,6 +57,7 @@ class DesktopWidgetSpec {
     this.description = '',
     this.minSpan = (columns: 1, rows: 1),
     this.maxSpan = (columns: 6, rows: 4),
+    this.padding = const EdgeInsets.all(10),
     GridSpan? defaultSpan,
   }) : _defaultSpan = defaultSpan;
 
@@ -75,6 +76,14 @@ class DesktopWidgetSpec {
   /// The smallest and largest span the user may resize this widget to.
   final GridSpan minSpan;
   final GridSpan maxSpan;
+
+  /// The inset between the card's rim and the widget's content.
+  ///
+  /// The default is the card padding every widget had before this existed. A
+  /// widget that paints its own surface — the weather widget's sky — asks for
+  /// zero and fills the card to its rim; [PopupCard] already clips to the
+  /// theme's corner radius, so painting to the edge is rounded for free.
+  final EdgeInsets padding;
 
   final GridSpan? _defaultSpan;
 

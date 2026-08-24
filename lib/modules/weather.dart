@@ -1,239 +1,79 @@
-import 'dart:async';
-import 'dart:convert';
+// The bar's weather strip: an icon, a temperature, and a seven-day forecast
+// behind a click.
+//
+// All the weather bookkeeping this used to carry — the IP geolocation, the
+// forecast request, the parse, the refresh timer, the unit — now lives in
+// `lib/weather/`, which the desktop widget reads as well. One fetcher for the
+// machine, leased; two bars on two monitors used to mean two of everything, and
+// the desktop widget would have made it three.
+//
+// What is left here is the bar's own rendering, and the config re-export that
+// keeps `settings/shell/modules.dart` and anything else importing
+// `WeatherConfig` from this file working.
+
 import 'package:flutter/widgets.dart';
+
 import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/config_reader.dart';
+import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
-import 'package:http/http.dart' as http;
 import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:graceful_shell/theme/tokens.dart';
+import 'package:graceful_shell/weather/weather_api.dart';
+import 'package:graceful_shell/weather/weather_config.dart';
+import 'package:graceful_shell/weather/weather_icons.dart';
+import 'package:graceful_shell/weather/weather_store.dart';
 
-class WeatherConfig {
-  final String unit;
-  final int refreshMinutes;
-
-  const WeatherConfig({
-    this.unit = 'fahrenheit',
-    this.refreshMinutes = 10,
-  });
-
-  factory WeatherConfig.fromMap(Map<String, dynamic>? map) {
-    if (map == null) return const WeatherConfig();
-    return WeatherConfig(
-      unit: map.stringOr('unit', 'fahrenheit'),
-      refreshMinutes: map.intOr('refresh_minutes', 10),
-    );
-  }
-}
-
-enum TemperatureUnit { celsius, fahrenheit }
-
-class DayForecast {
-  final String dayLabel;
-  final int weatherCode;
-  final double tempMax;
-  final double tempMin;
-  final int precipProbability;
-
-  const DayForecast({
-    required this.dayLabel,
-    required this.weatherCode,
-    required this.tempMax,
-    required this.tempMin,
-    required this.precipProbability,
-  });
-}
-
-/// The weather reading for the whole shell.
-///
-/// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
-/// `SystemStatsStore`'s lease rule: the HTTP fetches run only while at least
-/// one widget holds a lease, so a two-monitor setup shares one fetcher instead
-/// of hitting the geolocation and forecast APIs once per bar.
-class WeatherStore extends ChangeNotifier {
-  WeatherStore._();
-
-  static final WeatherStore instance = WeatherStore._();
-
-  @visibleForTesting
-  factory WeatherStore.forTesting({
-    WeatherConfig config = const WeatherConfig(),
-  }) {
-    final store = WeatherStore._();
-    store.configure(config);
-    return store;
-  }
-
-  WeatherConfig _config = const WeatherConfig();
-
-  /// Applies [config]; the module's `fromMap` pushes it here. A cadence change
-  /// while leased restarts the timer at the new interval. A unit change takes
-  /// effect on the next fetch — same as before, when the widget read its config
-  /// at fetch time.
-  void configure(WeatherConfig config) {
-    final cadenceChanged = config.refreshMinutes != _config.refreshMinutes;
-    _config = config;
-    if (cadenceChanged && _timer != null) {
-      _stopTimer();
-      _startTimer();
-    }
-  }
-
-  TemperatureUnit get unit => _config.unit == 'celsius'
-      ? TemperatureUnit.celsius
-      : TemperatureUnit.fahrenheit;
-
-  String get unitLabel =>
-      unit == TemperatureUnit.fahrenheit ? '°F' : '°C';
-
-  // --- published state -----------------------------------------------------
-
-  String _weatherText = '';
-  String get weatherText => _weatherText;
-
-  /// True until the first fetch settles. The bar shows a fixed-size loader in
-  /// its place so the modules beside it don't shuffle when the reading lands.
-  bool _loading = true;
-  bool get loading => _loading;
-
-  List<DayForecast> _forecast = [];
-  List<DayForecast> get forecast => List.unmodifiable(_forecast);
-
-  // --- polling state -------------------------------------------------------
-
-  int _leases = 0;
-  Timer? _timer;
-
-  /// A tick that arrives while the previous fetch is still in flight is
-  /// dropped, not queued behind it.
-  bool _fetchInFlight = false;
-
-  /// Take a lease. The first active lease starts the refresh timer and fetches
-  /// immediately so the bar never waits a full interval for its first reading.
-  void acquire() {
-    _leases++;
-    if (_timer == null) {
-      _startTimer();
-      unawaited(_fetchWeather());
-    }
-  }
-
-  void release() {
-    if (_leases > 0) _leases--;
-    if (_leases == 0) _stopTimer();
-  }
-
-  void _startTimer() {
-    _timer = Timer.periodic(
-      Duration(minutes: _config.refreshMinutes),
-      (_) => unawaited(_fetchWeather()),
-    );
-  }
-
-  void _stopTimer() {
-    _timer?.cancel();
-    _timer = null;
-  }
-
-  Future<void> _fetchWeather() async {
-    if (_fetchInFlight) return;
-    _fetchInFlight = true;
-    try {
-      // Captured once, so the text and the forecast of one fetch always agree
-      // even if the config changes mid-flight.
-      final unit = this.unit;
-
-      // Get location from IP
-      final geoResponse = await http.get(Uri.parse('https://ipapi.co/json/'));
-      if (geoResponse.statusCode != 200) return;
-
-      final geo = jsonDecode(geoResponse.body);
-      final lat = geo['latitude'];
-      final lon = geo['longitude'];
-
-      // Fetch current weather + 7-day daily forecast from Open-Meteo
-      final unitParam = unit == TemperatureUnit.fahrenheit
-          ? '&temperature_unit=fahrenheit'
-          : '';
-      final weatherResponse = await http.get(Uri.parse(
-          'https://api.open-meteo.com/v1/forecast'
-          '?latitude=$lat&longitude=$lon'
-          '&current=temperature_2m,weather_code'
-          '&daily=temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max'
-          '$unitParam'));
-      if (weatherResponse.statusCode != 200) return;
-
-      final weather = jsonDecode(weatherResponse.body);
-      final current = weather['current'];
-      final temp = current['temperature_2m'];
-      final code = current['weather_code'] as int;
-      final condition = _weatherCondition(code);
-      final unitLabel = unit == TemperatureUnit.fahrenheit ? '°F' : '°C';
-
-      final daily = weather['daily'] as Map<String, dynamic>;
-      final times = daily['time'] as List<dynamic>;
-      final maxTemps = daily['temperature_2m_max'] as List<dynamic>;
-      final minTemps = daily['temperature_2m_min'] as List<dynamic>;
-      final codes = daily['weather_code'] as List<dynamic>;
-      final precips = daily['precipitation_probability_max'] as List<dynamic>;
-
-      final forecast = <DayForecast>[];
-      for (var i = 0; i < times.length; i++) {
-        final dt = DateTime.parse(times[i] as String);
-        forecast.add(DayForecast(
-          dayLabel: _shortWeekday(dt.weekday),
-          weatherCode: (codes[i] as num).toInt(),
-          tempMax: (maxTemps[i] as num).toDouble(),
-          tempMin: (minTemps[i] as num).toDouble(),
-          precipProbability:
-              precips[i] != null ? (precips[i] as num).toInt() : 0,
-        ));
-      }
-
-      _weatherText = '${temp.round()}$unitLabel $condition';
-      _forecast = forecast;
-      _loading = false;
-      notifyListeners();
-    } catch (_) {
-      // Silently fail — don't crash the panel
-      _loading = false;
-      notifyListeners();
-    } finally {
-      _fetchInFlight = false;
-    }
-  }
-
-  @override
-  void dispose() {
-    _stopTimer();
-    super.dispose();
-  }
-}
+export 'package:graceful_shell/weather/weather_config.dart' show WeatherConfig;
 
 class Weather extends StatefulWidget {
-  const Weather({super.key});
+  // Not const: the default store is the process-wide singleton, which a const
+  // constructor cannot reach.
+  Weather({super.key, WeatherStore? store})
+      : store = store ?? WeatherStore.instance;
+
+  /// Injected by tests, which seed a store rather than reaching the network.
+  final WeatherStore store;
 
   @override
   WeatherState createState() => WeatherState();
 }
 
 class WeatherState extends State<Weather> with PopupHost<Weather> {
-  final WeatherStore _store = WeatherStore.instance;
-
   @override
   void initState() {
     super.initState();
-    _store.acquire();
+    widget.store.acquire();
+    widget.store.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(Weather oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store == widget.store) return;
+    oldWidget.store
+      ..removeListener(_onChanged)
+      ..release();
+    widget.store
+      ..acquire()
+      ..addListener(_onChanged);
   }
 
   @override
   void dispose() {
-    _store.release();
+    widget.store
+      ..removeListener(_onChanged)
+      ..release();
     closePopup();
     super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
   }
 
   void _togglePopup(BuildContext context) {
@@ -246,194 +86,383 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
       context,
       // Loose, so the card is exactly as tall as the number of days the API
       // actually returned. The maxima are a runaway guard, not a size.
-      preferredConstraints: const BoxConstraints(maxWidth: 420, maxHeight: 600),
+      preferredConstraints: const BoxConstraints(maxWidth: 460, maxHeight: 640),
       child: ThemeProvider(
-        child: WeatherForecastPopup(
-          forecast: _store.forecast,
-          unitLabel: _store.unitLabel,
-          weatherCondition: _weatherCondition,
-        ),
+        child: WeatherForecastPopup(store: widget.store),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final store = widget.store;
+    final theme = ThemeScope.of(context);
+
+    if (store.loading && !store.hasReading) {
+      // The 16x16 box is kept around the 14px loader: this sits in a panel row
+      // and the placeholder must not be narrower than the reading that
+      // replaces it, or the modules beside it shuffle sideways when it lands.
+      return SizedBox(
+        width: 16,
+        height: 16,
+        child: Center(
+          child: LoadingIndicator(color: theme.foreground, size: 14),
+        ),
+      );
+    }
+
+    final reading = store.current;
+    if (reading == null) {
+      // A failure is a visible state, not a blank space — the rule the
+      // notification daemon's broken dot documents. The shell cannot tell a
+      // machine with no network from an API having a quiet day, and an empty
+      // bar is indistinguishable from a module the user never enabled. Clicking
+      // it retries, because every failure here is recoverable without
+      // restarting the shell and the shell cannot notice it recovering.
+      return _WeatherUnavailable(
+        message: store.error.isEmpty ? 'No weather reading' : store.error,
+        onRetry: store.refresh,
+      );
+    }
+
+    return BarButton(
+      active: isPopupOpen,
+      onTapDown: (_) => _togglePopup(context),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          WeatherIcon(
+            weatherIcon(reading.condition, night: !reading.isDay),
+            size: 17,
+            color: theme.foreground,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            store.temperatureText,
+            style: TextStyle(fontSize: 16, color: theme.foreground),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The bar module with nothing to show: a dimmed icon whose hover label says
+/// why, and whose click asks again.
+class _WeatherUnavailable extends StatelessWidget {
+  const _WeatherUnavailable({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return HoverRegion(
+      builder: (context, hovered) => GestureDetector(
+        onTapDown: (_) => onRetry(),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            WeatherIcon(
+              kWeatherUnavailableIcon,
+              size: 16,
+              color: theme.muted,
+            ),
+            // The reason, on hover only: it is a sentence, and a sentence in
+            // the bar would push every module beside it along.
+            if (hovered) ...[
+              const SizedBox(width: 6),
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.caption,
+                  color: theme.muted,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The forecast card: today's conditions, then a row per day.
+///
+/// Takes the store rather than a snapshot of it, so the card restyles and
+/// re-reads live — a popup built from values captured at open time is frozen
+/// for as long as it is up, which for a ten-minute refresh is most of its life.
+class WeatherForecastPopup extends StatelessWidget {
+  const WeatherForecastPopup({super.key, required this.store});
+
+  final WeatherStore store;
+
+  @override
+  Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: _store,
+      listenable: store,
       builder: (context, _) {
-        if (_store.loading) {
-          // The 16x16 box is kept around the 14px loader: this sits in a
-          // panel row and the placeholder must not be narrower than the
-          // reading that replaces it, or the modules beside it shuffle
-          // sideways when it lands.
-          return SizedBox(
-            width: 16,
-            height: 16,
-            child: Center(
-              child: LoadingIndicator(
-                color: ThemeScope.of(context).foreground,
-                size: 14,
+        final theme = ThemeScope.of(context);
+        final reading = store.current;
+        final forecast = store.forecast;
+
+        return DefaultTextStyle(
+          style: TextStyle(
+            color: theme.popupForeground,
+            fontFamily: theme.fontFamily,
+            fontSize: ShellFontSizes.secondary,
+          ),
+          child: PopupBounceIn(
+            child: PopupCard(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                // `start`, never `stretch`: the popup surface is sized to its
+                // content and a stretched column reports the full width of the
+                // constraints, which is the dead space
+                // `popup_content_size_test.dart` exists to keep out of this
+                // card.
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (reading != null) _CurrentConditions(store: store),
+                  if (store.error.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      // The last reading stays on screen through a failed
+                      // refresh, so this says which one is being looked at
+                      // rather than replacing it.
+                      store.error,
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.caption,
+                        color: kErrorColor,
+                      ),
+                    ),
+                  ],
+                  if (forecast.length > 1) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Forecast',
+                      style: TextStyle(
+                        color: theme.popupForeground,
+                        fontSize: ShellFontSizes.caption,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _ForecastTable(
+                      days: forecast.skip(1).toList(),
+                      theme: theme,
+                    ),
+                  ],
+                ],
               ),
             ),
-          );
-        }
-
-        if (_store.weatherText.isEmpty) return const SizedBox.shrink();
-
-        final theme = ThemeScope.of(context);
-        final text = Text(
-          _store.weatherText,
-          style: TextStyle(fontSize: 16, color: theme.foreground),
-        );
-
-        if (_store.forecast.isEmpty) return text;
-
-        return BarButton(
-          active: isPopupOpen,
-          onTapDown: (_) => _togglePopup(context),
-          child: text,
+          ),
         );
       },
     );
   }
 }
 
-String _shortWeekday(int weekday) {
-  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  return labels[(weekday - 1).clamp(0, 6)];
-}
+class _CurrentConditions extends StatelessWidget {
+  const _CurrentConditions({required this.store});
 
-String _weatherCondition(int code) {
-    switch (code) {
-      case 0:
-        return '☀️';
-      case 1:
-        return '🌤️';
-      case 2:
-        return '⛅';
-      case 3:
-        return '☁️';
-      case 45:
-      case 48:
-        return '🌫️';
-      case 51:
-      case 53:
-      case 55:
-        return '🌦️';
-      case 61:
-      case 63:
-      case 65:
-        return '🌧️';
-      case 66:
-      case 67:
-        return '🌧️';
-      case 71:
-      case 73:
-      case 75:
-      case 77:
-        return '❄️';
-      case 80:
-      case 81:
-      case 82:
-        return '🌧️';
-      case 85:
-      case 86:
-        return '🌨️';
-      case 95:
-        return '⛈️';
-      case 96:
-      case 99:
-        return '⛈️';
-      default:
-        return '';
-    }
-  }
-
-class WeatherForecastPopup extends StatelessWidget {
-  const WeatherForecastPopup({
-    super.key,
-    required this.forecast,
-    required this.unitLabel,
-    required this.weatherCondition,
-  });
-
-  final List<DayForecast> forecast;
-  final String unitLabel;
-  final String Function(int) weatherCondition;
+  final WeatherStore store;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final reading = store.current!;
+    final place = store.place;
+    final today = store.forecast.isEmpty ? null : store.forecast.first;
 
-    // A Table rather than a column of Rows, because the popup is sized to its
-    // content and MainAxisAlignment.spaceBetween — what these rows used to use
-    // to line their columns up — means nothing without a bounded width.
-    // IntrinsicColumnWidth sizes each of the four columns to its widest cell and
-    // keeps them aligned across every row, which is what spaceBetween was only
-    // approximating, and it replaces the hand-rolled SizedBox(width: 32) that
-    // used to stand in for a day-label column. With no flex column the table
-    // shrink-wraps, so the card ends up as wide as its widest day.
+    return Row(
+      // Shrink-wrapped, like the table under it, and `Flexible` rather than
+      // `Expanded` for the same reason: a place name long enough to need the
+      // whole card may take it, but a short one must not make the card wide.
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        WeatherIcon(
+          weatherIcon(reading.condition, night: !reading.isDay),
+          size: 40,
+          color: theme.accent,
+        ),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                store.temperatureText,
+                style: TextStyle(
+                  color: theme.popupForeground,
+                  fontSize: ShellFontSizes.heading,
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              Text(
+                reading.condition.label,
+                style: TextStyle(color: theme.popupForeground),
+              ),
+              if (place != null)
+                Text(
+                  place.description,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: theme.muted,
+                    fontSize: ShellFontSizes.caption,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (today != null)
+              Text(
+                'H ${today.tempMax.round()}°  L ${today.tempMin.round()}°',
+                style: TextStyle(
+                  color: theme.popupForeground,
+                  fontSize: ShellFontSizes.caption,
+                ),
+              ),
+            if (reading.apparentTemperature != null)
+              _Metric(
+                icon: kFeelsLikeIcon,
+                label:
+                    'Feels ${reading.apparentTemperature!.round()}${store.unitLabel}',
+                theme: theme,
+              ),
+            if (reading.humidity != null)
+              _Metric(
+                icon: kHumidityIcon,
+                label: '${reading.humidity}%',
+                theme: theme,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _Metric extends StatelessWidget {
+  const _Metric({
+    required this.icon,
+    required this.label,
+    required this.theme,
+  });
+
+  final IconData icon;
+  final String label;
+  final ThemeConfig theme;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          WeatherIcon(icon, size: 11, color: theme.muted),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: theme.muted,
+              fontSize: ShellFontSizes.caption,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A `Table` rather than a column of `Row`s, because the popup is sized to its
+/// content and `MainAxisAlignment.spaceBetween` — what these rows used to use to
+/// line their columns up — means nothing without a bounded width.
+/// `IntrinsicColumnWidth` sizes each column to its widest cell and keeps them
+/// aligned across every row, and with no flex column the table shrink-wraps, so
+/// the card ends up as wide as its widest day.
+class _ForecastTable extends StatelessWidget {
+  const _ForecastTable({required this.days, required this.theme});
+
+  final List<DayForecast> days;
+  final ThemeConfig theme;
+
+  @override
+  Widget build(BuildContext context) {
     Widget cell(Widget child, {EdgeInsets? padding}) => Padding(
           padding: padding ?? const EdgeInsets.symmetric(vertical: 4),
           child: child,
         );
 
-    final rows = forecast.map((day) {
-      return TableRow(
-        children: [
-          cell(Text(day.dayLabel,
-              style: const TextStyle(fontWeight: FontWeight.w600))),
-          cell(
-            Text(weatherCondition(day.weatherCode)),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          ),
-          cell(Text(
-            '${day.tempMax.round()}° / ${day.tempMin.round()}°',
-            style: TextStyle(color: theme.popupForeground),
-          )),
-          cell(
-            Text(
-              '💧${day.precipProbability}%',
-              style: TextStyle(
-                  color: theme.popupForeground.withValues(alpha: 0.7),
-                  fontSize: 12),
-            ),
-            padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
-          ),
-        ],
-      );
-    }).toList();
-
-    return Directionality(
-      textDirection: TextDirection.ltr,
-      child: DefaultTextStyle(
-        style: TextStyle(color: theme.popupForeground, fontSize: 13),
-        child: PopupBounceIn(
-          child: PopupCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+    return Table(
+      defaultColumnWidth: const IntrinsicColumnWidth(),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        for (final day in days)
+          TableRow(
+            children: [
+              cell(Text(
+                day.dayLabel,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              )),
+              cell(
+                WeatherIcon(
+                  // A daily forecast is a forecast for that day's daylight, so
+                  // the day rows never take the night glyph.
+                  weatherIcon(day.condition),
+                  size: 16,
+                  color: theme.popupForeground,
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              ),
+              cell(Text(
+                day.condition.label,
+                style: TextStyle(
+                  color: theme.muted,
+                  fontSize: ShellFontSizes.caption,
+                ),
+              )),
+              cell(
                 Text(
-                  '7-Day Forecast',
-                  style: TextStyle(
-                    color: theme.popupForeground,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  '${day.tempMax.round()}° / ${day.tempMin.round()}°',
+                  style: TextStyle(color: theme.popupForeground),
                 ),
-                const SizedBox(height: 8),
-                Table(
-                  defaultColumnWidth: const IntrinsicColumnWidth(),
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  children: rows,
+                padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+              ),
+              cell(
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    WeatherIcon(
+                      kPrecipitationIcon,
+                      size: 11,
+                      color: theme.popupForeground.withValues(alpha: 0.7),
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      '${day.precipProbability}%',
+                      style: TextStyle(
+                        color: theme.popupForeground.withValues(alpha: 0.7),
+                        fontSize: ShellFontSizes.caption,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+                padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+              ),
+            ],
           ),
-        ),
-      ),
+      ],
     );
   }
 }
@@ -443,9 +472,9 @@ final Module weatherModule = Module.simple<WeatherConfig>(
   fromMap: (map) {
     final config = WeatherConfig.fromMap(map);
     // The store, not the widget, owns the config: polling continues across
-    // widget rebuilds, and every bar instance shares the one fetcher.
+    // widget rebuilds, and every surface in the shell shares the one fetcher.
     WeatherStore.instance.configure(config);
     return config;
   },
-  builder: (context, config) => const Weather(),
+  builder: (context, config) => Weather(),
 );

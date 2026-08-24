@@ -27,6 +27,18 @@ dependencies:
   udev: ^0.0.3
   dbus: ^0.7.11
   font_awesome_flutter: ^11.0.0
+  # The weather icons. Font Awesome carries a sun, a cloud and a bolt and
+  # nothing between them, so every WMO code from "mainly clear" to "violent
+  # showers" used to render as the same emoji at whatever the font stack felt
+  # like. Material Symbols has a glyph per row of that table — clear_day,
+  # partly_cloudy_day/_night, rainy_light/rainy/rainy_heavy, snowing,
+  # thunderstorm, weather_hail, foggy — which is exactly the granularity
+  # `lib/weather/weather_condition.dart` resolves, and it is a font, so Flutter's
+  # icon tree-shaking keeps only the dozen the shell names.
+  #
+  # `weather_icons` (the Erik Flowers pack) is the obvious alternative and is
+  # unusable: it pins `sdk: <3.0.0` and was last published in 2021.
+  material_symbols_icons: ^4.2960.0
   # The loading indicators. `SpinKitRing` is what `LoadingIndicator`
   # (lib/loading_indicator.dart) renders, and that widget is the only thing in
   # the shell that shows an operation is in flight — see the comment there for
