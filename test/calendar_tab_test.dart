@@ -6,6 +6,8 @@ import 'package:graceful_shell/overlay/calendar/calendar_tab.dart';
 import 'package:graceful_shell/overlay/calendar/month.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/timers/timer_store.dart';
+import 'package:graceful_shell/timers/timer_widgets.dart';
 
 /// Pumps the tab the way the overlay does: inside a ThemeScope, with the
 /// Directionality and text style the overlay's panel supplies.
@@ -117,5 +119,43 @@ void main() {
     // a very short display produces a panel shorter than the 500 minimum.
     await pumpTab(tester, size: const Size(800, 260));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('carries the timers strip under the month grid', (tester) async {
+    // Its own store, hand-driven: TimersStore.forTesting starts no ticker, and
+    // the singleton is shared with every other test in the suite.
+    final timers = TimersStore.forTesting(now: () => DateTime(2026, 8, 24, 12));
+    addTearDown(timers.dispose);
+    timers.startTimer(const Duration(minutes: 5));
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: DefaultTextStyle(
+          style: const TextStyle(fontSize: 14),
+          child: ThemeScope(
+            theme: const ThemeConfig(),
+            child: SizedBox(
+              width: 800,
+              height: 456,
+              child: CalendarTab(
+                active: true,
+                weekStart: DateTime.sunday,
+                worldClocks: const [],
+                timers: timers,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(TimersPane), findsOneWidget);
+    expect(find.text('05:00'), findsOneWidget);
+    expect(find.text('Start timer'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    // Still a full month beside it.
+    expect(find.text(thisMonth), findsOneWidget);
   });
 }

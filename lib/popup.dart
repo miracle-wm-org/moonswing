@@ -271,6 +271,21 @@ class PopupDismissArea extends StatelessWidget {
   }
 }
 
+/// Whether [State.setState] may still be called from here.
+///
+/// [State.mounted] is not that test on its own. Every module that owns a popup
+/// or a layer window closes it from its own `dispose()`, and `State.mounted`
+/// stays true for the whole of `dispose()` — the framework clears
+/// `state._element` only after it returns — while the *element* was made
+/// defunct before the call. A `setState` from there is therefore a
+/// `markNeedsBuild` on a dead element, which asserts in debug and queues a
+/// build for something unbuildable in release. [BuildContext.mounted] is the
+/// element's own liveness, which `unmount()` clears on the way in, so the pair
+/// answers "still in the tree" for both the ordinary close and the teardown one.
+extension on State {
+  bool get _canRebuild => mounted && context.mounted;
+}
+
 /// Mixin for [State] classes that own a single popup window.
 ///
 /// Encapsulates the controller/view lifecycle and WindowRegistry registration
@@ -484,7 +499,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       // idempotent so a second call (e.g. from onWindowDestroyed) is harmless.
       WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.destroy());
     }
-    if (mounted) setState(() {});
+    if (_canRebuild) setState(() {});
     // Fires once per open, whether closed explicitly or dismissed by the
     // compositor (whose destroy routes through the delegate to closePopup).
     onClosed?.call();
@@ -549,7 +564,7 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
     final ctrl = _lsController;
     _lsController = null;
     ctrl?.destroy();
-    if (mounted) setState(() {});
+    if (_canRebuild) setState(() {});
   }
 }
 
