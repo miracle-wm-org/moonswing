@@ -132,6 +132,46 @@ void main() {
     });
   });
 
+  group('wakesWorkspaceApps', () {
+    test('a workspace or output event always does', () {
+      // miracle never says which output changed, and a removed output has its
+      // workspaces re-homed with no workspace event of its own.
+      expect(wakesWorkspaceApps(_workspaceEvent()), isTrue);
+      expect(wakesWorkspaceApps(_outputEvent()), isTrue);
+    });
+
+    test('only the window changes that move a window between workspaces do',
+        () {
+      for (final change in [
+        WindowChange.created,
+        WindowChange.closed,
+        WindowChange.moved,
+      ]) {
+        expect(wakesWorkspaceApps(_windowEvent(change)), isTrue,
+            reason: change.name);
+      }
+      // `focused` is the load-bearing exclusion: it fires on every alt-tab,
+      // and an unfiltered listener would re-read the whole tree each time.
+      for (final change in [
+        WindowChange.focused,
+        WindowChange.fullscreenMode,
+        WindowChange.floating,
+        WindowChange.marked,
+      ]) {
+        expect(wakesWorkspaceApps(_windowEvent(change)), isFalse,
+            reason: change.name);
+      }
+    });
+
+    test('an unmodelled window change re-reads rather than going stale', () {
+      expect(wakesWorkspaceApps(_windowEvent(WindowChange.unknown)), isTrue);
+    });
+
+    test('an event about something else does not', () {
+      expect(wakesWorkspaceApps(_tickEvent()), isFalse);
+    });
+  });
+
   group('WorkspaceAppsStore', () {
     late WorkspaceAppsStore store;
     late StreamController<Event> events;
@@ -190,19 +230,70 @@ void main() {
       expect(fetches, 2, reason: 'the last release stops the reads');
     });
 
-    test('a workspace event re-reads the tree', () async {
+    test('a window opening re-reads the tree', () async {
       store.acquire();
       await pumpEventQueue();
 
       workspaces = [
         _workspace(1, '1', 'DP-1', nodes: [_window('firefox'), _window('kitty')])
       ];
-      events.add(_workspaceEvent());
+      // The event that replaced the poll: a window opening on a workspace that
+      // already had one emits no workspace event at all.
+      events.add(_windowEvent(WindowChange.created));
       await pumpEventQueue();
 
       expect(fetches, 2);
       expect(store.appIdsFor(_result(num: 1, name: '1', output: 'DP-1')),
           ['firefox', 'kitty']);
+    });
+
+    test('a focus change reads nothing', () async {
+      store.acquire();
+      await pumpEventQueue();
+
+      events.add(_windowEvent(WindowChange.focused));
+      events.add(_windowEvent(WindowChange.marked));
+      await pumpEventQueue();
+
+      expect(fetches, 1, reason: 'alt-tab must not cost a GET_TREE');
+    });
+
+    test('events arriving mid-flight coalesce into one more read', () async {
+      final gate = Completer<void>();
+      final coalescing = WorkspaceAppsStore.forTesting();
+      addTearDown(coalescing.dispose);
+      var reads = 0;
+      final burst = StreamController<Event>.broadcast();
+      addTearDown(burst.close);
+      coalescing.attachSource(WorkspaceTreeSource(
+        token: Object(),
+        getTree: () async {
+          reads++;
+          // Only the first read is held open; the rest resolve at once.
+          if (reads == 1) await gate.future;
+          return BaseNode.fromJson(_root([_output('DP-1', workspaces)]));
+        },
+        events: burst.stream,
+      ));
+
+      coalescing.acquire();
+      await pumpEventQueue();
+      expect(reads, 1, reason: 'the lease read, and it is still in flight');
+
+      // Opening three windows in a burst is three events over one round-trip.
+      // With no timer behind this, dropping them would leave the row stale
+      // until something unrelated happened.
+      burst.add(_windowEvent(WindowChange.created));
+      burst.add(_windowEvent(WindowChange.created));
+      burst.add(_windowEvent(WindowChange.created));
+      await pumpEventQueue();
+      expect(reads, 1, reason: 'none of them started a second read');
+
+      gate.complete();
+      await pumpEventQueue();
+      expect(reads, 2, reason: 'the three collapsed into exactly one more');
+
+      coalescing.release();
     });
 
     test('notifies only when the tree actually moved', () async {
@@ -292,12 +383,15 @@ void main() {
         // A TOML float where an int is wanted, the config_reader contract.
         'icon_size': 20.0,
         'max_icons': 'lots',
-        'poll_seconds': 0,
       });
       expect(config.showAppIcons, isFalse);
       expect(config.iconSize, 20);
       expect(config.maxIcons, const WorkspacesConfig().maxIcons);
-      expect(config.pollSeconds, 1, reason: 'clamped, not taken as 0');
+    });
+
+    test('clamps a value a painter could not use', () {
+      expect(WorkspacesConfig.fromMap({'icon_size': 900}).iconSize, 64);
+      expect(WorkspacesConfig.fromMap({'max_icons': 0}).maxIcons, 1);
     });
   });
 }
@@ -324,6 +418,18 @@ Event _workspaceEvent() => Event.fromJson(IpcType.ipcEventWorkspace, {
       'old': null,
       'current': _workspace(1, '1', 'DP-1'),
     });
+
+Event _windowEvent(WindowChange change) =>
+    Event.fromJson(IpcType.ipcEventWindow, {
+      'change': change.wireName,
+      'container': _window('firefox'),
+    });
+
+Event _outputEvent() =>
+    Event.fromJson(IpcType.ipcEventOutput, {'change': 'unspecified'});
+
+Event _tickEvent() => Event.fromJson(
+    IpcType.ipcEventTick, {'first': false, 'payload': ''});
 
 Map<String, dynamic> _rect() =>
     {'x': 0, 'y': 0, 'width': 1920, 'height': 1080};

@@ -128,12 +128,6 @@ void main() async {
   // render before they know which display they are on.
   final outputs = OutputTracker();
 
-  // A display reconfiguration can re-home workspaces onto another output with
-  // no IPC event to say so, so the compositor's own view of them is re-queried
-  // whenever the shell's output set moves. This is the whole subscription:
-  // nothing here is torn down, both objects live for the process.
-  outputs.addListener(miracle.notifyTopologyChanged);
-
   final waylandClient = WaylandClient();
   final services = ShellServices();
 

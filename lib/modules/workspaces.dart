@@ -34,11 +34,8 @@ class WorkspacesState extends State<Workspaces> {
   MiracleConnection? _connection;
   StreamSubscription<Event>? _events;
 
-  /// The [MiracleManager.outputsRevision] this row's list was fetched against.
-  int _outputsRevision = 0;
-
   /// What is open on each workspace. Shared with every other bar on the
-  /// machine, and only polled while somebody's icons are switched on.
+  /// machine, and only read while somebody's icons are switched on.
   final WorkspaceAppsStore _apps = WorkspaceAppsStore.instance;
 
   /// Whether this row is one of the holders of [_apps]'s lease.
@@ -48,7 +45,6 @@ class WorkspacesState extends State<Workspaces> {
   void initState() {
     super.initState();
     _apps.addListener(_onAppsChanged);
-    _apps.configure(widget.config);
     _syncLease();
   }
 
@@ -58,7 +54,6 @@ class WorkspacesState extends State<Workspaces> {
     // `[modules.workspaces]` moved — the module's config is pushed
     // imperatively, so this is the only notice of it (see
     // [Module.configChanges]).
-    _apps.configure(widget.config);
     _syncLease();
   }
 
@@ -83,7 +78,8 @@ class WorkspacesState extends State<Workspaces> {
   }
 
   /// Holds the store's lease exactly while this row would draw icons, so a
-  /// shell with the option off never opens a `GET_TREE` at all.
+  /// shell with the option off never opens a `GET_TREE` at all — the window
+  /// events still arrive, they just wake nothing.
   void _syncLease() {
     final wanted = widget.config.showAppIcons;
     if (wanted == _leased) return;
@@ -105,27 +101,11 @@ class WorkspacesState extends State<Workspaces> {
     // Rebuild even when the connection itself is unchanged — the connecting
     // flag drives the spinner.
     setState(_syncConnection);
-    _refetchIfOutputsMoved();
-  }
-
-  /// Re-queries the workspace list when the shell's output set has changed
-  /// since it was fetched.
-  ///
-  /// Miracle re-homes a removed output's workspaces onto another output without
-  /// emitting a workspace event, so the cached `workspace -> output` mapping
-  /// this row filters on can be stale with nothing on the event stream to say
-  /// so. [MiracleManager.outputsRevision] is the shell's own `wl_output` view of
-  /// the same reconfiguration.
-  void _refetchIfOutputsMoved() {
-    final revision = _manager?.outputsRevision ?? 0;
-    if (revision == _outputsRevision) return;
-    _outputsRevision = revision;
-    _connection?.getWorkspaces().then(_updateWorkspaces);
   }
 
   /// Attaches to the manager's current connection, tearing down the listener on
-  /// whichever connection it replaces. A [MiracleConnection] is single-use, so
-  /// every reconnect hands us a different instance.
+  /// whichever connection it replaces. The manager drops a dead connection
+  /// rather than reusing it, so every reconnect hands us a different instance.
   void _syncConnection() {
     final connection = _manager?.connection;
     if (identical(connection, _connection)) return;
@@ -134,17 +114,27 @@ class WorkspacesState extends State<Workspaces> {
     _events = null;
     _connection = connection;
     _workspaces = <WorkspaceResult>[];
-    _outputsRevision = _manager?.outputsRevision ?? 0;
     // Every bar hands the store the same connection; it compares identity and
     // keeps one subscription for the machine.
     _apps.attach(connection);
 
     if (connection == null) return;
-    _events = connection.listen((Event event) {
-      if (event is EventWorkspace) {
-        connection.getWorkspaces().then(_updateWorkspaces);
-      }
-    });
+    _events = connection.listen(
+      (Event event) {
+        // A workspace event is the obvious trigger. An output event is the
+        // less obvious one: miracle re-homes a removed output's workspaces
+        // onto another output and emits no workspace event saying so, which
+        // leaves the `workspace -> output` mapping this row filters on stale.
+        // The shell used to infer that from its own `wl_output` view
+        // (`MiracleManager.outputsRevision`) because miracle.dart could not
+        // decode the event; it can now.
+        if (event is WorkspaceEvent || event is OutputEvent) {
+          connection.getWorkspaces().then(_updateWorkspaces);
+        }
+      },
+      onError: (Object error) =>
+          debugPrint('workspaces: undecodable IPC event: $error'),
+    );
     connection.getWorkspaces().then(_updateWorkspaces);
   }
 

@@ -21,7 +21,6 @@ class WorkspacesConfig {
     this.showAppIcons = true,
     this.iconSize = 14,
     this.maxIcons = 4,
-    this.pollSeconds = 3,
   });
 
   /// Whether each workspace button carries the icons of the applications open
@@ -39,21 +38,12 @@ class WorkspacesConfig {
   /// Without a cap a workspace with a dozen windows takes the whole bar.
   final int maxIcons;
 
-  /// Cadence of the window-tree poll, in seconds.
-  ///
-  /// A poll, rather than an event subscription, because `miracle.dart`'s
-  /// `Event.fromJson` throws `UnsupportedError` for every event type but
-  /// `workspace` — see [WorkspaceAppsStore]. Only paid while
-  /// [showAppIcons] is on and a bar is on screen.
-  final int pollSeconds;
-
   factory WorkspacesConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const WorkspacesConfig();
     return WorkspacesConfig(
       showAppIcons: map.boolOr('show_app_icons', true),
       iconSize: map.intOr('icon_size', 14, min: 8, max: 64),
       maxIcons: map.intOr('max_icons', 4, min: 1, max: 16),
-      pollSeconds: map.intOr('poll_seconds', 3, min: 1, max: 60),
     );
   }
 }
@@ -92,62 +82,37 @@ class WorkspaceApps {
 ///
 /// XWayland toplevels carry no `app_id` at all; `window_properties` is where
 /// their WM class arrives, and it is the same string `StartupWMClass=` names.
-String? containerAppId(ContainerNode node) {
-  final appId = node.appId;
-  if (appId != null && appId.isNotEmpty) return appId;
-  for (final key in const ['class', 'instance']) {
-    final value = node.windowProperties[key];
-    if (value is String && value.isNotEmpty) return value;
-  }
-  return null;
-}
+///
+/// Deliberately not `ContainerNode.isWindow`, which the library defines as
+/// `window != null` — that is the *X11* window id, so under a Wayland
+/// compositor it is null for very nearly everything on screen.
+String? containerAppId(ContainerNode node) =>
+    _nonEmpty(node.appId) ??
+    _nonEmpty(node.windowProperties.className) ??
+    _nonEmpty(node.windowProperties.instance);
+
+String? _nonEmpty(String? value) =>
+    value == null || value.isEmpty ? null : value;
 
 /// Walks a `GET_TREE` reply into one [WorkspaceApps] per workspace.
-List<WorkspaceApps> collectWorkspaceApps(BaseNode tree) {
-  final result = <WorkspaceApps>[];
-
-  void collect(BaseNode node, List<String> into) {
-    if (node is! ContainerNode) return;
-    final appId = containerAppId(node);
-    if (appId != null && !into.contains(appId)) into.add(appId);
-    // A window is a leaf in practice, but descending unconditionally is what
-    // makes a nested split under a floating container reachable.
-    for (final child in node.nodes) {
-      collect(child, into);
-    }
-    for (final child in node.floatingNodes) {
-      collect(child, into);
-    }
-  }
-
-  void descend(BaseNode node) {
-    switch (node) {
-      case WorkspaceNode():
-        final appIds = <String>[];
-        for (final child in node.nodes) {
-          collect(child, appIds);
-        }
-        for (final child in node.floatingNodes) {
-          collect(child, appIds);
-        }
-        result.add(WorkspaceApps(
-          output: node.output,
-          num: node.num,
-          name: node.name,
-          appIds: appIds,
-        ));
-      case RootNode():
-        node.nodes.forEach(descend);
-      case OutputNode():
-        node.nodes.forEach(descend);
-      case ContainerNode():
-        break;
-    }
-  }
-
-  descend(tree);
-  return result;
-}
+///
+/// The traversal is `miracle.dart`'s own (`BaseNode.workspaces`, which is
+/// `walk().whereType()`, and `descendants`, which covers tiled and floating
+/// children alike), so nothing here has to know the shape of the tree.
+List<WorkspaceApps> collectWorkspaceApps(BaseNode tree) => [
+      for (final workspace in tree.workspaces)
+        WorkspaceApps(
+          output: workspace.output,
+          num: workspace.num,
+          name: workspace.name,
+          // A set, because two Firefox windows are one icon; it is a
+          // LinkedHashSet, so tree order survives.
+          appIds: <String>{
+            for (final node in workspace.descendants.whereType<ContainerNode>())
+              ?containerAppId(node),
+          }.toList(),
+        ),
+    ];
 
 /// The `app_id`s on the workspace [workspace] names, or empty.
 ///
@@ -208,37 +173,69 @@ class WorkspaceTreeSource {
   final Stream<Event> events;
 }
 
+/// Whether [event] can have changed which applications are on which workspace.
+///
+/// The filter is the point of the event-driven design rather than an
+/// optimisation on top of it: `window` fires on every focus change, so an
+/// unfiltered listener would re-read the whole window tree on each alt-tab.
+/// The switch over [WindowChange] is exhaustive so that a change miracle.dart
+/// grows later forces a decision here rather than being silently ignored.
+@visibleForTesting
+bool wakesWorkspaceApps(Event event) => switch (event) {
+      // A workspace being created, emptied, renamed, moved to another output,
+      // or switched to.
+      WorkspaceEvent() => true,
+      // miracle never says *which* output changed, and a removed one has its
+      // workspaces re-homed onto another with no workspace event of its own —
+      // which is exactly what `MiracleManager.outputsRevision` used to stand in
+      // for, back when this event could not be decoded.
+      OutputEvent() => true,
+      WindowEvent(:final change) => switch (change) {
+          WindowChange.created ||
+          WindowChange.closed ||
+          WindowChange.moved =>
+            true,
+          // None of these move a window between workspaces, and `focused`
+          // alone fires on every alt-tab.
+          WindowChange.focused ||
+          WindowChange.fullscreenMode ||
+          WindowChange.floating ||
+          WindowChange.marked =>
+            false,
+          // A change this package does not model yet: re-read rather than go
+          // quietly stale.
+          WindowChange.unknown => true,
+        },
+      _ => false,
+    };
+
 /// The window tree, reduced to "which applications are on which workspace",
 /// for every bar on the machine.
 ///
 /// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
 /// `SystemStatsStore`'s lease rule: the `GET_TREE` round-trip runs only while
 /// at least one workspace row is on screen *and* has its icons switched on, so
-/// a two-monitor setup shares one poller and a shell with the feature off pays
+/// a two-monitor setup shares one reader and a shell with the feature off pays
 /// nothing at all.
 ///
-/// **It polls, and that is forced rather than chosen.** The obvious source is
-/// `SubscriptionType.window`, and it is unusable: `miracle.dart`'s
-/// `Event.fromJson` throws `UnsupportedError` for every type but `workspace`,
-/// from inside the socket's own data handler — which skips the `_buffer.clear()`
-/// after it, so the same message re-parses and re-throws on every subsequent
-/// read and the shell's one IPC connection is wedged for good. (This is the
-/// same reason `MiracleManager` documents for not subscribing to
-/// `SubscriptionType.output`.) The workspace events the shell *does* subscribe
-/// to are still used — they cover a workspace appearing, emptying or being
-/// switched to, which is most of what moves — and the timer covers the rest: a
-/// window opening on a workspace that already had one emits nothing.
+/// **It is driven by events, and never by a timer.** miracle.dart 2.0 decodes
+/// `window` and `output` events (before it, every event type but `workspace`
+/// threw an `UnsupportedError` from inside the socket's own data handler, which
+/// tore down the stream — so this store polled instead, and `MiracleManager`
+/// could not subscribe to `output` at all). [wakesWorkspaceApps] is the filter.
 ///
-/// Two things a change here has to keep true:
+/// Three things a change here has to keep true:
 ///
-/// - **A poll that finds nothing new must not notify.** This wakes on a timer,
-///   and every panel on every monitor listens; re-laying every bar every few
-///   seconds to redraw the same icons is the cost this store would otherwise
-///   impose on an idle machine. [_publish] compares a signature and returns.
-/// - **A tree that will not parse costs the icons, never the row.**
-///   `miracle.dart`'s node parsers cast their fields unconditionally, so one
-///   unexpected node type takes the whole reply down. That is an adornment
-///   failing, and the workspace buttons must still render and still switch.
+/// - **A fetch that arrives mid-flight is coalesced, not dropped.** With no
+///   timer behind this, a discarded refetch leaves the row stale until the next
+///   unrelated event — and opening three windows in a burst is three events
+///   over one round-trip.
+/// - **A read that finds nothing new must not notify.** Every panel on every
+///   monitor listens, so re-laying every bar to redraw identical icons is the
+///   cost this would otherwise impose. [_publish] compares a signature.
+/// - **A tree that will not parse costs the icons, never the row.** That is an
+///   adornment failing, and the workspace buttons must still render and still
+///   switch.
 class WorkspaceAppsStore extends ChangeNotifier {
   WorkspaceAppsStore._();
 
@@ -247,15 +244,14 @@ class WorkspaceAppsStore extends ChangeNotifier {
   @visibleForTesting
   factory WorkspaceAppsStore.forTesting() => WorkspaceAppsStore._();
 
-  WorkspacesConfig _config = const WorkspacesConfig();
   WorkspaceTreeSource? _source;
   StreamSubscription<Event>? _events;
-  Timer? _timer;
   int _leases = 0;
 
-  /// A `GET_TREE` is a socket round-trip; a tick that arrives while the last
-  /// one is still in flight is dropped, not queued behind it.
+  /// A `GET_TREE` is a socket round-trip; a request that lands while one is
+  /// still in flight sets [_fetchQueued] rather than starting a second.
   bool _fetchInFlight = false;
+  bool _fetchQueued = false;
 
   List<WorkspaceApps> _apps = const [];
   String _signature = '';
@@ -276,17 +272,6 @@ class WorkspaceAppsStore extends ChangeNotifier {
   /// build and each miss is a GIO lookup.
   WorkspaceAppIcon iconFor(String appId) => _icons.lookup(appId);
 
-  /// Applies [config]; the module widget pushes it from `initState`. A cadence
-  /// change while leased restarts the timer at the new interval.
-  void configure(WorkspacesConfig config) {
-    final cadenceChanged = config.pollSeconds != _config.pollSeconds;
-    _config = config;
-    if (cadenceChanged && _timer != null) {
-      _stopTimer();
-      _startTimer();
-    }
-  }
-
   /// Points the store at the shell's current Miracle connection, or at nothing.
   void attach(MiracleConnection? connection) => attachSource(
       connection == null ? null : WorkspaceTreeSource.of(connection));
@@ -305,66 +290,65 @@ class WorkspaceAppsStore extends ChangeNotifier {
     _signature = '';
 
     if (source == null) return;
-    _events = source.events.listen((event) {
-      // The shell subscribes to workspace events already; they cover a
-      // workspace appearing, emptying, or being switched to.
-      if (event is EventWorkspace) unawaited(_fetch());
-    });
+    _events = source.events.listen(
+      (event) {
+        if (wakesWorkspaceApps(event)) unawaited(_fetch());
+      },
+      // miracle.dart 2.0 reports an undecodable payload as a stream error
+      // rather than killing the stream; an event we cannot read is one refetch
+      // we do not make, and nothing more.
+      onError: (Object error) =>
+          debugPrint('workspaces: undecodable IPC event: $error'),
+    );
     if (_leases > 0) unawaited(_fetch());
   }
 
-  /// Takes a lease. The first one starts the poll and fetches immediately, so
-  /// a bar never waits an interval for its first set of icons.
+  /// Takes a lease. The first one reads immediately, so a bar never waits for
+  /// the user to move a window before its icons appear.
   void acquire() {
     _leases++;
-    if (_timer == null) {
+    if (_leases == 1) {
       AppIndex.instance.addListener(_onApplicationsChanged);
-      _startTimer();
       unawaited(_fetch());
     }
   }
 
   void release() {
     if (_leases > 0) _leases--;
-    if (_leases == 0) {
-      AppIndex.instance.removeListener(_onApplicationsChanged);
-      _stopTimer();
-    }
+    if (_leases == 0) AppIndex.instance.removeListener(_onApplicationsChanged);
   }
 
   /// An install or a removal can change what an `app_id` resolves to, and the
   /// cache is keyed on the `app_id` alone.
   void _onApplicationsChanged() => _icons.clear();
 
-  void _startTimer() {
-    _timer = Timer.periodic(
-      Duration(seconds: _config.pollSeconds),
-      (_) => unawaited(_fetch()),
-    );
-  }
-
-  void _stopTimer() {
-    _timer?.cancel();
-    _timer = null;
-  }
-
   Future<void> _fetch() async {
-    final source = _source;
-    // The lease is checked *before* the round-trip as well as after it: this is
-    // reached from the workspace-event listener, which is attached whether or
-    // not anybody is drawing icons, and a shell with `show_app_icons = false`
-    // must open no GET_TREE at all.
-    if (source == null || _leases == 0 || _fetchInFlight) return;
+    if (_fetchInFlight) {
+      _fetchQueued = true;
+      return;
+    }
     _fetchInFlight = true;
     try {
-      final tree = await source.getTree();
-      // A release, or a reconnect, can land while the round-trip is in flight.
-      if (_leases == 0 || !identical(_source?.token, source.token)) return;
-      _publish(collectWorkspaceApps(tree));
-    } catch (error) {
-      debugPrint('workspaces: could not read the window tree: $error');
+      do {
+        _fetchQueued = false;
+        final source = _source;
+        // The lease is checked *before* the round-trip as well as after it: the
+        // event listener is attached whether or not anybody is drawing icons,
+        // and a shell with `show_app_icons = false` must open no GET_TREE.
+        if (source == null || _leases == 0) return;
+        try {
+          final tree = await source.getTree();
+          // A release, or a reconnect, can land while the round-trip is in
+          // flight.
+          if (_leases == 0 || !identical(_source?.token, source.token)) return;
+          _publish(collectWorkspaceApps(tree));
+        } catch (error) {
+          debugPrint('workspaces: could not read the window tree: $error');
+        }
+      } while (_fetchQueued);
     } finally {
       _fetchInFlight = false;
+      _fetchQueued = false;
     }
   }
 
@@ -384,7 +368,6 @@ class WorkspaceAppsStore extends ChangeNotifier {
     _events?.cancel();
     if (_leases > 0) AppIndex.instance.removeListener(_onApplicationsChanged);
     _leases = 0;
-    _stopTimer();
     super.dispose();
   }
 }

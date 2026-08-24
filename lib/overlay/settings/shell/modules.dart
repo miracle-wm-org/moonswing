@@ -107,12 +107,6 @@ final List<_ModuleGroup> _moduleGroups = [
       defaultValue: const WorkspacesConfig().maxIcons,
       isInt: true,
     ),
-    _ModuleSetting.number(
-      const ['modules', 'workspaces', 'poll_seconds'],
-      'Poll (seconds)',
-      defaultValue: const WorkspacesConfig().pollSeconds,
-      isInt: true,
-    ),
   ]),
   _ModuleGroup('Weather', [
     _ModuleSetting.segmented(
