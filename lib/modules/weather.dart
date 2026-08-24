@@ -21,6 +21,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/shell_text_root.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/weather/weather_api.dart';
@@ -207,10 +208,15 @@ class WeatherForecastPopup extends StatelessWidget {
         final reading = store.current;
         final forecast = store.forecast;
 
-        return DefaultTextStyle(
+        // [ShellTextRoot], not a bare [DefaultTextStyle]: popup content is laid
+        // out directly under its own FlutterView, so nothing above it supplies
+        // a [Directionality] and every Text and Row in this card throws
+        // without one. Dropping it — which is what turned this popup into an
+        // empty card — costs the whole card rather than one row, because the
+        // failure is in the subtree's own layout.
+        return ShellTextRoot(
           style: TextStyle(
             color: theme.popupForeground,
-            fontFamily: theme.fontFamily,
             fontSize: ShellFontSizes.secondary,
           ),
           child: PopupBounceIn(
