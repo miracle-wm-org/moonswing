@@ -58,6 +58,8 @@ import 'package:graceful_shell/desktop/app_chooser.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
+import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
+import 'package:graceful_shell/desktop/widgets/media_player_widget.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -85,6 +87,11 @@ void main() async {
   Module.register(systemModule);
   Module.register(systemTrayModule);
   Module.register(launcherModule);
+
+  // The desktop grid's own registry, populated the same way and for the same
+  // reason: `[[desktop.widgets]]` names a type, and lookup happens at render
+  // time. See `lib/desktop/widgets/desktop_widget.dart`.
+  DesktopWidgetRegistry.register(mediaPlayerDesktopWidget);
 
   // AppConfig.load() writes the default config on first run and applies the
   // module subtables; the shared ConfigStore then reads that same file and

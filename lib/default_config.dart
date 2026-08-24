@@ -118,8 +118,10 @@ interval_minutes = 5
 path = "$wallpaper"
 shown = true
 
-# Icons pinned to the desktop. On by default; turn it off here or in
-# Settings > Shell > Desktop. Items are appended as [[desktop.items]] tables.
+# Icons and widgets pinned to the desktop. On by default; turn it off here or
+# in Settings > Shell > Desktop. Icons are appended as [[desktop.items]]
+# tables, widgets — added from the desktop's right-click menu — as
+# [[desktop.widgets]] ones, each naming a type, a cell and a span in cells.
 [desktop]
 enabled = true
 cell_width = 96

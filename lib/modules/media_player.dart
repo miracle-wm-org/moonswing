@@ -1,10 +1,12 @@
-import 'dart:async';
-import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
 import 'package:graceful_shell/config_reader.dart';
+import 'package:graceful_shell/media/media_controls.dart';
+import 'package:graceful_shell/media/mpris_store.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 
 class MediaPlayerConfig {
   final double maxTextWidth;
@@ -19,444 +21,123 @@ class MediaPlayerConfig {
   }
 }
 
-const String _mprisPrefix = 'org.mpris.MediaPlayer2.';
-const String _playerInterface = 'org.mpris.MediaPlayer2.Player';
-const String _mprisPath = '/org/mpris/MediaPlayer2';
-const int _marqueeThreshold = 32;
-const double _marqueeGap = 40.0;
-const double _marqueePixelsPerMs = 0.033;
-
-class _PlayerState {
-  _PlayerState({required this.busName});
-
-  final String busName;
-  String playbackStatus = 'Stopped';
-  String title = '';
-  String artist = '';
-  bool canPlay = false;
-  bool canPause = false;
-  bool canGoNext = false;
-  bool canGoPrevious = false;
-  bool canControl = false;
-}
-
+/// The bar's now-playing strip: transport buttons and the track title.
+///
+/// All the MPRIS bookkeeping this used to carry — the session-bus connection,
+/// the per-player `PropertiesChanged` subscriptions, the active-player rule —
+/// now lives in [MprisStore], which the desktop's media widget reads as well.
+/// One connection for the machine, leased; two bars on two monitors used to
+/// mean two of everything.
 class MediaPlayer extends StatefulWidget {
-  const MediaPlayer({super.key, required this.config});
+  // Not const: the default store is the process-wide singleton, which a const
+  // constructor cannot reach.
+  MediaPlayer({super.key, required this.config, MprisStore? store})
+      : store = store ?? MprisStore.instance;
 
   final MediaPlayerConfig config;
+
+  /// Injected by tests, which seed a store rather than reaching a session bus.
+  final MprisStore store;
 
   @override
   MediaPlayerState createState() => MediaPlayerState();
 }
 
-class MediaPlayerState extends State<MediaPlayer>
-    with SingleTickerProviderStateMixin {
-  DBusClient? _dbus;
-  StreamSubscription<DBusNameOwnerChangedEvent>? _nameOwnerSub;
-  final Map<String, _PlayerState> _players = {};
-  final Map<String, StreamSubscription<DBusPropertiesChangedSignal>> _propSubs =
-      {};
-  _PlayerState? _activePlayer;
-  String _displayText = '';
-  double _textWidth = 0;
-  String _fontFamily = 'Ubuntu Sans';
-
-  late final AnimationController _scrollController;
-
-  // Used only for TextPainter width measurement — color has no effect on layout.
-  TextStyle get _measureStyle =>
-      TextStyle(fontFamily: _fontFamily, fontSize: 12);
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final fontFamily = ThemeScope.of(context).fontFamily;
-    if (fontFamily == _fontFamily) return;
-    _fontFamily = fontFamily;
-    // The marquee's scroll distance is a measured text width, so switching to
-    // a theme with a different font has to re-measure — otherwise the title
-    // scrolls by the old font's width and clips or over-runs.
-    _updateDisplayText();
-  }
-
+class MediaPlayerState extends State<MediaPlayer> {
   @override
   void initState() {
     super.initState();
-    _scrollController = AnimationController(vsync: this);
-    _initDbus();
+    // A light lease: the bar shows no progress, so it does not want the
+    // one-second `Position` poll a detail lease adds.
+    widget.store.acquire();
+    widget.store.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(MediaPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store == widget.store) return;
+    oldWidget.store
+      ..removeListener(_onChanged)
+      ..release();
+    widget.store
+      ..acquire()
+      ..addListener(_onChanged);
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
-    _nameOwnerSub?.cancel();
-    for (final sub in _propSubs.values) {
-      sub.cancel();
-    }
-    _dbus?.close();
+    widget.store
+      ..removeListener(_onChanged)
+      ..release();
     super.dispose();
   }
 
-  Future<void> _initDbus() async {
-    try {
-      _dbus = DBusClient.session();
-      _nameOwnerSub = _dbus!.nameOwnerChanged.listen(_onNameOwnerChanged);
-      await _scanForPlayers();
-    } catch (_) {
-      // D-Bus unavailable — widget stays hidden
-    }
-  }
-
-  Future<void> _scanForPlayers() async {
-    if (_dbus == null) return;
-    try {
-      final names = await _dbus!.listNames();
-      for (final name in names) {
-        if (name.startsWith(_mprisPrefix)) {
-          await _addPlayer(name);
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _addPlayer(String busName) async {
-    if (_players.containsKey(busName) || _dbus == null) return;
-
-    final player = _PlayerState(busName: busName);
-    _players[busName] = player;
-
-    final obj = DBusRemoteObject(
-      _dbus!,
-      name: busName,
-      path: DBusObjectPath(_mprisPath),
-    );
-
-    try {
-      final props = await obj.getAllProperties(_playerInterface);
-      _applyProperties(player, props);
-    } catch (_) {
-      // Player may have vanished before we could query it
-      _players.remove(busName);
-      return;
-    }
-
-    _propSubs[busName] = obj.propertiesChanged.listen((signal) {
-      if (signal.propertiesInterface == _playerInterface) {
-        _applyProperties(player, signal.changedProperties);
-        _selectActivePlayer();
-        _updateDisplayText();
-        if (mounted) setState(() {});
-      }
-    });
-
-    _selectActivePlayer();
-    _updateDisplayText();
+  void _onChanged() {
     if (mounted) setState(() {});
-  }
-
-  void _removePlayer(String busName) {
-    _propSubs[busName]?.cancel();
-    _propSubs.remove(busName);
-    _players.remove(busName);
-    _selectActivePlayer();
-    _updateDisplayText();
-    if (mounted) setState(() {});
-  }
-
-  void _onNameOwnerChanged(DBusNameOwnerChangedEvent event) {
-    if (!event.name.startsWith(_mprisPrefix)) return;
-
-    if (event.newOwner != null && event.newOwner!.isNotEmpty) {
-      _addPlayer(event.name);
-    } else {
-      _removePlayer(event.name);
-    }
-  }
-
-  void _applyProperties(_PlayerState player, Map<String, DBusValue> props) {
-    if (props.containsKey('PlaybackStatus')) {
-      player.playbackStatus = (props['PlaybackStatus'] as DBusString).value;
-    }
-    if (props.containsKey('Metadata')) {
-      _applyMetadata(player, props['Metadata']!);
-    }
-    if (props.containsKey('CanPlay')) {
-      player.canPlay = (props['CanPlay'] as DBusBoolean).value;
-    }
-    if (props.containsKey('CanPause')) {
-      player.canPause = (props['CanPause'] as DBusBoolean).value;
-    }
-    if (props.containsKey('CanGoNext')) {
-      player.canGoNext = (props['CanGoNext'] as DBusBoolean).value;
-    }
-    if (props.containsKey('CanGoPrevious')) {
-      player.canGoPrevious = (props['CanGoPrevious'] as DBusBoolean).value;
-    }
-    if (props.containsKey('CanControl')) {
-      player.canControl = (props['CanControl'] as DBusBoolean).value;
-    }
-  }
-
-  void _applyMetadata(_PlayerState player, DBusValue metadataValue) {
-    // Metadata is a{sv} — Dict<String, Variant>
-    final dict = metadataValue as DBusDict;
-    final metadata = <String, DBusValue>{};
-    for (final entry in dict.children.entries) {
-      final key = (entry.key as DBusString).value;
-      final val = (entry.value as DBusVariant).value;
-      metadata[key] = val;
-    }
-
-    if (metadata.containsKey('xesam:title')) {
-      player.title = (metadata['xesam:title'] as DBusString).value;
-    } else {
-      player.title = '';
-    }
-
-    if (metadata.containsKey('xesam:artist')) {
-      final artists = metadata['xesam:artist'] as DBusArray;
-      player.artist =
-          artists.children.map((v) => (v as DBusString).value).join(', ');
-    } else {
-      player.artist = '';
-    }
-  }
-
-  void _selectActivePlayer() {
-    // Prefer currently active player if still playing
-    if (_activePlayer != null &&
-        _players.containsKey(_activePlayer!.busName) &&
-        _activePlayer!.playbackStatus == 'Playing') {
-      return;
-    }
-
-    // Find any playing player
-    for (final player in _players.values) {
-      if (player.playbackStatus == 'Playing') {
-        _activePlayer = player;
-        return;
-      }
-    }
-
-    // Fall back to paused
-    for (final player in _players.values) {
-      if (player.playbackStatus == 'Paused') {
-        _activePlayer = player;
-        return;
-      }
-    }
-
-    _activePlayer = null;
-  }
-
-  String _formatDisplayText() {
-    if (_activePlayer == null) return '';
-    final player = _activePlayer!;
-    if (player.title.isEmpty && player.artist.isEmpty) {
-      // Fall back to player identity from bus name
-      return player.busName.substring(_mprisPrefix.length);
-    }
-    if (player.artist.isEmpty) return player.title;
-    return '${player.artist} — ${player.title}';
-  }
-
-  void _updateDisplayText() {
-    final text = _formatDisplayText();
-    _displayText = text;
-
-    if (text.length > _marqueeThreshold) {
-      final painter = TextPainter(
-        text: TextSpan(text: text, style: _measureStyle),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-      )..layout();
-      _textWidth = painter.width;
-      painter.dispose();
-
-      final totalScroll = _textWidth + _marqueeGap;
-      final durationMs = (totalScroll / _marqueePixelsPerMs).toInt();
-      _scrollController.duration = Duration(milliseconds: durationMs);
-      _scrollController.repeat();
-    } else {
-      _scrollController.stop();
-      _scrollController.reset();
-    }
-  }
-
-  Future<void> _callMethod(String method) async {
-    if (_activePlayer == null || _dbus == null) return;
-    try {
-      final obj = DBusRemoteObject(
-        _dbus!,
-        name: _activePlayer!.busName,
-        path: DBusObjectPath(_mprisPath),
-      );
-      await obj.callMethod(_playerInterface, method, []);
-    } catch (_) {}
-  }
-
-  void _playPause() => _callMethod('PlayPause');
-  void _next() => _callMethod('Next');
-  void _previous() => _callMethod('Previous');
-  void _stop() => _callMethod('Stop');
-
-  Widget _buildTrackText(BuildContext context) {
-    if (_displayText.isEmpty) return const SizedBox.shrink();
-
-    final style =
-        _measureStyle.copyWith(color: ThemeScope.of(context).foreground);
-
-    if (_displayText.length <= _marqueeThreshold) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: widget.config.maxTextWidth),
-        child: Text(
-          _displayText,
-          style: style,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: widget.config.maxTextWidth,
-      height: 16,
-      child: ClipRect(
-        child: AnimatedBuilder(
-          animation: _scrollController,
-          builder: (context, child) {
-            final totalWidth = _textWidth + _marqueeGap;
-            final offset = _scrollController.value * totalWidth;
-            return Transform.translate(
-              offset: Offset(-offset, 0),
-              child: child,
-            );
-          },
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_displayText,
-                  style: style,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.visible),
-              SizedBox(width: _marqueeGap),
-              Text(_displayText,
-                  style: style,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.visible),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_activePlayer == null) return const SizedBox.shrink();
+    final player = widget.store.active;
+    // Nothing playing and nothing paused: the module takes no room at all,
+    // rather than leaving a gap in the bar where a title will one day be.
+    if (player == null) return const SizedBox.shrink();
 
-    final player = _activePlayer!;
+    final theme = ThemeScope.of(context);
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (player.canGoPrevious && player.canControl)
-          _PanelIconButton(
-              icon: FontAwesomeIcons.backwardStep, onPressed: _previous),
+          MediaTransportButton(
+            icon: FontAwesomeIcons.backwardStep,
+            onPressed: widget.store.previous,
+            semanticLabel: 'Previous track',
+          ),
         if (player.canControl && (player.canPlay || player.canPause))
           Padding(
             padding: const EdgeInsets.only(left: 2),
-            child: _PanelIconButton(
-              icon: player.playbackStatus == 'Playing'
+            child: MediaTransportButton(
+              icon: player.isPlaying
                   ? FontAwesomeIcons.pause
                   : FontAwesomeIcons.play,
-              onPressed: _playPause,
+              onPressed: widget.store.playPause,
+              semanticLabel: player.isPlaying ? 'Pause' : 'Play',
             ),
           ),
         if (player.canControl)
           Padding(
             padding: const EdgeInsets.only(left: 2),
-            child:
-                _PanelIconButton(icon: FontAwesomeIcons.stop, onPressed: _stop),
+            child: MediaTransportButton(
+              icon: FontAwesomeIcons.stop,
+              onPressed: widget.store.stop,
+              semanticLabel: 'Stop',
+            ),
           ),
         if (player.canGoNext && player.canControl)
           Padding(
             padding: const EdgeInsets.only(left: 2),
-            child: _PanelIconButton(
-                icon: FontAwesomeIcons.forwardStep, onPressed: _next),
-          ),
-        const SizedBox(width: 6),
-        _buildTrackText(context),
-      ],
-    );
-  }
-}
-
-class _PanelIconButton extends StatefulWidget {
-  const _PanelIconButton({
-    required this.icon,
-    required this.onPressed,
-  });
-
-  final FaIconData icon;
-  final VoidCallback onPressed;
-
-  @override
-  State<_PanelIconButton> createState() => _PanelIconButtonState();
-}
-
-class _PanelIconButtonState extends State<_PanelIconButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    Color color;
-    if (_pressed) {
-      color = theme.surfacePressed;
-    } else if (_hovered) {
-      color = theme.surfaceHover;
-    } else {
-      color = const Color(0x00000000);
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) {
-          setState(() => _pressed = false);
-          widget.onPressed();
-        },
-        onTapCancel: () => setState(() => _pressed = false),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: SizedBox(
-            width: 14,
-            height: 14,
-            child: Center(
-              child: FaIcon(
-                widget.icon,
-                size: 12,
-                color: theme.foreground,
-              ),
+            child: MediaTransportButton(
+              icon: FontAwesomeIcons.forwardStep,
+              onPressed: widget.store.next,
+              semanticLabel: 'Next track',
             ),
           ),
+        const SizedBox(width: 6),
+        // The marquee measures the text itself and only scrolls what genuinely
+        // does not fit, so the strip's width is `max_text_width` either way and
+        // the modules beside it never shift as tracks change.
+        TrackMarquee(
+          text: player.displayText,
+          maxWidth: widget.config.maxTextWidth,
+          style: TextStyle(
+            fontFamily: theme.fontFamily,
+            fontSize: ShellFontSizes.secondary,
+            color: theme.foreground,
+          ),
         ),
-      ),
+      ],
     );
   }
 }

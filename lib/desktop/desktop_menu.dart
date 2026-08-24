@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
+import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -278,43 +279,146 @@ class _DesktopItemMenuState extends State<DesktopItemMenu> {
 }
 
 /// The menu shown on right-clicking bare desktop.
-class DesktopEmptyMenu extends StatelessWidget {
+///
+/// Two pages, like [DesktopItemMenu] and for the same reason: "Add widget…"
+/// lists whatever `DesktopWidgetRegistry` holds, which is a list that grows
+/// with every widget type added, and a child popup would be a second Wayland
+/// surface for a list that is mutually exclusive with the page behind it.
+class DesktopEmptyMenu extends StatefulWidget {
   const DesktopEmptyMenu({
     super.key,
     required this.onAddApplication,
     required this.onAddFile,
     required this.onOrganize,
     required this.onChangeBackground,
+    this.widgetSpecs = const [],
+    this.onAddWidget,
   });
 
   final VoidCallback onAddApplication;
   final VoidCallback onAddFile;
+
+  /// Compacts the *icons*. Widgets are deliberately left where they are — see
+  /// [DesktopWidgetItem].
   final VoidCallback onOrganize;
   final VoidCallback onChangeBackground;
 
+  /// What "Add widget…" offers, passed in rather than read from the registry:
+  /// the registry is process-global, and a menu that reached for it could not
+  /// be pumped in a widget test without one.
+  final List<DesktopWidgetSpec> widgetSpecs;
+
+  /// Null, or an empty [widgetSpecs], hides the row entirely — a build with no
+  /// widget types has nothing to offer, and a disabled row would be a promise
+  /// with nothing behind it.
+  final void Function(DesktopWidgetSpec spec)? onAddWidget;
+
+  @override
+  State<DesktopEmptyMenu> createState() => _DesktopEmptyMenuState();
+}
+
+class _DesktopEmptyMenuState extends State<DesktopEmptyMenu> {
+  bool _choosingWidget = false;
+
   @override
   Widget build(BuildContext context) {
+    final onAddWidget = widget.onAddWidget;
+    final specs = widget.widgetSpecs;
+
+    if (_choosingWidget && onAddWidget != null) {
+      return DesktopMenuCard(
+        header: 'Add widget',
+        onBack: () => setState(() => _choosingWidget = false),
+        entries: [
+          for (final spec in specs)
+            DesktopMenuEntry(
+              label: spec.name,
+              icon: spec.icon,
+              onTap: () => onAddWidget(spec),
+            ),
+        ],
+      );
+    }
+
     return DesktopMenuCard(
       entries: [
         DesktopMenuEntry(
           label: 'Add application…',
           icon: FontAwesomeIcons.rocket,
-          onTap: onAddApplication,
+          onTap: widget.onAddApplication,
         ),
         DesktopMenuEntry(
           label: 'Add file or folder…',
           icon: FontAwesomeIcons.folderOpen,
-          onTap: onAddFile,
+          onTap: widget.onAddFile,
         ),
+        if (onAddWidget != null && specs.isNotEmpty)
+          DesktopMenuEntry(
+            label: 'Add widget…',
+            icon: FontAwesomeIcons.shapes,
+            onTap: () => setState(() => _choosingWidget = true),
+          ),
         DesktopMenuEntry(
           label: 'Organize',
           icon: FontAwesomeIcons.tableCells,
-          onTap: onOrganize,
+          onTap: widget.onOrganize,
         ),
         DesktopMenuEntry(
           label: 'Change background…',
           icon: FontAwesomeIcons.image,
-          onTap: onChangeBackground,
+          onTap: widget.onChangeBackground,
+        ),
+      ],
+    );
+  }
+}
+
+/// The menu shown on right-clicking a desktop widget.
+///
+/// Deliberately short. A widget is resized by its grips and moved by dragging
+/// it, so the menu carries the two things a pointer cannot express: putting a
+/// widget back to the size its type ships with, and removing it.
+class DesktopWidgetMenu extends StatelessWidget {
+  const DesktopWidgetMenu({
+    super.key,
+    required this.item,
+    required this.spec,
+    required this.onRemove,
+    this.onResetSize,
+  });
+
+  final DesktopWidgetItem item;
+
+  /// Null when the config names a type this build does not have — the
+  /// placeholder still has to be removable.
+  final DesktopWidgetSpec? spec;
+
+  final VoidCallback onRemove;
+  final VoidCallback? onResetSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = this.spec;
+    final atDefault = spec != null &&
+        item.columnSpan == spec.defaultSpan.columns &&
+        item.rowSpan == spec.defaultSpan.rows;
+
+    return DesktopMenuCard(
+      header: spec?.name ?? item.type,
+      entries: [
+        if (spec != null && onResetSize != null)
+          DesktopMenuEntry(
+            label: 'Reset size',
+            icon: FontAwesomeIcons.compress,
+            // Shown greyed rather than hidden at the default size, the rule
+            // [DesktopMenuEntry.enabled] exists for: the menu keeps its shape.
+            enabled: !atDefault,
+            onTap: onResetSize!,
+          ),
+        DesktopMenuEntry(
+          label: 'Remove widget',
+          icon: FontAwesomeIcons.trash,
+          onTap: onRemove,
         ),
       ],
     );

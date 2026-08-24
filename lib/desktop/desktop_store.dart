@@ -35,6 +35,10 @@ class DesktopStore extends ChangeNotifier {
   bool _started = false;
   bool _disposed = false;
 
+  /// True while [_commit] is writing, so the config notifications its own
+  /// writes provoke do not re-parse a half-written subtree. See [_commit].
+  bool _committing = false;
+
   DesktopConfig _desktop = const DesktopConfig();
 
   /// Signature of the `desktop` subtree as last parsed, so [_onConfigChanged]
@@ -52,9 +56,22 @@ class DesktopStore extends ChangeNotifier {
   String? _renaming;
   String? _dragging;
 
+  /// The widget under a drag, and the selected one. Separate fields from the
+  /// icons' rather than one union, because the two are identified differently —
+  /// an icon by its target path, a widget by its instance id — and a single
+  /// nullable string would answer "is this thing dragging?" wrongly the day a
+  /// widget id happened to equal a path.
+  String? _draggingWidget;
+  String? _selectedWidget;
+
   DesktopConfig get config => _desktop;
   List<DesktopItem> get items => List.unmodifiable(_desktop.items);
+  List<DesktopWidgetItem> get widgets => List.unmodifiable(_desktop.widgets);
   bool get enabled => _desktop.enabled;
+
+  /// The cells the widgets cover — what every icon placement takes as its
+  /// `blocked` set, so no icon is ever put where the user cannot see it.
+  Set<GridCell> get blockedCells => widgetCells(_desktop.widgets);
 
   Set<String> get selectedTargets => _selectedView;
   bool isSelected(String target) => _selected.contains(target);
@@ -62,9 +79,13 @@ class DesktopStore extends ChangeNotifier {
   String? get renamingTarget => _renaming;
   String? get draggingTarget => _dragging;
 
+  String? get selectedWidget => _selectedWidget;
+  String? get draggingWidget => _draggingWidget;
+
   /// Whether a drag is in flight — what makes the grid lines visible, and the
-  /// only reason they ever are.
-  bool get isDragging => _dragging != null;
+  /// only reason they ever are. True for an icon drag or a widget one: the
+  /// lines mean the same thing in both.
+  bool get isDragging => _dragging != null || _draggingWidget != null;
 
   /// Seeds the store directly, with no [ConfigStore] behind it.
   ///
@@ -107,10 +128,36 @@ class DesktopStore extends ChangeNotifier {
   /// rebuild all of them at pointer rate.
   void selectAll(Iterable<String> targets) {
     final next = targets.toSet();
-    if (setEquals(_selected, next)) return;
+    if (setEquals(_selected, next) && _selectedWidget == null) return;
     _selected
       ..clear()
       ..addAll(next);
+    // One selection, not two: an icon selection and a widget selection on
+    // screen at once would leave "Remove" ambiguous. Clearing the icons
+    // (a click on bare desktop, a band that crossed nothing) clears the
+    // widget too, which is what "nothing is selected" has to mean.
+    _selectedWidget = null;
+    notifyListeners();
+  }
+
+  /// Selects a widget, clearing any icon selection, or clears the selection
+  /// when null.
+  void selectWidget(String? id) {
+    if (_selectedWidget == id && (id == null || _selected.isEmpty)) return;
+    _selectedWidget = id;
+    if (id != null) _selected.clear();
+    notifyListeners();
+  }
+
+  void beginWidgetDrag(String id) {
+    if (_draggingWidget == id) return;
+    _draggingWidget = id;
+    notifyListeners();
+  }
+
+  void endWidgetDrag() {
+    if (_draggingWidget == null) return;
+    _draggingWidget = null;
     notifyListeners();
   }
 
@@ -165,9 +212,10 @@ class DesktopStore extends ChangeNotifier {
   /// Pins [item], placing it at its own cell when free and at the nearest free
   /// cell otherwise. A target that is already pinned is ignored.
   void addItem(DesktopItem item, DesktopGridGeometry geometry) {
-    final next = placeItem(_desktop.items, item, geometry);
+    final next =
+        placeItem(_desktop.items, item, geometry, blocked: blockedCells);
     if (identical(next, _desktop.items)) return;
-    _commit(next);
+    _commit(items: next);
   }
 
   void removeItem(String target) => removeItems([target]);
@@ -185,7 +233,10 @@ class DesktopStore extends ChangeNotifier {
     if (_renaming != null && doomed.contains(_renaming)) _renaming = null;
     if (_dragging != null && doomed.contains(_dragging)) _dragging = null;
     _commit(
-      _desktop.items.where((item) => !doomed.contains(item.target)).toList(),
+      items: [
+        for (final item in _desktop.items)
+          if (!doomed.contains(item.target)) item,
+      ],
     );
   }
 
@@ -194,9 +245,10 @@ class DesktopStore extends ChangeNotifier {
   /// A drop that resolves to the cell the item already occupies writes nothing:
   /// [moveItemTo] returns the identical list and this returns early.
   void moveTo(String target, GridCell cell) {
-    final next = moveItemTo(_desktop.items, target, cell);
+    final next =
+        moveItemTo(_desktop.items, target, cell, blocked: blockedCells);
     if (identical(next, _desktop.items)) return;
-    _commit(next);
+    _commit(items: next);
   }
 
   /// Translates a whole selection, for a drag that started on one of several
@@ -208,17 +260,27 @@ class DesktopStore extends ChangeNotifier {
     int dRow,
     DesktopGridGeometry geometry,
   ) {
-    final next = moveItemsBy(_desktop.items, targets, dColumn, dRow, geometry);
+    final next = moveItemsBy(
+      _desktop.items,
+      targets,
+      dColumn,
+      dRow,
+      geometry,
+      blocked: blockedCells,
+    );
     if (identical(next, _desktop.items)) return;
-    _commit(next);
+    _commit(items: next);
   }
 
   /// Compacts the grid column-major. Idempotent, and writes nothing when the
   /// items are already in order.
+  /// Widgets are deliberately untouched: organize compacts *icons*, and it
+  /// flows them around whatever cells the widgets hold.
   void organize(DesktopGridGeometry geometry) {
-    final next = organizeItems(_desktop.items, geometry);
+    final next =
+        organizeItems(_desktop.items, geometry, blocked: blockedCells);
     if (_sameCells(next, _desktop.items)) return;
-    _commit(next);
+    _commit(items: next);
   }
 
   /// Replaces the grid geometry, leaving the items alone. The settings UI's
@@ -241,6 +303,94 @@ class DesktopStore extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
+  // Widgets
+  //
+  // Every one of these commits **both** lists at once, because a widget
+  // landing on an icon displaces it: two `ConfigStore.set` calls would notify
+  // twice, and for one frame between them the config would hold a widget and
+  // an icon in the same cell.
+  // ---------------------------------------------------------------------------
+
+  /// Adds [widget], at its own area when that is free and at the nearest free
+  /// one otherwise, displacing any icons underneath.
+  ///
+  /// Ignored when the id is taken, or when no placement of that size fits.
+  void addWidget(DesktopWidgetItem widget, DesktopGridGeometry geometry) {
+    final next = placeWidget(_desktop.widgets, widget, geometry);
+    if (identical(next, _desktop.widgets)) return;
+    _commitWidgets(next, geometry, placed: next.last);
+  }
+
+  void removeWidget(String id) {
+    if (!_desktop.widgets.any((widget) => widget.id == id)) return;
+    if (_selectedWidget == id) _selectedWidget = null;
+    if (_draggingWidget == id) _draggingWidget = null;
+    _commit(
+      widgets: _desktop.widgets.where((widget) => widget.id != id).toList(),
+    );
+  }
+
+  /// Moves the widget [id] so its top-left lands on [cell]. Refused — no
+  /// write — when that would overlap another widget.
+  void moveWidget(String id, GridCell cell, DesktopGridGeometry geometry) {
+    final next = moveWidgetTo(_desktop.widgets, id, cell, geometry);
+    if (identical(next, _desktop.widgets)) return;
+    _commitWidgets(
+      next,
+      geometry,
+      placed: next.firstWhere((widget) => widget.id == id),
+    );
+  }
+
+  /// Resizes the widget [id] to [area], clamped to the type's [minSpan] and
+  /// [maxSpan] and into the grid. Refused when it would overlap another widget.
+  void resizeWidget(
+    String id,
+    GridArea area,
+    DesktopGridGeometry geometry, {
+    required GridSpan minSpan,
+    required GridSpan maxSpan,
+  }) {
+    final next = resizeWidgetTo(
+      _desktop.widgets,
+      id,
+      area,
+      geometry,
+      minSpan: minSpan,
+      maxSpan: maxSpan,
+    );
+    if (identical(next, _desktop.widgets)) return;
+    _commitWidgets(
+      next,
+      geometry,
+      placed: next.firstWhere((widget) => widget.id == id),
+    );
+  }
+
+  /// Commits a new widget list, moving any icons out from under [placed].
+  void _commitWidgets(
+    List<DesktopWidgetItem> widgets,
+    DesktopGridGeometry geometry, {
+    DesktopWidgetItem? placed,
+  }) {
+    var items = _desktop.items;
+    if (placed != null) {
+      items = displaceItemsFrom(
+        items,
+        areaOf(placed),
+        geometry,
+        // Every cell the widgets will hold *after* this commit, so a displaced
+        // icon cannot be pushed under a different widget.
+        blocked: widgetCells(widgets, ignoreId: placed.id),
+      );
+    }
+    _commit(
+      items: identical(items, _desktop.items) ? null : items,
+      widgets: widgets,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------
 
@@ -252,7 +402,7 @@ class DesktopStore extends ChangeNotifier {
     }
     final next = List<DesktopItem>.of(_desktop.items);
     next[index] = transform(next[index]);
-    _commit(next);
+    _commit(items: next);
   }
 
   /// Applies [items] in memory and writes them back.
@@ -261,13 +411,32 @@ class DesktopStore extends ChangeNotifier {
   /// is debounced but the *notification* is synchronous, and a listener that
   /// rebuilt from a stale item list would show the icon snapping back to its
   /// old cell for a frame.
-  void _commit(List<DesktopItem> items) {
-    _desktop = _copyWithItems(_desktop, items);
+  void _commit({List<DesktopItem>? items, List<DesktopWidgetItem>? widgets}) {
+    if (items == null && widgets == null) return;
+    _desktop = _desktop.copyWith(items: items, widgets: widgets);
     _signature = _signatureOf(_desktop);
-    _config?.set(
-      ['desktop', 'items'],
-      [for (final item in items) item.toMap()],
-    );
+    // Both writes are one commit as far as this store is concerned. Every
+    // `ConfigStore.set` notifies synchronously, so without the guard the
+    // `items` write would send [_onConfigChanged] back in here to re-parse a
+    // config that still holds the *old* widgets — a state that never existed
+    // and that would then be published to every monitor's surface.
+    _committing = true;
+    try {
+      if (items != null) {
+        _config?.set(
+          ['desktop', 'items'],
+          [for (final item in items) item.toMap()],
+        );
+      }
+      if (widgets != null) {
+        _config?.set(
+          ['desktop', 'widgets'],
+          [for (final widget in widgets) widget.toMap()],
+        );
+      }
+    } finally {
+      _committing = false;
+    }
     notifyListeners();
   }
 
@@ -278,7 +447,7 @@ class DesktopStore extends ChangeNotifier {
   }
 
   void _onConfigChanged() {
-    if (!_started) return;
+    if (!_started || _committing) return;
     final raw = _config?.get<Map<String, dynamic>>(['desktop']);
     final next =
         raw != null ? DesktopConfig.fromMap(raw) : const DesktopConfig();
@@ -290,11 +459,20 @@ class DesktopStore extends ChangeNotifier {
     // surface removing it) must not leave the chrome pointing at nothing.
     _selected.removeWhere((target) => !_hasTarget(target));
     if (_renaming != null && !_hasTarget(_renaming!)) _renaming = null;
+    if (_selectedWidget != null && !_hasWidget(_selectedWidget!)) {
+      _selectedWidget = null;
+    }
+    if (_draggingWidget != null && !_hasWidget(_draggingWidget!)) {
+      _draggingWidget = null;
+    }
     notifyListeners();
   }
 
   bool _hasTarget(String target) =>
       _desktop.items.any((item) => item.target == target);
+
+  bool _hasWidget(String id) =>
+      _desktop.widgets.any((widget) => widget.id == id);
 
   static bool _sameCells(List<DesktopItem> a, List<DesktopItem> b) {
     if (a.length != b.length) return false;
@@ -321,23 +499,12 @@ class DesktopStore extends ChangeNotifier {
       buffer.write('|${item.kind.name}:${item.target}:'
           '${item.label ?? ''}:${item.column},${item.row}');
     }
+    for (final widget in config.widgets) {
+      buffer.write('|w:${widget.id}:${widget.type}:'
+          '${widget.column},${widget.row}:'
+          '${widget.columnSpan}x${widget.rowSpan}:${widget.options}');
+    }
     return buffer.toString();
-  }
-
-  static DesktopConfig _copyWithItems(
-    DesktopConfig config,
-    List<DesktopItem> items,
-  ) {
-    return DesktopConfig(
-      enabled: config.enabled,
-      cellWidth: config.cellWidth,
-      cellHeight: config.cellHeight,
-      spacing: config.spacing,
-      padding: config.padding,
-      iconSize: config.iconSize,
-      showLabels: config.showLabels,
-      items: items,
-    );
   }
 
   @override
