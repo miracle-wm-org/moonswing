@@ -11,6 +11,11 @@ import 'package:graceful_shell/scopes.dart';
 /// the theme's instead of the engine default; whole settings pages used to
 /// drift off-theme one forgotten `fontFamily:` at a time.
 ///
+/// The theme's *size* is not seeded here: it is the `TextScaler` on the
+/// [MediaQuery] `ThemeProvider` publishes, which is the only mechanism that
+/// also moves the `fontSize:` a widget spelled out for itself. See
+/// `lib/theme/theme_provider.dart`.
+///
 /// Sits *inside* `ThemeProvider` (it reads [ThemeScope]), which is why
 /// `_windowChrome` in `main.dart` is where it goes.
 class ShellTextRoot extends StatelessWidget {

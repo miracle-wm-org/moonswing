@@ -120,6 +120,11 @@ class _MediaTransportButtonState extends State<MediaTransportButton> {
 /// [TextPainter] answers exactly, and re-answers whenever the text, the style
 /// or [maxWidth] moves — a theme with a different font family scrolls by a
 /// different distance, and using the old one clips or over-runs.
+///
+/// The theme's `font_size` reaches the [Text] below through the ambient
+/// `TextScaler`, so the measurement takes the same scaler; a marquee that
+/// measured unscaled would sit still at the exact size the track starts
+/// running off the end of its box.
 class TrackMarquee extends StatefulWidget {
   const TrackMarquee({
     super.key,
@@ -158,12 +163,24 @@ class _TrackMarqueeState extends State<TrackMarquee>
 
   double _textWidth = 0;
   double _textHeight = 0;
+  bool _measured = false;
 
   bool get _scrolling => _textWidth > widget.maxWidth;
 
+  /// The scaler the last measurement was made with, so a `font_size` edit
+  /// re-measures and an unrelated dependency change does not.
+  TextScaler _scaler = TextScaler.noScaling;
+
+  /// Measured from here rather than from `initState`: the scaler comes off the
+  /// [MediaQuery] `ThemeProvider` publishes, and an inherited widget cannot be
+  /// depended on before the first `didChangeDependencies`. This runs once
+  /// before the first build either way.
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scaler = MediaQuery.textScalerOf(context);
+    if (scaler == _scaler && _measured) return;
+    _scaler = scaler;
     _measure();
   }
 
@@ -186,9 +203,11 @@ class _TrackMarqueeState extends State<TrackMarquee>
   }
 
   void _measure() {
+    _measured = true;
     final painter = TextPainter(
       text: TextSpan(text: widget.text, style: widget.style),
       textDirection: TextDirection.ltr,
+      textScaler: _scaler,
       maxLines: 1,
     )..layout();
     _textWidth = painter.width;

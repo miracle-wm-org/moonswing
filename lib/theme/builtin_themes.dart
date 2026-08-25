@@ -29,6 +29,7 @@ const String _graceful = '''
 name = "Graceful"
 
 font = "Ubuntu Sans"
+font_size = 13.0
 
 accent               = "#853953"
 foreground           = "#F3F4F4"
@@ -86,6 +87,7 @@ const String _dracula = '''
 name = "Dracula"
 
 font = "Ubuntu Sans"
+font_size = 13.0
 
 accent               = "#BD93F9"
 foreground           = "#F8F8F2"
@@ -137,6 +139,7 @@ const String _glassy = '''
 name = "Glassy"
 
 font = "Ubuntu Sans"
+font_size = 13.0
 
 accent               = "#7FB6FF"
 foreground           = "#F5F7FA"

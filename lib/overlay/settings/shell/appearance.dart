@@ -202,6 +202,28 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   ),
                 ),
                 SettingsRow(
+                  label: 'Font size',
+                  control: SettingsNumberField(
+                    key: ValueKey('font_size-$active'),
+                    value: current['font_size'] as num? ?? ShellFontSizes.body,
+                    isInt: false,
+                    // Straight to `edit`, like the panel numbers below rather
+                    // than like the toggle above: `edit` forks a built-in
+                    // itself, and answering a typed digit with a duplicate
+                    // would throw the digit away.
+                    onChanged: (v) => _themes.edit(
+                        'font_size', v.toDouble().clamp(6.0, 32.0)),
+                  ),
+                ),
+                const SettingsHint(
+                  "The size of the shell's body text, and with it every other "
+                  'size — labels, captions and headings keep their proportions '
+                  'either side of it, in the panels and in everything they '
+                  'open. Bar thickness is its own setting, under Panels & '
+                  'Layout: a much larger font wants a taller bar to sit in.',
+                ),
+                const SizedBox(height: 8),
+                SettingsRow(
                   label: 'Panel gradient',
                   // Renders its value too, so it follows the store like the
                   // font row does.
