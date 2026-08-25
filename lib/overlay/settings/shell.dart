@@ -270,24 +270,78 @@ PageRoute<T> _slideRoute<T>(Widget child) {
     transitionDuration: const Duration(milliseconds: 220),
     reverseTransitionDuration: const Duration(milliseconds: 180),
     pageBuilder: (context, animation, secondaryAnimation) => child,
-    transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      );
-      return FadeTransition(
-        opacity: curved,
-        child: SlideTransition(
-          position: Tween<Offset>(
-            begin: const Offset(0.06, 0),
-            end: Offset.zero,
-          ).animate(curved),
-          child: child,
-        ),
-      );
-    },
+    // The curve and the tween are built once, by [_SlideFadeTransition], and
+    // not here: `transitionsBuilder` is called from a ListenableBuilder on the
+    // route's own animations, so it runs on *every frame* of the transition.
+    // Spelling the CurvedAnimation inline therefore minted one per frame —
+    // each of which registers a status listener on the parent and is never
+    // disposed — and handed FadeTransition/SlideTransition a different
+    // Listenable every frame, so both re-subscribed on each tick instead of
+    // simply being ticked.
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        _SlideFadeTransition(animation: animation, child: child),
   );
+}
+
+/// The [_slideRoute] transition, owning its [CurvedAnimation] for the life of
+/// the route rather than for one frame.
+class _SlideFadeTransition extends StatefulWidget {
+  const _SlideFadeTransition({required this.animation, required this.child});
+
+  final Animation<double> animation;
+  final Widget child;
+
+  @override
+  State<_SlideFadeTransition> createState() => _SlideFadeTransitionState();
+}
+
+class _SlideFadeTransitionState extends State<_SlideFadeTransition> {
+  late CurvedAnimation _curved;
+  late Animation<Offset> _offset;
+
+  @override
+  void initState() {
+    super.initState();
+    _bind();
+  }
+
+  @override
+  void didUpdateWidget(_SlideFadeTransition oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A route keeps one animation for its whole life, so this is defensive
+    // rather than expected — but a CurvedAnimation left listening to an
+    // animation nobody drives any more is a leak either way.
+    if (!identical(oldWidget.animation, widget.animation)) {
+      _curved.dispose();
+      _bind();
+    }
+  }
+
+  void _bind() {
+    _curved = CurvedAnimation(
+      parent: widget.animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    _offset = Tween<Offset>(
+      begin: const Offset(0.06, 0),
+      end: Offset.zero,
+    ).animate(_curved);
+  }
+
+  @override
+  void dispose() {
+    _curved.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _curved,
+      child: SlideTransition(position: _offset, child: widget.child),
+    );
+  }
 }
 
 /// Tappable, hover-aware row on the landing page. Styled after the sidebar's

@@ -12,10 +12,8 @@ Widget _host({
 }) {
   return Directionality(
     textDirection: TextDirection.ltr,
-    // blur: 0 keeps the BackdropFilter out of the tree; the handshake is
-    // what this test pins, not the compositing.
     child: ThemeScope(
-      theme: const ThemeConfig(blur: 0),
+      theme: const ThemeConfig(),
       child: FadeOverlayScaffold(
         closing: closing,
         onClosed: onClosed,
@@ -60,6 +58,23 @@ void main() {
 
     await tester.tapAt(const Offset(5, 5));
     expect(taps, 1);
+    closing.dispose();
+  });
+
+  testWidgets('paints no backdrop filter', (tester) async {
+    // Not a style rule: a BackdropFilter reaches only what Flutter has
+    // already painted beneath it, and this scaffold is the first thing
+    // painted into its window — the scrim is its own child, and under that is
+    // a transparent layer-shell surface the compositor owns. So a filter here
+    // has an empty backdrop and changes no pixel, while costing a full-output
+    // Gaussian on every frame the overlay animates. That was the shell's one
+    // per-frame full-screen effect, and what the settings page transitions
+    // were spending their frame budget on.
+    final closing = ValueNotifier(false);
+    await tester.pumpWidget(_host(closing: closing, onClosed: () {}));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackdropFilter), findsNothing);
     closing.dispose();
   });
 }
