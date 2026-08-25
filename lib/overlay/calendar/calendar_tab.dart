@@ -366,6 +366,24 @@ class _TodayButton extends StatelessWidget {
   }
 }
 
+/// One day of the grid.
+///
+/// **The hover highlight is contained twice over, and both halves are what
+/// make it keep up with the pointer.** Forty-two of these sit in one panel,
+/// every one of them hovers, and a `RenderObject` that is marked needing paint
+/// dirties everything up to the nearest repaint boundary — of which this
+/// surface had none. So crossing the grid re-recorded the whole overlay
+/// picture per pointer move — the month, the dial's painter, both lists, the
+/// tab strip — and, the GTK embedder implementing no partial repaint, rastered
+/// the whole output again to tint one 40px box. The highlight trailed the
+/// cursor by however long that took.
+///
+/// The [RepaintBoundary] is what stops the mark propagating: a hover now
+/// re-records this cell's layer and nothing else hears about it. And the label
+/// is built *outside* the hover builder and handed in as a child, so the
+/// rebuild the boundary contains is a decoration and not a paragraph — nothing
+/// about the number depends on the pointer, and an identical child widget is
+/// one the framework skips outright.
 class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,
@@ -391,43 +409,50 @@ class _DayCell extends StatelessWidget {
         : theme.popupForeground.withValues(alpha: inMonth ? 0.9 : 0.35);
     if (isToday && !isSelected) foreground = theme.accent;
 
-    return HoverRegion(
-      onTap: onTap,
-      // The tap box is the whole cell; the 2px margin is inset painting, and
-      // used to be a pointer-cursored dead ring around all forty-two of them.
-      builder: (context, hovered) {
-        final Color background;
-        if (isSelected) {
-          background = theme.accent;
-        } else if (hovered) {
-          background = theme.surfaceHover;
-        } else {
-          background = const Color(0x00000000);
-        }
-        return Container(
-          margin: const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(ShellRadii.card),
-            border: isToday && !isSelected
-                ? Border.all(color: theme.accent, width: 1.5)
-                : null,
-          ),
-          child: Center(
-            child: Text(
-              '${day.day}',
-              style: TextStyle(
-                fontSize: ShellFontSizes.label,
-                fontFamily: theme.fontFamily,
-                color: foreground,
-                fontWeight: isToday || isSelected
-                    ? FontWeight.w600
-                    : FontWeight.normal,
-              ),
+    // Everything below here that the pointer cannot change, resolved once per
+    // rebuild of the cell rather than once per pointer move.
+    final label = Center(
+      child: Text(
+        '${day.day}',
+        style: TextStyle(
+          fontSize: ShellFontSizes.label,
+          fontFamily: theme.fontFamily,
+          color: foreground,
+          fontWeight:
+              isToday || isSelected ? FontWeight.w600 : FontWeight.normal,
+        ),
+      ),
+    );
+    final border = isToday && !isSelected
+        ? Border.all(color: theme.accent, width: 1.5)
+        : null;
+    final radius = BorderRadius.circular(ShellRadii.card);
+
+    return RepaintBoundary(
+      child: HoverRegion(
+        onTap: onTap,
+        // The tap box is the whole cell; the 2px margin is inset painting, and
+        // used to be a pointer-cursored dead ring around all forty-two of them.
+        builder: (context, hovered) {
+          final Color background;
+          if (isSelected) {
+            background = theme.accent;
+          } else if (hovered) {
+            background = theme.surfaceHover;
+          } else {
+            background = const Color(0x00000000);
+          }
+          return Container(
+            margin: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: radius,
+              border: border,
             ),
-          ),
-        );
-      },
+            child: label,
+          );
+        },
+      ),
     );
   }
 }
