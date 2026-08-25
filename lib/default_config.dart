@@ -93,7 +93,7 @@ apps = ["firefox_firefox", "org.gnome.Ptyxis", "org.gnome.Nautilus"]
 # Shell > Modules > Weather searches for a place by name and writes all three.
 [modules.weather]
 unit = "fahrenheit"
-refresh_minutes = 10
+refresh_minutes = 30
 
 [modules.battery]
 poll_seconds = 30

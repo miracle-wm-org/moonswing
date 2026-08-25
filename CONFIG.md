@@ -111,13 +111,13 @@ Per-module settings live under `[modules.<name>]`. These are global and shared a
 ```toml
 [modules.weather]
 unit = "fahrenheit"
-refresh_minutes = 10
+refresh_minutes = 30
 ```
 
 | Key               | Type   | Default        | Description                             |
 | ----------------- | ------ | -------------- | --------------------------------------- |
 | `unit`            | string | `"fahrenheit"` | `"celsius"` or `"fahrenheit"`           |
-| `refresh_minutes` | int    | `10`           | How often to re-fetch weather (minutes) |
+| `refresh_minutes` | int    | `30`           | How often to re-fetch weather (minutes) |
 
 ### Battery
 
@@ -843,7 +843,7 @@ right  = ["clock", "launcher"]
 
 [modules.weather]
 unit = "fahrenheit"
-refresh_minutes = 10
+refresh_minutes = 30
 
 [modules.battery]
 poll_seconds = 30

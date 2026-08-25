@@ -33,10 +33,10 @@
 //   sign on every feature, and it is why the features are held in unit-disc
 //   coordinates.
 // - **Nothing here animates.** There is no ticker, which is deliberate and
-//   worth keeping: the picture changes over hours, this painter can be on a
-//   desktop for weeks, and the widget that draws it is the one surface in the
-//   shell that a test can `pumpAndSettle` — the trap `WeatherSky` and
-//   `TrackMarquee` both carry.
+//   worth keeping: the picture changes over hours and this painter can be on a
+//   desktop for weeks. `WeatherSky` has since made the same call for the same
+//   reason, so this is no longer the only desktop widget a test can
+//   `pumpAndSettle` — but `TrackMarquee` still carries the trap.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;

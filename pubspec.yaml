@@ -34,22 +34,20 @@ dependencies:
   # — which is what `lib/weather/weather_condition.dart` already resolves and
   # had nowhere to put. It replaced Material Symbols, which replaced emoji.
   #
-  # Two costs worth knowing before adding to it. Assets are not tree-shaken the
+  # Two things worth knowing before adding to it. Assets are not tree-shaken the
   # way an icon *font* is, so all 236 icons in all seven variants ship whether
   # or not the shell names them — about 9MB into the bundle and the snap. And
-  # `flutter_svg` drops the SMIL animation the animated SVGs carry their motion
-  # in, so `svgAnimated` is a still frame that costs more to parse than
-  # `svgStatic`: see `lib/weather/weather_icons.dart`, which reaches for Lottie
-  # or for nothing.
+  # the shell reaches for exactly one of those variants' formats, `svg-static`:
+  # `lib/weather/weather_icons.dart` animates nothing, so the pack's Lottie
+  # files are unreachable from it and the `lottie` dependency that used to sit
+  # here for one `FrameRate` constant went with the animation. (`svgAnimated`
+  # would not have moved anyway — `flutter_svg` drops the SMIL the animated
+  # SVGs carry their motion in, so it is a still frame that merely costs more
+  # to parse than `svgStatic` does.)
   #
   # `weather_icons` (the Erik Flowers pack) is the obvious alternative and is
   # unusable: it pins `sdk: <3.0.0` and was last published in 2021.
   weather_icons_animated: ^0.0.2
-  # A direct dependency for one type: `FrameRate`, which caps the Lottie icons
-  # below the display's rate. `weather_icons_animated` takes it as a parameter
-  # but does not re-export it, and an uncapped animation on the desktop surface
-  # would contradict `weather_sky.dart`'s own 30fps cap in the same card.
-  lottie: ^3.3.2
   # Interface chrome, not weather: the chevrons and the place marker in the
   # settings location row (`overlay/settings/shell/weather_location.dart`).
   # Meteocons is a weather set and has no map pin.
