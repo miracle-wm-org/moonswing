@@ -60,6 +60,7 @@ import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
 import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/desktop/widgets/media_player_widget.dart';
+import 'package:graceful_shell/desktop/widgets/fortune_widget.dart';
 import 'package:graceful_shell/desktop/widgets/moon_widget.dart';
 import 'package:graceful_shell/desktop/widgets/weather_widget.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
@@ -96,6 +97,7 @@ void main() async {
   DesktopWidgetRegistry.register(mediaPlayerDesktopWidget);
   DesktopWidgetRegistry.register(weatherDesktopWidget);
   DesktopWidgetRegistry.register(moonDesktopWidget);
+  DesktopWidgetRegistry.register(fortuneDesktopWidget);
 
   // AppConfig.load() writes the default config on first run and applies the
   // module subtables; the shared ConfigStore then reads that same file and
