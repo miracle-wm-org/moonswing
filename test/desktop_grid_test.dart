@@ -300,6 +300,42 @@ void main() {
       expect(store.selectedTargets, isEmpty);
     });
 
+    // The band used to be two `setState` fields, so every pointer move rebuilt
+    // the whole layer — two grid reflows, every tile, and every widget card —
+    // to move one translucent rect. It is a notifier now, and this is what says
+    // so: the tile widgets are the *same instances* across a band move, which
+    // they could not be if their parent had rebuilt.
+    testWidgets('moving the band rebuilds nothing but the band',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      final before = tester.widget<DesktopIconTile>(tileFor(fileA));
+
+      // Entirely within the bottom-right quadrant, so no icon is crossed and
+      // the store never notifies — a band that *does* cross one has to rebuild
+      // the tiles it just highlighted.
+      final gesture = await tester.startGesture(const Offset(390, 290));
+      await gesture.moveTo(const Offset(350, 250));
+      await tester.pump();
+      await gesture.moveTo(const Offset(320, 220));
+      await tester.pump();
+
+      expect(find.byType(DesktopSelectionBand), findsOneWidget);
+      expect(
+        tester.getRect(find.byType(DesktopSelectionBand)),
+        const Rect.fromLTRB(320, 220, 390, 290),
+      );
+      expect(
+        identical(tester.widget<DesktopIconTile>(tileFor(fileA)), before),
+        isTrue,
+        reason: 'a band move must not rebuild the icons it is not touching',
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byType(DesktopSelectionBand), findsNothing);
+    });
+
     // The pan recognizer is primary-button only, so the empty-space menu is
     // still reachable by dragging off a right-press.
     testWidgets('a right-drag does not band', (tester) async {
