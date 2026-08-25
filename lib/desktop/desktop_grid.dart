@@ -121,19 +121,41 @@ class DesktopLayerState extends State<DesktopLayer> {
   ({String id, DesktopWidgetCorner corner, GridArea start})? _resize;
   GridArea? _resizeArea;
 
-  /// The rubber band's two corners, surface-local, while one is being drawn.
-  /// Also local, and also per-frame.
-  Offset? _bandStart;
-  Offset? _bandEnd;
+  /// Where the rubber band was anchored — the position the button went down
+  /// at — while one is being drawn. Local, and never persisted.
+  Offset? _bandAnchor;
 
-  Rect? get _bandRect {
-    final start = _bandStart;
-    final end = _bandEnd;
-    if (start == null || end == null) return null;
-    // fromPoints normalizes, so a band drawn up and to the left is the same
-    // rect as one drawn down and to the right.
-    return Rect.fromPoints(start, end);
-  }
+  /// The band's current rect, surface-local, or null when none is being drawn.
+  ///
+  /// **A notifier rather than a `setState` field, and that is the whole reason
+  /// the band is smooth.** A pointer move arrives every frame at least, and a
+  /// `setState` here rebuilt the entire desktop: two grid reflows, every icon
+  /// tile, and every widget card — a weather sky and a Moon among them — to
+  /// move one translucent rect. It is now a `ValueListenableBuilder` over this,
+  /// under its own `RepaintBoundary`, so a band move relayouts and repaints
+  /// the band alone and nothing else on the surface hears about it. The
+  /// selection it drives still goes through the store, which no-ops when the
+  /// set is unchanged, so a full rebuild happens only when the band actually
+  /// crosses an icon.
+  final ValueNotifier<Rect?> _band = ValueNotifier<Rect?>(null);
+
+  /// Targets whose file or folder is gone, so the tile can say so.
+  ///
+  /// Cached rather than re-checked in `build`: `desktopItemExists` is an
+  /// `existsSync`, so asking per icon per build meant a stat syscall per icon
+  /// per *frame* for as long as any gesture was in flight. Refreshed when the
+  /// item set changes and on any store notification between gestures — which
+  /// is no less often than an idle desktop rebuilt before, since an idle
+  /// desktop does not rebuild at all.
+  Set<String> _missing = const {};
+
+  /// True while a pointer gesture is driving per-frame rebuilds, which is when
+  /// the shell must not be doing filesystem work.
+  bool get _gestureInFlight =>
+      _band.value != null ||
+      _dragPosition != null ||
+      _widgetDragDelta != null ||
+      _resize != null;
 
   @override
   void initState() {
@@ -164,6 +186,7 @@ class DesktopLayerState extends State<DesktopLayer> {
     disposeAppEntries(_resolved.values);
     _resolved = const {};
     _iconNames = const {};
+    _band.dispose();
     super.dispose();
   }
 
@@ -173,8 +196,30 @@ class DesktopLayerState extends State<DesktopLayer> {
 
   void _onStoreChanged() {
     if (!mounted) return;
-    setState(_syncResolved);
+    setState(() {
+      _syncResolved();
+      // Only between gestures: a drag notifies this store on every crossing
+      // and re-stat'ing every icon on the way past is exactly the work the
+      // cache exists to avoid.
+      if (!_gestureInFlight) _refreshMissing();
+    });
     _syncKeyboard();
+  }
+
+  /// Re-checks which targets are gone. See [_missing].
+  void _refreshMissing() {
+    final next = <String>{};
+    for (final item in widget.store.items) {
+      try {
+        if (!desktopItemExists(item)) next.add(item.target);
+      } catch (_) {
+        // An unreadable path is not a missing one; leave the tile alone.
+      }
+    }
+    // Compared rather than assigned outright so an unchanged answer keeps the
+    // same set, which is one fewer thing for a rebuild to look at.
+    if (next.length == _missing.length && next.every(_missing.contains)) return;
+    _missing = next;
   }
 
   /// Asks for keyboard focus exactly while a rename is in progress.
@@ -224,6 +269,7 @@ class DesktopLayerState extends State<DesktopLayer> {
     _resolved = entries;
     _iconNames = icons;
     _resolvedTargets = targets;
+    _refreshMissing();
     // Unref the old pointers only after the new ones are in place, so a rebuild
     // racing this never reads a freed GAppInfo.
     disposeAppEntries(previous.values);
@@ -306,16 +352,20 @@ class DesktopLayerState extends State<DesktopLayer> {
                 // primary-button only by default, so the empty-space menu above
                 // is untouched.
                 onPanStart: (details) {
-                  setState(() {
-                    _bandStart = details.localPosition;
-                    _bandEnd = details.localPosition;
-                  });
+                  _bandAnchor = details.localPosition;
+                  // fromPoints normalizes, so a band drawn up and to the left
+                  // is the same rect as one drawn down and to the right.
+                  _band.value = Rect.fromPoints(
+                    details.localPosition,
+                    details.localPosition,
+                  );
                   store.selectAll(const <String>[]);
                 },
                 onPanUpdate: (details) {
-                  setState(() => _bandEnd = details.localPosition);
-                  final band = _bandRect;
-                  if (band == null) return;
+                  final anchor = _bandAnchor;
+                  if (anchor == null) return;
+                  final band = Rect.fromPoints(anchor, details.localPosition);
+                  _band.value = band;
                   // Against the reflowed list, so the band selects what is on
                   // screen. `selectAll` no-ops when the set is unchanged, so a
                   // move that crosses no new icon notifies nothing.
@@ -354,9 +404,29 @@ class DesktopLayerState extends State<DesktopLayer> {
                 color: theme.accent,
               ),
             // Over the icons, so the band is never hidden behind the thing it
-            // is selecting.
-            if (_bandRect case final band?)
-              DesktopSelectionBand(rect: band, color: theme.accent),
+            // is selecting — and in its own repaint-bounded subtree, so a band
+            // move costs one relayout of one rect rather than a rebuild of
+            // everything under it. See [_band].
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: ValueListenableBuilder<Rect?>(
+                  valueListenable: _band,
+                  builder: (context, band, _) => band == null
+                      // Not `IgnorePointer` over the whole surface: a bare
+                      // SizedBox accepts no hit of its own, so the detector
+                      // underneath still sees every press.
+                      ? const SizedBox.expand()
+                      : Stack(
+                          children: [
+                            DesktopSelectionBand(
+                              rect: band,
+                              color: theme.accent,
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+            ),
           ],
         );
       },
@@ -378,7 +448,7 @@ class DesktopLayerState extends State<DesktopLayer> {
       showLabel: store.config.showLabels,
       selected: store.isSelected(item.target),
       hovered: _hovered == item.target,
-      missing: !desktopItemExists(item),
+      missing: _missing.contains(item.target),
     );
 
     // A tile being renamed is replaced by its editor, not overlaid: the editor
@@ -830,10 +900,12 @@ class DesktopLayerState extends State<DesktopLayer> {
     return box.globalToLocal(global);
   }
 
-  void _endBand() => setState(() {
-        _bandStart = null;
-        _bandEnd = null;
-      });
+  void _endBand() {
+    _bandAnchor = null;
+    // No setState: the notifier rebuilds the band's own subtree, and the
+    // selection the band left behind was published by the store as it went.
+    _band.value = null;
+  }
 
   /// Resolves a drop. [anchor] is the *rendered* item that was dragged, so the
   /// delta a group moves by is measured against the cell the user was actually
