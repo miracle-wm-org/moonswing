@@ -156,7 +156,26 @@ class _DesktopSectionState extends State<DesktopSection> {
               'The number of columns and rows is derived from each monitor, so '
               'the same icons fit displays of different sizes.',
             ),
-            const SettingsSubLabel('Pinned items'),
+            SettingsSubLabel(
+              'Pinned items',
+              // Both adders sit on the heading, above the list rather than
+              // below it: this list grows with every pin, and the buttons that
+              // grow it were walking down the pane with it.
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SettingsAddButton(
+                    label: 'Application…',
+                    onTap: _addApplication,
+                  ),
+                  const SizedBox(width: 8),
+                  SettingsAddButton(
+                    label: 'File or folder…',
+                    onTap: _addFiles,
+                  ),
+                ],
+              ),
+            ),
             if (items.isEmpty)
               const SettingsHint('Nothing pinned yet.')
             else
@@ -165,20 +184,6 @@ class _DesktopSectionState extends State<DesktopSection> {
                   item: item,
                   onRemove: () => _desktop.removeItem(item.target),
                 ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                SettingsAddButton(
-                  label: 'Add application…',
-                  onTap: _addApplication,
-                ),
-                const SizedBox(width: 8),
-                SettingsAddButton(
-                  label: 'Add file or folder…',
-                  onTap: _addFiles,
-                ),
-              ],
-            ),
           ],
         );
       },

@@ -21,6 +21,7 @@ import 'package:xdg_icons/xdg_icons.dart';
 import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/overlay/file_picker_controller.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -357,7 +358,7 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
                     child: SizedBox(
                       width: w,
                       height: h,
-                      child: _card(theme),
+                      child: _card(context, theme),
                     ),
                   );
                 },
@@ -369,10 +370,12 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
     );
   }
 
-  Widget _card(ThemeConfig theme) {
+  Widget _card(BuildContext context, ThemeConfig theme) {
     return Container(
       decoration: BoxDecoration(
-        color: theme.popupBackground,
+        // Opaque inside the settings page, where this card covers the pane it
+        // was opened from. See [OpaquePopupScope].
+        color: OpaquePopupScope.fill(context, theme),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: theme.accent, width: 1.5),
       ),

@@ -30,17 +30,33 @@ class SettingsSection extends StatelessWidget {
     super.key,
     required this.label,
     required this.children,
+    this.trailing,
   });
 
   final String label;
   final List<Widget> children;
 
+  /// Right-aligned action on the section's own heading row — the same slot
+  /// [SettingsSubLabel.trailing] gives a list inside a section, for a section
+  /// whose whole body *is* the collection (the theme picker's "New theme…").
+  final Widget? trailing;
+
   @override
   Widget build(BuildContext context) {
+    final trailing = this.trailing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SettingsSectionLabel(label),
+        if (trailing == null)
+          SettingsSectionLabel(label)
+        else
+          Row(
+            children: [
+              Expanded(child: SettingsSectionLabel(label)),
+              const SizedBox(width: 12),
+              trailing,
+            ],
+          ),
         const SizedBox(height: 8),
         ...children,
       ],
@@ -69,25 +85,48 @@ class SettingsSectionLabel extends StatelessWidget {
   }
 }
 
+/// The heading over one list inside a section — "Pinned items", "Shown",
+/// "Left modules".
+///
+/// [trailing] is the list's own action, right-aligned on the heading row. That
+/// is where every add button in the settings UI lives: an adder under a list
+/// walks away from the user as the list grows — off the bottom of the scroll
+/// view once it is long enough — while the heading is where the list starts
+/// and stays put, and the button lands in the same column as the rows' own
+/// icons. [SettingsStringListEditor] puts its adder here itself.
 class SettingsSubLabel extends StatelessWidget {
-  const SettingsSubLabel(this.text, {super.key});
+  const SettingsSubLabel(this.text, {super.key, this.trailing});
 
   final String text;
+
+  /// Right-aligned action for the list this heading names, or null for a
+  /// heading with nothing to add to.
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final label = Text(
+      text,
+      style: TextStyle(
+        fontSize: 13,
+        fontFamily: theme.fontFamily,
+        color: theme.accent,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    final trailing = this.trailing;
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 2),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 13,
-          fontFamily: theme.fontFamily,
-          color: theme.accent,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      child: trailing == null
+          ? label
+          : Row(
+              children: [
+                Expanded(child: label),
+                const SizedBox(width: 12),
+                trailing,
+              ],
+            ),
     );
   }
 }
@@ -1316,7 +1355,9 @@ class ColorPickerPopupState extends State<SettingsColorPicker> {
         width: _w + 24,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: theme.popupBackground,
+          // Opaque inside the settings page — this card covers the swatch row
+          // it is editing. See [OpaquePopupScope].
+          color: OpaquePopupScope.fill(context, theme),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: theme.accent, width: 1),
           boxShadow: const [
@@ -1758,12 +1799,21 @@ Future<bool> showSettingsConfirm(
 
 /// Editable ordered list of strings. When [suggestions] is provided, new items
 /// are added from a dropdown of those values; otherwise a free-form text field
-/// is shown. Existing items can be reordered and removed.
+/// is revealed. Existing items can be reordered and removed.
+///
+/// The adder is a [SettingsAddButton] on the list's heading row, never a
+/// control under the rows: an adder below the list moves down the pane every
+/// time the user uses it, and a panel's third module slot pushed it off the
+/// bottom of the scroll view entirely. The free-form flavour keeps its text
+/// field — a value nothing can rank has to be typed — but the button is what
+/// reveals it, so both flavours are the same button in the same place.
 class SettingsStringListEditor extends StatefulWidget {
   const SettingsStringListEditor({
     super.key,
     required this.items,
     required this.onChanged,
+    this.label,
+    this.addLabel,
     this.suggestions,
     this.addHint,
     this.width = 260,
@@ -1771,6 +1821,15 @@ class SettingsStringListEditor extends StatefulWidget {
 
   final List<String> items;
   final ValueChanged<List<String>> onChanged;
+
+  /// Heading rendered over the list, with the add button on its right. Null
+  /// where the list is already the control of a labelled [SettingsRow] — the
+  /// button then sits alone at the top right of the editor's own column.
+  final String? label;
+
+  /// Text on the add button. Defaults to a bare "Add".
+  final String? addLabel;
+
   final List<String>? suggestions;
   final String? addHint;
 
@@ -1787,6 +1846,11 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
   final _addController = TextEditingController();
   final _addFocus = FocusNode();
 
+  /// Whether the free-form adder's field is showing. Always false when
+  /// [SettingsStringListEditor.suggestions] is set — that flavour adds from a
+  /// dropdown and has no field to reveal.
+  bool _composing = false;
+
   @override
   void initState() {
     super.initState();
@@ -1798,6 +1862,22 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
     _addController.dispose();
     _addFocus.dispose();
     super.dispose();
+  }
+
+  void _toggleComposer() {
+    if (_composing) {
+      _closeComposer();
+      return;
+    }
+    setState(() => _composing = true);
+    _addFocus.requestFocus();
+  }
+
+  void _closeComposer() {
+    setState(() {
+      _composing = false;
+      _addController.clear();
+    });
   }
 
   void _emit(List<String> list) => widget.onChanged(list);
@@ -1825,13 +1905,30 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final label = widget.label;
+    final button = _buildAddButton(context);
     final column = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (var i = 0; i < widget.items.length; i++)
-          _row(context, i, widget.items[i]),
-        const SizedBox(height: 6),
-        _buildAdder(context),
+        if (label != null)
+          SettingsSubLabel(label, trailing: button)
+        else
+          // No heading to hang it on: the button still goes to the top right
+          // of the editor's own column, above the rows' icons.
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Align(alignment: Alignment.centerRight, child: button),
+          ),
+        if (label != null) const SizedBox(height: 6),
+        if (_composing) ...[
+          _buildComposer(context),
+          const SizedBox(height: 6),
+        ],
+        if (widget.items.isEmpty && !_composing)
+          const SettingsHint('Nothing here yet.')
+        else
+          for (var i = 0; i < widget.items.length; i++)
+            _row(context, i, widget.items[i]),
       ],
     );
     final width = widget.width;
@@ -1883,14 +1980,27 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
     );
   }
 
-  Widget _buildAdder(BuildContext context) {
+  /// The list's add action: the dropdown trigger when there are suggestions
+  /// to rank, and otherwise the toggle that reveals [_buildComposer].
+  Widget _buildAddButton(BuildContext context) {
     final suggestions = widget.suggestions;
     if (suggestions != null) {
       return _AddDropdown(
+        label: widget.addLabel ?? 'Add',
         options: suggestions,
         onSelected: _add,
       );
     }
+    return SettingsAddButton(
+      label: widget.addLabel ?? 'Add',
+      onTap: _toggleComposer,
+    );
+  }
+
+  /// The free-form adder's field, revealed under the heading by the add
+  /// button. Above the rows rather than below them, so it stays put as the
+  /// list grows under it — the whole reason the button moved up here.
+  Widget _buildComposer(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Row(
       children: [
@@ -1925,6 +2035,10 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
                   cursorColor: theme.accent,
                   backgroundCursorColor: theme.divider,
                   onChanged: (_) => setState(() {}),
+                  // Enter commits and leaves the field open and focused: these
+                  // lists are typed in runs (a handful of tray ids, a handful
+                  // of dock apps), so closing after each one would mean a
+                  // click on the button between every two entries.
                   onSubmitted: (v) {
                     _add(v);
                     _addController.clear();
@@ -1937,12 +2051,17 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
           ),
         ),
         SettingsIconButton(
-          icon: FontAwesomeIcons.plus,
+          icon: FontAwesomeIcons.check,
           onTap: () {
             _add(_addController.text);
             _addController.clear();
             setState(() {});
+            _addFocus.requestFocus();
           },
+        ),
+        SettingsIconButton(
+          icon: FontAwesomeIcons.xmark,
+          onTap: _closeComposer,
         ),
       ],
     );
@@ -1957,15 +2076,24 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
 /// opening it shoved the panel's own module slots off the bottom of the pane
 /// that the user was picking a module *for*.
 class _AddDropdown extends StatelessWidget {
-  const _AddDropdown({required this.options, required this.onSelected});
+  const _AddDropdown({
+    required this.label,
+    required this.options,
+    required this.onSelected,
+  });
 
+  final String label;
   final List<String> options;
   final ValueChanged<String> onSelected;
 
   @override
   Widget build(BuildContext context) {
     return AnchoredSearchDropdown<String>(
-      matchTriggerWidth: true,
+      // Right-aligned rather than trigger-width: the button is now a compact
+      // action on the list's heading row, so a card sized to it would be too
+      // narrow to read a module name in, and one hanging left-to-right off it
+      // would run past the pane. It grows leftwards from the button's edge.
+      alignRight: true,
       rowHeight: 30,
       maxHeight: 260,
       emptyText: 'No matching module',
@@ -1991,7 +2119,7 @@ class _AddDropdown extends StatelessWidget {
         );
       },
       triggerBuilder: (context, open, toggle) => SettingsAddButton(
-        label: 'Add module',
+        label: label,
         onTap: toggle,
       ),
     );
@@ -2001,6 +2129,11 @@ class _AddDropdown extends StatelessWidget {
 /// A plus-labelled button for appending to a collection: the string-list
 /// editor's dropdown toggle, and the Background and Desktop sections' add
 /// actions.
+///
+/// Sized to sit on a [SettingsSubLabel]'s heading row rather than as a block
+/// under a list — that is where all of these now live — so its box comes out
+/// at [ShellSizes.iconButton]'s height, lining up with the column of row icons
+/// below it and staying clear of [ShellSizes.minTapTarget].
 class SettingsAddButton extends StatelessWidget {
   const SettingsAddButton({super.key, required this.label, required this.onTap});
 
@@ -2013,7 +2146,7 @@ class SettingsAddButton extends StatelessWidget {
     return HoverRegion(
       onTap: onTap,
       builder: (context, hovered) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: hovered ? theme.surfaceHover : theme.controlSurface,
           borderRadius: BorderRadius.circular(ShellRadii.control),

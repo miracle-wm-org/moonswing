@@ -228,7 +228,14 @@ class _BackgroundSectionState extends State<BackgroundSection> {
           child: SettingsHint(
               'Selected wallpapers rotate on this interval, in order.'),
         ),
-        SettingsSubLabel('Shown'),
+        SettingsSubLabel(
+          'Shown',
+          // On the heading rather than under the grid: the grid is the tallest
+          // thing on this page, and a button below it is a button the user has
+          // to scroll past every tile to reach.
+          trailing:
+              SettingsAddButton(label: 'Add wallpaper', onTap: _addWallpapers),
+        ),
         if (shown.isEmpty)
           const SettingsHint(
               'No wallpapers selected. Select one from Available below.')
@@ -240,11 +247,6 @@ class _BackgroundSectionState extends State<BackgroundSection> {
             onRemove: _remove,
             onReorder: _reorderShown,
           ),
-        Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child:
-              SettingsAddButton(label: 'Add wallpaper', onTap: _addWallpapers),
-        ),
         SettingsSubLabel('Available'),
         const SettingsHint(
             'Wallpapers installed on this system are always listed here. Only '

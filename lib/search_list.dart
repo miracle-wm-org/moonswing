@@ -28,6 +28,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/hover_region.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
@@ -476,7 +477,9 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
         width: widget.width,
         constraints: BoxConstraints(maxHeight: widget.config.maxHeight),
         decoration: BoxDecoration(
-          color: theme.popupBackground,
+          // Opaque inside the settings page, whatever the theme's alpha: this
+          // card floats over the pane's own form rows. See [OpaquePopupScope].
+          color: OpaquePopupScope.fill(context, theme),
           borderRadius: BorderRadius.circular(ShellRadii.card),
           border: Border.all(color: theme.divider),
         ),

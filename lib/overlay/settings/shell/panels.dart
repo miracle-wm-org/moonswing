@@ -154,29 +154,39 @@ class _PanelsSectionState extends State<PanelsSection> {
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: theme.divider)),
         ),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < names.length; i++)
-                _PanelTab(
-                  label: _title(names[i]),
-                  selected: i == selected && !_adding,
-                  onTap: () => setState(() {
-                    _selected = i;
-                    _adding = false;
-                  }),
-                  onRemove: () => _removePanel(names[i]),
+        // "Add panel" is pinned to the strip's right edge, outside the
+        // scroller: as the last item *inside* it, the one control that
+        // creates a panel scrolled out of reach exactly when there were
+        // enough panels to want another.
+        child: Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < names.length; i++)
+                      _PanelTab(
+                        label: _title(names[i]),
+                        selected: i == selected && !_adding,
+                        onTap: () => setState(() {
+                          _selected = i;
+                          _adding = false;
+                        }),
+                        onRemove: () => _removePanel(names[i]),
+                      ),
+                  ],
                 ),
-              _PanelTab(
-                label: 'Add panel',
-                icon: FontAwesomeIcons.plus,
-                selected: _adding,
-                onTap: _startAdd,
               ),
-            ],
-          ),
+            ),
+            _PanelTab(
+              label: 'Add panel',
+              icon: FontAwesomeIcons.plus,
+              selected: _adding,
+              onTap: _startAdd,
+            ),
+          ],
         ),
       ),
     );
@@ -282,20 +292,16 @@ class _PanelsSectionState extends State<PanelsSection> {
           for (final slot in const ['left', 'center', 'right'])
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SettingsSubLabel(
-                    '${slot[0].toUpperCase()}${slot.substring(1)} modules',
-                  ),
-                  const SizedBox(height: 4),
-                  SettingsStringListEditor(
-                    items: store.getList<String>(p(['layout', slot])),
-                    onChanged: (list) => store.set(p(['layout', slot]), list),
-                    suggestions: Module.registeredKeys.toList(),
-                    width: null,
-                  ),
-                ],
+              // The editor renders the slot's heading itself, so its "Add
+              // module" button sits on that heading's right rather than under
+              // a list the third slot had already pushed off the pane.
+              child: SettingsStringListEditor(
+                label: '${slot[0].toUpperCase()}${slot.substring(1)} modules',
+                addLabel: 'Add module',
+                items: store.getList<String>(p(['layout', slot])),
+                onChanged: (list) => store.set(p(['layout', slot]), list),
+                suggestions: Module.registeredKeys.toList(),
+                width: null,
               ),
             ),
         ],

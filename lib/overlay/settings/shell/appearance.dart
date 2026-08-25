@@ -67,7 +67,26 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       children: [
         SettingsSection(
           label: 'Theme',
+          // On the section's heading rather than under the swatch grid: the
+          // grid is a Wrap that grows a row per handful of themes, so the one
+          // control that adds another was drifting down the pane as it filled.
+          trailing: SettingsAddButton(
+            label: 'New theme…',
+            onTap: () => setState(() => _naming = !_naming),
+          ),
           children: [
+            // Revealed above the grid, so the field stays put as the grid
+            // grows under it.
+            if (_naming) ...[
+              _NewThemeRow(
+                onCancel: () => setState(() => _naming = false),
+                onSubmit: (name) {
+                  final slug = _themes.create(name);
+                  if (slug != null) setState(() => _naming = false);
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
             // Rebuilt on every ThemeStore change: the cards preview the
             // palettes themselves, so a colour edit — including every frame of
             // a picker drag — has to repaint the active card's swatches, and a
@@ -93,24 +112,6 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 );
               },
             ),
-            const SizedBox(height: 12),
-            if (_naming)
-              _NewThemeRow(
-                onCancel: () => setState(() => _naming = false),
-                onSubmit: (name) {
-                  final slug = _themes.create(name);
-                  if (slug != null) setState(() => _naming = false);
-                },
-              )
-            else
-              Align(
-                alignment: Alignment.centerLeft,
-                child: SettingsOptionButton(
-                  label: 'New theme…',
-                  selected: false,
-                  onTap: () => setState(() => _naming = true),
-                ),
-              ),
             const SizedBox(height: 6),
             SettingsHint(
               'Themes are files in ${_themes.directory}. '

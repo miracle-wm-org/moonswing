@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/overlay_fade_scaffold.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/underline_tabs.dart';
 import 'package:graceful_shell/config.dart';
@@ -73,8 +74,7 @@ Size overlayPanelSize(Size available) {
 /// just cannot make it see-through. Depth comes from the scrim and blur
 /// [FadeOverlayScaffold] paints behind it instead, which dim the desktop
 /// without costing the content any contrast.
-Color overlayPanelFill(ThemeConfig theme) =>
-    theme.popupBackground.withValues(alpha: 1.0);
+Color overlayPanelFill(ThemeConfig theme) => opaquePopupFill(theme);
 
 /// One top-level tab in the overlay. Adding a tab is one entry here plus one
 /// child in the [IndexedStack] that [_SettingsOverlayState] builds.
@@ -224,7 +224,16 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
                 _requestClose();
               }
             },
-            child: Overlay(initialEntries: [_panelEntry]),
+            // Every popup this window opens paints opaque, whatever alpha
+            // the theme gives `popup_background`: the dropdowns, the colour
+            // picker, the confirmations and the file picker all float over
+            // the panel's own dense text, and a see-through card over it
+            // leaves neither layer readable. Above the Overlay rather than
+            // inside the panel, because that is where `showRootModal` and
+            // every `AnchoredSearchDropdown` insert their cards.
+            child: OpaquePopupScope(
+              child: Overlay(initialEntries: [_panelEntry]),
+            ),
           ),
         ),
       ),
