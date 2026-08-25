@@ -849,16 +849,17 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _destroyAfterFrame([removed]);
   }
 
-  /// Destroys native windows only once the frame that detached their views has
-  /// been rendered — destroying while Flutter still renders into the view would
-  /// use a freed FlView.
+  /// Destroys native windows only once Flutter has actually let go of their
+  /// views — destroying while it still renders into one aborts the process
+  /// inside the embedder's dispose (see [WindowTeardown]).
+  ///
+  /// The overlays have all played their fade-out through
+  /// [FadeOverlayScaffold]'s closing handshake before this runs, so the unmap
+  /// [destroyWindowWhenDetached] does up front costs nothing visually.
   void _destroyAfterFrame(List<LayershellWindowController> controllers) {
-    if (controllers.isEmpty) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      for (final controller in controllers) {
-        controller.destroy();
-      }
-    });
+    for (final controller in controllers) {
+      destroyWindowWhenDetached(controller);
+    }
   }
 
   /// The Lock button (or anything else calling [LockController.lock]) asked for

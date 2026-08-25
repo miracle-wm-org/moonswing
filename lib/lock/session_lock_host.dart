@@ -4,6 +4,7 @@ import 'package:ext_session_lock/ext_session_lock.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/lock/lock_controller.dart';
+import 'package:graceful_shell/popup.dart';
 
 /// Owns the `ext-session-lock-v1` lifecycle on behalf of the shell root: the
 /// [SessionLock] object, one [SessionLockWindowController] per monitor,
@@ -160,7 +161,10 @@ class SessionLockHost {
         lock.release();
       }
       for (final controller in removed) {
-        controller.destroy();
+        // No hide: unmapping a lock surface before it is destroyed shows the
+        // desktop it is there to cover. The wait itself still applies — the
+        // abort [WindowTeardown] documents is not particular to popups.
+        destroyWindowWhenDetached(controller, hide: false);
       }
     });
   }

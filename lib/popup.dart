@@ -12,7 +12,14 @@
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
 
+import 'dart:ffi' as ffi;
+import 'dart:ui' show FlutterView;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderView;
+// BaseWindowController is the one piece of the SDK's windowing layer that
+// layer_shell does not re-export; both host mixins' controllers implement it.
+import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 // Only _window_linux.dart is imported directly: layer_shell re-exports the
 // windowing and positioner pieces this file needs, but not the Linux-specific
 // BaseWindowControllerLinux.
@@ -286,6 +293,151 @@ extension on State {
   bool get _canRebuild => mounted && context.mounted;
 }
 
+/// Unmaps a native window without destroying it, so a close still *looks*
+/// instant while [WindowTeardown] waits out the frames the destroy needs.
+///
+/// gtk-layer-shell's [GtkWidget] wrapper binds realize/show/destroy but not
+/// hide; this belongs upstream in `layer_shell` on the next pin bump.
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gtk_widget_hide')
+external void _gtkWidgetHide(ffi.Pointer<ffi.NativeType> widget);
+
+/// Destroys a native window only once Flutter has let go of its view, and one
+/// frame after that.
+///
+/// `gtk_widget_destroy` on a window whose Flutter view is still live is not a
+/// leak or a glitch — it aborts the process. The GTK destroy cascade disposes
+/// the embedder's per-view renderer, whose `frame_mutex` the *raster* thread
+/// holds while it composites (`fl_view_renderer_opengl_present_layers`), and
+/// `g_mutex_clear` on a held mutex is a glib `abort()`:
+/// `g_mutex_clear() called on uninitialised or locked mutex`. The same abort
+/// answers a *second* destroy, because `gtk_widget_destroy` goes through
+/// `g_object_run_dispose`, which re-runs dispose on an already-disposed widget.
+///
+/// Upstream does not defend against either: `PopupWindowControllerLinux.destroy`
+/// calls `gtk_widget_destroy` *before* it unregisters the view. So the wait is
+/// ours to do, and a single `addPostFrameCallback` hop is not it — that hop
+/// assumes the rebuild which drops the view happens in the frame it lands
+/// after, rather than checking. Under the dock, whose tooltips open and close a
+/// surface per hover, the assumption does not hold and the shell dies.
+///
+/// The probe and the callbacks are injected so the loop is a plain widget test
+/// with no GTK behind it (`test/popup_teardown_test.dart`).
+class WindowTeardown {
+  WindowTeardown({
+    required this.viewAttached,
+    required this.destroy,
+    this.hide,
+    this.maxFrames = 8,
+  });
+
+  /// Whether Flutter is still rendering into the window's view.
+  final bool Function() viewAttached;
+
+  /// Tears the native window down. Called exactly once.
+  final VoidCallback destroy;
+
+  /// Unmaps the surface immediately, if it can be. Called at most once, before
+  /// any frame is waited on.
+  final VoidCallback? hide;
+
+  /// Frames to wait before destroying anyway.
+  ///
+  /// A window nobody ever detaches would otherwise be leaked on every close,
+  /// which is worse than the residual race — and a view can legitimately
+  /// outlive its owner's expectations (a rebuild deferred behind a stuck
+  /// animation, a registry whose host was itself disposed mid-frame).
+  final int maxFrames;
+
+  bool _started = false;
+  bool _done = false;
+  bool _detached = false;
+  int _frames = 0;
+
+  /// Whether [destroy] has run.
+  bool get isDone => _done;
+
+  void start() {
+    if (_started) return;
+    _started = true;
+    hide?.call();
+    _scheduleFrame();
+  }
+
+  void _scheduleFrame() {
+    final binding = WidgetsBinding.instance;
+    binding.addPostFrameCallback(_onFrame);
+    // addPostFrameCallback does not request a frame of its own, and a shell
+    // with nothing animating produces none — the callback would never run.
+    binding.scheduleFrame();
+  }
+
+  void _onFrame(Duration _) {
+    if (_done) return;
+    _frames++;
+    if (viewAttached()) {
+      if (_frames >= maxFrames) {
+        debugPrint('WindowTeardown: view still attached after $_frames frames; '
+            'destroying anyway');
+        _finish();
+        return;
+      }
+      _scheduleFrame();
+      return;
+    }
+    // Detach is observed on the platform thread; the raster thread may still be
+    // presenting the last frame that carried this view. One more frame is the
+    // only wait Dart can express for that.
+    if (_detached) {
+      _finish();
+      return;
+    }
+    _detached = true;
+    _scheduleFrame();
+  }
+
+  void _finish() {
+    _done = true;
+    destroy();
+  }
+}
+
+/// Whether the framework still holds a render tree for [view].
+///
+/// This is the framework's own view of it — the engine only drops the view when
+/// the window is destroyed, which is the thing being waited for, so
+/// `platformDispatcher.views` would never answer no.
+bool viewIsAttached(FlutterView view) => WidgetsBinding.instance.renderViews
+    .any((RenderView rv) => identical(rv.flutterView, view));
+
+/// Starts a [WindowTeardown] for [controller]'s window.
+///
+/// [hide] unmaps the surface up front so the close is visually immediate; pass
+/// false where an unmap would show something that must stay covered (the lock
+/// screen, whose surfaces hide the desktop).
+void destroyWindowWhenDetached(
+  BaseWindowController controller, {
+  bool hide = true,
+}) {
+  if (controller.isDestroyed) return;
+  final FlutterView view = controller.rootView;
+  WindowTeardown(
+    viewAttached: () => viewIsAttached(view),
+    hide: hide ? () => _hideWindowOf(controller) : null,
+    // destroy() is idempotent in both controller implementations, so a
+    // compositor-initiated destroy arriving mid-wait costs nothing.
+    destroy: controller.destroy,
+  ).start();
+}
+
+void _hideWindowOf(BaseWindowController controller) {
+  // windowHandle throws once the controller is destroyed, and hiding a freed
+  // GtkWidget is the same class of bug this file exists to close.
+  if (controller.isDestroyed) return;
+  final native = controller as BaseWindowControllerLinux;
+  _gtkWidgetHide(native.windowHandle.cast());
+}
+
 /// Mixin for [State] classes that own a single popup window.
 ///
 /// Encapsulates the controller/view lifecycle and WindowRegistry registration
@@ -495,9 +647,10 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     final onClosed = _onClosed;
     _onClosed = null;
     if (ctrl != null) {
-      // Defer destroy to avoid tearing the window down mid-frame; destroy() is
-      // idempotent so a second call (e.g. from onWindowDestroyed) is harmless.
-      WidgetsBinding.instance.addPostFrameCallback((_) => ctrl.destroy());
+      // The unregister above only drops the view on the *next* frame's rebuild,
+      // and destroying the window before that aborts the process — see
+      // [WindowTeardown], which waits for the detach rather than assuming it.
+      destroyWindowWhenDetached(ctrl);
     }
     if (_canRebuild) setState(() {});
     // Fires once per open, whether closed explicitly or dismissed by the
@@ -563,7 +716,10 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
     _lsRegistry = null;
     final ctrl = _lsController;
     _lsController = null;
-    ctrl?.destroy();
+    // Never synchronously: the view is still mounted in this very turn, so
+    // destroying here is the abort [WindowTeardown] documents, with none of the
+    // frame of grace the popup path at least had.
+    if (ctrl != null) destroyWindowWhenDetached(ctrl);
     if (_canRebuild) setState(() {});
   }
 }
