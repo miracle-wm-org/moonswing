@@ -6,8 +6,9 @@ version: 1.0.0+1
 environment:
   # dart:ffi NativeCallable (monitor_watcher, lock/pam_authenticator) needs 3.1.0;
   # math_expressions 3.2 (the launcher's calculator) raised the floor to 3.8;
-  # timezone 0.11 (the calendar's world clocks) raises it again to 3.10.
-  sdk: ^3.10.0
+  # timezone 0.11 (the calendar's world clocks) raised it again to 3.10;
+  # weather_icons_animated 0.0.2 (the Meteocons set) raises it to 3.11.4.
+  sdk: ^3.11.4
 
 dependencies:
   flutter:
@@ -27,17 +28,31 @@ dependencies:
   udev: ^0.0.3
   dbus: ^0.7.11
   font_awesome_flutter: ^11.0.0
-  # The weather icons. Font Awesome carries a sun, a cloud and a bolt and
-  # nothing between them, so every WMO code from "mainly clear" to "violent
-  # showers" used to render as the same emoji at whatever the font stack felt
-  # like. Material Symbols has a glyph per row of that table — clear_day,
-  # partly_cloudy_day/_night, rainy_light/rainy/rainy_heavy, snowing,
-  # thunderstorm, weather_hail, foggy — which is exactly the granularity
-  # `lib/weather/weather_condition.dart` resolves, and it is a font, so Flutter's
-  # icon tree-shaking keeps only the dozen the shell names.
+  # The weather icons: Meteocons (basmilius/weather-icons), bundled as SVG and
+  # Lottie. It is the WMO table's own granularity and then some — steady rain
+  # and showers are different pictures, as are a thunderstorm and a severe one
+  # — which is what `lib/weather/weather_condition.dart` already resolves and
+  # had nowhere to put. It replaced Material Symbols, which replaced emoji.
+  #
+  # Two costs worth knowing before adding to it. Assets are not tree-shaken the
+  # way an icon *font* is, so all 236 icons in all seven variants ship whether
+  # or not the shell names them — about 9MB into the bundle and the snap. And
+  # `flutter_svg` drops the SMIL animation the animated SVGs carry their motion
+  # in, so `svgAnimated` is a still frame that costs more to parse than
+  # `svgStatic`: see `lib/weather/weather_icons.dart`, which reaches for Lottie
+  # or for nothing.
   #
   # `weather_icons` (the Erik Flowers pack) is the obvious alternative and is
   # unusable: it pins `sdk: <3.0.0` and was last published in 2021.
+  weather_icons_animated: ^0.0.2
+  # A direct dependency for one type: `FrameRate`, which caps the Lottie icons
+  # below the display's rate. `weather_icons_animated` takes it as a parameter
+  # but does not re-export it, and an uncapped animation on the desktop surface
+  # would contradict `weather_sky.dart`'s own 30fps cap in the same card.
+  lottie: ^3.3.2
+  # Interface chrome, not weather: the chevrons and the place marker in the
+  # settings location row (`overlay/settings/shell/weather_location.dart`).
+  # Meteocons is a weather set and has no map pin.
   material_symbols_icons: ^4.2960.0
   # The loading indicators. `SpinKitRing` is what `LoadingIndicator`
   # (lib/loading_indicator.dart) renders, and that widget is the only thing in
@@ -66,6 +81,12 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # `weather_icons_animated` renders through this and does not re-export it;
+  # `test/weather_icons_test.dart` names `SvgAssetLoader` to pin which of the
+  # pack's seven variants each of `WeatherIcon`'s three renderings reaches for,
+  # which is otherwise a rule that lives only in a comment. Not a `dependencies`
+  # entry: nothing under `lib/` names it.
+  flutter_svg: ^2.2.0
   # test/wl_interfaces_test.dart diffs the hand-written Wayland interface
   # tables against the protocol XMLs in protocol/.
   xml: ^6.5.0

@@ -21,7 +21,6 @@ import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/weather/weather_api.dart';
 import 'package:graceful_shell/weather/weather_config.dart';
-import 'package:graceful_shell/weather/weather_icons.dart';
 
 /// The config path each half of the location lives at.
 const List<String> kWeatherLocationPath = ['modules', 'weather', 'location'];
@@ -164,7 +163,7 @@ class _Trigger extends StatelessWidget {
         ),
         child: Row(
           children: [
-            WeatherIcon(kLocationIcon, size: 12, color: theme.muted),
+            Icon(Symbols.location_on, size: 14, color: theme.muted),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
