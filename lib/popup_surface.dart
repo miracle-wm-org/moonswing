@@ -81,11 +81,18 @@ EdgeInsets popupShadowInsets(ThemeConfig theme) {
 /// [border] *replaces* the theme's rim rather than adding to it. It exists for
 /// the one card whose border carries meaning rather than chrome — the kill
 /// confirmation's accent rim, which marks a destructive action.
-BoxDecoration popupDecoration({required ThemeConfig theme, Border? border}) {
+///
+/// [opaque] overrides the fill's alpha and nothing else — see
+/// [OpaquePopupScope], which is what decides it for [PopupCard].
+BoxDecoration popupDecoration({
+  required ThemeConfig theme,
+  Border? border,
+  bool opaque = false,
+}) {
   final radius = popupCornerRadius(theme);
   final shadow = popupShadow(theme);
   return BoxDecoration(
-    color: theme.popupBackground,
+    color: opaque ? opaquePopupFill(theme) : theme.popupBackground,
     // Normalised to null rather than BorderRadius.zero so a square card builds
     // exactly the decoration — and the layers — it did before corners were
     // themable.
@@ -152,6 +159,7 @@ class PopupCard extends StatelessWidget {
     final decoration = popupDecoration(
       theme: ThemeScope.of(context),
       border: border,
+      opaque: OpaquePopupScope.of(context),
     );
     return Container(
       decoration: decoration,
@@ -163,3 +171,56 @@ class PopupCard extends StatelessWidget {
     );
   }
 }
+
+/// Marks a subtree whose popups paint **opaque**, whatever alpha the theme's
+/// `popup_background` carries.
+///
+/// The rule `overlayPanelFill` (`overlay/overlay.dart`) states for the settings
+/// panel itself, extended to everything that floats over it. A theme's
+/// `popup_background` alpha — `glassy` ships it at `0xB0` — is right for a
+/// three-row menu sitting over the desktop and wrong for a card the user is
+/// reading *over the settings panel*: a dropdown list, a colour picker, a
+/// confirmation, a file picker. Those stack over dense small text and form
+/// rows, so a translucent card shows the page it is covering straight through
+/// itself and neither layer stays readable. The hue stays the theme's and only
+/// the alpha is overridden, so a theme still colours its popups — it just
+/// cannot make the ones inside the settings page see-through.
+///
+/// An [InheritedWidget] rather than a flag threaded through every call site,
+/// because these cards are built in three different places — inline in the
+/// pane, in the window's root [Overlay] (`showRootModal`, and every
+/// `AnchoredSearchDropdown`), and in the panel itself — and a flag would have
+/// to be passed down each of those paths by hand. `SettingsOverlay` wraps its
+/// `Overlay` in one of these, which is above all three.
+///
+/// It cannot span FlutterViews, so a popup the settings page opens as its *own*
+/// layer-shell window (the root-owned file picker and app chooser, which the
+/// desktop surface uses) is outside it and keeps the theme's alpha.
+class OpaquePopupScope extends InheritedWidget {
+  const OpaquePopupScope({super.key, required super.child});
+
+  /// Whether popups in this subtree must paint opaque. False with no scope
+  /// above, which is every popup outside the settings page.
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<OpaquePopupScope>() != null;
+
+  /// [ThemeConfig.popupBackground] as a popup in [context] must paint it.
+  ///
+  /// The one call every hand-rolled popup surface in the settings UI makes in
+  /// place of reading `theme.popupBackground` directly; [PopupCard] and
+  /// [popupDecoration] make it for the cards built on those.
+  static Color fill(BuildContext context, ThemeConfig theme) =>
+      of(context) ? opaquePopupFill(theme) : theme.popupBackground;
+
+  // The scope's presence is what is read, and it never changes for the life of
+  // a window's tree — the settings overlay wraps its Overlay in one and every
+  // other window has none.
+  @override
+  bool updateShouldNotify(OpaquePopupScope oldWidget) => false;
+}
+
+/// [ThemeConfig.popupBackground] with its alpha overridden, hue intact.
+///
+/// The one expression behind [OpaquePopupScope.fill] and `overlayPanelFill`.
+Color opaquePopupFill(ThemeConfig theme) =>
+    theme.popupBackground.withValues(alpha: 1.0);
