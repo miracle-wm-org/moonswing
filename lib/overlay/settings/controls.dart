@@ -158,7 +158,7 @@ class SettingsRow extends StatelessWidget {
 // Controls
 // ---------------------------------------------------------------------------
 
-class SettingsToggle extends StatefulWidget {
+class SettingsToggle extends StatelessWidget {
   const SettingsToggle({
     super.key,
     required this.value,
@@ -169,36 +169,26 @@ class SettingsToggle extends StatefulWidget {
   final ValueChanged<bool> onChanged;
 
   @override
-  _SettingsToggleState createState() => _SettingsToggleState();
-}
-
-class _SettingsToggleState extends State<SettingsToggle> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final color = widget.value ? theme.accent : theme.divider;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: () => widget.onChanged(!widget.value),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+    final color = value ? theme.accent : theme.divider;
+    return HoverRegion(
+      onTap: () => onChanged(!value),
+      builder: (context, hovered) {
+        return AnimatedContainer(
+          duration: ShellDurations.base,
           width: 44,
           height: 24,
           decoration: BoxDecoration(
-            color: _hovered ? color.withValues(alpha: 0.8) : color,
+            color: hovered ? color.withValues(alpha: 0.8) : color,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Stack(
             children: [
               AnimatedPositioned(
-                duration: const Duration(milliseconds: 150),
+                duration: ShellDurations.base,
                 curve: Curves.easeInOut,
-                left: widget.value ? 22 : 2,
+                left: value ? 22 : 2,
                 top: 2,
                 child: Container(
                   width: 20,
@@ -211,8 +201,8 @@ class _SettingsToggleState extends State<SettingsToggle> {
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -247,7 +237,7 @@ class SettingsSegmented extends StatelessWidget {
   }
 }
 
-class SettingsOptionButton extends StatefulWidget {
+class SettingsOptionButton extends StatelessWidget {
   const SettingsOptionButton({
     super.key,
     required this.label,
@@ -260,50 +250,38 @@ class SettingsOptionButton extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  _SettingsOptionButtonState createState() => _SettingsOptionButtonState();
-}
-
-class _SettingsOptionButtonState extends State<SettingsOptionButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final Color bg;
-    if (widget.selected) {
-      bg = theme.accent;
-    } else if (_hovered) {
-      bg = theme.surfaceHover;
-    } else {
-      bg = theme.controlSurface;
-    }
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) {
+        final Color bg;
+        if (selected) {
+          bg = theme.accent;
+        } else if (hovered) {
+          bg = theme.surfaceHover;
+        } else {
+          bg = theme.controlSurface;
+        }
+        return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(ShellRadii.pill),
             border: Border.all(
-              color: widget.selected ? theme.accent : theme.divider,
+              color: selected ? theme.accent : theme.divider,
             ),
           ),
           child: Text(
-            widget.label,
+            label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: ShellFontSizes.secondary,
               fontFamily: theme.fontFamily,
-              color: widget.selected
-                  ? const Color(0xFFFFFFFF)
-                  : theme.popupForeground,
+              color: selected ? const Color(0xFFFFFFFF) : theme.popupForeground,
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -341,7 +319,8 @@ class SettingsActionButton extends StatelessWidget {
     final theme = ThemeScope.of(context);
     final canTap = enabled && !loading;
     return HoverRegion(
-      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      enabled: canTap,
+      onTap: onTap,
       builder: (context, hovered) {
         final Color bg;
         if (primary) {
@@ -353,30 +332,27 @@ class SettingsActionButton extends StatelessWidget {
         } else {
           bg = hovered && canTap ? theme.surfaceHover : theme.divider;
         }
-        return GestureDetector(
-          onTap: canTap ? onTap : null,
-          child: Container(
-            padding: compact
-                ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
-                : const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(ShellRadii.control),
-            ),
-            child: Center(
-              child: loading
-                  ? const LoadingIndicator(size: 14)
-                  : Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: compact
-                            ? ShellFontSizes.secondary
-                            : ShellFontSizes.body,
-                        fontFamily: theme.fontFamily,
-                        color: primary ? kOnAccent : theme.popupForeground,
-                      ),
+        return Container(
+          padding: compact
+              ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
+              : const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+          ),
+          child: Center(
+            child: loading
+                ? const LoadingIndicator(size: 14)
+                : Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: compact
+                          ? ShellFontSizes.secondary
+                          : ShellFontSizes.body,
+                      fontFamily: theme.fontFamily,
+                      color: primary ? kOnAccent : theme.popupForeground,
                     ),
-            ),
+                  ),
           ),
         );
       },
@@ -436,35 +412,33 @@ class SettingsRescanButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HoverRegion(
+      onTap: onTap,
       builder: (context, hovered) {
         final theme = ThemeScope.of(context);
-        return GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: hovered ? theme.surfaceHover : null,
-              borderRadius: BorderRadius.circular(ShellRadii.control),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FaIcon(
-                  FontAwesomeIcons.arrowsRotate,
-                  size: 11,
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: hovered ? theme.surfaceHover : null,
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(
+                FontAwesomeIcons.arrowsRotate,
+                size: ShellFontSizes.caption,
+                color: theme.popupForeground.withValues(alpha: 0.7),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.secondary,
+                  fontFamily: theme.fontFamily,
                   color: theme.popupForeground.withValues(alpha: 0.7),
                 ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.secondary,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         );
       },
@@ -552,39 +526,37 @@ class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
 
   Widget _buildTrigger() {
     return HoverRegion(
+      onTap: () => setState(() => _open = !_open),
       builder: (context, hovered) {
         final theme = ThemeScope.of(context);
-        return GestureDetector(
-          onTap: () => setState(() => _open = !_open),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: hovered ? theme.surfaceHover : theme.controlSurface,
-              borderRadius: BorderRadius.circular(ShellRadii.control),
-              border: Border.all(color: theme.divider),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _selectedLabel,
-                    style: TextStyle(
-                      fontSize: ShellFontSizes.body,
-                      fontFamily: theme.fontFamily,
-                      color: theme.popupForeground,
-                    ),
-                    overflow: TextOverflow.ellipsis,
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: hovered ? theme.surfaceHover : theme.controlSurface,
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+            border: Border.all(color: theme.divider),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _selectedLabel,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.body,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground,
                   ),
+                  overflow: TextOverflow.ellipsis,
                 ),
-                FaIcon(
-                  _open
-                      ? FontAwesomeIcons.chevronUp
-                      : FontAwesomeIcons.chevronDown,
-                  size: 10,
-                  color: theme.popupForeground.withValues(alpha: 0.5),
-                ),
-              ],
-            ),
+              ),
+              FaIcon(
+                _open
+                    ? FontAwesomeIcons.chevronUp
+                    : FontAwesomeIcons.chevronDown,
+                size: 10,
+                color: theme.popupForeground.withValues(alpha: 0.5),
+              ),
+            ],
           ),
         );
       },
@@ -595,6 +567,10 @@ class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
     final selected = item.value == widget.selected;
     final detail = item.detail;
     return HoverRegion(
+      onTap: () {
+        widget.onSelected(item.value);
+        setState(() => _open = false);
+      },
       builder: (context, hovered) {
         final theme = ThemeScope.of(context);
         final Color bg;
@@ -605,37 +581,31 @@ class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
         } else {
           bg = const Color(0x00000000);
         }
-        return GestureDetector(
-          onTap: () {
-            widget.onSelected(item.value);
-            setState(() => _open = false);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            color: bg,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    item.label,
-                    style: TextStyle(
-                      fontSize: ShellFontSizes.body,
-                      fontFamily: theme.fontFamily,
-                      color: selected ? theme.accent : theme.popupForeground,
-                    ),
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          color: bg,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.body,
+                    fontFamily: theme.fontFamily,
+                    color: selected ? theme.accent : theme.popupForeground,
                   ),
                 ),
-                if (detail != null)
-                  Text(
-                    detail,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontFamily: theme.fontFamily,
-                      color: theme.popupForeground.withValues(alpha: 0.4),
-                    ),
+              ),
+              if (detail != null)
+                Text(
+                  detail,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground.withValues(alpha: 0.4),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         );
       },
@@ -823,44 +793,57 @@ Color? parseHexColor(String hex) {
   return value != null ? Color(value) : null;
 }
 
-class SettingsIconButton extends StatefulWidget {
+/// A glyph with a box around it, and the box is the target.
+///
+/// The [box] is what accepts the click, not the glyph: a `FaIcon` is a bare
+/// `RichText`, so an icon left to size itself is a target the width of one
+/// character. This used to spell its own `MouseRegion` around a
+/// `GestureDetector` around a `Container` that painted nothing, which hovered
+/// over 26 square and fired over about 11 — see `HoverRegion`, which owns both
+/// halves now.
+///
+/// [color]/[hoverColor] default to the settings pages' dim/accent pair; the
+/// clones this replaced (the audio mute toggles, the file picker's hidden-files
+/// eye, the notification panel's dismiss x) each carried their own.
+class SettingsIconButton extends StatelessWidget {
   const SettingsIconButton({
     super.key,
     required this.icon,
     required this.onTap,
     this.size = 12,
+    this.box = ShellSizes.iconButton,
+    this.color,
+    this.hoverColor,
+    this.enabled = true,
   });
 
   final FaIconData icon;
   final VoidCallback onTap;
   final double size;
 
-  @override
-  _SettingsIconButtonState createState() => _SettingsIconButtonState();
-}
+  /// The tap target. [ShellSizes.iconButtonDense] for a row whose height
+  /// cannot spare the full box.
+  final double box;
 
-class _SettingsIconButtonState extends State<SettingsIconButton> {
-  bool _hovered = false;
+  final Color? color;
+  final Color? hoverColor;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: 26,
-          height: 26,
-          alignment: Alignment.center,
+    return HoverRegion(
+      enabled: enabled,
+      onTap: onTap,
+      builder: (context, hovered) => SizedBox.square(
+        dimension: box,
+        child: Center(
           child: FaIcon(
-            widget.icon,
-            size: widget.size,
-            color: _hovered
-                ? theme.accent
-                : theme.popupForeground.withValues(alpha: 0.6),
+            icon,
+            size: size,
+            color: hovered
+                ? (hoverColor ?? theme.accent)
+                : (color ?? theme.popupForeground.withValues(alpha: 0.6)),
           ),
         ),
       ),
@@ -944,42 +927,38 @@ class SettingsFontField extends StatelessWidget {
         return Opacity(
           opacity: locked ? 0.45 : 1.0,
           child: HoverRegion(
-            builder: (context, hovered) => GestureDetector(
-              onTap: locked ? (onLockedTap ?? () {}) : toggle,
-              child: Container(
-                width: width,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: hovered ? theme.surfaceHover : theme.controlSurface,
-                  borderRadius: BorderRadius.circular(6),
-                  border:
-                      Border.all(color: open ? theme.accent : theme.divider),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        value,
-                        // Drawn in the family it names, so the trigger
-                        // previews the choice as well as reporting it.
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontFamily: value,
-                          color: theme.popupForeground,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+            onTap: locked ? (onLockedTap ?? () {}) : toggle,
+            builder: (context, hovered) => Container(
+              width: width,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: hovered ? theme.surfaceHover : theme.controlSurface,
+                borderRadius: BorderRadius.circular(ShellRadii.control),
+                border: Border.all(color: open ? theme.accent : theme.divider),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value,
+                      // Drawn in the family it names, so the trigger previews
+                      // the choice as well as reporting it.
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.body,
+                        fontFamily: value,
+                        color: theme.popupForeground,
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    FaIcon(
-                      open
-                          ? FontAwesomeIcons.chevronUp
-                          : FontAwesomeIcons.chevronDown,
-                      size: 10,
-                      color: theme.popupForeground.withValues(alpha: 0.5),
-                    ),
-                  ],
-                ),
+                  ),
+                  FaIcon(
+                    open
+                        ? FontAwesomeIcons.chevronUp
+                        : FontAwesomeIcons.chevronDown,
+                    size: 10,
+                    color: theme.popupForeground.withValues(alpha: 0.5),
+                  ),
+                ],
               ),
             ),
           ),
@@ -1125,26 +1104,25 @@ class ColorFieldState extends State<SettingsColorField> {
         children: [
           CompositedTransformTarget(
             link: _link,
-            child: MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: _toggle,
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: swatch ?? const Color(0x00000000),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: theme.divider),
+            child: HoverRegion(
+              onTap: _toggle,
+              builder: (context, hovered) => Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: swatch ?? const Color(0x00000000),
+                  borderRadius: BorderRadius.circular(ShellRadii.barButton),
+                  border: Border.all(
+                    color: hovered ? theme.accent : theme.divider,
                   ),
-                  child: swatch == null
-                      ? FaIcon(
-                          FontAwesomeIcons.question,
-                          size: 10,
-                          color: theme.popupForeground.withValues(alpha: 0.4),
-                        )
-                      : null,
                 ),
+                child: swatch == null
+                    ? FaIcon(
+                        FontAwesomeIcons.question,
+                        size: 10,
+                        color: theme.popupForeground.withValues(alpha: 0.4),
+                      )
+                    : null,
               ),
             ),
           ),
@@ -2006,39 +1984,27 @@ class _AddDropdownState extends State<_AddDropdown> {
   }
 }
 
-class _DropdownItem extends StatefulWidget {
+class _DropdownItem extends StatelessWidget {
   const _DropdownItem({required this.label, required this.onTap});
 
   final String label;
   final VoidCallback onTap;
 
   @override
-  State<_DropdownItem> createState() => _DropdownItemState();
-}
-
-class _DropdownItemState extends State<_DropdownItem> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          color: _hovered ? theme.surfaceHover : const Color(0x00000000),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground,
-            ),
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        color: hovered ? theme.surfaceHover : const Color(0x00000000),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: ShellFontSizes.secondary,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground,
           ),
         ),
       ),
@@ -2049,52 +2015,40 @@ class _DropdownItemState extends State<_DropdownItem> {
 /// A plus-labelled button for appending to a collection: the string-list
 /// editor's dropdown toggle, and the Background and Desktop sections' add
 /// actions.
-class SettingsAddButton extends StatefulWidget {
+class SettingsAddButton extends StatelessWidget {
   const SettingsAddButton({super.key, required this.label, required this.onTap});
 
   final String label;
   final VoidCallback onTap;
 
   @override
-  State<SettingsAddButton> createState() => _SettingsAddButtonState();
-}
-
-class _SettingsAddButtonState extends State<SettingsAddButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: _hovered ? theme.surfaceHover : theme.controlSurface,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: theme.divider),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FaIcon(FontAwesomeIcons.plus,
-                  size: 11,
-                  color: _hovered ? theme.popupForeground : theme.accent),
-              const SizedBox(width: 8),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground,
-                ),
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: hovered ? theme.surfaceHover : theme.controlSurface,
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+          border: Border.all(color: theme.divider),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FaIcon(FontAwesomeIcons.plus,
+                size: ShellFontSizes.caption,
+                color: hovered ? theme.popupForeground : theme.accent),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: ShellFontSizes.secondary,
+                fontFamily: theme.fontFamily,
+                color: theme.popupForeground,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

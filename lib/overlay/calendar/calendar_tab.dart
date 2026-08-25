@@ -9,6 +9,7 @@ import 'package:graceful_shell/overlay/calendar/clock_column.dart';
 import 'package:graceful_shell/overlay/calendar/month.dart';
 import 'package:graceful_shell/overlay/calendar/time_zones.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
@@ -336,40 +337,28 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
-class _TodayButton extends StatefulWidget {
+class _TodayButton extends StatelessWidget {
   const _TodayButton({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
-  State<_TodayButton> createState() => _TodayButtonState();
-}
-
-class _TodayButtonState extends State<_TodayButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: _hovered ? theme.surfaceHover : theme.controlSurface,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Text(
-            'Today',
-            style: TextStyle(
-              fontSize: ShellFontSizes.body,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground.withValues(alpha: 0.85),
-            ),
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: hovered ? theme.surfaceHover : theme.controlSurface,
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+        ),
+        child: Text(
+          'Today',
+          style: TextStyle(
+            fontSize: ShellFontSizes.body,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground.withValues(alpha: 0.85),
           ),
         ),
       ),
@@ -377,7 +366,7 @@ class _TodayButtonState extends State<_TodayButton> {
   }
 }
 
-class _DayCell extends StatefulWidget {
+class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,
     required this.inMonth,
@@ -393,61 +382,52 @@ class _DayCell extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_DayCell> createState() => _DayCellState();
-}
-
-class _DayCellState extends State<_DayCell> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
 
-    final Color background;
-    if (widget.isSelected) {
-      background = theme.accent;
-    } else if (_hovered) {
-      background = theme.surfaceHover;
-    } else {
-      background = const Color(0x00000000);
-    }
-
     // Days spilling in from the neighbouring months stay legible but recede.
-    var foreground = widget.isSelected
+    var foreground = isSelected
         ? theme.popupForeground
-        : theme.popupForeground.withValues(alpha: widget.inMonth ? 0.9 : 0.35);
-    if (widget.isToday && !widget.isSelected) foreground = theme.accent;
+        : theme.popupForeground.withValues(alpha: inMonth ? 0.9 : 0.35);
+    if (isToday && !isSelected) foreground = theme.accent;
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
+    return HoverRegion(
+      onTap: onTap,
+      // The tap box is the whole cell; the 2px margin is inset painting, and
+      // used to be a pointer-cursored dead ring around all forty-two of them.
+      builder: (context, hovered) {
+        final Color background;
+        if (isSelected) {
+          background = theme.accent;
+        } else if (hovered) {
+          background = theme.surfaceHover;
+        } else {
+          background = const Color(0x00000000);
+        }
+        return Container(
           margin: const EdgeInsets.all(2),
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(8),
-            border: widget.isToday && !widget.isSelected
+            borderRadius: BorderRadius.circular(ShellRadii.card),
+            border: isToday && !isSelected
                 ? Border.all(color: theme.accent, width: 1.5)
                 : null,
           ),
           child: Center(
             child: Text(
-              '${widget.day.day}',
+              '${day.day}',
               style: TextStyle(
                 fontSize: ShellFontSizes.label,
                 fontFamily: theme.fontFamily,
                 color: foreground,
-                fontWeight: widget.isToday || widget.isSelected
+                fontWeight: isToday || isSelected
                     ? FontWeight.w600
                     : FontWeight.normal,
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

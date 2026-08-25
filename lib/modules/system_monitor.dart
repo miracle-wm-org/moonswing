@@ -6,6 +6,8 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
+import 'package:graceful_shell/underline_tabs.dart';
 import 'package:graceful_shell/system/format.dart';
 import 'package:graceful_shell/system/models.dart';
 import 'package:graceful_shell/system/system_monitor_config.dart';
@@ -118,6 +120,12 @@ class SystemMonitorState extends State<SystemMonitor>
 
 enum _PopupTab { cpu, memory }
 
+/// The popup's sub-tabs are denser than the overlay's, and that density is the
+/// only thing that made them a hand-rolled clone of [UnderlineTab].
+const double _kTabIconSize = 11;
+const EdgeInsets _kTabPadding =
+    EdgeInsets.symmetric(horizontal: 10, vertical: 8);
+
 class _SystemMonitorPopup extends StatefulWidget {
   const _SystemMonitorPopup();
 
@@ -195,19 +203,23 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          _TabButton(
+          UnderlineTab(
             icon: FontAwesomeIcons.gaugeHigh,
             label: 'CPU',
             selected: _tab == _PopupTab.cpu,
-            theme: theme,
+            iconSize: _kTabIconSize,
+            fontSize: ShellFontSizes.secondary,
+            padding: _kTabPadding,
             onTap: () => _selectTab(_PopupTab.cpu),
           ),
           const SizedBox(width: 4),
-          _TabButton(
+          UnderlineTab(
             icon: FontAwesomeIcons.server,
             label: 'Memory',
             selected: _tab == _PopupTab.memory,
-            theme: theme,
+            iconSize: _kTabIconSize,
+            fontSize: ShellFontSizes.secondary,
+            padding: _kTabPadding,
             onTap: () => _selectTab(_PopupTab.memory),
           ),
         ],
@@ -397,50 +409,6 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TabButton extends StatelessWidget {
-  const _TabButton({
-    required this.icon,
-    required this.label,
-    required this.selected,
-    required this.theme,
-    required this.onTap,
-  });
-
-  final FaIconData icon;
-  final String label;
-  final bool selected;
-  final ThemeConfig theme;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final color =
-        selected ? theme.accent : theme.popupForeground.withValues(alpha: 0.63);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: selected ? theme.accent : const Color(0x00000000),
-              width: 2,
-            ),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FaIcon(icon, size: 11, color: color),
-            const SizedBox(width: 5),
-            Text(label, style: TextStyle(color: color, fontSize: 12)),
-          ],
-        ),
       ),
     );
   }

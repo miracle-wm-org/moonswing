@@ -889,6 +889,14 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
       width: rect.width,
       height: rect.height,
       child: GestureDetector(
+        // Opaque, not `deferToChild`: the rect's `margin: all(2)` is inset
+        // painting, and the `MouseRegion` inside advertises a grab cursor over
+        // it — so the outer 2px of every display was cursored for a drag that
+        // could not start there. It closes the 4px gutter between two abutting
+        // displays, which means a press exactly on a shared edge resolves to
+        // whichever rect is later in `boxes`; that is the rule an *overlapping*
+        // pair already followed mid-drag.
+        behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
         onPanStart: (_) {
           _dragAccum[head.id] = Offset(

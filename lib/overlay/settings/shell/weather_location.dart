@@ -151,41 +151,39 @@ class _Trigger extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HoverRegion(
-      builder: (context, hovered) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 200,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: theme.controlSurface,
-            borderRadius: BorderRadius.circular(ShellRadii.control),
-            border: Border.all(
-              color: open || hovered ? theme.accent : theme.divider,
-            ),
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        width: 200,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: theme.controlSurface,
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+          border: Border.all(
+            color: open || hovered ? theme.accent : theme.divider,
           ),
-          child: Row(
-            children: [
-              WeatherIcon(kLocationIcon, size: 12, color: theme.muted),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.secondary,
-                    fontFamily: theme.fontFamily,
-                    color: theme.foreground,
-                  ),
+        ),
+        child: Row(
+          children: [
+            WeatherIcon(kLocationIcon, size: 12, color: theme.muted),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.secondary,
+                  fontFamily: theme.fontFamily,
+                  color: theme.foreground,
                 ),
               ),
-              Icon(
-                open ? Symbols.expand_less : Symbols.expand_more,
-                size: 14,
-                color: theme.muted,
-              ),
-            ],
-          ),
+            ),
+            Icon(
+              open ? Symbols.expand_less : Symbols.expand_more,
+              size: 14,
+              color: theme.muted,
+            ),
+          ],
         ),
       ),
     );

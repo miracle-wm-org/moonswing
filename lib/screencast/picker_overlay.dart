@@ -12,6 +12,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../config.dart';
 import '../scopes.dart';
+import '../hover_region.dart';
 import '../overlay_fade_scaffold.dart';
 import 'picker_controller.dart';
 import 'preview.dart';
@@ -299,9 +300,9 @@ class _SourceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final frames = source.frames;
-    return GestureDetector(
+    return HoverRegion(
       onTap: onTap,
-      child: SizedBox(
+      builder: (context, hovered) => SizedBox(
         width: kPickerTileWidth,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -370,9 +371,10 @@ class _PickerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
+    return HoverRegion(
+      enabled: enabled,
+      onTap: onPressed ?? () {},
+      builder: (context, hovered) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
         decoration: BoxDecoration(
           color: primary

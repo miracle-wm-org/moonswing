@@ -396,19 +396,17 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
                     final item = _filtered[i];
                     final highlighted = i == _highlighted;
                     return HoverRegion(
-                      builder: (context, hovered) => GestureDetector(
-                        onTap: () => widget.onSelected(item),
-                        child: Container(
-                          alignment: Alignment.centerLeft,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          color: highlighted
-                              ? theme.accent.withValues(alpha: 0.15)
-                              : hovered
-                                  ? theme.surfaceHover
-                                  : const Color(0x00000000),
-                          child: widget.config
-                              .itemBuilder(context, item, highlighted),
-                        ),
+                      onTap: () => widget.onSelected(item),
+                      builder: (context, hovered) => Container(
+                        alignment: Alignment.centerLeft,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        color: highlighted
+                            ? theme.accent.withValues(alpha: 0.15)
+                            : hovered
+                                ? theme.surfaceHover
+                                : const Color(0x00000000),
+                        child: widget.config
+                            .itemBuilder(context, item, highlighted),
                       ),
                     );
                   },

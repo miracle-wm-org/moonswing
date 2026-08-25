@@ -22,6 +22,7 @@ import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/overlay/file_picker_controller.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 
@@ -677,7 +678,7 @@ class _TreeNode extends StatelessWidget {
 
 /// A single tappable directory row. Owns its own hover state so a pointer move
 /// repaints just this row, not the tree beneath it.
-class _TreeRow extends StatefulWidget {
+class _TreeRow extends StatelessWidget {
   const _TreeRow({
     required this.path,
     required this.label,
@@ -697,85 +698,74 @@ class _TreeRow extends StatefulWidget {
   final ValueChanged<String> onToggle;
 
   @override
-  State<_TreeRow> createState() => _TreeRowState();
-}
-
-class _TreeRowState extends State<_TreeRow> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final name = widget.label ?? basenameOf(widget.path);
+    final name = label ?? basenameOf(path);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: () => widget.onSelect(widget.path),
-        child: Container(
-          color: widget.isCurrent
-              ? theme.accent.withValues(alpha: 0.22)
-              : (_hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null),
-          padding: EdgeInsets.only(
-            left: 8.0 + widget.depth * 14,
-            right: 8,
-            top: 5,
-            bottom: 5,
-          ),
-          child: Row(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => widget.onToggle(widget.path),
-                child: SizedBox(
-                  width: 16,
-                  child: FaIcon(
-                    widget.isExpanded
-                        ? FontAwesomeIcons.chevronDown
-                        : FontAwesomeIcons.chevronRight,
-                    size: 9,
-                    color: theme.popupForeground.withValues(alpha: 0.5),
-                  ),
+    return HoverRegion(
+      onTap: () => onSelect(path),
+      builder: (context, hovered) => Container(
+        color: isCurrent
+            ? theme.accent.withValues(alpha: 0.22)
+            : (hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null),
+        padding: EdgeInsets.only(
+          left: 8.0 + depth * 14,
+          right: 8,
+          top: 5,
+          bottom: 5,
+        ),
+        child: Row(
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onToggle(path),
+              child: SizedBox(
+                width: 16,
+                child: FaIcon(
+                  isExpanded
+                      ? FontAwesomeIcons.chevronDown
+                      : FontAwesomeIcons.chevronRight,
+                  size: 9,
+                  color: theme.popupForeground.withValues(alpha: 0.5),
                 ),
               ),
-              const SizedBox(width: 4),
-              XdgIcon(
-                name: 'folder',
-                size: 14,
-                iconNotFoundBuilder: () => FaIcon(
-                  FontAwesomeIcons.solidFolder,
-                  size: 12,
-                  color: theme.accent,
+            ),
+            const SizedBox(width: 4),
+            XdgIcon(
+              name: 'folder',
+              size: 14,
+              iconNotFoundBuilder: () => FaIcon(
+                FontAwesomeIcons.solidFolder,
+                size: 12,
+                color: theme.accent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontFamily: theme.fontFamily,
+                  color: isCurrent
+                      ? theme.popupForeground
+                      : theme.popupForeground.withValues(alpha: 0.85),
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: theme.fontFamily,
-                    color: widget.isCurrent
-                        ? theme.popupForeground
-                        : theme.popupForeground.withValues(alpha: 0.85),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
+
 /// A file entry in the right pane: an image thumbnail when the file is an image,
 /// otherwise a type icon, with the name below and an accent check when selected.
-class _FileTile extends StatefulWidget {
+class _FileTile extends StatelessWidget {
   const _FileTile({
     required this.path,
     required this.selected,
@@ -787,94 +777,82 @@ class _FileTile extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_FileTile> createState() => _FileTileState();
-}
-
-class _FileTileState extends State<_FileTile> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final isImage = isImagePath(widget.path);
+    final isImage = isImagePath(path);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: SizedBox(
-          width: 132,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                height: 88,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    ClipRRect(
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => SizedBox(
+        width: 132,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 88,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: isImage
+                        ? Image.file(
+                            File(path),
+                            fit: BoxFit.cover,
+                            cacheWidth: 200,
+                            gaplessPlayback: true,
+                            errorBuilder: (c, e, s) =>
+                                _iconBox(theme),
+                          )
+                        : _iconBox(theme),
+                  ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(6),
-                      child: isImage
-                          ? Image.file(
-                              File(widget.path),
-                              fit: BoxFit.cover,
-                              cacheWidth: 200,
-                              gaplessPlayback: true,
-                              errorBuilder: (c, e, s) =>
-                                  _iconBox(theme),
-                            )
-                          : _iconBox(theme),
+                      border: Border.all(
+                        color: selected
+                            ? theme.accent
+                            : (hovered ? theme.surfaceHover : theme.divider),
+                        width: selected ? 2 : 1,
+                      ),
                     ),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: widget.selected
-                              ? theme.accent
-                              : (_hovered ? theme.surfaceHover : theme.divider),
-                          width: widget.selected ? 2 : 1,
+                  ),
+                  if (selected)
+                    Positioned(
+                      top: 5,
+                      right: 5,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: theme.accent,
+                          shape: BoxShape.circle,
+                        ),
+                        alignment: Alignment.center,
+                        child: const FaIcon(
+                          FontAwesomeIcons.check,
+                          size: 9,
+                          color: Color(0xFFFFFFFF),
                         ),
                       ),
                     ),
-                    if (widget.selected)
-                      Positioned(
-                        top: 5,
-                        right: 5,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: BoxDecoration(
-                            color: theme.accent,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: const FaIcon(
-                            FontAwesomeIcons.check,
-                            size: 9,
-                            color: Color(0xFFFFFFFF),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
-              const SizedBox(height: 5),
-              Text(
-                basenameOf(widget.path),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.85),
-                ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              basenameOf(path),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: theme.fontFamily,
+                color: theme.popupForeground.withValues(alpha: 0.85),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -885,7 +863,7 @@ class _FileTileState extends State<_FileTile> {
       color: theme.controlSurface,
       child: Center(
         child: FaIcon(
-          iconForFile(widget.path),
+          iconForFile(path),
           size: 28,
           color: theme.popupForeground.withValues(alpha: 0.55),
         ),
@@ -894,45 +872,28 @@ class _FileTileState extends State<_FileTile> {
   }
 }
 
-/// A small "show hidden" eye toggle for the header, in the icon-button idiom.
-class _HiddenToggle extends StatefulWidget {
+
+/// A small "show hidden" eye toggle for the header.
+///
+/// The icon-button idiom itself is [SettingsIconButton]'s; this carries only
+/// the eye's own rule, that an *active* toggle stays accented whether or not
+/// the pointer is on it.
+class _HiddenToggle extends StatelessWidget {
   const _HiddenToggle({required this.value, required this.onChanged});
 
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
-  State<_HiddenToggle> createState() => _HiddenToggleState();
-}
-
-class _HiddenToggleState extends State<_HiddenToggle> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final active = widget.value;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: () => widget.onChanged(!widget.value),
-        child: Container(
-          width: 26,
-          height: 26,
-          alignment: Alignment.center,
-          child: FaIcon(
-            active ? FontAwesomeIcons.solidEye : FontAwesomeIcons.solidEyeSlash,
-            size: 13,
-            color: active
-                ? theme.accent
-                : (_hovered
-                    ? theme.accent
-                    : theme.popupForeground.withValues(alpha: 0.6)),
-          ),
-        ),
-      ),
+    return SettingsIconButton(
+      icon: value ? FontAwesomeIcons.solidEye : FontAwesomeIcons.solidEyeSlash,
+      size: 13,
+      color: value
+          ? theme.accent
+          : theme.popupForeground.withValues(alpha: 0.6),
+      onTap: () => onChanged(!value),
     );
   }
 }

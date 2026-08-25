@@ -11,6 +11,7 @@ import 'package:graceful_shell/overlay/settings/audio/audio_slider.dart';
 import 'package:graceful_shell/overlay/settings/audio/level_meter.dart';
 import 'package:graceful_shell/overlay/settings/audio/pulse_helpers.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
@@ -222,20 +223,15 @@ class _InputTabState extends State<InputTab> {
           children: [
             const SettingsSectionLabel('Gain'),
             const Spacer(),
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: _toggleMute,
-                child: FaIcon(
-                  _muted
-                      ? FontAwesomeIcons.microphoneSlash
-                      : FontAwesomeIcons.microphone,
-                  size: 14,
-                  color: _muted ? theme.muted : theme.popupForeground,
-                ),
-              ),
+            SettingsIconButton(
+              icon: _muted
+                  ? FontAwesomeIcons.microphoneSlash
+                  : FontAwesomeIcons.microphone,
+              size: ShellFontSizes.label,
+              color: _muted ? theme.muted : theme.popupForeground,
+              onTap: _toggleMute,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 2),
             Text(
               '$volPct%',
               style: TextStyle(

@@ -7,6 +7,8 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/modules/network.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/theme/tokens.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
@@ -78,7 +80,7 @@ class _PasswordFieldState extends State<_PasswordField> {
   }
 }
 
-class _NetworkListItem extends StatefulWidget {
+class _NetworkListItem extends StatelessWidget {
   const _NetworkListItem({
     required this.network,
     required this.onTap,
@@ -87,15 +89,9 @@ class _NetworkListItem extends StatefulWidget {
   final AvailableNetwork network;
   final VoidCallback onTap;
 
-  @override
-  _NetworkListItemState createState() => _NetworkListItemState();
-}
-
-class _NetworkListItemState extends State<_NetworkListItem> {
-  bool _hovered = false;
 
   FaIconData _icon() {
-    return widget.network.type == NetworkType.ethernet
+    return network.type == NetworkType.ethernet
         ? FontAwesomeIcons.ethernet
         : FontAwesomeIcons.wifi;
   }
@@ -103,69 +99,66 @@ class _NetworkListItemState extends State<_NetworkListItem> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final n = widget.network;
+    final n = network;
     final canTap = !n.isConnected;
 
-    return MouseRegion(
-      cursor: canTap ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: canTap ? widget.onTap : null,
-        child: Container(
-          color: _hovered && canTap ? theme.surfaceHover : null,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-          child: Row(
-            children: [
-              FaIcon(
-                _icon(),
-                size: 14,
-                color: theme.popupForeground.withValues(
-                  alpha:
-                      n.type == NetworkType.wifi && n.signal < 30 ? 0.4 : 1.0,
-                ),
+    return HoverRegion(
+      enabled: canTap,
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        color: hovered && canTap ? theme.surfaceHover : null,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        child: Row(
+          children: [
+            FaIcon(
+              _icon(),
+              size: 14,
+              color: theme.popupForeground.withValues(
+                alpha:
+                    n.type == NetworkType.wifi && n.signal < 30 ? 0.4 : 1.0,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    n.name,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground,
+                    ),
+                  ),
+                  if (n.type == NetworkType.wifi)
                     Text(
-                      n.name,
+                      '${n.signal}%',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 11,
                         fontFamily: theme.fontFamily,
-                        color: theme.popupForeground,
+                        color: theme.popupForeground.withValues(alpha: 0.6),
                       ),
                     ),
-                    if (n.type == NetworkType.wifi)
-                      Text(
-                        '${n.signal}%',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: theme.fontFamily,
-                          color: theme.popupForeground.withValues(alpha: 0.6),
-                        ),
-                      ),
-                  ],
-                ),
+                ],
               ),
-              if (n.isConnected)
-                const SettingsBadge('Connected')
-              else if (n.secured)
-                FaIcon(
-                  FontAwesomeIcons.lock,
-                  size: 11,
-                  color: theme.popupForeground.withValues(alpha: 0.5),
-                ),
-            ],
-          ),
+            ),
+            if (n.isConnected)
+              const SettingsBadge('Connected')
+            else if (n.secured)
+              FaIcon(
+                FontAwesomeIcons.lock,
+                size: 11,
+                color: theme.popupForeground.withValues(alpha: 0.5),
+              ),
+          ],
         ),
       ),
     );
   }
 }
+
 
 // ---------------------------------------------------------------------------
 // Settings page — NetworkSettingsPage
@@ -355,19 +348,11 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
           padding: const EdgeInsets.fromLTRB(16, 16, 24, 8),
           child: Row(
             children: [
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: _cancelConnect,
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: FaIcon(
-                      FontAwesomeIcons.arrowLeft,
-                      size: 14,
-                      color: theme.popupForeground,
-                    ),
-                  ),
-                ),
+              SettingsIconButton(
+                icon: FontAwesomeIcons.arrowLeft,
+                size: ShellFontSizes.label,
+                color: theme.popupForeground,
+                onTap: _cancelConnect,
               ),
               const SizedBox(width: 8),
               Expanded(

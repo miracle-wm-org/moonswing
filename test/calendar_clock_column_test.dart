@@ -8,6 +8,7 @@ import 'package:graceful_shell/overlay/calendar/clock_column.dart';
 import 'package:graceful_shell/overlay/calendar/time_zones.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 
 /// 10:30 on 9 August 2026, read as UTC — the one part of the day where the
 /// inhabited world spans three calendar dates at once, so a single instant
@@ -166,6 +167,31 @@ void main() {
     await tester.tap(_faIcon(FontAwesomeIcons.xmark).last);
     await tester.pump();
     expect(removed, 'Europe/London');
+  });
+
+  testWidgets('the remove button is a box, and fires from its corners',
+      (tester) async {
+    // Dense (18 square, not 26) because the row already carries two lines of
+    // text — but a box all the same, where it used to be an 11px glyph inside
+    // a `SizedBox` that hit-tested nothing.
+    String? removed;
+    await pumpColumn(
+      tester,
+      clocks: const [WorldClock(zone: 'Asia/Tokyo')],
+      onRemove: (zone) => removed = zone,
+    );
+
+    final button = find.ancestor(
+      of: _faIcon(FontAwesomeIcons.xmark),
+      matching: find.byType(SettingsIconButton),
+    );
+    expect(
+      tester.getSize(button),
+      const Size(ShellSizes.iconButtonDense, ShellSizes.iconButtonDense),
+    );
+    await tester.tapAt(tester.getRect(button).topLeft + const Offset(2, 2));
+    await tester.pump();
+    expect(removed, 'Asia/Tokyo');
   });
 
   group('the picker', () {

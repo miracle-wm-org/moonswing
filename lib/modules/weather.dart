@@ -160,30 +160,28 @@ class _WeatherUnavailable extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return HoverRegion(
-      builder: (context, hovered) => GestureDetector(
-        onTapDown: (_) => onRetry(),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            WeatherIcon(
-              kWeatherUnavailableIcon,
-              size: 16,
-              color: theme.muted,
-            ),
-            // The reason, on hover only: it is a sentence, and a sentence in
-            // the bar would push every module beside it along.
-            if (hovered) ...[
-              const SizedBox(width: 6),
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.caption,
-                  color: theme.muted,
-                ),
+      onTapDown: (_) => onRetry(),
+      builder: (context, hovered) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          WeatherIcon(
+            kWeatherUnavailableIcon,
+            size: ShellFontSizes.title,
+            color: theme.muted,
+          ),
+          // The reason, on hover only: it is a sentence, and a sentence in
+          // the bar would push every module beside it along.
+          if (hovered) ...[
+            const SizedBox(width: 6),
+            Text(
+              message,
+              style: TextStyle(
+                fontSize: ShellFontSizes.caption,
+                color: theme.muted,
               ),
-            ],
+            ),
           ],
-        ),
+        ],
       ),
     );
   }

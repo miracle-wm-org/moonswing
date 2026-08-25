@@ -32,19 +32,19 @@ class BarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return HoverRegion(
-      builder: (context, hovered) => GestureDetector(
-        onTapDown: onTapDown,
-        onSecondaryTapDown: onSecondaryTapDown,
-        child: Container(
-          decoration: BoxDecoration(
-            color: (hovered || active)
-                ? theme.surfaceHover.withValues(alpha: 0.16)
-                : null,
-            borderRadius: BorderRadius.circular(ShellRadii.barButton),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          child: child,
+      // Tap-*down*, not tap: every popup toggle in the shell opens inside the
+      // pointer-down that arms the coordinator's reopen guard.
+      onTapDown: onTapDown,
+      onSecondaryTapDown: onSecondaryTapDown,
+      builder: (context, hovered) => Container(
+        decoration: BoxDecoration(
+          color: (hovered || active)
+              ? theme.surfaceHover.withValues(alpha: 0.16)
+              : null,
+          borderRadius: BorderRadius.circular(ShellRadii.barButton),
         ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        child: child,
       ),
     );
   }

@@ -16,6 +16,7 @@ import 'package:graceful_shell/overlay/settings/shell.dart';
 import 'package:graceful_shell/overlay/settings_route.dart';
 import 'package:graceful_shell/overlay/system/system_tab.dart';
 import 'package:graceful_shell/overlay/system_info/system_info_tab.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The panel is a share of the display rather than a fixed box, so it reads the
@@ -269,24 +270,24 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
                 ),
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: _requestClose,
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
-                          color: const Color(0x00000000),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '✕',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color:
-                                  theme.popupForeground.withValues(alpha: 0.6),
+                  child: HoverRegion(
+                    onTap: _requestClose,
+                    builder: (context, hovered) => Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(ShellRadii.control),
+                        color: hovered
+                            ? theme.surfaceHover
+                            : const Color(0x00000000),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '✕',
+                          style: TextStyle(
+                            fontSize: ShellFontSizes.title,
+                            color: theme.popupForeground.withValues(
+                              alpha: hovered ? 0.9 : 0.6,
                             ),
                           ),
                         ),
@@ -417,7 +418,7 @@ class _SettingsSidebar extends StatelessWidget {
   }
 }
 
-class _SidebarItem extends StatefulWidget {
+class _SidebarItem extends StatelessWidget {
   const _SidebarItem({
     required this.icon,
     required this.label,
@@ -431,62 +432,50 @@ class _SidebarItem extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  _SidebarItemState createState() => _SidebarItemState();
-}
-
-class _SidebarItemState extends State<_SidebarItem> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final Color bg;
-    if (widget.selected) {
-      bg = theme.accent.withValues(alpha: 0.25);
-    } else if (_hovered) {
-      bg = theme.surfaceHover;
-    } else {
-      bg = const Color(0x00000000);
-    }
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) {
+        final Color bg;
+        if (selected) {
+          bg = theme.accent.withValues(alpha: 0.25);
+        } else if (hovered) {
+          bg = theme.surfaceHover;
+        } else {
+          bg = const Color(0x00000000);
+        }
+        return Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: bg,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(ShellRadii.control),
           ),
           child: Row(
             children: [
               FaIcon(
-                widget.icon,
-                size: 13,
-                color: widget.selected
+                icon,
+                size: ShellFontSizes.body,
+                color: selected
                     ? theme.accent
                     : theme.popupForeground.withValues(alpha: 0.8),
               ),
               const SizedBox(width: 10),
               Text(
-                widget.label,
+                label,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: ShellFontSizes.body,
                   fontFamily: theme.fontFamily,
-                  color: widget.selected
+                  color: selected
                       ? theme.accent
                       : theme.popupForeground.withValues(alpha: 0.8),
-                  fontWeight:
-                      widget.selected ? FontWeight.w600 : FontWeight.normal,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),
             ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

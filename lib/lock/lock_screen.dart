@@ -7,7 +7,9 @@ import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/background.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/lock/pam_authenticator.dart';
 import 'package:graceful_shell/lock/user_identity.dart';
 
@@ -386,7 +388,7 @@ class _LockScreenState extends State<LockScreen> {
   }
 }
 
-class _LockButton extends StatefulWidget {
+class _LockButton extends StatelessWidget {
   const _LockButton({
     super.key,
     required this.label,
@@ -399,39 +401,27 @@ class _LockButton extends StatefulWidget {
   final VoidCallback? onTap;
 
   @override
-  State<_LockButton> createState() => _LockButtonState();
-}
-
-class _LockButtonState extends State<_LockButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
-    final base = widget.accent.withValues(alpha: enabled ? 0.9 : 0.4);
-    return MouseRegion(
-      cursor: enabled
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 11),
-          decoration: BoxDecoration(
-            color: _hovered && enabled
-                ? Color.lerp(base, const Color(0xFFFFFFFF), 0.18)
-                : base,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            widget.label,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          ),
+    final enabled = onTap != null;
+    final base = accent.withValues(alpha: enabled ? 0.9 : 0.4);
+    return HoverRegion(
+      enabled: enabled,
+      onTap: onTap ?? () {},
+      builder: (context, hovered) => AnimatedContainer(
+        duration: ShellDurations.fast,
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 11),
+        decoration: BoxDecoration(
+          color: hovered && enabled
+              ? Color.lerp(base, const Color(0xFFFFFFFF), 0.18)
+              : base,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
       ),
     );
   }
 }
+

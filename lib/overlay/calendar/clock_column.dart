@@ -9,6 +9,7 @@ import 'package:graceful_shell/overlay/calendar/month.dart';
 import 'package:graceful_shell/overlay/calendar/time_zones.dart';
 import 'package:graceful_shell/overlay/calendar/timezone_picker.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
 /// Width of the whole column. Fixed rather than fractional: the overlay panel
@@ -368,41 +369,20 @@ class _WorldClockRowState extends State<_WorldClockRow> {
 ///
 /// Its own widget rather than [SettingsIconButton] because that one is 26x26,
 /// which does not fit a row that already carries two lines of text.
-class _RemoveButton extends StatefulWidget {
+class _RemoveButton extends StatelessWidget {
   const _RemoveButton({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
-  State<_RemoveButton> createState() => _RemoveButtonState();
-}
-
-class _RemoveButtonState extends State<_RemoveButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: SizedBox(
-          width: 18,
-          height: 18,
-          child: Center(
-            child: FaIcon(
-              FontAwesomeIcons.xmark,
-              size: 11,
-              color: _hovered
-                  ? theme.accent
-                  : theme.popupForeground.withValues(alpha: 0.5),
-            ),
-          ),
-        ),
-      ),
+    return SettingsIconButton(
+      icon: FontAwesomeIcons.xmark,
+      size: ShellFontSizes.caption,
+      box: ShellSizes.iconButtonDense,
+      color: theme.popupForeground.withValues(alpha: 0.5),
+      onTap: onTap,
     );
   }
 }

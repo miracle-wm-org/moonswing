@@ -9,6 +9,7 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/notification_service.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:graceful_shell/theme/tokens.dart';
@@ -408,25 +409,30 @@ class _NotificationPanelState extends State<_NotificationPanel>
           ),
           const Spacer(),
           if (hasItems) ...[
-            GestureDetector(
+            HoverRegion(
               onTap: () => NotificationStore.instance.dismissAll(),
-              child: Text(
-                'Clear all',
-                style: TextStyle(fontSize: 12, color: theme.accent),
+              builder: (context, hovered) => Padding(
+                // A label with no box is a target as tall as its glyphs; the
+                // padding is what lifts it over `ShellSizes.minTapTarget`.
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                child: Text(
+                  'Clear all',
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.secondary,
+                    color: hovered
+                        ? theme.accent
+                        : theme.accent.withValues(alpha: 0.8),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 6),
           ],
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () => widget.closingNotifier.value = true,
-              child: FaIcon(
-                FontAwesomeIcons.xmark,
-                size: 14,
-                color: theme.popupForeground,
-              ),
-            ),
+          SettingsIconButton(
+            icon: FontAwesomeIcons.xmark,
+            size: ShellFontSizes.label,
+            color: theme.popupForeground,
+            onTap: () => widget.closingNotifier.value = true,
           ),
         ],
       ),
@@ -561,23 +567,21 @@ class _RetryButton extends StatelessWidget {
     }
 
     return HoverRegion(
-      builder: (context, hovered) => GestureDetector(
-        onTap: () => store.retryDaemon(),
-        child: Container(
-          width: 58,
-          height: 24,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: hovered ? kErrorColor.withValues(alpha: 0.18) : null,
-            border: Border.all(color: kErrorColor.withValues(alpha: 0.6)),
-            borderRadius: BorderRadius.circular(ShellRadii.control),
-          ),
-          child: const Text(
-            'Retry',
-            style: TextStyle(
-              fontSize: ShellFontSizes.secondary,
-              color: kErrorColor,
-            ),
+      onTap: () => store.retryDaemon(),
+      builder: (context, hovered) => Container(
+        width: 58,
+        height: ShellSizes.minTapTarget,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: hovered ? kErrorColor.withValues(alpha: 0.18) : null,
+          border: Border.all(color: kErrorColor.withValues(alpha: 0.6)),
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+        ),
+        child: const Text(
+          'Retry',
+          style: TextStyle(
+            fontSize: ShellFontSizes.secondary,
+            color: kErrorColor,
           ),
         ),
       ),
@@ -602,19 +606,23 @@ class _NotificationCard extends StatelessWidget {
       final label = item.actions[i + 1];
       if (key == 'default') continue;
       actionWidgets.add(
-        GestureDetector(
+        HoverRegion(
           onTap: () => NotificationStore.instance.invokeAction(item.id, key),
-          child: Container(
+          builder: (context, hovered) => Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
+              color: hovered ? theme.surfaceHover : null,
               border: Border.all(
                 color: theme.accent.withValues(alpha: 0.5),
               ),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(ShellRadii.barButton),
             ),
             child: Text(
               label,
-              style: TextStyle(fontSize: 12, color: theme.accent),
+              style: TextStyle(
+                fontSize: ShellFontSizes.secondary,
+                color: theme.accent,
+              ),
             ),
           ),
         ),
@@ -666,16 +674,11 @@ class _NotificationCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          MouseRegion(
-            cursor: SystemMouseCursors.click,
-            child: GestureDetector(
-              onTap: () => NotificationStore.instance.dismiss(item.id),
-              child: FaIcon(
-                FontAwesomeIcons.xmark,
-                size: 12,
-                color: theme.popupForeground.withValues(alpha: 0.5),
-              ),
-            ),
+          SettingsIconButton(
+            icon: FontAwesomeIcons.xmark,
+            size: ShellFontSizes.secondary,
+            color: theme.popupForeground.withValues(alpha: 0.5),
+            onTap: () => NotificationStore.instance.dismiss(item.id),
           ),
         ],
       ),

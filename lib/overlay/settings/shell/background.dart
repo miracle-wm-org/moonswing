@@ -8,6 +8,7 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/wallpaper_catalog.dart';
@@ -396,7 +397,7 @@ class _WallpaperGrid extends StatelessWidget {
 /// [onRemove] is null for a wallpaper the machine ships, which is the whole of
 /// "system wallpapers cannot be deleted" as far as this widget is concerned:
 /// no button is drawn, so there is nothing to click.
-class _WallpaperTile extends StatefulWidget {
+class _WallpaperTile extends StatelessWidget {
   const _WallpaperTile({
     required this.path,
     required this.selected,
@@ -410,82 +411,71 @@ class _WallpaperTile extends StatefulWidget {
   final VoidCallback? onRemove;
 
   @override
-  State<_WallpaperTile> createState() => _WallpaperTileState();
-}
-
-class _WallpaperTileState extends State<_WallpaperTile> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.file(
-                File(widget.path),
-                fit: BoxFit.cover,
-                cacheWidth: 320,
-                gaplessPlayback: true,
-                errorBuilder: (c, e, s) =>
-                    ColoredBox(color: theme.controlSurface),
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.file(
+              File(path),
+              fit: BoxFit.cover,
+              cacheWidth: 320,
+              gaplessPlayback: true,
+              errorBuilder: (c, e, s) =>
+                  ColoredBox(color: theme.controlSurface),
+            ),
+            if (!selected && !hovered)
+              const ColoredBox(color: Color(0x33000000)),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: selected
+                      ? theme.accent
+                      : (hovered ? theme.surfaceHover : theme.divider),
+                  width: selected ? 2 : 1,
+                ),
               ),
-              if (!widget.selected && !_hovered)
-                const ColoredBox(color: Color(0x33000000)),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: widget.selected
-                        ? theme.accent
-                        : (_hovered ? theme.surfaceHover : theme.divider),
-                    width: widget.selected ? 2 : 1,
+            ),
+            if (selected)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: theme.accent,
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const FaIcon(
+                    FontAwesomeIcons.check,
+                    size: 10,
+                    color: Color(0xFFFFFFFF),
                   ),
                 ),
               ),
-              if (widget.selected)
-                Positioned(
-                  top: 6,
-                  right: 6,
-                  child: Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: theme.accent,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: const FaIcon(
-                      FontAwesomeIcons.check,
-                      size: 10,
-                      color: Color(0xFFFFFFFF),
-                    ),
-                  ),
-                ),
-              // Bottom-left, so it never lands under the selection badge, and
-              // only while the pointer is on the tile — a grid of delete
-              // buttons reads as a grid of delete buttons.
-              if (widget.onRemove != null && _hovered)
-                Positioned(
-                  left: 6,
-                  bottom: 6,
-                  child: _RemoveBadge(onTap: widget.onRemove!),
-                ),
-            ],
-          ),
+            // Bottom-left, so it never lands under the selection badge, and
+            // only while the pointer is on the tile — a grid of delete
+            // buttons reads as a grid of delete buttons.
+            if (onRemove != null && hovered)
+              Positioned(
+                left: 6,
+                bottom: 6,
+                child: _RemoveBadge(onTap: onRemove!),
+              ),
+          ],
         ),
       ),
     );
   }
 }
+
 
 /// The hover-revealed "drop this wallpaper from the list" button.
 class _RemoveBadge extends StatefulWidget {

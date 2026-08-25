@@ -10,6 +10,8 @@ import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
 /// A sink's level as the shell last saw it.
@@ -249,16 +251,26 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
     final muted = _level.muted;
     final volume = _level.volume;
 
-    final muteButton = GestureDetector(
+    // A bare `FaIcon` is a target the size of one glyph, and this one had no
+    // `MouseRegion` either — the popup is tighter than a settings row, so it
+    // takes the minimum box rather than `SettingsIconButton`'s.
+    final muteButton = HoverRegion(
       onTap: () {
         final newMuted = !muted;
         setState(() => _level = (volume: volume, muted: newMuted));
         widget.onMuteChanged(newMuted);
       },
-      child: FaIcon(
-        _volumeIconFor(_level),
-        size: 14,
-        color: muted ? theme.muted : theme.popupForeground,
+      builder: (context, hovered) => SizedBox.square(
+        dimension: ShellSizes.minTapTarget,
+        child: Center(
+          child: FaIcon(
+            _volumeIconFor(_level),
+            size: ShellFontSizes.label,
+            color: muted
+                ? theme.muted
+                : (hovered ? theme.accent : theme.popupForeground),
+          ),
+        ),
       ),
     );
 

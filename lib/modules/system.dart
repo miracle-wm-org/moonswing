@@ -10,6 +10,7 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup_surface.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
@@ -186,7 +187,7 @@ class SystemPopupContent extends StatelessWidget {
   }
 }
 
-class _SystemButton extends StatefulWidget {
+class _SystemButton extends StatelessWidget {
   const _SystemButton({
     required this.icon,
     required this.label,
@@ -198,44 +199,34 @@ class _SystemButton extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  _SystemButtonState createState() => _SystemButtonState();
-}
-
-class _SystemButtonState extends State<_SystemButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            color: _hovered ? theme.surfaceHover : null,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              FaIcon(
-                widget.icon,
-                size: 14,
-                color: theme.popupForeground,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(widget.label),
-              ),
-            ],
-          ),
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        decoration: BoxDecoration(
+          color: hovered ? theme.surfaceHover : null,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            FaIcon(
+              icon,
+              size: 14,
+              color: theme.popupForeground,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(label),
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
 
 class _ConfirmationDialog extends StatefulWidget {
   const _ConfirmationDialog({
@@ -361,7 +352,7 @@ class _ConfirmationDialogState extends State<_ConfirmationDialog> {
   }
 }
 
-class _DialogButton extends StatefulWidget {
+class _DialogButton extends StatelessWidget {
   const _DialogButton({
     required this.label,
     required this.onTap,
@@ -373,55 +364,40 @@ class _DialogButton extends StatefulWidget {
   final bool primary;
 
   @override
-  _DialogButtonState createState() => _DialogButtonState();
-}
-
-class _DialogButtonState extends State<_DialogButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final Color bg;
-    if (widget.primary) {
-      bg = _hovered
-          ? Color.lerp(theme.accent, const Color(0xFFFFFFFF), 0.15)!
-          : theme.accent;
-    } else {
-      bg = _hovered ? theme.surfaceHover : const Color(0x00000000);
-    }
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
-            border: widget.primary
-                ? null
-                : Border.all(
-                    color: theme.popupForeground.withValues(alpha: 0.3),
-                  ),
-          ),
-          child: Text(
-            widget.label,
-            style: TextStyle(
-              color: theme.popupForeground,
-              fontSize: 13,
-              fontFamily: theme.fontFamily,
-              decoration: TextDecoration.none,
-              fontWeight: FontWeight.normal,
-            ),
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: primary
+              ? (hovered
+                  ? Color.lerp(theme.accent, const Color(0xFFFFFFFF), 0.15)!
+                  : theme.accent)
+              : (hovered ? theme.surfaceHover : const Color(0x00000000)),
+          borderRadius: BorderRadius.circular(6),
+          border: primary
+              ? null
+              : Border.all(
+                  color: theme.popupForeground.withValues(alpha: 0.3),
+                ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: theme.popupForeground,
+            fontSize: 13,
+            fontFamily: theme.fontFamily,
+            decoration: TextDecoration.none,
+            fontWeight: FontWeight.normal,
           ),
         ),
       ),
     );
   }
 }
+
 
 final Module systemModule = Module.plain(
   configKey: 'system',

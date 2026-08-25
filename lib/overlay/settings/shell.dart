@@ -4,7 +4,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/settings/shell/appearance.dart';
 import 'package:graceful_shell/overlay/settings/shell/background.dart';
@@ -290,82 +292,70 @@ PageRoute<T> _slideRoute<T>(Widget child) {
 
 /// Tappable, hover-aware row on the landing page. Styled after the sidebar's
 /// [_SidebarItem]: icon + title + subtitle + trailing chevron.
-class _CategoryCard extends StatefulWidget {
+class _CategoryCard extends StatelessWidget {
   const _CategoryCard({required this.category, required this.onTap});
 
   final _ShellCategory category;
   final VoidCallback onTap;
 
   @override
-  _CategoryCardState createState() => _CategoryCardState();
-}
-
-class _CategoryCardState extends State<_CategoryCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: _hovered ? theme.surfaceHover : theme.controlSurface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: _hovered ? theme.accent : theme.divider,
+      child: HoverRegion(
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: hovered ? theme.surfaceHover : theme.controlSurface,
+            borderRadius: BorderRadius.circular(ShellRadii.card),
+            border: Border.all(
+              color: hovered ? theme.accent : theme.divider,
+            ),
+          ),
+          child: Row(
+            children: [
+              FaIcon(
+                category.icon,
+                size: ShellFontSizes.title,
+                color: hovered
+                    ? theme.accent
+                    : theme.popupForeground.withValues(alpha: 0.8),
               ),
-            ),
-            child: Row(
-              children: [
-                FaIcon(
-                  widget.category.icon,
-                  size: 16,
-                  color: _hovered
-                      ? theme.accent
-                      : theme.popupForeground.withValues(alpha: 0.8),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.category.title,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontFamily: theme.fontFamily,
-                          color: theme.popupForeground,
-                          fontWeight: FontWeight.w600,
-                        ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      category.title,
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.label,
+                        fontFamily: theme.fontFamily,
+                        color: theme.popupForeground,
+                        fontWeight: FontWeight.w600,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.category.subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontFamily: theme.fontFamily,
-                          color: theme.popupForeground.withValues(alpha: 0.6),
-                        ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      category.subtitle,
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.secondary,
+                        fontFamily: theme.fontFamily,
+                        color: theme.popupForeground.withValues(alpha: 0.6),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                FaIcon(
-                  FontAwesomeIcons.chevronRight,
-                  size: 12,
-                  color: theme.popupForeground.withValues(alpha: 0.4),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 10),
+              FaIcon(
+                FontAwesomeIcons.chevronRight,
+                size: ShellFontSizes.secondary,
+                color: theme.popupForeground.withValues(alpha: 0.4),
+              ),
+            ],
           ),
         ),
       ),

@@ -251,17 +251,14 @@ class _RetryButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return HoverRegion(
-      cursor: SystemMouseCursors.click,
-      builder: (context, hovered) => GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFFFF).withValues(alpha: hovered ? 0.3 : 0.18),
-            borderRadius: BorderRadius.circular(ShellRadii.control),
-          ),
-          child: const _SkyText('Retry', size: ShellFontSizes.caption),
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFFFF).withValues(alpha: hovered ? 0.3 : 0.18),
+          borderRadius: BorderRadius.circular(ShellRadii.control),
         ),
+        child: const _SkyText('Retry', size: ShellFontSizes.caption),
       ),
     );
   }

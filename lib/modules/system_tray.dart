@@ -12,6 +12,7 @@ import 'package:graceful_shell/dbus_menu.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -179,7 +180,7 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
 }
 
 /// A single hover-highlighted, tappable tray icon.
-class _TrayIconButton extends StatefulWidget {
+class _TrayIconButton extends StatelessWidget {
   const _TrayIconButton({
     required this.item,
     required this.size,
@@ -191,39 +192,29 @@ class _TrayIconButton extends StatefulWidget {
   final void Function(BuildContext iconContext) onPressed;
 
   @override
-  State<_TrayIconButton> createState() => _TrayIconButtonState();
-}
-
-class _TrayIconButtonState extends State<_TrayIconButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTapDown: (_) => widget.onPressed(context),
-        child: Container(
-          decoration: BoxDecoration(
-            // The one hover in the shell that used to ignore the theme.
-            color: _hovered
-                ? ThemeScope.of(context).surfaceHover.withValues(alpha: 0.16)
-                : null,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          alignment: Alignment.center,
-          child: _TrayIcon(
-            item: widget.item,
-            size: widget.size,
-            foreground: theme.foreground,
-          ),
+    return HoverRegion(
+      onTapDown: (_) => onPressed(context),
+      builder: (context, hovered) => Container(
+        decoration: BoxDecoration(
+          // The one hover in the shell that used to ignore the theme.
+          color: hovered
+              ? ThemeScope.of(context).surfaceHover.withValues(alpha: 0.16)
+              : null,
+          borderRadius: BorderRadius.circular(4),
+        ),
+        alignment: Alignment.center,
+        child: _TrayIcon(
+          item: item,
+          size: size,
+          foreground: theme.foreground,
         ),
       ),
     );
   }
 }
+
 
 /// Renders a tray item's icon: a raw pixmap when provided, otherwise a themed
 /// icon name, otherwise a monochrome fallback glyph.

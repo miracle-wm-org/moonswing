@@ -3,6 +3,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/hover_region.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/font_catalog.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
@@ -439,7 +441,7 @@ class _ThemeStoreSelectorState<T> extends State<_ThemeStoreSelector<T>> {
 /// One theme in the picker: a strip of its own colours, its name, and a tick
 /// when it is the active one. Drawn in the theme it represents, so the grid
 /// previews rather than describes.
-class _ThemeCard extends StatefulWidget {
+class _ThemeCard extends StatelessWidget {
   const _ThemeCard({
     required this.summary,
     required this.selected,
@@ -453,34 +455,23 @@ class _ThemeCard extends StatefulWidget {
   final VoidCallback? onDelete;
 
   @override
-  State<_ThemeCard> createState() => _ThemeCardState();
-}
-
-class _ThemeCardState extends State<_ThemeCard> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final preview = widget.summary.config;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          width: 168,
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: _hovered ? theme.surfaceHover : theme.controlSurface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: widget.selected ? theme.accent : theme.divider,
-              width: widget.selected ? 2 : 1,
-            ),
+    final preview = summary.config;
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        width: 168,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: hovered ? theme.surfaceHover : theme.controlSurface,
+          borderRadius: BorderRadius.circular(ShellRadii.card),
+          border: Border.all(
+            color: selected ? theme.accent : theme.divider,
+            width: selected ? 2 : 1,
           ),
-          child: Column(
+        ),
+        child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -522,39 +513,38 @@ class _ThemeCardState extends State<_ThemeCard> {
                 children: [
                   Expanded(
                     child: Text(
-                      widget.summary.displayName,
+                      summary.displayName,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: ShellFontSizes.body,
                         fontFamily: theme.fontFamily,
                         color: theme.popupForeground,
                         fontWeight:
-                            widget.selected ? FontWeight.w600 : FontWeight.w400,
+                            selected ? FontWeight.w600 : FontWeight.w400,
                       ),
                     ),
                   ),
-                  if (widget.selected)
+                  if (selected)
                     FaIcon(FontAwesomeIcons.check,
-                        size: 11, color: theme.accent)
-                  else if (_hovered && widget.onDelete != null)
+                        size: ShellFontSizes.caption, color: theme.accent)
+                  else if (hovered && onDelete != null)
                     SettingsIconButton(
                       icon: FontAwesomeIcons.trash,
-                      size: 11,
-                      onTap: widget.onDelete!,
+                      size: ShellFontSizes.caption,
+                      onTap: onDelete!,
                     ),
                 ],
               ),
               Text(
-                widget.summary.builtIn ? 'Built-in' : widget.summary.slug,
+                summary.builtIn ? 'Built-in' : summary.slug,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: ShellFontSizes.caption,
                   fontFamily: theme.fontFamily,
                   color: theme.muted,
                 ),
               ),
             ],
           ),
-        ),
       ),
     );
   }

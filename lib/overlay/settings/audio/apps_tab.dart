@@ -8,6 +8,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/overlay/settings/audio/audio_slider.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
 
 // ---------------------------------------------------------------------------
@@ -236,20 +237,15 @@ class _SinkInputItemState extends State<_SinkInputItem> {
           const SizedBox(height: 10),
           Row(
             children: [
-              MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: _toggleMute,
-                  child: FaIcon(
-                    _muted
-                        ? FontAwesomeIcons.volumeXmark
-                        : FontAwesomeIcons.volumeLow,
-                    size: 14,
-                    color: _muted ? theme.muted : theme.popupForeground,
-                  ),
-                ),
+              SettingsIconButton(
+                icon: _muted
+                    ? FontAwesomeIcons.volumeXmark
+                    : FontAwesomeIcons.volumeLow,
+                size: ShellFontSizes.label,
+                color: _muted ? theme.muted : theme.popupForeground,
+                onTap: _toggleMute,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 4),
               Expanded(
                 child: AudioSlider(
                   value: _volume,

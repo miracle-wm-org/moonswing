@@ -4,7 +4,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/modules/clock.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
 import 'package:graceful_shell/timers/timer_widgets.dart';
 
@@ -151,6 +153,45 @@ void main() {
       await tester.pump();
       expect(store.isEmpty, isTrue);
       expect(find.textContaining('Nothing running'), findsOneWidget);
+    });
+
+    testWidgets('the row controls fire from the edges of their boxes', (
+      tester,
+    ) async {
+      // The reported bug, end to end. These three used to hover and cursor over
+      // a 26-square box and fire over the ~11px glyph in the middle of it, so a
+      // centre tap — which is what every other case here does — passed while
+      // the button was unusable for anyone not aiming at its exact middle.
+      var clock = DateTime(2026, 8, 24, 12);
+      final store = _store(now: () => clock);
+      addTearDown(store.dispose);
+      final id = store.startStopwatch();
+      await tester.pumpWidget(_pane(store));
+
+      clock = clock.add(const Duration(seconds: 30));
+      final pause = find.ancestor(
+        of: _icon(FontAwesomeIcons.pause),
+        matching: find.byType(SettingsIconButton),
+      );
+      expect(
+        tester.getSize(pause),
+        const Size(ShellSizes.iconButton, ShellSizes.iconButton),
+      );
+      await tester.tapAt(tester.getRect(pause).topLeft + const Offset(2, 2));
+      await tester.pump();
+      expect(store.entry(id)!.running, isFalse);
+
+      await tester.tapAt(
+        tester
+                .getRect(find.ancestor(
+                  of: _icon(FontAwesomeIcons.stop),
+                  matching: find.byType(SettingsIconButton),
+                ))
+                .bottomRight +
+            const Offset(-2, -2),
+      );
+      await tester.pump();
+      expect(store.isEmpty, isTrue);
     });
 
     testWidgets('Stop all appears only with more than one entry', (

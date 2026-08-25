@@ -5,6 +5,7 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/underline_tabs.dart';
 
@@ -367,41 +368,28 @@ const double _kPanelTabCloseSize = 18;
 /// the deepest competitor, so a click here removes the panel rather than also
 /// selecting the tab. Not a [SettingsIconButton] — that control is 26 square,
 /// sized for a form row, and would out-measure the tab's own text.
-class _PanelTabClose extends StatefulWidget {
+class _PanelTabClose extends StatelessWidget {
   const _PanelTabClose({required this.onTap});
 
   final VoidCallback onTap;
 
   @override
-  State<_PanelTabClose> createState() => _PanelTabCloseState();
-}
-
-class _PanelTabCloseState extends State<_PanelTabClose> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: Container(
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: _hovered ? theme.surfaceHover : const Color(0x00000000),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: FaIcon(
-            FontAwesomeIcons.xmark,
-            size: 10,
-            color: _hovered
-                ? theme.accent
-                : theme.popupForeground.withValues(alpha: 0.5),
-          ),
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: hovered ? theme.surfaceHover : const Color(0x00000000),
+          borderRadius: BorderRadius.circular(ShellRadii.barButton),
+        ),
+        child: FaIcon(
+          FontAwesomeIcons.xmark,
+          size: 10,
+          color: hovered
+              ? theme.accent
+              : theme.popupForeground.withValues(alpha: 0.5),
         ),
       ),
     );

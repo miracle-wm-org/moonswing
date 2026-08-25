@@ -72,3 +72,24 @@ const Color kErrorColor = Color(0xFFE06C75);
 
 /// Text/iconography drawn on top of `theme.accent` fills.
 const Color kOnAccent = Color(0xFFFFFFFF);
+
+/// Pointer-target sizes.
+///
+/// Hover and tap are one box (see `HoverRegion`), so these name *that box* and
+/// never the glyph inside it. A `FaIcon` is a bare `RichText` with no `SizedBox`
+/// around it, so an icon with no box of its own *is* its own target — 11-14px,
+/// which is a control the pointer has to be aimed at rather than pointed at.
+abstract final class ShellSizes {
+  /// The floor for anything clickable that is not deliberately dense.
+  static const double minTapTarget = 24;
+
+  /// The settings icon-button box, and the default for a standalone icon
+  /// action anywhere in the shell.
+  static const double iconButton = 26;
+
+  /// The dense box, for a row that already carries two lines of text — the
+  /// world clocks' remove x, the panel tabs' close x. Below [minTapTarget] on
+  /// purpose and only where the row's height forces it; still six times the
+  /// area of the 11px glyph it holds.
+  static const double iconButtonDense = 18;
+}
