@@ -138,6 +138,11 @@ class WeatherStore extends ChangeNotifier {
   /// one request per shell rather than one per refresh.
   WeatherPlace? _resolved;
 
+  /// The lookup in flight, so two callers wanting the location at once make one
+  /// request. There are two of them now — [refresh] and [resolvePlace] — and
+  /// the second exists for a consumer that does not want the weather at all.
+  Future<WeatherPlace>? _locating;
+
   /// Take a lease. The first one starts the refresh timer and fetches
   /// immediately, so the first consumer never waits a full interval for a
   /// reading.
@@ -176,6 +181,52 @@ class WeatherStore extends ChangeNotifier {
     _timer = null;
   }
 
+  /// Where the shell thinks it is, without fetching any weather.
+  ///
+  /// The lunar widget needs a *location* and nothing else: the phase is the
+  /// same everywhere on Earth, and the coordinates only decide the moonrise
+  /// times and which way up the disc is seen. Taking a weather lease for that
+  /// would start a ten-minute forecast poll to answer a question the config may
+  /// already contain, so this answers from the configured coordinates, then
+  /// from whatever a weather fetch has already resolved, and only then makes
+  /// the one IP lookup — shared with [refresh]'s, and cached for the life of
+  /// the shell exactly as that one is.
+  ///
+  /// Null rather than a throw when there is no answer. A consumer of this is by
+  /// definition one that works without a location; the weather cannot, which is
+  /// why [refresh] still lets the failure through to [error].
+  Future<WeatherPlace?> resolvePlace() async {
+    final configured = _config.place;
+    if (configured != null) return configured;
+    final known = _place ?? _resolved;
+    if (known != null) return known;
+    try {
+      return await _locateOnce();
+    } catch (e) {
+      debugPrint('weather: could not resolve a location: $e');
+      return null;
+    }
+  }
+
+  /// The IP lookup, made at most once per shell and at most once at a time.
+  Future<WeatherPlace> _locateOnce() {
+    final cached = _resolved;
+    if (cached != null) return Future.value(cached);
+    return _locating ??= _client.locate().then(
+      (place) {
+        _resolved = place;
+        _locating = null;
+        return place;
+      },
+      // Cleared on the way out, or one failed lookup would be re-thrown at
+      // every caller for the rest of the session.
+      onError: (Object error) {
+        _locating = null;
+        throw error;
+      },
+    );
+  }
+
   /// Fetch now. Public because both surfaces offer a retry: every failure here
   /// is recoverable without restarting the shell (the network comes back, the
   /// API stops rate-limiting) and the shell cannot detect either happening.
@@ -187,7 +238,7 @@ class WeatherStore extends ChangeNotifier {
       // one fetch always agree even if the config moves mid-flight.
       final unit = this.unit;
       final configured = _config.place;
-      final place = configured ?? (_resolved ??= await _client.locate());
+      final place = configured ?? await _locateOnce();
       final snapshot = await _client.fetch(place, unit);
 
       _place = snapshot.place;
