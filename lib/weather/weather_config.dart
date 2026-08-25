@@ -12,7 +12,7 @@ import 'package:graceful_shell/weather/weather_api.dart';
 class WeatherConfig {
   const WeatherConfig({
     this.unit = 'fahrenheit',
-    this.refreshMinutes = 10,
+    this.refreshMinutes = 30,
     this.locationName = '',
     this.latitude,
     this.longitude,
@@ -21,6 +21,14 @@ class WeatherConfig {
   /// `fahrenheit` or `celsius`; anything else reads as fahrenheit.
   final String unit;
 
+  /// How often the forecast is re-fetched, in minutes.
+  ///
+  /// Half an hour, which is about how often the reading itself moves: the
+  /// current temperature is Open-Meteo's own hourly figure interpolated, so a
+  /// ten-minute poll — what this used to be — asked their free API for the same
+  /// numbers three times over. The one thing a longer interval costs is how
+  /// stale the card can be at its worst, and half an hour of that is invisible
+  /// against a reading whose source updates hourly.
   final int refreshMinutes;
 
   /// What the user calls the place they picked. Empty means "wherever this
@@ -53,7 +61,7 @@ class WeatherConfig {
       unit: map.stringOr('unit', 'fahrenheit'),
       // Bounded: this is a timer period, and `refresh_minutes = 0` is a tight
       // loop against somebody else's free API.
-      refreshMinutes: map.intOr('refresh_minutes', 10, min: 1, max: 1440),
+      refreshMinutes: map.intOr('refresh_minutes', 30, min: 1, max: 1440),
       locationName: map.stringOr('location', ''),
       // Out-of-range coordinates are absent rather than clamped: a latitude of
       // 400 is a typo, and clamping it to 90 would silently show the user the

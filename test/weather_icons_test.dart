@@ -12,7 +12,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/weather/weather_condition.dart';
 import 'package:graceful_shell/weather/weather_icons.dart';
-import 'package:lottie/lottie.dart';
 
 /// Every code `conditionForCode` actually knows. Derived rather than listed, so
 /// a row added to the table is a row this test starts covering.
@@ -128,28 +127,21 @@ void main() {
       expect(assetOf(tester), 'assets/fill/svg-static/clear-day.svg');
     });
 
-    testWidgets('an animated glyph is a Lottie that actually loaded',
+    testWidgets('nothing here reaches for the pack\'s animated formats',
         (tester) async {
-      // The half of this that no other test reaches, and the one that would
-      // fail silently: `flutter_svg` drops the SMIL the animated *SVGs* carry
-      // their motion in, so the only format here that moves is Lottie — and a
-      // Lottie whose asset did not resolve renders as an empty box rather than
-      // as an error.
+      // The hero glyph on the desktop card used to be a Lottie — a `Ticker`
+      // running for as long as a wallpaper widget was on screen, beside a sky
+      // running another. Both are gone, so this asserts the *absence*: every
+      // rendering is an SVG picture, and there is no flag that turns one into
+      // anything else.
       await pumpIcon(
         tester,
-        WeatherIcon(
-          weatherIcon(conditionForCode(61)),
-          size: 58,
-          animate: true,
-        ),
+        WeatherIcon(weatherIcon(conditionForCode(61)), size: 58),
       );
       expect(tester.takeException(), isNull);
-      expect(find.byType(SvgPicture), findsNothing);
-
-      final composition =
-          tester.widget<RawLottie>(find.byType(RawLottie)).composition;
-      expect(composition, isNotNull);
-      expect(composition!.duration, greaterThan(Duration.zero));
+      expect(assetOf(tester), 'assets/fill/svg-static/rain.svg');
+      // And the tree settles, which a Lottie's ticker never let it do.
+      await tester.pumpAndSettle();
     });
   });
 }

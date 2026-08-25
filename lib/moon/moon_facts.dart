@@ -8,7 +8,7 @@
 // file free of Flutter.
 //
 // One editorial rule runs through all of it, and it is the same one
-// `weather_sky.dart` states about its animation: **say only what the numbers
+// `weather_sky.dart` states about its picture: **say only what the numbers
 // support.** Spring tides, dark skies for meteor watching, the reduced activity
 // of nocturnal animals under a bright moon and the eclipse windows are all
 // consequences of the geometry this feature already computes. Everything the

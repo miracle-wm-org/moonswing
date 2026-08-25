@@ -10,7 +10,7 @@ void main() {
     test('defaults', () {
       const config = WeatherConfig();
       expect(config.unit, 'fahrenheit');
-      expect(config.refreshMinutes, 10);
+      expect(config.refreshMinutes, 30);
       expect(config.locationName, '');
       expect(config.place, isNull);
     });
@@ -18,13 +18,13 @@ void main() {
     test('reads a full location', () {
       final config = WeatherConfig.fromMap(const {
         'unit': 'celsius',
-        'refresh_minutes': 30,
+        'refresh_minutes': 45,
         'location': 'Berlin, Germany',
         'latitude': 52.52,
         'longitude': 13.405,
       });
       expect(config.temperatureUnit, TemperatureUnit.celsius);
-      expect(config.refreshMinutes, 30);
+      expect(config.refreshMinutes, 45);
       expect(config.place?.name, 'Berlin, Germany');
       expect(config.place?.latitude, 52.52);
     });
@@ -55,7 +55,7 @@ void main() {
         'longitude': 13.4,
       });
       expect(config.unit, 'fahrenheit');
-      expect(config.refreshMinutes, 10);
+      expect(config.refreshMinutes, 30);
       expect(config.place, isNotNull);
     });
 

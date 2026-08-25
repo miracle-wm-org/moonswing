@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/weather/weather_condition.dart';
@@ -59,25 +61,34 @@ void main() {
       expect(_field(65).drops.length, lessThanOrEqualTo(kMaxDrops));
     });
 
-    test('snow drifts sideways and rain does not', () {
-      expect(_field(75).drops.every((d) => d.sway > 0), isTrue);
-      expect(_field(65).drops.every((d) => d.sway == 0), isTrue);
+    test('snow falls as flakes, rain as streaks and hail as pellets', () {
+      // The shape is on the drop rather than re-derived in the painter, which
+      // is what lets the next case be a genuine mixture.
+      expect(_field(75).drops.every((d) => d.shape == SkyDropShape.flake),
+          isTrue);
+      expect(_field(65).drops.every((d) => d.shape == SkyDropShape.streak),
+          isTrue);
+      expect(_field(96).drops.every((d) => d.shape == SkyDropShape.pellet),
+          isTrue);
     });
 
-    test('sleet is the mixed case, so only some of it drifts', () {
-      // Giving the whole field a sway would make freezing rain fall like a
-      // blizzard; giving it none makes it a vertical sheet.
-      final drops = _field(66).drops;
-      expect(drops.any((d) => d.sway > 0), isTrue);
-      expect(drops.any((d) => d.sway == 0), isTrue);
+    test('sleet is the mixed case, so only some of it falls as flakes', () {
+      // One shape for the whole field makes freezing rain either a blizzard or
+      // a vertical sheet.
+      final shapes = _field(66).drops.map((d) => d.shape).toSet();
+      expect(shapes, contains(SkyDropShape.flake));
+      expect(shapes, contains(SkyDropShape.streak));
     });
 
-    test('snow falls slower than rain', () {
-      final snow = _field(73).drops.map((d) => d.speed).reduce((a, b) => a + b) /
-          _field(73).drops.length;
-      final rain = _field(63).drops.map((d) => d.speed).reduce((a, b) => a + b) /
-          _field(63).drops.length;
-      expect(snow, lessThan(rain));
+    test('a still field is spread down the whole card, not clumped', () {
+      // The one thing motion used to excuse: a frozen frame is studied, so the
+      // drops are stratified rather than scattered. Nothing may sit in a band.
+      final drops = _field(63).drops;
+      expect(drops.map((d) => d.y).reduce(math.min), lessThan(0.15));
+      expect(drops.map((d) => d.y).reduce(math.max), greaterThan(0.85));
+      // And they are not all the same weight, or the field reads as a screen
+      // door rather than as rain with depth in it.
+      expect(drops.map((d) => d.opacity).toSet().length, greaterThan(1));
     });
 
     test('stars come out at night, under a sky that has gaps in it', () {
@@ -97,17 +108,39 @@ void main() {
     test('only fog gets fog bands', () {
       expect(_field(45).fogBands, isNotEmpty);
       expect(_field(3).fogBands, isEmpty);
-      // Alternating directions, so the bands slide past each other rather than
-      // travelling as one sheet.
-      final speeds = _field(45).fogBands.map((b) => b.speed).toList();
-      expect(speeds.any((s) => s > 0), isTrue);
-      expect(speeds.any((s) => s < 0), isTrue);
+      // Offset in both directions, so the bands lie past each other rather
+      // than stacking into one flat veil.
+      final shifts = _field(45).fogBands.map((b) => b.shift).toList();
+      expect(shifts.any((s) => s > 0), isTrue);
+      expect(shifts.any((s) => s < 0), isTrue);
+      // And at distinct heights, which is the other half of the same picture.
+      expect(_field(45).fogBands.map((b) => b.y).toSet().length,
+          _field(45).fogBands.length);
     });
 
-    test('only the thunderstorms flash', () {
-      expect(_field(95).lightningPeriod, greaterThan(0));
-      expect(_field(99).lightningPeriod, greaterThan(0));
-      expect(_field(65).lightningPeriod, 0);
+    test('only the thunderstorms get a bolt', () {
+      // A flash is meaningless in a picture painted once — it is either always
+      // on or never seen — so a still storm gets one stroke instead.
+      expect(_field(95).bolt, isNotNull);
+      expect(_field(99).bolt, isNotNull);
+      expect(_field(65).bolt, isNull);
+      // Top to bottom, left of the sun: `kCelestialCentre` is at 0.78 of the
+      // width and a bolt through the disc reads as a mistake.
+      final points = _field(95).bolt!.points;
+      expect(points.length, greaterThan(2));
+      expect(points.first.dy, lessThan(points.last.dy));
+      expect(points.every((p) => p.dx < kCelestialCentre.dx), isTrue);
+    });
+
+    test('the clouds carry depth, and are ordered back to front', () {
+      // The still picture's substitute for parallax. Without it a static field
+      // reads as stickers on a gradient, which is what the drift used to hide.
+      final clouds = _field(3, cover: 0.9).clouds;
+      expect(clouds.length, greaterThan(2));
+      expect(clouds.map((c) => c.depth).toSet().length, greaterThan(1));
+      for (var i = 1; i < clouds.length; i++) {
+        expect(clouds[i].depth, greaterThanOrEqualTo(clouds[i - 1].depth));
+      }
     });
 
     test('the sun is hidden under a closed lid, not merely dimmed', () {
@@ -155,10 +188,11 @@ void main() {
   });
 
   group('WeatherSky', () {
-    testWidgets('paints without a ticker when animate is false',
-        (tester) async {
-      // The escape hatch every widget test rendering this needs: a Ticker never
-      // settles, so `pumpAndSettle` would hang forever with it running.
+    testWidgets('settles, because there is no ticker behind it', (tester) async {
+      // The property the whole file exists for, and the one a widget test can
+      // actually observe: this used to run a 30fps `Ticker` for as long as it
+      // was on screen, so `pumpAndSettle` on any tree containing one hung
+      // forever and every test had to remember to pass `animate: false`.
       await tester.pumpWidget(
         Directionality(
           textDirection: TextDirection.ltr,
@@ -169,7 +203,6 @@ void main() {
               condition: conditionForCode(95),
               cloudCover: 1.0,
               night: false,
-              animate: false,
             ),
           ),
         ),
@@ -190,7 +223,6 @@ void main() {
                   condition: conditionForCode(code),
                   cloudCover: conditionForCode(code).cloudCover,
                   night: false,
-                  animate: false,
                 ),
               ),
             ),
@@ -217,7 +249,6 @@ void main() {
               condition: conditionForCode(63),
               cloudCover: 0.9,
               night: false,
-              animate: false,
             ),
           ),
         ),
