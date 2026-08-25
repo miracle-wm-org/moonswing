@@ -22,6 +22,15 @@
 //   reason this card is empty is that the package is not installed, which the
 //   user can fix in one command; the card says so rather than sitting blank.
 //   `NotificationDaemonStatus`'s rule, and `WeatherStore.error`'s.
+//
+// And one thing it shares with the lunar widget rather than the weather one:
+// **nothing on this card animates.** No ticker, no transition on a new fortune,
+// no spinning glyph — the picture is a still frame of a plume and the text is
+// replaced outright. A wallpaper decoration on a machine that may be doing
+// nothing else has no business repainting, and the only thing left that moves
+// is the hover tint every control in the shell has (`DesktopWidgetFrame`'s own
+// selection rim included). The card is therefore `pumpAndSettle`-able, which
+// the weather widget is not.
 
 import 'dart:math' as math;
 
@@ -92,17 +101,12 @@ class FortuneWidget extends StatefulWidget {
     super.key,
     required this.span,
     FortuneStore? store,
-    this.animate = true,
   }) : store = store ?? FortuneStore.instance;
 
   /// The widget's size in cells.
   final GridSpan span;
 
   final FortuneStore store;
-
-  /// Whether the smoke moves. False in widget tests: a [Ticker] never settles,
-  /// so **nothing rendering this may be `pumpAndSettle`ed** with it on.
-  final bool animate;
 
   @override
   State<FortuneWidget> createState() => _FortuneWidgetState();
@@ -175,10 +179,7 @@ class _FortuneWidgetState extends State<FortuneWidget> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                LampScene(
-                  animate: widget.animate,
-                  glow: _rubbing ? 1 : 0,
-                ),
+                LampScene(glow: _rubbing ? 1 : 0),
                 const LampScrim(),
                 Positioned.fromRect(
                   rect: text,
@@ -223,16 +224,15 @@ const double _buttonBox = 26;
 /// Public because it is the feature: a test that pins "pressing this refreshes"
 /// should not have to find it by walking the card's private types.
 ///
-/// Two things about it. It spins on **tap**, from its own controller, rather
-/// than while the store is fetching: a fork of `fortune` returns in single-digit
-/// milliseconds, so a spinner driven by the in-flight flag would be a frame of
-/// flicker and nothing else, while a turn of the glyph is a full acknowledgement
-/// of the press whatever the machine does next. And it is a *tap*, not a pan:
-/// the card is dragged from anywhere on it, and the two recognizers resolve
-/// against each other — a press that moves is the drag, one that does not is
-/// this. `desktop_widget_grid_test` pins both halves for the media widget's
-/// buttons.
-class FortuneRefreshButton extends StatefulWidget {
+/// Two things about it. Its only feedback is the hover tint and the fortune
+/// itself changing — no spin on tap and no loader while the store fetches, both
+/// for the same reason: a fork of `fortune` returns in single-digit
+/// milliseconds, so anything driven by the in-flight flag is a frame of flicker,
+/// and this card does not animate. And it is a *tap*, not a pan: the card is
+/// dragged from anywhere on it, and the two recognizers resolve against each
+/// other — a press that moves is the drag, one that does not is this.
+/// `desktop_widget_grid_test` pins both halves for the media widget's buttons.
+class FortuneRefreshButton extends StatelessWidget {
   const FortuneRefreshButton({
     super.key,
     required this.onTap,
@@ -246,35 +246,13 @@ class FortuneRefreshButton extends StatefulWidget {
   final double size;
 
   @override
-  State<FortuneRefreshButton> createState() => _FortuneRefreshButtonState();
-}
-
-class _FortuneRefreshButtonState extends State<FortuneRefreshButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _spin = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 620),
-  );
-
-  @override
-  void dispose() {
-    _spin.dispose();
-    super.dispose();
-  }
-
-  void _onTap() {
-    _spin.forward(from: 0);
-    widget.onTap();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return HoverRegion(
-      onTap: _onTap,
+      onTap: onTap,
       builder: (context, hovered) => AnimatedContainer(
         duration: ShellDurations.fast,
-        width: widget.size,
-        height: widget.size,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           // Barely there at rest: this card spends nearly all its life being
           // looked at, and a solid button in the corner of a picture is chrome
@@ -283,16 +261,13 @@ class _FortuneRefreshButtonState extends State<FortuneRefreshButton>
           shape: BoxShape.circle,
         ),
         child: Center(
-          child: RotationTransition(
-            turns: CurvedAnimation(parent: _spin, curve: Curves.easeOutCubic),
-            child: Icon(
-              Symbols.autorenew,
-              size: widget.size * 0.6,
-              color: hovered ? kSkyForeground : kSkyMutedForeground,
-              weight: 500,
-              opticalSize: 20,
-              shadows: kSkyTextShadows,
-            ),
+          child: Icon(
+            Symbols.autorenew,
+            size: size * 0.6,
+            color: hovered ? kSkyForeground : kSkyMutedForeground,
+            weight: 500,
+            opticalSize: 20,
+            shadows: kSkyTextShadows,
           ),
         ),
       ),
@@ -318,29 +293,15 @@ class _FortuneBody extends StatelessWidget {
     if (!store.hasFortune) {
       return _NoFortune(store: store, scale: scale);
     }
-    return _FortuneText(
-      text: store.text,
-      revision: store.revision,
-      scale: scale,
-    );
+    return _FortuneText(text: store.text, scale: scale);
   }
 }
 
-/// The fortune itself, set at whatever size fits and faded in when it changes.
+/// The fortune itself, set at whatever size fits.
 class _FortuneText extends StatelessWidget {
-  const _FortuneText({
-    required this.text,
-    required this.revision,
-    required this.scale,
-  });
+  const _FortuneText({required this.text, required this.scale});
 
   final String text;
-
-  /// Keys the transition. The *revision* rather than the text, because a small
-  /// cookie database repeats itself and two identical fortunes in a row must
-  /// still read as the button having done something.
-  final int revision;
-
   final _CardScale scale;
 
   @override
@@ -365,33 +326,19 @@ class _FortuneText extends StatelessWidget {
           scale: scale.factor,
         );
 
-        return AnimatedSwitcher(
-          duration: ShellDurations.slow,
-          switchInCurve: Curves.easeOut,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            // Up out of the smoke, a few pixels: a fortune that simply
-            // cross-faded would not read as having been *conjured*, which is
-            // the one thing this card is for.
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.08),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
-            ),
-          ),
-          child: Align(
-            key: ValueKey(revision),
-            alignment: Alignment.topLeft,
-            child: Text(
-              text,
-              maxLines: fit.maxLines,
-              overflow: TextOverflow.ellipsis,
-              style: base.copyWith(
-                fontSize: fit.fontSize,
-                height: kFortuneLineHeight,
-              ),
+        // Replaced outright rather than faded or slid in. A transition here
+        // would be the only moving thing on an otherwise still card, and it
+        // would be moving exactly when the user has just asked to *read*
+        // something.
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Text(
+            text,
+            maxLines: fit.maxLines,
+            overflow: TextOverflow.ellipsis,
+            style: base.copyWith(
+              fontSize: fit.fontSize,
+              height: kFortuneLineHeight,
             ),
           ),
         );

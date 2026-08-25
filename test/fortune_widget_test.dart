@@ -67,19 +67,17 @@ Future<void> pumpFortune(
     ),
   );
   // Two pumps rather than `pumpAndSettle`: the fetch lands in a microtask, and
-  // the loader the card can show is a `SpinKitRing`, which never settles.
+  // the loader the card can show before the first one arrives is a
+  // `SpinKitRing`, which never settles. Once a fortune is on screen the card
+  // itself settles — `nothing on the card animates` below pins that.
   await tester.pump();
   await tester.pump();
 }
 
-/// The widget as the card builds it, with the smoke held still — a [Ticker]
-/// never settles, so nothing rendering the scene may be `pumpAndSettle`ed.
+/// The widget as the card builds it. There is no `animate` flag to turn off:
+/// nothing on this card moves.
 Widget _widget(FortuneStore store, {GridSpanArg span = const (3, 2)}) =>
-    FortuneWidget(
-      span: (columns: span.$1, rows: span.$2),
-      store: store,
-      animate: false,
-    );
+    FortuneWidget(span: (columns: span.$1, rows: span.$2), store: store);
 
 typedef GridSpanArg = (int, int);
 
@@ -119,6 +117,35 @@ void main() {
       addTearDown(pending.dispose);
       await pumpFortune(tester, _widget(pending));
       expect(find.byType(LoadingIndicator), findsOneWidget);
+    });
+
+    testWidgets('nothing on the card animates', (tester) async {
+      // The picture is a still frame, the fortune is replaced outright and the
+      // button does not spin: a wallpaper decoration on an otherwise idle
+      // machine has no business repainting. A ticker anywhere in here would
+      // hang this test rather than fail it, which is the point of pumping to
+      // settle.
+      final store = _store(['Still.']);
+
+      await pumpFortune(tester, _widget(store));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Still.'), findsOneWidget);
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('a new fortune arrives without a transition', (tester) async {
+      final store = _store(['First.', 'Second.']);
+      await pumpFortune(tester, _widget(store));
+
+      await tester.tap(find.byType(FortuneRefreshButton));
+      await tester.pump();
+      await tester.pump();
+
+      // No frame in which both are on screen, and nothing left running after.
+      expect(find.text('First.'), findsNothing);
+      expect(find.text('Second.'), findsOneWidget);
+      expect(tester.binding.transientCallbackCount, 0);
     });
 
     testWidgets('the refresh button asks for another one', (tester) async {

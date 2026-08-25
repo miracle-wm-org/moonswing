@@ -107,21 +107,6 @@ void main() {
       expect(calls, 1, reason: 'the two dropped calls never forked');
     });
 
-    test('the revision moves even when the fortune repeats', () async {
-      // A small cookie database repeats itself, and the card animates on the
-      // revision so the button still reads as having done something.
-      final runner = _Sequence(['Same', 'Same']);
-      final store = _store(runner.call);
-
-      store.acquire();
-      await pumpEventQueue();
-      final first = store.revision;
-
-      await store.refresh();
-      expect(store.text, 'Same');
-      expect(store.revision, first + 1);
-    });
-
     test('notifies its listeners once per fetch', () async {
       final runner = _Sequence(['One', 'Two']);
       final store = _store(runner.call);

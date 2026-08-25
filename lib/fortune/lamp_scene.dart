@@ -1,25 +1,26 @@
 // The picture the fortune is written on: an oil lamp in the dark, and the smoke
 // coming out of it.
 //
-// `weather_sky.dart`'s arrangement, and deliberately so — this is the second
-// animated card on the desktop and the two should not be built in two different
-// ways:
+// `weather_sky.dart`'s arrangement for the *data*, and `moon_render.dart`'s for
+// the motion — which is to say none at all:
 //
 // - **The layout is data, computed once.** [LampField] holds every puff, ember
 //   and star as plain numbers built from a *seeded* [math.Random], so "how many
 //   puffs" and "the same lamp on every monitor" are plain unit tests with no
-//   canvas behind them, and a frame is arithmetic over a fixed list. The seed is
-//   fixed for the sky's reason: a plume that reshuffled itself on every rebuild
-//   would be the most distracting thing on the desktop.
-// - **The ticker repaints the painter, not the tree.** Elapsed time is a
-//   [ValueNotifier] handed to [CustomPainter.repaint], so a frame is one
-//   `RenderCustomPaint` repaint inside a [RepaintBoundary] — no `setState`, and
-//   nothing else on the background surface hears about it.
-// - **Motion is derived from the elapsed time, never accumulated.** A per-frame
-//   increment drifts by however late each frame was and runs at a different
-//   rate on a loaded machine — `lib/timers/`'s rule.
-// - **Nothing rendering this may be `pumpAndSettle`ed.** A [Ticker] never
-//   settles; `animate: false` paints a still frame and starts nothing.
+//   canvas behind them. The seed is fixed for the sky's reason: a plume that
+//   reshuffled itself on every rebuild would be the most distracting thing on
+//   the desktop.
+// - **Nothing here moves, and that is the point.** There is no [Ticker], no
+//   per-frame repaint and no elapsed-time input from a clock: the scene is one
+//   frame of a plume, drawn at [kLampStillMoment] and left there. The lunar
+//   widget states the reasoning and it applies here with more force, because
+//   this card has no excuse of reporting on something that changes: a
+//   decoration on a wallpaper, on a machine that may be doing nothing else,
+//   has no business repainting for as long as the desktop is switched on.
+//   [SmokePuff] and friends are therefore *positions along* a climb rather than
+//   a speed through one, and [LampPainter] is a pure function of them.
+// - **So this card is `pumpAndSettle`-able**, which the weather widget's sky is
+//   not. A test may pump it like any other still widget.
 //
 // The lamp itself is *painted*, not photographed — the shell ships no image
 // assets at all (no `assets:` section, themes embedded as constants), so a
@@ -30,16 +31,7 @@
 
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show ValueListenable;
-import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/widgets.dart';
-
-// The frame cap the weather sky holds itself to. Borrowed rather than
-// re-picked: two animated cards on one desktop running at two different rates
-// is a difference somebody would eventually have to explain, and the reasoning
-// (a decoration on a machine that may be doing nothing else has no business
-// repainting every 16ms) is identical. `weather_sky.dart` documents it.
-import 'package:graceful_shell/weather/weather_sky.dart' show kSkyFrameInterval;
 
 /// The night the lamp sits in.
 ///
@@ -357,22 +349,35 @@ class LampGeometry {
   static const double minTextHeight = 44;
 }
 
-/// The shortest gap between repaints, in seconds. See [kSkyFrameInterval].
-const double kLampFrameInterval = kSkyFrameInterval;
-
-/// Paints a [LampField].
+/// The instant of the plume the card is drawn at, in seconds since the lamp was
+/// lit.
 ///
-/// Public so a paint-counting test can drive it directly, at a chosen time,
-/// with no ticker involved.
+/// The scene does not move, so this is not a starting point — it is the whole
+/// picture, and it was chosen by looking at the alternatives rather than by
+/// arithmetic. At the moment a lamp is lit the smoke is a stub above the spout;
+/// at an arbitrary later one the puffs can happen to leave a gap partway up.
+/// This one has the plume continuous from the flame to the top of the card,
+/// with puffs at every stage of their climb, which is the frame that reads as
+/// smoke rather than as a smudge.
+const double kLampStillMoment = 11.0;
+
+/// Paints a [LampField] at one instant.
+///
+/// Public so a test can drive it directly, at any instant, with no widget tree
+/// behind it. [time] is a plain number rather than a listenable: nothing on
+/// this card animates, so there is no repaint stream for the painter to
+/// subscribe to.
 class LampPainter extends CustomPainter {
-  LampPainter({
+  const LampPainter({
     required this.field,
-    required this.time,
+    this.time = kLampStillMoment,
     this.glow = 0,
-  }) : super(repaint: time);
+  });
 
   final LampField field;
-  final ValueListenable<double> time;
+
+  /// How far into the plume's climb this frame is, in seconds.
+  final double time;
 
   /// 0..1, how hard the lamp is being looked at — the pointer resting on it
   /// brightens the flame. A hover cue on a picture rather than on a control:
@@ -383,7 +388,7 @@ class LampPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final t = time.value;
+    final t = time;
     final lamp = LampGeometry.forCard(size);
 
     _paintSky(canvas, size);
@@ -646,24 +651,30 @@ class LampPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(LampPainter oldDelegate) =>
-      oldDelegate.field != field || oldDelegate.glow != glow;
+      oldDelegate.field != field ||
+      oldDelegate.time != time ||
+      oldDelegate.glow != glow;
 }
 
-/// The animated scene, sized to whatever it is given.
-class LampScene extends StatefulWidget {
+/// The scene, sized to whatever it is given.
+///
+/// A [StatelessWidget] with no ticker behind it: the picture is the same every
+/// frame, so the only things that repaint it are a rebuild and the lamp's own
+/// hover glow. That is what makes the card `pumpAndSettle`-able and what keeps
+/// an idle desktop idle.
+class LampScene extends StatelessWidget {
   const LampScene({
     super.key,
-    this.animate = true,
     this.glow = 0,
+    this.time = kLampStillMoment,
     this.field,
   });
 
-  /// Whether the ticker runs. False paints a still frame and starts nothing —
-  /// which is what a widget test wants, since a [Ticker] never settles.
-  final bool animate;
-
   /// 0..1; see [LampPainter.glow].
   final double glow;
+
+  /// The instant drawn. Only a test has any reason to pass this.
+  final double time;
 
   /// The field to draw. Defaults to the shared one — built once for the
   /// process, because it is the same numbers on every monitor and rebuilding it
@@ -674,57 +685,13 @@ class LampScene extends StatefulWidget {
   static final LampField sharedField = LampField.build();
 
   @override
-  State<LampScene> createState() => _LampSceneState();
-}
-
-class _LampSceneState extends State<LampScene>
-    with SingleTickerProviderStateMixin {
-  final ValueNotifier<double> _time = ValueNotifier(0);
-  late final Ticker _ticker = createTicker(_onTick);
-
-  /// The last value published, for the frame cap.
-  double _published = -1;
-
-  @override
-  void initState() {
-    super.initState();
-    if (widget.animate) _ticker.start();
-  }
-
-  @override
-  void didUpdateWidget(LampScene oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.animate != oldWidget.animate) {
-      widget.animate ? _ticker.start() : _ticker.stop();
-    }
-  }
-
-  @override
-  void dispose() {
-    _ticker.dispose();
-    _time.dispose();
-    super.dispose();
-  }
-
-  void _onTick(Duration elapsed) {
-    final now = elapsed.inMicroseconds / 1e6;
-    if (_published >= 0 && now - _published < kLampFrameInterval) return;
-    _published = now;
-    // Wrapped at an hour, for `weather_sky.dart`'s reason: every motion here is
-    // periodic in well under that, and an unbounded seconds value loses its
-    // fractional bits to float precision after a few days of uptime — which a
-    // wallpaper widget certainly sees.
-    _time.value = now % 3600;
-  }
-
-  @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: CustomPaint(
         painter: LampPainter(
-          field: widget.field ?? LampScene.sharedField,
-          time: _time,
-          glow: widget.glow,
+          field: field ?? sharedField,
+          time: time,
+          glow: glow,
         ),
         // A painter with no child paints nothing unless it is given a size, and
         // this one is the whole background of a card the grid sizes.

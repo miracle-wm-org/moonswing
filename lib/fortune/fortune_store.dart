@@ -69,12 +69,6 @@ class FortuneStore extends ChangeNotifier {
   /// the user can act on and the one the card offers a hint for.
   bool get commandMissing => _commandMissing;
 
-  /// How many fortunes have been published. The card animates its text in on a
-  /// change, and two identical fortunes in a row — which a small database makes
-  /// perfectly likely — must still read as the button having done something.
-  int _revision = 0;
-  int get revision => _revision;
-
   // --- leasing -------------------------------------------------------------
 
   int _leases = 0;
@@ -120,7 +114,6 @@ class FortuneStore extends ChangeNotifier {
       _text = text;
       _error = '';
       _commandMissing = false;
-      _revision++;
     } on FortuneUnavailable catch (e) {
       // The previous fortune stays on screen: it is as good as it ever was, and
       // the error line says why there is no new one. `WeatherStore`'s rule.
@@ -149,7 +142,6 @@ class FortuneStore extends ChangeNotifier {
     _error = error;
     _commandMissing = commandMissing;
     _loading = loading;
-    _revision++;
     notifyListeners();
   }
 

@@ -11,11 +11,11 @@ import 'package:graceful_shell/fortune/lamp_scene.dart';
 /// Paints [field] at [size] and returns nothing — the assertion is that it did
 /// not throw. A picture is the one thing a unit test cannot check, but "this
 /// size does not divide by zero" is worth pinning across the range.
-void _paint(LampField field, Size size, {double time = 3.2, double glow = 0}) {
+void _paint(LampField field, Size size,
+    {double time = kLampStillMoment, double glow = 0}) {
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
-  LampPainter(field: field, time: ValueNotifier(time), glow: glow)
-      .paint(canvas, size);
+  LampPainter(field: field, time: time, glow: glow).paint(canvas, size);
   recorder.endRecording().dispose();
 }
 
@@ -168,28 +168,40 @@ void main() {
           returnsNormally);
       expect(() => _paint(field, const Size(312, 204), time: 0),
           returnsNormally);
+      expect(() => _paint(field, const Size(312, 204), time: 3599),
+          returnsNormally);
     });
 
     test('does nothing at all for an empty box', () {
       expect(() => _paint(LampField.build(), Size.zero), returnsNormally);
     });
 
-    test('repaints for a new time and for a hover, not for a rebuild', () {
+    test('repaints for a hover and for nothing else', () {
+      // Nothing on this card animates, so an identical painter is never a
+      // reason to paint again — the hover glow is the only input that moves.
       final field = LampField.build();
-      final time = ValueNotifier<double>(0);
-      final painter = LampPainter(field: field, time: time);
+      final painter = LampPainter(field: field);
 
-      // The time is a `repaint` listenable, so an equal painter is not a
-      // reason to repaint — the notifier is.
+      expect(painter.shouldRepaint(LampPainter(field: field)), isFalse);
       expect(
-        painter.shouldRepaint(LampPainter(field: field, time: time)),
-        isFalse,
-      );
-      expect(
-        painter.shouldRepaint(
-            LampPainter(field: field, time: time, glow: 1)),
+        painter.shouldRepaint(LampPainter(field: field, glow: 1)),
         isTrue,
       );
+    });
+
+    test('the still moment is one the plume is mid-climb at', () {
+      // Not a starting point but the whole picture: at zero the smoke is a stub
+      // above the spout, and the card would read as a lamp that had only just
+      // been lit.
+      expect(kLampStillMoment, greaterThan(0));
+
+      final field = LampField.build();
+      final climbing = field.puffs.where((puff) {
+        final u = ((kLampStillMoment / puff.period) + puff.phase) % 1.0;
+        return u > 0.15 && u < 0.85;
+      });
+
+      expect(climbing.length, greaterThan(LampField.puffCount ~/ 2));
     });
   });
 }
