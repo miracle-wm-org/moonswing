@@ -134,7 +134,10 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
         children: [
           WeatherIcon(
             weatherIcon(reading.condition, night: !reading.isDay),
-            size: 17,
+            // Larger than the 17 this was as a Material Symbol, and unchanged
+            // optically: a Meteocon is artwork inside a padded 512-unit box,
+            // so the glyph reads about three quarters of the size it is given.
+            size: 21,
             color: theme.foreground,
           ),
           const SizedBox(width: 5),
@@ -166,7 +169,11 @@ class _WeatherUnavailable extends StatelessWidget {
         children: [
           WeatherIcon(
             kWeatherUnavailableIcon,
-            size: ShellFontSizes.title,
+            // Not `ShellFontSizes.title`, which this was as a Material Symbol:
+            // a Meteocon is artwork inside a padded 512-unit box, so the box
+            // has to be a quarter larger to read the same. Same reasoning as
+            // the reading's own glyph above.
+            size: 20,
             color: theme.muted,
           ),
           // The reason, on hover only: it is a sentence, and a sentence in
@@ -289,8 +296,11 @@ class _CurrentConditions extends StatelessWidget {
       children: [
         WeatherIcon(
           weatherIcon(reading.condition, night: !reading.isDay),
-          size: 40,
-          color: theme.accent,
+          size: 52,
+          // No colour: the card's one large glyph is the place a Meteocon is
+          // worth having in its own palette, and this is the popup's subject
+          // rather than a piece of its chrome. The small metrics beside it stay
+          // tinted, so the theme still owns everything that is not the reading.
         ),
         const SizedBox(width: 12),
         Flexible(
@@ -363,7 +373,7 @@ class _Metric extends StatelessWidget {
     required this.theme,
   });
 
-  final IconData icon;
+  final WeatherGlyph icon;
   final String label;
   final ThemeConfig theme;
 
@@ -374,7 +384,7 @@ class _Metric extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          WeatherIcon(icon, size: 11, color: theme.muted),
+          WeatherIcon(icon, size: 14, color: theme.muted),
           const SizedBox(width: 4),
           Text(
             label,
@@ -424,8 +434,7 @@ class _ForecastTable extends StatelessWidget {
                   // A daily forecast is a forecast for that day's daylight, so
                   // the day rows never take the night glyph.
                   weatherIcon(day.condition),
-                  size: 16,
-                  color: theme.popupForeground,
+                  size: 22,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               ),
@@ -449,7 +458,7 @@ class _ForecastTable extends StatelessWidget {
                   children: [
                     WeatherIcon(
                       kPrecipitationIcon,
-                      size: 11,
+                      size: 14,
                       color: theme.popupForeground.withValues(alpha: 0.7),
                     ),
                     const SizedBox(width: 3),

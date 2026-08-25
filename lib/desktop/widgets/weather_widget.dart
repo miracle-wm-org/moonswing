@@ -7,7 +7,7 @@
 // module's `State`, so this widget would have meant a second geolocation
 // lookup and a second forecast poller per monitor.
 //
-// Two things about it that the media widget did not have to answer:
+// Three things about it that the media widget did not have to answer:
 //
 // - **The card is the sky, so the frame gives it no padding.** Its
 //   `DesktopWidgetSpec` asks for `EdgeInsets.zero` and the content carries its
@@ -17,6 +17,11 @@
 //   near-black thunderstorm to an almost-white snowfall, and no theme
 //   foreground is legible on both. `SkyScrim` guarantees something dark under
 //   the readout, the same call the lock screen makes over a wallpaper.
+// - **Every size in it is one table times one factor.** This is the only widget
+//   in the shell the *user* resizes, in a grid whose cell size they also
+//   choose, so a literal chosen against one card is wrong on every other one —
+//   see [_CardScale]. The media widget sheds content as it shrinks and is done;
+//   this one has to look deliberate at four times the area as well.
 
 import 'dart:math' as math;
 
@@ -44,6 +49,51 @@ const double _forecastMinHeight = 190;
 const double _detailsMinHeight = 250;
 const double _highLowMinWidth = 260;
 
+/// The card every base size below was chosen against: the registry's own
+/// `defaultSpan` of 3x2 on the default grid — `cellWidth`/`cellHeight` 96 with
+/// `spacing` 12, so `3*96 + 2*12` by `2*96 + 12`.
+const Size _referenceCard = Size(312, 204);
+
+/// The card's inner inset, at [_referenceCard].
+const double _basePadding = 12;
+
+/// How far the type is allowed to grow. `maxSpan` is 6x4, which on the default
+/// grid wants about 2.05 — so this is the ceiling reached by the largest card
+/// the registry permits, and nothing above it is being clamped away.
+const double _maxScale = 2.0;
+
+/// The card's type and icon scale.
+///
+/// Every size in this widget used to be a literal chosen against
+/// [_referenceCard], so a user who dragged the widget out to 6x4 got the same
+/// 10px day labels in four times the area — and the forecast strip in
+/// particular read as an afterthought rather than as the content it is. The
+/// sizes are now that same table multiplied through by one factor derived from
+/// the box the grid actually handed the card.
+///
+/// Two things about the factor. It is the **geometric mean** of the two edge
+/// ratios rather than either one alone: a card stretched wide but left one row
+/// tall has no more room for a bigger type than it started with, and taking the
+/// wider edge would set it in a size its own height cannot carry. And it never
+/// goes **below 1** — the literals are a floor rather than a midpoint, and a
+/// card smaller than the reference is already being laid out at its own minimum
+/// and clipped (see `_minWidth`/`_minHeight`) rather than being asked to draw a
+/// smaller version of itself.
+class _CardScale {
+  const _CardScale(this.factor);
+
+  factory _CardScale.forBox(double width, double height) {
+    final ratio = math.sqrt((width / _referenceCard.width) *
+        (height / _referenceCard.height));
+    return _CardScale(ratio.clamp(1.0, _maxScale));
+  }
+
+  final double factor;
+
+  /// [base] — a size read off the table above — at this card's size.
+  double call(double base) => base * factor;
+}
+
 /// The widget's body. Public and store-injectable so a widget test can seed a
 /// reading and pump it with nothing behind it.
 class WeatherWidget extends StatefulWidget {
@@ -60,8 +110,9 @@ class WeatherWidget extends StatefulWidget {
 
   final WeatherStore store;
 
-  /// Whether the sky animates. False in widget tests — a [Ticker] never
-  /// settles, so **nothing rendering this may be `pumpAndSettle`ed** with it on.
+  /// Whether the sky — and the reading's own glyph, which is a Lottie — animate.
+  /// False in widget tests: a [Ticker] never settles, so **nothing rendering
+  /// this may be `pumpAndSettle`ed** with it on.
   final bool animate;
 
   @override
@@ -121,6 +172,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         final height = math.max(constraints.maxHeight, _minHeight);
         final expanded =
             widget.span.rows >= 2 && height >= _expandedMinHeight;
+        final scale = _CardScale.forBox(width, height);
 
         return ClipRect(
           child: OverflowBox(
@@ -140,11 +192,14 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                 ),
                 const SkyScrim(),
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  // The inset grows with the type it surrounds; a 24px readout
+                  // pressed against a 12px rim reads as a layout accident.
+                  padding: EdgeInsets.all(scale(_basePadding)),
                   child: _content(
                     store: store,
                     reading: reading,
                     expanded: expanded,
+                    scale: scale,
                     width: width,
                     height: height,
                   ),
@@ -161,6 +216,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     required WeatherStore store,
     required WeatherReading? reading,
     required bool expanded,
+    required _CardScale scale,
     required double width,
     required double height,
   }) {
@@ -169,36 +225,50 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         loading: store.loading,
         error: store.error,
         onRetry: store.refresh,
+        scale: scale,
       );
     }
     if (!expanded) {
       // Centred: a `Row` takes its cross-axis size from its tallest child, so
       // left to itself the compact reading sits against the top of a card the
       // user has made taller than one row of content.
-      return Center(child: _CompactLayout(store: store, reading: reading));
+      return Center(
+        child: _CompactLayout(
+          store: store,
+          reading: reading,
+          scale: scale,
+          animate: widget.animate,
+        ),
+      );
     }
     return _ExpandedLayout(
       store: store,
       reading: reading,
+      scale: scale,
+      animate: widget.animate,
       // Independent decisions, all about pixels rather than cells: a widget
       // three columns wide on a 48px grid is narrower than one two columns
       // wide on a 120px one.
       showForecast:
           width >= _forecastMinWidth && height >= _forecastMinHeight,
       showDetails: height >= _detailsMinHeight,
-      // The day's high and low share the reading's row with a 46px icon and
-      // the temperature itself, and it is the one of the three that says least
+      // The day's high and low share the reading's row with the glyph and the
+      // temperature itself, and it is the one of the three that says least
       // — the big number above it is today's actual temperature.
       showHighLow: width >= _highLowMinWidth,
-      forecastDays: _forecastDays(width),
+      forecastDays: _forecastDays(width, scale),
     );
   }
 
-  /// How many days fit across [width]. Each column needs about 44px to carry a
-  /// day label, an icon and a high; fewer days is better than a strip of
-  /// clipped ones.
-  int _forecastDays(double width) =>
-      ((width - 24) / 44).floor().clamp(0, 7);
+  /// How many days fit across [width]. Each column needs about 48px at
+  /// [_referenceCard] to carry a day label, a glyph and a high — and that
+  /// budget scales with the type, or a card twice the size would answer
+  /// "twice as many days" rather than "the same days, legibly". Fewer days is
+  /// better than a strip of clipped ones.
+  int _forecastDays(double width, _CardScale scale) {
+    final content = width - 2 * scale(_basePadding);
+    return (content / scale(48)).floor().clamp(0, 7);
+  }
 }
 
 /// Before the first reading, or after a failure with nothing cached.
@@ -207,17 +277,19 @@ class _NoReading extends StatelessWidget {
     required this.loading,
     required this.error,
     required this.onRetry,
+    required this.scale,
   });
 
   final bool loading;
   final String error;
   final VoidCallback onRetry;
+  final _CardScale scale;
 
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Center(
-        child: LoadingIndicator(color: kSkyForeground, size: 18),
+      return Center(
+        child: LoadingIndicator(color: kSkyForeground, size: scale(18)),
       );
     }
     return Center(
@@ -226,17 +298,17 @@ class _NoReading extends StatelessWidget {
         children: [
           _SkyText(
             error.isEmpty ? 'No weather yet' : error,
-            size: ShellFontSizes.secondary,
+            size: scale(ShellFontSizes.secondary),
             muted: true,
             align: TextAlign.center,
             maxLines: 2,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: scale(8)),
           // A tap, not a pan: the card is dragged from anywhere on it, and the
           // two recognizers resolve against each other — a press that moves is
           // the drag, one that does not is this. `desktop_widget_grid_test`
           // pins both halves for the media widget's buttons.
-          _RetryButton(onTap: onRetry),
+          _RetryButton(onTap: onRetry, scale: scale),
         ],
       ),
     );
@@ -244,32 +316,43 @@ class _NoReading extends StatelessWidget {
 }
 
 class _RetryButton extends StatelessWidget {
-  const _RetryButton({required this.onTap});
+  const _RetryButton({required this.onTap, required this.scale});
 
   final VoidCallback onTap;
+  final _CardScale scale;
 
   @override
   Widget build(BuildContext context) {
     return HoverRegion(
       onTap: onTap,
       builder: (context, hovered) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: EdgeInsets.symmetric(
+          horizontal: scale(10),
+          vertical: scale(5),
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFFFFFFFF).withValues(alpha: hovered ? 0.3 : 0.18),
           borderRadius: BorderRadius.circular(ShellRadii.control),
         ),
-        child: const _SkyText('Retry', size: ShellFontSizes.caption),
+        child: _SkyText('Retry', size: scale(ShellFontSizes.caption)),
       ),
     );
   }
 }
 
-/// The 2x1 layout: an icon, the temperature, and what it is doing.
+/// The 2x1 layout: a glyph, the temperature, and what it is doing.
 class _CompactLayout extends StatelessWidget {
-  const _CompactLayout({required this.store, required this.reading});
+  const _CompactLayout({
+    required this.store,
+    required this.reading,
+    required this.scale,
+    required this.animate,
+  });
 
   final WeatherStore store;
   final WeatherReading reading;
+  final _CardScale scale;
+  final bool animate;
 
   @override
   Widget build(BuildContext context) {
@@ -277,11 +360,10 @@ class _CompactLayout extends StatelessWidget {
       children: [
         WeatherIcon(
           weatherIcon(reading.condition, night: !reading.isDay),
-          size: 30,
-          color: kSkyForeground,
-          shadows: kSkyTextShadows,
+          size: scale(38),
+          animate: animate,
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: scale(10)),
         Expanded(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -290,12 +372,12 @@ class _CompactLayout extends StatelessWidget {
             children: [
               _SkyText(
                 store.temperatureText,
-                size: ShellFontSizes.title,
+                size: scale(ShellFontSizes.title),
                 weight: FontWeight.w600,
               ),
               _SkyText(
                 reading.condition.label,
-                size: ShellFontSizes.caption,
+                size: scale(ShellFontSizes.caption),
                 muted: true,
               ),
             ],
@@ -312,6 +394,8 @@ class _ExpandedLayout extends StatelessWidget {
   const _ExpandedLayout({
     required this.store,
     required this.reading,
+    required this.scale,
+    required this.animate,
     required this.showForecast,
     required this.showDetails,
     required this.showHighLow,
@@ -320,6 +404,8 @@ class _ExpandedLayout extends StatelessWidget {
 
   final WeatherStore store;
   final WeatherReading reading;
+  final _CardScale scale;
+  final bool animate;
   final bool showForecast;
   final bool showDetails;
   final bool showHighLow;
@@ -336,17 +422,21 @@ class _ExpandedLayout extends StatelessWidget {
         if (place != null)
           Row(
             children: [
-              WeatherIcon(
+              // The one Material Symbol on this card: Meteocons is a weather
+              // set and has no place marker. See `kLocationIcon`.
+              Icon(
                 kLocationIcon,
-                size: 11,
+                size: scale(13),
                 color: kSkyMutedForeground,
+                fill: 0.7,
+                weight: 500,
                 shadows: kSkyTextShadows,
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: scale(4)),
               Expanded(
                 child: _SkyText(
                   place.name,
-                  size: ShellFontSizes.caption,
+                  size: scale(ShellFontSizes.caption),
                   muted: true,
                 ),
               ),
@@ -358,11 +448,13 @@ class _ExpandedLayout extends StatelessWidget {
           children: [
             WeatherIcon(
               weatherIcon(reading.condition, night: !reading.isDay),
-              size: 46,
-              color: kSkyForeground,
-              shadows: kSkyTextShadows,
+              size: scale(58),
+              // No tint: this is the card's subject, drawn over a sky that is
+              // already the weather, and the Meteocon's own palette is what
+              // makes it read as the picture rather than as a control.
+              animate: animate,
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: scale(10)),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,12 +462,12 @@ class _ExpandedLayout extends StatelessWidget {
                 children: [
                   _SkyText(
                     store.temperatureText,
-                    size: 30,
+                    size: scale(30),
                     weight: FontWeight.w300,
                   ),
                   _SkyText(
                     reading.condition.label,
-                    size: ShellFontSizes.secondary,
+                    size: scale(ShellFontSizes.secondary),
                     muted: true,
                   ),
                 ],
@@ -390,21 +482,22 @@ class _ExpandedLayout extends StatelessWidget {
                 child: _SkyText(
                   'H ${forecast.first.tempMax.round()}°  '
                   'L ${forecast.first.tempMin.round()}°',
-                  size: ShellFontSizes.caption,
+                  size: scale(ShellFontSizes.caption),
                   muted: true,
                 ),
               ),
           ],
         ),
         if (showDetails) ...[
-          const SizedBox(height: 10),
-          _DetailRow(reading: reading, unit: store.unitLabel),
+          SizedBox(height: scale(10)),
+          _DetailRow(reading: reading, unit: store.unitLabel, scale: scale),
         ],
         const Spacer(),
         if (showForecast && forecast.length > 1)
           _ForecastStrip(
             // Today is already spelled out above, in three times the size.
             days: forecast.skip(1).take(forecastDays).toList(),
+            scale: scale,
           ),
       ],
     );
@@ -420,16 +513,24 @@ class _ExpandedLayout extends StatelessWidget {
 /// than counting characters — the `TrackMarquee` discipline: the same three
 /// readings fit at one theme's font and overflow at another's, and a row that
 /// guessed is a row that reports a flex overflow every frame on a surface whose
-/// console nobody is reading.
+/// console nobody is reading. The measurement is taken at the card's own scale,
+/// or growing the type would silently start overflowing the row it sizes.
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.reading, required this.unit});
+  const _DetailRow({
+    required this.reading,
+    required this.unit,
+    required this.scale,
+  });
 
   final WeatherReading reading;
   final String unit;
+  final _CardScale scale;
 
-  /// The icon, the gap, and the padding after each detail — everything in a
-  /// [_Detail] that is not its text.
-  static const double _chrome = 12 + 4 + 12;
+  /// The glyph, the gap, and the padding after each detail — everything in a
+  /// [_Detail] that is not its text, at [_referenceCard].
+  static const double _baseChrome = _detailIconSize + 4 + 12;
+
+  static const double _detailIconSize = 15;
 
   @override
   Widget build(BuildContext context) {
@@ -437,21 +538,23 @@ class _DetailRow extends StatelessWidget {
     final humidity = reading.humidity;
     final wind = reading.windSpeed;
 
-    final candidates = <(IconData, String)>[
+    final candidates = <(WeatherGlyph, String)>[
       if (feels != null) (kFeelsLikeIcon, '${feels.round()}$unit'),
       if (humidity != null) (kHumidityIcon, '$humidity%'),
       if (wind != null) (kWindIcon, '${wind.round()} ${_windUnit(unit)}'),
     ];
     if (candidates.isEmpty) return const SizedBox.shrink();
 
-    const style = TextStyle(fontSize: ShellFontSizes.caption);
+    final fontSize = scale(ShellFontSizes.caption);
+    final chrome = scale(_baseChrome);
+    final style = TextStyle(fontSize: fontSize);
 
     return LayoutBuilder(
       builder: (context, constraints) {
         var used = 0.0;
-        final shown = <(IconData, String)>[];
+        final shown = <(WeatherGlyph, String)>[];
         for (final candidate in candidates) {
-          final width = _measure(candidate.$2, style) + _chrome;
+          final width = _measure(candidate.$2, style) + chrome;
           // Break rather than continue: the priority order is the drop order,
           // and skipping a wide reading to fit a narrow one after it would
           // leave the wind on screen with the feels-like missing.
@@ -468,7 +571,13 @@ class _DetailRow extends StatelessWidget {
               // measurement is made without the theme's own font metrics, so
               // this is what turns a few pixels of error into an ellipsis
               // rather than an assertion.
-              Flexible(child: _Detail(icon: detail.$1, value: detail.$2)),
+              Flexible(
+                child: _Detail(
+                  icon: detail.$1,
+                  value: detail.$2,
+                  scale: scale,
+                ),
+              ),
           ],
         );
       },
@@ -495,27 +604,39 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _Detail extends StatelessWidget {
-  const _Detail({required this.icon, required this.value});
+  const _Detail({
+    required this.icon,
+    required this.value,
+    required this.scale,
+  });
 
-  final IconData icon;
+  final WeatherGlyph icon;
   final String value;
+  final _CardScale scale;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12),
+      padding: EdgeInsets.only(right: scale(12)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Tinted, unlike the reading's own glyph above: at this size the
+          // Meteocon's palette is three pixels of colour on a sky that is
+          // already coloured, and these are the row's labels rather than its
+          // subject.
           WeatherIcon(
             icon,
-            size: 12,
+            size: scale(_DetailRow._detailIconSize),
             color: kSkyMutedForeground,
-            shadows: kSkyTextShadows,
           ),
-          const SizedBox(width: 4),
+          SizedBox(width: scale(4)),
           Flexible(
-            child: _SkyText(value, size: ShellFontSizes.caption, muted: true),
+            child: _SkyText(
+              value,
+              size: scale(ShellFontSizes.caption),
+              muted: true,
+            ),
           ),
         ],
       ),
@@ -524,10 +645,18 @@ class _Detail extends StatelessWidget {
 }
 
 /// The days-ahead strip along the bottom.
+///
+/// The one part of this card that was illegible at every size: it was set at
+/// 10px against a 30px reading, and stayed at 10px on a card four times the
+/// area. Its base is [ShellFontSizes.caption] now, and it scales with the rest
+/// — and because `_forecastDays` scales its per-column budget by the same
+/// factor, a bigger card answers with the same days set larger rather than with
+/// more days set just as small.
 class _ForecastStrip extends StatelessWidget {
-  const _ForecastStrip({required this.days});
+  const _ForecastStrip({required this.days, required this.scale});
 
   final List<DayForecast> days;
+  final _CardScale scale;
 
   @override
   Widget build(BuildContext context) {
@@ -539,19 +668,28 @@ class _ForecastStrip extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _SkyText(day.dayLabel, size: 10, muted: true),
-                const SizedBox(height: 2),
+                _SkyText(
+                  day.dayLabel,
+                  size: scale(ShellFontSizes.caption),
+                  muted: true,
+                ),
+                SizedBox(height: scale(2)),
                 WeatherIcon(
                   // The day columns are always daytime: a forecast for Thursday
                   // is a forecast for Thursday's daylight, not for the moment
                   // the card happens to be looked at.
+                  //
+                  // Still, never animated: seven Lotties along the bottom of a
+                  // wallpaper widget is six more running tickers than the card
+                  // has anything to say with.
                   weatherIcon(day.condition),
-                  size: 16,
-                  color: kSkyForeground,
-                  shadows: kSkyTextShadows,
+                  size: scale(22),
                 ),
-                const SizedBox(height: 2),
-                _SkyText('${day.tempMax.round()}°', size: 10),
+                SizedBox(height: scale(2)),
+                _SkyText(
+                  '${day.tempMax.round()}°',
+                  size: scale(ShellFontSizes.caption),
+                ),
               ],
             ),
           ),
@@ -610,7 +748,7 @@ final DesktopWidgetSpec weatherDesktopWidget = DesktopWidgetSpec(
   // icon, and a temperature beside a condition does not fit in the width of a
   // launcher tile. The default is larger than the floor deliberately — 3x2 is
   // the smallest span that carries the place, the detail row and a sky with
-  // room to be looked at.
+  // room to be looked at, and it is the span `_referenceCard` is the size of.
   minSpan: (columns: 2, rows: 1),
   maxSpan: (columns: 6, rows: 4),
   defaultSpan: (columns: 3, rows: 2),

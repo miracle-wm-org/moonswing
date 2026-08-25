@@ -6,6 +6,7 @@ import 'package:graceful_shell/desktop/widgets/weather_widget.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/weather/weather_api.dart';
 import 'package:graceful_shell/weather/weather_sky.dart';
 import 'package:graceful_shell/weather/weather_store.dart';
@@ -271,6 +272,88 @@ void main() {
       await tester.tap(find.text('Retry'));
       await tester.pump();
       expect(client.fetchCalls, greaterThan(0));
+      store.dispose();
+    });
+
+    testWidgets('the forecast strip is set at the card\'s size, not at one '
+        'fixed size', (tester) async {
+      // The strip was the one part of this card that was illegible at every
+      // size: 10px against a 30px reading, and still 10px on a card four times
+      // the area. `_CardScale` is what fixed it, and this is the property.
+      final store = _seeded();
+
+      Future<double> dayLabelSize(Size size) async {
+        await pumpSurface(
+          tester,
+          WeatherWidget(
+            span: (columns: 4, rows: 3),
+            store: store,
+            animate: false,
+          ),
+          size: size,
+        );
+        return tester.widget<Text>(find.text('Tue')).style!.fontSize!;
+      }
+
+      final small = await dayLabelSize(const Size(320, 220));
+      final large = await dayLabelSize(const Size(620, 410));
+
+      expect(large, greaterThan(small));
+      // Not a rounding difference: a card nearly four times the area sets it
+      // nearly twice as large.
+      expect(large, greaterThan(small * 1.5));
+      store.dispose();
+    });
+
+    testWidgets('a bigger card answers with the same days set larger, not '
+        'with more days', (tester) async {
+      // `_forecastDays` scales its per-column budget by the same factor the
+      // type does, so growing the card cannot walk the strip back to a row of
+      // cramped columns.
+      final store = _seeded();
+
+      Future<int> dayCount(Size size) async {
+        await pumpSurface(
+          tester,
+          WeatherWidget(
+            span: (columns: 6, rows: 4),
+            store: store,
+            animate: false,
+          ),
+          size: size,
+        );
+        // The strip is the only place a day label is drawn; today is spelled
+        // out above it as a temperature rather than as a name.
+        return ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            .where((day) => find.text(day).evaluate().isNotEmpty)
+            .length;
+      }
+
+      expect(await dayCount(const Size(620, 410)),
+          lessThanOrEqualTo(await dayCount(const Size(320, 220))));
+      store.dispose();
+    });
+
+    testWidgets('the base table is a floor: a card under the reference is '
+        'clipped rather than set smaller', (tester) async {
+      // `_minWidth`/`_minHeight` already lay the content out at its own minimum
+      // and clip it, so scaling *down* as well would shed legibility twice for
+      // the same card.
+      final store = _seeded();
+      await pumpSurface(
+        tester,
+        WeatherWidget(
+          span: (columns: 2, rows: 1),
+          store: store,
+          animate: false,
+        ),
+        size: const Size(180, 70),
+      );
+
+      expect(
+        tester.widget<Text>(find.text('Clear sky')).style!.fontSize,
+        ShellFontSizes.caption,
+      );
       store.dispose();
     });
 
