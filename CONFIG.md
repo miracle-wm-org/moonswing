@@ -648,6 +648,50 @@ An item whose target no longer exists is drawn dimmed rather than removed, so an
 
 Items on a cell that does not exist on a smaller monitor are drawn in the nearest free cell on that monitor only; the position you gave them is kept, so plugging the larger display back in restores the layout.
 
+## Desktop Widgets
+
+Alongside the icons, the grid holds **widgets** — cards that take a rectangle of cells rather than a single one, and that you resize by dragging a corner. Right-click bare desktop and choose **Add widget…** to place one; right-click a widget for **Remove**. Widgets are dragged from anywhere on the card, and their own buttons still work: a press that moves is a drag, one that does not is a click.
+
+Three types ship:
+
+| `type` | Name | What it draws |
+| ------ | ---- | ------------- |
+| `media_player` | Media player | What is playing over MPRIS: art, title, transport, and a progress bar as the card grows |
+| `weather` | Weather | The current conditions and a forecast strip, over a sky animated to match |
+| `moon_phase` | Moon phase | Tonight's Moon drawn at its actual phase, with the times it rises and sets and what the phase means for tides, night light and eclipses |
+
+```toml
+[[desktop.widgets]]
+type = "moon_phase"
+id = "moon_phase"
+column = 4
+row = 0
+column_span = 3
+row_span = 2
+```
+
+| Key           | Type   | Default    | Description                                                          |
+| ------------- | ------ | ---------- | -------------------------------------------------------------------- |
+| `type`        | string |            | One of the types above. Required — an entry without one is ignored    |
+| `id`          | string | the type   | This widget's identity, so two of a kind can be told apart            |
+| `column`      | number | `0`        | Grid column of the top-left cell                                      |
+| `row`         | number | `0`        | Grid row of the top-left cell                                         |
+| `column_span` | number | `1`        | Width in cells, clamped to what the type allows                       |
+| `row_span`    | number | `1`        | Height in cells, clamped to what the type allows                      |
+
+A span outside what a type allows is clamped when it is drawn rather than rewritten in the file, so a layout authored when a widget allowed more room comes back at full size if that changes again. A `type` this build does not know is drawn as a placeholder and kept in the file, so an entry from a newer version survives a downgrade and there is still something to right-click.
+
+An icon in a widget's way is moved aside; a widget in an icon's way refuses the drop, since there is no exchange of places to make between one cell and six. **Organize** compacts the icons and never moves a widget.
+
+### The Moon phase widget
+
+The phase, the illuminated fraction and the age of the Moon are the same everywhere on Earth, so this widget needs no configuration and works out of the box. Two things do depend on where you are, and both come from the location you set for the weather (**Settings → Shell → Modules → Weather**, or `[modules.weather] location`):
+
+- **Moonrise and moonset**, printed for the current day. A day with neither — which happens about once a month, and for weeks at a time inside the polar circles — says so rather than showing blanks.
+- **Which way up the disc is drawn.** South of the equator the Moon is seen rotated half a turn, so a waxing crescent is lit on the left.
+
+With no weather location set, the shell uses the same one-off IP lookup the weather does; if that is unavailable too, the card drops those two lines and keeps everything else.
+
 ## Lock Screen
 
 The `[lock]` section configures the lock screen, reached from **Lock** in the power menu (the power icon in the top panel). Locking uses the `ext-session-lock-v1` Wayland protocol, so the compositor hides every other surface — including the shell's own panels — and blanks any monitor that has no lock surface.
