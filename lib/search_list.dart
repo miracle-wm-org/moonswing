@@ -3,16 +3,24 @@
 ///
 /// `SettingsFontField` and the calendar's time-zone picker were two
 /// comment-identical copies of this whole arrangement; each is now a thin
-/// wrapper supplying its trigger, its ranking, and its row content. Two
-/// properties are load-bearing and documented at their origin
-/// (`SettingsColorField`): the list floats in the **root** overlay, because
-/// the settings content pane is a nested `Navigator` whose `Overlay` would
-/// clip a list hanging below the row; and the items arrive **as a
-/// parameter**, so widget tests never fork `fc-list` or load the IANA
-/// tables.
+/// wrapper supplying its trigger, its ranking, and its row content, as are the
+/// weather location row and — since the settings UI stopped having two kinds
+/// of dropdown — `SettingsDropdown` and the module adder. Two properties are
+/// load-bearing and documented at their origin (`SettingsColorField`): the
+/// list floats in the **root** overlay, because the settings content pane is a
+/// nested `Navigator` whose `Overlay` would clip a list hanging below the row;
+/// and the items arrive **as a parameter**, so widget tests never fork
+/// `fc-list` or load the IANA tables.
+///
+/// Two of the parameters exist for those last two wrappers, and both are about
+/// a card that has to pass for the control it drops out of: `matchTriggerWidth`
+/// sizes it to the trigger, and `showSearch` lets a short list do without a
+/// filter field. Neither changes the card itself, which is the point — every
+/// selector in the settings UI is now this one surface.
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -22,6 +30,17 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
+
+/// The filter field's laid-out height (its padding, the row's own padding, a
+/// line of [ShellFontSizes.body] and the border). Only the flip estimate needs
+/// it — the card itself measures.
+const double _kSearchFieldHeight = 48;
+
+/// Gap between the trigger and the card it drops.
+const double _kGap = 6;
+
+/// The card's own vertical padding above and below its list, plus its border.
+const double _kCardPadding = 14;
 
 /// Scroll offset that brings row [index] (of height [rowHeight]) into view on
 /// [position], or null when it already is. Pure, so the keyboard-navigation
@@ -44,10 +63,12 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
     this.search,
     this.searchDebounce = const Duration(milliseconds: 300),
     this.loadingText = 'Searching…',
+    this.showSearch = true,
     required this.itemBuilder,
     required this.onSelected,
     required this.triggerBuilder,
     this.width = 240,
+    this.matchTriggerWidth = false,
     this.maxHeight = 300,
     this.rowHeight = 30,
     this.emptyText = 'No matches',
@@ -84,6 +105,17 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
   /// `ShellServicesScope` documents for the launcher.
   final String loadingText;
 
+  /// Whether the card carries its filter field.
+  ///
+  /// A few hundred font families need one; the two output devices a machine
+  /// has do not, and a search box over a list shorter than the box is chrome
+  /// asking to be typed into for no gain. False keeps the rest of the card —
+  /// the same surface, radius, border and rows — and moves the autofocus to
+  /// the key handler, so Up/Down/Enter/Escape still drive the list.
+  ///
+  /// A [search] dropdown ignores this: its list *is* the query.
+  final bool showSearch;
+
   /// The row's *content*; the generic supplies the row chrome (hover fill,
   /// highlight fill, tap target, fixed [rowHeight]).
   final Widget Function(BuildContext context, T item, bool highlighted)
@@ -96,7 +128,17 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
   final Widget Function(BuildContext context, bool open, VoidCallback toggle)
       triggerBuilder;
 
+  /// The card's width, and the fallback when [matchTriggerWidth] cannot
+  /// measure.
   final double width;
+
+  /// Size the card to the trigger rather than to [width].
+  ///
+  /// What a selector spanning a settings row wants: a card narrower than the
+  /// control it drops out of reads as a different control, and one wider
+  /// overhangs the row. Measured at open, when the trigger has been laid out.
+  final bool matchTriggerWidth;
+
   final double maxHeight;
 
   /// Fixed row height — scrolling the highlight into view is arithmetic, not
@@ -128,6 +170,19 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
   final _link = LayerLink();
   OverlayEntry? _entry;
 
+  /// The trigger's laid-out width, taken at open for [matchTriggerWidth]. Read
+  /// from the render object rather than a `LayoutBuilder`, because the card is
+  /// built into another subtree entirely and only the *host* element knows how
+  /// wide the row let the trigger be.
+  double? _triggerWidth;
+
+  /// Whether the card opens *upwards*, decided at open from the room under the
+  /// trigger. A dropdown near the foot of the settings panel would otherwise
+  /// hang its list off the bottom of the panel and over the desktop, which is
+  /// where this control used to be safe: it expanded inline and scrolled with
+  /// the pane.
+  bool _above = false;
+
   @override
   void didUpdateWidget(AnchoredSearchDropdown<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -147,10 +202,48 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
 
   void _open() {
     if (_entry != null) return;
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final trigger = context.findRenderObject();
+    // Reset first: both are answers about *this* open, and an unmeasurable
+    // trigger must fall back to the defaults rather than to the last open's.
+    _triggerWidth = null;
+    _above = false;
+    if (trigger is RenderBox && trigger.hasSize) {
+      if (widget.matchTriggerWidth) _triggerWidth = trigger.size.width;
+      _above = _opensUpwards(trigger, overlay.context.findRenderObject());
+    }
     final entry = OverlayEntry(builder: (_) => _buildPicker());
     _entry = entry;
-    Overlay.of(context, rootOverlay: true).insert(entry);
+    overlay.insert(entry);
     setState(() {});
+  }
+
+  /// True when the card does not fit under the trigger but does fit over it.
+  ///
+  /// Ties go downwards: that is where a dropdown belongs, and a control with
+  /// room on neither side keeps the conventional side rather than flipping on
+  /// a pixel.
+  bool _opensUpwards(RenderBox trigger, RenderObject? overlayBox) {
+    if (overlayBox is! RenderBox || !overlayBox.hasSize) return false;
+    final top = trigger.localToGlobal(Offset.zero, ancestor: overlayBox).dy;
+    final wanted = _estimatedHeight() + _kGap;
+    final below = overlayBox.size.height - (top + trigger.size.height);
+    return below < wanted && top >= below;
+  }
+
+  /// Rough card height, for the flip decision alone: the rows the card opens
+  /// with plus the filter field it may carry, capped by
+  /// [AnchoredSearchDropdown.maxHeight]. A [search] dropdown has no list yet,
+  /// so it is measured at its maximum. The card lays itself out either way —
+  /// this only picks the side.
+  double _estimatedHeight() {
+    final rows = widget.search != null ? null : widget.filter?.call('').length;
+    if (rows == null) return widget.maxHeight;
+    final search = widget.showSearch ? _kSearchFieldHeight : 0.0;
+    return math.min(
+      widget.maxHeight,
+      search + rows * widget.rowHeight + _kCardPadding,
+    );
   }
 
   void _close() {
@@ -176,8 +269,15 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
   }
 
   Widget _buildPicker() {
-    final anchor = widget.alignRight ? Alignment.bottomRight : Alignment.bottomLeft;
-    final follower = widget.alignRight ? Alignment.topRight : Alignment.topLeft;
+    final right = widget.alignRight;
+    // The card hangs off whichever edge of the trigger it opens from, and
+    // meets it with its own opposite edge.
+    final anchor = _above
+        ? (right ? Alignment.topRight : Alignment.topLeft)
+        : (right ? Alignment.bottomRight : Alignment.bottomLeft);
+    final follower = _above
+        ? (right ? Alignment.bottomRight : Alignment.bottomLeft)
+        : (right ? Alignment.topRight : Alignment.topLeft);
     return Stack(
       children: [
         Positioned.fill(
@@ -190,13 +290,14 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
           link: _link,
           targetAnchor: anchor,
           followerAnchor: follower,
-          offset: const Offset(0, 6),
+          offset: Offset(0, _above ? -_kGap : _kGap),
           // Absorbs clicks on the card's own chrome, which would otherwise
           // fall through to the barrier above — see the colour picker.
           child: Listener(
             behavior: HitTestBehavior.opaque,
             child: _DropdownPopup<T>(
               config: widget,
+              width: _triggerWidth ?? widget.width,
               onSelected: _select,
               onDismiss: _close,
             ),
@@ -212,11 +313,16 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
 class _DropdownPopup<T> extends StatefulWidget {
   const _DropdownPopup({
     required this.config,
+    required this.width,
     required this.onSelected,
     required this.onDismiss,
   });
 
   final AnchoredSearchDropdown<T> config;
+
+  /// Resolved once at open — [AnchoredSearchDropdown.width], or the trigger's
+  /// own width under `matchTriggerWidth`.
+  final double width;
   final ValueChanged<T> onSelected;
   final VoidCallback onDismiss;
 
@@ -350,16 +456,24 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
     return KeyEventResult.ignored;
   }
 
+  /// Whether the filter field is drawn. A [search] dropdown always has one —
+  /// without it there is no way to ask for anything, since nothing is ranked
+  /// locally.
+  bool get _searchable =>
+      widget.config.showSearch || widget.config.search != null;
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Focus(
       // Nested above the search field's node, so it only sees what the editor
       // declines — Escape and the arrows here, every editing key still in the
-      // field.
+      // field. With no field below it this is the only node in the card, so it
+      // takes the focus itself or the arrows would never reach the list.
+      autofocus: !_searchable,
       onKeyEvent: _onKey,
       child: Container(
-        width: widget.config.width,
+        width: widget.width,
         constraints: BoxConstraints(maxHeight: widget.config.maxHeight),
         decoration: BoxDecoration(
           color: theme.popupBackground,
@@ -370,10 +484,13 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildSearchField(theme),
+            if (_searchable) _buildSearchField(theme),
             if (_filtered.isEmpty)
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                // The search field supplies the top padding when it is there.
+                padding: _searchable
+                    ? const EdgeInsets.fromLTRB(12, 0, 12, 12)
+                    : const EdgeInsets.all(12),
                 child: Text(
                   _searching
                       ? widget.config.loadingText
@@ -389,7 +506,9 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
               Flexible(
                 child: ListView.builder(
                   controller: _scroll,
-                  padding: const EdgeInsets.only(bottom: 6),
+                  padding: _searchable
+                      ? const EdgeInsets.only(bottom: 6)
+                      : const EdgeInsets.symmetric(vertical: 6),
                   itemExtent: widget.config.rowHeight,
                   itemCount: _filtered.length,
                   itemBuilder: (context, i) {
