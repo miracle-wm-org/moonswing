@@ -461,72 +461,105 @@ class SettingsDropdownItem<T> {
   final String? detail;
 }
 
-/// Inline-expanding dropdown: a bordered trigger showing the selected item's
-/// label and, while open, a scrollable list of the items pushed into the
-/// layout below it — not floated over it, so it needs no Overlay and cannot
-/// be clipped by a nested Navigator's. Selecting an item reports it through
-/// [onSelected] and closes the list; a [selected] value no item carries shows
-/// an em dash.
+/// A bordered trigger showing the selected item's label, dropping a list of
+/// the items *over* the pane rather than pushing it into the layout — the same
+/// floating card the font picker uses, through the same
+/// [AnchoredSearchDropdown]. A [selected] value no item carries shows an em
+/// dash.
 ///
-/// Extracted from the `_AudioDropdown`/`_ModeDropdown` clones in the audio
-/// and display panes. For a searchable list that floats in the root overlay
-/// instead, see [SettingsFontField] / `AnchoredSearchDropdown`.
-class SettingsDropdown<T> extends StatefulWidget {
+/// It used to expand inline, which is what made it the odd control out: a
+/// dropdown that re-lays its own pane pushes everything under it down the
+/// moment it opens, and on the audio and display pages that is the rest of the
+/// form. The list floats in the **root** overlay for the reason
+/// [SettingsColorField] documents — the settings content pane is a nested
+/// `Navigator` whose `Overlay` would clip it — which means every host needs a
+/// root `Overlay` above it; inside the settings window `SettingsOverlay`
+/// supplies one.
+///
+/// The filter field appears only past [searchFrom] items: a search box over
+/// the two outputs a machine has is chrome asking to be typed into for no
+/// gain, while the thirty modes a monitor reports genuinely want one.
+class SettingsDropdown<T> extends StatelessWidget {
   const SettingsDropdown({
     super.key,
     required this.items,
     required this.selected,
     required this.onSelected,
+    this.searchFrom = 8,
   });
 
   final List<SettingsDropdownItem<T>> items;
   final T? selected;
   final ValueChanged<T> onSelected;
 
-  @override
-  State<SettingsDropdown<T>> createState() => _SettingsDropdownState<T>();
-}
-
-class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
-  bool _open = false;
+  /// The item count from which the card carries a filter field.
+  final int searchFrom;
 
   String get _selectedLabel {
-    for (final item in widget.items) {
-      if (item.value == widget.selected) return item.label;
+    for (final item in items) {
+      if (item.value == selected) return item.label;
     }
     return '—';
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildTrigger(),
-        if (_open)
-          Container(
-            margin: const EdgeInsets.only(top: 2),
-            constraints: const BoxConstraints(maxHeight: 160),
-            decoration: BoxDecoration(
-              color: theme.controlSurface,
-              border: Border.all(color: theme.divider),
-              borderRadius: BorderRadius.circular(ShellRadii.control),
-            ),
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: widget.items.length,
-              itemBuilder: (_, i) => _buildItem(widget.items[i]),
-            ),
-          ),
-      ],
+    return AnchoredSearchDropdown<SettingsDropdownItem<T>>(
+      // The card drops out of the trigger, so it is the trigger's width — a
+      // fixed one would read as a different control on a row that stretches.
+      matchTriggerWidth: true,
+      showSearch: items.length >= searchFrom,
+      rowHeight: 34,
+      maxHeight: 260,
+      // Closes the open list when what it is listing moves underneath it, the
+      // guard the font field takes against a stale pick: the card is an
+      // OverlayEntry and does not rebuild on the host's setState, so its rows
+      // would go on marking whichever device *was* the default one — and, when
+      // one is plugged in or unplugged, go on offering the ones that were
+      // there when it opened. The inline list this replaced rebuilt with the
+      // pane and needed neither.
+      closeKey: Object.hash(selected, items.length),
+      filter: (query) {
+        final q = query.trim().toLowerCase();
+        if (q.isEmpty) return items;
+        return items
+            .where((item) => item.label.toLowerCase().contains(q))
+            .toList(growable: false);
+      },
+      // Open highlighted on the current item rather than at the top of a
+      // monitor's mode list. -1 (a selection no item carries) starts at the
+      // top, which is what the generic does with it.
+      initialHighlight: (list) =>
+          list.indexWhere((item) => item.value == selected),
+      onSelected: (item) => onSelected(item.value),
+      itemBuilder: (context, item, _) => _DropdownRow<T>(
+        item: item,
+        selected: item.value == selected,
+      ),
+      triggerBuilder: (context, open, toggle) => _DropdownTrigger(
+        label: _selectedLabel,
+        open: open,
+        onTap: toggle,
+      ),
     );
   }
+}
 
-  Widget _buildTrigger() {
+class _DropdownTrigger extends StatelessWidget {
+  const _DropdownTrigger({
+    required this.label,
+    required this.open,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool open;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     return HoverRegion(
-      onTap: () => setState(() => _open = !_open),
+      onTap: onTap,
       builder: (context, hovered) {
         final theme = ThemeScope.of(context);
         return Container(
@@ -534,13 +567,15 @@ class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
           decoration: BoxDecoration(
             color: hovered ? theme.surfaceHover : theme.controlSurface,
             borderRadius: BorderRadius.circular(ShellRadii.control),
-            border: Border.all(color: theme.divider),
+            border: Border.all(
+              color: open || hovered ? theme.accent : theme.divider,
+            ),
           ),
           child: Row(
             children: [
               Expanded(
                 child: Text(
-                  _selectedLabel,
+                  label,
                   style: TextStyle(
                     fontSize: ShellFontSizes.body,
                     fontFamily: theme.fontFamily,
@@ -550,7 +585,7 @@ class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
                 ),
               ),
               FaIcon(
-                _open
+                open
                     ? FontAwesomeIcons.chevronUp
                     : FontAwesomeIcons.chevronDown,
                 size: 10,
@@ -562,56 +597,48 @@ class _SettingsDropdownState<T> extends State<SettingsDropdown<T>> {
       },
     );
   }
+}
 
-  Widget _buildItem(SettingsDropdownItem<T> item) {
-    final selected = item.value == widget.selected;
+/// One row's *content*; the hover fill, the highlight fill and the tap target
+/// are the dropdown's own chrome.
+class _DropdownRow<T> extends StatelessWidget {
+  const _DropdownRow({required this.item, required this.selected});
+
+  final SettingsDropdownItem<T> item;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
     final detail = item.detail;
-    return HoverRegion(
-      onTap: () {
-        widget.onSelected(item.value);
-        setState(() => _open = false);
-      },
-      builder: (context, hovered) {
-        final theme = ThemeScope.of(context);
-        final Color bg;
-        if (selected) {
-          bg = theme.accent.withValues(alpha: 0.15);
-        } else if (hovered) {
-          bg = theme.surfaceHover;
-        } else {
-          bg = const Color(0x00000000);
-        }
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          color: bg,
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.label,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.body,
-                    fontFamily: theme.fontFamily,
-                    color: selected ? theme.accent : theme.popupForeground,
-                  ),
-                ),
-              ),
-              if (detail != null)
-                Text(
-                  detail,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground.withValues(alpha: 0.4),
-                  ),
-                ),
-            ],
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            item.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: ShellFontSizes.body,
+              fontFamily: theme.fontFamily,
+              color: selected ? theme.accent : theme.popupForeground,
+            ),
           ),
-        );
-      },
+        ),
+        if (detail != null)
+          Text(
+            detail,
+            style: TextStyle(
+              fontSize: ShellFontSizes.caption,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground.withValues(alpha: 0.4),
+            ),
+          ),
+      ],
     );
   }
 }
+
 
 /// Bordered single-line text input backed by [EditableText] (the codebase does
 /// not use Material). Seeds its controller once from [initial]; subsequent
@@ -1922,91 +1949,50 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
   }
 }
 
-/// A dropdown that expands to a list of [options] and reports the chosen value.
-class _AddDropdown extends StatefulWidget {
+/// The string-list editor's adder: a plus button that drops the [options] over
+/// the pane, through the same [AnchoredSearchDropdown] every other selector in
+/// the settings UI now uses.
+///
+/// It expanded inline until this — the module list is a dozen-odd rows, so
+/// opening it shoved the panel's own module slots off the bottom of the pane
+/// that the user was picking a module *for*.
+class _AddDropdown extends StatelessWidget {
   const _AddDropdown({required this.options, required this.onSelected});
 
   final List<String> options;
   final ValueChanged<String> onSelected;
 
   @override
-  State<_AddDropdown> createState() => _AddDropdownState();
-}
-
-class _AddDropdownState extends State<_AddDropdown> {
-  bool _open = false;
-
-  @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SettingsAddButton(
-          label: _open ? 'Close' : 'Add module',
-          onTap: () => setState(() => _open = !_open),
-        ),
-        if (_open)
-          Container(
-            margin: const EdgeInsets.only(top: 4),
-            constraints: const BoxConstraints(maxHeight: 180),
-            decoration: BoxDecoration(
-              color: theme.controlSurface,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: theme.divider),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final o in widget.options)
-                    _DropdownItem(
-                      label: o,
-                      onTap: () {
-                        widget.onSelected(o);
-                        setState(() => _open = false);
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _DropdownItem extends StatelessWidget {
-  const _DropdownItem({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return HoverRegion(
-      onTap: onTap,
-      builder: (context, hovered) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        color: hovered ? theme.surfaceHover : const Color(0x00000000),
-        child: Text(
-          label,
+    return AnchoredSearchDropdown<String>(
+      matchTriggerWidth: true,
+      rowHeight: 30,
+      maxHeight: 260,
+      emptyText: 'No matching module',
+      filter: (query) {
+        final q = query.trim().toLowerCase();
+        if (q.isEmpty) return options;
+        return options
+            .where((o) => o.toLowerCase().contains(q))
+            .toList(growable: false);
+      },
+      onSelected: onSelected,
+      itemBuilder: (context, option, _) {
+        final theme = ThemeScope.of(context);
+        return Text(
+          option,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: ShellFontSizes.secondary,
             fontFamily: theme.fontFamily,
             color: theme.popupForeground,
           ),
-        ),
+        );
+      },
+      triggerBuilder: (context, open, toggle) => SettingsAddButton(
+        label: 'Add module',
+        onTap: toggle,
       ),
     );
   }
