@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/bar_button.dart';
@@ -95,6 +96,14 @@ class _NotificationsState extends State<Notifications>
       ],
       width: panelWidth,
       // height omitted: top+bottom anchoring makes this full-height.
+      //
+      // On-demand keyboard focus, the settings overlay's mode, is what makes
+      // Escape reach the panel at all: a layer surface with no keyboard
+      // interactivity never sees a key event, so the panel's own handler
+      // would never fire. Not `exclusive` — this is a panel the user glances
+      // at, and taking the keyboard off whatever they were typing in for as
+      // long as it is open costs more than a dismissal shortcut is worth.
+      keyboardMode: LayerShellKeyboardMode.onDemand,
     );
     // The panel spans the whole output edge-to-edge and draws over the bars.
     // Without this the compositor honours their exclusive zones and shrinks
@@ -109,7 +118,7 @@ class _NotificationsState extends State<Notifications>
       // The slide-out, not the teardown — see [_beginClosePanel].
       onDismissRequested: _beginClosePanel,
       child: ThemeProvider(
-        child: _NotificationPanel(
+        child: NotificationPanel(
           closingNotifier: _closingNotifier,
           onClosed: _onPanelClosed,
         ),
@@ -149,7 +158,7 @@ class _NotificationsState extends State<Notifications>
 
   void _beginClosePanel() {
     _closingNotifier.value = true;
-    // _NotificationPanel plays its slide-out animation then calls _onPanelClosed.
+    // NotificationPanel plays its exit animation then calls _onPanelClosed.
   }
 
   void _onPanelClosed() {
@@ -284,43 +293,123 @@ class _BrokenDot extends StatelessWidget {
   }
 }
 
+/// How long the panel takes to arrive.
+const Duration kNotificationPanelEnter = Duration(milliseconds: 300);
+
+/// How long it takes to leave — deliberately a little over half that.
+///
+/// The way out is not the way in played backwards. An entrance is the shell
+/// presenting a surface the user has not read yet, so it is paced to be
+/// followed; a dismissal is the user saying they are done with it, and every
+/// millisecond after that is the shell arguing. `overlayFade` is the token the
+/// rest of the shell's overlays leave on.
+const Duration kNotificationPanelExit = ShellDurations.overlayFade;
+
 /// Full-height Layer Shell panel anchored to the right side of the screen.
-/// Slides in from the right on creation and slides out before being destroyed.
-class _NotificationPanel extends StatefulWidget {
-  const _NotificationPanel({
+///
+/// Slides in from the right on creation; leaves by a *different* animation
+/// (see [_NotificationPanelState]) before being destroyed.
+///
+/// Public, unlike the rest of the panel's parts, because in its one real home
+/// it is a layer-shell window no widget test can pump — the animation
+/// handshake and the Escape binding are behaviour worth pinning, so
+/// `test/notification_panel_test.dart` builds it directly.
+class NotificationPanel extends StatefulWidget {
+  const NotificationPanel({
+    super.key,
     required this.closingNotifier,
     required this.onClosed,
   });
 
+  /// Flipped by whoever wants the panel gone — the bell, the header's close
+  /// button, Escape, or the [PopupCoordinator] on a click elsewhere. Flipping
+  /// it starts the exit animation; [onClosed] is what tears the window down
+  /// once that animation is over.
   final ValueNotifier<bool> closingNotifier;
   final VoidCallback onClosed;
 
   @override
-  _NotificationPanelState createState() => _NotificationPanelState();
+  State<NotificationPanel> createState() => _NotificationPanelState();
 }
 
-class _NotificationPanelState extends State<_NotificationPanel>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _slideController;
-  late final Animation<Offset> _slideAnimation;
+/// The two animations, and why they are two.
+///
+/// The entrance is the `SlideTransition` it always was — no `PopupBounceIn`,
+/// for the reason [build] states. The exit is its own controller rather than
+/// that one reversed, which is what lets it be shorter *and* be a different
+/// animation: a beat of wind-up, then the panel takes off to the right,
+/// shrinking towards and fading into the edge it is anchored to.
+///
+/// Every part of that exit is pinned to `Alignment.centerRight` or moves the
+/// panel further *off* the screen, and that is the constraint the fun has to
+/// live inside. This surface is exactly as wide as the panel and butted
+/// against the output's right edge, so anything that moves the content left —
+/// an overshoot, an anticipation dip, a centre-pivoted scale — opens a
+/// transparent strip along the screen edge that reads as the panel having
+/// detached from it. Scaling towards the right edge keeps it glued there.
+class _NotificationPanelState extends State<NotificationPanel>
+    with TickerProviderStateMixin {
+  late final AnimationController _enterController;
+  late final Animation<Offset> _enterSlide;
+
+  late final AnimationController _exitController;
+  late final Animation<Offset> _exitSlide;
+  late final Animation<double> _exitScale;
+  late final Animation<double> _exitFade;
 
   @override
   void initState() {
     super.initState();
 
-    _slideController = AnimationController(
+    _enterController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: kNotificationPanelEnter,
     );
-    _slideAnimation = Tween<Offset>(
+    _enterSlide = Tween<Offset>(
       begin: const Offset(1.0, 0.0),
       end: Offset.zero,
     ).animate(CurvedAnimation(
-      parent: _slideController,
+      parent: _enterController,
       curve: Curves.easeOut,
     ));
 
-    _slideController.forward();
+    _exitController = AnimationController(
+      vsync: this,
+      duration: kNotificationPanelExit,
+    );
+    // Held in place through the wind-up, then thrown clear. A full panel
+    // width is more than enough to clear the surface, because the scale below
+    // is pulling it towards that edge at the same time.
+    _exitSlide = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(1.0, 0.0),
+    ).animate(CurvedAnimation(
+      parent: _exitController,
+      curve: const Interval(0.22, 1.0, curve: Curves.easeInCubic),
+    ));
+    // Squash and stretch: a short swell against the edge, then away. The
+    // swell is clipped by the surface rather than drawn outside it, so it
+    // reads as the panel gathering itself rather than as it growing.
+    _exitScale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.04)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 22,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.04, end: 0.86)
+            .chain(CurveTween(curve: Curves.easeInCubic)),
+        weight: 78,
+      ),
+    ]).animate(_exitController);
+    // Late, so the panel is visibly *leaving* rather than merely dissolving
+    // where it stood.
+    _exitFade = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(
+      parent: _exitController,
+      curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
+    ));
+
+    _enterController.forward();
     widget.closingNotifier.addListener(_onClosingRequested);
     NotificationStore.instance.addListener(_onStoreChanged);
   }
@@ -329,7 +418,8 @@ class _NotificationPanelState extends State<_NotificationPanel>
   void dispose() {
     widget.closingNotifier.removeListener(_onClosingRequested);
     NotificationStore.instance.removeListener(_onStoreChanged);
-    _slideController.dispose();
+    _enterController.dispose();
+    _exitController.dispose();
     super.dispose();
   }
 
@@ -339,7 +429,21 @@ class _NotificationPanelState extends State<_NotificationPanel>
 
   void _onClosingRequested() {
     if (!widget.closingNotifier.value) return;
-    _slideController.reverse().then((_) => widget.onClosed());
+    // A second dismissal mid-exit must not restart the animation — and must
+    // not queue a second `onClosed`, which would tear the window down twice.
+    if (_exitController.status != AnimationStatus.dismissed) return;
+    _exitController.forward().then((_) => widget.onClosed());
+  }
+
+  /// Escape is a dismissal like any other: it flips the notifier and lets the
+  /// exit animation run, rather than closing the window from under itself.
+  KeyEventResult _onKeyEvent(FocusNode _, KeyEvent event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      widget.closingNotifier.value = true;
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   @override
@@ -347,7 +451,10 @@ class _NotificationPanelState extends State<_NotificationPanel>
     final theme = ThemeScope.of(context);
     final items = NotificationStore.instance.items;
 
-    return Directionality(
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _onKeyEvent,
+      child: Directionality(
         textDirection: TextDirection.ltr,
         child: DefaultTextStyle(
           style: TextStyle(
@@ -356,41 +463,55 @@ class _NotificationPanelState extends State<_NotificationPanel>
             color: theme.popupForeground,
           ),
           child: SlideTransition(
-            position: _slideAnimation,
+            position: _enterSlide,
             // The slide is the whole entrance: no PopupBounceIn. Its scale
             // pivots on the centre, which on a full-height edge-anchored
             // surface pulls the panel away from the screen edge it is anchored
             // to and shows a gap that closes as it settles — the bounce reads
-            // as a floating card, which this deliberately is not.
-            //
-            // Deliberately not a PopupCard either. This is a full-height
-            // surface anchored to the screen's right edge, not a floating
-            // card: rounding it would cut wallpaper wedges out of the
-            // display's own corners — the case panelCornerRadius refuses for a
-            // flush bar — and a rim would draw a line down the screen edge.
-            child: Container(
-              color: theme.popupBackground,
-              child: Column(
-                children: [
-                  _buildHeader(theme, items.isNotEmpty),
-                  Container(height: 1, color: theme.divider),
-                  // Above the list, not inside it: with the daemon down the
-                  // list is empty, and an empty state reading "No
-                  // notifications" is a lie the user would act on.
-                  if (NotificationStore.instance.daemonUnavailable) ...[
-                    NotificationDaemonBanner(theme: theme),
-                    Container(height: 1, color: theme.divider),
-                  ],
-                  Expanded(
-                    child: items.isEmpty
-                        ? _buildEmpty(theme)
-                        : _buildList(theme, items),
+            // as a floating card, which this deliberately is not. The exit's
+            // scale is the same widget with the pivot moved to the edge, which
+            // is the whole difference between a flourish and that gap.
+            child: SlideTransition(
+              position: _exitSlide,
+              child: ScaleTransition(
+                scale: _exitScale,
+                alignment: Alignment.centerRight,
+                child: FadeTransition(
+                  opacity: _exitFade,
+                  // Deliberately not a PopupCard. This is a full-height
+                  // surface anchored to the screen's right edge, not a
+                  // floating card: rounding it would cut wallpaper wedges out
+                  // of the display's own corners — the case
+                  // panelCornerRadius refuses for a flush bar — and a rim
+                  // would draw a line down the screen edge.
+                  child: Container(
+                    color: theme.popupBackground,
+                    child: Column(
+                      children: [
+                        _buildHeader(theme, items.isNotEmpty),
+                        Container(height: 1, color: theme.divider),
+                        // Above the list, not inside it: with the daemon down
+                        // the list is empty, and an empty state reading "No
+                        // notifications" is a lie the user would act on.
+                        if (NotificationStore.instance.daemonUnavailable) ...[
+                          NotificationDaemonBanner(theme: theme),
+                          Container(height: 1, color: theme.divider),
+                        ],
+                        Expanded(
+                          child: items.isEmpty
+                              ? _buildEmpty(theme)
+                              : _buildList(theme, items),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
-        ));
+        ),
+      ),
+    );
   }
 
   Widget _buildHeader(ThemeConfig theme, bool hasItems) {
@@ -479,10 +600,10 @@ class _NotificationPanelState extends State<_NotificationPanel>
 /// text and the in-flight state of the button follow the store with no
 /// listener of its own.
 ///
-/// Public, unlike the rest of the panel's parts, because the panel itself is a
-/// layer-shell window and cannot be pumped in a widget test — this is the piece
-/// with behaviour worth pinning, so `test/notification_daemon_test.dart` builds
-/// it directly.
+/// Public, like [NotificationPanel] itself and unlike the rest of the panel's
+/// parts, because in its one real home it is inside a layer-shell window no
+/// widget test can pump — this is the piece with behaviour worth pinning, so
+/// `test/notification_daemon_test.dart` builds it directly.
 class NotificationDaemonBanner extends StatelessWidget {
   const NotificationDaemonBanner({super.key, required this.theme});
 
