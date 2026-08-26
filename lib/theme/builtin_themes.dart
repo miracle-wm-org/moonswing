@@ -145,6 +145,16 @@ popup_radius         = 10.0
 popup_border         = "#594FB183"
 popup_border_width   = 1.0
 
+# Its popups float too, for glassy's reason rather than graceful's: this bar
+# is lifted off the screen by panel_margin, so a menu glued to it would be the
+# only thing in the picture touching anything, and matching that margin keeps
+# the two gaps equal. It would also cost the rim on the joined edge — the one
+# lit line this theme is built around — which an attached popup drops so no
+# seam crosses the join. popup_attach_radius is therefore unread here, and
+# spelled only because every theme spells every key.
+popup_gap            = 6.0
+popup_attach_radius  = 0.0
+
 # The lift is tinted with the theme's own darkest green rather than pure black,
 # so a card floating over a wallpaper drops a shadow that belongs to the
 # palette instead of a grey one.
