@@ -201,8 +201,9 @@ class WorkspacesState extends State<Workspaces> {
           children: visibleWorkspaces.map((workspace) {
             return _WorkspaceButton(
               key: ValueKey(workspace.num ?? workspace.name),
-              backgroundColor:
-                  workspace.focused ? theme.accent : theme.workspaceBackground,
+              backgroundColor: workspace.focused
+                  ? theme.surfacePressed
+                  : theme.workspaceBackground,
               hoverColor: theme.surfaceHover,
               pressedColor: theme.surfacePressed,
               onPressed: () {
