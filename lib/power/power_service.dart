@@ -44,6 +44,19 @@ class PowerKeyService {
   PowerConfig _config = const PowerConfig();
   bool _keyOwned = false;
 
+  /// Whether [setConfig] has ever been called — that is, whether [_config] is
+  /// the user's or merely the built-in default.
+  ///
+  /// The third condition on the lock, and it exists because the two inputs
+  /// arrive from services that race: `startPowerService` publishes the config
+  /// on its own event-loop turn while the compositor answers the registration
+  /// after a Wayland round trip. The order is all but fixed in practice, but
+  /// "all but" is how a machine whose `config.toml` says `inhibit_logind =
+  /// false` would take a lock for a moment anyway, on the strength of a
+  /// default the user had overridden. Nothing is claimed before the shell has
+  /// read what was asked for.
+  bool _configured = false;
+
   /// Serializes [_reconcile]: taking and releasing the lock are both round
   /// trips to logind, and a config edit landing mid-flight would otherwise
   /// interleave a take with a release and leave the lock in whichever state
@@ -61,7 +74,8 @@ class PowerKeyService {
 
   /// Whether the inhibitor should be held right now.
   @visibleForTesting
-  bool get wantsInhibitor => _keyOwned && _config.inhibitsLogind;
+  bool get wantsInhibitor =>
+      _configured && _keyOwned && _config.inhibitsLogind;
 
   /// Whether it actually is.
   @visibleForTesting
@@ -79,7 +93,11 @@ class PowerKeyService {
   /// The live `[power]` config. Cheap to call on every notify: an unchanged
   /// config is compared away rather than re-round-tripping to logind.
   Future<void> setConfig(PowerConfig config) {
-    if (config == _config) return _settled;
+    // The first call always reconciles, even when it hands over a config equal
+    // to the built-in default: it is what arms [_configured], and until it
+    // lands the shell holds nothing.
+    if (_configured && config == _config) return _settled;
+    _configured = true;
     _config = config;
     return _reconcile();
   }

@@ -88,12 +88,31 @@ void main() {
     test('inhibit_logind = false keeps the key but drops the lock', () async {
       final fake = FakeInhibitor();
       final service = PowerKeyService.forTesting(inhibitor: fake);
-      await service.setKeyOwned(true);
       await service.setConfig(const PowerConfig(inhibitLogind: false));
+      await service.setKeyOwned(true);
 
       expect(service.config.handlesKey, isTrue);
       expect(fake.isHeld, isFalse);
       expect(fake.takes, 0);
+    });
+
+    // The two inputs arrive from services that race — the config on its own
+    // event-loop turn, the compositor's answer after a Wayland round trip — so
+    // a lock taken on the strength of the built-in default would be one the
+    // user's own config had already said no to.
+    test('an ownership report before any config claims nothing', () async {
+      final fake = FakeInhibitor();
+      final service = PowerKeyService.forTesting(inhibitor: fake);
+      await service.setKeyOwned(true);
+
+      expect(service.wantsInhibitor, isFalse);
+      expect(fake.takes, 0);
+
+      // And the config landing is what arms it, even when what the user asked
+      // for is exactly the default.
+      await service.setConfig(const PowerConfig());
+      expect(fake.isHeld, isTrue);
+      expect(fake.takes, 1);
     });
 
     // ConfigStore notifies on every keystroke anywhere in the settings UI, and
