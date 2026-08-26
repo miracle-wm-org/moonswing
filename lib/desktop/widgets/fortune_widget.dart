@@ -45,6 +45,7 @@ import 'package:graceful_shell/fortune/fortune_text_fit.dart';
 import 'package:graceful_shell/fortune/lamp_scene.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
+import 'package:graceful_shell/sky_icon_button.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 // The three tokens for text over a picture, borrowed the way `moon_widget.dart`
 // borrows them: they live beside the weather because that is where the first
@@ -224,14 +225,15 @@ const double _buttonBox = 26;
 /// Public because it is the feature: a test that pins "pressing this refreshes"
 /// should not have to find it by walking the card's private types.
 ///
-/// Two things about it. Its only feedback is the hover tint and the fortune
-/// itself changing — no spin on tap and no loader while the store fetches, both
-/// for the same reason: a fork of `fortune` returns in single-digit
-/// milliseconds, so anything driven by the in-flight flag is a frame of flicker,
-/// and this card does not animate. And it is a *tap*, not a pan: the card is
-/// dragged from anywhere on it, and the two recognizers resolve against each
-/// other — a press that moves is the drag, one that does not is this.
-/// `desktop_widget_grid_test` pins both halves for the media widget's buttons.
+/// A named [SkyIconButton] rather than its own implementation — that control
+/// was generalized out of this one when the astrology card wanted the same
+/// button, and a second copy of it here is what the settings library's
+/// "generalize, do not clone" rule exists to prevent. What was said about it
+/// still holds and is said there: no spin on tap and no loader while the store
+/// fetches (a fork of `fortune` returns in single-digit milliseconds, so
+/// anything driven by the in-flight flag is a frame of flicker, and this card
+/// does not animate), and it is a *tap* rather than a pan, so the card stays
+/// draggable from under it.
 class FortuneRefreshButton extends StatelessWidget {
   const FortuneRefreshButton({
     super.key,
@@ -241,38 +243,12 @@ class FortuneRefreshButton extends StatelessWidget {
 
   final VoidCallback onTap;
 
-  /// The pointer target, never the glyph — `ShellSizes`' rule. The glyph is
-  /// drawn at a little over half of it.
+  /// The pointer target, never the glyph.
   final double size;
 
   @override
-  Widget build(BuildContext context) {
-    return HoverRegion(
-      onTap: onTap,
-      builder: (context, hovered) => AnimatedContainer(
-        duration: ShellDurations.fast,
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          // Barely there at rest: this card spends nearly all its life being
-          // looked at, and a solid button in the corner of a picture is chrome
-          // on the wallpaper.
-          color: kSkyForeground.withValues(alpha: hovered ? 0.24 : 0.10),
-          shape: BoxShape.circle,
-        ),
-        child: Center(
-          child: Icon(
-            Symbols.autorenew,
-            size: size * 0.6,
-            color: hovered ? kSkyForeground : kSkyMutedForeground,
-            weight: 500,
-            opticalSize: 20,
-            shadows: kSkyTextShadows,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      SkyIconButton(onTap: onTap, icon: Symbols.autorenew, size: size);
 }
 
 /// The fortune, the loader, or why there is neither.
