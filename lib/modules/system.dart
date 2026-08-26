@@ -2,12 +2,11 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:ubuntu_session/ubuntu_session.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
+import 'package:graceful_shell/power/power_actions.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/hover_region.dart';
@@ -31,7 +30,23 @@ class SystemState extends State<System>
     super.dispose();
   }
 
-  void _showConfirmation(String label, Future<void> Function() action) {
+  /// Runs [action], with a confirmation for the four that end the session or
+  /// the uptime.
+  ///
+  /// This is the half the power *menu* deliberately does not have: that
+  /// surface opens because the machine's power button was pressed, so
+  /// answering it is already a second deliberate act. A bar icon is one small
+  /// target in a row of them, and a mis-click here would land on Shut Down.
+  void _runAction(PowerAction action) {
+    if (!action.needsConfirmation) {
+      closePopup();
+      unawaited(PowerActions.run(action));
+      return;
+    }
+    _showConfirmation(action);
+  }
+
+  void _showConfirmation(PowerAction action) {
     closePopup();
     final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
@@ -56,8 +71,8 @@ class SystemState extends State<System>
       policy: TransientPolicy.modal,
       child: ThemeProvider(
         child: _ConfirmationDialog(
-          label: label,
-          action: action,
+          label: action.label,
+          action: () => PowerActions.run(action),
           onClose: _closeConfirmation,
         ),
       ),
@@ -66,13 +81,6 @@ class SystemState extends State<System>
 
   void _closeConfirmation() {
     closeLayerWindow();
-  }
-
-  /// Locking needs no confirmation — it is trivially reversible with a
-  /// password, unlike the other three actions.
-  void _lock() {
-    closePopup();
-    LockController.instance.lock();
   }
 
   void _togglePopup(BuildContext context) {
@@ -87,10 +95,7 @@ class SystemState extends State<System>
       // 200x202 this used to pin. The maxima are a runaway guard, not a size.
       preferredConstraints: const BoxConstraints(maxWidth: 320, maxHeight: 400),
       child: ThemeProvider(
-        child: SystemPopupContent(
-          onShowConfirmation: _showConfirmation,
-          onLock: _lock,
-        ),
+        child: SystemPopupContent(onAction: _runAction),
       ),
     );
   }
@@ -110,15 +115,26 @@ class SystemState extends State<System>
   }
 }
 
+/// The bar's power menu: one row per [PowerAction], in the order
+/// [kPowerMenuActions] gives them.
+///
+/// The rows used to be four hand-written buttons carrying their own labels,
+/// icons and closures, which is why this menu had no Restart — there was
+/// nowhere for a fifth verb to be defined once. It and the power menu the
+/// physical power button opens are now the same list of verbs drawn two ways.
 class SystemPopupContent extends StatelessWidget {
   const SystemPopupContent({
     super.key,
-    required this.onShowConfirmation,
-    required this.onLock,
+    required this.onAction,
+    this.actions = kPowerMenuActions,
   });
 
-  final void Function(String, Future<void> Function()) onShowConfirmation;
-  final VoidCallback onLock;
+  /// Performs the chosen verb — including whatever confirmation the host
+  /// wants around it, which is the module's business rather than this
+  /// widget's.
+  final void Function(PowerAction action) onAction;
+
+  final List<PowerAction> actions;
 
   @override
   Widget build(BuildContext context) {
@@ -143,40 +159,14 @@ class SystemPopupContent extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SystemButton(
-                    icon: FontAwesomeIcons.lock,
-                    label: 'Lock',
-                    onTap: onLock,
-                  ),
-                  const SizedBox(height: 4),
-                  _SystemButton(
-                    icon: FontAwesomeIcons.arrowRightFromBracket,
-                    label: 'Log Out',
-                    onTap: () => onShowConfirmation('Log Out', () async {
-                      final session = UbuntuSession();
-                      await session.logout();
-                    }),
-                  ),
-                  const SizedBox(height: 4),
-                  _SystemButton(
-                    icon: FontAwesomeIcons.powerOff,
-                    label: 'Shut Down',
-                    onTap: () => onShowConfirmation('Shut Down', () async {
-                      final session = UbuntuSession();
-                      await session.shutdown();
-                    }),
-                  ),
-                  const SizedBox(height: 4),
-                  _SystemButton(
-                    icon: FontAwesomeIcons.moon,
-                    label: 'Sleep',
-                    onTap: () => onShowConfirmation('Sleep', () async {
-                      final manager = SystemdSessionManager();
-                      await manager.connect();
-                      await manager.suspend(false);
-                      await manager.close();
-                    }),
-                  ),
+                  for (final (index, action) in actions.indexed) ...[
+                    if (index > 0) const SizedBox(height: 4),
+                    _SystemButton(
+                      icon: action.icon,
+                      label: action.label,
+                      onTap: () => onAction(action),
+                    ),
+                  ],
                 ],
               ),
             ),

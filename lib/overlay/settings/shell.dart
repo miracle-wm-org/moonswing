@@ -16,6 +16,7 @@ import 'package:graceful_shell/overlay/settings/shell/desktop.dart';
 import 'package:graceful_shell/overlay/settings/shell/lock.dart';
 import 'package:graceful_shell/overlay/settings/shell/modules.dart';
 import 'package:graceful_shell/overlay/settings/shell/panels.dart';
+import 'package:graceful_shell/overlay/settings/shell/power.dart';
 
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
@@ -147,6 +148,12 @@ const List<_ShellCategory> _shellCategories = [
     build: _buildLock,
   ),
   _ShellCategory(
+    title: 'Power Button',
+    subtitle: 'What the machine\'s power key does',
+    icon: FontAwesomeIcons.powerOff,
+    build: _buildPower,
+  ),
+  _ShellCategory(
     title: 'Calendar',
     subtitle: 'Month grid',
     icon: FontAwesomeIcons.calendarDays,
@@ -166,6 +173,7 @@ Widget _buildPanels(ConfigStore store) => PanelsSection(store: store);
 Widget _buildBackground(ConfigStore store) => BackgroundSection(store: store);
 Widget _buildDesktop(ConfigStore store) => DesktopSection(store: store);
 Widget _buildLock(ConfigStore store) => LockSection(store: store);
+Widget _buildPower(ConfigStore store) => PowerSection(store: store);
 Widget _buildCalendar(ConfigStore store) => CalendarSection(store: store);
 Widget _buildAstrology(ConfigStore store) => AstrologySection(store: store);
 

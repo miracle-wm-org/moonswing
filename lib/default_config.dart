@@ -143,6 +143,18 @@ blur_sigma = 18.0
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
+# The machine's own power button. Clear it (or set [power] key_action = "none")
+# to hand the key back to systemd-logind.
+power_button = "poweroff"
+
+# What that button does. "menu" shows the power dialog; "shutdown", "reboot",
+# "suspend", "lock" and "logout" act at once; "none" leaves the key to logind.
+# While the shell handles it, it holds logind's handle-power-key inhibitor so
+# the machine does not power off behind the dialog — turn that off only if
+# logind.conf already says HandlePowerKey=ignore.
+[power]
+key_action = "menu"
+inhibit_logind = true
 
 [screenshare]
 enabled = true

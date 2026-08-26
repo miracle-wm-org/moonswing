@@ -46,6 +46,10 @@ enum ShellService {
 
   /// The xdg-desktop-portal ScreenCast backend.
   screencast,
+
+  /// The physical power button: logind's `handle-power-key` inhibitor, taken
+  /// once the compositor confirms the shell owns the key.
+  power,
 }
 
 /// The one place that knows how far along the shell's start-up is.

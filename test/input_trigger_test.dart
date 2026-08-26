@@ -189,13 +189,39 @@ void main() {
     InputShortcut named(List<InputShortcut> shortcuts, String name) =>
         shortcuts.firstWhere((s) => s.name == name);
 
-    test('the default config yields both shortcuts, under distinct names', () {
+    test('the default config yields every shortcut, under distinct names', () {
       final shortcuts = inputShortcutsFor(const ShortcutsConfig());
 
       expect(shortcuts.map((s) => s.name).toSet(), {
         'graceful-shell.open-settings',
         'graceful-shell.open-launcher',
+        kPowerButtonShortcut,
       });
+    });
+
+    // Registration latches on the compositor's first answer, so a binding
+    // skipped here would be one no setting could turn back on without a
+    // restart — which is why `[power] key_action` is not consulted here at
+    // all: what "none" costs is the logind inhibitor and the root's response
+    // to the press, both of which are read live.
+    test('the power button is bound to XF86PowerOff with no modifiers', () {
+      final power = named(
+          inputShortcutsFor(const ShortcutsConfig()), kPowerButtonShortcut);
+
+      expect(power.modifiers, 0);
+      expect(power.keysym, 0x1008ff2a);
+      expect(power.spec.isKeycode, isFalse);
+    });
+
+    test('only the power button reports its ownership', () {
+      final shortcuts = inputShortcutsFor(const ShortcutsConfig());
+      for (final shortcut in shortcuts) {
+        expect(
+          shortcut.onOwnership,
+          shortcut.name == kPowerButtonShortcut ? isNotNull : isNull,
+          reason: shortcut.name,
+        );
+      }
     });
 
     test('the default settings shortcut is shift-resolved', () {
@@ -217,12 +243,15 @@ void main() {
     });
 
     test('a disabled shortcut is not registered at all', () {
-      final shortcuts = inputShortcutsFor(
-          const ShortcutsConfig(openSettings: null, openLauncher: null));
+      final shortcuts = inputShortcutsFor(const ShortcutsConfig(
+        openSettings: null,
+        openLauncher: null,
+        powerButton: null,
+      ));
       expect(shortcuts, isEmpty);
 
-      final onlyLauncher =
-          inputShortcutsFor(const ShortcutsConfig(openSettings: null));
+      final onlyLauncher = inputShortcutsFor(
+          const ShortcutsConfig(openSettings: null, powerButton: null));
       expect(onlyLauncher.single.name, 'graceful-shell.open-launcher');
     });
 
@@ -232,6 +261,7 @@ void main() {
       final shortcuts = inputShortcutsFor(ShortcutsConfig(
         openSettings: parseShortcut('ctrl+space'),
         openLauncher: parseShortcut('ctrl+space'),
+        powerButton: null,
       ));
 
       expect(shortcuts.single.name, 'graceful-shell.open-settings');
@@ -241,6 +271,7 @@ void main() {
       final shortcuts = inputShortcutsFor(ShortcutsConfig(
         openSettings: parseShortcut('ctrl+code:31'),
         openLauncher: null,
+        powerButton: null,
       ));
       expect(shortcuts.single.spec.isKeycode, isTrue);
       expect(shortcuts.single.keysym, 31);

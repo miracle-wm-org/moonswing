@@ -67,7 +67,7 @@ void main() {
         (tester) async {
       final size = await pumpUnder(
         tester,
-        SystemPopupContent(onShowConfirmation: (_, _) {}, onLock: () {}),
+        SystemPopupContent(onAction: (_) {}),
         kSystemConstraints,
       );
 
@@ -78,21 +78,27 @@ void main() {
       expect(size.height, lessThan(kSystemConstraints.maxHeight));
     });
 
-    testWidgets('is smaller than the 200x202 it used to be pinned to',
+    testWidgets('is sized by its rows rather than by a pinned constant',
         (tester) async {
       final size = await pumpUnder(
         tester,
-        SystemPopupContent(onShowConfirmation: (_, _) {}, onLock: () {}),
+        SystemPopupContent(onAction: (_) {}),
         kSystemConstraints,
       );
 
-      expect(size.height, lessThan(202));
+      // The 200x202 this replaced was hand-computed for a four-row menu; the
+      // menu is five rows now (Restart arrived with `lib/power/`, which is
+      // also where the labels and icons moved to). The bound moved with it and
+      // the guard did not: a card that had gone back to a pinned constant, or
+      // to filling its constraints, would be nowhere near a row's height of
+      // this figure.
+      expect(size.height, lessThan(250));
     });
 
     testWidgets('every button is as wide as the menu', (tester) async {
       await pumpUnder(
         tester,
-        SystemPopupContent(onShowConfirmation: (_, _) {}, onLock: () {}),
+        SystemPopupContent(onAction: (_) {}),
         kSystemConstraints,
       );
 

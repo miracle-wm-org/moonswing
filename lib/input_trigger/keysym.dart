@@ -79,6 +79,17 @@ const Map<String, int> _namedKeysyms = {
   'print': 0xff61,
   'pause': 0xff13,
   'menu': 0xff67,
+  // The machine's own power button. It is an ordinary key as far as the
+  // compositor is concerned — evdev `KEY_POWER` (116), which every standard
+  // xkb layout maps to `XF86PowerOff` — which is what lets the shell bind it
+  // like any other shortcut. What is *not* ordinary is that systemd-logind
+  // watches the same device directly and powers the machine off on a press,
+  // so binding this without also taking logind's `handle-power-key` inhibitor
+  // (see `lib/power/`) draws a menu onto a machine that is already going
+  // down. `sleep` is the same key's neighbour on the keyboards that have one.
+  'poweroff': 0x1008ff2a,
+  'power': 0x1008ff2a,
+  'sleep': 0x1008ff2f,
 };
 
 /// Punctuation keysyms, spelled by name so a shortcut string never has to
