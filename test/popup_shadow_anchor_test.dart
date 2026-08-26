@@ -5,7 +5,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:layer_shell/layer_shell.dart';
 
 /// A popup surface is grown by the shadow's reach so the shadow is not clipped
@@ -78,5 +80,75 @@ void main() {
   test('center halves both axes', () {
     expect(popupShadowAnchorOffset(WindowPositionerAnchor.center, insets),
         const Offset(4, 6));
+  });
+
+  group('the gap off the panel edge', () {
+    // popupGapOffset is the second half of a bar popup's positioner offset: the
+    // first cancels the margin the shadow added, this one is the distance the
+    // theme asked for. It always pushes the popup *away* from the bar.
+    test('pushes away from the anchored edge', () {
+      expect(popupGapOffset('top', 8), const Offset(0, 8));
+      expect(popupGapOffset('bottom', 8), const Offset(0, -8));
+      expect(popupGapOffset('left', 8), const Offset(8, 0));
+      expect(popupGapOffset('right', 8), const Offset(-8, 0));
+    });
+
+    test('a zero gap is no offset', () {
+      for (final anchor in ['top', 'bottom', 'left', 'right', 'nonsense']) {
+        expect(popupGapOffset(anchor, 0), Offset.zero, reason: anchor);
+      }
+    });
+
+    test('an unknown anchor is treated as a top bar', () {
+      expect(popupGapOffset('nonsense', 8), popupGapOffset('top', 8));
+    });
+  });
+
+  group('the two terms compose to the gap exactly', () {
+    // What openPopup actually sends. On the joined edge the shadow inset has
+    // already been clamped to the gap, so the correction term contributes
+    // `gap - min(reach, gap)` there and the sum is the gap — whatever the
+    // shadow's reach. This is the arithmetic that puts an attached card flush
+    // against the bar rather than the shadow's reach away from it.
+    const shadow = ThemeConfig(
+      popupShadowBlur: 16.0,
+      popupShadowOffsetY: 6.0,
+    );
+
+    /// The displacement of the card's joined edge from the panel's, for a bar
+    /// anchored at [anchor] under a theme with [gap].
+    double joinedEdgeOffset(String anchor, double gap) {
+      final theme = ThemeConfig(
+        popupShadowBlur: shadow.popupShadowBlur,
+        popupShadowOffsetY: shadow.popupShadowOffsetY,
+        popupGap: gap,
+      );
+      final insets = popupShadowInsets(theme, attachEdge: anchor);
+      final (_, childAnchor) = popupAnchorsForBar(anchor);
+      final offset = popupShadowAnchorOffset(childAnchor, insets) +
+          popupGapOffset(anchor, gap);
+      // The offset places the *window*; the card sits `insets` inside it, so
+      // the joined side's inset is added back to reach the card's own edge.
+      // At a zero gap that inset is zero and the two coincide, which is the
+      // flush case.
+      return switch (anchor) {
+        'bottom' => insets.bottom - offset.dy,
+        'left' => offset.dx + insets.left,
+        'right' => insets.right - offset.dx,
+        _ => offset.dy + insets.top,
+      };
+    }
+
+    for (final anchor in ['top', 'bottom', 'left', 'right']) {
+      test('$anchor bar', () {
+        // Attached: flush.
+        expect(joinedEdgeOffset(anchor, 0), 0.0);
+        // A gap under the shadow's reach: the shadow fills it and stops.
+        expect(joinedEdgeOffset(anchor, 4), 4.0);
+        // A gap past it: the shadow is untouched and the card is still exactly
+        // `gap` off the bar.
+        expect(joinedEdgeOffset(anchor, 40), 40.0);
+      });
+    }
   });
 }

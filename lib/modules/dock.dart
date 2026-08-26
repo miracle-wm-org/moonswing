@@ -426,6 +426,9 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       // A hover label must not take down the menu the pointer is travelling
       // towards. It is still dismissed by anything else opening, and by a click.
       policy: TransientPolicy.tooltip,
+      // Edge-anchored like every bar popup, but never glued to the bar: a label
+      // that comes and goes with the pointer is a floating card, not furniture.
+      attach: false,
     );
   }
 

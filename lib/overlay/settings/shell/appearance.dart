@@ -278,6 +278,26 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   ),
                 ),
                 SettingsRow(
+                  label: 'Popup gap from bar',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_gap-$active'),
+                    value: current['popup_gap'] as num? ?? 0,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                        'popup_gap', v.toDouble().clamp(0.0, 64.0)),
+                  ),
+                ),
+                SettingsRow(
+                  label: 'Popup join flare',
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_attach_radius-$active'),
+                    value: current['popup_attach_radius'] as num? ?? 0,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                        'popup_attach_radius', v.toDouble().clamp(0.0, 64.0)),
+                  ),
+                ),
+                SettingsRow(
                   label: 'Popup border width',
                   control: SettingsNumberField(
                     key: ValueKey('popup_border_width-$active'),
@@ -331,14 +351,22 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   ),
                 ),
                 const SettingsHint(
-                  'Popup, menu, flyout and on-screen-indicator cards. Unlike '
-                  'the bar they round all four corners — nothing sits behind '
-                  'them to cut a corner out of. The rim is what gives a '
-                  'translucent card an edge over a busy wallpaper, and draws '
-                  'only at a width above zero. The shadow enlarges the popup\'s '
-                  'own window to make room for itself, and the popup is '
-                  'repositioned by the same amount so the card stays where it '
-                  'always sat; a fully transparent shadow colour turns it off.',
+                  'Popup, menu, flyout and on-screen-indicator cards. A popup '
+                  'opened from the bar is anchored to the bar\'s inner edge and '
+                  'centred on the button that opened it. The gap is how far off '
+                  'that edge it sits, and a gap of zero attaches it: the card '
+                  'goes flush against the bar, the two corners touching it '
+                  'are squared off, and the rim and shadow on that edge are '
+                  'dropped, so the popup reads as growing out of the bar. The '
+                  'join flare sweeps those two corners outward *into* the bar — '
+                  'the inverse of a rounded corner, so the card is widest '
+                  'exactly where it meets the bar rather than pulling away from '
+                  'it. It is unread at any other gap. The rim is what gives a translucent card an edge '
+                  'over a busy wallpaper, and draws only at a width above zero. '
+                  'The shadow enlarges the popup\'s own window to make room for '
+                  'itself, and the popup is repositioned by the same amount so '
+                  'the card stays where it always sat; a fully transparent '
+                  'shadow colour turns it off.',
                 ),
                 const SizedBox(height: 8),
                 SettingsRow(

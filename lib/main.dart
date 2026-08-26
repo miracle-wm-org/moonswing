@@ -550,6 +550,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // clipped on both sides. These windows are created fresh per request, so
     // reading the store here is enough to follow a theme change with no
     // listener of its own.
+    //
+    // Deliberately the no-`attachEdge` call, and it is half of a pair: the OSD
+    // is not a bar popup — it is bottom-centred on its own overlay surface with
+    // nothing to be flush against — and `osd.dart` hands this exact margin back
+    // to the shadow with the same call. Nothing links the two at compile time,
+    // so they move together or the card is drawn off-centre in its window.
     final shadow = popupShadowInsets(ThemeStore.instance.theme);
     final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,

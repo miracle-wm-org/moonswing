@@ -37,8 +37,11 @@ void main() {
     });
 
     test('the decoration overrides the alpha and nothing else', () {
-      final plain = popupDecoration(theme: _translucent);
-      final opaque = popupDecoration(theme: _translucent, opaque: true);
+      // A popup that floats is still a BoxDecoration; only an attached card
+      // with a flared join is a ShapeDecoration.
+      final plain = popupDecoration(theme: _translucent) as BoxDecoration;
+      final opaque =
+          popupDecoration(theme: _translucent, opaque: true) as BoxDecoration;
       expect(plain.color, _translucent.popupBackground);
       expect(opaque.color, const Color(0xFF141821));
       // The rim, the rounding and the shadow are the theme's either way.

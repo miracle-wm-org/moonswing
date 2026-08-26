@@ -154,6 +154,8 @@ class _NotificationsState extends State<Notifications>
       // otherwise leave a guard armed under the tooltip's identity and eat the
       // next hover label.
       ownerKey: (this, 'broken-tooltip'),
+      // A floating card, never glued to the bar — see the dock's tooltip.
+      attach: false,
     );
   }
 

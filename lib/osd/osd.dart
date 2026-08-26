@@ -123,7 +123,9 @@ class _OsdWindowState extends State<OsdWindow>
           child: Center(
             // The window was created this much larger than [kOsdWindowSize];
             // this is what hands that margin back to the shadow instead of to
-            // the card.
+            // the card. `_createOsd` (`main.dart`) makes the same call with no
+            // `attachEdge`, and the two have to stay the same call — an OSD
+            // card is not attached to anything.
             child: Padding(
               padding: popupShadowInsets(theme),
               child: PopupCard(

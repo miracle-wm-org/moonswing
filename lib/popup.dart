@@ -180,6 +180,73 @@ Rect popupAnchorRect(BuildContext context) {
   return box.localToGlobal(Offset.zero) & box.size;
 }
 
+/// [widget]'s rect grown across the panel, so that a bar popup is anchored to
+/// the panel's *inner edge* while staying centred on the module that opened it.
+///
+/// [popupAnchorsForBar] returns edge-centred anchors, so what the compositor
+/// reads off this rect is a single point: the centre of the edge facing away
+/// from the screen. Handing it the widget's own rect puts that point wherever
+/// the module's padding happens to end — a `BarButton` is inset 2px vertically
+/// and the panel's sections are aligned inside a padding of their own — so every
+/// popup opened a couple of pixels *inside* the bar, overlapping it, by an
+/// amount that differed per module. Spanning the panel's whole cross-axis extent
+/// makes the anchor the bar's own edge for every module alike, and leaves the
+/// other axis exactly as it was, which is what keeps the popup centred on its
+/// icon.
+///
+/// [panel] is the panel surface's size, which is the space [popupAnchorRect]
+/// already reports in. A degenerate one — a module opening a popup before the
+/// panel has been laid out — falls back to [widget] rather than emitting a
+/// zero-extent rect, which `xdg_positioner` rejects as a protocol error rather
+/// than merely placing badly.
+Rect barAnchorRect(Rect widget, Size panel, String anchor) {
+  if (panel.isEmpty) return widget;
+  switch (anchor) {
+    case 'left':
+    case 'right':
+      return Rect.fromLTRB(0, widget.top, panel.width, widget.bottom);
+    default: // 'top', 'bottom'
+      return Rect.fromLTRB(widget.left, 0, widget.right, panel.height);
+  }
+}
+
+/// [barAnchorRect] for the widget behind [context], in a panel anchored to
+/// [anchor].
+///
+/// The panel surface's size comes from the [MediaQuery] its `View` installs,
+/// which is `physicalSize / devicePixelRatio` — the very space
+/// [RenderBox.localToGlobal] maps into here. [setPanelMargin]'s margin is
+/// native, outside the surface, so there is nothing to correct for.
+Rect barAnchorRectFor(BuildContext context, String anchor) {
+  final box = context.findRenderObject() as RenderBox;
+  return barAnchorRect(
+    box.localToGlobal(Offset.zero) & box.size,
+    MediaQuery.sizeOf(context),
+    anchor,
+  );
+}
+
+/// The positioner offset that floats a bar popup [gap] px off the panel edge it
+/// is anchored to.
+///
+/// Keyed on the *bar's* anchor, the same string [popupAnchorsForBar] takes: the
+/// popup sits on the far side of that edge, so this always pushes it away from
+/// the panel. Added to [popupShadowAnchorOffset] rather than folded into it,
+/// because the two answer different questions — that one cancels the margin the
+/// shadow added, this one is the distance the theme asked for.
+Offset popupGapOffset(String anchor, double gap) {
+  switch (anchor) {
+    case 'bottom':
+      return Offset(0, -gap);
+    case 'left':
+      return Offset(gap, 0);
+    case 'right':
+      return Offset(-gap, 0);
+    default: // 'top'
+      return Offset(0, gap);
+  }
+}
+
 /// Tells the compositor not to shrink [controller]'s surface to make room for
 /// other layer-shell surfaces' exclusive zones.
 ///
@@ -442,6 +509,13 @@ void _hideWindowOf(BaseWindowController controller) {
 ///
 /// Encapsulates the controller/view lifecycle and WindowRegistry registration
 /// so each module only needs to compute its anchor geometry and call [openPopup].
+/// [child] under a [PopupAttachScope], or [child] itself when [edge] is null.
+///
+/// A floating popup builds exactly the tree it built before attaching existed —
+/// no extra element, and no extra inherited lookup for the cards inside it.
+Widget _maybeAttached(String? edge, Widget child) =>
+    edge == null ? child : PopupAttachScope(edge: edge, child: child);
+
 mixin PopupHost<T extends StatefulWidget> on State<T> {
   PopupWindowController? _popupController;
   WindowRegistry? _registry;
@@ -458,24 +532,34 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   /// Opens a popup anchored to the triggering widget, choosing the anchor pair
   /// from the panel's [BarScope] edge. This is the common case; use [openPopup]
   /// directly only when custom anchor geometry is needed.
+  /// [attach] is the one thing a caller may turn off, and it governs the card's
+  /// *shape* alone. Every bar popup is anchored to the panel edge, pushed off it
+  /// by `popup_gap`, and kept from painting its shadow over the bar; one that
+  /// declines to attach simply keeps all four corners and its whole rim where it
+  /// meets the panel, instead of continuing the bar's sides. The hover tooltips
+  /// pass false — a label that appears under the pointer for a moment reads as a
+  /// floating card, not as part of the furniture.
   void openBarPopup(
     BuildContext context, {
     required Widget child,
     required BoxConstraints preferredConstraints,
     TransientPolicy policy = TransientPolicy.menu,
     Object? ownerKey,
+    bool attach = true,
   }) {
-    final (parentAnchor, childAnchor) =
-        popupAnchorsForBar(BarScope.of(context));
+    final barAnchor = BarScope.of(context);
+    final (parentAnchor, childAnchor) = popupAnchorsForBar(barAnchor);
     openPopup(
       context,
       child: child,
       preferredConstraints: preferredConstraints,
-      anchorRect: popupAnchorRect(context),
+      anchorRect: barAnchorRectFor(context, barAnchor),
       parentAnchor: parentAnchor,
       childAnchor: childAnchor,
       policy: policy,
       ownerKey: ownerKey,
+      barAnchor: barAnchor,
+      attach: attach,
     );
   }
 
@@ -490,6 +574,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     VoidCallback? onClosed,
     TransientPolicy policy = TransientPolicy.menu,
     Object? ownerKey,
+    String? barAnchor,
+    bool attach = true,
   }) {
     if (isPopupOpen) return;
     // Identity for the reopen guard, defaulting to the host State because one
@@ -512,7 +598,20 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // nor its placement can be revised afterwards. A theme edit while a popup
     // is open therefore restyles the card — PopupCard reads the scope live —
     // without resizing the window it sits in.
-    final shadowInsets = popupShadowInsets(ThemeScope.of(context));
+    final theme = ThemeScope.of(context);
+    // Attached is a shape, and the theme's gap is its switch: at any gap at all
+    // the card is a free-floating one, and a join flare would be reaching for a
+    // bar that is no longer there.
+    final attachEdge =
+        barAnchor != null && attach && theme.popupGap <= 0 ? barAnchor : null;
+    // Both terms are margin outside the card that the surface has to carry, or
+    // the compositor clips what should have been painted there — the shadow's
+    // reach, and an attached card's flare, which bows out past its own box on
+    // the two sides that meet the bar.
+    final surfaceInsets = popupSurfaceInsets(
+      popupShadowInsets(theme, attachEdge: barAnchor),
+      popupAttachInsets(theme, attachEdge: attachEdge),
+    );
     PopupWindowController? thisController;
     _popupController = thisController = PopupWindowController(
       parent: parentController,
@@ -520,16 +619,24 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       positioner: WindowPositioner(
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
-        // Cancels the margin the shadow adds, so the card lands exactly where
-        // an unshadowed popup's window would have.
-        offset: popupShadowAnchorOffset(childAnchor, shadowInsets),
+        // Two terms. The first cancels the margin the shadow adds, so the card
+        // lands exactly where an unshadowed popup's window would have; the
+        // second is the distance off the panel edge the theme asked for. They
+        // compose without interfering, because on the joined edge the inset has
+        // already been clamped to the gap: the first term contributes
+        // `gap - min(reach, gap)` there, so the sum is the gap exactly.
+        offset: popupShadowAnchorOffset(childAnchor, surfaceInsets) +
+            (barAnchor == null
+                ? Offset.zero
+                : popupGapOffset(barAnchor, theme.popupGap)),
         constraintAdjustment: constraintAdjustment,
       ),
       // The *window's* constraints, not the card's: these become GTK geometry
-      // hints capping the surface, which the shadow has just grown. See
+      // hints capping the surface, which the shadow and the flare have just
+      // grown. See
       // [popupWindowConstraints] — the [ConstrainedBox] below is what still
       // holds the card to what the call site asked for.
-      constraints: popupWindowConstraints(constraints, shadowInsets),
+      constraints: popupWindowConstraints(constraints, surfaceInsets),
       delegate: PopupDelegate(onDestroyed: () {
         if (_popupController == thisController) closePopup();
       }),
@@ -606,25 +713,32 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       controller: _popupController!,
       builder: (_) => TransientScope(
         handle: handle,
-        child: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerDown: (event) => PopupCoordinator.instance
-              .dismissFromPointerDown(event, within: handle),
-          // Keyed so the post-frame callback above can measure what the
-          // content actually laid out to and hand that size to GTK.
-          //
-          // The shadow margin goes *outside* the ConstrainedBox, which is the
-          // whole trick: a BoxShadow paints past its box and the surface clips
-          // at its edge, so the window has to be the card plus the shadow's
-          // reach. Padding the inside instead would shrink the content — and
-          // the popups that pin a width by passing minWidth == maxWidth
-          // (the app directory's list and flyout, the sound slider, which has
-          // no intrinsic length) would silently narrow rather than the window
-          // widening.
-          child: Padding(
-            key: contentKey,
-            padding: shadowInsets,
-            child: ConstrainedBox(constraints: constraints, child: child),
+        // Inside the TransientScope and above everything the call site built,
+        // because it is the card — three or four levels down, in a view of its
+        // own — that has to read it. Absent entirely for a floating popup, so
+        // nothing outside a bar pays an element for this.
+        child: _maybeAttached(
+          attachEdge,
+          Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerDown: (event) => PopupCoordinator.instance
+                .dismissFromPointerDown(event, within: handle),
+            // Keyed so the post-frame callback above can measure what the
+            // content actually laid out to and hand that size to GTK.
+            //
+            // The shadow margin goes *outside* the ConstrainedBox, which is
+            // the whole trick: a BoxShadow paints past its box and the surface
+            // clips at its edge, so the window has to be the card plus the
+            // shadow's reach. Padding the inside instead would shrink the
+            // content — and the popups that pin a width by passing
+            // minWidth == maxWidth (the app directory's list and flyout, the
+            // sound slider, which has no intrinsic length) would silently
+            // narrow rather than the window widening.
+            child: Padding(
+              key: contentKey,
+              padding: surfaceInsets,
+              child: ConstrainedBox(constraints: constraints, child: child),
+            ),
           ),
         ),
       ),

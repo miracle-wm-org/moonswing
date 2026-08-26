@@ -332,8 +332,10 @@ class _MiracleRetryButtonState extends State<_MiracleRetryButton>
         ),
       ),
       preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 64),
-      // A hover label displaces nothing — see the dock's tooltip.
+      // A hover label displaces nothing, and never attaches to the bar — see
+      // the dock's tooltip.
       policy: TransientPolicy.tooltip,
+      attach: false,
     );
   }
 

@@ -144,12 +144,53 @@ class ThemeConfig {
 
   /// A popup card's corner rounding.
   ///
-  /// Unlike [panelRadius] this rounds all four corners unconditionally. The
-  /// pair a flush bar spares are the ones against the screen edge, where
-  /// rounding would cut wallpaper wedges out of the display's own corners; a
-  /// popup floats over a transparent surface with nothing behind it to cut
-  /// into, so it has no such pair.
+  /// All four corners for a popup that floats: it sits over a transparent
+  /// surface with nothing behind it to cut into, unlike a flush bar, which
+  /// spares the pair against the screen edge where rounding would cut wallpaper
+  /// wedges out of the display's own corners. A bar popup at [popupGap] 0 is
+  /// the exception — it is *attached* to the bar, so the two corners on the
+  /// join are squared off and only the far pair take this. See
+  /// `popupCornerRadius` (`popup_surface.dart`).
   final double popupRadius;
+
+  /// How far a bar popup's card sits off the inner edge of its panel.
+  ///
+  /// The popup analogue of [panelMargin], one layer up: that floats the bar off
+  /// the screen edge, this floats a popup off the bar. A bar popup is anchored
+  /// to the panel's inner edge, centred on the module that opened it, so this
+  /// is the whole distance between the two surfaces.
+  ///
+  /// **0 is the attached mode**, not merely a small gap: the card is flush with
+  /// the bar, the two corners touching it are squared off and flared out by
+  /// [popupAttachRadius], the rim on that edge is dropped and the shadow is cut
+  /// at the join — so the popup reads as growing out of the panel rather than
+  /// floating over it. There is no separate flag; this key is the switch.
+  ///
+  /// Only bar popups are affected. A menu anchored to the pointer — the
+  /// desktop's context menu, the dock's unpin menu — has no panel edge to sit
+  /// off and keeps the geometry it always had.
+  final double popupGap;
+
+  /// How far an attached popup **flares outward** into the bar it is joined to.
+  ///
+  /// Reads as a corner radius and is the inverse of one, which is the whole
+  /// point. A convex corner curves *away* from the surface behind it and leaves
+  /// two transparent wedges where the card meets the bar, so the card reads as
+  /// resting against it. This sweeps each side *outward* instead, as it reaches
+  /// the panel, the way a branch runs into a trunk — so the card is wider than
+  /// itself exactly where it meets the bar and the two look like one surface.
+  ///
+  /// Being a concave fillet, it is no [BorderRadius] and cannot be one: it is
+  /// drawn by `AttachedPopupBorder` (`popup_surface.dart`), which is why an
+  /// attached card with a flare is the one card in the shell whose decoration
+  /// is a `ShapeDecoration`. It also paints *outside* the card's own box, so
+  /// the popup's surface is grown by `popupAttachInsets` the way it already is
+  /// for the shadow.
+  ///
+  /// Read only at [popupGap] 0; with a gap there is no join to flare into. 0,
+  /// the default, is a square butt join — the card's sides continue the bar's
+  /// with no flare at all.
+  final double popupAttachRadius;
 
   /// The colour of a popup card's rim. Only drawn when [popupBorderWidth] > 0.
   final Color popupBorder;
@@ -229,6 +270,8 @@ class ThemeConfig {
     this.panelBorder = const Color(0x33F3F4F4),
     this.panelBorderWidth = 0.0,
     this.popupRadius = 8.0,
+    this.popupGap = 0.0,
+    this.popupAttachRadius = 0.0,
     this.popupBorder = const Color(0x33F3F4F4),
     this.popupBorderWidth = 1.0,
     this.popupShadowColor = const Color(0x66000000),
@@ -274,6 +317,11 @@ class ThemeConfig {
         'panel_border_width', _ThemeKeyKind.number, (t) => t.panelBorderWidth,
         min: 0.0, max: 16.0),
     _ThemeKey('popup_radius', _ThemeKeyKind.number, (t) => t.popupRadius,
+        min: 0.0, max: 64.0),
+    _ThemeKey('popup_gap', _ThemeKeyKind.number, (t) => t.popupGap,
+        min: 0.0, max: 64.0),
+    _ThemeKey('popup_attach_radius', _ThemeKeyKind.number,
+        (t) => t.popupAttachRadius,
         min: 0.0, max: 64.0),
     _ThemeKey('popup_border', _ThemeKeyKind.color, (t) => t.popupBorder),
     _ThemeKey(
@@ -348,6 +396,8 @@ class ThemeConfig {
       panelBorder: v('panel_border'),
       panelBorderWidth: v('panel_border_width'),
       popupRadius: v('popup_radius'),
+      popupGap: v('popup_gap'),
+      popupAttachRadius: v('popup_attach_radius'),
       popupBorder: v('popup_border'),
       popupBorderWidth: v('popup_border_width'),
       popupShadowColor: v('popup_shadow_color'),

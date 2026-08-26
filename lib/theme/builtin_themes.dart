@@ -66,6 +66,14 @@ popup_radius         = 8.0
 popup_border         = "#33F3F4F4"
 popup_border_width   = 1.0
 
+# A bar popup sits flush against the bar and grows out of it: no gap, and a
+# square butt join, so the menu's sides continue the panel's. The join drops its
+# rim and its shadow, so nothing draws a seam across it. popup_attach_radius
+# above zero would flare the join outward into the bar instead — a concave
+# fillet, not a rounded corner — which suits a softer theme than this one.
+popup_gap            = 0.0
+popup_attach_radius  = 0.0
+
 # The card's lift. Blur is the reach past the edge and the offset pushes it
 # downward, exactly as a CSS box-shadow reads; a popup grows its own window by
 # that reach so the shadow is not clipped at the surface edge, and is
@@ -116,6 +124,10 @@ panel_border_width   = 0.0
 popup_radius         = 8.0
 popup_border         = "#33F8F8F2"
 popup_border_width   = 1.0
+
+# Attached to the bar, as graceful is.
+popup_gap            = 0.0
+popup_attach_radius  = 0.0
 
 # The same lift as graceful, tinted with Dracula's own background rather than
 # pure black so it reads as part of the palette.
@@ -178,6 +190,17 @@ panel_border_width   = 1.0
 popup_radius         = 12.0
 popup_border         = "#40FFFFFF"
 popup_border_width   = 1.0
+
+# The one theme whose popups float. Its bar already floats — panel_margin is 8 —
+# so a menu glued to that bar would be the only thing on screen touching
+# anything; matching the margin keeps the two gaps equal. Attaching would also
+# expose the seam a translucent card cannot avoid: popup_background is #B0 and
+# panel_background is #40, so at a zero gap the two fills composite separately
+# against the wallpaper and the join shows a step in tone — which a flare would
+# only make wider. popup_attach_radius is therefore unread here, and spelled
+# only because every theme spells every key.
+popup_gap            = 8.0
+popup_attach_radius  = 0.0
 
 # The theme the shadow matters most to: a translucent card over a busy
 # wallpaper has almost no edge of its own, so the lift is deeper and softer than

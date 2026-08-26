@@ -5,6 +5,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/desktop/desktop_menu.dart';
 import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The menus are pumped bare, with no PanelWindowManager: the popup machinery
@@ -346,6 +347,44 @@ void main() {
       await tester.tap(find.text('Remove widget'));
       await tester.pump();
       expect(removed, 1);
+    });
+  });
+
+  group('one card, two shapes', () {
+    // DesktopMenuCard serves both the desktop's cursor menu and the dock's
+    // unpin menu, and those are opened by different hosts: the dock's goes
+    // through openBarPopup and attaches to the bar, the desktop's is anchored
+    // to the pointer and has no panel edge to attach to. The card itself knows
+    // nothing about either — PopupAttachScope is what tells it apart.
+    BoxDecoration decorationOf(WidgetTester tester) =>
+        tester.widget<Container>(find.byType(Container).first).decoration
+            as BoxDecoration;
+
+    testWidgets('anchored to the pointer, it floats', (tester) async {
+      await pumpMenu(
+        tester,
+        DesktopMenuCard(entries: [DesktopMenuEntry(label: 'A', onTap: () {})]),
+      );
+      final decoration = decorationOf(tester);
+      expect(decoration.borderRadius, BorderRadius.circular(8));
+      expect((decoration.border! as Border).top.style, BorderStyle.solid);
+    });
+
+    testWidgets('opened from the bar, it joins it', (tester) async {
+      await pumpMenu(
+        tester,
+        PopupAttachScope(
+          edge: 'bottom',
+          child: DesktopMenuCard(
+            entries: [DesktopMenuEntry(label: 'A', onTap: () {})],
+          ),
+        ),
+      );
+      final decoration = decorationOf(tester);
+      final radius = decoration.borderRadius! as BorderRadius;
+      expect(radius.bottomLeft, Radius.zero);
+      expect(radius.topLeft, const Radius.circular(8));
+      expect((decoration.border! as Border).bottom.style, BorderStyle.none);
     });
   });
 }

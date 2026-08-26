@@ -32,6 +32,8 @@ void main() {
       'panel_radius',
       'panel_border_width',
       'popup_radius',
+      'popup_gap',
+      'popup_attach_radius',
       'popup_border_width',
       'popup_shadow_blur',
       'popup_shadow_spread',

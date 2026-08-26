@@ -414,6 +414,8 @@ panel_border         = "#33EBDBB2"
 panel_border_width   = 0.0
 
 popup_radius         = 8.0
+popup_gap            = 0.0
+popup_attach_radius  = 0.0
 popup_border         = "#33EBDBB2"
 popup_border_width   = 1.0
 
@@ -448,7 +450,9 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `panel_radius`         | `0.0`         | Corner rounding of each bar (see below for which corners)                   |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
 | `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
-| `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card (all four)      |
+| `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card                 |
+| `popup_gap`            | `0.0`         | Pixels between a bar popup and the bar; `0` attaches it to the bar          |
+| `popup_attach_radius`  | `0.0`         | How far an attached popup flares outward into the bar; read only at gap `0` |
 | `popup_border`         | `#33F3F4F4`   | Their rim color; drawn only when `popup_border_width` is above zero        |
 | `popup_border_width`   | `1.0`         | Their rim thickness, or `0` for no rim                                     |
 | `popup_shadow_color`   | `#66000000`   | Their shadow's color; an alpha of `0` turns the shadow off entirely        |
@@ -492,13 +496,29 @@ All three follow a theme switch live; no restart is needed.
 
 `popup_radius`, `popup_border` and `popup_border_width` are the bar's three shape keys again, for everything that floats *over* it: popups, context menus, category flyouts, the tray menus, the app chooser, the confirmation dialogs and the on-screen indicator. They read exactly like their `panel_` counterparts — **width is the switch** for the rim, and a translucent card wants one for the same reason a translucent bar does.
 
-The one difference is corners. A popup **always rounds all four**, with no equivalent of the flush-bar rule above: there is no screen edge behind a popup to cut a wedge out of, so there is no pair of corners worth sparing.
+The one difference is corners, and it is the same rule the bar has for the same reason. A popup that **floats** rounds all four: nothing sits behind it to cut a wedge out of. A popup **attached to the bar** — see below — squares off the two corners on the join, because the bar *does* sit behind those, and flares them outward into it when `popup_attach_radius` is above zero.
+
+**A popup opened from the bar is anchored to the bar's inner edge, centred on the button that opened it.** Not to the button itself: modules carry different amounts of padding, so anchoring to the button put each module's popup at a slightly different height and left all of them overlapping the bar by a pixel or two.
+
+`popup_gap` is how far off that edge the card sits, and it is the popup analogue of `panel_margin` one layer up — that floats the bar off the screen, this floats a popup off the bar.
+
+**A gap of `0` is the attached mode**, not merely a small gap. The card goes flush against the bar, the two corners touching it are squared off, and the rim and the shadow on that edge are dropped, so the popup reads as growing out of the bar rather than floating over it. There is no separate switch; this key is it.
+
+`popup_attach_radius` then shapes that join, and it is the **inverse** of the corner radius its name suggests. A rounded corner curves *away* from the surface behind it, which leaves a transparent wedge on either side of the join and makes the card read as resting against the bar. This sweeps each side *outward* instead as it reaches the panel, so the card is at its widest exactly where the two meet — the way a branch runs into a trunk. At its default of `0` there is no flare at all and the join is a square butt joint, the card's sides continuing the bar's. It is unread at any other gap, because with a gap there is no join to shape.
+
+The flare is drawn *outside* the card's own box, so the shell grows the popup's window to make room for it exactly as it does for the shadow, and takes the larger of the two rather than the sum.
+
+Two things to know before attaching a theme. A theme with a **translucent `popup_background`** should keep a gap: at zero the popup's fill and the bar's composite separately against the wallpaper, so the join shows a step in tone that nothing here can remove, and a flare only makes that step wider — which is why `glassy` sets `popup_gap = 8` to match its own `panel_margin` rather than attaching. And a theme with `panel_border_width` above zero draws the bar's rim on its inner edge too, so an attached popup butts against that line.
+
+Hover tooltips take the edge anchor but never attach: a label that comes and goes with the pointer reads as a floating card, not as part of the furniture. Menus anchored to the *pointer* — the desktop's context menu, the app-directory's category flyouts — have no panel edge to sit off and are unaffected by either key.
 
 Sensible defaults are shipped rather than zero — `8.0` with a 1px rim — because that is the shape the shell's menus have always drawn. A theme that says nothing about popups gets that, including a theme file written before these keys existed.
 
 The five `popup_shadow_*` keys are a CSS box-shadow, spelled out: a color, a blur radius, a spread, and an offset on each axis. There is one shadow per theme rather than the stack CSS allows.
 
 **A shadow makes a popup's window bigger.** A popup is its own compositor surface, sized to its content, and a shadow paints *outside* the card — so the shell grows the surface by the shadow's reach (`blur + spread`, shifted by the offset, on each side independently) and then repositions the popup by that same amount, so the card lands exactly where it would have without one. Two consequences worth knowing: a click landing in the shadow's margin hits the popup rather than passing through to what is underneath, and a very large blur on a popup near a screen edge gives the compositor more to slide back on-screen. Setting `popup_shadow_color`'s alpha to `0` removes the margin along with the shadow, restoring the exact geometry of a shell with no shadow at all.
+
+A bar popup never paints its shadow over the bar: on the joined edge the margin is clamped to `popup_gap`, so at a small gap the shadow fills it and stops, and at `0` the surface is flush and the shadow is cut exactly at the join. A gap of `popup_shadow_blur + popup_shadow_spread` or more leaves the shadow untouched.
 
 Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
 

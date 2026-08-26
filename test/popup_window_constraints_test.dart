@@ -95,4 +95,28 @@ void main() {
       }
     }
   });
+
+  test('an attached popup\'s clamped insets grow the window by exactly them',
+      () {
+    // The joined side's inset is clamped to the gap, which makes the insets
+    // asymmetric but changes nothing about the rule: the surface is the card
+    // plus whatever margin the Padding actually laid out.
+    const clamped = EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 22);
+    const card = BoxConstraints(minWidth: 300, maxWidth: 300, maxHeight: 1200);
+    final window = popupWindowConstraints(card, clamped);
+    expect(window.minWidth, 332);
+    expect(window.maxWidth, 332);
+    expect(window.maxHeight, 1222);
+    // And it is still not the zero-inset short circuit, which would hand the
+    // card's own constraints back and let GTK clamp the resize.
+    expect(clamped, isNot(EdgeInsets.zero));
+  });
+
+  test('insets clamped all the way to zero hand the card back unchanged', () {
+    // Only reachable from a shadow with no reach at all, and then the card's
+    // own constraints are exactly right.
+    expect(popupWindowConstraints(
+            const BoxConstraints(maxWidth: 320), EdgeInsets.zero),
+        const BoxConstraints(maxWidth: 320));
+  });
 }
