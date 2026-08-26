@@ -682,18 +682,39 @@ class _DropdownRow<T> extends StatelessWidget {
 /// Bordered single-line text input backed by [EditableText] (the codebase does
 /// not use Material). Seeds its controller once from [initial]; subsequent
 /// parent rebuilds do not clobber in-progress edits.
+///
+/// [leading] and [trailing] are what make this a *search* field as well as a
+/// value field — a magnifier before the text, a clear x after it — which is
+/// what the file picker's in-folder filter is built from. They live here rather
+/// than in a second hand-rolled field for the reason this whole library exists:
+/// a control the library lacks gets added to the library.
+///
+/// [controller] and [focusNode] are for the caller that has to *drive* the
+/// field from outside rather than merely read it — the file picker's Ctrl+F
+/// focuses and selects it, and Escape clears it. A field handed neither owns
+/// its own pair and disposes them; one handed either never disposes what it did
+/// not create. Swapping them out across a rebuild is not supported (nothing
+/// needs it), so both are resolved once.
 class SettingsTextField extends StatefulWidget {
   const SettingsTextField({
     super.key,
-    required this.initial,
+    this.initial = '',
     required this.onChanged,
     this.width,
     this.inputFormatters,
     this.hint,
     this.onSubmitted,
+    this.controller,
+    this.focusNode,
+    this.autofocus = false,
+    this.leading,
+    this.trailing,
   });
 
+  /// The text the field starts with. Ignored when [controller] is supplied —
+  /// a controller carries its own.
   final String initial;
+
   final ValueChanged<String> onChanged;
   final double? width;
   final List<TextInputFormatter>? inputFormatters;
@@ -710,89 +731,131 @@ class SettingsTextField extends StatefulWidget {
   /// whole interaction.
   final ValueChanged<String>? onSubmitted;
 
+  /// A controller the caller owns, for a field it also has to clear or select
+  /// from outside. Null means the field mints and disposes its own.
+  final TextEditingController? controller;
+
+  /// A focus node the caller owns, for a field something else focuses — a
+  /// keyboard shortcut, say. Null means the field mints and disposes its own.
+  final FocusNode? focusNode;
+
+  final bool autofocus;
+
+  /// Drawn inside the border, before the text.
+  final Widget? leading;
+
+  /// Drawn inside the border, after the text.
+  final Widget? trailing;
+
   @override
   _SettingsTextFieldState createState() => _SettingsTextFieldState();
 }
 
 class _SettingsTextFieldState extends State<SettingsTextField> {
-  late final TextEditingController _controller;
-  final _focusNode = FocusNode();
+  late final TextEditingController _controller =
+      widget.controller ?? TextEditingController(text: widget.initial);
+  late final bool _ownsController = widget.controller == null;
+  late final FocusNode _focusNode = widget.focusNode ?? FocusNode();
+  late final bool _ownsFocusNode = widget.focusNode == null;
   bool _focused = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initial);
-    _focusNode.addListener(
-      () => setState(() => _focused = _focusNode.hasFocus),
-    );
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  // Named rather than a closure so a *borrowed* focus node can be let go of
+  // again: a listener left on a node the caller outlives is a setState on a
+  // dead element.
+  void _onFocusChanged() {
+    if (!mounted) return;
+    setState(() => _focused = _focusNode.hasFocus);
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _focusNode.dispose();
+    _focusNode.removeListener(_onFocusChanged);
+    if (_ownsController) _controller.dispose();
+    if (_ownsFocusNode) _focusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final leading = widget.leading;
+    final trailing = widget.trailing;
+
+    final field = Stack(
+      children: [
+        if (widget.hint != null)
+          // Behind the text rather than swapped for it: an IgnorePointer
+          // keeps the tap that should focus the field from landing on the
+          // placeholder, and painting both means the field never changes
+          // height as the first character arrives.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _controller,
+                builder: (context, value, _) => value.text.isNotEmpty
+                    ? const SizedBox.shrink()
+                    : Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          widget.hint!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: ShellFontSizes.body,
+                            color:
+                                theme.popupForeground.withValues(alpha: 0.35),
+                            fontFamily: theme.fontFamily,
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+          ),
+        EditableText(
+          controller: _controller,
+          focusNode: _focusNode,
+          autofocus: widget.autofocus,
+          style: TextStyle(
+            fontSize: ShellFontSizes.body,
+            color: theme.popupForeground,
+            fontFamily: theme.fontFamily,
+          ),
+          cursorColor: theme.accent,
+          backgroundCursorColor: theme.divider,
+          selectionColor: theme.accent.withValues(alpha: 0.4),
+          inputFormatters: widget.inputFormatters,
+          onChanged: (v) => widget.onChanged(v),
+          onSubmitted: widget.onSubmitted,
+        ),
+      ],
+    );
+
     return Container(
       width: widget.width,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: theme.popupBackground,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(ShellRadii.control),
         border: Border.all(
           color: _focused ? theme.accent : theme.divider,
           width: 1,
         ),
       ),
-      child: Stack(
-        children: [
-          if (widget.hint != null)
-            // Behind the text rather than swapped for it: an IgnorePointer
-            // keeps the tap that should focus the field from landing on the
-            // placeholder, and painting both means the field never changes
-            // height as the first character arrives.
-            Positioned.fill(
-              child: IgnorePointer(
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _controller,
-                  builder: (context, value, _) => value.text.isNotEmpty
-                      ? const SizedBox.shrink()
-                      : Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            widget.hint!,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color:
-                                  theme.popupForeground.withValues(alpha: 0.35),
-                              fontFamily: theme.fontFamily,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
+      child: leading == null && trailing == null
+          ? field
+          : Row(
+              children: [
+                if (leading != null) ...[leading, const SizedBox(width: 9)],
+                Expanded(child: field),
+                if (trailing != null) ...[const SizedBox(width: 6), trailing],
+              ],
             ),
-          EditableText(
-            controller: _controller,
-            focusNode: _focusNode,
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.popupForeground,
-              fontFamily: theme.fontFamily,
-            ),
-            cursorColor: theme.accent,
-            backgroundCursorColor: theme.divider,
-            inputFormatters: widget.inputFormatters,
-            onChanged: (v) => widget.onChanged(v),
-            onSubmitted: widget.onSubmitted,
-          ),
-        ],
-      ),
     );
   }
 }
