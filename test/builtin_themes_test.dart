@@ -105,6 +105,41 @@ void main() {
         reason: 'a rim with a transparent colour draws nothing');
   });
 
+  test('forest floats on a lit rim, and spends its hue once', () {
+    final forest =
+        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['forest']!).toMap());
+    // Like glassy it floats — but for the opposite reason. Glassy needs a rim
+    // because a translucent bar has no edge of its own; this one is nearly
+    // opaque and the rim is the picture, so it has to be visible on both the
+    // bar and the cards, and the two have to be the same rim.
+    expect(forest.panelMargin, greaterThan(0));
+    expect(forest.panelRadius, greaterThan(0));
+    expect(forest.panelBorderWidth, greaterThan(0));
+    expect(forest.panelBorder.a, greaterThan(0),
+        reason: 'a rim with a transparent colour draws nothing');
+    expect(forest.popupBorder, forest.panelBorder);
+    expect(forest.popupRadius, forest.panelRadius);
+    // Floating means all four corners round.
+    expect(panelCornerRadius(theme: forest),
+        BorderRadius.circular(forest.panelRadius));
+
+    // The single-hue rule: every surface is green, and the accent is the only
+    // *saturated* one. `muted` reusing the accent — which is what graceful
+    // does — would put the theme's one vivid green on its least important
+    // text, so it is pinned apart from it.
+    for (final surface in [
+      forest.workspaceBackground,
+      forest.popupBackground,
+      forest.controlSurface,
+      forest.surfaceHover,
+      forest.surfacePressed,
+    ]) {
+      expect(surface.g, greaterThan(surface.r), reason: 'a forest surface');
+      expect(surface.g, greaterThan(surface.b), reason: 'a forest surface');
+    }
+    expect(forest.muted, isNot(forest.accent));
+  });
+
   test('every shipped theme gives its popups a shape', () {
     // A shipped theme may turn its bar's rounding off — graceful and dracula
     // both do — but a popup has no screen edge to sit flush against, so a
