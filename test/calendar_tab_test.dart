@@ -1,3 +1,5 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -43,6 +45,34 @@ Future<void> pumpTab(
     ),
   );
   await tester.pump();
+}
+
+/// A proxy that counts how many times it is asked to paint.
+///
+/// Put under a [RepaintBoundary] of its own, it answers the only question a
+/// hover-performance regression has: did anything *outside* the thing the
+/// pointer touched have to be re-recorded? A render object marked needing
+/// paint dirties everything up to the nearest repaint boundary, so if the day
+/// cell has none of its own, this counter — and with it the whole overlay
+/// picture, scrim included — is re-recorded on every pointer move across the
+/// grid, and the GTK embedder, which implements no partial repaint, rasters
+/// the whole output again after it.
+class _PaintCounter extends SingleChildRenderObjectWidget {
+  const _PaintCounter({super.key, required Widget super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderPaintCounter();
+}
+
+class _RenderPaintCounter extends RenderProxyBox {
+  int paints = 0;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    paints++;
+    super.paint(context, offset);
+  }
 }
 
 Finder _iconButton(FaIconData icon) => find.byWidgetPredicate(
@@ -169,5 +199,81 @@ void main() {
     final monthLabel = tester.getRect(find.text(thisMonth));
     expect(timersLabel.top, greaterThan(clocksLabel.bottom));
     expect(timersLabel.left, greaterThan(monthLabel.right));
+  });
+  testWidgets('hovering a day repaints that day and nothing above it',
+      (tester) async {
+    // The highlight used to trail the pointer across the grid because a hover
+    // repainted the whole surface: forty-two cells, the dial's painter, both
+    // lists and the tab strip re-recorded to tint one 40px box, and — the GTK
+    // embedder implementing no partial repaint — the whole output rastered
+    // again after it. The cell owns a RepaintBoundary now, so the mark stops
+    // there.
+    const theme = ThemeConfig();
+    final counterKey = GlobalKey();
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: DefaultTextStyle(
+          style: const TextStyle(fontSize: 14),
+          child: ThemeScope(
+            theme: theme,
+            child: RepaintBoundary(
+              child: _PaintCounter(
+                key: counterKey,
+                child: const SizedBox(
+                  width: 800,
+                  height: 456,
+                  child: CalendarTab(
+                    active: false,
+                    weekStart: DateTime.sunday,
+                    worldClocks: [],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // The 15th is in every month and never spills in from a neighbouring one:
+    // a 6x7 grid leaves at most fourteen trailing days and at most six leading
+    // ones, which come off the end of the previous month.
+    expect(find.text('15'), findsOneWidget);
+
+    BoxDecoration cellDecoration() => tester
+        .widget<Container>(
+          find.ancestor(of: find.text('15'), matching: find.byType(Container)).first,
+        )
+        .decoration! as BoxDecoration;
+
+    final counter =
+        counterKey.currentContext!.findRenderObject()! as _RenderPaintCounter;
+
+    final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await pointer.addPointer(location: Offset.zero);
+    addTearDown(pointer.removePointer);
+    await tester.pump();
+
+    final labelBefore = tester.widget<Text>(find.text('15'));
+    final paintsBefore = counter.paints;
+
+    await pointer.moveTo(tester.getCenter(find.text('15')));
+    await tester.pump();
+
+    // The highlight is on — without this the containment assertion below would
+    // pass on a cell that had simply stopped reacting.
+    expect(cellDecoration().color, theme.surfaceHover);
+    // …and nothing above the cell was asked to paint for it.
+    expect(counter.paints, paintsBefore);
+    // The number is built outside the hover builder and handed in as a child,
+    // so the rebuild the boundary contains is a decoration, not a paragraph.
+    expect(identical(tester.widget<Text>(find.text('15')), labelBefore), isTrue);
+
+    await pointer.moveTo(Offset.zero);
+    await tester.pump();
+    expect(cellDecoration().color, const Color(0x00000000));
+    expect(counter.paints, paintsBefore);
   });
 }

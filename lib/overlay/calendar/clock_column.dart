@@ -121,109 +121,126 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // The dial gives way rather than either list being squeezed to
-        // nothing: it shrinks with the column, and on a pathologically short
-        // output it goes altogether, leaving the digital readout — which says
-        // the same thing in a fifth of the height. Both thresholds are lower
-        // than they were, because the space below is now shared by two
-        // sections instead of held by one.
-        final height = constraints.hasBoundedHeight
-            ? constraints.maxHeight
-            : double.infinity;
-        final showDial = height >= 340;
-        final dialSize = height.isFinite
-            ? (height * 0.16).clamp(64.0, kAnalogClockSize)
-            : kAnalogClockSize;
+    // **The whole column, boundaried.** A tick rewrites the dial, the readout
+    // and the date, and a `RenderObject` marked needing paint dirties
+    // everything up to the nearest repaint boundary — of which this surface
+    // had none, so one second's worth of second hand re-recorded the entire
+    // overlay picture — the month grid, both lists, the tab strip — and, the
+    // GTK embedder implementing no partial repaint, rastered the whole output
+    // again after it. That is a bill paid once a second underneath whatever
+    // the pointer is doing.
+    //
+    // The boundary goes here rather than around the three readouts, and the
+    // difference is not cosmetic: changing a `Text` marks needs *layout*, not
+    // needs paint, and layout stops at the nearest *relayout* boundary — the
+    // `Column` below, whose constraints are tight — which then marks *itself*
+    // needing paint on the way out. A boundary inside that `Column` would have
+    // been stepped straight over. This one is above it.
+    return RepaintBoundary(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // The dial gives way rather than either list being squeezed to
+          // nothing: it shrinks with the column, and on a pathologically short
+          // output it goes altogether, leaving the digital readout — which says
+          // the same thing in a fifth of the height. Both thresholds are lower
+          // than they were, because the space below is now shared by two
+          // sections instead of held by one.
+          final height = constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : double.infinity;
+          final showDial = height >= 340;
+          final dialSize = height.isFinite
+              ? (height * 0.16).clamp(64.0, kAnalogClockSize)
+              : kAnalogClockSize;
 
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (showDial) ...[
-                Center(child: AnalogClock(time: _now, size: dialSize)),
-                const SizedBox(height: 10),
-              ],
-              Center(
-                child: Text(
-                  formatClockTime(_now),
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              Center(
-                child: Text(
-                  '${weekdayNames[_now.weekday % 7]}, '
-                  '${monthAbbrev[_now.month - 1]} ${_now.day}',
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.body,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground.withValues(alpha: 0.7),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'World clocks',
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.label,
-                        fontFamily: theme.fontFamily,
-                        color: theme.popupForeground.withValues(alpha: 0.9),
-                        fontWeight: FontWeight.w600,
-                      ),
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (showDial) ...[
+                  Center(child: AnalogClock(time: _now, size: dialSize)),
+                  const SizedBox(height: 10),
+                ],
+                Center(
+                  child: Text(
+                    formatClockTime(_now),
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground,
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
-                  TimeZonePickerButton(
-                    zones: widget.clock.zoneNames,
-                    existing: {for (final clock in widget.clocks) clock.zone},
-                    onSelected: widget.onAdd,
+                ),
+                Center(
+                  child: Text(
+                    '${weekdayNames[_now.weekday % 7]}, '
+                    '${monthAbbrev[_now.month - 1]} ${_now.day}',
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.body,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground.withValues(alpha: 0.7),
+                    ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Expanded(
-                // A ListView, never a Column: a Column overflows the moment the
-                // user adds one clock more than the column is tall, and no
-                // widget test would catch it because the test picks the count.
-                child: widget.clocks.isEmpty
-                    ? _EmptyClocks(theme: theme)
-                    : ListView.builder(
-                        padding: EdgeInsets.zero,
-                        itemExtent: kWorldClockRowHeight,
-                        itemCount: widget.clocks.length,
-                        itemBuilder: (_, i) {
-                          final clock = widget.clocks[i];
-                          return _WorldClockRow(
-                            clock: clock,
-                            zone: widget.clock.resolve(clock.zone, _now),
-                            here: _now,
-                            onRemove: () => widget.onRemove(clock.zone),
-                          );
-                        },
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'World clocks',
+                        style: TextStyle(
+                          fontSize: ShellFontSizes.label,
+                          fontFamily: theme.fontFamily,
+                          color: theme.popupForeground.withValues(alpha: 0.9),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-              ),
-              if (widget.footer != null) ...[
-                const SizedBox(height: 10),
-                Container(height: 1, color: theme.divider),
-                const SizedBox(height: 10),
-                // The same flex as the list above it: half each of whatever the
-                // dial and the readout left.
-                Expanded(child: widget.footer!),
+                    ),
+                    TimeZonePickerButton(
+                      zones: widget.clock.zoneNames,
+                      existing: {for (final clock in widget.clocks) clock.zone},
+                      onSelected: widget.onAdd,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Expanded(
+                  // A ListView, never a Column: a Column overflows the moment the
+                  // user adds one clock more than the column is tall, and no
+                  // widget test would catch it because the test picks the count.
+                  child: widget.clocks.isEmpty
+                      ? _EmptyClocks(theme: theme)
+                      : ListView.builder(
+                          padding: EdgeInsets.zero,
+                          itemExtent: kWorldClockRowHeight,
+                          itemCount: widget.clocks.length,
+                          itemBuilder: (_, i) {
+                            final clock = widget.clocks[i];
+                            return _WorldClockRow(
+                              clock: clock,
+                              zone: widget.clock.resolve(clock.zone, _now),
+                              here: _now,
+                              onRemove: () => widget.onRemove(clock.zone),
+                            );
+                          },
+                        ),
+                ),
+                if (widget.footer != null) ...[
+                  const SizedBox(height: 10),
+                  Container(height: 1, color: theme.divider),
+                  const SizedBox(height: 10),
+                  // The same flex as the list above it: half each of whatever the
+                  // dial and the readout left.
+                  Expanded(child: widget.footer!),
+                ],
               ],
-            ],
-          ),
-        );
-      },
+            ),
+          );
+        },
+      ),
     );
   }
 }
