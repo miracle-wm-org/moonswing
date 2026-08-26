@@ -309,12 +309,14 @@ The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
+power_button = "poweroff"
 ```
 
 | Key             | Type   | Default            | Description                                    |
 | --------------- | ------ | ------------------ | ---------------------------------------------- |
 | `open_settings` | string | `"ctrl+shift+s"`   | Opens (and closes) the settings overlay        |
 | `open_launcher` | string | `"ctrl+space"`     | Opens (and closes) the application launcher    |
+| `power_button`  | string | `"poweroff"`       | The machine's own power button — what it *does* is [`[power]`](#power-button) |
 
 **Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
 
@@ -327,7 +329,7 @@ A shortcut is modifiers and a key joined by `+`, in any case:
 | Modifiers | `ctrl` / `control`, `shift`, `alt`, `super` / `meta` / `win` / `logo` |
 | Key       | a letter `a`–`z`, a digit `0`–`9`, `f1`–`f24`, or a named key |
 
-Named keys: `space`, `return` / `enter`, `tab`, `escape` / `esc`, `backspace`, `delete` / `del`, `insert`, `home`, `end`, `pageup`, `pagedown`, `left`, `right`, `up`, `down`, `print`, `pause`, `menu`, and the punctuation names `minus`, `equal`, `plus`, `comma`, `period`, `slash`, `backslash`, `semicolon`, `apostrophe`, `grave`, `bracketleft`, `bracketright`.
+Named keys: `space`, `return` / `enter`, `tab`, `escape` / `esc`, `backspace`, `delete` / `del`, `insert`, `home`, `end`, `pageup`, `pagedown`, `left`, `right`, `up`, `down`, `print`, `pause`, `menu`, `poweroff` / `power`, `sleep`, and the punctuation names `minus`, `equal`, `plus`, `comma`, `period`, `slash`, `backslash`, `semicolon`, `apostrophe`, `grave`, `bracketleft`, `bracketright`.
 
 Left/right modifier variants are deliberately not offered: a trigger fires only when *exactly* the registered modifiers are held, so binding the left Control key would stop the shortcut working on the right one.
 
@@ -359,6 +361,59 @@ open_settings = ""
 An unparseable value is not treated as "disabled": it falls back to the default and logs why, so a typo does not silently cost you a shortcut.
 
 If another client already owns a combination, the shell logs it and moves on — it never fails to start over a shortcut.
+
+## Power Button
+
+The `[power]` section decides what pressing the machine's own power button does. Out of the box the shell intercepts it and shows the power menu — a dialog offering Lock, Log Out, Sleep, Restart and Shut Down — instead of the machine powering off where it stands.
+
+```toml
+[power]
+key_action = "menu"
+inhibit_logind = true
+```
+
+| Key              | Type    | Default  | Description                                            |
+| ---------------- | ------- | -------- | ------------------------------------------------------ |
+| `key_action`     | string  | `"menu"` | What a press does                                      |
+| `inhibit_logind` | boolean | `true`   | Hold systemd-logind's `handle-power-key` lock while the shell handles the key |
+
+`key_action` takes one of:
+
+| Value        | What happens                                                             |
+| ------------ | ------------------------------------------------------------------------ |
+| `"menu"`     | Show the power menu. Escape, or a click outside it, cancels; Enter answers with Shut Down |
+| `"shutdown"` | Power off, with no confirmation                                           |
+| `"reboot"`   | Restart, with no confirmation                                             |
+| `"suspend"`  | Suspend to RAM                                                            |
+| `"lock"`     | Lock the session                                                          |
+| `"logout"`   | End the session                                                           |
+| `"none"`     | Nothing — the key is left to systemd-logind, which is what handles it on a machine with no shell running |
+
+`"off"`, `"restart"`, `"sleep"` and `"ignore"` are accepted as spellings of `shutdown`, `reboot`, `suspend` and `none`. A value the shell does not recognise falls back to `"menu"` and logs why, rather than silently leaving you with a power button that does nothing.
+
+Both keys are live: changing them in Settings → Shell → Power Button takes effect on the next press. The *binding* — `[shortcuts] power_button` — is not, because global shortcuts are registered once at start-up.
+
+### Why `inhibit_logind` exists
+
+systemd-logind watches the power button directly, and `HandlePowerKey` in `logind.conf` is `poweroff` on a stock system. It does not care that a compositor also delivered the key to the shell — so a shell that only listened would draw its power menu onto a machine that was already going down.
+
+While the shell is handling the key it therefore takes logind's `handle-power-key` inhibitor lock, in `block` mode, which stops logind acting on presses for as long as the shell holds it. The lock is released the moment the shell exits — including if it crashes — so it can never leave a machine that will not power off.
+
+Two things it deliberately does **not** claim: `handle-power-key-long-press` (holding the button down keeps doing whatever logind is configured to do, which is the "get me out of here" gesture), and the key on a compositor that never delivered it. The shell takes the lock only once the compositor has confirmed the shortcut registration, so on a compositor without Mir's `ext-input-trigger` protocols — or where another client already owns the key — the button keeps working exactly as it did before.
+
+Turn `inhibit_logind` off if your `logind.conf` already says `HandlePowerKey=ignore`; otherwise, with it off, logind's shutdown and the shell's dialog race.
+
+### If the button does nothing
+
+- Check that the compositor is delivering it: the shell logs `input-trigger: "graceful-shell.power-button" owned` on start-up when it has the key, and says so when another client owns it instead.
+- Some keyboards' power keys emit a keysym this table's `poweroff` does not match. Bind the physical key instead, which is layout- and keysym-independent:
+
+  ```toml
+  [shortcuts]
+  power_button = "code:116"   # evdev KEY_POWER
+  ```
+
+- A laptop lid or a "sleep" key is a different key entirely (`sleep`, `code:142`); this section is only about the power button.
 
 ## Theme
 
@@ -891,6 +946,11 @@ icon_size = 24
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
+power_button = "poweroff"
+
+[power]
+key_action = "menu"
+inhibit_logind = true
 
 [screenshare]
 enabled = true

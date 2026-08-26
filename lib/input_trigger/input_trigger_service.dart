@@ -4,6 +4,8 @@ import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
+import 'package:graceful_shell/power/power_controller.dart';
+import 'package:graceful_shell/power/power_service.dart';
 import 'package:wayland/wayland.dart';
 
 /// One global shortcut: a key combination and what it does when the compositor
@@ -14,6 +16,7 @@ class InputShortcut {
     required this.name,
     required this.spec,
     required this.onActivate,
+    this.onOwnership,
   });
 
   /// Action name passed to `get_action_control`. Has no semantic weight and may
@@ -26,9 +29,25 @@ class InputShortcut {
   /// Run when the compositor reports the trigger's `begin`.
   final VoidCallback onActivate;
 
+  /// Run with whether the compositor actually gave the shell this
+  /// combination — true on the trigger's `done`, false when it was refused,
+  /// became unavailable, or (see [startInputTriggerService]) the globals were
+  /// never advertised at all.
+  ///
+  /// Only the power button has one, and it is what stops the shell inhibiting
+  /// logind's power-key handling on a machine where the press will never
+  /// arrive: an inhibited key nobody answers is a power button that does
+  /// nothing. Everything else here fails soft by simply not firing.
+  final void Function(bool owned)? onOwnership;
+
   int get modifiers => spec.modifiers;
   int get keysym => spec.keysym;
 }
+
+/// The action name the power-button trigger is registered under. Named
+/// because two things care: the registration, and the ownership report that
+/// decides whether the shell holds logind's inhibitor.
+const String kPowerButtonShortcut = 'graceful-shell.power-button';
 
 /// Turns the user's `[shortcuts]` config into the list the manager registers.
 ///
@@ -36,36 +55,63 @@ class InputShortcut {
 /// to the same combination are collapsed to the first — otherwise the second
 /// registration would come back `failed` and be logged as "owned by another
 /// client", which would be a lie about the shell's own config.
+///
+/// The power button is registered like the other two and — deliberately —
+/// whatever `[power] key_action` says, `"none"` included. Registration latches
+/// on the compositor's first answer, so a binding skipped here is one no
+/// setting could turn back on without a restart; the action is a dropdown in
+/// Settings, so it has to stay live. What `"none"` costs instead is the
+/// logind inhibitor (see [PowerKeyService]) and the root's response to the
+/// press, both of which are read from the live config at the moment they
+/// matter.
 List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
-  final wanted = <(String, ShortcutSpec?, VoidCallback)>[
+  final wanted = <(String, ShortcutSpec?, VoidCallback, void Function(bool)?)>[
     (
       'graceful-shell.open-settings',
       config.openSettings,
       InputTriggerStore.instance.triggerSettings,
+      null,
     ),
     (
       'graceful-shell.open-launcher',
       config.openLauncher,
       LauncherController.instance.toggle,
+      null,
+    ),
+    (
+      kPowerButtonShortcut,
+      config.powerButton,
+      PowerController.instance.pressPowerKey,
+      PowerKeyService.instance.setKeyOwned,
     ),
   ];
 
   final shortcuts = <InputShortcut>[];
   final seen = <ShortcutSpec, String>{};
-  for (final (name, spec, onActivate) in wanted) {
+  for (final (name, spec, onActivate, onOwnership) in wanted) {
     if (spec == null) {
       debugPrint('input-trigger: "$name" is disabled by config');
+      // A shortcut that is never registered is one the compositor will never
+      // confirm, and for the power button that is the difference between the
+      // shell holding logind's inhibitor and not. Say so now rather than
+      // leaving the service waiting for an answer that cannot come.
+      onOwnership?.call(false);
       continue;
     }
     final owner = seen[spec];
     if (owner != null) {
       debugPrint('input-trigger: "$name" is configured to the same combination '
           'as "$owner"; only "$owner" is registered');
+      onOwnership?.call(false);
       continue;
     }
     seen[spec] = name;
-    shortcuts.add(
-        InputShortcut(name: name, spec: spec, onActivate: onActivate));
+    shortcuts.add(InputShortcut(
+      name: name,
+      spec: spec,
+      onActivate: onActivate,
+      onOwnership: onOwnership,
+    ));
   }
   return shortcuts;
 }
@@ -98,6 +144,16 @@ class InputTriggerManager {
 
   /// True once both managers have been bound and the shortcuts registered.
   bool get isRegistered => _registered;
+
+  /// Tells every shortcut that cares that the compositor never offered the
+  /// protocols, so nothing of theirs was registered and nothing ever will be.
+  /// Called once by [_connectDisplays] after the initial global burst.
+  void reportUnregistered() {
+    if (_registered) return;
+    for (final shortcut in _shortcuts) {
+      shortcut.onOwnership?.call(false);
+    }
+  }
 
   /// Feed every global advertised by the shared Wayland registry here. Binds the
   /// two managers we care about (ignoring everything else) and, once both are
@@ -156,6 +212,7 @@ class InputTriggerManager {
       // We own the combination. Bind it to an action; the control's token then
       // drives the action-side subscription that delivers begin/end.
       debugPrint('input-trigger: "${shortcut.name}" owned; requesting token');
+      shortcut.onOwnership?.call(true);
       final control = registration.getActionControl(shortcut.name);
       control.onToken = (token) {
         debugPrint('input-trigger: "${shortcut.name}" token received; '
@@ -166,8 +223,11 @@ class InputTriggerManager {
             debugPrint('input-trigger: "${shortcut.name}" activated');
             shortcut.onActivate();
           },
-          onUnavailable: () => debugPrint(
-              'input-trigger: "${shortcut.name}" became unavailable'),
+          onUnavailable: () {
+            debugPrint(
+                'input-trigger: "${shortcut.name}" became unavailable');
+            shortcut.onOwnership?.call(false);
+          },
         );
       };
       control.addInputTriggerEvent(trigger);
@@ -176,6 +236,7 @@ class InputTriggerManager {
     trigger.onFailed = () {
       debugPrint('input-trigger: "${shortcut.name}" is already owned by '
           'another client; skipping');
+      shortcut.onOwnership?.call(false);
       trigger.destroy();
     };
   }

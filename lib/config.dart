@@ -7,7 +7,8 @@
 /// the desktop grid model in `lib/desktop/desktop_config.dart`, the generated
 /// default config in `lib/default_config.dart`, and the media-extension
 /// predicates in `lib/media_paths.dart` (whose `isVideoPath` is re-exported by
-/// `lib/background.dart`, which historically defined it).
+/// `lib/background.dart`, which historically defined it), and the power-button
+/// policy in `lib/power/power_config.dart`.
 library;
 
 import 'dart:io';
@@ -20,12 +21,14 @@ import 'package:graceful_shell/default_config.dart';
 import 'package:graceful_shell/desktop/desktop_config.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/power/power_config.dart';
 import 'package:graceful_shell/theme/theme_config.dart';
 
 export 'package:graceful_shell/default_config.dart';
 export 'package:graceful_shell/desktop/desktop_config.dart';
 export 'package:graceful_shell/media_paths.dart'
     show imageExtensions, videoExtensions, isImagePath;
+export 'package:graceful_shell/power/power_config.dart';
 export 'package:graceful_shell/theme/theme_config.dart';
 
 enum BackgroundFit {
@@ -430,6 +433,18 @@ const ShortcutSpec kDefaultOpenSettings =
 const ShortcutSpec kDefaultOpenLauncher =
     ShortcutSpec(modifiers: 0x100, keysym: 0x20);
 
+/// The machine's own power button — `XF86PowerOff`, no modifiers.
+///
+/// Bound like any other shortcut because to the compositor it *is* one: the
+/// ACPI power button is an input device emitting `KEY_POWER`. What it is not
+/// is the shell's alone — systemd-logind reads the same device and powers the
+/// machine off on a press — so registering this is only half of intercepting
+/// the button; `[power] inhibit_logind` is the other half. Spelled numerically
+/// for the reason [kDefaultOpenSettings] is; `test/shortcut_parse_test.dart`
+/// asserts it agrees with `parseShortcut('poweroff')`.
+const ShortcutSpec kDefaultPowerButton =
+    ShortcutSpec(modifiers: 0, keysym: 0x1008ff2a);
+
 /// The compositor-level shortcuts the shell registers at start-up.
 ///
 /// A null field means the shortcut is *disabled* (the user wrote `""`), which
@@ -444,9 +459,15 @@ class ShortcutsConfig {
   final ShortcutSpec? openSettings;
   final ShortcutSpec? openLauncher;
 
+  /// The key the machine's power button produces. What a press *does* is
+  /// `[power] key_action`, which is live; this is only where the key is
+  /// picked up, and like the other two it latches at start-up.
+  final ShortcutSpec? powerButton;
+
   const ShortcutsConfig({
     this.openSettings = kDefaultOpenSettings,
     this.openLauncher = kDefaultOpenLauncher,
+    this.powerButton = kDefaultPowerButton,
   });
 
   factory ShortcutsConfig.fromMap(Map<String, dynamic>? map) {
@@ -454,6 +475,7 @@ class ShortcutsConfig {
     return ShortcutsConfig(
       openSettings: _read(map, 'open_settings', kDefaultOpenSettings),
       openLauncher: _read(map, 'open_launcher', kDefaultOpenLauncher),
+      powerButton: _read(map, 'power_button', kDefaultPowerButton),
     );
   }
 
@@ -486,10 +508,11 @@ class ShortcutsConfig {
       identical(this, other) ||
       other is ShortcutsConfig &&
           other.openSettings == openSettings &&
-          other.openLauncher == openLauncher;
+          other.openLauncher == openLauncher &&
+          other.powerButton == powerButton;
 
   @override
-  int get hashCode => Object.hash(openSettings, openLauncher);
+  int get hashCode => Object.hash(openSettings, openLauncher, powerButton);
 }
 
 class AppConfig {
@@ -511,6 +534,10 @@ class AppConfig {
   final ShortcutsConfig shortcuts;
   final ScreenshareConfig screenshare;
 
+  /// What the physical power button does. Never null — an absent `[power]`
+  /// section is the default (show the power menu), not "no power config".
+  final PowerConfig power;
+
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
@@ -521,6 +548,7 @@ class AppConfig {
     this.lock = const LockConfig(),
     this.shortcuts = const ShortcutsConfig(),
     this.screenshare = const ScreenshareConfig(),
+    this.power = const PowerConfig(),
   });
 
   /// Resolves the absolute path to `config.toml`, honouring
@@ -607,6 +635,7 @@ class AppConfig {
       lock: LockConfig.fromMap(map.tableOrNull('lock')),
       shortcuts: ShortcutsConfig.fromMap(map.tableOrNull('shortcuts')),
       screenshare: ScreenshareConfig.fromMap(map.tableOrNull('screenshare')),
+      power: PowerConfig.fromMap(map.tableOrNull('power')),
     );
   }
 
@@ -622,7 +651,8 @@ class AppConfig {
           other.osd == osd &&
           other.lock == lock &&
           other.shortcuts == shortcuts &&
-          other.screenshare == screenshare;
+          other.screenshare == screenshare &&
+          other.power == power;
 
   /// Hashed on the panel count alone: equal maps have equal
   /// lengths, and two maps that are equal can still iterate in
@@ -639,5 +669,6 @@ class AppConfig {
         lock,
         shortcuts,
         screenshare,
+        power,
       );
 }

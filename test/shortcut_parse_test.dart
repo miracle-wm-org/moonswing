@@ -9,6 +9,20 @@ void main() {
       // key — the defaults are const and cannot call the parser themselves.
       expect(parseShortcut('ctrl+shift+s'), kDefaultOpenSettings);
       expect(parseShortcut('ctrl+space'), kDefaultOpenLauncher);
+      expect(parseShortcut('poweroff'), kDefaultPowerButton);
+    });
+
+    // The machine's own power button is an ordinary key to the compositor:
+    // evdev KEY_POWER, which the standard layouts map to XF86PowerOff.
+    test('the power key is a named keysym, and bindable by code', () {
+      expect(parseShortcut('poweroff')!.keysym, 0x1008ff2a);
+      expect(parseShortcut('power'), parseShortcut('poweroff'));
+      expect(parseShortcut('poweroff')!.modifiers, 0);
+      expect(parseShortcut('sleep')!.keysym, 0x1008ff2f);
+      // The layout-independent escape hatch, for a keyboard whose power key
+      // does not produce that keysym.
+      expect(parseShortcut('code:116')!.isKeycode, isTrue);
+      expect(parseShortcut('code:116')!.keysym, 116);
     });
 
     test('shift resolves a letter to its shifted keysym', () {

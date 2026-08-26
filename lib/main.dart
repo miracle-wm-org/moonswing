@@ -44,6 +44,10 @@ import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/popup_surface.dart';
+import 'package:graceful_shell/power/power_actions.dart';
+import 'package:graceful_shell/power/power_controller.dart';
+import 'package:graceful_shell/power/power_menu_overlay.dart';
+import 'package:graceful_shell/power/power_service.dart';
 import 'package:graceful_shell/screencast/picker_controller.dart';
 import 'package:graceful_shell/screencast/picker_overlay.dart';
 import 'package:graceful_shell/screencast/picker_sources.dart';
@@ -225,6 +229,12 @@ void _startShellServices({
     services.skip(ShellService.screencast);
   }
 
+  // Takes logind's `handle-power-key` inhibitor so the machine's power button
+  // reaches the shell rather than powering the machine off behind it. Nothing
+  // is claimed until the compositor confirms the shell owns the key (see
+  // [PowerKeyService]), and `key_action = "none"` claims nothing at all.
+  services.run(ShellService.power, () => startPowerService(appConfig.power));
+
   // Enumerates installed applications while the shell is already on screen, so
   // the launcher can paint the instant its shortcut fires. Until it lands the
   // launcher and the app choosers show a loader instead of "No applications".
@@ -293,6 +303,10 @@ Future<void> _connectDisplays(
   if (!inputTriggers.isRegistered) {
     debugPrint('input-trigger: compositor did not advertise the '
         'ext-input-trigger globals; global shortcuts are unavailable');
+    // Including the power button, which is the one shortcut whose absence has
+    // a consequence beyond itself: the shell must not go on holding logind's
+    // inhibitor for a key that will never arrive.
+    inputTriggers.reportUnregistered();
   }
 }
 
@@ -369,7 +383,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// would sit on the overlay layer eating clicks.
   final Map<String, LayershellWindowController> _osd = {};
 
-  /// The five root-owned full-screen overlays. Each [_OverlayWindow] carries
+  /// The six root-owned full-screen overlays. Each [_OverlayWindow] carries
   /// the window controller, its [PopupCoordinator] registration, and the
   /// closing notifier — the bookkeeping every overlay used to hand-roll
   /// separately, which is how `dispose` once missed two of them.
@@ -386,6 +400,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   final _OverlayWindow _screencastPicker =
       _OverlayWindow(policy: TransientPolicy.modal);
   final _OverlayWindow _filePicker =
+      _OverlayWindow(policy: TransientPolicy.modal);
+
+  /// The power menu the physical power button opens (`[power] key_action =
+  /// "menu"`, the default). Modal, like the two pickers and for the same
+  /// reason: it holds a shutdown, and a click elsewhere must not answer it —
+  /// the ways out are its own Cancel path (Escape, the backdrop) and nothing
+  /// else. It is the sixth root-owned overlay.
+  final _OverlayWindow _powerMenu =
       _OverlayWindow(policy: TransientPolicy.modal);
 
   /// The page the open (or about-to-open) settings overlay was asked for. Null
@@ -433,7 +455,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// [LiveConfigProvider], because `ConfigStore` notifies on every keystroke
   /// anywhere in the settings UI: answering each one with `setState` here
   /// rebuilt every view the root owns — every panel on every monitor, the
-  /// backgrounds, the OSD, all five overlays — to deliver a value that at most
+  /// backgrounds, the OSD, every overlay — to deliver a value that at most
   /// five widgets read.
   late final ValueNotifier<AppConfig> _liveConfig;
 
@@ -461,6 +483,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (OsdStore.instance, _onOsdChanged),
       (InputTriggerStore.instance, _onSettingsTriggered),
       (LauncherController.instance, _onLauncherTriggered),
+      (PowerController.instance, _onPowerKeyPressed),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
       (LockController.instance, _onLockRequested),
       (SettingsController.instance, _onSettingsRouteRequested),
@@ -652,6 +675,57 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   void _openLauncher() {
     _launcher.open();
     setState(() {});
+  }
+
+  /// The machine's physical power button was pressed.
+  ///
+  /// What that means is `[power] key_action`, read from the *live* config
+  /// rather than the start-up snapshot: the key binding latches when the
+  /// compositor accepts the registration and cannot change without a restart,
+  /// but the action is a dropdown in Settings and changing it there has to
+  /// take effect on the next press. [PowerKeyAction.none] is therefore still
+  /// checked here — the trigger was registered when the shell started, and
+  /// the user has since said they want the key left alone.
+  ///
+  /// A configured verb runs with no confirmation, because choosing one *is*
+  /// the confirmation: a user who set the button to "shutdown" asked for a
+  /// power button that powers the machine off. The default is the menu, which
+  /// toggles the way the settings and launcher shortcuts do — a second press
+  /// on a menu already up is somebody changing their mind.
+  void _onPowerKeyPressed() {
+    if (!mounted) return;
+    final action = _liveConfig.value.power.keyAction;
+    if (action == PowerKeyAction.none) return;
+    if (action == PowerKeyAction.menu) {
+      if (_powerMenu.isOpen) {
+        _powerMenu.closing.value = true;
+      } else {
+        _openPowerMenu();
+      }
+      return;
+    }
+    final verb = powerActionFor(action);
+    if (verb != null) unawaited(PowerActions.run(verb));
+  }
+
+  /// Opens the power menu as a full-screen overlay-layer window.
+  ///
+  /// Like the launcher and unlike the settings overlay, no monitor is passed:
+  /// the compositor puts it on its focused output, which is the one the user
+  /// is at. (A machine whose power button was pressed by somebody who is not
+  /// looking at either monitor is not a case a choice of output improves.)
+  void _openPowerMenu() {
+    _powerMenu.open();
+    setState(() {});
+  }
+
+  /// Called by [PowerMenuOverlay] once its fade-out has finished.
+  void _onPowerMenuClosed() {
+    if (!mounted) return;
+    final removed = _powerMenu.take();
+    if (removed == null) return;
+    setState(() {});
+    _destroyAfterFrame([removed]);
   }
 
   /// An application asked to share the screen (or the pick was answered).
@@ -1000,6 +1074,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // only the widgets that actually read it rebuild. The root's own build
     // reads nothing from it.
     _liveConfig.value = next;
+    // The power key is the one setting outside the widget tree that follows
+    // live config: switching it off in Settings has to give logind's inhibitor
+    // back, not wait for a restart. The service compares before acting, so
+    // this costs nothing on the keystrokes that changed something else.
+    PowerKeyService.instance.setConfig(next.power);
   }
 
   /// Re-floats the bars when the active theme's margin changes.
@@ -1043,6 +1122,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // dying State.
     FilePickerController.instance.complete(null);
     ScreencastPickerController.instance.cancel();
+    // Hands the power key back. The fd closing would do it anyway — logind
+    // drops an inhibitor when the peer holding it disconnects, which is what
+    // keeps a crashed shell from leaving a machine that will not power off —
+    // but a shell that is going away deliberately says so.
+    unawaited(PowerKeyService.instance.shutdown());
     // Abandons rather than unlocks: a shell dying while the session is locked
     // must leave it locked. See [SessionLockHost.dispose].
     _lockHost.dispose();
@@ -1056,7 +1140,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ctrl.destroy();
     }
     _osd.clear();
-    // All five root-owned overlays, symmetrically: each dispose covers the
+    // All six root-owned overlays, symmetrically: each dispose covers the
     // window, the coordinator registration, the AppIndex bracket, and the
     // closing notifier.
     for (final overlay in [
@@ -1065,6 +1149,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       _appChooser,
       _screencastPicker,
       _filePicker,
+      _powerMenu,
     ]) {
       overlay.dispose();
     }
@@ -1316,6 +1401,25 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                   onCancel: ScreencastPickerController.instance.cancel,
                 );
               }),
+            ),
+          ),
+        // The power menu, open only while the physical power button's press
+        // is being answered. A single window like the launcher, so it lives
+        // outside the per-monitor loop.
+        if (_powerMenu.controller case final menu?)
+          LayerShellWindow(
+            key: ObjectKey(menu),
+            controller: menu,
+            child: _windowChrome(
+              PowerMenuOverlay(
+                closingNotifier: _powerMenu.closing,
+                onClosed: _onPowerMenuClosed,
+                // The overlay dismisses itself and then this tears the window
+                // down, so the verb runs while its own surface is still
+                // fading — which is what "Lock" needs, since the lock surface
+                // is mapped over the top of it.
+                onAction: (action) => unawaited(PowerActions.run(action)),
+              ),
             ),
           ),
         // The lock screen. These surfaces exist only while the session is

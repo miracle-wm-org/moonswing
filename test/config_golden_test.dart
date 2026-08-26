@@ -32,9 +32,12 @@ void main() {
       expect(config.lock.blurSigma, 18.0);
       expect(config.shortcuts.openSettings, kDefaultOpenSettings);
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
+      expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);
+      expect(config.power.keyAction, PowerKeyAction.menu);
+      expect(config.power.inhibitLogind, isTrue);
     });
   });
 
@@ -76,7 +79,7 @@ void main() {
       expect(bg.entries.single.shown, isTrue);
     });
 
-    test('theme, desktop, lock, shortcuts, screenshare', () {
+    test('theme, desktop, lock, shortcuts, screenshare, power', () {
       expect(config.themeName, 'graceful');
       expect(config.desktop.enabled, isTrue);
       expect(config.desktop.cellWidth, 96);
@@ -92,9 +95,16 @@ void main() {
       expect(config.lock.blurSigma, 18.0);
       expect(config.shortcuts.openSettings, kDefaultOpenSettings);
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
+      expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);
+      // The shipped default intercepts the machine's power button and shows
+      // the power menu, holding logind's lock so it cannot power off behind
+      // the dialog.
+      expect(config.power.keyAction, PowerKeyAction.menu);
+      expect(config.power.inhibitLogind, isTrue);
+      expect(config.power.inhibitsLogind, isTrue);
     });
   });
 
