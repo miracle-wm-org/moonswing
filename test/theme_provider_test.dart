@@ -64,6 +64,32 @@ void main() {
     settle();
   });
 
+  testWidgets("the theme's font size reaches text that sized itself",
+      (tester) async {
+    // The point of putting the scaler here rather than on a DefaultTextStyle:
+    // nearly every string in the shell names its own size, and one that names
+    // one has to move too or the setting appears to do nothing.
+    themes.create('Mine');
+    await tester.pumpWidget(
+      ThemeProvider(store: themes, child: const _SizedText()),
+    );
+    final before = tester.getSize(find.byType(Text));
+    expect(MediaQuery.textScalerOf(tester.element(find.byType(Text))),
+        TextScaler.noScaling);
+
+    themes.edit('font_size', 26.0);
+    await tester.pump();
+
+    // 26 is twice the body tier the sizes are quoted against.
+    expect(MediaQuery.textScalerOf(tester.element(find.byType(Text))),
+        TextScaler.linear(2.0));
+    final after = tester.getSize(find.byType(Text));
+    expect(after.height, greaterThan(before.height));
+    expect(after.width, greaterThan(before.width));
+
+    settle();
+  });
+
   testWidgets('an edit to the active theme repaints too', (tester) async {
     themes.create('Mine');
     await tester.pumpWidget(
@@ -76,6 +102,21 @@ void main() {
 
     settle();
   });
+}
+
+/// A line of text that sizes itself, as nearly everything in the shell does.
+/// `const` for the same reason as [_AccentBox]: nothing above it rebuilds it,
+/// so what moves the text can only be the scaler it inherits.
+class _SizedText extends StatelessWidget {
+  const _SizedText();
+
+  @override
+  Widget build(BuildContext context) => const Directionality(
+        textDirection: TextDirection.ltr,
+        child: Center(
+          child: Text('Ag', style: TextStyle(fontSize: 13)),
+        ),
+      );
 }
 
 /// Reads the accent from the enclosing scope. `const`, so the only thing that

@@ -1,14 +1,11 @@
-import 'dart:ui';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
-/// The scale-and-fade scaffold every full-screen overlay plays: scrim,
-/// optional backdrop blur, a centred card that scales in, and the
-/// closing-notifier handshake.
+/// The scale-and-fade scaffold every full-screen overlay plays: scrim, a
+/// centred card that scales in, and the closing-notifier handshake.
 ///
 /// The handshake is the load-bearing part (see the dismissal section of
 /// CLAUDE.md): nothing tears the window down directly. The root flips
@@ -97,6 +94,15 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
+        // No BackdropFilter here, deliberately — see the note on
+        // [ThemeConfig.blur]. A filter reaches only what Flutter has already
+        // painted beneath it, and this scaffold *is* the first thing painted
+        // into its window: the scrim below is this widget's own child, and
+        // under that is a transparent layer-shell surface whose contents
+        // belong to the compositor. So the backdrop is empty, the filter
+        // resolves to nothing, and every frame the overlay animates paid for
+        // a full-output Gaussian blur that changed no pixel — which is what
+        // the settings page transitions were spending their frame budget on.
         Widget backdrop = Container(
           color: theme.scrim,
           child: Center(
@@ -110,21 +116,7 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
             child: backdrop,
           );
         }
-        return Opacity(
-          opacity: _opacity.value,
-          // The filter only reaches what Flutter has drawn behind it, and on
-          // a transparent layer-shell surface that is nothing — the desktop
-          // belongs to the compositor. It is kept because it does soften the
-          // scrim under the card, and skipped entirely at 0 so a theme that
-          // sets `blur = 0` pays nothing for it.
-          child: theme.blur > 0
-              ? BackdropFilter(
-                  filter:
-                      ImageFilter.blur(sigmaX: theme.blur, sigmaY: theme.blur),
-                  child: backdrop,
-                )
-              : backdrop,
-        );
+        return Opacity(opacity: _opacity.value, child: backdrop);
       },
       child: widget.child,
     );

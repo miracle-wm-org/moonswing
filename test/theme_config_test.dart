@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 
 void main() {
   group('a hand-edited theme cannot crash the shell', () {
@@ -34,7 +35,6 @@ void main() {
         'panel_border_width': -0.5,
         'popup_radius': -1.0,
         'popup_border_width': -0.5,
-        'blur': -10.0,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
@@ -43,7 +43,6 @@ void main() {
       // card with no rim — and a negative one is the nearest thing to it.
       expect(theme.popupRadius, 0.0);
       expect(theme.popupBorderWidth, 0.0);
-      expect(theme.blur, 0.0);
     });
 
     test('an absurd value clamps to the ceiling', () {
@@ -53,14 +52,12 @@ void main() {
         'panel_border_width': 999,
         'popup_radius': 1e9,
         'popup_border_width': 999,
-        'blur': 5000.0,
       });
       expect(theme.panelMargin, 256);
       expect(theme.panelRadius, 64.0);
       expect(theme.panelBorderWidth, 16.0);
       expect(theme.popupRadius, 64.0);
       expect(theme.popupBorderWidth, 16.0);
-      expect(theme.blur, 100.0);
     });
 
     test('NaN falls back rather than propagating', () {
@@ -73,14 +70,12 @@ void main() {
         'panel_border_width': double.nan,
         'popup_radius': double.nan,
         'popup_border_width': double.nan,
-        'blur': double.nan,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
-      expect(theme.blur, 24.0);
     });
 
     test('infinity falls back rather than clamping', () {
@@ -91,13 +86,11 @@ void main() {
         'panel_radius': double.negativeInfinity,
         'popup_radius': double.infinity,
         'popup_border_width': double.negativeInfinity,
-        'blur': double.infinity,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
-      expect(theme.blur, 24.0);
     });
 
     test('a malformed border colour costs only that key', () {
@@ -165,6 +158,63 @@ void main() {
         const ThemeConfig(popupBorderWidth: 2.0).hashCode,
       };
       expect(hashes, hasLength(8));
+    });
+  });
+
+  group('the default font size', () {
+    test('is the body tier, so an unset key scales nothing', () {
+      // The whole guarantee of this key: a theme that does not spell it — every
+      // theme written before it existed — renders exactly as it did, because
+      // TextScaler.linear(1.0) is TextScaler.noScaling.
+      const theme = ThemeConfig();
+      expect(theme.fontSize, ShellFontSizes.body);
+      expect(theme.textScale, 1.0);
+      expect(ThemeConfig.fromMap({}).textScale, 1.0);
+    });
+
+    test('the scale is the ratio to the body tier', () {
+      final theme = ThemeConfig.fromMap({'font_size': 26.0});
+      expect(theme.fontSize, 26.0);
+      expect(theme.textScale, closeTo(2.0, 1e-9));
+    });
+
+    test('a TOML integer coerces rather than falling back', () {
+      // `font_size = 16` is what a hand-written theme file looks like.
+      expect(ThemeConfig.fromMap({'font_size': 16}).fontSize, 16.0);
+    });
+
+    test('a garbled value costs that key alone', () {
+      final theme = ThemeConfig.fromMap({
+        'font_size': 'large',
+        'font': 'Cantarell',
+      });
+      expect(theme.fontSize, ShellFontSizes.body);
+      expect(theme.fontFamily, 'Cantarell');
+    });
+
+    test('clamps at both ends rather than laying out nothing', () {
+      // Zero lays every string in the shell out as an empty box, and a few
+      // hundred leaves one letter on the screen; both are recoverable only by
+      // editing the file back, so neither is allowed through.
+      expect(ThemeConfig.fromMap({'font_size': 0}).fontSize, 6.0);
+      expect(ThemeConfig.fromMap({'font_size': -20.0}).fontSize, 6.0);
+      expect(ThemeConfig.fromMap({'font_size': 400.0}).fontSize, 32.0);
+    });
+
+    test('NaN and infinity fall back', () {
+      expect(ThemeConfig.fromMap({'font_size': double.nan}).fontSize,
+          ShellFontSizes.body);
+      expect(ThemeConfig.fromMap({'font_size': double.infinity}).fontSize,
+          ShellFontSizes.body);
+    });
+
+    test('takes part in equality, and round-trips', () {
+      const base = ThemeConfig();
+      const bigger = ThemeConfig(fontSize: 18.0);
+      expect(base, isNot(bigger));
+      expect(base.hashCode, isNot(bigger.hashCode));
+      expect(ThemeConfig.fromMap(bigger.toMap()), bigger);
+      expect(bigger.toMap()['font_size'], 18.0);
     });
   });
 

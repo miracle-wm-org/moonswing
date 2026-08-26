@@ -324,6 +324,9 @@ class _FortuneText extends StatelessWidget {
           style: base,
           box: Size(constraints.maxWidth, constraints.maxHeight),
           scale: scale.factor,
+          // The theme's `font_size` is applied to the Text below at paint, so
+          // the fit has to be measured through it as well.
+          textScaler: MediaQuery.textScalerOf(context),
         );
 
         // Replaced outright rather than faded or slid in. A transition here

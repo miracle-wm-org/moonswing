@@ -20,6 +20,7 @@ library;
 /// would silently restyle it.
 const Map<String, String> kBuiltInThemes = {
   'graceful': _graceful,
+  'forest': _forest,
   'dracula': _dracula,
   'glassy': _glassy,
 };
@@ -29,7 +30,7 @@ const String _graceful = '''
 name = "Graceful"
 
 font = "Ubuntu Sans"
-blur = 24.0
+font_size = 13.0
 
 accent               = "#853953"
 foreground           = "#F3F4F4"
@@ -86,6 +87,74 @@ popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
 ''';
 
+const String _forest = '''
+# Forest — pine and moss over a near-black green, with a lit rim.
+#
+# The palette is one hue held throughout: every surface is a green so dark it
+# reads as black until something is laid beside it, and the only saturated
+# green in the theme is the accent. That is what keeps a single-hue theme from
+# looking tinted — the colour is spent where it means something (the active
+# workspace, a pressed control, the bright end of the bar) and withheld
+# everywhere else.
+#
+# It is a *floating* theme, like glassy, but for the opposite reason: glassy
+# needs a rim because a translucent bar has no edge of its own, while this one
+# is nearly opaque and wants the rim as the one lit line in the picture. The
+# bar and the popups therefore carry the same 1px sage edge and the same 10px
+# corner, so a menu reads as a pane dropped out of the pane it came from.
+name = "Forest"
+
+font = "Ubuntu Sans"
+font_size = 13.0
+
+# Sea green against pale birch. The accent is dark enough that kOnAccent's
+# white sits on it at better than 4:1, which is what lets it fill a button
+# rather than only outline one.
+accent               = "#2E8B57"
+foreground           = "#E8F2EA"
+surface_hover        = "#1F4433"
+surface_pressed      = "#2A6B4C"
+workspace_background = "#101A15"
+popup_background     = "#F2121C16"
+popup_foreground     = "#E8F2EA"
+control_surface      = "#1A2A21"
+slider_track         = "#2A6B4C"
+# Secondary text is a desaturated sage rather than the accent: this theme's
+# accent is a fill colour, and reusing it for muted labels would put the one
+# saturated green in the palette on the least important text in the shell.
+muted                = "#8AA79A"
+divider              = "#33E8F2EA"
+scrim                = "#88101A15"
+
+# The bar fades sea green -> pine -> forest floor, all at panel_background's
+# alpha, so the bright end sits against the screen edge and the fade cannot
+# band across the middle.
+panel_background     = "#EE0E1712"
+panel_gradient       = true
+
+# A 6px gap on every anchored edge, cut by a real gtk-layer-shell margin so
+# nothing tiles into it and a click that lands there still reaches the desktop.
+# The rim is the point of the theme: a hairline of lit sage around a dark bar.
+panel_margin         = 6
+panel_radius         = 10.0
+panel_border         = "#594FB183"
+panel_border_width   = 1.0
+
+# The same material as the bar: same corner, same rim.
+popup_radius         = 10.0
+popup_border         = "#594FB183"
+popup_border_width   = 1.0
+
+# The lift is tinted with the theme's own darkest green rather than pure black,
+# so a card floating over a wallpaper drops a shadow that belongs to the
+# palette instead of a grey one.
+popup_shadow_color   = "#73060C09"
+popup_shadow_blur    = 20.0
+popup_shadow_spread  = -1.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 8.0
+''';
+
 const String _dracula = '''
 # Dracula — the canonical palette (https://draculatheme.com).
 #
@@ -95,7 +164,7 @@ const String _dracula = '''
 name = "Dracula"
 
 font = "Ubuntu Sans"
-blur = 24.0
+font_size = 13.0
 
 accent               = "#BD93F9"
 foreground           = "#F8F8F2"
@@ -151,7 +220,7 @@ const String _glassy = '''
 name = "Glassy"
 
 font = "Ubuntu Sans"
-blur = 32.0
+font_size = 13.0
 
 accent               = "#7FB6FF"
 foreground           = "#F5F7FA"
