@@ -5,6 +5,7 @@ import 'package:dbus/dbus.dart';
 import '../pipewire/spa_pod.dart';
 import '../pipewire/video_stream.dart';
 import 'capture_connection.dart';
+import 'capture_host.dart';
 import 'capture_session.dart';
 import 'pick_types.dart';
 import 'screencast_log.dart';
@@ -49,8 +50,11 @@ Future<void> startScreencastService({
   if (!PipewireVideoStream.ensureInit()) {
     throw StateError('PipeWire not present');
   }
-  final connection =
-      CaptureConnection.connect(attachToGlibLoop: attachToGlibLoop);
+  // Borrowed, not created: `lib/capture/` binds the same globals for the
+  // shell's own screenshots and recordings, and one compositor connection is
+  // enough for both. [CaptureHost] owns it for the life of the process, which
+  // is also why nothing below disposes it on the way out of here.
+  final connection = CaptureHost.connect(attachToGlibLoop: attachToGlibLoop);
   if (connection == null) {
     throw StateError('cannot reach the display');
   }
@@ -70,7 +74,6 @@ Future<void> startScreencastService({
       // The one graceful decline: yield the name to whoever owns it.
       screencastLog('unavailable: $kScreencastBusName is already taken');
       await client.close();
-      connection.dispose();
       return;
     }
 
@@ -80,10 +83,9 @@ Future<void> startScreencastService({
     await backend.init();
     await client.registerObject(backend);
 
-    connection.onDied = () {
-      screencastLog('capture connection lost, closing sessions');
-      backend.closeAllSessions();
-    };
+    // Through the host's fan-out rather than `connection.onDied` directly:
+    // that is one callback and there are two features listening now.
+    CaptureHost.addDiedListener(backend.closeAllSessions);
 
     _service = ScreencastService._(connection, client, backend);
     screencastLog('portal backend up as $kScreencastBusName '
@@ -91,7 +93,6 @@ Future<void> startScreencastService({
   } catch (_) {
     final failedClient = client;
     if (failedClient != null) unawaited(failedClient.close());
-    connection.dispose();
     rethrow;
   }
 }
@@ -112,9 +113,11 @@ class ScreencastService {
   }
 
   Future<void> dispose() async {
+    CaptureHost.removeDiedListener(_backend.closeAllSessions);
     await _backend.dispose();
     await _client.close();
-    connection.dispose();
+    // Deliberately not `connection.dispose()`: [CaptureHost] owns it and the
+    // shell's screenshot and recording features are still using it.
     _service = null;
   }
 }

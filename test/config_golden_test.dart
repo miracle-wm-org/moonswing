@@ -57,8 +57,15 @@ void main() {
       expect(top.layer, 'top');
       expect(top.layout.left, ['workspaces']);
       expect(top.layout.center, ['clock']);
-      expect(top.layout.right,
-          ['sound_control', 'system_tray', 'battery', 'weather', 'system']);
+      expect(top.layout.right, [
+        'screenshot',
+        'screen_recorder',
+        'sound_control',
+        'system_tray',
+        'battery',
+        'weather',
+        'system',
+      ]);
       final bottom = config.panels['bottom']!;
       expect(bottom.height, 32);
       expect(bottom.paddingHorizontal, 0);

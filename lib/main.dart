@@ -4,6 +4,9 @@ import 'dart:ffi' as ffi;
 // ignore_for_file: implementation_imports
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/app_info.dart';
+import 'package:graceful_shell/capture/selection_controller.dart';
+import 'package:graceful_shell/capture/selector_overlay.dart';
+import 'package:graceful_shell/capture/window_targets.dart';
 import 'package:graceful_shell/desktop/desktop_surface.dart';
 import 'package:graceful_shell/display_provider.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
@@ -21,6 +24,8 @@ import 'package:graceful_shell/modules/clock.dart';
 import 'package:graceful_shell/modules/media_player.dart';
 import 'package:graceful_shell/modules/network.dart';
 import 'package:graceful_shell/modules/notifications.dart';
+import 'package:graceful_shell/modules/screen_recorder.dart';
+import 'package:graceful_shell/modules/screenshot.dart';
 import 'package:graceful_shell/modules/system.dart';
 import 'package:graceful_shell/modules/system_monitor.dart';
 import 'package:graceful_shell/modules/system_tray.dart';
@@ -97,6 +102,8 @@ void main() async {
   Module.register(systemModule);
   Module.register(systemTrayModule);
   Module.register(launcherModule);
+  Module.register(screenshotModule);
+  Module.register(screenRecorderModule);
 
   // The desktop grid's own registry, populated the same way and for the same
   // reason: `[[desktop.widgets]]` names a type, and lookup happens at render
@@ -432,6 +439,38 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the user answers, but the overlay stays mounted through its fade-out.
   PickRequest? _screencastRequest;
 
+  /// The screenshot / recording selection surfaces, keyed like [_surfaces].
+  ///
+  /// One per monitor rather than one window, which is what separates this from
+  /// the six [_OverlayWindow]s: the user has to be able to drag a rectangle or
+  /// point at a window on *any* display, and a layer-shell surface covers one
+  /// output. Like the OSD's and unlike a panel's these exist only while
+  /// something is being selected — the shell has no input-region support, so a
+  /// permanently mapped overlay surface would swallow every click on the
+  /// machine.
+  final Map<String, LayershellWindowController> _selector = {};
+
+  /// What the open selection surfaces are asking, the windowing environment
+  /// they are drawing, and what came back. All three are null/empty exactly
+  /// when [_selector] is empty.
+  SelectionRequest? _selectionRequest;
+  CaptureScene _selectionScene = CaptureScene.empty;
+  CaptureTarget? _selectionAnswer;
+
+  /// Flips to start the surfaces coming down; every one of them answers with
+  /// [_onSelectionClosed], which is idempotent.
+  final ValueNotifier<bool> _selectionClosing = ValueNotifier(false);
+
+  /// The coordinator registration all of the selection surfaces share — they
+  /// are one modal, drawn once per output.
+  final Object _selectionOwner = Object();
+  TransientHandle? _selectionHandle;
+
+  /// True between a selection being asked for and its surfaces existing: the
+  /// windowing environment is read over the IPC socket in between, and a
+  /// second notify arriving in that gap would open a second set.
+  bool _selectionOpening = false;
+
   /// The `ext-session-lock-v1` lifecycle. Owned by the root rather than by
   /// the module that offers the Lock button because the lock spans every
   /// monitor and outlives any one panel; everything else about it lives in
@@ -485,6 +524,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (LauncherController.instance, _onLauncherTriggered),
       (PowerController.instance, _onPowerKeyPressed),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
+      (CaptureSelectionController.instance, _onCaptureSelectionChanged),
       (LockController.instance, _onLockRequested),
       (SettingsController.instance, _onSettingsRouteRequested),
       (FilePickerController.instance, _onFilePickRequested),
@@ -749,6 +789,134 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
   }
 
+  /// A capture module asked the user to choose what to capture.
+  ///
+  /// Every other root-owned surface can be raised inside the notification that
+  /// asked for it; this one cannot, because the window rectangles it draws
+  /// come from a `GET_TREE` round trip over the IPC socket. [_selectionOpening]
+  /// is what covers that gap — without it a second notify (a module clicked
+  /// twice, or the controller superseding one request with another) would put
+  /// a second set of full-screen surfaces on top of the first.
+  void _onCaptureSelectionChanged() {
+    if (!mounted) return;
+    final request = CaptureSelectionController.instance.pending;
+    if (request == null) {
+      if (_selector.isNotEmpty) _selectionClosing.value = true;
+      return;
+    }
+    if (_selector.isNotEmpty || _selectionOpening) return;
+    unawaited(_openSelection(request));
+  }
+
+  Future<void> _openSelection(SelectionRequest request) async {
+    _selectionOpening = true;
+    try {
+      final scene = await _readCaptureScene();
+      if (!mounted) return;
+      // Whatever is pending *now*, which need not be the request that got us
+      // here: the controller supersedes, so a second click while the socket
+      // was answering has already cancelled ours and is itself waiting. The
+      // scene is a moment old and is equally the answer for either, so the
+      // one thing that must not happen is bailing out — that would strand the
+      // newer request with no surfaces and no listener left to raise them.
+      final pending = CaptureSelectionController.instance.pending;
+      if (pending == null) return;
+
+      _selectionRequest = pending;
+      _selectionScene = scene;
+      _selectionAnswer = null;
+      _selectionClosing.value = false;
+      for (final entry in _surfaces.entries) {
+        _selector[entry.key] = _createSelector(entry.value.monitor);
+      }
+      // Modal, like the two consent pickers: a full-screen surface that has
+      // taken the pointer must not be dismissed by something else deciding it
+      // wants the screen, and only the user's own Escape, right-click or pick
+      // may answer it.
+      _selectionHandle = PopupCoordinator.instance.open(
+        owner: _selectionOwner,
+        policy: TransientPolicy.modal,
+        onDismiss: () => _selectionClosing.value = true,
+      );
+      setState(() {});
+    } finally {
+      _selectionOpening = false;
+    }
+  }
+
+  /// The windowing environment, or an empty one.
+  ///
+  /// One read for the machine, handed to every surface — see [CaptureScene].
+  /// A tree that will not arrive or will not parse costs the *window* mode its
+  /// rectangles and nothing else: an area is measured in the surface's own
+  /// space and a whole screen needs only the connector, so both still work
+  /// with the IPC socket down.
+  Future<CaptureScene> _readCaptureScene() async {
+    final connection = widget.miracle.connection;
+    if (connection == null) return CaptureScene.empty;
+    try {
+      return CaptureScene.fromTree(await connection.getTree());
+    } catch (error) {
+      debugPrint('capture selection: could not read the window tree: $error');
+      return CaptureScene.empty;
+    }
+  }
+
+  /// Builds one selection surface: the whole of one output, on the overlay
+  /// layer, taking the keyboard so Escape reaches it.
+  LayershellWindowController _createSelector(MonitorInfo monitor) {
+    final controller = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+      monitor: monitor.gdkMonitor,
+    );
+    // Or the compositor shrinks it into the gap between the panels, and the
+    // area under the bars could neither be selected nor dimmed.
+    spanFullOutput(controller);
+    return controller;
+  }
+
+  void _onSelectionPicked(CaptureTarget target) {
+    if (!mounted) return;
+    _selectionAnswer = target;
+    _selectionClosing.value = true;
+  }
+
+  void _onSelectionCancelled() {
+    if (!mounted) return;
+    _selectionAnswer = null;
+    _selectionClosing.value = true;
+  }
+
+  /// Called by every selection surface once it has stopped painting; the first
+  /// one takes them all down and the rest find nothing to do.
+  ///
+  /// The controller is answered *here* rather than at the click, which is the
+  /// half that makes the picture right: `runCaptureFlow` starts its settle
+  /// from this moment, so the wait it spends is the wait between the surfaces
+  /// being torn down and the shutter — not between the click and the shutter,
+  /// most of which the teardown would still be inside.
+  void _onSelectionClosed() {
+    if (!mounted || _selector.isEmpty) return;
+    final removed = _selector.values.toList();
+    _selector.clear();
+    _selectionRequest = null;
+    _selectionScene = CaptureScene.empty;
+    PopupCoordinator.instance.close(_selectionHandle);
+    _selectionHandle = null;
+    final answer = _selectionAnswer;
+    _selectionAnswer = null;
+    setState(() {});
+    _destroyAfterFrame(removed);
+    CaptureSelectionController.instance.complete(answer);
+  }
+
   /// Called by [ScreencastPickerOverlay] once its fade-out has finished.
   void _onScreencastPickerClosed() {
     if (!mounted) return;
@@ -1000,6 +1168,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         removed.addAll(_surfaces.remove(key)!.controllers);
         final osd = _osd.remove(key);
         if (osd != null) removed.add(osd);
+        final selector = _selector.remove(key);
+        if (selector != null) removed.add(selector);
         final lock = _lockHost.removeMonitor(key);
         if (lock != null) removedLocks.add(lock);
         changed = true;
@@ -1122,6 +1292,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // dying State.
     FilePickerController.instance.complete(null);
     ScreencastPickerController.instance.cancel();
+    // Same debt, and the caller here is `runCaptureFlow` rather than a D-Bus
+    // method — but a future nobody will ever complete is a future nobody will
+    // ever complete.
+    CaptureSelectionController.instance.cancel();
     // Hands the power key back. The fd closing would do it anyway — logind
     // drops an inhibitor when the peer holding it disconnects, which is what
     // keeps a crashed shell from leaving a machine that will not power off —
@@ -1140,6 +1314,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ctrl.destroy();
     }
     _osd.clear();
+    for (final ctrl in _selector.values) {
+      ctrl.destroy();
+    }
+    _selector.clear();
+    PopupCoordinator.instance.close(_selectionHandle);
+    _selectionHandle = null;
     // All six root-owned overlays, symmetrically: each dispose covers the
     // window, the coordinator registration, the AppIndex bracket, and the
     // closing notifier.
@@ -1154,6 +1334,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       overlay.dispose();
     }
     _liveConfig.dispose();
+    _selectionClosing.dispose();
     super.dispose();
   }
 
@@ -1288,6 +1469,30 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               controller: osd,
               child: _windowChrome(OsdWindow(store: OsdStore.instance)),
             ),
+          // The screenshot / recording selection surface, likewise not tied to
+          // any panel — it covers the whole of this output, bars included.
+          if (_selectionRequest case final selection?)
+            if (_selector[_monitorKey(surfaces.monitor)] case final selector?)
+              LayerShellWindow(
+                key: ObjectKey(selector),
+                controller: selector,
+                child: _windowChrome(
+                  CaptureSelectorOverlay(
+                    request: selection,
+                    // The connector, not the wl_output: this is what both the
+                    // capture stack and miracle's tree key an output on, and
+                    // `DisplayScope` would answer null for the first frames
+                    // anyway — which is exactly the frames a selection surface
+                    // is drawn for.
+                    connector: surfaces.monitor.connector,
+                    scene: _selectionScene,
+                    closingNotifier: _selectionClosing,
+                    onClosed: _onSelectionClosed,
+                    onPicked: _onSelectionPicked,
+                    onCancel: _onSelectionCancelled,
+                  ),
+                ),
+              ),
         ],
         // The settings overlay opened by the global shortcut. A single window
         // (not per-monitor), so it lives outside the per-monitor loop above.
