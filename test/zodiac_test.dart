@@ -29,8 +29,12 @@ void main() {
       // The longitude comes out of a series; a caller handing it 360 exactly,
       // or a negative, must not take a card down.
       expect(signAtLongitude(360), ZodiacSign.aries);
+      // -1 wraps to 359, the last half-degree of the last arc.
       expect(signAtLongitude(-1), ZodiacSign.pisces);
-      expect(signAtLongitude(725), ZodiacSign.taurus);
+      // Two circuits and 30 degrees more.
+      expect(signAtLongitude(750), ZodiacSign.taurus);
+      // Two circuits and five degrees: still the first arc.
+      expect(signAtLongitude(725), ZodiacSign.aries);
     });
 
     test('every sign owns its own 30 degrees, in ecliptic order', () {
