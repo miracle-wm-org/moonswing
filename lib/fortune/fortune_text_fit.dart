@@ -82,11 +82,18 @@ class FortuneTextFit {
 /// — family, weight, letter spacing — is what the measurement is made with, and
 /// must be what the caller then renders with, or this answers for a different
 /// piece of text than the one on screen.
+///
+/// [textScaler] is the same rule one level up: the theme's `font_size` reaches
+/// the rendered [Text] through the ambient scaler rather than through [style],
+/// so a fit measured without it picks a rung that no longer fits the box. The
+/// size it returns is the *unscaled* one to hand to a `TextStyle`, because the
+/// scaler is applied again at paint.
 FortuneTextFit fitFortuneText({
   required String text,
   required TextStyle style,
   required Size box,
   double scale = 1.0,
+  TextScaler textScaler = TextScaler.noScaling,
   List<double> sizes = kFortuneTextSizes,
   TextDirection textDirection = TextDirection.ltr,
 }) {
@@ -103,6 +110,7 @@ FortuneTextFit fitFortuneText({
         style: style.copyWith(fontSize: size, height: kFortuneLineHeight),
       ),
       textDirection: textDirection,
+      textScaler: textScaler,
     )..layout(maxWidth: box.width);
     final fits = painter.height <= box.height;
     final lines = painter.computeLineMetrics().length;
@@ -115,7 +123,8 @@ FortuneTextFit fitFortuneText({
   // Nothing fits: set it at the floor and ellipsise at whatever the box holds.
   // Truncating beats shrinking further — a fortune set at 7px is not a fortune
   // that was shown to anybody.
-  final lines = (box.height / (smallest * kFortuneLineHeight)).floor();
+  final lines =
+      (box.height / (textScaler.scale(smallest) * kFortuneLineHeight)).floor();
   return FortuneTextFit(fontSize: smallest, maxLines: math.max(1, lines));
 }
 

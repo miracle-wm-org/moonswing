@@ -391,6 +391,7 @@ A theme file is a flat table — no section header. Every key is optional.
 name = "Gruvbox"
 
 font = "Ubuntu Sans"
+font_size = 13.0
 blur = 24.0
 
 accent               = "#458588"
@@ -430,6 +431,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | ---------------------- | ------------- | --------------------------------------------------------------------------- |
 | `name`                 | the filename  | Display name shown in the settings picker                                   |
 | `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups. Any fontconfig family name; the settings picker lists the ones installed (via `fc-list`), and falls back to a free-typed field where there is no fontconfig |
+| `font_size`            | `13.0`        | Size of the shell's body text, in logical pixels, and with it the whole type scale — labels, captions and headings keep their proportions either side of it. Clamped to 6–32. See the note below |
 | `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
 | `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series   |
 | `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
@@ -501,6 +503,14 @@ The five `popup_shadow_*` keys are a CSS box-shadow, spelled out: a color, a blu
 **A shadow makes a popup's window bigger.** A popup is its own compositor surface, sized to its content, and a shadow paints *outside* the card — so the shell grows the surface by the shadow's reach (`blur + spread`, shifted by the offset, on each side independently) and then repositions the popup by that same amount, so the card lands exactly where it would have without one. Two consequences worth knowing: a click landing in the shadow's margin hits the popup rather than passing through to what is underneath, and a very large blur on a popup near a screen edge gives the compositor more to slide back on-screen. Setting `popup_shadow_color`'s alpha to `0` removes the margin along with the shadow, restoring the exact geometry of a shell with no shadow at all.
 
 Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
+
+### About `font_size`
+
+`font_size` is the size of the shell's *body* text — the tier most of the shell is set in — and every other size follows it. A caption stays a caption and a heading stays a heading: the whole scale is multiplied through by `font_size / 13`, so `font_size = 16` makes everything about a quarter larger and `font_size = 10` makes everything smaller, in the panels and in every popup, menu, overlay and desktop widget they open. `13.0` is the shipped value, so a theme file that does not spell the key renders exactly as it always did.
+
+Two things it deliberately does not change. **Panel thickness** is `[panels.<name>] height` in `config.toml`, not a theme key — a bar left at its default height crops a much larger font, and the fix is to raise `height` alongside. **Icons** keep the size they are drawn at: a tray icon or a weather glyph is a picture, not type, and their sizes are `[modules.*]` options where they are configurable at all.
+
+Sizes are in logical pixels and clamped to 6–32. The settings editor's **Font size** field is the same key, live: the shell re-lays itself as you type, with no restart.
 
 ### About `blur`
 

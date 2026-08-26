@@ -183,31 +183,42 @@ class _CardScale {
 /// same arithmetic the layout is about to perform, done once in advance, so the
 /// answer cannot drift from the thing it is answering about.
 class _Sections {
-  const _Sections(this.scale);
+  const _Sections(this.scale, this.textScaler);
 
   final _CardScale scale;
 
+  /// The theme's `font_size`, which reaches this card's [Text] widgets through
+  /// the ambient scaler rather than through their styles — so a block's height
+  /// has to be asked for through it too, or the card sheds nothing as the type
+  /// grows and simply clips the last section it drew.
+  final TextScaler textScaler;
+
+  /// A size off the table above, at this card's size *and* the theme's. The
+  /// icon sizes deliberately do not go through it: an icon is not type, and
+  /// [WeatherIcon] draws at the size it is given.
+  double _text(double base) => textScaler.scale(scale(base));
+
   double get place =>
-      math.max(scale(_placeIconSize), scale(_placeSize) * _lineFactor) +
+      math.max(scale(_placeIconSize), _text(_placeSize) * _lineFactor) +
       scale(_placeGap);
 
-  double get temperature => scale(_temperatureSize) * _temperatureLineFactor;
+  double get temperature => _text(_temperatureSize) * _temperatureLineFactor;
 
-  double get condition => scale(_conditionSize) * _lineFactor;
+  double get condition => _text(_conditionSize) * _lineFactor;
 
-  double get highLow => scale(_highLowSize) * _lineFactor + scale(2);
+  double get highLow => _text(_highLowSize) * _lineFactor + scale(2);
 
   double get details =>
       _rule +
-      math.max(scale(_detailIconSize), scale(_detailTextSize) * _lineFactor);
+      math.max(scale(_detailIconSize), _text(_detailTextSize) * _lineFactor);
 
   double get forecast =>
       _rule +
-      scale(_forecastLabelSize) * _lineFactor +
+      _text(_forecastLabelSize) * _lineFactor +
       scale(_forecastGap) +
       scale(_forecastIconSize) +
       scale(_forecastGap) +
-      scale(_forecastTempSize) * _lineFactor;
+      _text(_forecastTempSize) * _lineFactor;
 
   /// A hairline and the air either side of it.
   double get _rule => scale(_ruleGapAbove) + 1 + scale(_ruleGapBelow);
@@ -308,6 +319,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                     reading: reading,
                     expanded: expanded,
                     scale: scale,
+                    textScaler: MediaQuery.textScalerOf(context),
                     width: width,
                     height: height,
                   ),
@@ -325,6 +337,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     required WeatherReading? reading,
     required bool expanded,
     required _CardScale scale,
+    required TextScaler textScaler,
     required double width,
     required double height,
   }) {
@@ -350,7 +363,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     // wanted answer — then the day's high and low, and the detail row is what
     // survives longest, because "what does it feel like out there" is the
     // question somebody puts a weather widget on their desktop for.
-    final sections = _Sections(scale);
+    final sections = _Sections(scale, textScaler);
     final place = store.place;
     final forecast = store.forecast;
     final margin = scale(_fitMargin);
@@ -382,7 +395,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       showDetails: showDetails,
       showHighLow: showHighLow,
       showForecast: showForecast,
-      forecastDays: _forecastDays(width, scale),
+      forecastDays: _forecastDays(width, scale, textScaler),
     );
   }
 
@@ -395,9 +408,12 @@ class _WeatherWidgetState extends State<WeatherWidget> {
   /// budget scales with the type, or a card twice the size would answer
   /// "twice as many days" rather than "the same days, legibly". Fewer days is
   /// better than a strip of clipped ones.
-  int _forecastDays(double width, _CardScale scale) {
+  int _forecastDays(double width, _CardScale scale, TextScaler textScaler) {
     final content = width - 2 * scale(_basePadding);
-    return (content / scale(48)).floor().clamp(0, 7);
+    // Through the text scaler as well: the budget is mostly the day label and
+    // the temperature under it, so a theme set two sizes up needs the same
+    // column wider rather than the same number of narrower ones.
+    return (content / textScaler.scale(scale(48))).floor().clamp(0, 7);
   }
 }
 
@@ -821,6 +837,10 @@ double _measureText(BuildContext context, String text, double size) {
   final painter = TextPainter(
     text: TextSpan(text: text, style: style),
     textDirection: TextDirection.ltr,
+    // The theme's `font_size` reaches the Text widgets beside this through the
+    // ambient TextScaler rather than through their styles, so a measurement
+    // that left it out would answer for a smaller card than the one drawn.
+    textScaler: MediaQuery.textScalerOf(context),
     maxLines: 1,
   )..layout();
   final width = painter.width;
