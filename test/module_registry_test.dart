@@ -8,6 +8,8 @@ import 'package:graceful_shell/modules/launcher.dart';
 import 'package:graceful_shell/modules/media_player.dart';
 import 'package:graceful_shell/modules/network.dart';
 import 'package:graceful_shell/modules/notifications.dart';
+import 'package:graceful_shell/modules/screen_recorder.dart';
+import 'package:graceful_shell/modules/screenshot.dart';
 import 'package:graceful_shell/modules/sound_control.dart';
 import 'package:graceful_shell/modules/system.dart';
 import 'package:graceful_shell/modules/system_monitor.dart';
@@ -34,6 +36,8 @@ void main() {
       systemModule,
       systemTrayModule,
       launcherModule,
+      screenshotModule,
+      screenRecorderModule,
     ];
     for (final module in modules) {
       Module.register(module);
@@ -52,6 +56,8 @@ void main() {
       'system',
       'system_tray',
       'launcher',
+      'screenshot',
+      'screen_recorder',
     ];
     for (final key in expected) {
       expect(Module.lookup(key), isNotNull, reason: key);

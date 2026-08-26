@@ -1,0 +1,250 @@
+// What the shell's own screenshot and recording features capture.
+//
+// Deliberately Flutter-free, the rule `screencast/pick_types.dart` states for
+// its half of this: everything below the UI — the miracle walk, the toplevel
+// match, the grab and the recorder — imports these without pulling Flutter in,
+// which is what keeps the geometry a plain unit test.
+//
+// One coordinate rule runs through the whole file, and getting it wrong is the
+// difference between a crop and a crop of somewhere else. Everything the user
+// selects is in the compositor's **logical** pixels, because that is what
+// miracle's IPC reports and what a layer-shell surface is laid out in; a
+// captured buffer is in **physical** pixels, because that is what the
+// compositor copies. The two differ by the output's scale, fractional scales
+// included, so a [CaptureRect] is always logical and always carries the
+// logical [CaptureSize] it was measured against — [CaptureRect.scaledInto] is
+// the one place the conversion happens, and it derives the factor from the
+// buffer it is handed rather than from any advertised scale.
+
+/// A size in logical pixels.
+class CaptureSize {
+  const CaptureSize(this.width, this.height);
+
+  final int width;
+  final int height;
+
+  bool get isEmpty => width <= 0 || height <= 0;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CaptureSize && other.width == width && other.height == height;
+
+  @override
+  int get hashCode => Object.hash(width, height);
+
+  @override
+  String toString() => '${width}x$height';
+}
+
+/// A rectangle in logical pixels, either global (miracle's own space) or
+/// relative to one output's top-left corner. Which one is always named by the
+/// field holding it.
+class CaptureRect {
+  const CaptureRect(this.x, this.y, this.width, this.height);
+
+  /// The rectangle spanned by two corners, in either order — a drag that ends
+  /// up and to the left of where it started is the same selection as one that
+  /// ends down and to the right.
+  ///
+  /// Spelled with ternaries in the initialiser list rather than as a factory
+  /// so it stays `const`: nothing here needs that today, but a geometry type
+  /// that cannot appear in a constant is a type every test has to build at
+  /// run time.
+  const CaptureRect.fromCorners(int x0, int y0, int x1, int y1)
+      : x = x0 < x1 ? x0 : x1,
+        y = y0 < y1 ? y0 : y1,
+        width = x1 > x0 ? x1 - x0 : x0 - x1,
+        height = y1 > y0 ? y1 - y0 : y0 - y1;
+
+  final int x;
+  final int y;
+  final int width;
+  final int height;
+
+  int get right => x + width;
+  int get bottom => y + height;
+
+  bool get isEmpty => width <= 0 || height <= 0;
+
+  CaptureSize get size => CaptureSize(width, height);
+
+  bool contains(int pointX, int pointY) =>
+      pointX >= x && pointX < right && pointY >= y && pointY < bottom;
+
+  CaptureRect translate(int dx, int dy) =>
+      CaptureRect(x + dx, y + dy, width, height);
+
+  /// The overlap with [other], or an empty rect when they do not meet.
+  CaptureRect intersect(CaptureRect other) {
+    final left = x > other.x ? x : other.x;
+    final top = y > other.y ? y : other.y;
+    final r = right < other.right ? right : other.right;
+    final b = bottom < other.bottom ? bottom : other.bottom;
+    if (r <= left || b <= top) return const CaptureRect(0, 0, 0, 0);
+    return CaptureRect(left, top, r - left, b - top);
+  }
+
+  /// This rectangle mapped from [logical] space into a capture buffer of
+  /// [bufferWidth] x [bufferHeight], clipped to the buffer.
+  ///
+  /// The factor comes from the buffer the compositor actually produced rather
+  /// than from the output's advertised `scale`: a fractional-scaled output
+  /// reports 1.5 and hands back a buffer whose ratio is whatever rounding it
+  /// settled on, and a crop off by that rounding shows a sliver of the wrong
+  /// window down one edge. Returns null when either space is degenerate —
+  /// there is no honest mapping, and the caller keeps the whole frame.
+  CaptureRect? scaledInto(
+    CaptureSize logical,
+    int bufferWidth,
+    int bufferHeight,
+  ) {
+    if (logical.isEmpty || bufferWidth <= 0 || bufferHeight <= 0) return null;
+    final sx = bufferWidth / logical.width;
+    final sy = bufferHeight / logical.height;
+    final left = (x * sx).round();
+    final top = (y * sy).round();
+    final scaled = CaptureRect(
+      left,
+      top,
+      (right * sx).round() - left,
+      (bottom * sy).round() - top,
+    );
+    final clipped = scaled.intersect(CaptureRect(0, 0, bufferWidth, bufferHeight));
+    return clipped.isEmpty ? null : clipped;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is CaptureRect &&
+      other.x == x &&
+      other.y == y &&
+      other.width == width &&
+      other.height == height;
+
+  @override
+  int get hashCode => Object.hash(x, y, width, height);
+
+  @override
+  String toString() => 'CaptureRect($x, $y, ${width}x$height)';
+}
+
+/// What a capture is of: one whole output, one window, or a rectangle the user
+/// dragged out.
+///
+/// Every variant names an [connector] — a `wl_output.name`, the same string
+/// miracle's `OutputNode.name` and GDK's connector carry — because even a
+/// window capture needs a fallback source when the compositor cannot hand us a
+/// foreign-toplevel handle for it, and that fallback is its output cropped to
+/// [crop].
+sealed class CaptureTarget {
+  const CaptureTarget();
+
+  /// The output this is captured from.
+  String get connector;
+
+  /// The output's logical size, which [crop] is expressed against.
+  CaptureSize get outputSize;
+
+  /// The region of the output to keep, in that output's *local* logical
+  /// pixels, or null for all of it.
+  CaptureRect? get crop;
+
+  /// The `ext_foreign_toplevel_handle_v1.identifier` to capture directly, when
+  /// there is one. Preferred over [crop] wherever it is set: a toplevel
+  /// capture follows the window as it moves and resizes, and shows it whole
+  /// even when something is stacked on top of it.
+  String? get toplevelIdentifier => null;
+
+  /// One line for a notification body or the recorder's readout.
+  String get label;
+}
+
+/// A whole output.
+class OutputCapture extends CaptureTarget {
+  const OutputCapture({required this.connector, required this.outputSize});
+
+  @override
+  final String connector;
+
+  @override
+  final CaptureSize outputSize;
+
+  @override
+  CaptureRect? get crop => null;
+
+  @override
+  String get label => connector;
+}
+
+/// One window.
+///
+/// [toplevelIdentifier] is null on a compositor without
+/// `ext-foreign-toplevel-list`, and on a window the match could not resolve
+/// unambiguously — see `toplevel_match.dart`. Either way [crop] answers, at
+/// the cost of a rectangle that does not follow the window.
+class WindowCapture extends CaptureTarget {
+  const WindowCapture({
+    required this.connector,
+    required this.outputSize,
+    required this.crop,
+    required this.title,
+    required this.appId,
+    this.toplevelIdentifier,
+  });
+
+  @override
+  final String connector;
+
+  @override
+  final CaptureSize outputSize;
+
+  @override
+  final CaptureRect crop;
+
+  @override
+  final String? toplevelIdentifier;
+
+  final String title;
+  final String appId;
+
+  /// Whether this capture follows the window rather than a fixed rectangle.
+  bool get followsWindow => toplevelIdentifier != null;
+
+  /// This capture with [identifier] as its foreign-toplevel handle.
+  ///
+  /// The selection surface cannot fill it in — it is a widget, and the
+  /// toplevel list is on the capture connection's side of the FFI — so the
+  /// pick carries the rectangle and the identifier is joined on afterwards.
+  WindowCapture withToplevelIdentifier(String? identifier) => WindowCapture(
+        connector: connector,
+        outputSize: outputSize,
+        crop: crop,
+        title: title,
+        appId: appId,
+        toplevelIdentifier: identifier,
+      );
+
+  @override
+  String get label => title.isNotEmpty ? title : (appId.isNotEmpty ? appId : 'Window');
+}
+
+/// A rectangle the user dragged out on one output.
+class AreaCapture extends CaptureTarget {
+  const AreaCapture({
+    required this.connector,
+    required this.outputSize,
+    required this.crop,
+  });
+
+  @override
+  final String connector;
+
+  @override
+  final CaptureSize outputSize;
+
+  @override
+  final CaptureRect crop;
+
+  @override
+  String get label => '${crop.width} x ${crop.height}';
+}

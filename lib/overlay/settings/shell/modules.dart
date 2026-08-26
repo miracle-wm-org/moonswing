@@ -1,5 +1,12 @@
 import 'package:flutter/widgets.dart';
 
+import 'package:graceful_shell/capture/capture_config.dart'
+    show
+        RecorderConfig,
+        ScreenshotConfig,
+        kDefaultRecordingDirectory,
+        kDefaultScreenshotDirectory,
+        kRecorderContainers;
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/battery.dart' show BatteryConfig;
 import 'package:graceful_shell/modules/clock.dart' show ClockConfig;
@@ -15,7 +22,7 @@ import 'package:graceful_shell/system/system_monitor_config.dart'
     show SystemMonitorConfig;
 
 /// Which control edits a module setting row.
-enum _Kind { toggle, number, segmented, stringList, weatherLocation }
+enum _Kind { toggle, number, segmented, text, stringList, weatherLocation }
 
 /// One `[modules.*]` row: its config path, its label, and which control edits
 /// it.
@@ -51,6 +58,22 @@ class _ModuleSetting {
   })  : kind = _Kind.segmented,
         isInt = false,
         addHint = null;
+
+  /// A free-typed string — a path, in the only two rows that use it.
+  ///
+  /// Deliberately not a file picker: these name a *directory to create*, and
+  /// the picker browses what already exists, so the first recording into a
+  /// folder that is not there yet could not be configured at all. The default
+  /// is shown as the placeholder rather than written into the field, so
+  /// clearing it goes back to the default instead of to nowhere.
+  const _ModuleSetting.text(
+    this.path,
+    this.label, {
+    this.addHint,
+  })  : kind = _Kind.text,
+        defaultValue = null,
+        isInt = false,
+        options = null;
 
   const _ModuleSetting.stringList(
     this.path,
@@ -89,7 +112,8 @@ class _ModuleSetting {
   /// The choices for a [_Kind.segmented] row.
   final List<String>? options;
 
-  /// Placeholder for a [_Kind.stringList] row's free-form adder.
+  /// Placeholder text: a [_Kind.stringList] row's free-form adder, or the
+  /// compiled-in default a [_Kind.text] row falls back to when it is empty.
   final String? addHint;
 }
 
@@ -250,6 +274,62 @@ final List<_ModuleGroup> _moduleGroups = [
       isInt: true,
     ),
   ]),
+  _ModuleGroup('Screenshot', [
+    const _ModuleSetting.text(
+      ['modules', 'screenshot', 'directory'],
+      'Save to',
+      addHint: '~/$kDefaultScreenshotDirectory',
+    ),
+    _ModuleSetting.toggle(
+      const ['modules', 'screenshot', 'copy_to_clipboard'],
+      'Copy to clipboard',
+      defaultValue: const ScreenshotConfig().copyToClipboard,
+    ),
+    _ModuleSetting.number(
+      const ['modules', 'screenshot', 'delay_seconds'],
+      'Delay (seconds)',
+      defaultValue: const ScreenshotConfig().delaySeconds,
+      isInt: true,
+    ),
+    _ModuleSetting.toggle(
+      const ['modules', 'screenshot', 'show_cursor'],
+      'Include the pointer',
+      defaultValue: const ScreenshotConfig().showCursor,
+    ),
+  ]),
+  _ModuleGroup('Screen recorder', [
+    const _ModuleSetting.text(
+      ['modules', 'screen_recorder', 'directory'],
+      'Save to',
+      addHint: '~/$kDefaultRecordingDirectory',
+    ),
+    _ModuleSetting.segmented(
+      const ['modules', 'screen_recorder', 'container'],
+      'Format',
+      options: kRecorderContainers,
+      defaultValue: const RecorderConfig().container,
+    ),
+    _ModuleSetting.number(
+      const ['modules', 'screen_recorder', 'fps'],
+      'Frames per second',
+      defaultValue: const RecorderConfig().fps,
+      isInt: true,
+    ),
+    // Lower is better and larger. Named as the encoder names it, because it is
+    // handed to ffmpeg verbatim and a "quality: 8/10" scale invented here
+    // would be a second thing to explain.
+    _ModuleSetting.number(
+      const ['modules', 'screen_recorder', 'quality'],
+      'Quality (CRF, lower is better)',
+      defaultValue: const RecorderConfig().quality,
+      isInt: true,
+    ),
+    _ModuleSetting.toggle(
+      const ['modules', 'screen_recorder', 'show_cursor'],
+      'Include the pointer',
+      defaultValue: const RecorderConfig().showCursor,
+    ),
+  ]),
 ];
 
 /// Per-module options: every row is declared in [_moduleGroups] and rendered
@@ -297,6 +377,13 @@ class ModulesSection extends StatelessWidget {
           options: setting.options!,
           value: store.get<String>(path) ?? setting.defaultValue as String,
           onChanged: (v) => store.set(path, v),
+        );
+      case _Kind.text:
+        return SettingsTextField(
+          initial: store.get<String>(path) ?? '',
+          hint: setting.addHint,
+          width: 220,
+          onChanged: (value) => store.set(path, value),
         );
       case _Kind.stringList:
         return SettingsStringListEditor(

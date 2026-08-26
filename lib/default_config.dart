@@ -73,7 +73,7 @@ layer = "top"
 [panels.top.layout]
 left = ["workspaces"]
 center = ["clock"]
-right = ["sound_control", "system_tray", "battery", "weather", "system"]
+right = ["screenshot", "screen_recorder", "sound_control", "system_tray", "battery", "weather", "system"]
 
 [panels.bottom]
 height = 32
@@ -112,6 +112,22 @@ expanded_spacing = 6
 [modules.system_monitor]
 poll_seconds = 2
 temp_unit = "celsius"
+
+# Stills go to ~/Pictures/Screenshots and recordings to ~/Videos/Screencasts
+# unless `directory` names somewhere else; a leading `~` is expanded.
+[modules.screenshot]
+copy_to_clipboard = true
+delay_seconds = 0
+show_cursor = false
+
+# `fps` is the rate written to the file, not the rate the compositor produces:
+# a still screen sends no frames at all, and the recorder repeats the last one
+# so the video runs at the speed of the thing it recorded.
+[modules.screen_recorder]
+fps = 30
+container = "mp4"
+quality = 23
+show_cursor = true
 
 [background]
 fit = "fill"
