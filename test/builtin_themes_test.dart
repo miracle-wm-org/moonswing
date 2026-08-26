@@ -26,7 +26,6 @@ void main() {
     final expected = {
       ...ThemeConfig.colorKeys,
       'font',
-      'blur',
       'panel_gradient',
       'panel_margin',
       'panel_radius',

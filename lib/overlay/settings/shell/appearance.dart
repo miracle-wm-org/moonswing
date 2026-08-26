@@ -341,21 +341,12 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   'always sat; a fully transparent shadow colour turns it off.',
                 ),
                 const SizedBox(height: 8),
-                SettingsRow(
-                  label: 'Overlay blur',
-                  control: SettingsNumberField(
-                    key: ValueKey('blur-$active'),
-                    value: current['blur'] as num? ?? 24,
-                    isInt: false,
-                    onChanged: (v) =>
-                        _themes.edit('blur', v.toDouble().clamp(0.0, 100.0)),
-                  ),
-                ),
                 const SettingsHint(
-                  'Blur softens the wash behind the settings and launcher '
-                  'panels. It cannot blur the desktop itself — the compositor '
-                  'owns what is under a shell surface — so translucency comes '
-                  'from the alpha channel of the colours below.',
+                  'The wash behind the settings and launcher panels is the '
+                  'overlay scrim below. There is no blur control: a shell '
+                  'surface is transparent and the compositor owns what is '
+                  'under it, so translucency comes from the alpha channel of '
+                  'the colours below.',
                 ),
                 const SizedBox(height: 8),
                 for (final entry in _colorLabels.entries)

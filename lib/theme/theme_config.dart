@@ -200,13 +200,13 @@ class ThemeConfig {
   /// settings panel, the launcher card).
   final Color scrim;
 
-  /// Gaussian sigma for the overlay backdrops, or 0 to skip the filter.
-  ///
-  /// This blurs what *Flutter* has composited behind the filter, not the
-  /// desktop: a layer-shell surface is transparent and the compositor owns
-  /// everything under it, and Mir exposes no blur protocol. Translucency over
-  /// the desktop comes from alpha in the colours above.
-  final double blur;
+  // There is no `blur` key. A `BackdropFilter` reaches only what Flutter has
+  // already painted beneath it, and the overlay scaffold is the first thing
+  // painted into its own window — under it is a transparent layer-shell
+  // surface whose contents belong to the compositor, and Mir exposes no blur
+  // protocol. So the filter had an empty backdrop and changed no pixel, while
+  // every animated frame paid for a full-output Gaussian. Translucency over
+  // the desktop comes from alpha in the colours above.
 
   final String fontFamily;
 
@@ -237,7 +237,6 @@ class ThemeConfig {
     this.popupShadowOffsetX = 0.0,
     this.popupShadowOffsetY = 6.0,
     this.scrim = const Color(0x882C2C2C),
-    this.blur = 24.0,
     this.fontFamily = 'Ubuntu Sans',
   });
 
@@ -249,8 +248,6 @@ class ThemeConfig {
   /// built once and never mutated.
   static final List<_ThemeKey> _keys = [
     _ThemeKey('font', _ThemeKeyKind.text, (t) => t.fontFamily),
-    _ThemeKey('blur', _ThemeKeyKind.number, (t) => t.blur,
-        min: 0.0, max: 100.0),
     _ThemeKey('accent', _ThemeKeyKind.color, (t) => t.accent),
     _ThemeKey('foreground', _ThemeKeyKind.color, (t) => t.foreground),
     _ThemeKey('surface_hover', _ThemeKeyKind.color, (t) => t.surfaceHover),
@@ -329,7 +326,6 @@ class ThemeConfig {
 
     return ThemeConfig(
       fontFamily: v('font'),
-      blur: v('blur'),
       accent: v('accent'),
       foreground: v('foreground'),
       surfaceHover: v('surface_hover'),
@@ -366,7 +362,7 @@ class ThemeConfig {
       {for (final k in _keys) k.key: k.encode(this)};
 
   /// The TOML keys [toMap] writes, colours only, in the order the settings
-  /// editor lists them — `font` and `blur` have their own controls.
+  /// editor lists them — `font` has its own control.
   static final List<String> colorKeys = List<String>.unmodifiable([
     for (final k in _keys)
       if (k.kind == _ThemeKeyKind.color) k.key,

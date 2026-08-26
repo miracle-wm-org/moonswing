@@ -34,7 +34,6 @@ void main() {
         'panel_border_width': -0.5,
         'popup_radius': -1.0,
         'popup_border_width': -0.5,
-        'blur': -10.0,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
@@ -43,7 +42,6 @@ void main() {
       // card with no rim — and a negative one is the nearest thing to it.
       expect(theme.popupRadius, 0.0);
       expect(theme.popupBorderWidth, 0.0);
-      expect(theme.blur, 0.0);
     });
 
     test('an absurd value clamps to the ceiling', () {
@@ -53,14 +51,12 @@ void main() {
         'panel_border_width': 999,
         'popup_radius': 1e9,
         'popup_border_width': 999,
-        'blur': 5000.0,
       });
       expect(theme.panelMargin, 256);
       expect(theme.panelRadius, 64.0);
       expect(theme.panelBorderWidth, 16.0);
       expect(theme.popupRadius, 64.0);
       expect(theme.popupBorderWidth, 16.0);
-      expect(theme.blur, 100.0);
     });
 
     test('NaN falls back rather than propagating', () {
@@ -73,14 +69,12 @@ void main() {
         'panel_border_width': double.nan,
         'popup_radius': double.nan,
         'popup_border_width': double.nan,
-        'blur': double.nan,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
-      expect(theme.blur, 24.0);
     });
 
     test('infinity falls back rather than clamping', () {
@@ -91,13 +85,11 @@ void main() {
         'panel_radius': double.negativeInfinity,
         'popup_radius': double.infinity,
         'popup_border_width': double.negativeInfinity,
-        'blur': double.infinity,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
-      expect(theme.blur, 24.0);
     });
 
     test('a malformed border colour costs only that key', () {
