@@ -52,6 +52,17 @@ dependencies:
   # settings location row (`overlay/settings/shell/weather_location.dart`).
   # Meteocons is a weather set and has no map pin.
   material_symbols_icons: ^4.2960.0
+  # Two callers, one of them the reason this is a `dependencies` entry rather
+  # than a `dev_dependencies` one. `weather_icons_animated` renders the
+  # Meteocons through it and does not re-export it, so
+  # `test/weather_icons_test.dart` names `SvgAssetLoader` to pin which of the
+  # pack's seven variants each of `WeatherIcon`'s three renderings reaches for;
+  # that alone kept it a test-only dependency. `lib/tux/tux_art.dart` now names
+  # `SvgPicture.string` — Tux is an SVG *string constant*, embedded the way
+  # `theme/builtin_themes.dart` embeds the shipped palettes, so this stays true
+  # of the shell: there is no `assets:` section, and nothing here is a file the
+  # Makefile or the snap has to install.
+  flutter_svg: ^2.2.0
   # The loading indicators. `SpinKitRing` is what `LoadingIndicator`
   # (lib/loading_indicator.dart) renders, and that widget is the only thing in
   # the shell that shows an operation is in flight — see the comment there for
@@ -79,12 +90,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  # `weather_icons_animated` renders through this and does not re-export it;
-  # `test/weather_icons_test.dart` names `SvgAssetLoader` to pin which of the
-  # pack's seven variants each of `WeatherIcon`'s three renderings reaches for,
-  # which is otherwise a rule that lives only in a comment. Not a `dependencies`
-  # entry: nothing under `lib/` names it.
-  flutter_svg: ^2.2.0
   # test/wl_interfaces_test.dart diffs the hand-written Wayland interface
   # tables against the protocol XMLs in protocol/.
   xml: ^6.5.0
