@@ -53,11 +53,13 @@ import 'package:graceful_shell/shell_services.dart';
 import 'package:graceful_shell/shell_text_root.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/astrology/astrology_store.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/desktop/app_chooser.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
+import 'package:graceful_shell/desktop/widgets/astrology_widget.dart';
 import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/desktop/widgets/media_player_widget.dart';
 import 'package:graceful_shell/desktop/widgets/fortune_widget.dart';
@@ -100,6 +102,7 @@ void main() async {
   DesktopWidgetRegistry.register(moonDesktopWidget);
   DesktopWidgetRegistry.register(fortuneDesktopWidget);
   DesktopWidgetRegistry.register(tuxDesktopWidget);
+  DesktopWidgetRegistry.register(astrologyDesktopWidget);
 
   // AppConfig.load() writes the default config on first run and applies the
   // module subtables; the shared ConfigStore then reads that same file and
@@ -124,6 +127,12 @@ void main() async {
   // Configures the system stats store, but does not start it polling — the
   // first lease (the bar module, or the monitor tab being opened) does that.
   startSystemStatsService();
+
+  // Applies `[astrology]` and keeps it applied. Like the stats store this
+  // configures without polling: the sign is arithmetic and the horoscope is
+  // fetched by the first lease, so a desktop with no astrology widget on it
+  // never opens a socket for this.
+  startAstrologyService(store);
 
   screencastLog = (message) => debugPrint('screencast: $message');
 

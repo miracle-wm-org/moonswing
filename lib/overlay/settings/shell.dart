@@ -9,6 +9,7 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/settings/shell/appearance.dart';
+import 'package:graceful_shell/overlay/settings/shell/astrology.dart';
 import 'package:graceful_shell/overlay/settings/shell/background.dart';
 import 'package:graceful_shell/overlay/settings/shell/calendar.dart';
 import 'package:graceful_shell/overlay/settings/shell/desktop.dart';
@@ -151,6 +152,12 @@ const List<_ShellCategory> _shellCategories = [
     icon: FontAwesomeIcons.calendarDays,
     build: _buildCalendar,
   ),
+  _ShellCategory(
+    title: 'Astrology',
+    subtitle: 'Birthday and horoscope',
+    icon: FontAwesomeIcons.circleNodes,
+    build: _buildAstrology,
+  ),
 ];
 
 Widget _buildAppearance(ConfigStore store) => AppearanceSection(store: store);
@@ -160,6 +167,7 @@ Widget _buildBackground(ConfigStore store) => BackgroundSection(store: store);
 Widget _buildDesktop(ConfigStore store) => DesktopSection(store: store);
 Widget _buildLock(ConfigStore store) => LockSection(store: store);
 Widget _buildCalendar(ConfigStore store) => CalendarSection(store: store);
+Widget _buildAstrology(ConfigStore store) => AstrologySection(store: store);
 
 /// Landing view: the "Graceful Shell" header plus a tappable row per category.
 class _ShellHome extends StatelessWidget {
