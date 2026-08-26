@@ -96,4 +96,154 @@ void main() {
       expect(dirs, ['Alpha', 'beta']);
     });
   });
+
+  group('matchesSearch', () {
+    test('an empty query matches everything', () {
+      expect(matchesSearch('photo.png', ''), isTrue);
+      expect(matchesSearch('photo.png', '   '), isTrue);
+    });
+
+    test('matches a substring without regard to case', () {
+      expect(matchesSearch('Sunset-4K.PNG', 'sunset'), isTrue);
+      expect(matchesSearch('Sunset-4K.PNG', 'PNG'), isTrue);
+      expect(matchesSearch('Sunset-4K.PNG', 'moon'), isFalse);
+    });
+
+    test('every token has to appear, in any order', () {
+      expect(matchesSearch('4K-sunset-02.png', 'sun 4k'), isTrue);
+      expect(matchesSearch('4K-sunset-02.png', '4k sun'), isTrue);
+      expect(matchesSearch('4K-sunset-02.png', 'sun 8k'), isFalse);
+    });
+  });
+
+  group('filterEntries', () {
+    PickerEntry entry(String path, {bool dir = false}) => PickerEntry(
+          path: path,
+          isDirectory: dir,
+          size: dir ? -1 : 10,
+          modified: null,
+        );
+
+    final entries = [
+      entry('/w/Pictures', dir: true),
+      entry('/w/sunset.png'),
+      entry('/w/notes.txt'),
+      entry('/w/moon.PNG'),
+    ];
+
+    test('the type filter reaches files and not folders', () {
+      final kept = filterEntries(
+        entries,
+        filter: FilePickerFilter.images,
+        includeDirectories: true,
+      ).map((e) => e.name).toList();
+      // Pictures survives despite having no extension to match.
+      expect(kept, ['Pictures', 'sunset.png', 'moon.PNG']);
+    });
+
+    test('folders are dropped entirely when they are not selectable', () {
+      final kept = filterEntries(
+        entries,
+        filter: FilePickerFilter.all,
+        includeDirectories: false,
+      ).map((e) => e.name).toList();
+      expect(kept, ['sunset.png', 'notes.txt', 'moon.PNG']);
+    });
+
+    test('the search reaches folders as well as files', () {
+      final kept = filterEntries(
+        entries,
+        filter: FilePickerFilter.all,
+        includeDirectories: true,
+        query: 'PIC',
+      ).map((e) => e.name).toList();
+      expect(kept, ['Pictures']);
+    });
+
+    test('search and type filter compose', () {
+      final kept = filterEntries(
+        entries,
+        filter: FilePickerFilter.images,
+        includeDirectories: false,
+        query: 'moon',
+      ).map((e) => e.name).toList();
+      expect(kept, ['moon.PNG']);
+    });
+  });
+
+  group('listDirectory', () {
+    late Directory root;
+
+    setUp(() {
+      root = Directory.systemTemp.createTempSync('file_picker_list_test');
+      Directory('${root.path}/Alpha').createSync();
+      File('${root.path}/apple.txt').writeAsStringSync('hello');
+      File('${root.path}/.hidden').writeAsStringSync('x');
+    });
+
+    tearDown(() => root.deleteSync(recursive: true));
+
+    test('folders first, then files, each statted', () {
+      final entries = listDirectory(root.path);
+      expect(entries.map((e) => e.name).toList(), ['Alpha', 'apple.txt']);
+
+      final dir = entries.first;
+      expect(dir.isDirectory, isTrue);
+      expect(dir.size, -1);
+      expect(dir.modified, isNotNull);
+
+      final file = entries.last;
+      expect(file.isDirectory, isFalse);
+      expect(file.size, 5);
+      expect(file.modified, isNotNull);
+    });
+
+    test('honours showHidden', () {
+      expect(
+        listDirectory(root.path, showHidden: true).map((e) => e.name),
+        contains('.hidden'),
+      );
+    });
+
+    test('a missing directory lists as empty', () {
+      expect(listDirectory('${root.path}/nope'), isEmpty);
+    });
+  });
+
+  group('the list form\'s columns', () {
+    PickerEntry sized(int bytes) => PickerEntry(
+          path: '/w/a.bin',
+          isDirectory: false,
+          size: bytes,
+          modified: null,
+        );
+
+    test('a folder says so and an unreadable entry says nothing', () {
+      expect(
+        formatEntrySize(const PickerEntry(
+          path: '/w/d',
+          isDirectory: true,
+          size: -1,
+          modified: null,
+        )),
+        'Folder',
+      );
+      expect(formatEntrySize(sized(-1)), '');
+      expect(formatEntrySize(sized(2048)), '2.0K');
+    });
+
+    test('today is a clock, anything else is an ISO date', () {
+      final now = DateTime(2026, 8, 26, 12, 0);
+      expect(formatEntryModified(DateTime(2026, 8, 26, 9, 5), now: now), '09:05');
+      expect(
+        formatEntryModified(DateTime(2026, 8, 25, 23, 59), now: now),
+        '2026-08-25',
+      );
+      // Same day-of-year, a year back: the year is what tells them apart.
+      expect(
+        formatEntryModified(DateTime(2025, 8, 26, 9, 5), now: now),
+        '2025-08-26',
+      );
+    });
+  });
 }
