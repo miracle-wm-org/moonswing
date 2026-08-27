@@ -11,6 +11,7 @@ import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
 import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/desktop/widgets/desktop_widget_frame.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The interactive icon grid drawn over the wallpaper.
@@ -95,8 +96,6 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// question in O(1). See [_syncResolved].
   DesktopConfig? _resolvedConfig;
 
-  String? _hovered;
-
   /// Identifies the Stack the icons sit in, so a pointer position can be
   /// converted from global to surface-local coordinates.
   final GlobalKey _surfaceKey = GlobalKey();
@@ -110,10 +109,6 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// selection when it was pressed as a member of one. Local for [_dragPosition]'s
   /// reason — it is derived from the selection at press time and never persisted.
   Set<String> _dragGroup = const {};
-
-  /// The id of the widget the pointer is over, so its rim and its resize grips
-  /// are drawn for it alone.
-  String? _hoveredWidget;
 
   /// How far the widget under a drag has been pulled from its laid-out
   /// position. Per-frame and never persisted, [_dragPosition]'s rule.
@@ -170,6 +165,7 @@ class DesktopLayerState extends State<DesktopLayer> {
     super.initState();
     widget.store.addListener(_onStoreChanged);
     _syncResolved();
+    _syncLayerState();
   }
 
   @override
@@ -180,6 +176,7 @@ class DesktopLayerState extends State<DesktopLayer> {
       widget.store.addListener(_onStoreChanged);
     }
     _syncResolved();
+    _syncLayerState();
   }
 
   @override
@@ -202,20 +199,73 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// sent once per rename rather than on every store notification.
   bool _keyboardRequested = false;
 
+  /// A store notification, and the one place that decides whether it is this
+  /// layer's business.
+  ///
+  /// **Most of them are not.** `selectAll` is what the rubber band calls on
+  /// every pan update, so an icon selection is the one store mutation that
+  /// arrives at pointer rate — and it used to rebuild all of this: every icon
+  /// tile, and every widget card, whose builders measure their own text on the
+  /// way past (`fitFortuneText` walks a ladder of `TextPainter` layouts; the
+  /// weather card's `_Sections` measures every row it might draw). A tile
+  /// subscribes to its own flag through [_SelectedIcon] instead, and
+  /// [_syncLayerState] answers whether anything the layer itself renders has
+  /// moved. See its own doc for what is deliberately missing from it.
   void _onStoreChanged() {
     if (!mounted) return;
-    setState(() {
-      _syncResolved();
-      // Only between gestures: a drag notifies this store on every crossing
-      // and re-stat'ing every icon on the way past is exactly the work the
-      // cache exists to avoid.
-      if (!_gestureInFlight) _refreshMissing();
-    });
+    _syncResolved();
+    var dirty = _syncLayerState();
+    // Only between gestures: a drag notifies this store on every crossing and
+    // re-stat'ing every icon on the way past is exactly the work the cache
+    // exists to avoid.
+    if (!_gestureInFlight && _refreshMissing()) dirty = true;
+    if (dirty) setState(() {});
     _syncKeyboard();
   }
 
-  /// Re-checks which targets are gone. See [_missing].
-  void _refreshMissing() {
+  /// The store state this layer's *own* build reads, as of its last build.
+  ///
+  /// The icon selection and the hover are the two things missing from it, and
+  /// both are missing on purpose: they are what a pointer changes while it
+  /// moves, and each is now owned by the one tile that draws it.
+  DesktopConfig? _lastConfig;
+  String? _lastDraggingTarget;
+  String? _lastDraggingWidget;
+  String? _lastSelectedWidget;
+  String? _lastRenaming;
+
+  /// Whether anything in that set has moved since the last build.
+  ///
+  /// The config is compared by *identity*, which is complete and O(1) for the
+  /// same reason [_layoutFor] keys on it: [DesktopStore] replaces the whole
+  /// object on every mutation and never edits one in place. The rest are the
+  /// store's once-per-gesture flags — a drag beginning or ending, a widget
+  /// being picked, a rename opening — none of which a pointer move touches.
+  bool _syncLayerState() {
+    final store = widget.store;
+    final config = store.config;
+    final draggingTarget = store.draggingTarget;
+    final draggingWidget = store.draggingWidget;
+    final selectedWidget = store.selectedWidget;
+    final renaming = store.renamingTarget;
+    if (identical(config, _lastConfig) &&
+        draggingTarget == _lastDraggingTarget &&
+        draggingWidget == _lastDraggingWidget &&
+        selectedWidget == _lastSelectedWidget &&
+        renaming == _lastRenaming) {
+      return false;
+    }
+    _lastConfig = config;
+    _lastDraggingTarget = draggingTarget;
+    _lastDraggingWidget = draggingWidget;
+    _lastSelectedWidget = selectedWidget;
+    _lastRenaming = renaming;
+    return true;
+  }
+
+  /// Re-checks which targets are gone, and answers whether the set moved. See
+  /// [_missing].
+  bool _refreshMissing() {
     final next = <String>{};
     for (final item in widget.store.items) {
       try {
@@ -226,8 +276,11 @@ class DesktopLayerState extends State<DesktopLayer> {
     }
     // Compared rather than assigned outright so an unchanged answer keeps the
     // same set, which is one fewer thing for a rebuild to look at.
-    if (next.length == _missing.length && next.every(_missing.contains)) return;
+    if (next.length == _missing.length && next.every(_missing.contains)) {
+      return false;
+    }
     _missing = next;
+    return true;
   }
 
   /// Asks for keyboard focus exactly while a rename is in progress.
@@ -505,16 +558,6 @@ class DesktopLayerState extends State<DesktopLayer> {
     DesktopStore store,
   ) {
     final rect = geometry.cellRect(item.column, item.row);
-    final tile = DesktopIconTile(
-      item: item,
-      resolved: _resolved[item.target],
-      iconName: _iconNames[item.target] ?? '',
-      iconSize: store.config.iconSize,
-      showLabel: store.config.showLabels,
-      selected: store.isSelected(item.target),
-      hovered: _hovered == item.target,
-      missing: _missing.contains(item.target),
-    );
 
     // A tile being renamed is replaced by its editor, not overlaid: the editor
     // must own the pointer, or a click meant for the text field would land on
@@ -538,6 +581,11 @@ class DesktopLayerState extends State<DesktopLayer> {
     }
 
     final dragging = _dragGroup.contains(item.target);
+    final resolved = _resolved[item.target];
+    final iconName = _iconNames[item.target] ?? '';
+    final iconSize = store.config.iconSize;
+    final showLabel = store.config.showLabels;
+    final missing = _missing.contains(item.target);
 
     return Positioned(
       key: ValueKey(item.target),
@@ -545,62 +593,96 @@ class DesktopLayerState extends State<DesktopLayer> {
       top: rect.top,
       width: rect.width,
       height: rect.height,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = item.target),
-        onExit: (_) => setState(() {
-          if (_hovered == item.target) _hovered = null;
-        }),
-        // Dragging is done by hand rather than with Draggable, which requires
-        // an Overlay ancestor — machinery a layer-shell background surface has
-        // no business hosting. The ghost is just another Stack child, and the
-        // drop resolves against the same grid geometry the icons are laid out
-        // with.
-        // Selection is painted from a raw pointer-down, not from a tap.
-        // GestureDetector's onTap waits out the double-tap window, and even
-        // onTapDown is deferred until the tap recognizer wins the arena
-        // against the pan below — either way the highlight would lag the click
-        // by a visible fraction of a second. A Listener fires immediately and
-        // competes with nothing.
-        //
-        // Pressing an icon that is *already* selected leaves the selection
-        // alone, so pressing a member of a band selection to drag the group
-        // does not discard the group first. Narrowing back to one happens on
-        // the completed tap below, which only pays the double-tap delay in the
-        // multi-selection case.
-        child: Listener(
-          onPointerDown: (_) {
-            if (!store.isSelected(item.target)) store.select(item.target);
-          },
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              if (store.selectedTargets.length > 1) store.select(item.target);
+      // **Both flags a tile draws itself with are the tile's own state.** They
+      // were fields on this [State], and between them they were the whole of
+      // the rubber band's remaining cost: `MouseRegion` fires enter and exit
+      // with the button held down — `RendererBinding.dispatchEvent` re-runs the
+      // hit test for every `PointerMoveEvent` precisely so that it does — so a
+      // band dragged across the desktop rebuilt the entire layer twice per icon
+      // it passed over, and `selectAll` rebuilt it again for every icon that
+      // entered or left the box. Each of those rebuilds ran every widget card's
+      // builder, and the cards measure their own text. Owned here, a crossing
+      // costs the one tile it lights up. See [_onStoreChanged].
+      child: _SelectedIcon(
+        store: store,
+        target: item.target,
+        builder: (context, selected) => HoverRegion(
+          // The desktop is not a control surface: a tile lights up under the
+          // pointer, but the pointer stays an arrow.
+          cursor: SystemMouseCursors.basic,
+          // Dragging is done by hand rather than with Draggable, which requires
+          // an Overlay ancestor — machinery a layer-shell background surface has
+          // no business hosting. The ghost is just another Stack child, and the
+          // drop resolves against the same grid geometry the icons are laid out
+          // with.
+          // Selection is painted from a raw pointer-down, not from a tap.
+          // GestureDetector's onTap waits out the double-tap window, and even
+          // onTapDown is deferred until the tap recognizer wins the arena
+          // against the pan below — either way the highlight would lag the click
+          // by a visible fraction of a second. A Listener fires immediately and
+          // competes with nothing.
+          //
+          // Pressing an icon that is *already* selected leaves the selection
+          // alone, so pressing a member of a band selection to drag the group
+          // does not discard the group first. Narrowing back to one happens on
+          // the completed tap below, which only pays the double-tap delay in the
+          // multi-selection case.
+          builder: (context, hovered) => Listener(
+            onPointerDown: (_) {
+              if (!store.isSelected(item.target)) store.select(item.target);
             },
-            onDoubleTap: () => _open(item),
-            onSecondaryTapDown: (details) => widget.onItemMenu
-                ?.call(item, _toSurface(details.globalPosition)),
-            onPanStart: (details) {
-              store.beginDrag(item.target);
-              setState(() {
-                // The group is frozen at press time: the whole selection when
-                // this icon is one of several selected, else just this icon.
-                _dragGroup = store.isSelected(item.target)
-                    ? Set<String>.of(store.selectedTargets)
-                    : {item.target};
-                _dragPosition = _toSurface(details.globalPosition);
-              });
-            },
-            onPanUpdate: (details) => setState(
-                () => _dragPosition = _toSurface(details.globalPosition)),
-            onPanEnd: (_) => _finishDrag(item, geometry, store),
-            onPanCancel: () {
-              setState(() {
-                _dragPosition = null;
-                _dragGroup = const {};
-              });
-              store.endDrag();
-            },
-            child: Opacity(opacity: dragging ? 0.3 : 1.0, child: tile),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                if (store.selectedTargets.length > 1) store.select(item.target);
+              },
+              onDoubleTap: () => _open(item),
+              onSecondaryTapDown: (details) => widget.onItemMenu
+                  ?.call(item, _toSurface(details.globalPosition)),
+              onPanStart: (details) {
+                store.beginDrag(item.target);
+                setState(() {
+                  // The group is frozen at press time: the whole selection when
+                  // this icon is one of several selected, else just this icon.
+                  _dragGroup = store.isSelected(item.target)
+                      ? Set<String>.of(store.selectedTargets)
+                      : {item.target};
+                  _dragPosition = _toSurface(details.globalPosition);
+                });
+              },
+              onPanUpdate: (details) => setState(
+                  () => _dragPosition = _toSurface(details.globalPosition)),
+              onPanEnd: (_) => _finishDrag(item, geometry, store),
+              onPanCancel: () {
+                setState(() {
+                  _dragPosition = null;
+                  _dragGroup = const {};
+                });
+                store.endDrag();
+              },
+              // Its own layer, so lighting one tile up repaints one tile.
+              // Nothing else on this surface is a repaint boundary: the
+              // wallpaper, every other icon and every widget card are recorded
+              // into the surface's one picture, and a mark that reaches it
+              // re-records all of them — a full-output image scale and a label
+              // shadow per icon — to tint a 100px box. The calendar's hovered
+              // day cells are the same rule; so is [_band] one level up.
+              child: RepaintBoundary(
+                child: Opacity(
+                  opacity: dragging ? 0.3 : 1.0,
+                  child: DesktopIconTile(
+                    item: item,
+                    resolved: resolved,
+                    iconName: iconName,
+                    iconSize: iconSize,
+                    showLabel: showLabel,
+                    selected: selected,
+                    hovered: hovered,
+                    missing: missing,
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -639,78 +721,86 @@ class DesktopLayerState extends State<DesktopLayer> {
       rect = rect.shift(_widgetDragDelta!);
     }
 
-    final hovered = _hoveredWidget == item.id;
     final selected = store.selectedWidget == item.id;
-    final showGrips = hovered || selected || resizing || dragging;
 
     return Positioned.fromRect(
       key: ValueKey('widget:${item.id}'),
       rect: rect,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hoveredWidget = item.id),
-        onExit: (_) => setState(() {
-          if (_hoveredWidget == item.id) _hoveredWidget = null;
-        }),
-        child: Stack(
-          // The grips sit on the card's corners and lap over its rim.
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              // A Listener rather than a tap, for the reason the icons'
-              // documents: a tap recognizer here would have to win an arena
-              // against the pan below it before the rim could light up.
-              child: Listener(
-                onPointerDown: (_) => store.selectWidget(item.id),
-                child: GestureDetector(
-                  // Opaque so a drag can start anywhere on the card — the
-                  // widget's own buttons are deeper in the tree and are hit
-                  // first, and a quick press on one resolves as their tap
-                  // rather than as this pan.
-                  behavior: HitTestBehavior.opaque,
-                  dragStartBehavior: DragStartBehavior.down,
-                  onSecondaryTapDown: (details) => widget.onWidgetMenu
-                      ?.call(item, _toSurface(details.globalPosition)),
-                  onPanStart: (_) {
-                    store.beginWidgetDrag(item.id);
-                    setState(() => _widgetDragDelta = Offset.zero);
-                  },
-                  onPanUpdate: (details) => setState(() =>
-                      _widgetDragDelta =
-                          (_widgetDragDelta ?? Offset.zero) + details.delta),
-                  onPanEnd: (_) => _finishWidgetDrag(item, geometry, store),
-                  onPanCancel: () => _cancelWidgetDrag(store),
-                  child: DesktopWidgetFrame(
-                    item: item,
-                    spec: spec,
-                    span: (columns: area.columnSpan, rows: area.rowSpan),
-                    size: rect.size,
-                    selected: selected,
-                    hovered: hovered,
+      // Hover is this card's own state, [_positioned]'s rule and for its
+      // reason: it was a field on the layer, so the pointer merely *passing
+      // over* a card — which is what a rubber band does — rebuilt every other
+      // card with it, and a card's builder measures its own text.
+      child: HoverRegion(
+        cursor: SystemMouseCursors.basic,
+        builder: (context, hovered) {
+          final showGrips = hovered || selected || resizing || dragging;
+          return Stack(
+            // The grips sit on the card's corners and lap over its rim.
+            clipBehavior: Clip.none,
+            children: [
+              Positioned.fill(
+                // A Listener rather than a tap, for the reason the icons'
+                // documents: a tap recognizer here would have to win an arena
+                // against the pan below it before the rim could light up.
+                child: Listener(
+                  onPointerDown: (_) => store.selectWidget(item.id),
+                  child: GestureDetector(
+                    // Opaque so a drag can start anywhere on the card — the
+                    // widget's own buttons are deeper in the tree and are hit
+                    // first, and a quick press on one resolves as their tap
+                    // rather than as this pan.
+                    behavior: HitTestBehavior.opaque,
+                    dragStartBehavior: DragStartBehavior.down,
+                    onSecondaryTapDown: (details) => widget.onWidgetMenu
+                        ?.call(item, _toSurface(details.globalPosition)),
+                    onPanStart: (_) {
+                      store.beginWidgetDrag(item.id);
+                      setState(() => _widgetDragDelta = Offset.zero);
+                    },
+                    onPanUpdate: (details) => setState(() =>
+                        _widgetDragDelta =
+                            (_widgetDragDelta ?? Offset.zero) + details.delta),
+                    onPanEnd: (_) => _finishWidgetDrag(item, geometry, store),
+                    onPanCancel: () => _cancelWidgetDrag(store),
+                    // Its own layer, [_positioned]'s rule: a card is the most
+                    // expensive thing painted on this surface, and its rim
+                    // lighting up under the pointer must not re-record the
+                    // wallpaper and every other card along with it.
+                    child: RepaintBoundary(
+                      child: DesktopWidgetFrame(
+                        item: item,
+                        spec: spec,
+                        span: (columns: area.columnSpan, rows: area.rowSpan),
+                        size: rect.size,
+                        selected: selected,
+                        hovered: hovered,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-            if (showGrips)
-              for (final corner in DesktopWidgetCorner.values)
-                Positioned(
-                  left: corner.movesLeftEdge ? -2 : null,
-                  right: corner.movesLeftEdge ? null : -2,
-                  top: corner.movesTopEdge ? -2 : null,
-                  bottom: corner.movesTopEdge ? null : -2,
-                  child: DesktopWidgetResizeGrip(
-                    corner: corner,
-                    color: theme.accent,
-                    onPanStart: (_) => _beginResize(item, laidOut, corner),
-                    onPanUpdate: (details) => _updateResize(
-                      details.globalPosition,
-                      geometry,
-                      spec,
+              if (showGrips)
+                for (final corner in DesktopWidgetCorner.values)
+                  Positioned(
+                    left: corner.movesLeftEdge ? -2 : null,
+                    right: corner.movesLeftEdge ? null : -2,
+                    top: corner.movesTopEdge ? -2 : null,
+                    bottom: corner.movesTopEdge ? null : -2,
+                    child: DesktopWidgetResizeGrip(
+                      corner: corner,
+                      color: theme.accent,
+                      onPanStart: (_) => _beginResize(item, laidOut, corner),
+                      onPanUpdate: (details) => _updateResize(
+                        details.globalPosition,
+                        geometry,
+                        spec,
+                      ),
+                      onPanEnd: () => _endResize(geometry, spec, store),
                     ),
-                    onPanEnd: () => _endResize(geometry, spec, store),
                   ),
-                ),
-          ],
-        ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1038,6 +1128,71 @@ class _RenderedLayout {
   /// user is looking at, which is what a band must select from.
   DesktopBandIndex get bandIndex =>
       _bandIndex ??= DesktopBandIndex(items, geometry);
+}
+
+/// One icon's selected flag, subscribed for itself.
+///
+/// The rubber band replaces the selection on every pan update, so this is the
+/// store mutation that arrives at pointer rate. Reading it from
+/// `DesktopLayer.build` meant a band crossing one icon rebuilt every icon and
+/// every widget card on the desktop; read here, it rebuilds the two tiles whose
+/// flag actually flipped. The listener runs for every notification, but all it
+/// does is one set lookup, and it calls `setState` only when the answer moved —
+/// [DesktopStore]'s own `selectAll` guard one level down, applied per tile.
+///
+/// Hover is the other half of the same rule and is [HoverRegion]'s; the two
+/// nest rather than merging, so neither has to know about the other.
+class _SelectedIcon extends StatefulWidget {
+  const _SelectedIcon({
+    required this.store,
+    required this.target,
+    required this.builder,
+  });
+
+  final DesktopStore store;
+  final String target;
+  final Widget Function(BuildContext context, bool selected) builder;
+
+  @override
+  State<_SelectedIcon> createState() => _SelectedIconState();
+}
+
+class _SelectedIconState extends State<_SelectedIcon> {
+  late bool _selected = widget.store.isSelected(widget.target);
+
+  @override
+  void initState() {
+    super.initState();
+    widget.store.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(_SelectedIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.store != widget.store) {
+      oldWidget.store.removeListener(_onChanged);
+      widget.store.addListener(_onChanged);
+    }
+    // Re-read rather than kept: this element is keyed on the target, but a
+    // layer rebuild can still arrive with the selection already moved.
+    _selected = widget.store.isSelected(widget.target);
+  }
+
+  @override
+  void dispose() {
+    widget.store.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (!mounted) return;
+    final next = widget.store.isSelected(widget.target);
+    if (next == _selected) return;
+    setState(() => _selected = next);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _selected);
 }
 
 /// The rubber-band selection box: a translucent wash of the shell's accent

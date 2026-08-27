@@ -242,8 +242,14 @@ class _DesktopSurfaceState extends State<DesktopSurface>
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Its own layer. The wallpaper is the most expensive single draw on
+          // this surface — a full-output image resampled to fit — and it
+          // changes once every few minutes at most, while the grid over it
+          // changes under the pointer. Without a boundary every hover
+          // highlight, every rubber-band move and every drag re-records that
+          // scale into the surface's one picture.
           if (widget.background != null)
-            BackgroundWindow(config: widget.background!)
+            RepaintBoundary(child: BackgroundWindow(config: widget.background!))
           else
             const SizedBox.expand(),
           // No ListenableBuilder here: DesktopLayer subscribes to the store
