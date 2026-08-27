@@ -36,6 +36,25 @@ class CaptureSize {
   String toString() => '${width}x$height';
 }
 
+/// A point in logical pixels — used for one output's top-left corner in the
+/// compositor's global space.
+class CapturePoint {
+  const CapturePoint(this.x, this.y);
+
+  final int x;
+  final int y;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CapturePoint && other.x == x && other.y == y;
+
+  @override
+  int get hashCode => Object.hash(x, y);
+
+  @override
+  String toString() => 'CapturePoint($x, $y)';
+}
+
 /// A rectangle in logical pixels, either global (miracle's own space) or
 /// relative to one output's top-left corner. Which one is always named by the
 /// field holding it.
@@ -136,6 +155,14 @@ class CaptureRect {
 /// window capture needs a fallback source when the compositor cannot hand us a
 /// foreign-toplevel handle for it, and that fallback is its output cropped to
 /// [crop].
+///
+/// The name is the identity and [outputOrigin] is the second pass behind it,
+/// for the same reason `resolveOutput` keeps a second pass of its own: the
+/// connector is only an identity while *both* sides of a correlation have one.
+/// GDK reports none on a compositor with no `xdg-output` manager, and
+/// `wl_output.name` does not exist below version 4 — either gap leaves the
+/// string empty at one end, and matching two empty strings resolves to nothing
+/// at all rather than to the display the user is pointing at.
 sealed class CaptureTarget {
   const CaptureTarget();
 
@@ -144,6 +171,15 @@ sealed class CaptureTarget {
 
   /// The output's logical size, which [crop] is expressed against.
   CaptureSize get outputSize;
+
+  /// This output's top-left corner in the compositor's global logical space,
+  /// or null when the shell could not learn it.
+  ///
+  /// Carried so that [connector] is not the *only* way back to the display
+  /// this was taken from: two monitors cannot share a corner, so a position is
+  /// an identity wherever a name is missing at either end. Nothing else reads
+  /// it — a crop is always output-local.
+  CapturePoint? get outputOrigin => null;
 
   /// The region of the output to keep, in that output's *local* logical
   /// pixels, or null for all of it.
@@ -161,7 +197,11 @@ sealed class CaptureTarget {
 
 /// A whole output.
 class OutputCapture extends CaptureTarget {
-  const OutputCapture({required this.connector, required this.outputSize});
+  const OutputCapture({
+    required this.connector,
+    required this.outputSize,
+    this.outputOrigin,
+  });
 
   @override
   final String connector;
@@ -170,10 +210,15 @@ class OutputCapture extends CaptureTarget {
   final CaptureSize outputSize;
 
   @override
-  CaptureRect? get crop => null;
+  final CapturePoint? outputOrigin;
 
   @override
-  String get label => connector;
+  CaptureRect? get crop => null;
+
+  /// The connector, or a word for it: a screen the compositor never named
+  /// would otherwise put an empty string in a notification.
+  @override
+  String get label => connector.isNotEmpty ? connector : 'Screen';
 }
 
 /// One window.
@@ -189,6 +234,7 @@ class WindowCapture extends CaptureTarget {
     required this.crop,
     required this.title,
     required this.appId,
+    this.outputOrigin,
     this.toplevelIdentifier,
   });
 
@@ -197,6 +243,9 @@ class WindowCapture extends CaptureTarget {
 
   @override
   final CaptureSize outputSize;
+
+  @override
+  final CapturePoint? outputOrigin;
 
   @override
   final CaptureRect crop;
@@ -221,6 +270,7 @@ class WindowCapture extends CaptureTarget {
         crop: crop,
         title: title,
         appId: appId,
+        outputOrigin: outputOrigin,
         toplevelIdentifier: identifier,
       );
 
@@ -234,6 +284,7 @@ class AreaCapture extends CaptureTarget {
     required this.connector,
     required this.outputSize,
     required this.crop,
+    this.outputOrigin,
   });
 
   @override
@@ -241,6 +292,9 @@ class AreaCapture extends CaptureTarget {
 
   @override
   final CaptureSize outputSize;
+
+  @override
+  final CapturePoint? outputOrigin;
 
   @override
   final CaptureRect crop;

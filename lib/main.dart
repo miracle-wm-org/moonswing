@@ -1484,7 +1484,17 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                     // `DisplayScope` would answer null for the first frames
                     // anyway — which is exactly the frames a selection surface
                     // is drawn for.
+                    //
+                    // The corner goes with it, and is not decoration: GDK
+                    // reports no connector at all on a compositor with no
+                    // `xdg-output` manager, so on those machines the string
+                    // above is empty and this is the only identity the pick
+                    // carries back to a display.
                     connector: surfaces.monitor.connector,
+                    origin: CapturePoint(
+                      surfaces.monitor.position.dx.round(),
+                      surfaces.monitor.position.dy.round(),
+                    ),
                     scene: _selectionScene,
                     closingNotifier: _selectionClosing,
                     onClosed: _onSelectionClosed,

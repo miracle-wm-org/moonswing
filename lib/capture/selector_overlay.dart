@@ -52,6 +52,7 @@ class CaptureSelectorOverlay extends StatefulWidget {
     super.key,
     required this.request,
     required this.connector,
+    this.origin,
     required this.scene,
     required this.closingNotifier,
     required this.onClosed,
@@ -62,7 +63,19 @@ class CaptureSelectorOverlay extends StatefulWidget {
   final SelectionRequest request;
 
   /// The `wl_output.name` of the output this surface covers.
+  ///
+  /// Empty on a compositor GDK cannot get a connector out of, which is what
+  /// [origin] is here for.
   final String connector;
+
+  /// Where this surface's output has its top-left corner in the compositor's
+  /// global logical space, when the shell knows it.
+  ///
+  /// Optional rather than required because it answers nothing on its own: it
+  /// is the second pass behind [connector] at both ends of this surface — the
+  /// miracle output whose windows are drawn on it, and the capture output the
+  /// shutter is finally taken from (`capture_source.dart`).
+  final CapturePoint? origin;
 
   /// The windowing environment as it was when the selection started.
   final CaptureScene scene;
@@ -92,6 +105,12 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
   /// the surface anyway.
   Size _surface = Size.zero;
   _OutputMapping _mapping = _OutputMapping.identity;
+
+  /// The miracle output this surface covers, resolved by name or by corner —
+  /// null when the IPC socket is down, or when it knows no output here. Its
+  /// name, not [CaptureSelectorOverlay.connector], is what the window list is
+  /// filtered on: they differ exactly when GDK could not name the monitor.
+  ScreenOutput? _screen;
 
   @override
   void initState() {
@@ -157,8 +176,9 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
             constraints.maxHeight.isFinite ? constraints.maxHeight : 0,
           );
           _surface = surface;
-          _mapping = _OutputMapping.of(
-              widget.scene.outputFor(widget.connector), surface);
+          _screen =
+              widget.scene.outputFor(widget.connector, origin: widget.origin);
+          _mapping = _OutputMapping.of(_screen, surface);
           return _buildSurface(theme, surface, _mapping);
         },
       ),
@@ -265,15 +285,28 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
             onTap: () => _answer(OutputCapture(
               connector: widget.connector,
               outputSize: _sizeOf(surface),
+              outputOrigin: widget.origin,
             )),
           ),
         );
     }
   }
 
+  /// The windows on this surface's output, back to front.
+  List<SelectableWindow> get _windows =>
+      _screen == null ? const [] : widget.scene.windowsOn(_screen!.name);
+
+  /// What this screen is called: the connector where GDK gave one, miracle's
+  /// own name for it where GDK did not, and null where neither could answer —
+  /// which is a screen the surface has to talk about without naming it.
+  String? get _screenName {
+    if (widget.connector.isNotEmpty) return widget.connector;
+    final name = _screen?.name;
+    return name != null && name.isNotEmpty ? name : null;
+  }
+
   void _onHover(Offset local) {
-    final found =
-        _mapping.windowAt(widget.scene.windowsOn(widget.connector), local);
+    final found = _mapping.windowAt(_windows, local);
     // Compared by identity of the container id, so a pointer moving inside one
     // window does not rebuild the surface on every motion event.
     if (found?.id == _hovered?.id) return;
@@ -303,6 +336,7 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
     _answer(AreaCapture(
       connector: widget.connector,
       outputSize: _sizeOf(surface),
+      outputOrigin: widget.origin,
       crop: crop,
     ));
   }
@@ -317,6 +351,7 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
     _answer(WindowCapture(
       connector: widget.connector,
       outputSize: _sizeOf(surface),
+      outputOrigin: widget.origin,
       crop: CaptureRect(
         local.left.round(),
         local.top.round(),
@@ -341,7 +376,7 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
       SelectionMode.window => _hovered?.title.isNotEmpty == true
           ? _hovered!.title
           : (_hovered?.appId ?? ''),
-      SelectionMode.output => widget.connector,
+      SelectionMode.output => _screenName ?? 'This screen',
     };
     if (text.isEmpty) return const SizedBox.shrink();
 
@@ -382,10 +417,12 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
 
   Widget _banner(ThemeConfig theme, Color accent, Size surface) {
     final mode = widget.request.mode;
-    final needsMiracle =
-        mode == SelectionMode.window && widget.scene.windowsOn(widget.connector).isEmpty;
+    final needsMiracle = mode == SelectionMode.window && _windows.isEmpty;
+    final name = _screenName;
     final text = needsMiracle
-        ? 'No windows to select on ${widget.connector}'
+        ? (name != null
+            ? 'No windows to select on $name'
+            : 'No windows to select here')
         : '${widget.request.kind.label}: ${mode.instruction}';
     return Positioned(
       top: 24,
