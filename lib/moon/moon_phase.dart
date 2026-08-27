@@ -158,8 +158,17 @@ DateTime moonPhaseBefore(DateTime start, double target) {
 }
 
 /// Everything the shell knows about the Moon at one instant.
+///
+/// **The four phase instants are found on first read, not on construction.**
+/// Each one is a Newton search costing about a dozen evaluations of the whole
+/// of Meeus 47.A/B, and together they were nine tenths of what a reading cost —
+/// paid every minute by `MoonStore._tick`, whose own `_publish` needs none of
+/// them, and paid again by a compact card that draws neither an age nor a
+/// countdown. Everything eager here falls out of the one position evaluation
+/// the reading is already making; everything that would need another is a
+/// memoised getter below.
 class MoonReading {
-  const MoonReading({
+  MoonReading({
     required this.time,
     required this.cyclePosition,
     required this.illumination,
@@ -167,11 +176,7 @@ class MoonReading {
     required this.eclipticLatitude,
     required this.distanceKm,
     required this.angularDiameterDegrees,
-    required this.lastNewMoon,
-    required this.nextNewMoon,
-    required this.nextFullMoon,
-    required this.nextPrincipalPhase,
-    required this.nextPrincipalTime,
+    required this.nextPrincipalTargetDegrees,
     this.altitudeDegrees,
     this.horizonDegrees,
     this.southernView = false,
@@ -198,13 +203,45 @@ class MoonReading {
   final double distanceKm;
   final double angularDiameterDegrees;
 
-  final DateTime lastNewMoon;
-  final DateTime nextNewMoon;
-  final DateTime nextFullMoon;
+  /// The elongation the next principal phase lands at: 0, 90, 180 or 270.
+  ///
+  /// Which principal phase is next is not a search at all — it is which
+  /// quadrant of the elongation the Moon is in, which this reading already
+  /// has. Carried as the target rather than as the phase because it is also
+  /// the key [nextPrincipalTime] is memoised against.
+  final int nextPrincipalTargetDegrees;
 
-  /// The next of the four principal phases, and when it lands.
-  final MoonPhase nextPrincipalPhase;
-  final DateTime nextPrincipalTime;
+  /// The next of the four principal phases.
+  MoonPhase get nextPrincipalPhase => switch (nextPrincipalTargetDegrees) {
+        90 => MoonPhase.firstQuarter,
+        180 => MoonPhase.fullMoon,
+        270 => MoonPhase.lastQuarter,
+        _ => MoonPhase.newMoon,
+      };
+
+  DateTime? _lastNewMoon;
+  DateTime? _nextNewMoon;
+  DateTime? _nextFullMoon;
+  DateTime? _nextPrincipalTime;
+
+  /// When the lunation this reading is in began.
+  DateTime get lastNewMoon => _lastNewMoon ??= moonPhaseBefore(time, 0);
+
+  DateTime get nextNewMoon => _nextNewMoon ??= moonPhaseAfter(time, 0);
+
+  DateTime get nextFullMoon => _nextFullMoon ??= moonPhaseAfter(time, 180);
+
+  /// When [nextPrincipalPhase] lands.
+  ///
+  /// Half the month this is the very search [nextNewMoon] or [nextFullMoon]
+  /// makes — same function, same arguments — so it is answered from them
+  /// rather than repeated, and only a quarter needs a solve of its own.
+  DateTime get nextPrincipalTime => switch (nextPrincipalTargetDegrees) {
+        0 => nextNewMoon,
+        180 => nextFullMoon,
+        final target =>
+          _nextPrincipalTime ??= moonPhaseAfter(time, target.toDouble()),
+      };
 
   /// How high the Moon is above the horizon, or null when the shell does not
   /// know where the user is.
@@ -280,20 +317,11 @@ MoonReading computeMoonReading({
   );
   final illumination = (1 + math.cos(phaseAngle)) / 2;
 
-  final lastNew = moonPhaseBefore(at, 0);
-  final nextNew = moonPhaseAfter(at, 0);
-  final nextFull = moonPhaseAfter(at, 180);
-
   // The next quarter-turn of elongation the Moon reaches: 90 from a waxing
-  // crescent, 180 from a waxing gibbous, and so on.
-  final nextQuadrant = ((elongation / 90).floor() + 1) * 90.0;
-  final nextPrincipalTime = moonPhaseAfter(at, nextQuadrant % 360);
-  final nextPrincipalPhase = switch (nextQuadrant.round() % 360) {
-    90 => MoonPhase.firstQuarter,
-    180 => MoonPhase.fullMoon,
-    270 => MoonPhase.lastQuarter,
-    _ => MoonPhase.newMoon,
-  };
+  // crescent, 180 from a waxing gibbous, and so on. The instant it lands at —
+  // and the two syzygies either side of it — are left to [MoonReading]'s own
+  // getters, which search only if somebody asks.
+  final nextQuadrant = ((elongation / 90).floor() + 1) * 90;
 
   double? altitude;
   double? horizon;
@@ -312,11 +340,7 @@ MoonReading computeMoonReading({
     eclipticLatitude: moon.latitude,
     distanceKm: moon.distanceKm,
     angularDiameterDegrees: moon.angularDiameterDegrees,
-    lastNewMoon: lastNew,
-    nextNewMoon: nextNew,
-    nextFullMoon: nextFull,
-    nextPrincipalPhase: nextPrincipalPhase,
-    nextPrincipalTime: nextPrincipalTime,
+    nextPrincipalTargetDegrees: nextQuadrant % 360,
     altitudeDegrees: altitude,
     horizonDegrees: horizon,
     southernView: latitude != null && latitude < 0,

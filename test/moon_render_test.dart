@@ -168,4 +168,49 @@ void main() {
       expect(find.byType(MoonNightSky), findsOneWidget);
     });
   });
+
+  group('drawnIllumination', () {
+    test('snaps to a step the terminator could not have shown', () {
+      // The lit fraction moves by under 1e-4 a minute at its fastest, so a
+      // painter handed the raw number repaints every tick for a change of a
+      // twentieth of a pixel. A thousandth of the disc is the floor of what the
+      // picture can express.
+      expect(drawnIllumination(0.5), closeTo(0.5, 1e-9));
+      expect(drawnIllumination(0.5001), closeTo(0.5, 1e-9));
+      expect(drawnIllumination(0.50049), closeTo(0.5, 1e-9));
+      expect(drawnIllumination(0.5006), closeTo(0.501, 1e-9));
+    });
+
+    test('keeps the ends, and clamps outside them', () {
+      // A new Moon has to stay a new Moon and a full one full: rounding to the
+      // printed percentage instead would round the last sliver of a crescent
+      // away, which is why the step is a thousandth and not a hundredth.
+      expect(drawnIllumination(0), closeTo(0, 1e-9));
+      expect(drawnIllumination(1), closeTo(1, 1e-9));
+      expect(drawnIllumination(0.0004), closeTo(0, 1e-9));
+      expect(drawnIllumination(0.004), closeTo(0.004, 1e-9));
+      expect(drawnIllumination(-0.2), closeTo(0, 1e-9));
+      expect(drawnIllumination(1.4), closeTo(1, 1e-9));
+    });
+
+    test('a painter built from it compares equal across a tick', () {
+      // The point of the whole thing: `shouldRepaint` is what stands between a
+      // reading that moves every minute and the most expensive painter in the
+      // shell.
+      final before = MoonPainter(
+        illumination: drawnIllumination(0.5),
+        waxing: true,
+      );
+      final after = MoonPainter(
+        illumination: drawnIllumination(0.50021),
+        waxing: true,
+      );
+      expect(after.shouldRepaint(before), isFalse);
+      expect(
+        MoonPainter(illumination: drawnIllumination(0.503), waxing: true)
+            .shouldRepaint(before),
+        isTrue,
+      );
+    });
+  });
 }

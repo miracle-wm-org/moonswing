@@ -297,7 +297,10 @@ class _ExpandedLayout extends StatelessWidget {
           const SizedBox(height: 10),
           Expanded(
             child: _Facts(
-              facts: moonFacts(reading),
+              // The store's, not `moonFacts(reading)` here: this `build` runs
+              // on every frame of a desktop drag or resize, and deriving them
+              // is two more evaluations of the whole ephemeris.
+              facts: store.facts,
               detailed: detailedFacts,
             ),
           ),
@@ -324,7 +327,14 @@ class _TimesRow extends StatelessWidget {
       if (store.locating) {
         return const Row(
           children: [
-            LoadingIndicator(color: kSkyMutedForeground, size: 11),
+            // The one thing on this card that animates, and it is on the card's
+            // own layer with the readout and the facts — so without a boundary
+            // of its own a lookup that hangs (no route to the IP service, and
+            // nothing to time it out) repaints the whole desktop surface at
+            // frame rate for as long as it takes.
+            RepaintBoundary(
+              child: LoadingIndicator(color: kSkyMutedForeground, size: 11),
+            ),
             SizedBox(width: 6),
             // Expanded, not a bare `Text`: this row shares a column with a
             // disc whose size follows the card's, so how much is left for it is
