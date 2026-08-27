@@ -655,24 +655,22 @@ class _NetworkPopupContent extends StatelessWidget {
 
     return Directionality(
       textDirection: TextDirection.ltr,
-      child: PopupBounceIn(
-        child: PopupCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('IP Address', style: labelStyle),
+      child: PopupCard(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('IP Address', style: labelStyle),
+            const SizedBox(height: 2),
+            Text(ipText, style: valueStyle),
+            if (info.type == NetworkType.wifi) ...[
+              const SizedBox(height: 10),
+              Text('Signal Strength', style: labelStyle),
               const SizedBox(height: 2),
-              Text(ipText, style: valueStyle),
-              if (info.type == NetworkType.wifi) ...[
-                const SizedBox(height: 10),
-                Text('Signal Strength', style: labelStyle),
-                const SizedBox(height: 2),
-                Text('${info.signal}%', style: valueStyle),
-              ],
+              Text('${info.signal}%', style: valueStyle),
             ],
-          ),
+          ],
         ),
       ),
     );

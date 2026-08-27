@@ -308,11 +308,12 @@ class NotificationPanel extends StatefulWidget {
 
 /// The two animations, and why they are two.
 ///
-/// The entrance is the `SlideTransition` it always was — no `PopupBounceIn`,
-/// for the reason [build] states. The exit is its own controller rather than
-/// that one reversed, which is what lets it be shorter *and* be a different
-/// animation: a beat of wind-up, then the panel takes off to the right,
-/// shrinking towards and fading into the edge it is anchored to.
+/// The entrance is the `SlideTransition` it always was — never a centre-pivoted
+/// scale, for the reason [build] states. The exit is its own controller rather
+/// than that one reversed — the one surface in the shell that departs from
+/// `PopupTransition`'s rule — which is what lets it be shorter *and* be a
+/// different animation: a beat of wind-up, then the panel takes off to the
+/// right, shrinking towards and fading into the edge it is anchored to.
 ///
 /// Every part of that exit is pinned to `Alignment.centerRight` or moves the
 /// panel further *off* the screen, and that is the constraint the fun has to
@@ -444,11 +445,12 @@ class _NotificationPanelState extends State<NotificationPanel>
           ),
           child: SlideTransition(
             position: _enterSlide,
-            // The slide is the whole entrance: no PopupBounceIn. Its scale
-            // pivots on the centre, which on a full-height edge-anchored
-            // surface pulls the panel away from the screen edge it is anchored
-            // to and shows a gap that closes as it settles — the bounce reads
-            // as a floating card, which this deliberately is not. The exit's
+            // The slide is the whole entrance: never a centre-pivoted scale
+            // (`PopupEffect.scale`, and the elastic bounce that preceded it),
+            // which on a full-height edge-anchored surface pulls the panel away
+            // from the screen edge it is anchored to and shows a gap that
+            // closes as it settles — that reads as a floating card, which this
+            // deliberately is not. The exit's
             // scale is the same widget with the pivot moved to the edge, which
             // is the whole difference between a flourish and that gap.
             child: SlideTransition(

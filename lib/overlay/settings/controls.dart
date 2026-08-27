@@ -9,8 +9,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
+import 'package:graceful_shell/popup_transition.dart';
 import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
@@ -1441,7 +1441,7 @@ class ColorPickerPopupState extends State<SettingsColorPicker> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final color = _hsv.toColor();
-    return PopupBounceIn(
+    return PopupTransition(
       child: Container(
         width: _w + 24,
         padding: const EdgeInsets.all(12),

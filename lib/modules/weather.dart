@@ -224,50 +224,48 @@ class WeatherForecastPopup extends StatelessWidget {
             color: theme.popupForeground,
             fontSize: ShellFontSizes.secondary,
           ),
-          child: PopupBounceIn(
-            child: PopupCard(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                // `start`, never `stretch`: the popup surface is sized to its
-                // content and a stretched column reports the full width of the
-                // constraints, which is the dead space
-                // `popup_content_size_test.dart` exists to keep out of this
-                // card.
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (reading != null) _CurrentConditions(store: store),
-                  if (store.error.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      // The last reading stays on screen through a failed
-                      // refresh, so this says which one is being looked at
-                      // rather than replacing it.
-                      store.error,
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.caption,
-                        color: kErrorColor,
-                      ),
+          child: PopupCard(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              // `start`, never `stretch`: the popup surface is sized to its
+              // content and a stretched column reports the full width of the
+              // constraints, which is the dead space
+              // `popup_content_size_test.dart` exists to keep out of this
+              // card.
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (reading != null) _CurrentConditions(store: store),
+                if (store.error.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    // The last reading stays on screen through a failed
+                    // refresh, so this says which one is being looked at
+                    // rather than replacing it.
+                    store.error,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.caption,
+                      color: kErrorColor,
                     ),
-                  ],
-                  if (forecast.length > 1) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      'Forecast',
-                      style: TextStyle(
-                        color: theme.popupForeground,
-                        fontSize: ShellFontSizes.caption,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    _ForecastTable(
-                      days: forecast.skip(1).toList(),
-                      theme: theme,
-                    ),
-                  ],
+                  ),
                 ],
-              ),
+                if (forecast.length > 1) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Forecast',
+                    style: TextStyle(
+                      color: theme.popupForeground,
+                      fontSize: ShellFontSizes.caption,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _ForecastTable(
+                    days: forecast.skip(1).toList(),
+                    theme: theme,
+                  ),
+                ],
+              ],
             ),
           ),
         );

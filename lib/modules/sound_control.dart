@@ -320,11 +320,9 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 13),
-        child: PopupBounceIn(
-          child: PopupCard(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: content,
-          ),
+        child: PopupCard(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: content,
         ),
       ),
     );

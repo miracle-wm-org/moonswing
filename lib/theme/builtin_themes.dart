@@ -85,6 +85,10 @@ popup_shadow_blur    = 16.0
 popup_shadow_spread  = 0.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
+
+# How a popup arrives, and — reversed — how it leaves. The card is attached to
+# the bar here, so it slides the short distance out of it and back in again.
+popup_animation      = "slide"
 ''';
 
 const String _forest = '''
@@ -163,6 +167,10 @@ popup_shadow_blur    = 20.0
 popup_shadow_spread  = -1.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 8.0
+
+# A floating card has no join to travel out of, so it grows into place from its
+# own centre instead — the softer arrival this theme's rounder corners want.
+popup_animation      = "scale"
 ''';
 
 const String _dracula = '''
@@ -215,6 +223,9 @@ popup_shadow_blur    = 16.0
 popup_shadow_spread  = 0.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
+
+# Attached to the bar, so it slides out of it, as graceful does.
+popup_animation      = "slide"
 ''';
 
 const String _glassy = '''
@@ -290,4 +301,9 @@ popup_shadow_blur    = 28.0
 popup_shadow_spread  = -2.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 10.0
+
+# Its bar floats and its popups float with it, so there is no edge to unroll
+# out of: the card simply fades up, which is also the arrival that shows least
+# of the seam a translucent fill draws over a moving wallpaper.
+popup_animation      = "fade"
 ''';

@@ -7,6 +7,7 @@ import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/font_catalog.dart';
+import 'package:graceful_shell/theme/popup_effect.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 
 /// Theme picker + editor.
@@ -372,6 +373,32 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                         v.toDouble().clamp(-64.0, 64.0)),
                   ),
                 ),
+                SettingsRow(
+                  label: 'Popup animation',
+                  control: SettingsDropdown<PopupEffect>(
+                    key: ValueKey('popup_animation-$active'),
+                    items: [
+                      for (final effect in PopupEffect.values)
+                        SettingsDropdownItem<PopupEffect>(
+                          value: effect,
+                          label: effect.label,
+                          detail: effect.description,
+                        ),
+                    ],
+                    // The resolved theme's, so a file written before this key
+                    // existed shows the effect actually being played rather
+                    // than an empty row.
+                    selected:
+                        PopupEffect.fromSlug(
+                                current['popup_animation'] as String?) ??
+                            PopupEffect.slide,
+                    // Straight to `edit`, like the numbers above: it forks a
+                    // built-in itself, and answering a pick with a duplicate
+                    // would throw the pick away.
+                    onSelected: (v) =>
+                        _themes.edit('popup_animation', v.slug),
+                  ),
+                ),
                 const SettingsHint(
                   'Popup, menu, flyout and on-screen-indicator cards. A popup '
                   'opened from the bar is anchored to the bar\'s inner edge and '
@@ -388,7 +415,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   'The shadow enlarges the popup\'s own window to make room for '
                   'itself, and the popup is repositioned by the same amount so '
                   'the card stays where it always sat; a fully transparent '
-                  'shadow colour turns it off.',
+                  'shadow colour turns it off. The animation is how the card '
+                  'arrives — and, played backwards, how it leaves, so the way '
+                  'out is always the way in reversed. Slide and Grow travel '
+                  'out of the bar the popup belongs to, so a bottom bar\'s '
+                  'menus rise where a top bar\'s drop; None is a real off '
+                  'switch, and is what the dock uses whatever this says, '
+                  'because its labels come and go under a moving pointer.',
                 ),
                 const SizedBox(height: 8),
                 const SettingsHint(

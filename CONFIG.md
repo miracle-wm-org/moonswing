@@ -480,6 +480,8 @@ popup_shadow_blur    = 16.0
 popup_shadow_spread  = 0.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
+
+popup_animation      = "slide"
 ```
 
 Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `AA` is the alpha channel). `"#33FFFFFF"` is white at ~20% opacity. Alpha is what makes a translucent theme translucent: panel and popup surfaces composite against the desktop behind them.
@@ -517,6 +519,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_shadow_spread`  | `0.0`         | How far the shadow's shape is grown before blurring; negative shrinks it   |
 | `popup_shadow_offset_x`| `0.0`         | Horizontal displacement; positive is right, negative is left               |
 | `popup_shadow_offset_y`| `6.0`         | Vertical displacement; positive is down, negative is up                    |
+| `popup_animation`      | `slide`       | How a popup arrives, and — reversed — how it leaves (see below)             |
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
@@ -578,6 +581,28 @@ The five `popup_shadow_*` keys are a CSS box-shadow, spelled out: a color, a blu
 A bar popup never paints its shadow over the bar: on the joined edge the margin is clamped to `popup_gap`, so at a small gap the shadow fills it and stops, and at `0` the surface is flush and the shadow is cut exactly at the join. A gap of `popup_shadow_blur + popup_shadow_spread` or more leaves the shadow untouched.
 
 Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
+
+### About `popup_animation`
+
+`popup_animation` is how a popup arrives. Whichever effect you pick is also how it leaves, played backwards — there is no second key for the exit, and there cannot be one: the way out is the way in reversed, always, which is what makes a card that unrolled out of the bar roll back into it rather than blinking away.
+
+| Value    | What it does                                                              |
+| -------- | ------------------------------------------------------------------------- |
+| `none`   | No animation. The card is simply there, and simply gone                    |
+| `fade`   | Opacity alone                                                             |
+| `slide`  | A short travel out of the bar the popup belongs to, under a fade — the default |
+| `scale`  | Grows into place from the card's own centre, under a fade                  |
+| `grow`   | Unrolls out of the bar, growing from the edge the two share                |
+| `flip`   | Swings open about that same edge, as though hinged there                   |
+| `spin`   | Turns a few degrees as it scales into place, under a fade                  |
+
+`slide`, `grow` and `flip` take their direction from the bar the popup was opened from, so a bottom bar's menus rise and a top bar's drop. A menu anchored to the *pointer* — the desktop's context menu, an app-directory category flyout — has no bar to travel out of and is treated as hanging below its anchor, which is where the compositor puts it.
+
+The entrance runs for 140 ms and the exit for 110 ms: an entrance is paced to be followed, while a dismissal is you saying you are done with the card. Neither is themable, and `none` is a true off switch rather than a zero-length animation — nothing is wrapped and no animation controller is created at all.
+
+**The dock ignores this key.** Its hover labels and its unpin menu always open with `none`, whatever the theme says: the dock is a strip the pointer sweeps along, opening and abandoning a surface at every button on the way past, and a card that animated at each of them reads as the shell twitching rather than answering.
+
+Themes written before this key existed get `slide`.
 
 ### About `font_size`
 
