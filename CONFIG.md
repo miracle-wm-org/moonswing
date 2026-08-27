@@ -276,7 +276,7 @@ Drives both the panel module (CPU, memory, and temperature, with a popup) and th
 
 ```toml
 [modules.system_monitor]
-poll_seconds = 2
+poll_seconds = 1
 temp_unit = "celsius"
 history_samples = 120
 cpu_percent_mode = "machine"
@@ -288,9 +288,9 @@ disk_poll_seconds = 30
 
 | Key                   | Type   | Default     | Description                                                                                              |
 | --------------------- | ------ | ----------- | -------------------------------------------------------------------------------------------------------- |
-| `poll_seconds`        | int    | `2`         | How often stats are re-read (1–60)                                                                        |
+| `poll_seconds`        | int    | `1`         | How often stats are re-read (1–60)                                                                        |
 | `temp_unit`           | string | `"celsius"` | `"celsius"` or `"fahrenheit"`                                                                             |
-| `history_samples`     | int    | `120`       | How many samples the graphs keep (10–600). At the default cadence, 120 is four minutes                    |
+| `history_samples`     | int    | `120`       | How many samples the graphs keep (10–600). At the default cadence, 120 is two minutes                     |
 | `cpu_percent_mode`    | string | `"machine"` | `"machine"`: 0–100% of the whole machine, so the process rows sum to the total. `"core"`: `top`-style, where 100% is one saturated core |
 | `show_kernel_threads` | bool   | `false`     | Show kernel threads in the process table                                                                  |
 | `confirm_kill`        | bool   | `true`      | Ask before quitting a process. A *force* quit always confirms regardless                                  |
