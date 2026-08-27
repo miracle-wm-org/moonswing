@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/config.dart';
@@ -433,6 +435,128 @@ void main() {
         targetsInRect(reflowIntoGrid(authored, g), g, whole),
         {'/a', '/stray'},
       );
+    });
+  });
+
+  group('DesktopBandIndex', () {
+    // The one that matters: the index is a *narrowing* of the scan it replaced,
+    // so it has to answer identically on every band, not merely on the ones
+    // somebody thought to write down. Randomised over off-grid cells (which
+    // `reflowIntoGrid` leaves behind on a full grid), fractional geometries,
+    // and bands aligned exactly to a cell edge — which is where the strict
+    // `Rect.overlaps` semantics live.
+    test('agrees with a brute-force scan on every band', () {
+      final random = math.Random(20260827);
+      Set<String> scan(
+        List<DesktopItem> items,
+        DesktopGridGeometry g,
+        Rect rect,
+      ) {
+        if (rect.isEmpty) return const {};
+        return {
+          for (final item in items)
+            if (g.cellRect(item.column, item.row).overlaps(rect)) item.target,
+        };
+      }
+
+      for (var trial = 0; trial < 300; trial++) {
+        final config = DesktopConfig(
+          cellWidth: const [32.0, 96.0, 137.5][random.nextInt(3)],
+          cellHeight: const [32.0, 96.0, 137.5][random.nextInt(3)],
+          spacing: const [0.0, 7.5, 12.0][random.nextInt(3)],
+          padding: const [0.0, 13.25, 24.0][random.nextInt(3)],
+        );
+        final g = computeGridGeometry(const Size(1280, 800), config);
+        final items = [
+          for (var i = 0; i < random.nextInt(40); i++)
+            _item('/t$i', random.nextInt(28) - 3, random.nextInt(17) - 2),
+        ];
+        final index = DesktopBandIndex(items, g);
+
+        for (var query = 0; query < 12; query++) {
+          final Rect rect;
+          if (query.isEven) {
+            // Aligned to the grid, so edges land exactly on cell boundaries.
+            final left = g.origin.dx + (random.nextInt(14) - 2) * g.columnPitch;
+            final top = g.origin.dy + (random.nextInt(14) - 2) * g.rowPitch;
+            rect = Rect.fromLTRB(
+              left,
+              top,
+              left + [0.0, g.cellSize.width, g.columnPitch * 3][query % 3],
+              top + [0.0, g.cellSize.height, g.rowPitch * 2][query % 3],
+            );
+          } else {
+            final left = random.nextDouble() * 1600 - 200;
+            final top = random.nextDouble() * 1100 - 200;
+            rect = Rect.fromLTRB(
+              left,
+              top,
+              left + random.nextDouble() * 900,
+              top + random.nextDouble() * 700,
+            );
+          }
+          expect(
+            index.targetsIn(rect),
+            scan(items, g, rect),
+            reason: 'trial $trial, query $query, rect $rect',
+          );
+        }
+      }
+    });
+
+    // The whole point: a band's hit test costs what it selects, not what the
+    // desktop holds. A scan would examine every one of these ten thousand
+    // icons on every pointer move.
+    test('examines what the band crosses, not what the desktop holds', () {
+      final g = computeGridGeometry(const Size(1000, 500), _plain); // 10x5
+      // Far more items than cells, so most are off-grid strays — the case a
+      // scan is worst at and an index has to stay indifferent to.
+      final items = [
+        for (var i = 0; i < 10000; i++) _item('/t$i', i % 500, i ~/ 500),
+      ];
+      final index = DesktopBandIndex(items, g);
+
+      // A band over the first two cells of the first column.
+      final hits = index.targetsIn(const Rect.fromLTRB(10, 10, 90, 190));
+      expect(hits, {'/t0', '/t500'});
+      expect(index.seatsExamined, lessThan(8));
+    });
+
+    test('a stray outside the grid is answered exactly, not clamped in', () {
+      final g = computeGridGeometry(const Size(300, 200), _plain); // 3x2
+      final index = DesktopBandIndex(
+        [_item('/a', 0, 0), _item('/stray', 20, 0)],
+        g,
+      );
+      expect(index.targetsIn(const Rect.fromLTRB(0, 0, 300, 200)), {'/a'});
+      // Where it is actually drawn, two thousand pixels off the right edge.
+      expect(
+        index.targetsIn(const Rect.fromLTRB(1990, 0, 2100, 100)),
+        {'/stray'},
+      );
+    });
+
+    // A hand-built geometry can have no pitch to divide by; the fallback is the
+    // scan, not a crash out of a pointer handler.
+    test('a degenerate geometry falls back rather than dividing by zero', () {
+      const g = DesktopGridGeometry(
+        columns: 2,
+        rows: 2,
+        cellSize: Size.zero,
+        spacing: 0,
+        origin: Offset.zero,
+      );
+      final index = DesktopBandIndex([_item('/a', 0, 0)], g);
+      // A zero-sized cell overlaps nothing, but the query still answers.
+      expect(index.targetsIn(const Rect.fromLTRB(0, 0, 100, 100)), isEmpty);
+    });
+
+    test('an empty desktop answers without touching the arithmetic', () {
+      final g = computeGridGeometry(const Size(300, 200), _plain);
+      final index = DesktopBandIndex(const [], g);
+      expect(index.isEmpty, isTrue);
+      expect(index.targetsIn(const Rect.fromLTRB(0, 0, 300, 200)), isEmpty);
+      expect(index.seatsExamined, 0);
     });
   });
 

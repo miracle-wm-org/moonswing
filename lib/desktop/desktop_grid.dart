@@ -91,6 +91,10 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// selection change, a drag) does not re-run the GIO lookups.
   List<String> _resolvedTargets = const [];
 
+  /// The config [_resolvedTargets] was read off, which answers the same
+  /// question in O(1). See [_syncResolved].
+  DesktopConfig? _resolvedConfig;
+
   String? _hovered;
 
   /// Identifies the Stack the icons sit in, so a pointer position can be
@@ -138,6 +142,10 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// set is unchanged, so a full rebuild happens only when the band actually
   /// crosses an icon.
   final ValueNotifier<Rect?> _band = ValueNotifier<Rect?>(null);
+
+  /// The desktop as last *rendered*: the reflowed widgets, the reflowed icons,
+  /// and the band's index over them. See [_layoutFor].
+  _RenderedLayout? _layout;
 
   /// Targets whose file or folder is gone, so the tile can say so.
   ///
@@ -242,7 +250,18 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// no icon (a font glyph) is the same answer a machine with no icon theme
   /// gets, so the guard is not test-only special-casing.
   void _syncResolved() {
-    final items = widget.store.items;
+    // Identity first, and it is what makes this cheap during a gesture: this
+    // runs on *every* store notification, selection changes included, and the
+    // fallback below builds a list of every target to compare — an allocation
+    // per icon per pointer move. The store replaces the whole config object on
+    // every mutation, so an unchanged instance is an unchanged item list. The
+    // target comparison stays as the second pass, for a config that was
+    // rewritten without the items moving.
+    final config = widget.store.config;
+    if (identical(config, _resolvedConfig)) return;
+    _resolvedConfig = config;
+
+    final items = config.items;
     final targets = [for (final item in items) item.target];
     if (_sameTargets(targets, _resolvedTargets)) return;
 
@@ -292,6 +311,49 @@ class DesktopLayerState extends State<DesktopLayer> {
     openDesktopItem(item);
   }
 
+  /// The rendered layout for [config] at [geometry], recomputed only when one
+  /// of them actually moves.
+  ///
+  /// **A rebuild of this surface is very often a rebuild that changed no
+  /// layout at all.** Every store notification rebuilds it, and the two that
+  /// arrive at pointer rate — a rubber band crossing an icon, a drag crossing a
+  /// cell — change the *selection*, not where anything is. Recomputing from
+  /// scratch each time meant a `widgetCells` set built cell by cell over every
+  /// widget on the desktop, and a `reflowIntoGrid` probing that set once per
+  /// icon, before a single tile was laid out: the cost of moving the pointer
+  /// grew with everything pinned to the background, which is exactly the
+  /// property a desktop must not have.
+  ///
+  /// [DesktopStore] replaces the whole [DesktopConfig] on every mutation and
+  /// never edits one in place, so its identity is a complete and O(1) answer to
+  /// "did the items or the widgets move?" — the same key [_syncResolved] uses,
+  /// and stronger than comparing the lists, which would be the per-frame walk
+  /// this exists to remove. The geometry is compared by value because a resize
+  /// mints a new one from the same config.
+  _RenderedLayout _layoutFor(
+    DesktopConfig config,
+    DesktopGridGeometry geometry,
+  ) {
+    final cached = _layout;
+    if (cached != null &&
+        identical(cached.config, config) &&
+        cached.geometry == geometry) {
+      return cached;
+    }
+    final widgets = reflowWidgetsIntoGrid(config.widgets, geometry);
+    final items = reflowIntoGrid(
+      config.items,
+      geometry,
+      blocked: widgetCells(widgets),
+    );
+    return _layout = _RenderedLayout(
+      config: config,
+      geometry: geometry,
+      widgets: widgets,
+      items: items,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
@@ -313,12 +375,11 @@ class DesktopLayerState extends State<DesktopLayer> {
         // Render-only: an item authored on a wider monitor is pulled into
         // range here, and the config keeps its original cell. Widgets reflow
         // first, because where they end up is what the icons have to avoid.
-        final widgets = reflowWidgetsIntoGrid(store.widgets, geometry);
-        final items = reflowIntoGrid(
-          store.items,
-          geometry,
-          blocked: widgetCells(widgets),
-        );
+        // Cached, because this rebuild is very often a *selection* change: see
+        // [_layoutFor].
+        final layout = _layoutFor(config, geometry);
+        final widgets = layout.widgets;
+        final items = layout.items;
 
         return Stack(
           key: _surfaceKey,
@@ -367,9 +428,13 @@ class DesktopLayerState extends State<DesktopLayer> {
                   final band = Rect.fromPoints(anchor, details.localPosition);
                   _band.value = band;
                   // Against the reflowed list, so the band selects what is on
-                  // screen. `selectAll` no-ops when the set is unchanged, so a
-                  // move that crosses no new icon notifies nothing.
-                  store.selectAll(targetsInRect(items, geometry, band));
+                  // screen — and through its index, so the question costs what
+                  // the band selects rather than what the desktop holds. The
+                  // index is built once for the gesture, because nothing a band
+                  // does moves an icon. `selectAll` no-ops when the set is
+                  // unchanged, so a move that crosses no new icon notifies
+                  // nothing.
+                  store.selectAll(layout.bandIndex.targetsIn(band));
                 },
                 onPanEnd: (_) => _endBand(),
                 onPanCancel: _endBand,
@@ -942,6 +1007,37 @@ class DesktopLayerState extends State<DesktopLayer> {
       geometry,
     );
   }
+}
+
+/// The desktop as it is rendered, memoised by [DesktopLayerState._layoutFor].
+///
+/// Holds what a rebuild would otherwise recompute — the two reflows and the
+/// widget cells they meet through — plus the band's index, which is built
+/// **lazily** because most desktops are never rubber-banded and building it is
+/// the one part of this that sorts.
+class _RenderedLayout {
+  _RenderedLayout({
+    required this.config,
+    required this.geometry,
+    required this.widgets,
+    required this.items,
+  });
+
+  /// The config these were derived from, compared by identity. See
+  /// [DesktopLayerState._layoutFor].
+  final DesktopConfig config;
+  final DesktopGridGeometry geometry;
+
+  /// Reflowed for rendering; never persisted, [reflowWidgetsIntoGrid]'s rule.
+  final List<DesktopWidgetItem> widgets;
+  final List<DesktopItem> items;
+
+  DesktopBandIndex? _bandIndex;
+
+  /// The index the rubber band hit-tests against, over [items] — the list the
+  /// user is looking at, which is what a band must select from.
+  DesktopBandIndex get bandIndex =>
+      _bandIndex ??= DesktopBandIndex(items, geometry);
 }
 
 /// The rubber-band selection box: a translucent wash of the shell's accent
