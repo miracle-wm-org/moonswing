@@ -8,7 +8,7 @@ import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
-/// The menus are pumped bare, with no PanelWindowManager: the popup machinery
+/// The menus are pumped bare, with no WindowManager: the popup machinery
 /// belongs to the host, and these are the cards it puts inside one.
 Future<void> pumpMenu(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(

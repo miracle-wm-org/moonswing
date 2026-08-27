@@ -15,7 +15,7 @@ import 'weather_fakes.dart';
 /// exactly the size its content reports under the constraints the call site
 /// passes — which is what these tests measure, with no popup window involved.
 ///
-/// The cards are pumped bare, with no PanelWindowManager, for the reason
+/// The cards are pumped bare, with no WindowManager, for the reason
 /// desktop_menu_test.dart states: the popup machinery belongs to the host.
 Future<Size> pumpUnder(
   WidgetTester tester,
