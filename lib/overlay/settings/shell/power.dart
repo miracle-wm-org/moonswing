@@ -15,12 +15,20 @@ class PowerSection extends StatelessWidget {
 
   final ConfigStore store;
 
+  /// The width the picker is given.
+  ///
+  /// A [SettingsRow] sizes its control to itself, so without this the trigger
+  /// is as wide as whichever verb happens to be selected — and it would
+  /// resize, along with the card `matchTriggerWidth` sizes to it, every time
+  /// the user picked a different one.
+  static const double _pickerWidth = 260;
+
+  /// What each verb does is said in the hint under the row rather than in a
+  /// [SettingsDropdownItem.detail]: that slot is a marker beside the label
+  /// ("preferred", on the display page's mode list), and a sentence in it is
+  /// wider than the card the row it sits in can be.
   static const List<SettingsDropdownItem<String>> _actions = [
-    SettingsDropdownItem(
-      value: 'menu',
-      label: 'Show the power menu',
-      detail: 'Lock, log out, sleep, restart or shut down',
-    ),
+    SettingsDropdownItem(value: 'menu', label: 'Show the power menu'),
     SettingsDropdownItem(value: 'shutdown', label: 'Shut down'),
     SettingsDropdownItem(value: 'reboot', label: 'Restart'),
     SettingsDropdownItem(value: 'suspend', label: 'Sleep'),
@@ -29,7 +37,6 @@ class PowerSection extends StatelessWidget {
     SettingsDropdownItem(
       value: 'none',
       label: 'Nothing (leave it to the system)',
-      detail: 'systemd-logind handles the key as it normally would',
     ),
   ];
 
@@ -48,16 +55,21 @@ class PowerSection extends StatelessWidget {
       children: [
         SettingsRow(
           label: 'When pressed',
-          control: SettingsDropdown<String>(
-            items: _actions,
-            selected: action.key,
-            onSelected: (value) => store.set(['power', 'key_action'], value),
+          control: SizedBox(
+            width: _pickerWidth,
+            child: SettingsDropdown<String>(
+              items: _actions,
+              selected: action.key,
+              onSelected: (value) => store.set(['power', 'key_action'], value),
+            ),
           ),
         ),
         const SettingsHint(
-          'The shell can only answer the button on a compositor that reports '
-          'it — everything Mir-based does. Everywhere else the key keeps '
-          'doing whatever the system does with it.',
+          'The power menu offers Lock, Log Out, Sleep, Restart and Shut Down '
+          'over the desktop; any of those five can be run by the button '
+          'directly instead. The shell can only answer the button on a '
+          'compositor that reports it — everything Mir-based does. Everywhere '
+          'else the key keeps doing whatever the system does with it.',
         ),
         SettingsRow(
           label: 'Hold the system lock',

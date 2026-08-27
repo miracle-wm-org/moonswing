@@ -610,27 +610,55 @@ class _DropdownTrigger extends StatelessWidget {
               color: open || hovered ? theme.accent : theme.divider,
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.body,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                  ),
-                  overflow: TextOverflow.ellipsis,
+          // The trigger stretches to whatever width it is given and shrinks
+          // to its label when it is given none. Both halves are needed: a
+          // dropdown is nearly always handed a bounded width (an `Expanded`, a
+          // `ListView`'s cross axis) and has to fill it, or the card
+          // `matchTriggerWidth` sizes to the trigger reads as a different
+          // control from the row it drops out of. But a `SettingsRow` lays its
+          // `control` out as an *inflexible* child of a `Row`, which per
+          // `RenderFlex` means unbounded width — and an `Expanded` under an
+          // unbounded main axis throws from inside `performLayout`, which
+          // `RenderObject.layout` catches and reports rather than rethrows.
+          // The subtree is then left un-laid-out but still mounted, so what
+          // the user actually sees is not that error but the cascade behind
+          // it: a semantics compile asserting on a child that still needs
+          // layout, and a "Cannot hit test a render box with no size" per
+          // pointer event for the rest of the page's life.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final bounded = constraints.hasBoundedWidth;
+              final text = Text(
+                label,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.body,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground,
                 ),
-              ),
-              FaIcon(
-                open
-                    ? FontAwesomeIcons.chevronUp
-                    : FontAwesomeIcons.chevronDown,
-                size: 10,
-                color: theme.popupForeground.withValues(alpha: 0.5),
-              ),
-            ],
+                overflow: TextOverflow.ellipsis,
+              );
+              return Row(
+                mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+                children: [
+                  // Tight under a bounded width, so the label absorbs the
+                  // slack and the chevron is pinned to the far edge; loose
+                  // under an unbounded one, where there is no slack to absorb
+                  // and `Flexible` is the fit `RenderFlex` allows.
+                  if (bounded)
+                    Expanded(child: text)
+                  else
+                    Flexible(child: text),
+                  const SizedBox(width: 8),
+                  FaIcon(
+                    open
+                        ? FontAwesomeIcons.chevronUp
+                        : FontAwesomeIcons.chevronDown,
+                    size: 10,
+                    color: theme.popupForeground.withValues(alpha: 0.5),
+                  ),
+                ],
+              );
+            },
           ),
         );
       },

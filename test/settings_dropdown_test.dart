@@ -225,4 +225,55 @@ void main() {
       lessThan(tester.getTopLeft(find.byKey(_hostKey)).dy),
     );
   });
+
+  testWidgets('an unbounded slot shrink-wraps rather than throwing',
+      (tester) async {
+    // What a `SettingsRow` gives its control: an inflexible child of a Row,
+    // which `RenderFlex` lays out with an unbounded main axis. An `Expanded`
+    // inside that throws from `performLayout` — an error `RenderObject.layout`
+    // catches, leaving the subtree mounted but never laid out, which is what
+    // the settings pane saw as a semantics assertion and a "Cannot hit test a
+    // render box with no size" per pointer event.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: DefaultTextStyle(
+          style: const TextStyle(fontSize: 14),
+          child: ThemeScope(
+            theme: const ThemeConfig(),
+            child: Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder: (_) => Row(
+                    children: [
+                      const Expanded(child: SizedBox()),
+                      SettingsDropdown<String>(
+                        key: _hostKey,
+                        items: _items(3),
+                        selected: 'v0',
+                        onSelected: (_) {},
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+
+    // Sized to its content rather than to the screen, and still tappable —
+    // the hit test is what an unlaid-out subtree loses.
+    final trigger = tester.getSize(find.byKey(_hostKey));
+    expect(trigger.width, greaterThan(0));
+    final overlay = tester.getSize(find.byType(Overlay)).width;
+    expect(trigger.width, lessThan(overlay));
+
+    await openList(tester, on: 'Device 0');
+    expect(_listOpen(), isTrue);
+  });
 }
