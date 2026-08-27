@@ -91,7 +91,22 @@ class ZwlrOutputHeadV1 extends WaylandObject {
 
   ZwlrOutputHeadV1(super.client, super.id, {required this.onChanged});
 
+  /// Memoised [sortedModes]. Invalidated by [_invalidateModes], which every
+  /// event that could move the order runs through.
+  List<ZwlrOutputModeV1>? _sortedModes;
+
+  /// Dropped whenever a mode is advertised or one of the fields the sort reads
+  /// moves. A monitor reports around thirty modes and this filters, sorts and
+  /// allocates all of them — charged once per card build, on a card that
+  /// rebuilds whenever anything on the display page does.
+  void _invalidateModes() {
+    _sortedModes = null;
+    onChanged();
+  }
+
   List<ZwlrOutputModeV1> get sortedModes {
+    final cached = _sortedModes;
+    if (cached != null) return cached;
     final list = modes.values.where((m) => !m.finished).toList();
     list.sort((a, b) {
       if (a.preferred && !b.preferred) return -1;
@@ -101,7 +116,7 @@ class ZwlrOutputHeadV1 extends WaylandObject {
       if (ap != bp) return bp.compareTo(ap);
       return b.refreshMHz.compareTo(a.refreshMHz);
     });
-    return list;
+    return _sortedModes = list;
   }
 
   @override
@@ -123,9 +138,16 @@ class ZwlrOutputHeadV1 extends WaylandObject {
         return true;
       case 3:
         final modeId = WaylandReadBuffer(payload).readUint();
-        final mode = ZwlrOutputModeV1(client, modeId, onChanged: onChanged);
+        // Every field the sort reads lives on the mode and arrives through the
+        // mode's own events, so the invalidation has to be the mode's callback
+        // rather than something this switch can do on its own.
+        final mode = ZwlrOutputModeV1(
+          client,
+          modeId,
+          onChanged: _invalidateModes,
+        );
         modes[modeId] = mode;
-        onChanged();
+        _invalidateModes();
         return true;
       case 4:
         enabled = WaylandReadBuffer(payload).readUint() != 0;
@@ -348,13 +370,13 @@ class _HeadState {
   });
 
   factory _HeadState.fromHead(ZwlrOutputHeadV1 head) => _HeadState(
-        enabled: head.enabled,
-        modeId: head.currentMode?.id,
-        scale: head.scale,
-        transform: head.transform,
-        positionX: head.positionX,
-        positionY: head.positionY,
-      );
+    enabled: head.enabled,
+    modeId: head.currentMode?.id,
+    scale: head.scale,
+    transform: head.transform,
+    positionX: head.positionX,
+    positionY: head.positionY,
+  );
 
   final bool enabled;
   final int? modeId;
@@ -397,13 +419,13 @@ class _DisplayEdit {
   });
 
   factory _DisplayEdit.fromHead(ZwlrOutputHeadV1 head) => _DisplayEdit(
-        enabled: head.enabled,
-        selectedMode: head.currentMode,
-        scale: head.scale,
-        transform: head.transform,
-        positionX: head.positionX,
-        positionY: head.positionY,
-      );
+    enabled: head.enabled,
+    selectedMode: head.currentMode,
+    scale: head.scale,
+    transform: head.transform,
+    positionX: head.positionX,
+    positionY: head.positionY,
+  );
 
   _DisplayEdit copyWith({
     bool? enabled,
@@ -413,15 +435,14 @@ class _DisplayEdit {
     int? transform,
     int? positionX,
     int? positionY,
-  }) =>
-      _DisplayEdit(
-        enabled: enabled ?? this.enabled,
-        selectedMode: clearMode ? null : (selectedMode ?? this.selectedMode),
-        scale: scale ?? this.scale,
-        transform: transform ?? this.transform,
-        positionX: positionX ?? this.positionX,
-        positionY: positionY ?? this.positionY,
-      );
+  }) => _DisplayEdit(
+    enabled: enabled ?? this.enabled,
+    selectedMode: clearMode ? null : (selectedMode ?? this.selectedMode),
+    scale: scale ?? this.scale,
+    transform: transform ?? this.transform,
+    positionX: positionX ?? this.positionX,
+    positionY: positionY ?? this.positionY,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -442,6 +463,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   String? _error;
   final Map<int, _DisplayEdit> _edits = {};
   final Map<int, _HeadState> _lastHead = {};
+
   /// The user has edits this session's apply has not committed yet.
   bool _dirty = false;
   bool _applying = false;
@@ -467,8 +489,11 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       registry = client.getRegistry(
         onGlobal: (name, interface, version) {
           if (interface == 'zwlr_output_manager_v1') {
-            final boundId =
-                registry!.bind(name, interface, math.min(version, 2));
+            final boundId = registry!.bind(
+              name,
+              interface,
+              math.min(version, 2),
+            );
             _manager = ZwlrOutputManagerV1(
               client,
               boundId,
@@ -482,8 +507,10 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       client.sync((_) {
         if (!mounted) return;
         if (_manager == null) {
-          setState(() =>
-              _error = 'Display management not supported by this compositor');
+          setState(
+            () =>
+                _error = 'Display management not supported by this compositor',
+          );
         }
       });
     } catch (e) {
@@ -496,6 +523,12 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     final manager = _manager;
     // serial is null until the first done() event; 0 is a valid serial value.
     if (manager == null || manager.serial == null) return;
+    // Here rather than in `build`: this mutates `_edits` and `_lastHead` and
+    // allocates a `_HeadState` per head, and `build` runs for reasons that have
+    // nothing to do with the compositor — a hover, a dropdown opening, a
+    // keystroke in the scale field. It runs before the setState, so the build
+    // that setState schedules already sees the folded-in state.
+    _reconcileEdits();
     setState(() => _loaded = true);
   }
 
@@ -543,9 +576,15 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         if (!mounted) return;
         // `_edits` is what the compositor now holds — keep it. Clearing it and
         // re-reading the heads is what used to put the old arrangement back.
+        //
+        // The reconcile is explicit because `_dirty` is what gates it, and this
+        // is the one place that clears the flag: a head that moved while the
+        // user was mid-edit was skipped, and there is no further compositor
+        // event coming to fold it in.
+        _dirty = false;
+        _reconcileEdits();
         setState(() {
           _applying = false;
-          _dirty = false;
         });
       },
       onFailed: () {
@@ -596,7 +635,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     final theme = ThemeScope.of(context);
     if (_error != null) return _buildError(theme);
     if (!_loaded) return _buildLoading(theme);
-    _reconcileEdits();
     return _buildLoaded(theme);
   }
 
@@ -621,9 +659,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       children: [
         _buildHeader(theme),
         Container(height: 1, color: theme.divider),
-        const Expanded(
-          child: Center(child: LoadingIndicator(size: 22)),
-        ),
+        const Expanded(child: Center(child: LoadingIndicator(size: 22))),
       ],
     );
   }
@@ -848,21 +884,23 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final boxes = _boxes();
-    return LayoutBuilder(builder: (context, constraints) {
-      final viewport = Size(constraints.maxWidth, _height);
-      final fit = _frozenFit ?? fitBoxes(boxes, viewport, padding: _padding);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = Size(constraints.maxWidth, _height);
+        final fit = _frozenFit ?? fitBoxes(boxes, viewport, padding: _padding);
 
-      return Container(
-        height: _height,
-        color: theme.popupBackground.withValues(alpha: 0.6),
-        child: Stack(
-          children: [
-            for (var i = 0; i < widget.heads.length; i++)
-              _buildHeadRect(theme, widget.heads[i], i, boxes, fit),
-          ],
-        ),
-      );
-    });
+        return Container(
+          height: _height,
+          color: theme.popupBackground.withValues(alpha: 0.6),
+          child: Stack(
+            children: [
+              for (var i = 0; i < widget.heads.length; i++)
+                _buildHeadRect(theme, widget.heads[i], i, boxes, fit),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildHeadRect(
@@ -923,15 +961,14 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
             desiredX: next.dx.round(),
             desiredY: next.dy.round(),
           );
-          widget.onPositionsChanged({
-            head.id: (x: snapped.x, y: snapped.y),
-          });
+          widget.onPositionsChanged({head.id: (x: snapped.x, y: snapped.y)});
         },
         onPanEnd: (_) => _endDrag(head.id),
         onPanCancel: () => _endDrag(head.id),
         child: MouseRegion(
-          cursor:
-              dragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
+          cursor: dragging
+              ? SystemMouseCursors.grabbing
+              : SystemMouseCursors.grab,
           child: Container(
             margin: const EdgeInsets.all(2),
             decoration: BoxDecoration(

@@ -11,6 +11,8 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
 import 'package:graceful_shell/timers/timer_widgets.dart';
 
+import 'paint_counter.dart';
+
 /// Pumps the tab the way the overlay does: inside a ThemeScope, with the
 /// Directionality and text style the overlay's panel supplies.
 Future<void> pumpTab(
@@ -47,36 +49,8 @@ Future<void> pumpTab(
   await tester.pump();
 }
 
-/// A proxy that counts how many times it is asked to paint.
-///
-/// Put under a [RepaintBoundary] of its own, it answers the only question a
-/// hover-performance regression has: did anything *outside* the thing the
-/// pointer touched have to be re-recorded? A render object marked needing
-/// paint dirties everything up to the nearest repaint boundary, so if the day
-/// cell has none of its own, this counter — and with it the whole overlay
-/// picture, scrim included — is re-recorded on every pointer move across the
-/// grid, and the GTK embedder, which implements no partial repaint, rasters
-/// the whole output again after it.
-class _PaintCounter extends SingleChildRenderObjectWidget {
-  const _PaintCounter({super.key, required Widget super.child});
-
-  @override
-  RenderObject createRenderObject(BuildContext context) =>
-      _RenderPaintCounter();
-}
-
-class _RenderPaintCounter extends RenderProxyBox {
-  int paints = 0;
-
-  @override
-  void paint(PaintingContext context, Offset offset) {
-    paints++;
-    super.paint(context, offset);
-  }
-}
-
-Finder _iconButton(FaIconData icon) => find.byWidgetPredicate(
-    (w) => w is SettingsIconButton && w.icon == icon);
+Finder _iconButton(FaIconData icon) =>
+    find.byWidgetPredicate((w) => w is SettingsIconButton && w.icon == icon);
 
 void main() {
   final now = DateTime.now();
@@ -85,8 +59,9 @@ void main() {
   String label(DateTime month) =>
       '${monthNames[month.month - 1]} ${month.year}';
 
-  testWidgets('renders the current month with every one of its days',
-      (tester) async {
+  testWidgets('renders the current month with every one of its days', (
+    tester,
+  ) async {
     await pumpTab(tester);
 
     expect(find.text(thisMonth), findsOneWidget);
@@ -151,8 +126,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('carries the timers section under the world clocks',
-      (tester) async {
+  testWidgets('carries the timers section under the world clocks', (
+    tester,
+  ) async {
     // Its own store, hand-driven: TimersStore.forTesting starts no ticker, and
     // the singleton is shared with every other test in the suite.
     final timers = TimersStore.forTesting(now: () => DateTime(2026, 8, 24, 12));
@@ -200,8 +176,9 @@ void main() {
     expect(timersLabel.top, greaterThan(clocksLabel.bottom));
     expect(timersLabel.left, greaterThan(monthLabel.right));
   });
-  testWidgets('hovering a day repaints that day and nothing above it',
-      (tester) async {
+  testWidgets('hovering a day repaints that day and nothing above it', (
+    tester,
+  ) async {
     // The highlight used to trail the pointer across the grid because a hover
     // repainted the whole surface: forty-two cells, the dial's painter, both
     // lists and the tab strip re-recorded to tint one 40px box, and — the GTK
@@ -218,7 +195,7 @@ void main() {
           child: ThemeScope(
             theme: theme,
             child: RepaintBoundary(
-              child: _PaintCounter(
+              child: PaintCounter(
                 key: counterKey,
                 child: const SizedBox(
                   width: 800,
@@ -242,14 +219,21 @@ void main() {
     // ones, which come off the end of the previous month.
     expect(find.text('15'), findsOneWidget);
 
-    BoxDecoration cellDecoration() => tester
-        .widget<Container>(
-          find.ancestor(of: find.text('15'), matching: find.byType(Container)).first,
-        )
-        .decoration! as BoxDecoration;
+    BoxDecoration cellDecoration() =>
+        tester
+                .widget<Container>(
+                  find
+                      .ancestor(
+                        of: find.text('15'),
+                        matching: find.byType(Container),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
 
     final counter =
-        counterKey.currentContext!.findRenderObject()! as _RenderPaintCounter;
+        counterKey.currentContext!.findRenderObject()! as RenderPaintCounter;
 
     final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await pointer.addPointer(location: Offset.zero);
@@ -269,7 +253,10 @@ void main() {
     expect(counter.paints, paintsBefore);
     // The number is built outside the hover builder and handed in as a child,
     // so the rebuild the boundary contains is a decoration, not a paragraph.
-    expect(identical(tester.widget<Text>(find.text('15')), labelBefore), isTrue);
+    expect(
+      identical(tester.widget<Text>(find.text('15')), labelBefore),
+      isTrue,
+    );
 
     await pointer.moveTo(Offset.zero);
     await tester.pump();

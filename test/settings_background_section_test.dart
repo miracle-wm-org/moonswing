@@ -91,16 +91,23 @@ void main() {
                     child: SizedBox(
                       width: 520,
                       height: 1700,
-                      child: SingleChildScrollView(
-                        // The page rebuilds the category body on every store
-                        // notify (`_ShellCategoryView` in shell.dart); without
-                        // it an edit would land in the config and never reach
-                        // the grid.
-                        child: ListenableBuilder(
-                          listenable: store,
-                          builder: (_, _) =>
-                              BackgroundSection(store: store, catalog: catalog),
-                        ),
+                      // A `CustomScrollView`, because the section is a sliver
+                      // — `_ShellCategoryView` in shell.dart builds it the
+                      // same way. No `ListenableBuilder` around it either, for
+                      // the reason stated there: the section subscribes to the
+                      // entry list itself, so an edit reaches the grid without
+                      // one.
+                      //
+                      // `cacheExtent` matches the page's, and the viewport
+                      // above is deliberately taller than the content: the
+                      // grids are lazy now, so a tile scrolled out of range
+                      // would not merely be clipped, it would be unmounted and
+                      // `find.byKey` would miss it.
+                      child: CustomScrollView(
+                        cacheExtent: 600,
+                        slivers: [
+                          BackgroundSection(store: store, catalog: catalog),
+                        ],
                       ),
                     ),
                   ),

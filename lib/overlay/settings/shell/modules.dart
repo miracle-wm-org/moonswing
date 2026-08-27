@@ -11,7 +11,8 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/battery.dart' show BatteryConfig;
 import 'package:graceful_shell/modules/clock.dart' show ClockConfig;
 import 'package:graceful_shell/modules/dock.dart' show DockConfig;
-import 'package:graceful_shell/modules/media_player.dart' show MediaPlayerConfig;
+import 'package:graceful_shell/modules/media_player.dart'
+    show MediaPlayerConfig;
 import 'package:graceful_shell/modules/network.dart' show NetworkConfig;
 import 'package:graceful_shell/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:graceful_shell/modules/weather.dart' show WeatherConfig;
@@ -36,28 +37,28 @@ class _ModuleSetting {
     this.path,
     this.label, {
     required bool this.defaultValue,
-  })  : kind = _Kind.toggle,
-        isInt = false,
-        options = null,
-        addHint = null;
+  }) : kind = _Kind.toggle,
+       isInt = false,
+       options = null,
+       addHint = null;
 
   const _ModuleSetting.number(
     this.path,
     this.label, {
     required num this.defaultValue,
     required this.isInt,
-  })  : kind = _Kind.number,
-        options = null,
-        addHint = null;
+  }) : kind = _Kind.number,
+       options = null,
+       addHint = null;
 
   const _ModuleSetting.segmented(
     this.path,
     this.label, {
     required List<String> this.options,
     required String this.defaultValue,
-  })  : kind = _Kind.segmented,
-        isInt = false,
-        addHint = null;
+  }) : kind = _Kind.segmented,
+       isInt = false,
+       addHint = null;
 
   /// A free-typed string — a path, in the only two rows that use it.
   ///
@@ -66,23 +67,17 @@ class _ModuleSetting {
   /// folder that is not there yet could not be configured at all. The default
   /// is shown as the placeholder rather than written into the field, so
   /// clearing it goes back to the default instead of to nowhere.
-  const _ModuleSetting.text(
-    this.path,
-    this.label, {
-    this.addHint,
-  })  : kind = _Kind.text,
-        defaultValue = null,
-        isInt = false,
-        options = null;
+  const _ModuleSetting.text(this.path, this.label, {this.addHint})
+    : kind = _Kind.text,
+      defaultValue = null,
+      isInt = false,
+      options = null;
 
-  const _ModuleSetting.stringList(
-    this.path,
-    this.label, {
-    this.addHint,
-  })  : kind = _Kind.stringList,
-        defaultValue = null,
-        isInt = false,
-        options = null;
+  const _ModuleSetting.stringList(this.path, this.label, {this.addHint})
+    : kind = _Kind.stringList,
+      defaultValue = null,
+      isInt = false,
+      options = null;
 
   /// The weather location picker.
   ///
@@ -91,12 +86,12 @@ class _ModuleSetting {
   /// geocoding lookup, so the control owns its own path list rather than taking
   /// one — see `weather_location.dart`.
   const _ModuleSetting.weatherLocation(this.label)
-      : kind = _Kind.weatherLocation,
-        path = const [],
-        defaultValue = null,
-        isInt = false,
-        options = null,
-        addHint = null;
+    : kind = _Kind.weatherLocation,
+      path = const [],
+      defaultValue = null,
+      isInt = false,
+      options = null,
+      addHint = null;
 
   final List<String> path;
   final String label;
@@ -341,7 +336,7 @@ class ModulesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SettingsSection(
+    return SliverSettingsSection(
       label: 'Modules',
       children: [
         for (final group in _moduleGroups) ...[
@@ -358,40 +353,79 @@ class ModulesSection extends StatelessWidget {
     );
   }
 
+  /// The control for one row, subscribed to its own key.
+  ///
+  /// Every one of these is inside a [ConfigValue] rather than under a
+  /// page-level `ListenableBuilder`: [ConfigStore] notifies on every `set`, so
+  /// a digit typed into one number field used to rebuild all thirty-two of
+  /// these rows. The controls that own a `TextEditingController` and read their
+  /// seed once are wrapped too — the selector's `==` check means a notify that
+  /// did not move *this* key does not reach them at all, which is the cheapest
+  /// possible answer and the one that cannot go stale.
   Widget _control(_ModuleSetting setting) {
     final path = setting.path;
     switch (setting.kind) {
       case _Kind.toggle:
-        return SettingsToggle(
-          value: store.get<bool>(path) ?? setting.defaultValue as bool,
-          onChanged: (v) => store.set(path, v),
+        return ConfigValue<bool>(
+          store: store,
+          path: path,
+          fallback: setting.defaultValue as bool,
+          builder: (context, value) => SettingsToggle(
+            value: value!,
+            onChanged: (v) => store.set(path, v),
+          ),
         );
       case _Kind.number:
-        return SettingsNumberField(
-          value: store.get<num>(path) ?? setting.defaultValue as num,
-          isInt: setting.isInt,
-          onChanged: (v) => store.set(path, v),
+        return ConfigValue<num>(
+          store: store,
+          path: path,
+          fallback: setting.defaultValue as num,
+          builder: (context, value) => SettingsNumberField(
+            value: value!,
+            isInt: setting.isInt,
+            onChanged: (v) => store.set(path, v),
+          ),
         );
       case _Kind.segmented:
-        return SettingsSegmented(
-          options: setting.options!,
-          value: store.get<String>(path) ?? setting.defaultValue as String,
-          onChanged: (v) => store.set(path, v),
+        return ConfigValue<String>(
+          store: store,
+          path: path,
+          fallback: setting.defaultValue as String,
+          builder: (context, value) => SettingsSegmented(
+            options: setting.options!,
+            value: value!,
+            onChanged: (v) => store.set(path, v),
+          ),
         );
       case _Kind.text:
-        return SettingsTextField(
-          initial: store.get<String>(path) ?? '',
-          hint: setting.addHint,
-          width: 220,
-          onChanged: (value) => store.set(path, value),
+        return ConfigValue<String>(
+          store: store,
+          path: path,
+          fallback: '',
+          builder: (context, value) => SettingsTextField(
+            initial: value!,
+            hint: setting.addHint,
+            width: 220,
+            onChanged: (value) => store.set(path, value),
+          ),
         );
       case _Kind.stringList:
-        return SettingsStringListEditor(
-          items: store.getList<String>(path),
-          onChanged: (list) => store.set(path, list),
-          addHint: setting.addHint,
+        // Selected as the list itself: `getList` mints a fresh `List<String>`
+        // per call, and `List` has no value equality, so a bare selector would
+        // report a change on every notify. The join is the signature, the way
+        // `ConfigStore._restartSignature` and `DesktopStore` both do it.
+        return StoreSelector<String>(
+          listenable: store,
+          selector: () => store.getList<String>(path).join('\u0000'),
+          builder: (context, _) => SettingsStringListEditor(
+            items: store.getList<String>(path),
+            onChanged: (list) => store.set(path, list),
+            addHint: setting.addHint,
+          ),
         );
       case _Kind.weatherLocation:
+        // Subscribes itself — it reads three keys and renders one label from
+        // them, so the selector is on the label rather than on a key.
         return WeatherLocationField(store: store);
     }
   }

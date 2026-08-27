@@ -63,10 +63,12 @@ class _AppearanceSectionState extends State<AppearanceSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SettingsSection(
+    // A sliver group rather than a Column: this section *is* the Appearance
+    // page, and the page's scroller is a `CustomScrollView`. See
+    // [SliverSettingsSection].
+    return SliverMainAxisGroup(
+      slivers: [
+        SliverSettingsSection(
           label: 'Theme',
           // On the section's heading rather than under the swatch grid: the
           // grid is a Wrap that grows a row per handful of themes, so the one
@@ -120,7 +122,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
         // The editor's structure — which rows exist, their keys, the read-only
         // state, the seed values of the self-managing fields — depends only on
         // *which* theme is active, not on the palette's current values. So it
@@ -128,7 +130,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
         // a create), never on the per-frame notifies of a colour-picker drag:
         // the swatch grid above and the field being dragged are the only
         // widgets that repaint mid-drag.
-        _ThemeStoreSelector<(String, bool, String)>(
+        StoreSelector<(String, bool, String)>(
           listenable: _themes,
           selector: () => (
             _themes.activeName,
@@ -140,7 +142,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
             // Read straight off the resolved theme rather than the file, so a
             // key the file omits shows the value actually in use.
             final current = _themes.theme.toMap();
-            return SettingsSection(
+            return SliverSettingsSection(
               label: 'Edit $displayName',
               children: [
                 if (builtIn) ...[
@@ -165,14 +167,18 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   // Unlike the keyed fields below, the font control renders
                   // its current value on every build, so it follows the store
                   // itself — one row, cheap — or a pick would not show.
-                  control: _ThemeStoreSelector<String?>(
+                  control: StoreSelector<String>(
                     listenable: _themes,
-                    selector: () => _themes.theme.toMap()['font'] as String?,
+                    // The field, not `toMap()['font']`: this selector runs on
+                    // *every* ThemeStore notify, and `toMap` builds a thirty-key
+                    // map — twice per frame of a colour-picker drag, between
+                    // this row and the panel-gradient one below.
+                    selector: () => _themes.theme.fontFamily,
                     builder: (context, font) => FutureBuilder<List<String>>(
                       future: _fonts,
                       builder: (context, snapshot) {
                         final fonts = snapshot.data;
-                        final value = font ?? 'Ubuntu Sans';
+                        final value = font;
                         if (fonts == null || fonts.isEmpty) {
                           // Still loading, or no fontconfig on this machine.
                           // The key stays editable by hand either way.
@@ -213,7 +219,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     // itself, and answering a typed digit with a duplicate
                     // would throw the digit away.
                     onChanged: (v) => _themes.edit(
-                        'font_size', v.toDouble().clamp(6.0, 32.0)),
+                      'font_size',
+                      v.toDouble().clamp(6.0, 32.0),
+                    ),
                   ),
                 ),
                 const SettingsHint(
@@ -228,11 +236,10 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   label: 'Panel gradient',
                   // Renders its value too, so it follows the store like the
                   // font row does.
-                  control: _ThemeStoreSelector<bool>(
+                  control: StoreSelector<bool>(
                     listenable: _themes,
-                    selector: () =>
-                        _themes.theme.toMap()['panel_gradient'] as bool? ??
-                        true,
+                    // The field, for the reason the font row above states.
+                    selector: () => _themes.theme.panelGradient,
                     builder: (context, gradient) => SettingsToggle(
                       value: gradient,
                       onChanged: builtIn
@@ -264,7 +271,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['panel_radius'] as num? ?? 0,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
-                        'panel_radius', v.toDouble().clamp(0.0, 64.0)),
+                      'panel_radius',
+                      v.toDouble().clamp(0.0, 64.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -274,7 +283,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['panel_border_width'] as num? ?? 0,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
-                        'panel_border_width', v.toDouble().clamp(0.0, 16.0)),
+                      'panel_border_width',
+                      v.toDouble().clamp(0.0, 16.0),
+                    ),
                   ),
                 ),
                 const SettingsHint(
@@ -297,7 +308,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['popup_radius'] as num? ?? 8,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
-                        'popup_radius', v.toDouble().clamp(0.0, 64.0)),
+                      'popup_radius',
+                      v.toDouble().clamp(0.0, 64.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -307,7 +320,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['popup_gap'] as num? ?? 0,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
-                        'popup_gap', v.toDouble().clamp(0.0, 64.0)),
+                      'popup_gap',
+                      v.toDouble().clamp(0.0, 64.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -317,7 +332,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['popup_attach_radius'] as num? ?? 0,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
-                        'popup_attach_radius', v.toDouble().clamp(0.0, 64.0)),
+                      'popup_attach_radius',
+                      v.toDouble().clamp(0.0, 64.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -327,7 +344,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['popup_border_width'] as num? ?? 1,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
-                        'popup_border_width', v.toDouble().clamp(0.0, 16.0)),
+                      'popup_border_width',
+                      v.toDouble().clamp(0.0, 16.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -337,7 +356,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['popup_shadow_blur'] as num? ?? 16,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
-                        'popup_shadow_blur', v.toDouble().clamp(0.0, 64.0)),
+                      'popup_shadow_blur',
+                      v.toDouble().clamp(0.0, 64.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -348,7 +369,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     isInt: false,
                     allowNegative: true,
                     onChanged: (v) => _themes.edit(
-                        'popup_shadow_spread', v.toDouble().clamp(-32.0, 32.0)),
+                      'popup_shadow_spread',
+                      v.toDouble().clamp(-32.0, 32.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -358,8 +381,10 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['popup_shadow_offset_x'] as num? ?? 0,
                     isInt: false,
                     allowNegative: true,
-                    onChanged: (v) => _themes.edit('popup_shadow_offset_x',
-                        v.toDouble().clamp(-64.0, 64.0)),
+                    onChanged: (v) => _themes.edit(
+                      'popup_shadow_offset_x',
+                      v.toDouble().clamp(-64.0, 64.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -369,8 +394,10 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['popup_shadow_offset_y'] as num? ?? 6,
                     isInt: false,
                     allowNegative: true,
-                    onChanged: (v) => _themes.edit('popup_shadow_offset_y',
-                        v.toDouble().clamp(-64.0, 64.0)),
+                    onChanged: (v) => _themes.edit(
+                      'popup_shadow_offset_y',
+                      v.toDouble().clamp(-64.0, 64.0),
+                    ),
                   ),
                 ),
                 SettingsRow(
@@ -390,13 +417,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     // than an empty row.
                     selected:
                         PopupEffect.fromSlug(
-                                current['popup_animation'] as String?) ??
-                            PopupEffect.slide,
+                          current['popup_animation'] as String?,
+                        ) ??
+                        PopupEffect.slide,
                     // Straight to `edit`, like the numbers above: it forks a
                     // built-in itself, and answering a pick with a duplicate
                     // would throw the pick away.
-                    onSelected: (v) =>
-                        _themes.edit('popup_animation', v.slug),
+                    onSelected: (v) => _themes.edit('popup_animation', v.slug),
                   ),
                 ),
                 const SettingsHint(
@@ -452,67 +479,6 @@ class _AppearanceSectionState extends State<AppearanceSection> {
   }
 }
 
-/// Rebuilds [builder] only when [selector]'s value changes between notifies of
-/// [listenable].
-///
-/// [ThemeStore] notifies on every frame of a colour-picker drag, and the old
-/// single `ListenableBuilder` around this whole section rebuilt ~240 lines of
-/// tree per frame. This is the seam that narrows it: subtrees that render
-/// theme *values* select those values; the structural tree selects only the
-/// active theme's identity.
-class _ThemeStoreSelector<T> extends StatefulWidget {
-  const _ThemeStoreSelector({
-    required this.listenable,
-    required this.selector,
-    required this.builder,
-  });
-
-  final Listenable listenable;
-  final T Function() selector;
-  final Widget Function(BuildContext context, T value) builder;
-
-  @override
-  State<_ThemeStoreSelector<T>> createState() => _ThemeStoreSelectorState<T>();
-}
-
-class _ThemeStoreSelectorState<T> extends State<_ThemeStoreSelector<T>> {
-  late T _value;
-
-  @override
-  void initState() {
-    super.initState();
-    _value = widget.selector();
-    widget.listenable.addListener(_onNotify);
-  }
-
-  @override
-  void didUpdateWidget(covariant _ThemeStoreSelector<T> oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.listenable, widget.listenable)) {
-      oldWidget.listenable.removeListener(_onNotify);
-      widget.listenable.addListener(_onNotify);
-    }
-    // A parent rebuild hands in a fresh selector closure; re-read so a value
-    // that changed while this widget was not listening to it is not stale.
-    _value = widget.selector();
-  }
-
-  @override
-  void dispose() {
-    widget.listenable.removeListener(_onNotify);
-    super.dispose();
-  }
-
-  void _onNotify() {
-    final next = widget.selector();
-    if (next == _value) return;
-    setState(() => _value = next);
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.builder(context, _value);
-}
-
 /// One theme in the picker: a strip of its own colours, its name, and a tick
 /// when it is the active one. Drawn in the theme it represents, so the grid
 /// previews rather than describes.
@@ -533,93 +499,120 @@ class _ThemeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final preview = summary.config;
-    return HoverRegion(
-      onTap: onTap,
-      builder: (context, hovered) => Container(
-        width: 168,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: hovered ? theme.surfaceHover : theme.controlSurface,
-          borderRadius: BorderRadius.circular(ShellRadii.card),
-          border: Border.all(
-            color: selected ? theme.accent : theme.divider,
-            width: selected ? 2 : 1,
-          ),
+    // The swatch strip, the name and the slug depend on the palette and on
+    // `selected`, never on `hovered`, so they are built once here and captured.
+    // See [SettingsRow] for why the builder is kept down to a decoration.
+    final swatches = Container(
+      height: 34,
+      decoration: BoxDecoration(
+        color: preview.workspaceBackground,
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: preview.divider),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          for (final c in [
+            preview.accent,
+            preview.surfacePressed,
+            preview.popupBackground,
+            preview.foreground,
+          ])
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: c,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: preview.divider),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+    final name = Expanded(
+      child: Text(
+        summary.displayName,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: ShellFontSizes.body,
+          fontFamily: theme.fontFamily,
+          color: theme.popupForeground,
+          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
         ),
-        child: Column(
+      ),
+    );
+    final slug = Text(
+      summary.builtIn ? 'Built-in' : summary.slug,
+      style: TextStyle(
+        fontSize: ShellFontSizes.caption,
+        fontFamily: theme.fontFamily,
+        color: theme.muted,
+      ),
+    );
+    // Not inside a [SettingsRow], so it carries its own — see that class for
+    // the rule.
+    return RepaintBoundary(
+      child: HoverRegion(
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          width: 168,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: hovered ? theme.surfaceHover : theme.controlSurface,
+            borderRadius: BorderRadius.circular(ShellRadii.card),
+            border: Border.all(
+              color: selected ? theme.accent : theme.divider,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               // The swatches sit on the preview's own background, or a
               // translucent theme would be judged against the wrong surface.
-              Container(
-                height: 34,
-                decoration: BoxDecoration(
-                  color: preview.workspaceBackground,
-                  borderRadius: BorderRadius.circular(5),
-                  border: Border.all(color: preview.divider),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Row(
-                  children: [
-                    for (final c in [
-                      preview.accent,
-                      preview.surfacePressed,
-                      preview.popupBackground,
-                      preview.foreground,
-                    ])
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: Container(
-                          width: 16,
-                          height: 16,
-                          decoration: BoxDecoration(
-                            color: c,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: preview.divider),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              swatches,
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Expanded(
-                    child: Text(
-                      summary.displayName,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.body,
-                        fontFamily: theme.fontFamily,
-                        color: theme.popupForeground,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w400,
-                      ),
+                  name,
+                  // The slot is occupied whether or not either glyph is in it.
+                  // A tick is 11px and a [SettingsIconButton] is 26 square, so
+                  // swapping one for the other on hover marked the card needing
+                  // *layout* — and a RepaintBoundary contains a repaint but
+                  // never a relayout, so the mark walked straight past it and
+                  // re-laid the whole Wrap under the pointer. `panels.dart`'s
+                  // `_PanelTab` reserves its close button's square for the same
+                  // reason.
+                  SizedBox.square(
+                    dimension: ShellSizes.iconButtonDense,
+                    child: Center(
+                      child: selected
+                          ? FaIcon(
+                              FontAwesomeIcons.check,
+                              size: ShellFontSizes.caption,
+                              color: theme.accent,
+                            )
+                          : (hovered && onDelete != null)
+                          ? SettingsIconButton(
+                              icon: FontAwesomeIcons.trash,
+                              size: ShellFontSizes.caption,
+                              box: ShellSizes.iconButtonDense,
+                              onTap: onDelete!,
+                            )
+                          : null,
                     ),
                   ),
-                  if (selected)
-                    FaIcon(FontAwesomeIcons.check,
-                        size: ShellFontSizes.caption, color: theme.accent)
-                  else if (hovered && onDelete != null)
-                    SettingsIconButton(
-                      icon: FontAwesomeIcons.trash,
-                      size: ShellFontSizes.caption,
-                      onTap: onDelete!,
-                    ),
                 ],
               ),
-              Text(
-                summary.builtIn ? 'Built-in' : summary.slug,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.caption,
-                  fontFamily: theme.fontFamily,
-                  color: theme.muted,
-                ),
-              ),
+              slug,
             ],
           ),
+        ),
       ),
     );
   }

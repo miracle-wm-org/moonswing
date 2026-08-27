@@ -16,6 +16,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/hover_region.dart';
+import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/theme/tokens.dart';
@@ -107,28 +108,33 @@ class WeatherLocationField extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
 
-    return AnchoredSearchDropdown<WeatherLocationChoice>(
-      // No synchronous half: there is no local list of places to rank, so the
-      // list opens on the automatic row alone and fills in as the user types.
-      search: _search,
-      width: 280,
-      rowHeight: 40,
-      emptyText: 'Type a town or city',
-      loadingText: 'Searching…',
-      alignRight: true,
-      itemBuilder: (context, choice, highlighted) =>
-          _ChoiceRow(choice: choice, theme: theme),
-      onSelected: _select,
-      // Closes the open list when the saved location changes underneath it, the
-      // guard the font field takes against a stale pick: `ConfigStore` notifies
-      // every listener on every keystroke anywhere in the settings UI, and this
-      // row rebuilds with them.
-      closeKey: _label,
-      triggerBuilder: (context, open, toggle) => _Trigger(
-        label: _label,
-        open: open,
-        onTap: toggle,
-        theme: theme,
+    // Three keys, one derived label, one subscription. This row used to rebuild
+    // under the pane's own `ListenableBuilder`, so it re-read all three on
+    // every keystroke anywhere in the settings UI; now it rebuilds only when
+    // the label it renders actually moves. See [ConfigValue] — this is its
+    // [StoreSelector] half, because there is no single key to select.
+    return StoreSelector<String>(
+      listenable: store,
+      selector: () => _label,
+      builder: (context, label) => AnchoredSearchDropdown<WeatherLocationChoice>(
+        // No synchronous half: there is no local list of places to rank, so the
+        // list opens on the automatic row alone and fills in as the user types.
+        search: _search,
+        width: 280,
+        rowHeight: 40,
+        emptyText: 'Type a town or city',
+        loadingText: 'Searching…',
+        alignRight: true,
+        itemBuilder: (context, choice, highlighted) =>
+            _ChoiceRow(choice: choice, theme: theme),
+        onSelected: _select,
+        // Closes the open list when the saved location changes underneath it, the
+        // guard the font field takes against a stale pick: `ConfigStore` notifies
+        // every listener on every keystroke anywhere in the settings UI, and this
+        // row rebuilds with them.
+        closeKey: label,
+        triggerBuilder: (context, open, toggle) =>
+            _Trigger(label: label, open: open, onTap: toggle, theme: theme),
       ),
     );
   }
@@ -227,7 +233,9 @@ class _ChoiceRow extends StatelessWidget {
               Text(
                 place == null
                     ? 'Wherever this machine is'
-                    : place.qualifier.isEmpty ? ' ' : place.qualifier,
+                    : place.qualifier.isEmpty
+                    ? ' '
+                    : place.qualifier,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
