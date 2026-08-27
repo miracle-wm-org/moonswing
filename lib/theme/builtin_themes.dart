@@ -23,6 +23,8 @@ const Map<String, String> kBuiltInThemes = {
   'forest': _forest,
   'dracula': _dracula,
   'glassy': _glassy,
+  'midnight': _midnight,
+  'carbon': _carbon,
 };
 
 const String _graceful = '''
@@ -306,4 +308,186 @@ popup_shadow_offset_y = 10.0
 # out of: the card simply fades up, which is also the arrival that shows least
 # of the seam a translucent fill draws over a moving wallpaper.
 popup_animation      = "fade"
+''';
+
+const String _midnight = '''
+# Midnight — a lit theme: the shell glows rather than casting shadows.
+#
+# Every other shipped theme drops its cards *onto* the desktop. The shadow is
+# near-black, it is displaced downward, and its spread is zero or negative — a
+# sheet of paper lying on a table. This one lights them from within instead:
+# the shadow takes the accent's own indigo, it is displaced on neither axis,
+# and its spread is *positive*, so what surrounds a card is a symmetrical bloom
+# rather than a shadow falling away from it. Same key, spent on light.
+#
+# It is also the first shipped theme to treat the *type scale* as part of the
+# palette. `font_size` is the body tier and every other size in the shell is a
+# fixed ratio to it, so 14 is not "bigger labels" — it is the whole shell set
+# one rung up, at a size these low-contrast blues can carry without their thin
+# strokes closing up. One rung and not a leap, because panel thickness is not a
+# theme key: a bar left at its default height crops a much larger font.
+name = "Midnight"
+
+font = "Ubuntu Sans"
+font_size = 14.0
+
+# Moonlight over deep water. The accent is an indigo dark enough to hold
+# kOnAccent's white at better than 4:1 — it fills buttons as well as outlining
+# them — and it is the only fully saturated colour in the theme: everything
+# else is a blue so dark it reads as black, or the pale blue-white the text is
+# set in. `muted` is a soft periwinkle grey rather than the accent, forest's
+# rule: the one vivid colour in a palette does not belong on its least
+# important text.
+accent               = "#4C6EF5"
+foreground           = "#E4E9FF"
+surface_hover        = "#232C52"
+surface_pressed      = "#33407A"
+workspace_background = "#0A0F22"
+popup_background     = "#E6111730"
+popup_foreground     = "#E4E9FF"
+control_surface      = "#1C2340"
+slider_track         = "#33407A"
+muted                = "#8E9AC8"
+# The one divider in the shell that is not white at low alpha. A neutral
+# hairline over these blues reads as grey dust on the surface; a periwinkle one
+# reads as the same light everything else in this theme is lit by.
+divider              = "#4C8098FF"
+# The deepest scrim shipped. An overlay here is the lights going out, not a
+# wash over what is behind it — which is what lets a panel of small text be
+# read over a bright wallpaper at this little contrast.
+scrim                = "#A6050816"
+
+# The bar fades indigo -> deep blue -> midnight, every stop at
+# panel_background's own alpha.
+panel_background     = "#F00A0F22"
+panel_gradient       = true
+
+# The most lifted bar shipped: a 12px gap on every anchored edge, an 18px
+# corner, and a rim half again as thick as a hairline. All three go together —
+# at this radius a 1px rim thins out visibly around the corners, and the rim is
+# what gives a dark bar an edge against a dark wallpaper.
+panel_margin         = 12
+panel_radius         = 18.0
+panel_border         = "#665F87F5"
+panel_border_width   = 1.5
+
+# The bar's own material, so a menu reads as a pane dropped out of the pane it
+# came from: the same corner, the same rim, the same weight of it.
+popup_radius         = 18.0
+popup_border         = "#665F87F5"
+popup_border_width   = 1.5
+
+# Its popups float, and the gap matches the bar's own margin so the two
+# distances in the picture are one distance. That is also what gives the glow
+# somewhere to land: on the joined edge the shadow's margin is clamped to the
+# gap, so the bloom fills the 12px between card and bar and is cut exactly at
+# the panel. popup_attach_radius is unread at any gap above zero, and spelled
+# only because every shipped theme spells every key.
+popup_gap            = 12.0
+popup_attach_radius  = 0.0
+
+# The glow. Three things make it one rather than a shadow, and all three are
+# unique to this theme: the colour is the accent's indigo rather than black,
+# both offsets are zero, so it surrounds the card instead of falling from it,
+# and the spread is *positive*, so the bloom starts outside the card's edge
+# rather than being pulled back inside it the way glassy pulls its halo in.
+# The reach the shell grows each popup's window by is blur + spread on every
+# side equally, which is the geometric statement of the same thing.
+popup_shadow_color   = "#734C6EF5"
+popup_shadow_blur    = 26.0
+popup_shadow_spread  = 3.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 0.0
+''';
+
+const String _carbon = '''
+# Carbon — machined graphite: flat, square, and joined.
+#
+# The flattest thing this engine can express, and every key here is spent
+# saying so. No gradient on the bar, no margin under it, no corner on it, no
+# alpha in it — and, the one shipped theme that goes this far, no shadow under
+# any card at all. popup_shadow_color's alpha is the documented off switch, and
+# switching it off gives back the exact popup geometry of a shell built before
+# shadows existed: nothing in this theme floats over anything, because nothing
+# in it is lifted.
+#
+# What carries the weight instead is the join. Every bar popup is attached
+# (popup_gap = 0) and flared (popup_attach_radius = 12), so a menu does not
+# appear beside the bar — it *grows out of* it, each side sweeping outward as
+# it reaches the panel, widest exactly where the two meet. A flat theme with
+# one piece of shaping in it puts that shaping where the eye already is.
+#
+# The palette is IBM's Carbon greys, which is where the name comes from and
+# also why it is the right one: that design language is flat by conviction
+# rather than by omission. Interactive blue on graphite, and nothing else
+# coloured anywhere.
+name = "Carbon"
+
+font = "Ubuntu Sans"
+font_size = 13.0
+
+# Gray 100 for the deepest surface, Gray 90 for a card, Gray 80 and Gray 70 for
+# the states, Gray 40 for secondary text, Gray 10 for text. Blue 60 is the one
+# colour, and it is the darker interactive blue rather than the lighter one so
+# kOnAccent's white clears 4.5:1 on top of it.
+accent               = "#0F62FE"
+foreground           = "#F4F4F4"
+surface_hover        = "#393939"
+surface_pressed      = "#525252"
+workspace_background = "#161616"
+popup_background     = "#262626"
+popup_foreground     = "#F4F4F4"
+control_surface      = "#393939"
+slider_track         = "#525252"
+muted                = "#A8A8A8"
+# An opaque rule, not a wash: every other theme's divider is white at low alpha
+# and takes its tone from whatever it happens to be drawn over. A flat theme
+# draws a line of a known colour instead — Carbon's border-subtle, one step up
+# from the card it separates.
+divider              = "#393939"
+scrim                = "#A6161616"
+
+# A solid sheet of Gray 100 across the screen edge: no fade, and the only bar
+# shipped with no alpha at all. A gradient would put the accent against the
+# screen edge, and a translucent bar would let the wallpaper decide what colour
+# the flattest surface in the theme is.
+panel_background     = "#161616"
+panel_gradient       = false
+
+# Flush, square, unrimmed. The rim is not a matter of taste here: a bar with
+# panel_border_width above zero draws that rim along its *inner* edge too, and
+# an attached popup butts straight into it — a hairline drawn across the very
+# join the flare below exists to erase. panel_border is spelled anyway, as the
+# colour a rim would take if one were switched on.
+panel_margin         = 0
+panel_radius         = 0.0
+panel_border         = "#393939"
+panel_border_width   = 0.0
+
+# A 4px corner: the smallest rounding that still reads as deliberate, on the
+# two corners away from the join. The rim is Carbon's border-strong rather than
+# the divider's border-subtle, because with no shadow beneath it the rim is the
+# card's only edge — over a dark wallpaper a subtle one would leave it with
+# none.
+popup_radius         = 4.0
+popup_border         = "#525252"
+popup_border_width   = 1.0
+
+# The theme's one piece of shaping. The gap is zero, so the card is flush and
+# the two corners on the join square off; the flare then sweeps those two sides
+# outward into the bar. It paints outside the card's own box, so the shell
+# grows the popup's window by it — which here is the *whole* of that margin,
+# since the shadow contributes none.
+popup_gap            = 0.0
+popup_attach_radius  = 12.0
+
+# No shadow, and no margin for one. The alpha is the off switch; the four
+# numbers under it are held at zero so the file says the same thing twice
+# rather than leaving a shadow's dimensions lying around for a later edit to
+# switch on by accident.
+popup_shadow_color   = "#00000000"
+popup_shadow_blur    = 0.0
+popup_shadow_spread  = 0.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 0.0
 ''';

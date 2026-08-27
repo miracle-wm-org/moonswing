@@ -423,19 +423,22 @@ Themes live in their own files, one per theme, under `~/.config/graceful-shell/t
 theme = "dracula"
 ```
 
-Three themes ship with the shell and are written into that directory the first time it starts:
+Six themes ship with the shell and are written into that directory the first time it starts:
 
 | Name       | Looks like                                                        |
 | ---------- | ----------------------------------------------------------------- |
 | `graceful` | Deep maroon over near-black. The default, and the palette earlier versions hard-coded. |
+| `forest`   | Pine and moss over a near-black green, floating on a lit sage rim. |
 | `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
 | `glassy`   | Cool translucent surfaces that let the wallpaper through.          |
+| `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
+| `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
 
 If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `graceful` rather than starting unstyled. A single bad value inside a theme file costs only that key.
 
-The **Appearance** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The three shipped themes are read-only there — editing one offers to duplicate it first.
+The **Appearance** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The six shipped themes are read-only there — editing one offers to duplicate it first.
 
-Because the shell owns those three files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
+Because the shell owns those six files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
 
 ### Writing a theme file
 
@@ -568,7 +571,9 @@ The one difference is corners, and it is the same rule the bar has for the same 
 
 The flare is drawn *outside* the card's own box, so the shell grows the popup's window to make room for it exactly as it does for the shadow, and takes the larger of the two rather than the sum.
 
-Two things to know before attaching a theme. A theme with a **translucent `popup_background`** should keep a gap: at zero the popup's fill and the bar's composite separately against the wallpaper, so the join shows a step in tone that nothing here can remove, and a flare only makes that step wider — which is why `glassy` sets `popup_gap = 8` to match its own `panel_margin` rather than attaching. And a theme with `panel_border_width` above zero draws the bar's rim on its inner edge too, so an attached popup butts against that line.
+`carbon` is the shipped example of the pair: `popup_gap = 0` with `popup_attach_radius = 12`, on an opaque bar with no shadow anywhere in the theme, so the flared join is the only shaping in the picture and every menu reads as an extension of the panel rather than a card in front of it.
+
+Two things to know before attaching a theme. A theme with a **translucent `popup_background`** should keep a gap: at zero the popup's fill and the bar's composite separately against the wallpaper, so the join shows a step in tone that nothing here can remove, and a flare only makes that step wider — which is why `glassy` sets `popup_gap = 8` to match its own `panel_margin` rather than attaching. And a theme with `panel_border_width` above zero draws the bar's rim on its inner edge too, so an attached popup butts against that line — which is why `carbon`, `graceful` and `dracula` all leave that width at `0`: the rim would be a hairline drawn straight across the join the other keys are working to erase.
 
 Hover tooltips take the edge anchor but never attach: a label that comes and goes with the pointer reads as a floating card, not as part of the furniture. Menus anchored to the *pointer* — the desktop's context menu, the app-directory's category flyouts — have no panel edge to sit off and are unaffected by either key.
 
@@ -576,7 +581,9 @@ Sensible defaults are shipped rather than zero — `8.0` with a 1px rim — beca
 
 The five `popup_shadow_*` keys are a CSS box-shadow, spelled out: a color, a blur radius, a spread, and an offset on each axis. There is one shadow per theme rather than the stack CSS allows.
 
-**A shadow makes a popup's window bigger.** A popup is its own compositor surface, sized to its content, and a shadow paints *outside* the card — so the shell grows the surface by the shadow's reach (`blur + spread`, shifted by the offset, on each side independently) and then repositions the popup by that same amount, so the card lands exactly where it would have without one. Two consequences worth knowing: a click landing in the shadow's margin hits the popup rather than passing through to what is underneath, and a very large blur on a popup near a screen edge gives the compositor more to slide back on-screen. Setting `popup_shadow_color`'s alpha to `0` removes the margin along with the shadow, restoring the exact geometry of a shell with no shadow at all.
+**A shadow makes a popup's window bigger.** A popup is its own compositor surface, sized to its content, and a shadow paints *outside* the card — so the shell grows the surface by the shadow's reach (`blur + spread`, shifted by the offset, on each side independently) and then repositions the popup by that same amount, so the card lands exactly where it would have without one. Two consequences worth knowing: a click landing in the shadow's margin hits the popup rather than passing through to what is underneath, and a very large blur on a popup near a screen edge gives the compositor more to slide back on-screen. Setting `popup_shadow_color`'s alpha to `0` removes the margin along with the shadow, restoring the exact geometry of a shell with no shadow at all — which is what `carbon` does.
+
+Nothing says the shadow has to read as one. Give it a colour off the palette rather than a black, leave both offsets at `0` so it is not displaced from the card, and take `popup_shadow_spread` above zero so the falloff starts outside the card's edge, and the same key paints a symmetrical bloom around the card instead of weight beneath it. That is `midnight`, and the geometry follows it: with no displacement the window grows by `blur + spread` on all four sides equally, and on a bar popup the joined side is still clamped to `popup_gap`, so the glow fills the gap between card and bar and stops at the panel.
 
 A bar popup never paints its shadow over the bar: on the joined edge the margin is clamped to `popup_gap`, so at a small gap the shadow fills it and stops, and at `0` the surface is flush and the shadow is cut exactly at the join. A gap of `popup_shadow_blur + popup_shadow_spread` or more leaves the shadow untouched.
 
@@ -606,7 +613,7 @@ Themes written before this key existed get `slide`.
 
 ### About `font_size`
 
-`font_size` is the size of the shell's *body* text — the tier most of the shell is set in — and every other size follows it. A caption stays a caption and a heading stays a heading: the whole scale is multiplied through by `font_size / 13`, so `font_size = 16` makes everything about a quarter larger and `font_size = 10` makes everything smaller, in the panels and in every popup, menu, overlay and desktop widget they open. `13.0` is the shipped value, so a theme file that does not spell the key renders exactly as it always did.
+`font_size` is the size of the shell's *body* text — the tier most of the shell is set in — and every other size follows it. A caption stays a caption and a heading stays a heading: the whole scale is multiplied through by `font_size / 13`, so `font_size = 16` makes everything about a quarter larger and `font_size = 10` makes everything smaller, in the panels and in every popup, menu, overlay and desktop widget they open. `13.0` is the shipped value, so a theme file that does not spell the key renders exactly as it always did; `midnight` is the one shipped theme that moves it, at `14.0`.
 
 Two things it deliberately does not change. **Panel thickness** is `[panels.<name>] height` in `config.toml`, not a theme key — a bar left at its default height crops a much larger font, and the fix is to raise `height` alongside. **Icons** keep the size they are drawn at: a tray icon or a weather glyph is a picture, not type, and their sizes are `[modules.*]` options where they are configurable at all.
 
