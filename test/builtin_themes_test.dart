@@ -4,7 +4,13 @@ import 'package:toml/toml.dart';
 
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/panel_background.dart';
+import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/theme/builtin_themes.dart';
+import 'package:graceful_shell/theme/tokens.dart';
+
+/// The shipped theme [slug], parsed the way the store parses it off disk.
+ThemeConfig _shipped(String slug) =>
+    ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
 
 void main() {
   test('the default theme ships', () {
@@ -140,6 +146,122 @@ void main() {
       expect(surface.g, greaterThan(surface.b), reason: 'a forest surface');
     }
     expect(forest.muted, isNot(forest.accent));
+  });
+
+  test('carbon is flat: no fade, no lift, and no shadow at all', () {
+    final carbon = _shipped('carbon');
+    // Flat is the whole brief, and it is spelled on every key that could
+    // contradict it — including the one no other shipped theme touches.
+    expect(carbon.panelGradient, isFalse);
+    expect(carbon.panelBackground.a, 1.0,
+        reason: 'a translucent bar lets the wallpaper decide what colour the '
+            'flattest surface in the theme is');
+    expect(carbon.panelMargin, 0);
+    expect(carbon.panelRadius, 0.0);
+    // popup_shadow_color's alpha is the documented off switch, and switching
+    // it off has to give back the geometry of a shell built before shadows
+    // existed: an off shadow that still grew every popup's window would be
+    // the margin without the paint.
+    expect(popupShadow(carbon), isNull);
+    expect(popupShadowInsets(carbon), EdgeInsets.zero);
+  });
+
+  test('carbon spends its one piece of shaping on the join', () {
+    final carbon = _shipped('carbon');
+    expect(carbon.popupGap, 0.0,
+        reason: 'the flare is unread at any gap above zero');
+    expect(carbon.popupAttachRadius, greaterThan(0));
+
+    // Attached: the two corners on the join square off and only the far pair
+    // take popup_radius.
+    final r = Radius.circular(carbon.popupRadius);
+    expect(popupCornerRadius(carbon, attach: 'top'),
+        BorderRadius.only(bottomLeft: r, bottomRight: r));
+
+    // The flare paints outside the card, so the popup's own surface has to
+    // carry it — and with no shadow to take the larger of, it carries the
+    // flare and nothing else.
+    final attach = popupAttachInsets(carbon, attachEdge: 'top');
+    expect(attach, EdgeInsets.symmetric(horizontal: carbon.popupAttachRadius));
+    expect(
+        popupSurfaceInsets(
+            popupShadowInsets(carbon, attachEdge: 'top'), attach),
+        attach);
+  });
+
+  test('a shipped theme that attaches its popups draws no rim on its bar', () {
+    // panel_border_width above zero draws the bar's rim along its *inner* edge
+    // too — a hairline straight across the join that squaring the corners and
+    // dropping the popup's own rim there exists to erase. The two keys are a
+    // pair, and graceful, dracula and carbon are all on the attached side of
+    // it.
+    for (final slug in kBuiltInThemes.keys) {
+      final theme = _shipped(slug);
+      if (theme.popupGap > 0) continue;
+      expect(theme.panelBorderWidth, 0.0, reason: 'in $slug');
+    }
+  });
+
+  test('midnight glows rather than casting a shadow', () {
+    final midnight = _shipped('midnight');
+    final glow = popupShadow(midnight)!;
+    // Three things separate a bloom from a shadow, and this theme is the only
+    // shipped one that does any of them.
+    expect(glow.offset, Offset.zero,
+        reason: 'a glow surrounds the card; a shadow falls away from it');
+    expect(glow.spreadRadius, greaterThan(0));
+    expect(glow.color.b, greaterThan(glow.color.r));
+    expect(glow.color.b, greaterThan(glow.color.g),
+        reason: 'the glow takes the accent hue, not a neutral black');
+
+    // Zero offset is a geometric statement as much as a visual one: the shell
+    // grows a floating popup's window by the shadow's reach per side, and with
+    // no displacement all four sides come out equal.
+    final insets = popupShadowInsets(midnight);
+    expect(insets.left, insets.right);
+    expect(insets.top, insets.bottom);
+    expect(insets.top, insets.left);
+
+    for (final slug in kBuiltInThemes.keys) {
+      if (slug == 'midnight') continue;
+      expect(popupShadow(_shipped(slug))?.spreadRadius ?? 0.0,
+          lessThanOrEqualTo(0.0),
+          reason: 'in $slug');
+    }
+  });
+
+  test('midnight treats the type scale as part of the palette', () {
+    // font_size is the body tier and every other size in the shell is a fixed
+    // ratio to it, so this is the whole shell set one rung up rather than a
+    // larger label here and there. It is also the only shipped theme that
+    // moves the scale at all, which makes it the only one pinning that a
+    // theme *can*.
+    final midnight = _shipped('midnight');
+    expect(midnight.fontSize, greaterThan(ShellFontSizes.body));
+    expect(midnight.textScale, greaterThan(1.0));
+    for (final slug in kBuiltInThemes.keys) {
+      if (slug == 'midnight') continue;
+      expect(_shipped(slug).textScale, 1.0, reason: 'in $slug');
+    }
+  });
+
+  test('midnight floats, and its popups are made of the bar', () {
+    // glassy's and forest's rule: a bar lifted off the screen edge cannot open
+    // a menu glued to it, and a menu should read as a pane dropped out of the
+    // pane it came from — same gap, same corner, same rim, same weight of rim.
+    final midnight = _shipped('midnight');
+    expect(midnight.panelMargin, greaterThan(0));
+    expect(midnight.popupGap, midnight.panelMargin.toDouble());
+    expect(midnight.popupRadius, midnight.panelRadius);
+    expect(midnight.popupBorder, midnight.panelBorder);
+    expect(midnight.popupBorderWidth, midnight.panelBorderWidth);
+    expect(midnight.panelBorderWidth, greaterThan(1.0),
+        reason: 'a hairline thins out visibly around a corner this round');
+    expect(midnight.panelBorder.a, greaterThan(0),
+        reason: 'a rim with a transparent colour draws nothing');
+    // Floating means all four corners round.
+    expect(panelCornerRadius(theme: midnight),
+        BorderRadius.circular(midnight.panelRadius));
   });
 
   test('every shipped theme gives its popups a shape', () {
