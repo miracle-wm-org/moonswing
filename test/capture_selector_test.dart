@@ -58,6 +58,7 @@ Widget _overlay({
   required VoidCallback onCancel,
   VoidCallback? onClosed,
   String connector = 'DP-1',
+  CapturePoint? origin,
   CaptureKind kind = CaptureKind.screenshot,
   CaptureScene? scene,
 }) =>
@@ -68,6 +69,7 @@ Widget _overlay({
         child: CaptureSelectorOverlay(
           request: SelectionRequest(kind: kind, mode: mode),
           connector: connector,
+          origin: origin,
           scene: scene ?? _scene,
           closingNotifier: closing,
           onClosed: onClosed ?? () {},
@@ -92,6 +94,7 @@ void main() {
 
   Widget build(SelectionMode mode,
           {String connector = 'DP-1',
+          CapturePoint? origin,
           VoidCallback? onClosed,
           CaptureScene? scene}) =>
       _overlay(
@@ -101,6 +104,7 @@ void main() {
         onCancel: () => cancels++,
         onClosed: onClosed,
         connector: connector,
+        origin: origin,
         scene: scene,
       );
 
@@ -225,6 +229,81 @@ void main() {
 
       expect(picked, isEmpty);
       expect(cancels, 0);
+    });
+  });
+
+  // A compositor with no `xdg-output` manager leaves GDK with no connector at
+  // all, so these surfaces are handed an empty string and the corner is the
+  // only identity they carry. Without the second pass the whole feature is
+  // dead on those machines: no windows to point at, and every pick answering a
+  // display the capture stack then cannot find.
+  group('an output GDK could not name', () {
+    testWidgets('resolves by its corner, so its windows are still pointable',
+        (tester) async {
+      await tester.pumpWidget(build(SelectionMode.window,
+          connector: '', origin: const CapturePoint(800, 0)));
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(const Offset(150, 150));
+      await tester.pump();
+
+      final target = picked.single as WindowCapture;
+      expect(target.title, 'Other screen');
+      expect(target.crop, const CaptureRect(100, 100, 300, 200),
+          reason: 'the mapping subtracted the resolved output origin');
+    });
+
+    testWidgets('carries its corner into every pick', (tester) async {
+      await tester.pumpWidget(build(SelectionMode.output,
+          connector: '', origin: const CapturePoint(800, 0)));
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(const Offset(400, 300));
+      await tester.pump();
+
+      final target = picked.single as OutputCapture;
+      expect(target.connector, isEmpty);
+      expect(target.outputOrigin, const CapturePoint(800, 0));
+      expect(target.label, 'Screen', reason: 'never an empty notification');
+    });
+
+    testWidgets('an area pick carries it too', (tester) async {
+      await tester.pumpWidget(build(SelectionMode.area,
+          connector: '', origin: const CapturePoint(800, 0)));
+      await tester.pumpAndSettle();
+
+      await tester.dragFrom(const Offset(100, 100), const Offset(200, 150));
+      await tester.pump();
+
+      expect((picked.single as AreaCapture).outputOrigin,
+          const CapturePoint(800, 0));
+    });
+
+    testWidgets('with a lone output it needs no corner at all', (tester) async {
+      await tester.pumpWidget(build(
+        SelectionMode.window,
+        connector: '',
+        scene: const CaptureScene(
+          outputs: [
+            ScreenOutput(name: 'DP-1', rect: CaptureRect(0, 0, 800, 600)),
+          ],
+          windows: [
+            SelectableWindow(
+              id: 1,
+              rect: CaptureRect(100, 100, 300, 200),
+              title: 'Only window',
+              appId: 'org.example.only',
+              output: 'DP-1',
+            ),
+          ],
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tapAt(const Offset(200, 150));
+      await tester.pump();
+
+      expect((picked.single as WindowCapture).title, 'Only window');
     });
   });
 

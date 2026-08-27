@@ -10,7 +10,6 @@
 
 import 'package:graceful_shell/screencast/capture_connection.dart';
 import 'package:graceful_shell/screencast/capture_session.dart';
-import 'package:graceful_shell/wayland_ffi/wl_protocols.dart';
 
 import 'capture_targets.dart';
 import 'toplevel_match.dart';
@@ -49,7 +48,8 @@ class CaptureSource {
 /// Throws a [CaptureException] when the source is gone — an output unplugged
 /// between the pick and the shutter, or a compositor that never advertised the
 /// capture protocol at all. That is a message worth showing rather than an
-/// empty file.
+/// empty file. Which output it *is* comes from [indexOfCaptureOutput], and is
+/// deliberately not the connector alone.
 CaptureSource resolveCaptureSource(
   CaptureConnection connection,
   CaptureTarget target, {
@@ -81,11 +81,16 @@ CaptureSource resolveCaptureSource(
     // is the same degradation a compositor with no toplevel list gets.
   }
 
-  final output = _outputNamed(connection, target.connector);
-  if (output == null) {
-    throw CaptureException(
-        'The display ${target.connector} is no longer connected.');
-  }
+  final index = indexOfCaptureOutput(
+    [
+      for (final output in connection.outputs)
+        (connector: output.connector ?? '', x: output.x, y: output.y),
+    ],
+    connector: target.connector,
+    origin: target.outputOrigin,
+  );
+  if (index < 0) throw CaptureException(_unresolvedOutputMessage(target));
+  final output = connection.outputs[index];
   return CaptureSource(
     open: ({Duration? minFrameInterval}) => CaptureSession.forOutput(
       connection,
@@ -97,12 +102,64 @@ CaptureSource resolveCaptureSource(
   );
 }
 
-WlOutputFfi? _outputNamed(CaptureConnection connection, String connector) {
-  for (final output in connection.outputs) {
-    if (output.connector == connector) return output;
+/// Which of [outputs] the target on [connector] — whose top-left corner is
+/// [origin], when the shell knows it — is captured from, or -1.
+///
+/// Split out of [resolveCaptureSource] as a pure function over the two fields
+/// that decide it, because everything either side of it is FFI: `WlOutputFfi`
+/// cannot be built without a compositor, and this is the half of the feature
+/// worth pinning.
+///
+/// Three passes, and the order is the whole of it:
+///
+/// - **A name answers whenever both sides have one.** That is the ordinary
+///   case, it is what every other layer of the shell keys an output on, and —
+///   unlike a position — it survives the displays being rearranged.
+/// - **Failing that, the corner does.** `wl_output.name` is a version 4 event
+///   and GDK learns its connector from `xdg-output`, so a compositor missing
+///   either leaves one end of that correlation holding an empty string, and
+///   two empty strings are not a match — which is a capture that reports the
+///   display as unplugged while the user is looking at it. Two monitors cannot
+///   share a top-left corner, so the position resolves it.
+/// - **Failing that, a lone display is the answer**, `resolveOutput`'s rule:
+///   with one output there is nothing to be wrong about.
+///
+/// The last two passes only ever consider outputs the *name* could not have
+/// answered for. A named output that is not the one asked for has already said
+/// "not me", so a display genuinely unplugged between the pick and the shutter
+/// still resolves to nothing rather than to whichever screen has since taken
+/// over its corner.
+int indexOfCaptureOutput(
+  List<({String connector, int x, int y})> outputs, {
+  required String connector,
+  CapturePoint? origin,
+}) {
+  if (connector.isNotEmpty) {
+    for (var i = 0; i < outputs.length; i++) {
+      if (outputs[i].connector == connector) return i;
+    }
   }
-  return null;
+  final candidates = <int>[
+    for (var i = 0; i < outputs.length; i++)
+      if (connector.isEmpty || outputs[i].connector.isEmpty) i,
+  ];
+  if (origin != null) {
+    for (final i in candidates) {
+      if (outputs[i].x == origin.x && outputs[i].y == origin.y) return i;
+    }
+  }
+  return candidates.length == 1 ? candidates.first : -1;
 }
+
+/// What the user is told when no output answered.
+///
+/// The unplugged wording is only honest about a display the shell can name;
+/// with no name on either side "gone" is a guess, and the sentence says what
+/// actually happened instead.
+String _unresolvedOutputMessage(CaptureTarget target) =>
+    target.connector.isNotEmpty
+        ? 'The display ${target.connector} is no longer connected.'
+        : 'That capture could not be matched to a connected display.';
 
 /// [target] with its foreign-toplevel handle joined on, when it is a window
 /// capture and the compositor can name one for it.

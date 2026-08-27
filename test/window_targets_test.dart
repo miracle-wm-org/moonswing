@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:miracle/miracle.dart';
 
+import 'package:graceful_shell/capture/capture_targets.dart';
 import 'package:graceful_shell/capture/window_targets.dart';
 
 /// The half of the window picker that comes from miracle: where every window
@@ -103,6 +104,48 @@ void main() {
           collectOutputs(_tree([_output('DP-1', _rect(0, 0, 800, 600))]));
       expect(outputNamed(outputs, 'DP-1')?.name, 'DP-1');
       expect(outputNamed(outputs, 'DP-9'), isNull);
+    });
+
+    group('resolveScreenOutput', () {
+      // The surfaces are handed GDK's connector, and GDK has none to give on a
+      // compositor with no `xdg-output` manager. An empty string matches none
+      // of miracle's names, so without a second pass a window selection there
+      // is a surface with nothing on it to point at.
+      final outputs = collectOutputs(_tree([
+        _output('DP-1', _rect(0, 0, 1920, 1080)),
+        _output('HDMI-1', _rect(1920, 0, 1920, 1080)),
+      ]));
+
+      test('a name answers first', () {
+        expect(resolveScreenOutput(outputs, 'HDMI-1')?.name, 'HDMI-1');
+      });
+
+      test('a name that matches nothing is not guessed past', () {
+        expect(
+          resolveScreenOutput(outputs, 'DP-9',
+              origin: const CapturePoint(0, 0)),
+          isNull,
+        );
+      });
+
+      test('an unnamed surface is resolved by its corner', () {
+        expect(
+          resolveScreenOutput(outputs, '',
+              origin: const CapturePoint(1920, 0))?.name,
+          'HDMI-1',
+        );
+      });
+
+      test('an unnamed surface on a lone output needs no corner', () {
+        final one =
+            collectOutputs(_tree([_output('DP-1', _rect(0, 0, 800, 600))]));
+        expect(resolveScreenOutput(one, '')?.name, 'DP-1');
+      });
+
+      test('an unnamed surface among several, with no corner, answers null',
+          () {
+        expect(resolveScreenOutput(outputs, ''), isNull);
+      });
     });
   });
 

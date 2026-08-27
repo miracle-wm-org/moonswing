@@ -130,6 +130,37 @@ ScreenOutput? outputNamed(List<ScreenOutput> outputs, String connector) {
   return null;
 }
 
+/// The output a surface on [connector], whose top-left corner is [origin], is
+/// covering — or null when nothing in [outputs] answers for it.
+///
+/// `capture_source.dart`'s `indexOfCaptureOutput` passes, against miracle's
+/// tree instead of the capture connection's outputs, and for the same reason:
+/// GDK reports no connector at all on a compositor with no `xdg-output`
+/// manager, and an empty string matches none of miracle's names. Without the
+/// second pass a window selection on such a machine finds no windows to point
+/// at and the mapping falls back to the identity — the surface is drawn, and
+/// there is simply nothing on it.
+ScreenOutput? resolveScreenOutput(
+  List<ScreenOutput> outputs,
+  String connector, {
+  CapturePoint? origin,
+}) {
+  if (connector.isNotEmpty) {
+    final named = outputNamed(outputs, connector);
+    if (named != null) return named;
+    // miracle names every output it reports, so a connector that matched none
+    // of them names a display this tree does not have; guessing past that
+    // would put another monitor's windows on this surface.
+    return null;
+  }
+  if (origin != null) {
+    for (final output in outputs) {
+      if (output.rect.x == origin.x && output.rect.y == origin.y) return output;
+    }
+  }
+  return outputs.length == 1 ? outputs.first : null;
+}
+
 CaptureRect _rectOf(Rect rect) =>
     CaptureRect(rect.x, rect.y, rect.width, rect.height);
 
@@ -162,7 +193,10 @@ class CaptureScene {
 
   bool get isEmpty => outputs.isEmpty && windows.isEmpty;
 
-  ScreenOutput? outputFor(String connector) => outputNamed(outputs, connector);
+  /// The output a surface on [connector] — at [origin], when the shell knows
+  /// where it is — covers. See [resolveScreenOutput].
+  ScreenOutput? outputFor(String connector, {CapturePoint? origin}) =>
+      resolveScreenOutput(outputs, connector, origin: origin);
 
   /// The windows on [connector], in the same back-to-front order.
   List<SelectableWindow> windowsOn(String connector) =>
