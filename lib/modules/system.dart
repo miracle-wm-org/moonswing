@@ -60,8 +60,9 @@ class SystemState extends State<System>
     );
     // Full-screen means the whole output, panels included.
     spanFullOutput(controller);
-    // Register into this panel's WindowRegistry via the state's own context —
-    // the System bar widget is mounted inside the panel's PanelWindowManager.
+    // Register into the root's WindowRegistry via the state's own context —
+    // the System bar widget is mounted inside the root's WindowManager, like
+    // everything else the shell draws.
     openLayerWindow(
       context,
       controller: controller,

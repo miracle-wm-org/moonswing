@@ -6,8 +6,10 @@
 //     [WindowPositioner].
 //   * [LayerShellHost] — full layer-shell windows (panels/overlays/dialogs)
 //     whose [LayershellWindowController] the module creates itself.
-// Both register a [WindowEntry] into the panel's [WindowRegistry] (supplied by
-// the per-panel [PanelWindowManager]), so they share one windowing mechanism.
+// Both register a [WindowEntry] into the [WindowRegistry] the root's
+// [WindowManager] publishes, so every window in the shell — the panels the root
+// owns and the popups a module opens from inside one — is rendered by one
+// mechanism, at one place.
 
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
@@ -27,7 +29,6 @@ import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/window_manager.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
 
@@ -684,7 +685,10 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       if (size == null) return;
       gtkWindow.resize(size.width.ceil(), size.height.ceil());
     });
-    _registry = PanelWindowManager.registryOf(context);
+    // The root's registry, reached the way any descendant reaches it. A popup
+    // opened from inside another popup's content finds the same one, because
+    // that content is built under the root manager too.
+    _registry = WindowRegistry.of(context);
     // Registered before the surface maps, so whatever this displaces is already
     // on its way out. The parent comes from the context: null in a panel, and
     // the enclosing popup's handle when a popup opens from inside another's
@@ -790,7 +794,7 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
   bool get isLayerWindowOpen => _lsController != null;
 
   /// Registers [controller] (already created by the caller with its
-  /// layer/anchor params) into the panel's [WindowRegistry], rendering [child].
+  /// layer/anchor params) into the root's [WindowRegistry], rendering [child].
   ///
   /// If a window is already open this is a no-op — call [closeLayerWindow]
   /// first.
@@ -807,7 +811,7 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
   }) {
     if (isLayerWindowOpen) return;
     _lsController = controller;
-    _lsRegistry = PanelWindowManager.registryOf(context);
+    _lsRegistry = WindowRegistry.of(context);
     _lsHandle = PopupCoordinator.instance.open(
       owner: this,
       parent: TransientScope.maybeOf(context),

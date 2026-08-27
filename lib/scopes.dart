@@ -4,8 +4,8 @@ import 'package:graceful_shell/miracle_manager.dart';
 import 'package:wayland/wayland.dart';
 
 /// The nearest [S], or a [FlutterError] naming the missing scope — the
-/// `PanelWindowManager.registryOf` pattern, so a widget built outside its
-/// provider fails with a diagnosis instead of a bare null-check crash.
+/// `WindowRegistry.of` pattern, so a widget built outside its provider fails
+/// with a diagnosis instead of a bare null-check crash.
 S _of<S extends InheritedWidget>(BuildContext context, String provider) {
   final scope = context.dependOnInheritedWidgetOfExactType<S>();
   assert(() {

@@ -50,7 +50,7 @@ void main() {
   }
 
   /// Pumps the layer the way the background surface does — no
-  /// PanelWindowManager, so nothing here can reach a popup path.
+  /// WindowManager, so nothing here can reach a popup path.
   Future<void> pumpGrid(
     WidgetTester tester,
     DesktopStore store, {

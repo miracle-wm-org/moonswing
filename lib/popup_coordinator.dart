@@ -65,8 +65,9 @@ class TransientHandle {
 /// Process-wide registry of open transient surfaces, and the one thing that
 /// closes them.
 ///
-/// The shell renders into many independent FlutterViews and each panel has its
-/// own [WindowRegistry], so no widget tree can see another's popups. Nothing
+/// The shell renders into many independent FlutterViews and no widget tree can
+/// see another's popups: they share the root's [WindowRegistry], but a popup is
+/// a sibling view of the panel that opened it, not a descendant of it. Nothing
 /// else dismisses them either: the Linux popup controller takes no
 /// `gdk_seat_grab`, so the compositor never sends `popup_done` on a click
 /// outside, and there is no focus-lost callback anywhere in the stack.

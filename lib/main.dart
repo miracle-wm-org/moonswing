@@ -3,6 +3,10 @@ import 'dart:ffi' as ffi;
 // ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: implementation_imports
 import 'package:flutter/widgets.dart';
+// The controller supertype every window in the registry is keyed on.
+// `layer_shell` re-exports WindowManager / WindowRegistry / WindowEntry
+// but not this, and there is nowhere else to reach it from.
+import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/capture/selection_controller.dart';
 import 'package:graceful_shell/capture/selector_overlay.dart';
@@ -81,7 +85,6 @@ import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
-import 'package:graceful_shell/window_manager.dart';
 import 'package:ext_session_lock/ext_session_lock.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
@@ -370,7 +373,46 @@ class _MonitorSurfaces {
       ];
 }
 
+/// One native window the root owns, and the content that goes in it.
+///
+/// The pair [_desiredWindows] answers in and [_syncWindows] turns into
+/// [WindowEntry]s. Kept as a record rather than as the entries themselves
+/// because an entry is created once per window and reused for as long as that
+/// window lives, while this is recomputed on every reconciliation.
+typedef _RootWindow = ({
+  BaseWindowController controller,
+  WidgetBuilder builder,
+});
+
 class _GracefulShellRootState extends State<GracefulShellRoot> {
+  /// The [WindowRegistry] the root's [WindowManager] publishes, once something
+  /// below it has handed it back (see [_RegistryBinder]).
+  ///
+  /// The manager creates the registry itself and takes no injected one, so the
+  /// root — its *parent* — cannot hold it before a window has been built. That
+  /// gap is only ever real while the registry is empty: nothing else can have
+  /// registered a popup into a manager that has never rendered a window to open
+  /// one from. So [_syncWindows] answers a null registry by bumping
+  /// [_managerGeneration], which remounts the manager with the current set as
+  /// its `initialWindows` — losing nothing, because there was nothing to lose —
+  /// and after the first window has built it never has to again.
+  WindowRegistry? _registry;
+
+  /// Keys the root [WindowManager], so a bump gives it a fresh state that reads
+  /// `initialWindows` again. Only [_syncWindows] bumps it, and only while
+  /// [_registry] is still null.
+  int _managerGeneration = 0;
+
+  /// The root's own registry entries, keyed on the controller that identifies
+  /// the window, in the order they were registered.
+  ///
+  /// This is not the whole registry: every popup and runtime layer-shell window
+  /// a module opens registers itself into the same one from inside the tree.
+  /// [_syncWindows] therefore diffs this map and calls `register` / `unregister`
+  /// for the difference alone — it must never replace the registry's contents
+  /// wholesale, which would take every module's window down with it.
+  final Map<BaseWindowController, WindowEntry> _rootEntries = {};
+
   /// Surfaces keyed by a stable monitor identity ([_monitorKey]). Entries are
   /// added when a monitor is plugged in and removed when it is unplugged, so
   /// this map is the live source of truth for what the shell renders.
@@ -538,9 +580,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     super.initState();
     final appConfig = widget.appConfig;
     _liveConfig = ValueNotifier(appConfig);
-    _lockHost = SessionLockHost(onChanged: () {
-      if (mounted) setState(() {});
-    });
+    _lockHost = SessionLockHost(onChanged: _refreshWindows);
     _hasBackgroundSurface =
         (appConfig.background?.entries.isNotEmpty ?? false) ||
             appConfig.desktop.enabled;
@@ -581,6 +621,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
     // React to monitors being plugged in / unplugged at runtime.
     _monitorWatcher = MonitorWatcher(_scheduleMonitorSync);
+
+    // Fills [_rootEntries] before the first build, so the surfaces created just
+    // above are what the root [WindowManager] is handed as `initialWindows`.
+    // Not [_refreshWindows]: there is nothing built yet to rebuild, and
+    // `setState` from `initState` is an error.
+    _syncWindows();
   }
 
   /// A stable key identifying a monitor across enumerations. The connector name
@@ -699,13 +745,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       for (final entry in _surfaces.entries) {
         _osd[entry.key] = _createOsd(entry.value.monitor);
       }
-      setState(() {});
+      _refreshWindows();
       return;
     }
 
     final removed = _osd.values.toList();
     _osd.clear();
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame(removed);
   }
 
@@ -757,13 +803,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       for (final entry in _surfaces.entries) {
         _badges[entry.key] = _createBadge(entry.value.monitor);
       }
-      setState(() {});
+      _refreshWindows();
       return;
     }
 
     final removed = _badges.values.toList();
     _badges.clear();
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame(removed);
   }
 
@@ -817,7 +863,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     NotificationPanelController.instance.setOpen(true);
     // Takes the badges down: they sit under the panel's own edge.
     _syncNotificationBadges();
-    setState(() {});
+    _refreshWindows();
   }
 
   /// Called by [NotificationPanel] once its exit animation has finished — from
@@ -827,7 +873,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     final removed = _notifications.take();
     if (removed == null) return;
     NotificationPanelController.instance.setOpen(false);
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame([removed]);
     // Anything still on the list gets its badge back, so a panel closed on a
     // full list does not leave the shell silent about it.
@@ -871,7 +917,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// immediately, because miracle focuses every layer-shell window it maps.
   void _openLauncher() {
     _launcher.open();
-    setState(() {});
+    _refreshWindows();
   }
 
   /// The machine's physical power button was pressed.
@@ -913,7 +959,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// looking at either monitor is not a case a choice of output improves.)
   void _openPowerMenu() {
     _powerMenu.open();
-    setState(() {});
+    _refreshWindows();
   }
 
   /// Called by [PowerMenuOverlay] once its fade-out has finished.
@@ -921,7 +967,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (!mounted) return;
     final removed = _powerMenu.take();
     if (removed == null) return;
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame([removed]);
   }
 
@@ -940,7 +986,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       // compositor puts the picker on the focused output — where the user is.
       _screencastRequest = request;
       _screencastPicker.open();
-      setState(() {});
+      _refreshWindows();
     } else if (_screencastPicker.isOpen) {
       _screencastPicker.closing.value = true;
     }
@@ -995,7 +1041,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         policy: TransientPolicy.modal,
         onDismiss: () => _selectionClosing.value = true,
       );
-      setState(() {});
+      _refreshWindows();
     } finally {
       _selectionOpening = false;
     }
@@ -1069,7 +1115,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _selectionHandle = null;
     final answer = _selectionAnswer;
     _selectionAnswer = null;
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame(removed);
     CaptureSelectionController.instance.complete(answer);
   }
@@ -1083,7 +1129,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // A window torn down without the user answering (the shell is shutting
     // down, or the frontend withdrew) still owes the portal a reply.
     ScreencastPickerController.instance.cancel();
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame([removed]);
   }
 
@@ -1093,7 +1139,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (!mounted) return;
     final removed = _launcher.take();
     if (removed == null) return;
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame([removed]);
   }
 
@@ -1105,7 +1151,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (_surfaces.isEmpty) return;
     _settingsRoute = route;
     _settings.open(monitor: _surfaces.values.first.monitor.gdkMonitor);
-    setState(() {});
+    _refreshWindows();
   }
 
   /// Called by [SettingsOverlay] once its fade-out has finished (from the toggle
@@ -1114,7 +1160,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     if (!mounted) return;
     final removed = _settings.take();
     _settingsRoute = null;
-    setState(() {});
+    _refreshWindows();
     if (removed != null) _destroyAfterFrame([removed]);
 
     // A route that arrived while the overlay was up: the old window has now
@@ -1199,14 +1245,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _appChooserCell = cell;
     // A direct close on dismiss: the chooser has no exit animation to play.
     _appChooser.open(onDismiss: _closeAppChooser);
-    setState(() {});
+    _refreshWindows();
   }
 
   void _closeAppChooser() {
     final removed = _appChooser.take();
     if (removed == null) return;
     _appChooserCell = null;
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame([removed]);
   }
 
@@ -1257,14 +1303,78 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // directly — cancelling a modal picker has no exit animation — and only
     // [FilePickerController] may resolve the awaited pick.
     _filePicker.open(onDismiss: _closeFilePicker);
-    setState(() {});
+    _refreshWindows();
   }
 
   void _closeFilePicker() {
     final removed = _filePicker.take();
     if (removed == null) return;
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame([removed]);
+  }
+
+  /// Reconciles the registry with the windows the root wants open, and rebuilds
+  /// so their content follows whatever state changed.
+  ///
+  /// This is what every `setState(() {})` in this class used to be. The two
+  /// halves have to stay in this order and in one call: the reconciliation is
+  /// what adds and drops the *views*, and a caller that follows it with
+  /// [_destroyAfterFrame] is relying on the dropped view having been detached
+  /// first — destroying a native window Flutter still renders into aborts the
+  /// process (see `WindowTeardown`).
+  void _refreshWindows() {
+    if (!mounted) return;
+    _syncWindows();
+    setState(() {});
+  }
+
+  /// Brings the root's own entries in the [WindowRegistry] in line with
+  /// [_desiredWindows], touching nothing else in it.
+  ///
+  /// Windows are matched on their controller, so a surface that is still wanted
+  /// keeps the entry — and the builder — it already had, and the registry
+  /// notifies only when one is actually created or destroyed. That is also why
+  /// the builders in [_desiredWindows] read the root's fields rather than
+  /// capturing them.
+  void _syncWindows() {
+    final desired = _desiredWindows();
+    final wanted = <BaseWindowController>{
+      for (final window in desired) window.controller,
+    };
+    for (final controller in _rootEntries.keys.toList(growable: false)) {
+      if (wanted.contains(controller)) continue;
+      final gone = _rootEntries.remove(controller)!;
+      _registry?.unregister(gone);
+    }
+    for (final window in desired) {
+      if (_rootEntries.containsKey(window.controller)) continue;
+      final entry =
+          WindowEntry(controller: window.controller, builder: window.builder);
+      _rootEntries[window.controller] = entry;
+      if (_registry case final registry?) {
+        registry.register(entry);
+      } else {
+        // Nothing below has built yet, so the manager holds nothing that a
+        // fresh state would lose — see [_registry]. `initialWindows` reads
+        // [_rootEntries], which now carries this one too.
+        _managerGeneration++;
+      }
+    }
+  }
+
+  /// Takes the registry the root's [WindowManager] published, from the first
+  /// window of the shell to build.
+  ///
+  /// Assigning a field is all this does: no `setState`, because it is called
+  /// from a descendant's `didChangeDependencies` — inside the build phase,
+  /// where marking anything dirty would be an error — and because the root has
+  /// nothing to redraw on account of learning where to register.
+  void _bindRegistry(WindowRegistry registry) {
+    if (identical(_registry, registry)) return;
+    _registry = registry;
+    // Everything the root already owns was handed to the manager as
+    // `initialWindows`, so the registry is already holding it; nothing to
+    // replay here.
   }
 
   /// Destroys native windows only once Flutter has actually let go of their
@@ -1366,7 +1476,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
     // Detach the removed views from the tree first, then destroy their native
     // windows after that frame has been rendered.
-    setState(() {});
+    _refreshWindows();
     _destroyAfterFrame(removed);
     if (removedLocks.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1512,154 +1622,203 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// card and lock surface — so the palette and the start-up service state are
   /// installed once per window rather than once for the tree. [ThemeProvider]
   /// stays the only thing that constructs a [ThemeScope].
-  Widget _windowChrome(Widget child) => ShellServicesScope(
-        services: widget.services,
-        child: LiveConfigProvider(
-          config: _liveConfig,
-          // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
-          // font family every window's text should inherit.
-          child: ThemeProvider(child: ShellTextRoot(child: child)),
+  Widget _windowChrome(Widget child) => _RegistryBinder(
+        // Every root-owned window's content goes through here, which makes this
+        // the first place under the [WindowManager] that builds — and so the
+        // one place the root can be handed the registry it has to register the
+        // *rest* of its windows into. See [_registry].
+        onRegistry: _bindRegistry,
+        child: ShellServicesScope(
+          services: widget.services,
+          child: LiveConfigProvider(
+            config: _liveConfig,
+            // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
+            // font family every window's text should inherit.
+            child: ThemeProvider(child: ShellTextRoot(child: child)),
+          ),
         ),
       );
 
   @override
   Widget build(BuildContext context) {
+    // Flutter's own [WindowManager] renders the shell, from the single
+    // [WindowRegistry] it publishes to everything below it.
+    //
+    // Two things put windows in that registry and neither may tread on the
+    // other: the root, through [_syncWindows], which owns the panels,
+    // backgrounds, indicators, badges, selection surfaces, overlays and lock
+    // screens; and every module that opens a popup or a runtime layer-shell
+    // window, which registers itself from inside the tree (see `PopupHost` and
+    // `LayerShellHost`). That is why the root's set is *reconciled* rather than
+    // rebuilt here: a declarative list of views returned from `build` would
+    // take every module's window down with it on each rebuild.
+    //
+    // [initialWindows] carries what the root owns *now* rather than only what
+    // it owned at start-up, because it is also what a remount re-registers —
+    // see [_registry] for the one case that needs one.
+    //
+    // One property this gave up, knowingly: the manager renders its registry as
+    // *unkeyed* `Window`s, where the hand-built view list keyed each on its
+    // controller. Keyless widgets of one type all satisfy `Widget.canUpdate`,
+    // so `updateChildren` matches them positionally and dropping a window from
+    // the middle shifts every later one down a slot. That is not a bug — each
+    // `RawView` is globally keyed on its own `FlutterView`, so the render tree
+    // and every bit of state under it are reparented rather than rebuilt, which
+    // is the path `_retakeInactiveElement` documents as forward-looking
+    // inactivity — but it does mean a close cascades through the windows
+    // *after* it. Hence the registration order below: the per-monitor surfaces,
+    // which almost never move, first; the overlays that open and close all day
+    // after them; and the modules' own popups, appended last by whoever opened
+    // them, after everything.
+    return WindowManager(
+      key: ValueKey(_managerGeneration),
+      initialWindows: _rootEntries.values.toList(growable: false),
+    );
+  }
+
+  /// Every native window the root itself owns, paired with the content that
+  /// goes in it.
+  ///
+  /// The controller is a window's identity — [_syncWindows] keys the registry
+  /// entries on it — so a window that survives a reconciliation keeps the
+  /// [WindowEntry], and with it the builder, it was created with. Two rules
+  /// follow for everything below: capture only what is fixed for the life of
+  /// that window (its controller, its monitor, its panel name), and read
+  /// anything that can still move out of the root's own fields *inside* the
+  /// builder, where it is re-read on every rebuild.
+  List<_RootWindow> _desiredWindows() {
     // Iterate the *startup* panels — those own the layer-shell controllers —
     // but render each with the live config merged onto its fixed geometry.
     final startupPanels = widget.appConfig.panels;
 
-    return ViewCollection(
-      views: [
-        // One group of surfaces per currently-connected monitor. Monitors are
-        // added to / removed from [_surfaces] as they are plugged and unplugged.
-        for (final surfaces in _surfaces.values) ...[
-          if (surfaces.background != null)
-            LayerShellWindow(
-              // Key by controller so add/remove of one monitor doesn't shift how
-              // Flutter matches the remaining views onto their FlutterViews.
-              key: ObjectKey(surfaces.background!),
-              controller: surfaces.background!,
-              // PanelWindowManager and the window chrome are what let the
-              // desktop grid open popups: LayerShellWindow already supplies the
-              // View and the WindowScope, but PopupHost also needs a
-              // WindowRegistry, and popup content is built outside the parent's
-              // ThemeScope.
-              //
-              // Deliberately no DisplayScope: the grid takes its geometry from
-              // a LayoutBuilder and never needs the output at all.
-              child: PanelWindowManager(
-                child: _windowChrome(
-                  // A click on the desktop dismisses whatever a *panel* has
-                  // open: the two surfaces have separate registries and no
-                  // shared widget tree, so the coordinator is the only thing
-                  // that can carry the signal across.
-                  PopupDismissArea(
+    return <_RootWindow>[
+      // One group of surfaces per currently-connected monitor. Monitors are
+      // added to / removed from [_surfaces] as they are plugged and unplugged.
+      for (final surfaces in _surfaces.values) ...[
+        if (surfaces.background case final background?)
+          (
+            controller: background,
+            // The window chrome is what lets the desktop grid open popups: the
+            // SDK's `Window` already supplies the View and the WindowScope and
+            // the registry now comes from the root, but popup content is built
+            // outside the parent's ThemeScope.
+            //
+            // Deliberately no DisplayScope: the grid takes its geometry from a
+            // LayoutBuilder and never needs the output at all.
+            builder: (_) => _windowChrome(
+              // A click on the desktop dismisses whatever a *panel* has open:
+              // the two surfaces share a registry now but still no widget
+              // tree, so the coordinator remains the only thing that can carry
+              // the signal across.
+              PopupDismissArea(
+                child: Builder(builder: (context) {
+                  final live = LiveConfigScope.of(context);
+                  // Background surface existence is startup-only; while it
+                  // exists, follow live edits (fit / entry paths) but keep the
+                  // startup wallpaper if the user clears every entry (a full
+                  // removal needs a restart).
+                  //
+                  // Null here means "surface, but nothing to paint" — the
+                  // grid-only case. That must render as *nothing*, not as
+                  // BackgroundWindow's opaque empty fill, or a user with icons
+                  // and no wallpaper gets a black desktop instead of whatever
+                  // their compositor draws.
+                  final liveBg = live.background;
+                  final startupBg = widget.appConfig.background;
+                  final BackgroundConfig? bgConfig = !_hasBackgroundSurface
+                      ? null
+                      : (liveBg != null && liveBg.entries.isNotEmpty
+                          ? liveBg
+                          : startupBg);
+                  return DesktopSurface(
+                    background: bgConfig,
+                    desktop: live.desktop,
+                    store: DesktopStore.instance,
+                    // Startup panel geometry, like _createSurfaces: the anchor
+                    // a surface was built with cannot change without a
+                    // restart.
+                    panels: widget.appConfig.panels,
+                    onChangeBackground: () => SettingsController.instance
+                        .open(SettingsRoute.background),
+                    onAddRequested: _onDesktopAddRequested,
+                    onKeyboardRequested: (wanted) => _setDesktopKeyboard(
+                        _monitorKey(surfaces.monitor), wanted),
+                  );
+                }),
+              ),
+            ),
+          ),
+        // Not gated on the output being known. Output enumeration is no longer
+        // awaited before the first frame, so a bar that waited for it would be
+        // a bar the user watches appear a beat after login; it paints now and
+        // [DisplayScope] fills in a moment later.
+        for (final entry in startupPanels.entries)
+          if (surfaces.panels[entry.key] case final controller?)
+            (
+              controller: controller,
+              builder: (_) => _windowChrome(
+                MiracleScope(
+                  manager: widget.miracle,
+                  child: DisplayProvider(
+                    // Read here rather than captured: [_syncMonitors] replaces
+                    // this snapshot in place when a monitor is repositioned,
+                    // and a panel matched against the position its display has
+                    // left behind shows another one's workspaces.
+                    monitor: surfaces.monitor,
+                    outputs: widget.outputs,
                     child: Builder(builder: (context) {
-                      final live = LiveConfigScope.of(context);
-                      // Background surface existence is startup-only; while it
-                      // exists, follow live edits (fit / entry paths) but keep
-                      // the startup wallpaper if the user clears every entry
-                      // (a full removal needs a restart).
-                      //
-                      // Null here means "surface, but nothing to paint" — the
-                      // grid-only case. That must render as *nothing*, not as
-                      // BackgroundWindow's opaque empty fill, or a user with
-                      // icons and no wallpaper gets a black desktop instead of
-                      // whatever their compositor draws.
-                      final liveBg = live.background;
-                      final startupBg = widget.appConfig.background;
-                      final BackgroundConfig? bgConfig = !_hasBackgroundSurface
-                          ? null
-                          : (liveBg != null && liveBg.entries.isNotEmpty
-                              ? liveBg
-                              : startupBg);
-                      return DesktopSurface(
-                        background: bgConfig,
-                        desktop: live.desktop,
-                        store: DesktopStore.instance,
-                        // Startup panel geometry, like _createSurfaces: the
-                        // anchor a surface was built with cannot change
-                        // without a restart.
-                        panels: widget.appConfig.panels,
-                        onChangeBackground: () => SettingsController.instance
-                            .open(SettingsRoute.background),
-                        onAddRequested: _onDesktopAddRequested,
-                        onKeyboardRequested: (wanted) => _setDesktopKeyboard(
-                            _monitorKey(surfaces.monitor), wanted),
+                      final panel = effectivePanel(
+                        entry.value,
+                        LiveConfigScope.of(context).panels[entry.key],
+                      );
+                      // A click anywhere on the bar — an icon whose popup is
+                      // not open, or bare padding — dismisses whatever else
+                      // the shell has up.
+                      return PopupDismissArea(
+                        child: PanelMain(
+                          panelConfig: panel,
+                          anchor: panel.anchor,
+                        ),
                       );
                     }),
                   ),
                 ),
               ),
             ),
-          // Not gated on the output being known. Output enumeration is no
-          // longer awaited before the first frame, so a bar that waited for it
-          // would be a bar the user watches appear a beat after login; it
-          // paints now and [DisplayScope] fills in a moment later.
-          for (final entry in startupPanels.entries)
-            if (surfaces.panels[entry.key] case final controller?)
-              LayerShellWindow(
-                key: ObjectKey(controller),
-                controller: controller,
-                child: PanelWindowManager(
-                  child: _windowChrome(
-                    MiracleScope(
-                      manager: widget.miracle,
-                      child: DisplayProvider(
-                        monitor: surfaces.monitor,
-                        outputs: widget.outputs,
-                        child: Builder(builder: (context) {
-                          final panel = effectivePanel(
-                            entry.value,
-                            LiveConfigScope.of(context).panels[entry.key],
-                          );
-                          // A click anywhere on the bar — an icon whose
-                          // popup is not open, or bare padding — dismisses
-                          // whatever else the shell has up.
-                          return PopupDismissArea(
-                            child: PanelMain(
-                              panelConfig: panel,
-                              anchor: panel.anchor,
-                            ),
-                          );
-                        }),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          // The indicator is not tied to any panel, so it lives here beside the
-          // background rather than inside a module's window registry.
-          if (_osd[_monitorKey(surfaces.monitor)] case final osd?)
-            LayerShellWindow(
-              key: ObjectKey(osd),
-              controller: osd,
-              child: _windowChrome(OsdWindow(store: OsdStore.instance)),
-            ),
-          // The floating notification badge, likewise tied to the output
-          // rather than to any panel — it is there whether or not this
-          // monitor's bars carry the bell module at all.
-          if (_badges[_monitorKey(surfaces.monitor)] case final badge?)
-            LayerShellWindow(
-              key: ObjectKey(badge),
-              controller: badge,
-              child: _windowChrome(
-                NotificationBadge(
-                  // This monitor, not the focused one: the user has just
-                  // pointed at this display.
-                  onTap: () => _toggleNotificationPanel(
-                      monitor: surfaces.monitor.gdkMonitor),
-                ),
+        // The indicator is not tied to any panel, so it lives here beside the
+        // background rather than being opened from inside a module.
+        if (_osd[_monitorKey(surfaces.monitor)] case final osd?)
+          (
+            controller: osd,
+            builder: (_) => _windowChrome(OsdWindow(store: OsdStore.instance)),
+          ),
+        // The floating notification badge, likewise tied to the output rather
+        // than to any panel — it is there whether or not this monitor's bars
+        // carry the bell module at all.
+        if (_badges[_monitorKey(surfaces.monitor)] case final badge?)
+          (
+            controller: badge,
+            builder: (_) => _windowChrome(
+              NotificationBadge(
+                // This monitor, not the focused one: the user has just pointed
+                // at this display.
+                onTap: () => _toggleNotificationPanel(
+                    monitor: surfaces.monitor.gdkMonitor),
               ),
             ),
-          // The screenshot / recording selection surface, likewise not tied to
-          // any panel — it covers the whole of this output, bars included.
-          if (_selectionRequest case final selection?)
-            if (_selector[_monitorKey(surfaces.monitor)] case final selector?)
-              LayerShellWindow(
-                key: ObjectKey(selector),
-                controller: selector,
-                child: _windowChrome(
+          ),
+        // The screenshot / recording selection surface, likewise not tied to
+        // any panel — it covers the whole of this output, bars included.
+        if (_selectionRequest != null)
+          if (_selector[_monitorKey(surfaces.monitor)] case final selector?)
+            (
+              controller: selector,
+              builder: (_) {
+                // Re-read rather than captured, the rule this list states: one
+                // pick answered and another asked for keeps these surfaces up.
+                final selection = _selectionRequest;
+                if (selection == null) return const SizedBox.shrink();
+                return _windowChrome(
                   CaptureSelectorOverlay(
                     request: selection,
                     // The connector, not the wl_output: this is what both the
@@ -1684,174 +1843,177 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                     onPicked: _onSelectionPicked,
                     onCancel: _onSelectionCancelled,
                   ),
-                ),
-              ),
-        ],
-        // The notification panel. A single window like the overlays below it
-        // — one panel for the machine, however many bells and badges ask for
-        // it — so it lives outside the per-monitor loop as well.
-        if (_notifications.controller case final notifications?)
-          LayerShellWindow(
-            key: ObjectKey(notifications),
-            controller: notifications,
-            child: _windowChrome(
-              NotificationPanel(
-                closingNotifier: _notifications.closing,
-                onClosed: _onNotificationPanelClosed,
-              ),
-            ),
-          ),
-        // The settings overlay opened by the global shortcut. A single window
-        // (not per-monitor), so it lives outside the per-monitor loop above.
-        if (_settings.controller case final settings?)
-          LayerShellWindow(
-            key: ObjectKey(settings),
-            controller: settings,
-            child: _windowChrome(
-              SettingsOverlay(
-                closingNotifier: _settings.closing,
-                onClosed: _onSettingsClosed,
-                route: _settingsRoute,
-              ),
-            ),
-          ),
-        // The application chooser opened by the desktop's "Add application…".
-        // A single window, like the launcher, so it lives outside the loop.
-        if (_appChooser.controller case final chooser?)
-          LayerShellWindow(
-            key: ObjectKey(chooser),
-            controller: chooser,
-            child: _windowChrome(
-              // The index is built after the first frame now, so a chooser
-              // opened during start-up gets an empty list and a loader.
-              _AppIndexBuilder(
-                builder: (context, apps, loading) => AppChooserOverlay(
-                  apps: apps,
-                  loading: loading,
-                  onSelected: (app) {
-                    final cell = _appChooserCell;
-                    _closeAppChooser();
-                    if (cell != null && app.filename.isNotEmpty) {
-                      _pinToDesktop(
-                        DesktopItem(
-                          kind: DesktopItemKind.app,
-                          target: app.filename,
-                        ),
-                        cell,
-                      );
-                    }
-                  },
-                  onCancel: _closeAppChooser,
-                ),
-              ),
-            ),
-          ),
-        // The file picker asked for by a surface that cannot host a modal —
-        // today the desktop grid, which is on the background layer.
-        if ((_filePicker.controller, FilePickerController.instance.pending)
-            case (final picker?, final request?))
-          LayerShellWindow(
-            key: ObjectKey(picker),
-            controller: picker,
-            child: _windowChrome(
-              FilePickerWindow(
-                request: request,
-                onResult: (paths) {
-                  FilePickerController.instance.complete(paths);
-                  _closeFilePicker();
-                },
-              ),
-            ),
-          ),
-        // The application launcher. Like the settings overlay it is a single
-        // window rather than one per monitor, so it lives outside the loop.
-        if (_launcher.controller case final launcher?)
-          LayerShellWindow(
-            key: ObjectKey(launcher),
-            controller: launcher,
-            child: _windowChrome(
-              // Ctrl+Space can beat the index to the finish line. A loader
-              // says so; "No applications" would be a lie the user acts on.
-              _AppIndexBuilder(
-                builder: (context, apps, loading) => LauncherOverlay(
-                  closingNotifier: _launcher.closing,
-                  onClosed: _onLauncherClosed,
-                  apps: apps,
-                  loading: loading,
-                  onLaunch: (app) => launchApp(app.appInfo),
-                  onLaunchAction: (app, action) =>
-                      launchAppAction(app.appInfo, action.id),
-                ),
-              ),
-            ),
-          ),
-        // The screen-share consent picker, open only while an application's
-        // portal request is waiting on an answer. Single window, like the
-        // launcher, so it lives outside the per-monitor loop.
-        if ((_screencastPicker.controller, _screencastRequest)
-            case (final picker?, final request?))
-          LayerShellWindow(
-            key: ObjectKey(picker),
-            controller: picker,
-            child: _windowChrome(
-              Builder(builder: (context) {
-                final connection = screencastService?.connection;
-                final sources = connection == null
-                    ? (monitors: <PickerSource>[], windows: <PickerSource>[])
-                    : buildPickerSources(connection, request,
-                        previewFps: LiveConfigScope.of(context)
-                            .screenshare
-                            .previewFps);
-                return ScreencastPickerOverlay(
-                  request: request,
-                  monitors: sources.monitors,
-                  windows: sources.windows,
-                  closingNotifier: _screencastPicker.closing,
-                  onClosed: _onScreencastPickerClosed,
-                  onConfirm: (picked) => ScreencastPickerController.instance
-                      .complete(PickResult(picked)),
-                  onCancel: ScreencastPickerController.instance.cancel,
                 );
-              }),
+              },
             ),
-          ),
-        // The power menu, open only while the physical power button's press
-        // is being answered. A single window like the launcher, so it lives
-        // outside the per-monitor loop.
-        if (_powerMenu.controller case final menu?)
-          LayerShellWindow(
-            key: ObjectKey(menu),
-            controller: menu,
-            child: _windowChrome(
-              PowerMenuOverlay(
-                closingNotifier: _powerMenu.closing,
-                onClosed: _onPowerMenuClosed,
-                // The overlay dismisses itself and then this tears the window
-                // down, so the verb runs while its own surface is still
-                // fading — which is what "Lock" needs, since the lock surface
-                // is mapped over the top of it.
-                onAction: (action) => unawaited(PowerActions.run(action)),
-              ),
-            ),
-          ),
-        // The lock screen. These surfaces exist only while the session is
-        // locked; the compositor hides every other surface — including the
-        // panels above — for as long as they do.
-        for (final controller in _lockHost.windows)
-          SessionLockWindow(
-            key: ObjectKey(controller),
-            controller: controller,
-            child: _windowChrome(
-              Builder(builder: (context) {
-                return LockScreen(
-                  config: LiveConfigScope.of(context).lock,
-                  onUnlocked: _lockHost.unlock,
-                );
-              }),
-            ),
-          ),
       ],
-    );
+      // The notification panel. A single window like the overlays below it —
+      // one panel for the machine, however many bells and badges ask for it —
+      // so it lives outside the per-monitor loop as well.
+      if (_notifications.controller case final notifications?)
+        (
+          controller: notifications,
+          builder: (_) => _windowChrome(
+            NotificationPanel(
+              closingNotifier: _notifications.closing,
+              onClosed: _onNotificationPanelClosed,
+            ),
+          ),
+        ),
+      // The settings overlay opened by the global shortcut. A single window
+      // (not per-monitor), so it lives outside the per-monitor loop above.
+      if (_settings.controller case final settings?)
+        (
+          controller: settings,
+          builder: (_) => _windowChrome(
+            SettingsOverlay(
+              closingNotifier: _settings.closing,
+              onClosed: _onSettingsClosed,
+              route: _settingsRoute,
+            ),
+          ),
+        ),
+      // The application chooser opened by the desktop's "Add application…".
+      // A single window, like the launcher, so it lives outside the loop.
+      if (_appChooser.controller case final chooser?)
+        (
+          controller: chooser,
+          builder: (_) => _windowChrome(
+            // The index is built after the first frame now, so a chooser
+            // opened during start-up gets an empty list and a loader.
+            _AppIndexBuilder(
+              builder: (context, apps, loading) => AppChooserOverlay(
+                apps: apps,
+                loading: loading,
+                onSelected: (app) {
+                  final cell = _appChooserCell;
+                  _closeAppChooser();
+                  if (cell != null && app.filename.isNotEmpty) {
+                    _pinToDesktop(
+                      DesktopItem(
+                        kind: DesktopItemKind.app,
+                        target: app.filename,
+                      ),
+                      cell,
+                    );
+                  }
+                },
+                onCancel: _closeAppChooser,
+              ),
+            ),
+          ),
+        ),
+      // The file picker asked for by a surface that cannot host a modal —
+      // today the desktop grid, which is on the background layer.
+      if (_filePicker.controller case final picker?)
+        if (FilePickerController.instance.pending != null)
+          (
+            controller: picker,
+            builder: (_) {
+              // Re-read for [_desiredWindows]'s reason: one request completed
+              // and the next opened keeps this window and its entry.
+              final request = FilePickerController.instance.pending;
+              if (request == null) return const SizedBox.shrink();
+              return _windowChrome(
+                FilePickerWindow(
+                  request: request,
+                  onResult: (paths) {
+                    FilePickerController.instance.complete(paths);
+                    _closeFilePicker();
+                  },
+                ),
+              );
+            },
+          ),
+      // The application launcher. Like the settings overlay it is a single
+      // window rather than one per monitor, so it lives outside the loop.
+      if (_launcher.controller case final launcher?)
+        (
+          controller: launcher,
+          builder: (_) => _windowChrome(
+            // Ctrl+Space can beat the index to the finish line. A loader says
+            // so; "No applications" would be a lie the user acts on.
+            _AppIndexBuilder(
+              builder: (context, apps, loading) => LauncherOverlay(
+                closingNotifier: _launcher.closing,
+                onClosed: _onLauncherClosed,
+                apps: apps,
+                loading: loading,
+                onLaunch: (app) => launchApp(app.appInfo),
+                onLaunchAction: (app, action) =>
+                    launchAppAction(app.appInfo, action.id),
+              ),
+            ),
+          ),
+        ),
+      // The screen-share consent picker, open only while an application's
+      // portal request is waiting on an answer. Single window, like the
+      // launcher, so it lives outside the per-monitor loop.
+      if (_screencastPicker.controller case final picker?)
+        if (_screencastRequest != null)
+          (
+            controller: picker,
+            builder: (_) {
+              // Re-read, as everything mutable in this list is.
+              final request = _screencastRequest;
+              if (request == null) return const SizedBox.shrink();
+              return _windowChrome(
+                Builder(builder: (context) {
+                  final connection = screencastService?.connection;
+                  final sources = connection == null
+                      ? (monitors: <PickerSource>[], windows: <PickerSource>[])
+                      : buildPickerSources(connection, request,
+                          previewFps: LiveConfigScope.of(context)
+                              .screenshare
+                              .previewFps);
+                  return ScreencastPickerOverlay(
+                    request: request,
+                    monitors: sources.monitors,
+                    windows: sources.windows,
+                    closingNotifier: _screencastPicker.closing,
+                    onClosed: _onScreencastPickerClosed,
+                    onConfirm: (picked) => ScreencastPickerController.instance
+                        .complete(PickResult(picked)),
+                    onCancel: ScreencastPickerController.instance.cancel,
+                  );
+                }),
+              );
+            },
+          ),
+      // The power menu, open only while the physical power button's press is
+      // being answered. A single window like the launcher, so it lives outside
+      // the per-monitor loop.
+      if (_powerMenu.controller case final menu?)
+        (
+          controller: menu,
+          builder: (_) => _windowChrome(
+            PowerMenuOverlay(
+              closingNotifier: _powerMenu.closing,
+              onClosed: _onPowerMenuClosed,
+              // The overlay dismisses itself and then this tears the window
+              // down, so the verb runs while its own surface is still fading —
+              // which is what "Lock" needs, since the lock surface is mapped
+              // over the top of it.
+              onAction: (action) => unawaited(PowerActions.run(action)),
+            ),
+          ),
+        ),
+      // The lock screen. These surfaces exist only while the session is
+      // locked; the compositor hides every other surface — including the
+      // panels above — for as long as they do.
+      for (final controller in _lockHost.windows)
+        (
+          controller: controller,
+          builder: (_) => _windowChrome(
+            Builder(builder: (context) {
+              return LockScreen(
+                config: LiveConfigScope.of(context).lock,
+                onUnlocked: _lockHost.unlock,
+              );
+            }),
+          ),
+        ),
+    ];
   }
 }
 
@@ -2090,6 +2252,37 @@ class _OverlayWindow {
     take()?.destroy();
     closing.dispose();
   }
+}
+
+/// Hands [onRegistry] the [WindowRegistry] the root's [WindowManager]
+/// publishes.
+///
+/// The manager renders nothing but the windows in its registry — it has no
+/// `child` slot — so the only context below it belongs to a window's own
+/// content, and this rides along on every one of them through
+/// `_GracefulShellRootState._windowChrome`. Depending on the scope rather than
+/// reading it once is what makes a remounted manager (see
+/// `_GracefulShellRootState._registry`) report its new registry rather than
+/// leaving the root writing into a dead one.
+class _RegistryBinder extends StatefulWidget {
+  const _RegistryBinder({required this.onRegistry, required this.child});
+
+  final ValueChanged<WindowRegistry> onRegistry;
+  final Widget child;
+
+  @override
+  State<_RegistryBinder> createState() => _RegistryBinderState();
+}
+
+class _RegistryBinderState extends State<_RegistryBinder> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    widget.onRegistry(WindowRegistry.of(context));
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// The default shape: a backdrop over the whole of one output.
