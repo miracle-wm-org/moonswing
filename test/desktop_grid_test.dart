@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:flutter/gestures.dart' show kSecondaryButton;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kSecondaryButton;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -363,6 +364,72 @@ void main() {
       await tester.tapAt(const Offset(350, 250));
       await tester.pumpAndSettle();
       expect(store.selectedTargets, isEmpty);
+    });
+  });
+
+  // Everything a pointer does while it is moving, and what it is allowed to
+  // cost. The band's own tests above drive a *touch* pointer, which is what let
+  // the expensive half of this hide: `MouseRegion` fires enter and exit with the
+  // button held down (`RendererBinding.dispatchEvent` re-runs the hit test for
+  // every `PointerMoveEvent` so that it does), so a marquee dragged with a real
+  // mouse rebuilt the whole layer twice for every icon it passed over — every
+  // tile and every widget card, whose builders measure their own text — on top
+  // of once more for every icon that entered or left the box.
+  group('pointer cost', () {
+    /// A mouse pointer parked off the grid, so a `moveTo` is a real hover.
+    Future<TestGesture> mouse(WidgetTester tester) async {
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: const Offset(600, 500));
+      addTearDown(() => gesture.removePointer());
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets('hovering an icon rebuilds that icon and nothing else',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      final otherBefore = tester.widget<DesktopIconTile>(tileFor(fileB));
+
+      final gesture = await mouse(tester);
+      await gesture.moveTo(const Offset(50, 50));
+      await tester.pump();
+
+      expect(tester.widget<DesktopIconTile>(tileFor(fileA)).hovered, isTrue);
+      expect(
+        identical(tester.widget<DesktopIconTile>(tileFor(fileB)), otherBefore),
+        isTrue,
+        reason: 'hover is the hovered tile\'s own state, not the layer\'s',
+      );
+    });
+
+    testWidgets('a band crossing an icon rebuilds that icon and nothing else',
+        (tester) async {
+      final store = openStore();
+      await pumpGrid(tester, store);
+      final otherBefore = tester.widget<DesktopIconTile>(tileFor(fileB));
+
+      // Down column 0 only: the box reaches into A's cell and stops short of
+      // B's, and the pointer passes over A on the way, so this is the hover and
+      // the selection arriving together — which is what a real drag does.
+      final gesture = await mouse(tester);
+      await gesture.down(const Offset(10, 250));
+      await tester.pump();
+      for (final y in [200.0, 150.0, 100.0, 50.0]) {
+        await gesture.moveTo(Offset(90, y));
+        await tester.pump();
+      }
+
+      expect(store.selectedTargets, {fileA.path});
+      expect(tester.widget<DesktopIconTile>(tileFor(fileA)).selected, isTrue);
+      expect(
+        identical(tester.widget<DesktopIconTile>(tileFor(fileB)), otherBefore),
+        isTrue,
+        reason: 'a selection change must rebuild only the tiles it moved',
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
     });
   });
 
