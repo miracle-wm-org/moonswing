@@ -111,5 +111,16 @@ Future<void> _startAudio() async {
   client.onSinkRemoved.listen((_) => refreshDefaults());
   client.onSourceRemoved.listen((_) => refreshDefaults());
 
+  // The server itself went away and came back — `pipewire-pulse` restarting,
+  // say. Unlike a default device moving, that is *not* reported by
+  // `onServerChanged` in any way this tracker can act on: the restart usually
+  // brings the same device names back, so `defaultsMoved` answers false and
+  // the tracker would go on measuring events against level baselines taken
+  // from the server that died — which flashes a card for a change nobody made,
+  // or silently drops one that was. The seeding is unconditional here for that
+  // reason, and `refreshDefaults`' own generation counter handles it landing on
+  // top of one already in flight.
+  client.onReconnected.listen((_) => refreshDefaults());
+
   await refreshDefaults();
 }

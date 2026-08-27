@@ -212,6 +212,23 @@ class _ServerChangedEvent {
   final PaServerInfo info;
 }
 
+/// The isolate's context has connected again after the server went away.
+///
+/// This is its own event rather than a [_ServerChangedEvent] because every
+/// consumer filters that stream on the default device having *moved* —
+/// `OsdAudioTracker.defaultsMoved`, `SoundControlState`'s name compare — and a
+/// `pipewire-pulse` restart normally brings the same device name back. Reusing
+/// it would therefore be a silent no-op that leaves a stale reading on screen
+/// for the rest of the session, and loosening those filters would cost the
+/// redundant-reseed guard they exist for.
+///
+/// Nothing read before this survives it: the sink and source indices are the
+/// new server's, and the level meter's `pa_stream` belonged to the context that
+/// died. A consumer answers it by re-running the seeding it does at start-up.
+class _ConnectedEvent {
+  const _ConnectedEvent();
+}
+
 // ---------------------------------------------------------------------------
 // PA isolate — runs libpulse in a dedicated Dart isolate
 // ---------------------------------------------------------------------------
@@ -231,7 +248,12 @@ class _PaIsolate {
   final SendPort port;
   final Pointer<pa_mainloop> loop;
   final Pointer<pa_mainloop_api> api;
-  final Pointer<pa_context> ctx;
+
+  // Not final: a context cannot be reconnected, only replaced, so [_reconnect]
+  // frees this one and puts the new one here. The mainloop and its api above
+  // outlive every context — `PulseClient._loop` holds the loop's address for
+  // `pa_mainloop_wakeup`, so it must never move.
+  Pointer<pa_context> ctx;
 
   // Pending PA operations → completion callbacks
   final ops = <Pointer<pa_operation>, void Function()>{};
@@ -260,14 +282,9 @@ class _PaIsolate {
 
     final loop = _pa.pa_mainloop_new();
     final api = _pa.pa_mainloop_get_api(loop);
-    final ctx = _pa.pa_context_new(api, 'PulseClient'.toNativeUtf8().cast());
-    _pa.pa_context_connect(
-        ctx, nullptr, pa_context_flags.PA_CONTEXT_NOAUTOSPAWN, nullptr);
+    final ctx = _newContext(api);
 
     _inst = _PaIsolate._(port, loop, api, ctx);
-
-    _pa.pa_context_set_state_callback(
-        ctx, Pointer.fromFunction(_onCtxState), nullptr);
 
     final recv = ReceivePort();
     port.send(recv.sendPort);
@@ -281,6 +298,38 @@ class _PaIsolate {
     Isolate.current.addOnExitListener(exitRecv.sendPort);
 
     _loop();
+  }
+
+  /// Creates a context on [api], arms its state callback and connects it.
+  ///
+  /// Both the first connect and every [_reconnect] go through here, so the
+  /// three calls cannot drift apart — a rebuilt context with no state callback
+  /// is one whose next failure is never noticed. `pa_context_new` copies the
+  /// name, so the buffer is freed straight back.
+  ///
+  /// The callback is armed **before** the connect, which is the opposite of
+  /// what this used to do: `pa_context_connect` sets the new state from inside
+  /// itself and invokes the callback synchronously, so arming it afterwards
+  /// loses a connect that failed on the spot — a machine whose audio server is
+  /// not running when the shell starts — and the retry is then never scheduled.
+  /// The consequence is that [_onCtxState] can run before `entry` has assigned
+  /// `_inst`, which is safe only because the branch that touches it is READY,
+  /// and READY cannot arrive before the mainloop has been dispatched.
+  static Pointer<pa_context> _newContext(Pointer<pa_mainloop_api> api) {
+    final pName = 'PulseClient'.toNativeUtf8();
+    final ctx = _pa.pa_context_new(api, pName.cast());
+    calloc.free(pName);
+    _pa.pa_context_set_state_callback(
+        ctx, Pointer.fromFunction(_onCtxState), nullptr);
+    if (_pa.pa_context_connect(
+            ctx, nullptr, pa_context_flags.PA_CONTEXT_NOAUTOSPAWN, nullptr) <
+        0) {
+      // A connect that is refused outright delivers no state change, so the
+      // failure has to be recorded here or the retry would never be armed.
+      pulseLog('pa_context_connect refused');
+      _noteContextLost();
+    }
+    return ctx;
   }
 
   // ---------------------------------------------------------------------------
@@ -305,6 +354,91 @@ class _PaIsolate {
   /// driver must never call `pa_mainloop_prepare` again: it asserts on its own
   /// state and `abort()`s the process instead of returning an error.
   static bool _dead = false;
+
+  /// Set when the context reports FAILED or TERMINATED; cleared by
+  /// [_reconnect]. Deliberately *not* [_dead], which means the mainloop itself
+  /// is unusable and is the one state nothing recovers from — a context dying
+  /// under a `systemctl --user restart pipewire-pulse` leaves the mainloop
+  /// perfectly healthy.
+  static bool _lostContext = false;
+
+  /// Set from [_reconnect] and cleared on the next READY, where it is what
+  /// separates a reconnection (which every consumer has to re-seed from) from
+  /// the first connection (which they seed from anyway).
+  static bool _reconnecting = false;
+
+  /// How long to wait before the next connect attempt, doubling per failure,
+  /// and the clock it is measured against. A server restart is two or three
+  /// seconds of nothing listening on the socket, so the first attempt has to be
+  /// prompt and the tail has to back off rather than reconnect-storm a machine
+  /// whose audio stack is simply not coming back.
+  static int _reconnectDelayMs = 0;
+  static final Stopwatch _sinceContextLost = Stopwatch();
+
+  static const int _reconnectFirstDelayMs = 250;
+  static const int _reconnectMaxDelayMs = 5000;
+
+  /// Records a lost context and arms the next attempt. Idempotent: several
+  /// failures before the retry runs are one loss.
+  static void _noteContextLost() {
+    if (_lostContext) return;
+    _lostContext = true;
+    _reconnectDelayMs = _reconnectDelayMs == 0
+        ? _reconnectFirstDelayMs
+        : math.min(_reconnectDelayMs * 2, _reconnectMaxDelayMs);
+    _sinceContextLost
+      ..reset()
+      ..start();
+    pulseLog('context lost; reconnecting in ${_reconnectDelayMs}ms');
+  }
+
+  /// Replaces the dead context with a fresh one on the surviving mainloop.
+  ///
+  /// Called from the top of a [_loop] turn rather than from [_onCtxState],
+  /// because libpulse does not allow a context to be freed from inside its own
+  /// state callback.
+  static void _reconnect(_PaIsolate inst) {
+    if (_sinceContextLost.elapsedMilliseconds < _reconnectDelayMs) return;
+    _lostContext = false;
+    _reconnecting = true;
+
+    final old = inst.ctx;
+    // Detached first: `pa_context_disconnect` can deliver TERMINATED
+    // synchronously, and a state callback firing for the context being torn
+    // down here would arm a second reconnect on the way out.
+    _pa.pa_context_set_state_callback(old, nullptr, nullptr);
+
+    // Every request in flight is owed an answer. `ops` holds the completions
+    // the main isolate's `firstWhere`s are waiting on, and the operations
+    // themselves belong to the context about to be freed — so each completion
+    // runs (sending whatever accumulated, which for an unanswered query is the
+    // empty list its call site pre-seeded) before the context goes. Dropping
+    // them instead leaves one future pending per in-flight request for the life
+    // of the process, which is [_reapOps]'s cancelled-operation rule.
+    for (final op in inst.ops.keys.toList()) {
+      inst.ops.remove(op)!();
+      _pa.pa_operation_unref(op);
+    }
+    inst.accum.clear();
+    inst.sinkChannels.clear();
+    inst.sourceChannels.clear();
+    inst.sinkInputChannels.clear();
+
+    // The stream belonged to the context and does not survive it. It is only
+    // unreffed, never disconnected: `pa_stream_disconnect` wants a stream in
+    // READY, which this one has not been since the server went away. Its one
+    // consumer restarts the meter off `onReconnected`.
+    if (inst.levelStream.address != 0) {
+      _pa.pa_stream_unref(inst.levelStream);
+      inst.levelStream = nullptr;
+    }
+
+    _pa.pa_context_disconnect(old);
+    _pa.pa_context_unref(old);
+
+    pulseLog('reconnecting');
+    inst.ctx = _newContext(inst.api);
+  }
 
   // Outcome of one prepare/poll/dispatch cycle.
   static const int _cycleIdle = 0; // nothing was ready
@@ -338,6 +472,31 @@ class _PaIsolate {
     // interrupter cut short. libpulse maps EINTR onto "returned, nothing was
     // ready" and does not retry, so retrying is this driver's job.
     return _cycleIdle;
+  }
+
+  /// Registers [op]'s completion, or runs it now if libpulse refused the call.
+  ///
+  /// Every `pa_context_*` request answers null once the context is no longer
+  /// `PA_CONTEXT_IS_GOOD` — which is what a `pipewire-pulse` restart makes it —
+  /// and `pa_operation_get_state(NULL)` is an assert inside libpulse, so a null
+  /// key in [ops] does not merely lose the request: it takes the whole shell
+  /// down with SIGABRT on the next [_reapOps]. That is the crash a server
+  /// restart used to produce, and it is why `_onSubscribe` and
+  /// `_startLevelMeter` already test the same return.
+  ///
+  /// Answering on the spot is [_reapOps]'s `PA_OPERATION_CANCELLED` contract
+  /// applied one step earlier: [done] sends whatever accumulated — for a
+  /// refused request, the empty list its call site pre-seeded — so the
+  /// `firstWhere` the main isolate is awaiting still completes rather than
+  /// hanging for the life of the process, and whatever that call site
+  /// allocated is still freed.
+  static void _register(Pointer<pa_operation> op, void Function() done) {
+    if (op.address == 0) {
+      pulseLog('request refused (context not ready); answering empty');
+      done();
+      return;
+    }
+    _inst!.ops[op] = done;
   }
 
   /// Answers every operation that has stopped running.
@@ -381,6 +540,10 @@ class _PaIsolate {
   static void _loop() {
     final inst = _inst;
     if (inst == null || _dead) return;
+
+    // Before driving the mainloop, not after: a turn spent polling a context
+    // that is gone is a turn the reconnect is not attempted in.
+    if (_lostContext) _reconnect(inst);
 
     final turn = Stopwatch()..start();
     var worked = false;
@@ -490,7 +653,28 @@ class _PaIsolate {
           c, Pointer.fromFunction(_onSubscribe), nullptr);
       _pa.pa_context_subscribe(
           c, pa_subscription_mask.PA_SUBSCRIPTION_MASK_ALL, nullptr, nullptr);
+      // The backoff is per outage, so a connection that lasted starts the next
+      // one over rather than inheriting however long the last one took.
+      _reconnectDelayMs = 0;
       _inst!.port.send(_ReadyEvent(_inst!.loop.address));
+      if (_reconnecting) {
+        _reconnecting = false;
+        pulseLog('reconnected');
+        // After the subscription is re-armed, never before: a consumer that
+        // re-seeded on this event and then missed the events that followed
+        // would be exactly as stale as one that never heard it.
+        _inst!.port.send(const _ConnectedEvent());
+      }
+      return;
+    }
+    // FAILED is the server going away — `pipewire-pulse` restarting under us,
+    // or a socket that was never there — and TERMINATED is it closing the
+    // connection cleanly. Both are recoverable and neither is acted on here:
+    // libpulse forbids freeing a context from inside its own state callback, so
+    // this only records, and [_reconnect] runs on the next [_loop] turn.
+    if (state == pa_context_state.PA_CONTEXT_FAILED ||
+        state == pa_context_state.PA_CONTEXT_TERMINATED) {
+      _noteContextLost();
     }
   }
 
@@ -542,7 +726,7 @@ class _PaIsolate {
     final pId = calloc<Int>()..value = id;
     final op = _pa.pa_context_get_server_info(
         _inst!.ctx, Pointer.fromFunction(_onServerInfo), pId.cast());
-    _inst!.ops[op] = () {
+    _register(op, () {
       // Unlike every other list query this one does not pre-seed `accum`, so a
       // cancelled operation reaches here with nothing to send. Answer anyway —
       // the main isolate is awaiting this id and would otherwise wait forever.
@@ -551,7 +735,7 @@ class _PaIsolate {
           _inst!.accum.remove(id) ??
               const PaServerInfo(defaultSinkName: '', defaultSourceName: '')));
       calloc.free(pId);
-    };
+    });
   }
 
   static void _onServerInfo(
@@ -602,11 +786,11 @@ class _PaIsolate {
     _inst!.accum[id] = <PaSink>[];
     final op = _pa.pa_context_get_sink_info_list(
         _inst!.ctx, Pointer.fromFunction(_onSinkListInfo), pId.cast());
-    _inst!.ops[op] = () {
+    _register(op, () {
       final list = _inst!.accum.remove(id) as List<PaSink>;
       _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
-    };
+    });
   }
 
   static void _onSinkListInfo(Pointer<pa_context> c, Pointer<pa_sink_info> info,
@@ -655,11 +839,11 @@ class _PaIsolate {
     _inst!.accum[id] = <PaSource>[];
     final op = _pa.pa_context_get_source_info_list(
         _inst!.ctx, Pointer.fromFunction(_onSourceListInfo), pId.cast());
-    _inst!.ops[op] = () {
+    _register(op, () {
       final list = _inst!.accum.remove(id) as List<PaSource>;
       _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
-    };
+    });
   }
 
   static void _onSourceListInfo(Pointer<pa_context> c,
@@ -707,7 +891,7 @@ class _PaIsolate {
       _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_sink_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -724,7 +908,7 @@ class _PaIsolate {
       _pa.pa_cvolume_set_balance(pVol, pMap, balance);
       final op = _pa.pa_context_set_sink_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -736,7 +920,7 @@ class _PaIsolate {
           mute ? 1 : 0,
           nullptr,
           nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -744,7 +928,7 @@ class _PaIsolate {
     using((Arena a) {
       final op = _pa.pa_context_set_default_sink(
           _inst!.ctx, name.toNativeUtf8(allocator: a).cast(), nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -760,7 +944,7 @@ class _PaIsolate {
       _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_source_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -772,7 +956,7 @@ class _PaIsolate {
           mute ? 1 : 0,
           nullptr,
           nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -780,7 +964,7 @@ class _PaIsolate {
     using((Arena a) {
       final op = _pa.pa_context_set_default_source(
           _inst!.ctx, name.toNativeUtf8(allocator: a).cast(), nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -793,11 +977,11 @@ class _PaIsolate {
     _inst!.accum[id] = <PaSinkInput>[];
     final op = _pa.pa_context_get_sink_input_info_list(
         _inst!.ctx, Pointer.fromFunction(_onSinkInputInfo), pId.cast());
-    _inst!.ops[op] = () {
+    _register(op, () {
       final list = _inst!.accum.remove(id) as List<PaSinkInput>;
       _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
-    };
+    });
   }
 
   static void _onSinkInputInfo(Pointer<pa_context> c,
@@ -850,21 +1034,21 @@ class _PaIsolate {
       _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
       final op = _pa.pa_context_set_sink_input_volume(
           _inst!.ctx, idx, pVol, nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
   static void _setSinkInputMute(int id, int idx, bool mute) {
     final op = _pa.pa_context_set_sink_input_mute(
         _inst!.ctx, idx, mute ? 1 : 0, nullptr, nullptr);
-    _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+    _register(op, () => _inst!.port.send(_Reply(id)));
   }
 
   static void _moveSinkInput(int id, int inputIdx, String sinkName) {
     using((Arena a) {
       final op = _pa.pa_context_move_sink_input_by_name(_inst!.ctx, inputIdx,
           sinkName.toNativeUtf8(allocator: a).cast(), nullptr, nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -877,11 +1061,11 @@ class _PaIsolate {
     _inst!.accum[id] = <PaCard>[];
     final op = _pa.pa_context_get_card_info_list(
         _inst!.ctx, Pointer.fromFunction(_onCardInfo), pId.cast());
-    _inst!.ops[op] = () {
+    _register(op, () {
       final list = _inst!.accum.remove(id) as List<PaCard>;
       _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
-    };
+    });
   }
 
   static void _onCardInfo(Pointer<pa_context> c, Pointer<pa_card_info> info,
@@ -945,7 +1129,7 @@ class _PaIsolate {
           profileName.toNativeUtf8(allocator: a).cast(),
           nullptr,
           nullptr);
-      _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+      _register(op, () => _inst!.port.send(_Reply(id)));
     });
   }
 
@@ -958,11 +1142,11 @@ class _PaIsolate {
     _inst!.accum[id] = <PaModule>[];
     final op = _pa.pa_context_get_module_info_list(
         _inst!.ctx, Pointer.fromFunction(_onModuleInfo), pId.cast());
-    _inst!.ops[op] = () {
+    _register(op, () {
       final list = _inst!.accum.remove(id) as List<PaModule>;
       _inst!.port.send(_Reply(id, list));
       calloc.free(pId);
-    };
+    });
   }
 
   static void _onModuleInfo(Pointer<pa_context> c, Pointer<pa_module_info> info,
@@ -985,11 +1169,11 @@ class _PaIsolate {
           args.toNativeUtf8(allocator: a).cast(),
           Pointer.fromFunction(_onModuleIndex),
           pId.cast());
-      _inst!.ops[op] = () {
+      _register(op, () {
         final idx = _inst!.accum.remove(id) as int;
         _inst!.port.send(_Reply(id, idx));
         calloc.free(pId);
-      };
+      });
     });
   }
 
@@ -1002,7 +1186,7 @@ class _PaIsolate {
   static void _unloadModule(int id, int index) {
     final op =
         _pa.pa_context_unload_module(_inst!.ctx, index, nullptr, nullptr);
-    _inst!.ops[op] = () => _inst!.port.send(_Reply(id));
+    _register(op, () => _inst!.port.send(_Reply(id)));
   }
 
   // ---------------------------------------------------------------------------
@@ -1215,6 +1399,17 @@ class PulseClient {
       .where((m) => m is _ServerChangedEvent)
       .cast<_ServerChangedEvent>()
       .map((m) => m.info);
+
+  /// Fires when the isolate's connection to the server has been rebuilt after
+  /// it went away — a `pipewire-pulse` restart, say — and never on the first
+  /// connection, which every consumer seeds from anyway.
+  ///
+  /// Everything read before it is stale: the sink and source indices belong to
+  /// the server that died, and so did the level meter's stream. A consumer
+  /// answers this by re-running its own start-up seeding. See [_ConnectedEvent]
+  /// for why this is not folded into [onServerChanged].
+  Stream<void> get onReconnected =>
+      _broadcast.where((m) => m is _ConnectedEvent).map((_) {});
 
   Stream<double> get _levelStream => _broadcast
       .where((m) => m is _LevelEvent)

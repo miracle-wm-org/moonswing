@@ -41,6 +41,7 @@ class _InputTabState extends State<InputTab> {
   StreamSubscription<PaSource>? _sourceChangedSub;
   StreamSubscription<int>? _sourceRemovedSub;
   StreamSubscription<double>? _levelSub;
+  StreamSubscription<void>? _reconnectedSub;
 
   @override
   void initState() {
@@ -55,12 +56,24 @@ class _InputTabState extends State<InputTab> {
       }
     });
     _sourceRemovedSub = widget.client.onSourceRemoved.listen((_) => _load());
+
+    // The server went away and came back. The meter's `pa_stream` belonged to
+    // the context that died and does not survive it, so a page left open across
+    // a `pipewire-pulse` restart would otherwise sit on a meter that has stopped
+    // reporting — which reads as a dead microphone. `_load` re-reads the list
+    // and ends in `_startMeter`, which is the whole recovery.
+    _reconnectedSub = widget.client.onReconnected.listen((_) {
+      _levelSub?.cancel();
+      _levelSub = null;
+      _load();
+    });
   }
 
   @override
   void dispose() {
     _sourceChangedSub?.cancel();
     _sourceRemovedSub?.cancel();
+    _reconnectedSub?.cancel();
     _stopMeter();
     super.dispose();
   }

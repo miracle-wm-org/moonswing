@@ -54,6 +54,7 @@ class SoundControlState extends State<SoundControl>
   PulseClient? _client;
   StreamSubscription<PaSink>? _sinkChangedSub;
   StreamSubscription<PaServerInfo>? _serverChangedSub;
+  StreamSubscription<void>? _reconnectedSub;
 
   @override
   void initState() {
@@ -65,6 +66,7 @@ class SoundControlState extends State<SoundControl>
   void dispose() {
     _sinkChangedSub?.cancel();
     _serverChangedSub?.cancel();
+    _reconnectedSub?.cancel();
     closePopup();
     _level.dispose();
     super.dispose();
@@ -95,6 +97,22 @@ class SoundControlState extends State<SoundControl>
       _serverChangedSub = client.onServerChanged.listen((info) {
         if (info.defaultSinkName == _defaultSinkName) return;
         _adoptDefaultSink(info.defaultSinkName);
+      });
+
+      // The server went away and came back — `pipewire-pulse` restarting, say.
+      // The re-read is unconditional, unlike the `onServerChanged` one above:
+      // a restart normally brings the same sink name back, so a name compare
+      // would answer "nothing moved" and leave the module showing the level it
+      // read from the server that died — while its slider went on writing to a
+      // sink index that no longer means anything.
+      _reconnectedSub = client.onReconnected.listen((_) async {
+        try {
+          final info = await client.getServerInfo();
+          if (!mounted) return;
+          await _adoptDefaultSink(info.defaultSinkName);
+        } catch (e) {
+          debugPrint('Could not re-read the default sink after a reconnect: $e');
+        }
       });
 
       final serverInfo = await client.getServerInfo();

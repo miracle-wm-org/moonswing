@@ -23,6 +23,18 @@
 // default while this runs:
 //
 //   pactl set-default-sink <name>   # `pactl list short sinks` for the names
+//
+// And it is the regression check for surviving a server restart, which is the
+// one failure a widget test cannot reach — this whole layer is an FFI isolate
+// against a live server. `--reconnect` demands both halves of that: that a
+// reconnect happened at all, and that events still arrive *afterwards*. The
+// second is what separates a live process from a merely surviving one, since
+// the crash fix alone leaves a client that has stopped hearing anything.
+//
+//   dart run tool/pulse_spike.dart --reconnect 60
+//   # while it runs, in another terminal:
+//   systemctl --user restart pipewire-pulse
+//   pactl set-sink-volume @DEFAULT_SINK@ +5%
 
 import 'dart:async';
 import 'dart:io';
@@ -30,7 +42,9 @@ import 'dart:io';
 import 'package:graceful_shell/pulse_client.dart';
 
 Future<void> main(List<String> args) async {
-  final seconds = args.isEmpty ? 15 : int.parse(args.first);
+  final rest = args.where((a) => a != '--reconnect').toList();
+  final requireReconnect = args.contains('--reconnect');
+  final seconds = rest.isEmpty ? 15 : int.parse(rest.first);
 
   final client = PulseClient();
   await client.initialize();
@@ -39,14 +53,27 @@ Future<void> main(List<String> args) async {
   var sinkEvents = 0;
   var sourceEvents = 0;
   var serverEvents = 0;
+  var reconnects = 0;
+
+  // Counted separately, and reset by each reconnect: the question `--reconnect`
+  // asks is not whether the client survived but whether it is still listening.
+  var eventsSinceReconnect = 0;
+
+  client.onReconnected.listen((_) {
+    reconnects++;
+    eventsSinceReconnect = 0;
+    stdout.writeln('reconnect');
+  });
 
   client.onSinkChanged.listen((s) {
     sinkEvents++;
+    eventsSinceReconnect++;
     stdout.writeln('sink    ${s.name} '
         'vol=${(s.volume * 100).round()}% mute=${s.mute}');
   });
   client.onSourceChanged.listen((s) {
     sourceEvents++;
+    eventsSinceReconnect++;
     stdout.writeln('source  ${s.name} '
         'vol=${(s.volume * 100).round()}% mute=${s.mute}');
   });
@@ -60,13 +87,28 @@ Future<void> main(List<String> args) async {
   final info = await client.getServerInfo();
   stdout.writeln('default sink   ${info.defaultSinkName}');
   stdout.writeln('default source ${info.defaultSourceName}');
-  stdout.writeln('watching for ${seconds}s — change the volume from elsewhere, '
-      'and switch the default device');
+  stdout.writeln(requireReconnect
+      ? 'watching for ${seconds}s — restart the audio server, then change the '
+          'volume from elsewhere'
+      : 'watching for ${seconds}s — change the volume from elsewhere, '
+          'and switch the default device');
 
   await Future<void>.delayed(Duration(seconds: seconds));
   stdout.writeln('sink events: $sinkEvents  source events: $sourceEvents  '
-      'server events: $serverEvents');
+      'server events: $serverEvents  reconnects: $reconnects');
 
   client.dispose();
+
+  if (requireReconnect) {
+    if (reconnects == 0) {
+      stderr.writeln('no reconnect seen — was the server restarted?');
+      exit(1);
+    }
+    if (eventsSinceReconnect == 0) {
+      stderr.writeln('reconnected, but nothing arrived afterwards');
+      exit(1);
+    }
+    exit(0);
+  }
   exit(sinkEvents > 0 ? 0 : 1);
 }
