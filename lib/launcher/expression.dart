@@ -71,7 +71,13 @@ String? evaluateExpression(String query) {
 ///
 /// `1/0` and `0/0` come back as infinity and NaN rather than throwing, so they
 /// are filtered here: there is no useful thing to show the user for either.
-String? formatResult(num value) {
+///
+/// [precision] is the significant-figure count the fractional form is trimmed
+/// to; the unit converter passes a shorter one, because a conversion factor is
+/// a measurement and twelve figures of it claim an accuracy the question never
+/// had. It does not reach a value that is *exactly* an integer, which prints in
+/// full either way — `1 mi` is 1,609,344 mm and not 1.60934e6.
+String? formatResult(num value, {int precision = 12}) {
   final asDouble = value.toDouble();
   if (!asDouble.isFinite) return null;
 
@@ -83,7 +89,7 @@ String? formatResult(num value) {
 
   // Trim to a precision that hides binary-floating-point noise: 0.1 + 0.2
   // should read 0.3, not 0.30000000000000004.
-  final text = asDouble.toStringAsPrecision(12);
+  final text = asDouble.toStringAsPrecision(precision);
   final exponent = text.indexOf('e');
   if (exponent == -1) return _trimZeros(text);
   return '${_trimZeros(text.substring(0, exponent))}${text.substring(exponent)}';

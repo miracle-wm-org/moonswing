@@ -21,6 +21,7 @@ import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/launcher/expression.dart';
+import 'package:graceful_shell/launcher/unit_convert.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/overlay_fade_scaffold.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -79,6 +80,7 @@ class _LauncherOverlayState extends State<LauncherOverlay> {
   String _query = '';
   List<AppEntry> _results = const [];
   String? _mathResult;
+  UnitConversion? _unitResult;
   int _selected = 0;
 
   /// Index of the row whose actions flyout is open, or null.
@@ -123,6 +125,7 @@ class _LauncherOverlayState extends State<LauncherOverlay> {
       _query = value;
       _results = rankApps(widget.apps, value);
       _mathResult = evaluateExpression(value);
+      _unitResult = convertQuery(value);
       _selected = 0;
       _flyoutRow = null;
     });
@@ -284,6 +287,13 @@ class _LauncherOverlayState extends State<LauncherOverlay> {
               if (_mathResult case final result?) ...[
                 const SizedBox(height: 8),
                 _MathResultRow(theme: theme, expression: _query, result: result),
+              ],
+              // Never both: a conversion carries no operator, and
+              // `looksLikeExpression` refuses a query without one.
+              if (_unitResult case final conversion?
+                  when _mathResult == null) ...[
+                const SizedBox(height: 8),
+                _UnitResultRow(theme: theme, conversion: conversion),
               ],
               const SizedBox(height: 8),
               // Flexible, then a fixed height: the SizedBox pins the results
@@ -494,8 +504,11 @@ class _LauncherSearchFieldState extends State<_LauncherSearchField> {
                     ValueListenableBuilder<TextEditingValue>(
                       valueListenable: widget.controller,
                       builder: (context, value, _) => value.text.isEmpty
-                          ? Text('Search applications or type a calculation…',
-                              style: TextStyle(color: theme.muted, fontSize: 15))
+                          ? Text(
+                              'Search applications, a calculation, or '
+                              'a conversion…',
+                              style:
+                                  TextStyle(color: theme.muted, fontSize: 15))
                           : const SizedBox.shrink(),
                     ),
                     EditableText(
@@ -577,6 +590,97 @@ class _MathResultRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The conversion row, shown above the app results when the query is a
+/// quantity — `1kg`, `72f`, `5 km to mi`.
+///
+/// One shape for both forms the converter answers in: a query that names its
+/// target unit produces a single value, and a bare one produces up to
+/// [kUnitPeerLimit] of them. A `Wrap` rather than a `Row`, because that is the
+/// difference between a fourth peer that moves to a second line and one that
+/// overflows the card — and the card is a fixed width by design, so which of
+/// those happens is decided by the theme's font rather than by this widget.
+class _UnitResultRow extends StatelessWidget {
+  const _UnitResultRow({required this.theme, required this.conversion});
+
+  final ThemeConfig theme;
+  final UnitConversion conversion;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: theme.controlSurface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.accent, width: 1),
+      ),
+      child: Row(
+        children: [
+          FaIcon(FontAwesomeIcons.rightLeft, size: 12, color: theme.muted),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              '${formatQuantity(conversion.input)} =',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: theme.muted, fontSize: 14),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 16,
+              runSpacing: 4,
+              children: [
+                for (final result in conversion.results)
+                  _ConvertedValue(theme: theme, quantity: result),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One converted quantity: the number carrying the emphasis, its unit beside it
+/// in the muted tier — the same split the system monitor's stat tiles make, and
+/// the reason a row of four of these still reads as four answers rather than as
+/// a sentence.
+class _ConvertedValue extends StatelessWidget {
+  const _ConvertedValue({required this.theme, required this.quantity});
+
+  final ThemeConfig theme;
+  final Quantity quantity;
+
+  @override
+  Widget build(BuildContext context) {
+    final value = formatQuantityValue(quantity.value);
+    if (value == null) return const SizedBox.shrink();
+    return Text.rich(
+      TextSpan(children: [
+        TextSpan(
+          text: value,
+          style: TextStyle(
+            color: theme.popupForeground,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        TextSpan(
+          text: ' ${quantity.unit.symbol}',
+          style: TextStyle(color: theme.muted, fontSize: 13),
+        ),
+      ]),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
