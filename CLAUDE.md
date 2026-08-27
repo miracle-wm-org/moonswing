@@ -77,6 +77,17 @@ Three things a change to this has to keep true:
   profile), so the fault may be in which context it lands on rather than in
   Impeller everywhere. Re-measure with the env var before assuming it still
   holds.
+- **Why the shell is hit so much harder than a plain app is not known.** A
+  standalone `flutter create` benchmark on the same machine — flat text, a
+  `CustomPainter`, and a scene of several hundred `ClipRRect` + `Opacity`
+  layers — shows Impeller only about 1 to 1.5x slower than Skia, near the noise
+  floor, with no scene reproducing anything like the 3.3x measured here. So the
+  cost is coming from something this shell does that a single opaque window
+  does not: ~7 transparent layer-shell surfaces composited per frame, the
+  embedder's multi-view compositor path, or the sheer layer count of a real
+  UI. That is worth identifying before anyone tries to report this upstream —
+  the shell's own numbers are reproducible, but they are not yet reduced to a
+  minimal case.
 
 System dependencies required at build time: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`.
 
