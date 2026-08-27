@@ -4,9 +4,12 @@
 // Tapping it opens a [PopupWindow] (via [PopupHost]) listing every installed
 // application, with global type-to-search. Categories are browsed by hovering:
 // each category opens a child popup (a flyout) anchored to its right, flipping
-// to the left when there is not enough room. Right-clicking an app offers "Pin
-// to dock", which appends its id to `[modules.dock].apps` in the shared
-// [ConfigStore] — the running dock then reloads live.
+// to the left when there is not enough room. The popup is sized by that
+// category browser and stays that size: search results scroll inside it rather
+// than growing or shrinking the window under the field being typed into.
+// Right-clicking an app offers "Pin to dock", which appends its id to
+// `[modules.dock].apps` in the shared [ConfigStore] — the running dock then
+// reloads live.
 
 // WindowPositionerAnchor is re-exported from layer_shell but marked @internal.
 // ignore_for_file: invalid_use_of_internal_member
@@ -50,7 +53,9 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
     openBarPopup(
       context,
       // Width is fixed (the search field / list rows need a bounded width);
-      // height sizes to content, capped high so only a very long list scrolls.
+      // height sizes to content — the category browser's, which the body then
+      // holds for the life of the popup — capped high so only a very long
+      // category list scrolls.
       preferredConstraints: const BoxConstraints(
         minWidth: 300,
         maxWidth: 300,
@@ -124,8 +129,8 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
 
 /// The popup body: a search field over a category browser. Hovering a category
 /// opens a child flyout popup listing its apps; typing replaces the category
-/// list with a flat, global search result. Owns the submenu popup via
-/// [PopupHost].
+/// list with a flat, global search result — in the same box, at the same size,
+/// scrolling. Owns the submenu popup via [PopupHost].
 class _AppDirectory extends StatefulWidget {
   const _AppDirectory({
     required this.iconSize,
@@ -330,14 +335,51 @@ class _AppDirectoryState extends State<_AppDirectory>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Flexible(
-                    child: searching
-                        ? _AppListView(
-                            apps: _searchResults(),
-                            iconSize: widget.iconSize,
-                            onLaunch: _launch,
-                            onPin: _pin,
-                          )
-                        : _buildCategoryList(theme),
+                    // The body keeps the height the category browser gave it
+                    // when the popup opened, and the search results scroll
+                    // inside that box rather than resizing it.
+                    //
+                    // A popup is its own compositor surface sized to its
+                    // content, and GTK3 resolves `gdk_window_move_to_rect`
+                    // once at map time (see [PopupHost.openPopup]) — so a
+                    // body that grew and shrank per keystroke was a window
+                    // jumping between sizes underneath a placement that was
+                    // never revised, with the search field the user is typing
+                    // in moving with it. Sizing the box off the browser is
+                    // also the one measurement that needs no measuring pass:
+                    // it is laid out for real, on the first frame and every
+                    // frame after, so the pinned height is exactly the height
+                    // the popup opened at with no second frame to correct.
+                    child: Stack(
+                      children: [
+                        // Kept in the tree while searching purely for its
+                        // size: invisible, inert (Visibility drops hit
+                        // testing, so the hidden rows cannot open a flyout)
+                        // and stateful, so clearing the query brings the
+                        // browser back at the scroll offset it was left at.
+                        Visibility(
+                          visible: !searching,
+                          maintainSize: true,
+                          maintainAnimation: true,
+                          maintainState: true,
+                          child: _buildCategoryList(theme),
+                        ),
+                        if (searching)
+                          Positioned.fill(
+                            child: _AppListView(
+                              apps: _searchResults(),
+                              iconSize: widget.iconSize,
+                              onLaunch: _launch,
+                              onPin: _pin,
+                              // The box is bounded now, so the list can be a
+                              // lazy viewport: a query matching half the
+                              // machine's applications lays out the rows it
+                              // shows rather than all of them.
+                              shrinkWrap: false,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 8),
                   _SearchField(
@@ -408,6 +450,7 @@ class _AppListView extends StatefulWidget {
     required this.onPin,
     this.onMenuOpened,
     this.onMenuClosed,
+    this.shrinkWrap = true,
   });
 
   final List<AppEntry> apps;
@@ -416,6 +459,15 @@ class _AppListView extends StatefulWidget {
   final void Function(AppEntry) onPin;
   final VoidCallback? onMenuOpened;
   final VoidCallback? onMenuClosed;
+
+  /// Whether the list sizes itself to its rows.
+  ///
+  /// True where the list is what gives its popup a height — every category
+  /// flyout — and false where it is handed one, which is the search results
+  /// inside the directory's pinned body: a shrink-wrapping viewport lays out
+  /// every row it has, and a global search over a few hundred applications is
+  /// the one list here long enough for that to be worth avoiding.
+  final bool shrinkWrap;
 
   @override
   State<_AppListView> createState() => _AppListViewState();
@@ -477,7 +529,7 @@ class _AppListViewState extends State<_AppListView>
     }
 
     return ListView.builder(
-      shrinkWrap: true,
+      shrinkWrap: widget.shrinkWrap,
       padding: EdgeInsets.zero,
       itemCount: apps.length,
       itemBuilder: (context, i) {
