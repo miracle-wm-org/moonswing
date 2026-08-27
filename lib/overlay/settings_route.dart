@@ -34,12 +34,6 @@ class SettingsRoute {
   /// Where the desktop grid's own settings live.
   static const SettingsRoute desktop = SettingsRoute(shellCategory: 'Desktop');
 
-  /// Where the astrology widget's birthday is set. The one setting a desktop
-  /// widget cannot work without, so the card that needs it links here rather
-  /// than spelling out a path.
-  static const SettingsRoute astrology =
-      SettingsRoute(shellCategory: 'Astrology');
-
   @override
   bool operator ==(Object other) =>
       other is SettingsRoute &&

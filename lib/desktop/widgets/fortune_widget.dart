@@ -226,7 +226,7 @@ const double _buttonBox = 26;
 /// should not have to find it by walking the card's private types.
 ///
 /// A named [SkyIconButton] rather than its own implementation — that control
-/// was generalized out of this one when the astrology card wanted the same
+/// was generalized out of this one when a second card wanted the same
 /// button, and a second copy of it here is what the settings library's
 /// "generalize, do not clone" rule exists to prevent. What was said about it
 /// still holds and is said there: no spin on tap and no loader while the store

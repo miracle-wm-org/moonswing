@@ -1,8 +1,8 @@
 // The round icon action that sits in the corner of a picture-backed desktop
 // card.
 //
-// Generalized out of the fortune widget's refresh button when the astrology
-// card wanted the same control, which is the rule `overlay/settings/controls.
+// Generalized out of the fortune widget's refresh button when a second card
+// wanted the same control, which is the rule `overlay/settings/controls.
 // dart` states for the settings library: **a control the library lacks gets
 // added to the library, generalized from the best copy** — the four hand-rolled
 // icon buttons that drifted apart before it was written are what that rule is
