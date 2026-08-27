@@ -20,6 +20,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:graceful_shell/moon/moon_facts.dart';
 import 'package:graceful_shell/moon/moon_phase.dart';
 import 'package:graceful_shell/weather/weather_api.dart';
 import 'package:graceful_shell/weather/weather_store.dart';
@@ -62,6 +63,19 @@ class MoonStore extends ChangeNotifier {
   /// with no lease still gets a correct answer, it just does not get told when
   /// it changes.
   MoonReading get reading => _reading ??= _compute();
+
+  List<MoonFact>? _facts;
+
+  /// [reading]'s consequences, derived once per reading.
+  ///
+  /// Here rather than in the widget's `build` for the reason `_WeatherSkyState`
+  /// caches its field: a desktop widget's `build` runs on every frame of a drag
+  /// and of a resize, and this one costs two more evaluations of the whole
+  /// ephemeris (`moon_facts.dart` reads the Moon's ecliptic latitude at both
+  /// upcoming syzygies) on top of a dozen strings and a sort. None of it can
+  /// move between two frames of the same reading, so none of it should be paid
+  /// twice — and the store is the one thing that knows when the reading moved.
+  List<MoonFact> get facts => _facts ??= moonFacts(reading);
 
   MoonTimes? _times;
 
@@ -163,6 +177,7 @@ class MoonStore extends ChangeNotifier {
       latitude: _place?.latitude,
       longitude: _place?.longitude,
     );
+    _facts = null;
 
     final place = _place;
     if (place == null) {
@@ -194,13 +209,23 @@ class MoonStore extends ChangeNotifier {
   /// must not re-lay them all to redraw an identical row.
   void _publish({bool notify = true}) {
     final current = reading;
+    // Every entry is something a surface draws, which is the whole of the rule
+    // and what the altitude and `isUp` used to break: no card in the shell
+    // renders either, and both move continuously, so they could only ever add
+    // wake-ups. What is left that moves every minute is the distance, and that
+    // one is genuinely printed to the kilometre.
+    //
+    // The next principal phase is here as the *phase* rather than as its
+    // instant, which is the same test one Newton search cheaper — the instant
+    // changes exactly when the Moon crosses a quadrant of elongation, and so
+    // does which phase is next. That is what keeps `_publish` off
+    // `MoonReading`'s lazy getters, so a tick costs one position evaluation
+    // rather than fifty.
     final signature = [
       current.phase.index,
       current.illuminationPercent,
-      current.altitudeDegrees?.round(),
-      current.isUp,
       current.distanceKm.round(),
-      current.nextPrincipalTime.millisecondsSinceEpoch,
+      current.nextPrincipalPhase.index,
       _times?.rise?.millisecondsSinceEpoch,
       _times?.set?.millisecondsSinceEpoch,
       _place?.name,

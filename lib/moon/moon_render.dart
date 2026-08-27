@@ -16,7 +16,7 @@
 // would recognise laid out roughly where they are, lit by the same illuminated
 // fraction the readout prints.
 //
-// Four things a change here has to keep true:
+// Five things a change here has to keep true:
 //
 // - **The terminator is computed, never approximated by two circles.** The
 //   boundary between light and dark is the projection of a great circle, which
@@ -37,6 +37,16 @@
 //   desktop for weeks. `WeatherSky` has since made the same call for the same
 //   reason, so this is no longer the only desktop widget a test can
 //   `pumpAndSettle` — but `TrackMarquee` still carries the trap.
+// - **A repaint is dear, so it is bought at the resolution the picture has.**
+//   This is the most expensive painter in the shell — two clipped passes over
+//   the whole disc, and nearly every draw in them carries a `MaskFilter`, which
+//   is a full offscreen blur *each*. Two rules follow, and both are about draw
+//   counts rather than about pixels. A ray system is one stroked path of nine
+//   subpaths, never nine strokes ([_paintRays]); and the illumination reaching
+//   a painter is snapped to [kDrawnIlluminationStep] first, so a reading that
+//   moves every minute does not order a repaint the terminator could not have
+//   shown. Anything added here that blurs per feature rather than per group,
+//   or that hands a painter a continuous number, gives both back.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -194,6 +204,34 @@ const _MoonPalette _earthlit = _MoonPalette(
   ray: Color(0x0DFFFFFF),
 );
 
+/// The step the *picture* is drawn at, as a fraction of the disc.
+///
+/// The reading behind it is continuous and moves every minute, and every one of
+/// those minutes used to be a full repaint of the most expensive painter in the
+/// shell — two clipped passes over ten blurred seas, two ray systems and
+/// sixteen craters, on every monitor, for ever. A thousandth of the disc moves
+/// the terminator by `0.002 × r`: a twentieth of a pixel on the largest Moon
+/// the grid can give this widget, and under a hundredth on the smallest. So it
+/// is not a visible approximation, it is a repaint the picture could not have
+/// shown — and quantising it takes the disc from a repaint a minute to one
+/// every quarter of an hour or so, since the lit fraction moves by about
+/// 7e-5 a minute at its fastest.
+///
+/// Deliberately *not* the printed percentage. Agreeing with the readout to the
+/// whole percent sounds tidier and is worse twice over: the step becomes almost
+/// a pixel, which is a jump somebody can see, and it rounds the last sliver of
+/// a crescent away to a new Moon that is drawn as nothing at all.
+const double kDrawnIlluminationStep = 0.001;
+
+/// [illumination] snapped to [kDrawnIlluminationStep].
+///
+/// Applied where a painter is built rather than where a reading is made: the
+/// model keeps the number it computed, and only the picture is told the value
+/// it is able to draw.
+double drawnIllumination(double illumination) =>
+    (illumination.clamp(0.0, 1.0) / kDrawnIlluminationStep).roundToDouble() *
+        kDrawnIlluminationStep;
+
 /// The Moon at one phase, filling whatever square it is given.
 ///
 /// [illumination] is the lit fraction, 0..1; [waxing] says which limb it is on;
@@ -223,7 +261,7 @@ class MoonDisc extends StatelessWidget {
     return RepaintBoundary(
       child: CustomPaint(
         painter: MoonPainter(
-          illumination: illumination,
+          illumination: drawnIllumination(illumination),
           waxing: waxing,
           southernView: southernView,
           glow: glow,
@@ -428,25 +466,37 @@ class MoonPainter extends CustomPainter {
     // A fixed set of bearings rather than a random one: the rays must not
     // reshuffle between the two calls that draw the two halves of the disc.
     const bearings = [0.2, 0.9, 1.5, 2.2, 2.9, 3.6, 4.3, 5.1, 5.8];
-    final paint = Paint()
-      ..color = palette.ray
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, math.max(0.1, radius * 0.03));
+    // One path of nine subpaths, stroked once, rather than nine strokes: a
+    // `MaskFilter` is a full offscreen blur per *draw*, and this loop ran twice
+    // per crater per repaint — thirty-six blurred draws for two ray systems,
+    // which was the single most expensive thing in the disc. The only place a
+    // batched stroke composites differently from nine separate ones is where
+    // two rays overlap, which is inside `crater.r` of the centre, under the
+    // crater the loop below then draws on top of it.
+    final path = Path();
     for (var i = 0; i < bearings.length; i++) {
       // Alternating lengths, so the system does not read as a compass rose.
       final length = reach * (i.isEven ? 1.0 : 0.62);
       final angle = bearings[i];
-      paint.strokeWidth = math.max(0.5, radius * 0.018);
-      canvas.drawLine(
-        at.translate(
-          math.cos(angle) * crater.r * radius,
-          math.sin(angle) * crater.r * radius,
-        ),
-        at.translate(math.cos(angle) * length, math.sin(angle) * length),
-        paint,
-      );
+      final cos = math.cos(angle);
+      final sin = math.sin(angle);
+      path
+        ..moveTo(
+          at.dx + cos * crater.r * radius,
+          at.dy + sin * crater.r * radius,
+        )
+        ..lineTo(at.dx + cos * length, at.dy + sin * length);
     }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = palette.ray
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = math.max(0.5, radius * 0.018)
+        ..maskFilter =
+            MaskFilter.blur(BlurStyle.normal, math.max(0.1, radius * 0.03)),
+    );
   }
 
   /// A blurred band along the terminator.
@@ -591,7 +641,9 @@ class MoonNightSky extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: CustomPaint(
-        painter: MoonNightSkyPainter(illumination: illumination),
+        painter: MoonNightSkyPainter(
+          illumination: drawnIllumination(illumination),
+        ),
         size: Size.infinite,
       ),
     );

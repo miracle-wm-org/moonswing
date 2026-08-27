@@ -164,6 +164,46 @@ void main() {
     });
   });
 
+  group('the facts', () {
+    test('are derived once per reading, not once per read', () async {
+      final store = _moon(weatherStoreAt());
+      store.acquire();
+      await pumpEventQueue();
+
+      final first = store.facts;
+      // Every desktop widget on the machine reads this from its `build`, which
+      // runs on every frame of a drag: the same reading has to answer with the
+      // same list rather than re-walking the ephemeris for each of them.
+      expect(identical(store.facts, first), isTrue);
+      expect(first, isNotEmpty);
+    });
+
+    test('are rebuilt when the reading moves', () async {
+      var now = DateTime.utc(2024, 1, 11, 11, 57);
+      final weather = weatherStoreAt();
+      final store = MoonStore.forTesting(weather: weather, clock: () => now);
+      addTearDown(store.dispose);
+      addTearDown(weather.dispose);
+      store.acquire();
+      await pumpEventQueue();
+
+      final atNew = store.facts;
+      now = DateTime.utc(2024, 1, 25, 17, 54);
+      store.refresh();
+      expect(identical(store.facts, atNew), isFalse);
+      // A new Moon is the month's dark sky and a full one is not, so the two
+      // lists really are different rather than merely different objects.
+      expect(
+        atNew.map((fact) => fact.title),
+        contains('Best week for faint things'),
+      );
+      expect(
+        store.facts.map((fact) => fact.title),
+        isNot(contains('Best week for faint things')),
+      );
+    });
+  });
+
   group('notifications', () {
     test('a tick that changes nothing does not wake every desktop', () async {
       final store = _moon(weatherStoreAt());

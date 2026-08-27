@@ -162,6 +162,30 @@ void main() {
       expect(reading.nextNewMoon.isAfter(reading.nextFullMoon), isTrue);
     });
 
+    test('the phase instants are memoised, and shared where they coincide', () {
+      // Waxing gibbous, so the next principal phase *is* the next full Moon:
+      // the same search with the same arguments, answered once.
+      final gibbous = computeMoonReading(at: DateTime.utc(2024, 1, 20));
+      expect(gibbous.nextPrincipalTargetDegrees, 180);
+      expect(identical(gibbous.nextPrincipalTime, gibbous.nextFullMoon), isTrue);
+
+      // And a repeat read is the same object rather than a second solve — the
+      // property `MoonStore.facts` and the widget's `ageDays` both lean on.
+      expect(identical(gibbous.lastNewMoon, gibbous.lastNewMoon), isTrue);
+      expect(identical(gibbous.nextNewMoon, gibbous.nextNewMoon), isTrue);
+
+      // A waxing crescent's next principal is the first quarter, which is
+      // neither syzygy and does need its own.
+      final crescent = computeMoonReading(at: DateTime.utc(2024, 1, 15));
+      expect(crescent.nextPrincipalTargetDegrees, 90);
+      expect(crescent.nextPrincipalPhase, MoonPhase.firstQuarter);
+      expect(
+        identical(crescent.nextPrincipalTime, crescent.nextPrincipalTime),
+        isTrue,
+      );
+      _expectNear(crescent.nextPrincipalTime, DateTime.utc(2024, 1, 18, 3, 53));
+    });
+
     test('the altitude and the hemisphere need a location; the phase does not',
         () {
       // Six hours after moonrise over Springfield, when it is unambiguously up.
