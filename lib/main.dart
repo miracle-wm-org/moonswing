@@ -41,6 +41,8 @@ import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/lock/lock_screen.dart';
 import 'package:graceful_shell/live_config_provider.dart';
 import 'package:graceful_shell/lock/session_lock_host.dart';
+import 'package:graceful_shell/notification_badge.dart';
+import 'package:graceful_shell/notification_panel_controller.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/osd/osd.dart';
 import 'package:graceful_shell/osd/osd_service.dart';
@@ -390,7 +392,19 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// would sit on the overlay layer eating clicks.
   final Map<String, LayershellWindowController> _osd = {};
 
-  /// The six root-owned full-screen overlays. Each [_OverlayWindow] carries
+  /// The floating notification badges, keyed like [_osd] and existing for the
+  /// same span of time: only while there is something to report, because a
+  /// permanently mapped corner surface would swallow every click that landed
+  /// on it and the shell has no input-region support to let them through.
+  ///
+  /// One per monitor, the OSD's rule rather than the launcher's: the badge is
+  /// the shell saying something arrived, and a user looking at the other
+  /// display would never see it. Tapping any of them opens the one panel, on
+  /// the monitor whose badge was tapped.
+  final Map<String, LayershellWindowController> _badges = {};
+
+  /// Six of the seven root-owned overlays — the full-screen ones; the
+  /// notification panel below is the exception. Each [_OverlayWindow] carries
   /// the window controller, its [PopupCoordinator] registration, and the
   /// closing notifier — the bookkeeping every overlay used to hand-roll
   /// separately, which is how `dispose` once missed two of them.
@@ -416,6 +430,19 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// else. It is the sixth root-owned overlay.
   final _OverlayWindow _powerMenu =
       _OverlayWindow(policy: TransientPolicy.modal);
+
+  /// The notification panel — the seventh root-owned overlay, and the first
+  /// that is not full-screen. It used to be the bell module's own
+  /// `LayerShellHost` window; the floating badge is a surface of its own with
+  /// no widget ancestry in common with the bell, so neither could reach the
+  /// other's window and both now ask the root. See
+  /// [NotificationPanelController].
+  ///
+  /// `late final` rather than a plain initialiser because it brings its own
+  /// window: a column down one output edge, not a backdrop over the whole of
+  /// it, so [_createNotificationWindow] is `this`'s to supply.
+  late final _OverlayWindow _notifications =
+      _OverlayWindow(create: _createNotificationWindow);
 
   /// The page the open (or about-to-open) settings overlay was asked for. Null
   /// is the default landing page.
@@ -526,6 +553,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (ScreencastPickerController.instance, _onScreencastPickChanged),
       (CaptureSelectionController.instance, _onCaptureSelectionChanged),
       (LockController.instance, _onLockRequested),
+      (NotificationPanelController.instance, _onNotificationPanelToggled),
+      // The badges are created and destroyed off the store's own emptiness,
+      // which is what makes them appear the moment something arrives without
+      // anything having to notice that it did.
+      (NotificationStore.instance, _syncNotificationBadges),
       (SettingsController.instance, _onSettingsRouteRequested),
       (FilePickerController.instance, _onFilePickRequested),
       (ThemeStore.instance, _onThemeChanged),
@@ -675,6 +707,131 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _osd.clear();
     setState(() {});
     _destroyAfterFrame(removed);
+  }
+
+  /// Builds the floating badge's window for [monitor]: a small card pinned to
+  /// the output's top-right corner.
+  ///
+  /// Deliberately **no** [spanFullOutput]. Left at gtk-layer-shell's default
+  /// exclusive zone of 0, the surface means "move me so I don't occlude
+  /// anything that reserved space", so the compositor has already placed it
+  /// clear of a top bar and of a right-hand one — margins included, since the
+  /// zone includes the margin. That is the whole of "does not overlap the
+  /// bars", and it stays true for a panel layout this code never sees. Adding
+  /// [panelInsetsFor] on top of it would count every bar twice; a zone of -1
+  /// would switch the placement off altogether.
+  LayershellWindowController _createBadge(MonitorInfo monitor) {
+    final controller = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [LayerShellEdge.top, LayerShellEdge.right],
+      // Nothing on the badge is typed into, and taking the keyboard off
+      // whatever the user is working in to show them a bell would be worse
+      // than the notification.
+      keyboardMode: LayerShellKeyboardMode.none,
+      width: kNotificationBadgeWindowSize.width.round(),
+      height: kNotificationBadgeWindowSize.height.round(),
+      monitor: monitor.gdkMonitor,
+    );
+    controller.setMargin(LayerShellEdge.top, kNotificationBadgeGap.round());
+    controller.setMargin(LayerShellEdge.right, kNotificationBadgeGap.round());
+    return controller;
+  }
+
+  /// Creates the badge windows when there is something to report and destroys
+  /// them when there is not — [_onOsdChanged]'s shape, and its early return:
+  /// this runs on every arrival, dismissal and expiry, and in the steady state
+  /// none of those touches a native window. The badge listens to the store
+  /// itself for the count, so a second notification arriving is a repaint of
+  /// one surface rather than a new one.
+  ///
+  /// The panel counts as "reported": it is a full-height column down the same
+  /// edge the badge sits in, so leaving the badge up would put it under the
+  /// thing it exists to open.
+  void _syncNotificationBadges() {
+    if (!mounted) return;
+    final wanted =
+        NotificationStore.instance.items.isNotEmpty && !_notifications.isOpen;
+    if (wanted == _badges.isNotEmpty) return;
+
+    if (wanted) {
+      for (final entry in _surfaces.entries) {
+        _badges[entry.key] = _createBadge(entry.value.monitor);
+      }
+      setState(() {});
+      return;
+    }
+
+    final removed = _badges.values.toList();
+    _badges.clear();
+    setState(() {});
+    _destroyAfterFrame(removed);
+  }
+
+  /// The notification panel's own window: full-height against the output's
+  /// right edge, a quarter of its width.
+  ///
+  /// [spanFullOutput] here and not on the badge, and the difference is the
+  /// point of both: this surface is meant to cover the bars, and a zone of 0
+  /// would have the compositor shrink it into the gap *between* them, so the
+  /// slide-in would start and end short of the screen edges. `onDemand`
+  /// keyboard is what lets the panel's own Escape binding fire at all —
+  /// deliberately not `exclusive`, which would hold the keyboard off whatever
+  /// the user was typing in for as long as a panel they only glance at is up.
+  LayershellWindowController _createNotificationWindow(
+      ffi.Pointer<ffi.NativeType>? monitor) {
+    final controller = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.right,
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+      ],
+      width: notificationPanelWidth(getScreenSize().width),
+      // height omitted: top+bottom anchoring makes this full-height.
+      keyboardMode: LayerShellKeyboardMode.onDemand,
+      monitor: monitor,
+    );
+    spanFullOutput(controller);
+    return controller;
+  }
+
+  /// The bell module asked for the panel. No monitor, so the compositor puts
+  /// it on the focused output — the launcher's rule, and the right one for a
+  /// trigger that could be on any bar on any display.
+  void _onNotificationPanelToggled() {
+    if (!mounted) return;
+    _toggleNotificationPanel();
+  }
+
+  /// Toggles the panel, opening it on [monitor] when one is named. The badge
+  /// names its own, so the panel arrives on the display the user just clicked
+  /// on rather than wherever the pointer last crossed a boundary.
+  void _toggleNotificationPanel({ffi.Pointer<ffi.NativeType>? monitor}) {
+    if (_notifications.isOpen) {
+      // NotificationPanel plays its exit animation, then calls back into
+      // [_onNotificationPanelClosed].
+      _notifications.closing.value = true;
+      return;
+    }
+    _notifications.open(monitor: monitor);
+    NotificationPanelController.instance.setOpen(true);
+    // Takes the badges down: they sit under the panel's own edge.
+    _syncNotificationBadges();
+    setState(() {});
+  }
+
+  /// Called by [NotificationPanel] once its exit animation has finished — from
+  /// the bell, its own close button, Escape, or the [PopupCoordinator].
+  void _onNotificationPanelClosed() {
+    if (!mounted) return;
+    final removed = _notifications.take();
+    if (removed == null) return;
+    NotificationPanelController.instance.setOpen(false);
+    setState(() {});
+    _destroyAfterFrame([removed]);
+    // Anything still on the list gets its badge back, so a panel closed on a
+    // full list does not leave the shell silent about it.
+    _syncNotificationBadges();
   }
 
   /// The global "open settings" shortcut fired. It toggles: close the overlay
@@ -1168,6 +1325,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         removed.addAll(_surfaces.remove(key)!.controllers);
         final osd = _osd.remove(key);
         if (osd != null) removed.add(osd);
+        final badge = _badges.remove(key);
+        if (badge != null) removed.add(badge);
         final selector = _selector.remove(key);
         if (selector != null) removed.add(selector);
         final lock = _lockHost.removeMonitor(key);
@@ -1194,6 +1353,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       // A monitor plugged in mid-indicator gets one too, so the card is not
       // missing from the display the user may well be looking at.
       if (_osd.isNotEmpty) _osd[entry.key] = _createOsd(entry.value);
+      // Same for a monitor plugged in while something is on the list: the
+      // badge is per-output precisely so the user sees it wherever they are.
+      if (_badges.isNotEmpty) _badges[entry.key] = _createBadge(entry.value);
       // Likewise a monitor plugged in while locked: without a lock surface
       // the compositor would just blank it.
       _lockHost.addMonitor(entry.key, entry.value.gdkMonitor);
@@ -1314,6 +1476,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ctrl.destroy();
     }
     _osd.clear();
+    for (final ctrl in _badges.values) {
+      ctrl.destroy();
+    }
+    _badges.clear();
     for (final ctrl in _selector.values) {
       ctrl.destroy();
     }
@@ -1330,6 +1496,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       _screencastPicker,
       _filePicker,
       _powerMenu,
+      _notifications,
     ]) {
       overlay.dispose();
     }
@@ -1469,6 +1636,22 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               controller: osd,
               child: _windowChrome(OsdWindow(store: OsdStore.instance)),
             ),
+          // The floating notification badge, likewise tied to the output
+          // rather than to any panel — it is there whether or not this
+          // monitor's bars carry the bell module at all.
+          if (_badges[_monitorKey(surfaces.monitor)] case final badge?)
+            LayerShellWindow(
+              key: ObjectKey(badge),
+              controller: badge,
+              child: _windowChrome(
+                NotificationBadge(
+                  // This monitor, not the focused one: the user has just
+                  // pointed at this display.
+                  onTap: () => _toggleNotificationPanel(
+                      monitor: surfaces.monitor.gdkMonitor),
+                ),
+              ),
+            ),
           // The screenshot / recording selection surface, likewise not tied to
           // any panel — it covers the whole of this output, bars included.
           if (_selectionRequest case final selection?)
@@ -1494,6 +1677,20 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 ),
               ),
         ],
+        // The notification panel. A single window like the overlays below it
+        // — one panel for the machine, however many bells and badges ask for
+        // it — so it lives outside the per-monitor loop as well.
+        if (_notifications.controller case final notifications?)
+          LayerShellWindow(
+            key: ObjectKey(notifications),
+            controller: notifications,
+            child: _windowChrome(
+              NotificationPanel(
+                closingNotifier: _notifications.closing,
+                onClosed: _onNotificationPanelClosed,
+              ),
+            ),
+          ),
         // The settings overlay opened by the global shortcut. A single window
         // (not per-monitor), so it lives outside the per-monitor loop above.
         if (_settings.controller case final settings?)
@@ -1806,9 +2003,23 @@ class _OverlayWindow {
   _OverlayWindow({
     this.policy = TransientPolicy.menu,
     this.acquiresAppIndex = false,
+    this.create,
   });
 
   final TransientPolicy policy;
+
+  /// Builds the native window for the monitor [open] was asked for.
+  ///
+  /// Null is the full-screen backdrop six of these seven want, which is what
+  /// the class was for the whole time there was only that one shape. The
+  /// notification panel is the exception — a column down one output edge —
+  /// and it supplies its own rather than growing this into a geometry
+  /// builder: what [_OverlayWindow] actually owns is the *bookkeeping* (the
+  /// coordinator handle, the closing notifier, the index bracket, and a
+  /// `dispose` that cannot be asymmetric with them), none of which cares what
+  /// shape the surface is.
+  final LayershellWindowController Function(
+      ffi.Pointer<ffi.NativeType>? monitor)? create;
 
   /// Whether the window's content holds `GAppInfo` pointers from [AppIndex] —
   /// the index defers refreshes while it is open (`_openLauncher`'s rule).
@@ -1828,28 +2039,18 @@ class _OverlayWindow {
 
   /// Creates the native window and registers with the coordinator.
   ///
-  /// The window is always overlay-layer, all-edges, keyboard `onDemand` —
-  /// full-screen means the whole output, panels included, or the backdrop
-  /// stops short of the bars and dismiss-on-backdrop has dead strips (hence
-  /// [spanFullOutput]). [onDismiss] is what the coordinator calls to ask for
-  /// a *graceful* close; the default flips [closing] and lets the content
-  /// animate out. Pass a direct close for content with no exit animation.
+  /// Without a [create] the window is overlay-layer, all-edges, keyboard
+  /// `onDemand` — full-screen means the whole output, panels included, or the
+  /// backdrop stops short of the bars and dismiss-on-backdrop has dead strips
+  /// (hence [spanFullOutput]). [onDismiss] is what the coordinator calls to
+  /// ask for a *graceful* close; the default flips [closing] and lets the
+  /// content animate out. Pass a direct close for content with no exit
+  /// animation.
   void open({ffi.Pointer<ffi.NativeType>? monitor, VoidCallback? onDismiss}) {
     if (isOpen) return;
     closing.value = false;
     if (acquiresAppIndex) AppIndex.instance.acquire();
-    final created = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: const [
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-        LayerShellEdge.left,
-        LayerShellEdge.right,
-      ],
-      keyboardMode: LayerShellKeyboardMode.onDemand,
-      monitor: monitor,
-    );
-    spanFullOutput(created);
+    final created = create?.call(monitor) ?? _fullScreenOverlay(monitor);
     controller = created;
     // The coordinator asks for the fade-out, never the teardown: the content
     // destroys the window once its animation is done.
@@ -1879,6 +2080,24 @@ class _OverlayWindow {
     take()?.destroy();
     closing.dispose();
   }
+}
+
+/// The default shape: a backdrop over the whole of one output.
+LayershellWindowController _fullScreenOverlay(
+    ffi.Pointer<ffi.NativeType>? monitor) {
+  final controller = LayershellWindowController(
+    layer: LayerShellLayer.overlay,
+    anchorEdges: const [
+      LayerShellEdge.top,
+      LayerShellEdge.bottom,
+      LayerShellEdge.left,
+      LayerShellEdge.right,
+    ],
+    keyboardMode: LayerShellKeyboardMode.onDemand,
+    monitor: monitor,
+  );
+  spanFullOutput(controller);
+  return controller;
 }
 
 /// Feeds a root-owned overlay the application index, live, so the root does not
