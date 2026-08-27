@@ -1,9 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/overlay/system/stat_tile.dart';
+import 'package:graceful_shell/system/input_devices.dart';
 import 'package:graceful_shell/system/system_info.dart';
 
 /// The **System Info** overlay tab: a read-only summary of the machine's
-/// hardware, software, and desktop environment.
+/// hardware, its input devices, its software, and the desktop environment it is
+/// running under.
 ///
 /// The data is static for a session, so — unlike the live System monitor tab —
 /// this reads once in [initState] and never polls, and holds no lease on any
@@ -32,7 +34,7 @@ class _SystemInfoTabState extends State<SystemInfoTab> {
 
   /// Width of the label column in every pair on this page.
   ///
-  /// One value for all three sections, rather than per-section intrinsics, so
+  /// One value for all four sections, rather than per-section intrinsics, so
   /// the values line up down the whole page and the eye tracks a single
   /// column. Sized for the longest label here ("Operating system").
   static const double _labelWidth = 150;
@@ -45,6 +47,22 @@ class _SystemInfoTabState extends State<SystemInfoTab> {
         labelWidth: _labelWidth,
         value: value ?? '—',
       );
+
+  /// One row per device, each under its own kind, in the order
+  /// [InputDeviceReader.read] settled on — kinds in [InputDeviceKind] order,
+  /// discovery order within a kind.
+  ///
+  /// The kind is repeated on every row rather than heading a group of them,
+  /// because the page's whole shape is a label column against a value column:
+  /// a device whose label cell were left blank would read as a continuation of
+  /// the value above it. An empty list gets the page's own em-dash placeholder
+  /// under a single "Devices" label — the same answer every other field on the
+  /// page gives for something this machine did not report, and the state a
+  /// build with no readable `/proc` lands in.
+  static List<Widget> _inputRows(List<InputDevice> devices) {
+    if (devices.isEmpty) return [_row('Devices', null)];
+    return [for (final device in devices) _row(device.kind.label, device.name)];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +78,11 @@ class _SystemInfoTabState extends State<SystemInfoTab> {
             _row('Swap', _info.totalSwap),
             _row('Graphics', _info.gpu),
           ],
+        ),
+        const SizedBox(height: 24),
+        SystemCard(
+          title: 'Input devices',
+          children: _inputRows(_info.inputDevices),
         ),
         const SizedBox(height: 24),
         SystemCard(

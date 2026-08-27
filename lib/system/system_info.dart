@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:graceful_shell/system/file_read.dart';
 import 'package:graceful_shell/system/format.dart';
+import 'package:graceful_shell/system/input_devices.dart';
 import 'package:graceful_shell/system/proc_reader.dart';
 
 /// A one-shot snapshot of the machine's static identity: hardware, software, and
@@ -29,6 +30,7 @@ class SystemInfo {
     this.shell,
     this.uptime,
     this.bootTime,
+    this.inputDevices = const [],
   });
 
   final String? hostname;
@@ -45,6 +47,13 @@ class SystemInfo {
   final String? shell;
   final String? uptime;
   final String? bootTime;
+
+  /// What the machine can be typed on, pointed with, spoken into and seen
+  /// through, in [InputDeviceKind] order. Empty rather than null when nothing
+  /// was reported — a machine with no input devices at all is not a
+  /// distinguishable state from a `/proc` this build could not read, and the UI
+  /// renders both the same way.
+  final List<InputDevice> inputDevices;
 }
 
 /// Gathers a [SystemInfo] from `/proc`, `/etc`, the environment, and a couple of
@@ -59,17 +68,23 @@ class SystemInfoReader {
   SystemInfoReader({
     this.procRoot = '/proc',
     this.etcRoot = '/etc',
+    this.sysRoot = '/sys',
     Map<String, String>? env,
     ProcReader? proc,
+    InputDeviceReader? inputs,
     Future<ProcessResult> Function(String, List<String>)? runner,
   }) : _env = env ?? Platform.environment,
        _proc = proc ?? ProcReader(procRoot: procRoot),
+       _inputs =
+           inputs ?? InputDeviceReader(procRoot: procRoot, sysRoot: sysRoot),
        _run = runner ?? Process.run;
 
   final String procRoot;
   final String etcRoot;
+  final String sysRoot;
   final Map<String, String> _env;
   final ProcReader _proc;
+  final InputDeviceReader _inputs;
   final Future<ProcessResult> Function(String, List<String>) _run;
 
   Future<SystemInfo> read() async {
@@ -98,6 +113,7 @@ class SystemInfoReader {
           ? formatUptime(Duration(seconds: uptimeSeconds.round()))
           : null,
       bootTime: cpu?.bootTime != null ? _formatBootTime(cpu!.bootTime!) : null,
+      inputDevices: _inputs.read(),
     );
   }
 
