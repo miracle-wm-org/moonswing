@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:graceful_shell/system/input_devices.dart';
 import 'package:graceful_shell/system/proc_reader.dart';
 import 'package:graceful_shell/system/system_info.dart';
 
@@ -43,6 +44,10 @@ void main() {
     return SystemInfoReader(
       procRoot: proc.path,
       etcRoot: etc.path,
+      // The input-device roots are pointed at the fakes too, or the reader
+      // would walk the real machine's `/sys/class/video4linux` and the test
+      // would pass or fail by whether the runner has a webcam.
+      sysRoot: proc.path,
       env: env ?? const {},
       proc: ProcReader(procRoot: proc.path, sysRoot: proc.path),
       runner: runner ?? (_, __) async => ProcessResult(0, 1, '', ''),
@@ -57,6 +62,14 @@ void main() {
       writeProc('stat', 'cpu 1 0 0 0\ncpu0 1 0 0 0\nbtime 1700000000\n');
       writeProc('meminfo', 'MemTotal: 16384000 kB\nSwapTotal: 2048000 kB\n');
       writeProc('uptime', '3600.0 1000.0\n');
+      writeProc(
+        'bus/input/devices',
+        'N: Name="Logitech USB Receiver Mouse"\n'
+            'H: Handlers=mouse1 event8\n'
+            'B: PROP=0\n'
+            'B: EV=17\n'
+            'B: KEY=ffff0000 0 0 0 0\n',
+      );
       File('${etc.path}/os-release')
           .writeAsStringSync('PRETTY_NAME="Test Linux 42"\nID=test\n');
 
@@ -86,6 +99,15 @@ void main() {
       expect(info.shell, '/bin/bash');
       expect(info.uptime, isNotNull);
       expect(info.bootTime, isNotNull);
+      expect(
+        info.inputDevices,
+        const [
+          InputDevice(
+            kind: InputDeviceKind.mouse,
+            name: 'Logitech USB Receiver Mouse',
+          ),
+        ],
+      );
     });
 
     test('every field is null when nothing is available', () async {
@@ -105,6 +127,7 @@ void main() {
       expect(info.shell, isNull);
       expect(info.uptime, isNull);
       expect(info.bootTime, isNull);
+      expect(info.inputDevices, isEmpty);
     });
 
     test('a non-zero command exit leaves the field null', () async {
