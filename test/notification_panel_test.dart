@@ -148,4 +148,73 @@ void main() {
       }
     });
   });
+
+  group('notificationPanelWidth', () {
+    // A quarter of the output, which on the common sizes is where a column of
+    // prose reads comfortably against a bar module's popup.
+    test('is a fraction of the output', () {
+      expect(notificationPanelWidth(1920), 480);
+      expect(notificationPanelWidth(1600), 400);
+    });
+
+    // The floor is what the card's own type needs; a fifth of a 1366px laptop
+    // was 273, which wrapped two-word summaries.
+    test('has a floor a small display cannot go under', () {
+      expect(notificationPanelWidth(1366), 360);
+      expect(notificationPanelWidth(800), 360);
+    });
+
+    // The ceiling stops a quarter of an ultrawide from covering what the user
+    // was reading.
+    test('has a ceiling a wide one cannot go over', () {
+      expect(notificationPanelWidth(3440), 560);
+      expect(notificationPanelWidth(5120), 560);
+    });
+  });
+
+  group('NotificationPanel content', () {
+    testWidgets('says how much is waiting, not just what it is called',
+        (tester) async {
+      final closing = ValueNotifier(false);
+      addTearDown(closing.dispose);
+
+      await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
+      await tester.pumpAndSettle();
+      expect(find.text('Notifications'), findsOneWidget);
+      expect(find.text('Nothing waiting'), findsOneWidget);
+
+      store.addOrReplace(NotificationItem(
+        id: store.allocateId(),
+        appName: 'App',
+        summary: 'Hello',
+        body: '',
+        actions: const [],
+        expireTimeout: 0,
+        arrivedAt: DateTime(2026, 1, 1),
+      ));
+      await tester.pumpAndSettle();
+
+      // Singular, because "1 notifications" is the thing that makes a panel
+      // read as generated rather than written.
+      expect(find.text('1 notification'), findsOneWidget);
+    });
+
+    // An empty panel is the one the user sees most often, so it says what the
+    // surface is for rather than reporting that it has nothing.
+    testWidgets('the empty state explains itself', (tester) async {
+      final closing = ValueNotifier(false);
+      addTearDown(closing.dispose);
+
+      await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
+      await tester.pumpAndSettle();
+
+      expect(find.text('You are all caught up'), findsOneWidget);
+      expect(
+        find.textContaining('appear here', findRichText: true),
+        findsOneWidget,
+      );
+      // Nothing to clear, so nothing offering to.
+      expect(find.text('Clear all'), findsNothing);
+    });
+  });
 }
