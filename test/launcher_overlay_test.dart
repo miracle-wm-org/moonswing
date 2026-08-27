@@ -292,6 +292,54 @@ void main() {
     });
   });
 
+  group('unit converter', () {
+    testWidgets('a bare quantity shows its peers', (tester) async {
+      await pumpLauncher(tester);
+      await _type(tester, '1kg');
+
+      expect(find.text('1 kg ='), findsOneWidget);
+      // Rich text, because the number and its symbol carry different tiers.
+      expect(find.text('2.20462 lb', findRichText: true), findsOneWidget);
+      expect(find.text('1000 g', findRichText: true), findsOneWidget);
+    });
+
+    testWidgets('a named target shows that one value', (tester) async {
+      await pumpLauncher(tester);
+      await _type(tester, '5 km to mi');
+
+      expect(find.text('5 km ='), findsOneWidget);
+      expect(find.text('3.10686 mi', findRichText: true), findsOneWidget);
+      expect(find.text('5000 m', findRichText: true), findsNothing);
+    });
+
+    testWidgets('an ordinary app query shows no conversion row',
+        (tester) async {
+      await pumpLauncher(tester);
+      await _type(tester, 'fire');
+
+      expect(find.textContaining('='), findsNothing);
+    });
+
+    testWidgets('a calculation is never also a conversion', (tester) async {
+      // The two gates are disjoint, so at most one row can be on screen —
+      // and each row prints exactly one `=`.
+      await pumpLauncher(tester);
+      await _type(tester, '2+2');
+
+      expect(find.text('4'), findsOneWidget);
+      expect(find.textContaining('='), findsOneWidget);
+    });
+
+    testWidgets('clearing the query takes the row away', (tester) async {
+      await pumpLauncher(tester);
+      await _type(tester, '1kg');
+      expect(find.text('1 kg ='), findsOneWidget);
+
+      await _type(tester, '');
+      expect(find.textContaining('='), findsNothing);
+    });
+  });
+
   group('action flyout', () {
     testWidgets('Right at the end of the query opens it', (tester) async {
       await pumpLauncher(tester);
