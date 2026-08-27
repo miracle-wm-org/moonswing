@@ -8,8 +8,10 @@
 import 'dart:math' as math;
 import 'dart:ui';
 
-// painting.dart, not widgets.dart: EdgeInsets/Size/Offset/Rect and nothing that
-// needs a BuildContext or an engine, so this file stays a pure-logic unit.
+// Neither of these is widgets.dart: EdgeInsets/Size/Offset/Rect and one
+// annotation, and nothing that needs a BuildContext or an engine, so this file
+// stays a pure-logic unit.
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/painting.dart' show EdgeInsets;
 
 import 'package:graceful_shell/config.dart';
@@ -290,16 +292,183 @@ List<DesktopItem> moveItemTo(
 /// touches a cell does not select it, and a band that has not moved (a zero-area
 /// rect) selects nothing. That last one is what lets a plain click on bare
 /// desktop still clear the selection.
+///
+/// This is the **one-shot** form: it builds a [DesktopBandIndex] and throws it
+/// away, which is right for a single question and wrong for the rubber band,
+/// whose `onPanUpdate` asks one per pointer move. That caller keeps the index —
+/// see [DesktopBandIndex].
 Set<String> targetsInRect(
   List<DesktopItem> items,
   DesktopGridGeometry g,
   Rect rect,
-) {
-  if (rect.isEmpty) return const {};
-  return {
-    for (final item in items)
-      if (g.cellRect(item.column, item.row).overlaps(rect)) item.target,
-  };
+) =>
+    DesktopBandIndex(items, g).targetsIn(rect);
+
+/// One seat in a column of [DesktopBandIndex]. A record for [GridCell]'s
+/// reason: value semantics, and no class to keep in step.
+typedef _Seat = ({int row, String target});
+
+/// A spatial index over the rendered icons, built once and asked many times.
+///
+/// **The band's hit test must not cost what the desktop holds.** It used to be
+/// a scan of every icon, run from `onPanUpdate` — which arrives at least once
+/// per frame for as long as the button is down — so the price of asking "what
+/// is under this rect?" was paid at pointer rate and grew with everything the
+/// user had pinned, widgets included: each widget takes cells away from the
+/// icon flow, so `reflowIntoGrid` seats more icons elsewhere and the scan
+/// behind the band lengthens with the reflow. The grid is what makes an index
+/// trivial — an icon's cell *is* its address — so the columns and rows a band
+/// spans are arithmetic on the rect alone, and only the icons actually seated
+/// in that block are ever looked at. A query costs what it *selects*, not what
+/// is on the desktop.
+///
+/// Build it from the list the grid is rendering, for [targetsInRect]'s reason,
+/// and rebuild it when that list or the geometry changes — `DesktopLayerState`
+/// keys it on the identity of the `DesktopConfig` behind them, which is the
+/// same key its cached reflow uses, so a band drag that changes nothing but the
+/// selection rebuilds neither.
+///
+/// Two things a change here has to keep true. **The range is a superset and
+/// [Rect.overlaps] is still what decides**: the divisions that invert a pixel
+/// back to a column are widened to the enclosing integer rather than reasoned
+/// about at the boundary, so the strict-touch semantics above are the exact
+/// same predicate they always were and cannot drift with the arithmetic. And
+/// **an off-grid cell is indexed like any other** — the buckets are keyed on
+/// the raw column, not on a grid position — because [reflowIntoGrid] leaves a
+/// stray where it was authored when the grid is full, and the band still has to
+/// answer correctly about it (which is to say: not select something drawn two
+/// screens to the right).
+class DesktopBandIndex {
+  DesktopBandIndex(List<DesktopItem> items, this.geometry) {
+    var minColumn = 0;
+    var maxColumn = 0;
+    for (final item in items) {
+      final seats = _byColumn[item.column];
+      if (seats == null) {
+        _byColumn[item.column] = <_Seat>[(row: item.row, target: item.target)];
+        if (_byColumn.length == 1) {
+          minColumn = maxColumn = item.column;
+        } else {
+          if (item.column < minColumn) minColumn = item.column;
+          if (item.column > maxColumn) maxColumn = item.column;
+        }
+      } else {
+        seats.add((row: item.row, target: item.target));
+      }
+    }
+    // Rows ascend within a column, so a band's row range is a binary search and
+    // a walk rather than a scan of the whole column.
+    for (final seats in _byColumn.values) {
+      if (seats.length > 1) seats.sort((a, b) => a.row.compareTo(b.row));
+    }
+    _minColumn = minColumn;
+    _maxColumn = maxColumn;
+  }
+
+  /// The geometry the cells were addressed in. A query against a different one
+  /// is a different index — that is what `DesktopLayerState` keys on.
+  final DesktopGridGeometry geometry;
+
+  final Map<int, List<_Seat>> _byColumn = {};
+
+  /// The occupied column extent, which clamps the candidate range from the
+  /// other side: a band dragged across a desktop with three icons on it walks
+  /// three columns, not the width of the screen.
+  late final int _minColumn;
+  late final int _maxColumn;
+
+  /// How many seats [targetsIn] has looked at over this index's life.
+  ///
+  /// Public because the complexity *is* the point of this class and a stopwatch
+  /// is a flaky way to pin it: `test/desktop_layout_test.dart` asserts on this
+  /// instead, that a band dragged over a desktop of ten thousand icons examines
+  /// the handful it actually crosses. Nothing in `lib/` reads it.
+  @visibleForTesting
+  int seatsExamined = 0;
+
+  bool get isEmpty => _byColumn.isEmpty;
+
+  /// The targets whose cell overlaps [rect]. See [targetsInRect] for the
+  /// contract; this is the same answer, reached without touching an icon the
+  /// band comes nowhere near.
+  Set<String> targetsIn(Rect rect) {
+    if (rect.isEmpty || _byColumn.isEmpty) return const {};
+
+    final columnPitch = geometry.columnPitch;
+    final rowPitch = geometry.rowPitch;
+    // A pitch of zero has no inverse, and a non-finite rect floors to nothing:
+    // both answer the slow way rather than dividing by zero or throwing out of
+    // a pointer handler. Neither is reachable from a parsed config (`cell_width`
+    // has a floor of 32) — this is the guard that keeps a hand-built geometry
+    // from being a crash.
+    if (columnPitch <= 0 || rowPitch <= 0 || !rect.isFinite) return _scan(rect);
+
+    final origin = geometry.origin;
+    // A cell overlaps in x iff its left edge is left of `rect.right` **and** its
+    // right edge is right of `rect.left`. Both invert to a division; both are
+    // floored, which widens the range by at most one column on each side.
+    final firstColumn = math.max(
+      _minColumn,
+      ((rect.left - origin.dx - geometry.cellSize.width) / columnPitch).floor(),
+    );
+    final lastColumn = math.min(
+      _maxColumn,
+      ((rect.right - origin.dx) / columnPitch).floor(),
+    );
+    if (lastColumn < firstColumn) return const {};
+
+    final firstRow =
+        ((rect.top - origin.dy - geometry.cellSize.height) / rowPitch).floor();
+    final lastRow = ((rect.bottom - origin.dy) / rowPitch).floor();
+    if (lastRow < firstRow) return const {};
+
+    final hits = <String>{};
+    for (var column = firstColumn; column <= lastColumn; column++) {
+      final seats = _byColumn[column];
+      if (seats == null) continue;
+      for (var i = _firstAtOrAfter(seats, firstRow); i < seats.length; i++) {
+        final seat = seats[i];
+        if (seat.row > lastRow) break;
+        seatsExamined++;
+        if (geometry.cellRect(column, seat.row).overlaps(rect)) {
+          hits.add(seat.target);
+        }
+      }
+    }
+    return hits;
+  }
+
+  /// The index of the first seat at or after [row]; [seats].length when there
+  /// is none.
+  static int _firstAtOrAfter(List<_Seat> seats, int row) {
+    var low = 0;
+    var high = seats.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (seats[mid].row < row) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  }
+
+  /// Every seat, tested exactly. The fallback for a geometry the range
+  /// arithmetic cannot invert, and the definition the fast path is a
+  /// narrowing of.
+  Set<String> _scan(Rect rect) {
+    final hits = <String>{};
+    for (final entry in _byColumn.entries) {
+      for (final seat in entry.value) {
+        seatsExamined++;
+        if (geometry.cellRect(entry.key, seat.row).overlaps(rect)) {
+          hits.add(seat.target);
+        }
+      }
+    }
+    return hits;
+  }
 }
 
 /// Translates every item in [targets] by ([dColumn], [dRow]).
