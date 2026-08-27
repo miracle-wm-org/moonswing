@@ -16,6 +16,17 @@
 //
 // The registry, its entries and the window widgets are still the SDK's; only
 // the lookup and the child-rendering branch live here.
+//
+// The *root* of the shell does not need any of that and no longer has a copy of
+// its own: its windows are the whole collection, with no ambient content to
+// render alongside them, so `_GracefulShellRootState.build` returns the SDK's
+// `WindowManager` directly (see `main.dart`). This stays for the per-panel
+// registries, and the second reason is as load-bearing as the first: the SDK's
+// manager rebuilds *every* entry's content whenever its registry changes, so a
+// shell with one registry would re-run every panel's builder on every monitor
+// each time a hover tooltip opened. A panel's own registry keeps that to the
+// panel the popup belongs to — and the panel's content, passed through as
+// `child`, is not rebuilt at all.
 
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member

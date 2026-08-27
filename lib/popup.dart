@@ -7,7 +7,9 @@
 //   * [LayerShellHost] — full layer-shell windows (panels/overlays/dialogs)
 //     whose [LayershellWindowController] the module creates itself.
 // Both register a [WindowEntry] into the panel's [WindowRegistry] (supplied by
-// the per-panel [PanelWindowManager]), so they share one windowing mechanism.
+// the per-panel [PanelWindowManager]), so they share one windowing mechanism —
+// the same [WindowEntry] / [WindowRegistry] pair the root renders its own
+// windows from, through Flutter's [WindowManager] (see `main.dart`).
 
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
