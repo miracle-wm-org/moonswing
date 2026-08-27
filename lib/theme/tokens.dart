@@ -27,6 +27,24 @@ abstract final class ShellDurations {
 
   /// The settings overlay's entrance, deliberately statelier.
   static const Duration overlayEntrance = Duration(milliseconds: 240);
+
+  /// A popup card's entrance (`popup_animation`).
+  ///
+  /// Quick, because a popup is a *response* to a click that has already
+  /// happened: the card the user is reaching for has to be readable by the
+  /// time the pointer gets there. The 500 ms elastic this replaced was long
+  /// enough that a menu opened and dismissed in one motion never finished
+  /// arriving.
+  static const Duration popupIn = Duration(milliseconds: 140);
+
+  /// A popup card's exit — the entrance, reversed and shorter.
+  ///
+  /// An entrance is paced to be followed; a dismissal is the user saying they
+  /// are done, and every frame of it is a frame the window they asked to be
+  /// rid of is still on screen. See `lib/popup_transition.dart`, whose exit is
+  /// the same animation run backwards, and `lib/notification_badge.dart`,
+  /// which states the same asymmetry for its panel.
+  static const Duration popupOut = Duration(milliseconds: 110);
 }
 
 /// Corner radii. The scale observed across the shell, named.

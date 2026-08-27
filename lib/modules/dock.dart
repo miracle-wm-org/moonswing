@@ -7,6 +7,7 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/app_directory.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/theme/popup_effect.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -429,6 +430,13 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       // Edge-anchored like every bar popup, but never glued to the bar: a label
       // that comes and goes with the pointer is a floating card, not furniture.
       attach: false,
+      // And never animated, whatever `popup_animation` says. The dock is a
+      // strip the pointer sweeps along, opening and abandoning a surface at
+      // every button on the way past; a card that slid or scaled at each of
+      // them would read as the shell twitching rather than answering. Both of
+      // the dock's popups opt out, so the menu cannot arrive differently from
+      // the label it replaces.
+      effect: PopupEffect.none,
     );
   }
 
@@ -445,22 +453,23 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         // does not leave a guard armed under the *tooltip*'s identity and eat
         // the next hover label.
         ownerKey: (this, 'menu'),
+        // As the tooltip, and for its reason: neither of the dock's surfaces
+        // animates.
+        effect: PopupEffect.none,
         child: ThemeProvider(
-          child: PopupBounceIn(
-            child: DesktopMenuCard(
-              entries: [
-                DesktopMenuEntry(
-                  label: 'Unpin from dock',
-                  onTap: () {
-                    // Close first: _unpin writes through ConfigStore, which
-                    // notifies synchronously and rebuilds the dock without
-                    // this button — disposing this State mid-callback.
-                    closePopup();
-                    _unpin();
-                  },
-                ),
-              ],
-            ),
+          child: DesktopMenuCard(
+            entries: [
+              DesktopMenuEntry(
+                label: 'Unpin from dock',
+                onTap: () {
+                  // Close first: _unpin writes through ConfigStore, which
+                  // notifies synchronously and rebuilds the dock without
+                  // this button — disposing this State mid-callback.
+                  closePopup();
+                  _unpin();
+                },
+              ),
+            ],
           ),
         ),
       );

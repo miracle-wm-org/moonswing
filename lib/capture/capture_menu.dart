@@ -10,7 +10,6 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/shell_text_root.dart';
@@ -81,37 +80,35 @@ class CaptureMenuCard extends StatelessWidget {
         color: theme.popupForeground,
         fontSize: ShellFontSizes.body,
       ),
-      child: PopupBounceIn(
-        child: PopupCard(
-          padding: const EdgeInsets.all(8),
-          // The popup is sized to its content, and every row is a Row with an
-          // Expanded label — so without this each would fill whatever maximum
-          // the constraints allow and the card would simply be that wide.
-          // `SystemPopupContent` states the same reasoning.
-          child: IntrinsicWidth(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (index, action) in actions.indexed) ...[
-                  if (index > 0) const SizedBox(height: 4),
-                  _CaptureMenuRow(action: action),
-                ],
-                if (note != null && note.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                    child: Text(
-                      note,
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.caption,
-                        color: noteIsError ? kErrorColor : theme.muted,
-                      ),
+      child: PopupCard(
+        padding: const EdgeInsets.all(8),
+        // The popup is sized to its content, and every row is a Row with an
+        // Expanded label — so without this each would fill whatever maximum
+        // the constraints allow and the card would simply be that wide.
+        // `SystemPopupContent` states the same reasoning.
+        child: IntrinsicWidth(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final (index, action) in actions.indexed) ...[
+                if (index > 0) const SizedBox(height: 4),
+                _CaptureMenuRow(action: action),
+              ],
+              if (note != null && note.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                  child: Text(
+                    note,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.caption,
+                      color: noteIsError ? kErrorColor : theme.muted,
                     ),
                   ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),

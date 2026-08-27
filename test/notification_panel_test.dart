@@ -138,7 +138,7 @@ void main() {
         // Every part of the exit either scales towards the right edge or moves
         // the panel further off it. Anything that moved it left would open a
         // transparent strip along the screen edge — the reason the entrance
-        // refuses PopupBounceIn.
+        // refuses a centre-pivoted scale.
         expect(
           tester.getRect(panel).right,
           greaterThanOrEqualTo(surfaceRight - 0.01),

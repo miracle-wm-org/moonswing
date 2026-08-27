@@ -173,24 +173,22 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 12),
-        child: PopupBounceIn(
-          child: PopupCard(
-            // Clipped by default, and it earns it here: no padding, and the
-            // tab bar, the divider and the charts all paint to their own edges.
-            child: ListenableBuilder(
-              listenable: _store,
-              builder: (context, _) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildTabBar(theme),
-                  Container(height: 1, color: theme.divider),
-                  Expanded(
-                    child: _tab == _PopupTab.cpu
-                        ? _buildCpuTab(theme)
-                        : _buildMemoryTab(theme),
-                  ),
-                ],
-              ),
+        child: PopupCard(
+          // Clipped by default, and it earns it here: no padding, and the
+          // tab bar, the divider and the charts all paint to their own edges.
+          child: ListenableBuilder(
+            listenable: _store,
+            builder: (context, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildTabBar(theme),
+                Container(height: 1, color: theme.divider),
+                Expanded(
+                  child: _tab == _PopupTab.cpu
+                      ? _buildCpuTab(theme)
+                      : _buildMemoryTab(theme),
+                ),
+              ],
             ),
           ),
         ),

@@ -14,6 +14,7 @@
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
 
+import 'dart:async';
 import 'dart:ffi' as ffi;
 import 'dart:ui' show FlutterView;
 
@@ -28,7 +29,10 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 import 'package:flutter/src/widgets/_window_linux.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/popup_surface.dart';
+import 'package:graceful_shell/popup_transition.dart';
 import 'package:graceful_shell/scopes.dart';
+import 'package:graceful_shell/theme/popup_effect.dart';
+import 'package:graceful_shell/theme/tokens.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
 
@@ -506,10 +510,6 @@ void _hideWindowOf(BaseWindowController controller) {
   _gtkWidgetHide(native.windowHandle.cast());
 }
 
-/// Mixin for [State] classes that own a single popup window.
-///
-/// Encapsulates the controller/view lifecycle and WindowRegistry registration
-/// so each module only needs to compute its anchor geometry and call [openPopup].
 /// [child] under a [PopupAttachScope], or [child] itself when [edge] is null.
 ///
 /// A floating popup builds exactly the tree it built before attaching existed —
@@ -517,6 +517,94 @@ void _hideWindowOf(BaseWindowController controller) {
 Widget _maybeAttached(String? edge, Widget child) =>
     edge == null ? child : PopupAttachScope(edge: edge, child: child);
 
+/// How long a popup's exit animation is given before its window is torn down
+/// anyway.
+///
+/// [PopupTransition] answers as soon as it has finished, and normally does so
+/// well inside this. The timer is for the cases where it never will: a window
+/// whose view was dropped before the transition ever built, a host disposed
+/// mid-animation, a compositor that took the surface away. A popup leaked on
+/// every close is a great deal worse than one that disappears a moment early.
+///
+/// `final` rather than `const` only because two `Duration`s cannot be added in
+/// a constant expression; the token is still the one source of the exit's own
+/// length.
+final Duration _kPopupExitTimeout =
+    ShellDurations.popupOut + const Duration(milliseconds: 250);
+
+/// A popup the host has let go of but that is still on screen, playing its
+/// exit animation.
+///
+/// The host drops every reference to a closing popup the instant
+/// [PopupHost.closePopup] is called — `isPopupOpen` answers false and a fresh popup may be opened in
+/// the same turn, which several call sites (`dock.dart`, `app_directory.dart`,
+/// `desktop_surface.dart`) close-then-reopen through. Everything still owed to
+/// the outgoing window lives here until [finish] pays it: dropping the
+/// [WindowEntry], destroying the native window, and calling back whatever the
+/// opener passed as `onClosed`.
+///
+/// The coordinator handle is **not** among them — it is released
+/// synchronously, in [PopupHost.closePopup], exactly as it always was. A
+/// handle left registered through the exit is one `dismissOutside` will find
+/// and dismiss when the next popup opens, and its `onDismiss` is the host's
+/// `closePopup`: the host has since reopened, so what that dismissal would
+/// close is the *new* popup, in the same gesture that asked for it. The dock's
+/// tooltip giving way to its menu is exactly that gesture.
+class _ClosingPopup {
+  _ClosingPopup({
+    required this.controller,
+    required this.registry,
+    required this.entry,
+    required this.onClosed,
+    required this.closing,
+    required this.onFinished,
+  });
+
+  final PopupWindowController controller;
+  final WindowRegistry? registry;
+  final WindowEntry entry;
+  final VoidCallback? onClosed;
+
+  /// The flag [PopupTransition] watches. Deliberately never disposed: the
+  /// transition removes its own listener from `dispose`, which runs a frame
+  /// *after* [finish] drops the entry, and a `ValueNotifier` throws when a
+  /// listener is removed from a disposed one.
+  final ValueNotifier<bool> closing;
+
+  final void Function(_ClosingPopup) onFinished;
+
+  Timer? _fallback;
+  bool _done = false;
+
+  /// Asks the card to animate out; [finish] runs when it reports back, or when
+  /// [_kPopupExitTimeout] runs out, whichever is first.
+  void beginExit() {
+    _fallback = Timer(_kPopupExitTimeout, finish);
+    closing.value = true;
+  }
+
+  void finish() {
+    if (_done) return;
+    _done = true;
+    _fallback?.cancel();
+    _fallback = null;
+    registry?.unregister(entry);
+    // The unregister above only drops the view on the *next* frame's rebuild,
+    // and destroying the window before that aborts the process — see
+    // [WindowTeardown], which waits for the detach rather than assuming it.
+    destroyWindowWhenDetached(controller);
+    // The host decides whether [onClosed] is still owed — see
+    // [PopupHost._dropOutgoing].
+    onFinished(this);
+  }
+}
+
+/// Mixin for [State] classes that own a single popup window.
+///
+/// Encapsulates the controller/view lifecycle and WindowRegistry registration
+/// so each module only needs to compute its anchor geometry and call
+/// [openPopup] — and, since the exit animation, the [PopupTransition] the card
+/// is wrapped in and the [_ClosingPopup] that outlives the close.
 mixin PopupHost<T extends StatefulWidget> on State<T> {
   PopupWindowController? _popupController;
   WindowRegistry? _registry;
@@ -524,7 +612,28 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   VoidCallback? _onClosed;
   TransientHandle? _handle;
 
+  /// The flag the open popup's [PopupTransition] watches, handed to its
+  /// [_ClosingPopup] when the popup is closed.
+  ValueNotifier<bool>? _closing;
+
+  /// Whether the open popup's effect has an exit to play. False for
+  /// [PopupEffect.none], and forced false when the compositor destroys the
+  /// window under us — there is nothing left to animate then.
+  bool _exitAnimates = false;
+
+  /// Popups this host has closed that are still on screen, animating out.
+  ///
+  /// Normally at most one, but a host that closes and immediately reopens (the
+  /// dock's tooltip giving way to its menu) can have the outgoing card still
+  /// fading while the new one arrives, and a host disposed mid-animation has
+  /// to be able to finish them all.
+  final List<_ClosingPopup> _outgoing = <_ClosingPopup>[];
+
   /// Whether a popup is currently open.
+  ///
+  /// A popup that is animating *out* is not open: the host has let go of it
+  /// and a new one may be opened over it in the same turn. Every close-then-
+  /// reopen call site in the shell depends on that being true synchronously.
   bool get isPopupOpen => _popupController != null;
 
   /// Opens a popup positioned relative to the given anchor geometry.
@@ -540,6 +649,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   /// meets the panel, instead of continuing the bar's sides. The hover tooltips
   /// pass false — a label that appears under the pointer for a moment reads as a
   /// floating card, not as part of the furniture.
+  ///
+  /// [effect] overrides the theme's `popup_animation` for this popup alone.
+  /// The dock is the one caller that passes it: its hover labels and its unpin
+  /// menu belong to a strip the pointer sweeps across, where a card that
+  /// animates on every button it passes is the shell twitching rather than
+  /// responding.
   void openBarPopup(
     BuildContext context, {
     required Widget child,
@@ -547,6 +662,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     TransientPolicy policy = TransientPolicy.menu,
     Object? ownerKey,
     bool attach = true,
+    PopupEffect? effect,
   }) {
     final barAnchor = BarScope.of(context);
     final (parentAnchor, childAnchor) = popupAnchorsForBar(barAnchor);
@@ -561,6 +677,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       ownerKey: ownerKey,
       barAnchor: barAnchor,
       attach: attach,
+      effect: effect,
     );
   }
 
@@ -577,6 +694,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     Object? ownerKey,
     String? barAnchor,
     bool attach = true,
+    PopupEffect? effect,
   }) {
     if (isPopupOpen) return;
     // Identity for the reopen guard, defaulting to the host State because one
@@ -605,6 +723,13 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // bar that is no longer there.
     final attachEdge =
         barAnchor != null && attach && theme.popupGap <= 0 ? barAnchor : null;
+    // Snapshotted with the rest of the theme, and for a reason of its own: the
+    // entrance and the exit have to be the same effect, and a theme edited
+    // while a popup is open would otherwise close it with an animation that is
+    // not the reverse of the one it opened with.
+    final resolvedEffect = effect ?? theme.popupEffect;
+    final closing = _closing = ValueNotifier<bool>(false);
+    _exitAnimates = resolvedEffect.animates;
     // Both terms are margin outside the card that the surface has to carry, or
     // the compositor clips what should have been painted there — the shadow's
     // reach, and an attached card's flare, which bows out past its own box on
@@ -639,7 +764,18 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       // holds the card to what the call site asked for.
       constraints: popupWindowConstraints(constraints, surfaceInsets),
       delegate: PopupDelegate(onDestroyed: () {
-        if (_popupController == thisController) closePopup();
+        if (_popupController == thisController) {
+          // The compositor has already taken the surface away, so there is
+          // nothing left to animate: asking for an exit here would keep a dead
+          // window registered for the length of one. Set on the field rather
+          // than passed as an argument because `closePopup` is what modules
+          // override (`dock.dart`), and that override has to keep running.
+          _exitAnimates = false;
+          closePopup();
+        } else {
+          // An outgoing card whose window the compositor destroyed mid-exit.
+          _finishOutgoing(thisController!);
+        }
       }),
     );
     // The popup surface defaults to opaque black (fl_view_renderer paints the
@@ -699,20 +835,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       policy: policy,
       onDismiss: closePopup,
     );
-    // The content is laid out directly under the popup's View, so this box is
-    // what actually gives a sized-to-content window its size: tight
-    // constraints make the content fill the popup exactly, loose ones are
-    // floored at [kMinPopupConstraints].
-    //
-    // The popup renders into its own FlutterView, so the panel's
-    // [PopupDismissArea] never sees a click that lands in here — hence its own
-    // Listener, which spares this popup's chain and dismisses everything else.
-    //
-    // That Listener also covers the shadow's margin, because the shell has no
-    // input-region support and the margin is part of this surface: a click
-    // there neither dismisses the popup nor reaches what is underneath. Same
-    // class of problem [setPanelMargin] documents, and the reason the margin is
-    // kept to the shadow's actual reach rather than padded generously.
+    // The content is laid out directly under the popup's View, so the
+    // ConstrainedBox at the bottom of this tree is what actually gives a
+    // sized-to-content window its size: tight constraints make the content
+    // fill the popup exactly, loose ones are floored at
+    // [kMinPopupConstraints].
     _entry = WindowEntry(
       controller: _popupController!,
       builder: (_) => TransientScope(
@@ -723,25 +850,68 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         // nothing outside a bar pays an element for this.
         child: _maybeAttached(
           attachEdge,
-          Listener(
-            behavior: HitTestBehavior.translucent,
-            onPointerDown: (event) => PopupCoordinator.instance
-                .dismissFromPointerDown(event, within: handle),
-            // Keyed so the post-frame callback above can measure what the
-            // content actually laid out to and hand that size to GTK.
+          // A card on its way out accepts nothing. Its surface stays mapped
+          // for the length of the exit and the Listener below sits above the
+          // animation, so without this a click on a fading popup would still
+          // run `dismissFromPointerDown` under a handle the coordinator has
+          // already forgotten — which dismisses everything *else* open,
+          // including a popup the same gesture may have just opened. The
+          // Listener subtree is passed through as `child`, so the flip costs
+          // one rebuild here and nothing at all below it.
+          ValueListenableBuilder<bool>(
+            valueListenable: closing,
+            // `subtree` rather than `child`: the call site's own `child`
+            // parameter is still in scope down at the ConstrainedBox, and two
+            // different widgets under one name in one expression is a trap.
+            builder: (context, isClosing, subtree) =>
+                IgnorePointer(ignoring: isClosing, child: subtree),
+            // The popup renders into its own FlutterView, so the panel's
+            // [PopupDismissArea] never sees a click that lands in here — hence
+            // this Listener, which spares this popup's chain and dismisses
+            // everything else.
             //
-            // The shadow margin goes *outside* the ConstrainedBox, which is
-            // the whole trick: a BoxShadow paints past its box and the surface
-            // clips at its edge, so the window has to be the card plus the
-            // shadow's reach. Padding the inside instead would shrink the
-            // content — and the popups that pin a width by passing
-            // minWidth == maxWidth (the app directory's list and flyout, the
-            // sound slider, which has no intrinsic length) would silently
-            // narrow rather than the window widening.
-            child: Padding(
-              key: contentKey,
-              padding: surfaceInsets,
-              child: ConstrainedBox(constraints: constraints, child: child),
+            // It also covers the shadow's margin, because the shell has no
+            // input-region support and the margin is part of this surface: a
+            // click there neither dismisses the popup nor reaches what is
+            // underneath. Same class of problem [setPanelMargin] documents, and
+            // the reason the margin is kept to the shadow's actual reach rather
+            // than padded generously.
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerDown: (event) => PopupCoordinator.instance
+                  .dismissFromPointerDown(event, within: handle),
+              // Keyed so the post-frame callback above can measure what the
+              // content actually laid out to and hand that size to GTK.
+              //
+              // The shadow margin goes *outside* the ConstrainedBox, which is
+              // the whole trick: a BoxShadow paints past its box and the
+              // surface clips at its edge, so the window has to be the card
+              // plus the shadow's reach. Padding the inside instead would
+              // shrink the content — and the popups that pin a width by
+              // passing minWidth == maxWidth (the app directory's list and
+              // flyout, the sound slider, which has no intrinsic length) would
+              // silently narrow rather than the window widening.
+              child: Padding(
+                key: contentKey,
+                padding: surfaceInsets,
+                // The one place a popup's animation is spelled. It used to be
+                // the call site's job — fifteen of them wrapped their own card
+                // in `PopupBounceIn` — which made it something a new popup
+                // could forget, and left no way at all to play an exit: the
+                // host is what knows the popup is closing, and the card is
+                // what can animate. Inside the padding, so the card travels
+                // within the margin the shadow already claimed rather than
+                // against the surface's clip; outside the ConstrainedBox, so
+                // the transform cannot reach the size the window was mapped
+                // at.
+                child: PopupTransition(
+                  effect: resolvedEffect,
+                  edge: barAnchor,
+                  closing: closing,
+                  onClosed: () => _finishOutgoing(thisController!),
+                  child: ConstrainedBox(constraints: constraints, child: child),
+                ),
+              ),
             ),
           ),
         ),
@@ -751,29 +921,89 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     setState(() {});
   }
 
-  /// Closes and destroys the current popup, if any.
+  /// Closes the current popup, if any.
+  ///
+  /// Under an animated `popup_animation` this *starts* the close rather than
+  /// completing it. The host lets go of the popup here and now — `isPopupOpen`
+  /// answers false immediately, so the several call sites that close one popup
+  /// and open another in the same gesture still work — while the window itself
+  /// stays mapped, playing the entrance backwards, until its [PopupTransition]
+  /// reports that it has finished. Only then is the [WindowEntry]
+  /// dropped, the native window destroyed, and the opener's `onClosed` called;
+  /// see [_ClosingPopup], which owns all of that, and [_dropOutgoing] for the
+  /// one case in which `onClosed` is *not* owed. The coordinator handle is the
+  /// exception to the deferral and is released here and now — [_ClosingPopup]
+  /// says why.
+  ///
+  /// With [PopupEffect.none] — and whenever the compositor has already taken
+  /// the window away — every one of those happens synchronously, exactly as it
+  /// did before there was an exit animation at all.
   void closePopup() {
-    PopupCoordinator.instance.close(_handle);
-    _handle = null;
-    if (_entry != null) {
-      _registry?.unregister(_entry!);
-      _entry = null;
-    }
-    _registry = null;
     final ctrl = _popupController;
+    if (ctrl == null) return;
+    final record = _ClosingPopup(
+      controller: ctrl,
+      registry: _registry,
+      entry: _entry!,
+      onClosed: _onClosed,
+      closing: _closing!,
+      onFinished: _dropOutgoing,
+    );
+    final animate = _exitAnimates;
+    // Released now rather than at the end of the exit: see [_ClosingPopup].
+    PopupCoordinator.instance.close(_handle);
     _popupController = null;
-    final onClosed = _onClosed;
+    _registry = null;
+    _entry = null;
+    _handle = null;
     _onClosed = null;
-    if (ctrl != null) {
-      // The unregister above only drops the view on the *next* frame's rebuild,
-      // and destroying the window before that aborts the process — see
-      // [WindowTeardown], which waits for the detach rather than assuming it.
-      destroyWindowWhenDetached(ctrl);
-    }
+    _closing = null;
+    _exitAnimates = false;
+    _outgoing.add(record);
+    // Before the teardown, so a host that rebuilds on `isPopupOpen` has already
+    // dropped its pressed state by the time `onClosed` runs.
     if (_canRebuild) setState(() {});
-    // Fires once per open, whether closed explicitly or dismissed by the
-    // compositor (whose destroy routes through the delegate to closePopup).
-    onClosed?.call();
+    if (animate) {
+      record.beginExit();
+    } else {
+      record.finish();
+    }
+  }
+
+  /// Completes the exit of whichever outgoing popup owns [controller].
+  void _finishOutgoing(PopupWindowController controller) {
+    for (final record in List<_ClosingPopup>.from(_outgoing)) {
+      if (identical(record.controller, controller)) record.finish();
+    }
+  }
+
+  void _dropOutgoing(_ClosingPopup record) {
+    _outgoing.remove(record);
+    if (_canRebuild) setState(() {});
+    // `onClosed` fires once per open — at the end of the exit rather than at
+    // its start, because "closed" is what it has always meant — but never over
+    // a popup this host has opened since. Every caller uses it to put back
+    // state the *open* menu was holding (the desktop's Open-with `GAppInfo`
+    // handlers, the app directory's hold on its category flyout), and both of
+    // those are single fields shared by whatever menu is current. A close
+    // followed by a re-open in the same gesture is the shape both of them are
+    // built around, so answering for the outgoing menu after its successor has
+    // arrived would release the *successor's* handlers and close the flyout it
+    // is sitting in. The successor's own `onClosed` is what answers for it.
+    if (_popupController == null) record.onClosed?.call();
+  }
+
+  @override
+  void dispose() {
+    // Modules close their popup from their own `dispose`, which runs before
+    // this: what is left here is a card animating out on behalf of a host that
+    // no longer exists. Finish it now rather than leaving a timer and a
+    // registered window behind — the animation has nothing left to say, and
+    // the deterministic teardown is worth more than the last few frames of it.
+    for (final record in List<_ClosingPopup>.from(_outgoing)) {
+      record.finish();
+    }
+    super.dispose();
   }
 }
 
@@ -839,61 +1069,6 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
     // frame of grace the popup path at least had.
     if (ctrl != null) destroyWindowWhenDetached(ctrl);
     if (_canRebuild) setState(() {});
-  }
-}
-
-/// Wraps [child] with a scale + fade bounce-in animation.
-///
-/// Place this inside any popup content widget (inside Directionality /
-/// DefaultTextStyle) so the content springs into view when the popup opens.
-class PopupBounceIn extends StatefulWidget {
-  const PopupBounceIn({super.key, required this.child});
-  final Widget child;
-
-  @override
-  State<PopupBounceIn> createState() => _PopupBounceInState();
-}
-
-class _PopupBounceInState extends State<PopupBounceIn>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-  late final Animation<double> _scale;
-  late final Animation<double> _opacity;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _scale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
-    );
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _ctrl,
-        curve: const Interval(0.0, 0.35, curve: Curves.easeOut),
-      ),
-    );
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _opacity,
-      child: ScaleTransition(
-        scale: _scale,
-        child: widget.child,
-      ),
-    );
   }
 }
 

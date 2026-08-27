@@ -13,7 +13,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
@@ -405,38 +404,36 @@ class TimersPopupContent extends StatelessWidget {
           fontFamily: theme.fontFamily,
           decoration: TextDecoration.none,
         ),
-        child: PopupBounceIn(
-          child: PopupCard(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-            child: ListenableBuilder(
-              listenable: store,
-              builder: (context, _) {
-                final now = store.now;
-                final entries = store.entries;
-                return SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final entry in entries)
-                        SizedBox(
-                          height: kTimerRowHeight,
-                          child: TimerRow(entry: entry, now: now, store: store),
+        child: PopupCard(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+          child: ListenableBuilder(
+            listenable: store,
+            builder: (context, _) {
+              final now = store.now;
+              final entries = store.entries;
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final entry in entries)
+                      SizedBox(
+                        height: kTimerRowHeight,
+                        child: TimerRow(entry: entry, now: now, store: store),
+                      ),
+                    if (entries.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, bottom: 4),
+                        child: SettingsActionButton(
+                          label: 'Stop all',
+                          compact: true,
+                          onTap: store.stopAll,
                         ),
-                      if (entries.length > 1)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2, bottom: 4),
-                          child: SettingsActionButton(
-                            label: 'Stop all',
-                            compact: true,
-                            onTap: store.stopAll,
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),

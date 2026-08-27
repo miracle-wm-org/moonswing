@@ -103,7 +103,7 @@ class _DesktopSurfaceState extends State<DesktopSurface>
         // Loose, so the card sizes to its content.
         preferredConstraints: const BoxConstraints(maxWidth: 320, maxHeight: 420),
         onClosed: _releaseHandlers,
-        child: ThemeProvider(child: PopupBounceIn(child: child)),
+        child: ThemeProvider(child: child),
       );
     }
 

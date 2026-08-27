@@ -144,32 +144,30 @@ class SystemPopupContent extends StatelessWidget {
       textDirection: TextDirection.ltr,
       child: DefaultTextStyle(
         style: TextStyle(color: theme.popupForeground, fontSize: 13),
-        child: PopupBounceIn(
-          child: PopupCard(
-            padding: const EdgeInsets.all(8),
-            // The popup is sized to content, so the menu is only as wide as its
-            // widest label. [_SystemButton] is a default Row holding an
-            // [Expanded] label, though, so left to itself each button would fill
-            // whatever maximum the constraints allow and the popup would just be
-            // that maximum wide. IntrinsicWidth measures the widest button and
-            // `stretch` gives every button that width, which both keeps the
-            // Expanded bounded and keeps the hover highlights flush with each
-            // other. Four children makes the extra layout pass free.
-            child: IntrinsicWidth(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final (index, action) in actions.indexed) ...[
-                    if (index > 0) const SizedBox(height: 4),
-                    _SystemButton(
-                      icon: action.icon,
-                      label: action.label,
-                      onTap: () => onAction(action),
-                    ),
-                  ],
+        child: PopupCard(
+          padding: const EdgeInsets.all(8),
+          // The popup is sized to content, so the menu is only as wide as its
+          // widest label. [_SystemButton] is a default Row holding an
+          // [Expanded] label, though, so left to itself each button would fill
+          // whatever maximum the constraints allow and the popup would just be
+          // that maximum wide. IntrinsicWidth measures the widest button and
+          // `stretch` gives every button that width, which both keeps the
+          // Expanded bounded and keeps the hover highlights flush with each
+          // other. Four children makes the extra layout pass free.
+          child: IntrinsicWidth(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final (index, action) in actions.indexed) ...[
+                  if (index > 0) const SizedBox(height: 4),
+                  _SystemButton(
+                    icon: action.icon,
+                    label: action.label,
+                    onTap: () => onAction(action),
+                  ),
                 ],
-              ),
+              ],
             ),
           ),
         ),

@@ -122,12 +122,10 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
         maxHeight: 600,
       ),
       child: ThemeProvider(
-        child: PopupBounceIn(
-          child: _TrayMenu(
-            item: item,
-            root: root,
-            onClose: closePopup,
-          ),
+        child: _TrayMenu(
+          item: item,
+          root: root,
+          onClose: closePopup,
         ),
       ),
     );

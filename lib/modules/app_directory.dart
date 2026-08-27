@@ -62,11 +62,9 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
         maxHeight: 1200,
       ),
       child: ThemeProvider(
-        child: PopupBounceIn(
-          child: _AppDirectory(
-            iconSize: widget.iconSize,
-            onClose: closePopup,
-          ),
+        child: _AppDirectory(
+          iconSize: widget.iconSize,
+          onClose: closePopup,
         ),
       ),
     );
@@ -495,18 +493,16 @@ class _AppListViewState extends State<_AppListView>
       preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
       onClosed: widget.onMenuClosed,
       child: ThemeProvider(
-        child: PopupBounceIn(
-          child: DesktopMenuCard(
-            entries: [
-              DesktopMenuEntry(
-                label: 'Pin to dock',
-                onTap: () {
-                  widget.onPin(app);
-                  closePopup();
-                },
-              ),
-            ],
-          ),
+        child: DesktopMenuCard(
+          entries: [
+            DesktopMenuEntry(
+              label: 'Pin to dock',
+              onTap: () {
+                widget.onPin(app);
+                closePopup();
+              },
+            ),
+          ],
         ),
       ),
     );

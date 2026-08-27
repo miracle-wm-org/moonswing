@@ -30,7 +30,7 @@ import 'package:xdg_icons/xdg_icons.dart';
 
 import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/popup.dart';
+import 'package:graceful_shell/popup_transition.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/overlay/file_picker_controller.dart';
 import 'package:graceful_shell/hover_region.dart';
@@ -617,7 +617,7 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
                   // wants a row of four rather than three.
                   final w = (constraints.maxWidth * 0.9).clamp(360.0, 900.0);
                   final h = (constraints.maxHeight * 0.9).clamp(340.0, 640.0);
-                  return PopupBounceIn(
+                  return PopupTransition(
                     child: SizedBox(
                       width: w,
                       height: h,

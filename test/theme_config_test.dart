@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:graceful_shell/theme/popup_effect.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
@@ -146,6 +147,10 @@ void main() {
       expect(base, isNot(const ThemeConfig(popupBorderWidth: 2.0)));
     });
 
+    test('popup_animation', () {
+      expect(base, isNot(const ThemeConfig(popupEffect: PopupEffect.fade)));
+    });
+
     test('and hashCode moves with them', () {
       final hashes = {
         base.hashCode,
@@ -237,6 +242,39 @@ void main() {
     expect(theme.popupRadius, 8.0);
     expect(theme.popupBorderWidth, 1.0);
     expect(theme.popupBorder, theme.divider);
+  });
+
+  group('popup_animation', () {
+    test('defaults to the quick slide-and-fade', () {
+      // The elastic bounce this replaced was 500ms and had no exit at all, so
+      // every popup in the shell blinked out of existence. A theme file
+      // written before the key existed resolves to this.
+      expect(const ThemeConfig().popupEffect, PopupEffect.slide);
+    });
+
+    test('parses a slug and writes it back', () {
+      final theme = ThemeConfig.fromMap({'popup_animation': 'flip'});
+      expect(theme.popupEffect, PopupEffect.flip);
+      expect(theme.toMap()['popup_animation'], 'flip');
+    });
+
+    test('a slug this build does not know costs the key, not the theme', () {
+      // TomlReader's rule, applied to a closed set: an effect added in a later
+      // release must not take down a shell reading the file back.
+      final theme = ThemeConfig.fromMap({
+        'popup_animation': 'kaleidoscope',
+        'popup_radius': 12.0,
+      });
+      expect(theme.popupEffect, PopupEffect.slide);
+      expect(theme.popupRadius, 12.0);
+    });
+
+    test('a wrongly-typed value falls back too', () {
+      expect(ThemeConfig.fromMap({'popup_animation': 3}).popupEffect,
+          PopupEffect.slide);
+      expect(ThemeConfig.fromMap({'popup_animation': true}).popupEffect,
+          PopupEffect.slide);
+    });
   });
 
   group('the popup shadow', () {

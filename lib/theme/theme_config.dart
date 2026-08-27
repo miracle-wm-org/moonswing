@@ -5,6 +5,7 @@ library;
 import 'dart:ui';
 
 import 'package:graceful_shell/config_reader.dart';
+import 'package:graceful_shell/theme/popup_effect.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
 /// The theme selected when `config.toml` names none, and the one every
@@ -16,7 +17,10 @@ const String kDefaultThemeName = 'graceful';
 /// [color] goes through [ThemeConfig.formatColor] and its inverse; [number]
 /// is a clamped double; [integer] is read as a double and rounded, so a TOML
 /// float coerces rather than falling back; [flag] and [text] are verbatim.
-enum _ThemeKeyKind { color, number, integer, flag, text }
+/// [effect] is a [PopupEffect] spelled by its slug — a closed set, so a slug
+/// this build does not know falls back like any other wrongly-typed value
+/// rather than costing the theme.
+enum _ThemeKeyKind { color, number, integer, flag, text, effect }
 
 /// One TOML theme key: its spelling, its kind, its clamp range, and where it
 /// lives on a [ThemeConfig].
@@ -65,15 +69,23 @@ class _ThemeKey {
         return map.boolOr(key, fallback as bool);
       case _ThemeKeyKind.text:
         return map.stringOrNull(key) ?? fallback;
+      case _ThemeKeyKind.effect:
+        return PopupEffect.fromSlug(map.stringOrNull(key)) ??
+            fallback as PopupEffect;
     }
   }
 
   /// The value as [ThemeConfig.toMap] writes it.
   Object encode(ThemeConfig theme) {
     final value = get(theme);
-    return kind == _ThemeKeyKind.color
-        ? ThemeConfig.formatColor(value as Color)
-        : value;
+    switch (kind) {
+      case _ThemeKeyKind.color:
+        return ThemeConfig.formatColor(value as Color);
+      case _ThemeKeyKind.effect:
+        return (value as PopupEffect).slug;
+      default:
+        return value;
+    }
   }
 }
 
@@ -231,6 +243,20 @@ class ThemeConfig {
   /// The shadow's vertical displacement. Positive is down.
   final double popupShadowOffsetY;
 
+  /// Which animation a popup plays as it opens, and — reversed — as it closes.
+  ///
+  /// Shape and colour are what a theme decides, and a card's *arrival* is part
+  /// of its shape: a menu that unrolls out of the bar and one that fades in
+  /// place belong to different themes even when every colour matches. Hence a
+  /// theme key rather than a `config.toml` one, alongside [popupGap] and
+  /// [popupRadius], which decide the same card's other two dimensions.
+  ///
+  /// The exit is the entrance played backwards, always — see
+  /// `lib/popup_transition.dart`. [PopupEffect.none] is a real off switch:
+  /// nothing is wrapped, no controller is created, and the window is destroyed
+  /// on the frame it is closed, exactly as it was before this key existed.
+  final PopupEffect popupEffect;
+
   /// [popupShadowOffsetX] and [popupShadowOffsetY] as one offset.
   ///
   /// The two are separate fields because a [_ThemeKey] maps one TOML scalar to
@@ -309,6 +335,7 @@ class ThemeConfig {
     this.popupShadowSpread = 0.0,
     this.popupShadowOffsetX = 0.0,
     this.popupShadowOffsetY = 6.0,
+    this.popupEffect = PopupEffect.slide,
     this.scrim = const Color(0x882C2C2C),
     this.fontFamily = 'Ubuntu Sans',
     this.fontSize = ShellFontSizes.body,
@@ -379,6 +406,7 @@ class ThemeConfig {
     _ThemeKey('popup_shadow_offset_y', _ThemeKeyKind.number,
         (t) => t.popupShadowOffsetY,
         min: -64.0, max: 64.0),
+    _ThemeKey('popup_animation', _ThemeKeyKind.effect, (t) => t.popupEffect),
     _ThemeKey('scrim', _ThemeKeyKind.color, (t) => t.scrim),
   ];
 
@@ -442,6 +470,7 @@ class ThemeConfig {
       popupShadowSpread: v('popup_shadow_spread'),
       popupShadowOffsetX: v('popup_shadow_offset_x'),
       popupShadowOffsetY: v('popup_shadow_offset_y'),
+      popupEffect: v('popup_animation'),
       scrim: v('scrim'),
     );
   }
