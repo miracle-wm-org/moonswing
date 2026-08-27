@@ -110,7 +110,7 @@ collapsed_overlap = 10
 expanded_spacing = 6
 
 [modules.system_monitor]
-poll_seconds = 2
+poll_seconds = 1
 temp_unit = "celsius"
 
 # Stills go to ~/Pictures/Screenshots and recordings to ~/Videos/Screencasts

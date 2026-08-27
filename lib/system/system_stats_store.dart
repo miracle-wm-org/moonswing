@@ -34,7 +34,7 @@ import 'package:graceful_shell/system/system_monitor_config.dart';
 ///
 /// A happy consequence: because the bar module holds a light lease from
 /// start-up, [cpuHistory] is already full by the time anyone opens the monitor
-/// tab, so the graphs draw populated instead of filling in over four minutes.
+/// tab, so the graphs draw populated instead of filling in over two minutes.
 class SystemStatsStore extends ChangeNotifier {
   SystemStatsStore._({
     ProcReader? reader,
