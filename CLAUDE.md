@@ -28,7 +28,55 @@ flutter test
 
 # Run a single test file
 flutter test test/widget_test.dart
+
+# Profile the renderer against a live compositor. GRACEFUL_SHELL_IMPELLER=1 is
+# the only way to get Impeller back; see "Rendering backend" below.
+flutter build linux --profile && GRACEFUL_SHELL_IMPELLER=1 \
+  ./build/linux/x64/profile/bundle/graceful_shell
 ```
+
+### Rendering backend (`linux/runner/my_application.cc`)
+
+**The shell runs on Skia, and Impeller is switched off in the runner rather
+than at the command line.** Impeller's GLES backend is the engine's default on
+Linux and it is the single largest performance fact about this shell — bigger
+than anything in the Dart tree by an order of magnitude.
+
+Measured against a live miracle session, an **idle** shell showing nothing but
+the bar and its ticking clock:
+
+| backend | raster mean | p50 | p90 | max |
+|---|---|---|---|---|
+| Impeller GLES | 55.9 ms | 53.3 | 67.6 | 95.5 |
+| Skia | **17.1 ms** | 15.3 | 23.3 | 32.6 |
+
+Impeller encodes every draw as an individual GL operation through its reactor:
+~574 `ReactorGLES::Operation`s **per frame** (38,486 across 67 frames), plus
+~314 `TexImage2DInitialization`s. Scrolling a settings pane ran at 6.5 fps
+under it and 22.8 fps without, and `ReactorGLES` leaves the timeline entirely.
+Throughout all of it the **UI thread sat at 1.8 ms idle and 4.4 ms scrolling**,
+so none of this is Dart-side work and no amount of repaint containment reaches
+it — which is the thing to remember before optimizing a widget tree here again.
+
+Three things a change to this has to keep true:
+
+- **It is a compiled-in default, not a flag.** `flutter run --no-enable-impeller`
+  reaches the engine as a `FLUTTER_ENGINE_SWITCH_*` environment variable, so it
+  cannot help the *shipped* artifact: the snap and a `make install` build would
+  both keep the slow default however carefully a developer invokes the tool.
+  Setting it on the `FlDartProject` is what makes the fast path the one users
+  get, and it costs the snap nothing — no wrapper change and no staged library,
+  because the decision is in the binary.
+- **`GRACEFUL_SHELL_IMPELLER=1` is the way back, and `flutter run
+  --enable-impeller` is not.** The runner sets the project property explicitly,
+  so the env var is the override that exists; use it to reproduce the table
+  above or to re-test after an engine bump.
+- **This is expected to be temporary.** Impeller's GLES backend is under active
+  development, and the machine these numbers came from carries both an Intel
+  iGPU and a discrete Radeon (with `eglinfo` reporting llvmpipe on the core
+  profile), so the fault may be in which context it lands on rather than in
+  Impeller everywhere. Re-measure with the env var before assuming it still
+  holds.
 
 System dependencies required at build time: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`.
 

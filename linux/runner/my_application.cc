@@ -58,6 +58,39 @@ static void my_application_activate(GApplication* application) {
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);
 
+  // Skia, not Impeller, and this is the single highest-impact line in the
+  // shell.
+  //
+  // Impeller's GLES backend is the engine's default on Linux, and on this
+  // shell it is catastrophic. It encodes every draw as an individual GL
+  // operation through its reactor — profiled on a live miracle session, an
+  // *idle* shell with nothing on screen but the bar and its ticking clock
+  // issued ~574 `ReactorGLES::Operation`s per frame (38,486 across 67 frames)
+  // and spent 55.9 ms per frame on the raster thread. With the pointer moving
+  // it fell to 6.5 fps. The UI thread was at 1.8 ms throughout: none of this
+  // is Dart-side work, and no amount of repaint containment reaches it.
+  //
+  // The same build with Impeller off rasters the same idle frame in 17.1 ms
+  // (p90 23.3 against 67.6) and scrolls the settings pane at 22.8 fps, and
+  // `ReactorGLES` disappears from the timeline entirely.
+  //
+  // Why a compiled-in default rather than a flag anyone has to remember: this
+  // is what makes the *shipped* artifact fast. `flutter run`'s own
+  // `--enable-impeller` arrives as a `FLUTTER_ENGINE_SWITCH_*` environment
+  // variable, so the snap and a `make install` build would both have kept the
+  // slow default however carefully a developer invoked the tool.
+  //
+  // GRACEFUL_SHELL_IMPELLER=1 turns it back on, which is how the comparison
+  // above is reproduced and how this decision gets revisited: Impeller's GLES
+  // backend is under active development, and the machine this was measured on
+  // has both an Intel iGPU and a discrete Radeon, so the fault may be in which
+  // context it lands on rather than in Impeller everywhere.
+  const gchar* impeller = g_getenv("GRACEFUL_SHELL_IMPELLER");
+  gboolean enable_impeller =
+      impeller != nullptr && g_strcmp0(impeller, "") != 0 &&
+      g_strcmp0(impeller, "0") != 0;
+  fl_dart_project_set_enable_impeller(project, enable_impeller);
+
   FlView* view = fl_view_new(project);
   GdkRGBA background_color;
   // Background defaults to black, override it here if necessary, e.g. #00000000
