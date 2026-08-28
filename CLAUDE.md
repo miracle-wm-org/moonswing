@@ -28,7 +28,66 @@ flutter test
 
 # Run a single test file
 flutter test test/widget_test.dart
+
+# Profile the renderer against a live compositor. GRACEFUL_SHELL_IMPELLER=1 is
+# the only way to get Impeller back; see "Rendering backend" below.
+flutter build linux --profile && GRACEFUL_SHELL_IMPELLER=1 \
+  ./build/linux/x64/profile/bundle/graceful_shell
 ```
+
+### Rendering backend (`linux/runner/my_application.cc`)
+
+**The shell runs on Skia, and Impeller is switched off in the runner rather
+than at the command line.** Impeller's GLES backend is the engine's default on
+Linux and it is the single largest performance fact about this shell — bigger
+than anything in the Dart tree by an order of magnitude.
+
+Measured against a live miracle session, an **idle** shell showing nothing but
+the bar and its ticking clock:
+
+| backend | raster mean | p50 | p90 | max |
+|---|---|---|---|---|
+| Impeller GLES | 55.9 ms | 53.3 | 67.6 | 95.5 |
+| Skia | **17.1 ms** | 15.3 | 23.3 | 32.6 |
+
+Impeller encodes every draw as an individual GL operation through its reactor:
+~574 `ReactorGLES::Operation`s **per frame** (38,486 across 67 frames), plus
+~314 `TexImage2DInitialization`s. Scrolling a settings pane ran at 6.5 fps
+under it and 22.8 fps without, and `ReactorGLES` leaves the timeline entirely.
+Throughout all of it the **UI thread sat at 1.8 ms idle and 4.4 ms scrolling**,
+so none of this is Dart-side work and no amount of repaint containment reaches
+it — which is the thing to remember before optimizing a widget tree here again.
+
+Three things a change to this has to keep true:
+
+- **It is a compiled-in default, not a flag.** `flutter run --no-enable-impeller`
+  reaches the engine as a `FLUTTER_ENGINE_SWITCH_*` environment variable, so it
+  cannot help the *shipped* artifact: the snap and a `make install` build would
+  both keep the slow default however carefully a developer invokes the tool.
+  Setting it on the `FlDartProject` is what makes the fast path the one users
+  get, and it costs the snap nothing — no wrapper change and no staged library,
+  because the decision is in the binary.
+- **`GRACEFUL_SHELL_IMPELLER=1` is the way back, and `flutter run
+  --enable-impeller` is not.** The runner sets the project property explicitly,
+  so the env var is the override that exists; use it to reproduce the table
+  above or to re-test after an engine bump.
+- **This is expected to be temporary.** Impeller's GLES backend is under active
+  development, and the machine these numbers came from carries both an Intel
+  iGPU and a discrete Radeon (with `eglinfo` reporting llvmpipe on the core
+  profile), so the fault may be in which context it lands on rather than in
+  Impeller everywhere. Re-measure with the env var before assuming it still
+  holds.
+- **Why the shell is hit so much harder than a plain app is not known.** A
+  standalone `flutter create` benchmark on the same machine — flat text, a
+  `CustomPainter`, and a scene of several hundred `ClipRRect` + `Opacity`
+  layers — shows Impeller only about 1 to 1.5x slower than Skia, near the noise
+  floor, with no scene reproducing anything like the 3.3x measured here. So the
+  cost is coming from something this shell does that a single opaque window
+  does not: ~7 transparent layer-shell surfaces composited per frame, the
+  embedder's multi-view compositor path, or the sheer layer count of a real
+  UI. That is worth identifying before anyone tries to report this upstream —
+  the shell's own numbers are reproducible, but they are not yet reduced to a
+  minimal case.
 
 System dependencies required at build time: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`.
 
@@ -154,7 +213,7 @@ Six `InheritedWidget` scopes are provided around every panel's widget tree:
 | `DisplayScope` | `WaylandOutput?` (the monitor this panel is on — null until output enumeration lands, see the startup flow) — never constructed directly; see `DisplayProvider` (`lib/display_provider.dart`) |
 | `BarScope` | `anchor` string (`'top'`, `'bottom'`, `'left'`, `'right'`) |
 
-`ThemeScope`, `ShellServicesScope` and `LiveConfigScope` go together on *every* window, not just the panels — `_GracefulShellRootState._windowChrome` is the single place that pairs them (plus `ShellTextRoot`, below), and every `LayerShellWindow`/`SessionLockWindow` child in `main.dart` goes through it.
+`ThemeScope`, `ShellServicesScope` and `LiveConfigScope` go together on *every* window, not just the panels — `_GracefulShellRootState._windowChrome` is the single place that pairs them (plus `ShellTextRoot`, below), and every `LayerShellWindow`/`SessionLockWindow` child in `main.dart` goes through it. It is also where `kExcludeSemantics` drops each window out of the semantics tree, for the same "one place every window passes through" reason — see that constant for why accessibility is currently switched off and what it costs.
 
 **Three of the six are provider-only, and that is the pattern to copy rather than a quirk of the theme.** `grep -rn 'ThemeScope(' lib/`, `'DisplayScope('` and `'LiveConfigScope('` should each match `scopes.dart` plus that scope's one provider, and nothing else. Each provider is a `ListenableBuilder` on a store that emits the scope and **passes `child` through unrebuilt**, so a change wakes only the widgets that depend on the value — not the subtree, and emphatically not the root. Resolving any of these in `_GracefulShellRootState.build` instead is what made a single output landing, or a single keystroke in the settings UI, rebuild every panel on every monitor along with the backgrounds, the OSD and every root-owned overlay. The `_refreshWindows()` calls that remain in the root are the ones where its *list of native windows* genuinely changed; those cannot be a scope, because there is no ancestor above the root to hold one and an `InheritedWidget` cannot span FlutterViews anyway.
 

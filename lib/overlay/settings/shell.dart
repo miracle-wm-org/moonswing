@@ -1,6 +1,5 @@
 // ignore_for_file: library_private_types_in_public_api
 
-
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
@@ -49,10 +48,14 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
       children: [
         Expanded(child: _buildBody()),
         // Only surfaces when a restart-only field actually changed.
-        ListenableBuilder(
+        // Selected rather than built on every notify: `needsRestart` walks
+        // `[panels]` and allocates a string per key, and this listener fired on
+        // every keystroke anywhere in the settings UI.
+        StoreSelector<bool>(
           listenable: _store,
-          builder: (context, _) =>
-              _store.needsRestart ? _RestartBanner() : const SizedBox.shrink(),
+          selector: () => _store.needsRestart,
+          builder: (context, needsRestart) =>
+              needsRestart ? _RestartBanner() : const SizedBox.shrink(),
         ),
       ],
     );
@@ -106,6 +109,11 @@ class _ShellCategory {
   final String title;
   final String subtitle;
   final FaIconData icon;
+
+  /// Builds the category's body as a **sliver**, for the [CustomScrollView] in
+  /// [_ShellCategoryView] — [SliverSettingsSection] in the ordinary case. The
+  /// signature is unchanged from when these returned boxes; only the contract
+  /// is, because a sliver is a widget like any other.
   final Widget Function(ConfigStore store) build;
 }
 
@@ -195,23 +203,31 @@ class _ShellHome extends StatelessWidget {
         ),
         Container(height: 1, color: theme.divider),
         Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final category in _shellCategories)
-                  _CategoryCard(
-                    category: category,
-                    onTap: () => Navigator.of(context).push(
-                      _slideRoute(_ShellCategoryView(
+          // Eight cards do not need laziness, but `SliverList` gives each one
+          // its own repaint boundary for free, which is what a hover on one of
+          // them needs — see [SettingsRow].
+          child: CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                sliver: SliverList.list(
+                  children: [
+                    for (final category in _shellCategories)
+                      _CategoryCard(
                         category: category,
-                        store: store,
-                      )),
-                    ),
-                  ),
-              ],
-            ),
+                        onTap: () => Navigator.of(context).push(
+                          _slideRoute(
+                            _ShellCategoryView(
+                              category: category,
+                              store: store,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -257,14 +273,40 @@ class _ShellCategoryView extends StatelessWidget {
         ),
         Container(height: 1, color: theme.divider),
         Expanded(
-          child: ListenableBuilder(
-            listenable: store,
-            builder: (context, _) {
-              return SingleChildScrollView(
+          // No `ListenableBuilder` here, deliberately. [ConfigStore] notifies
+          // on every `set` — which is once per keystroke in any field on any
+          // pane — so a builder at this level rebuilt every row of the category
+          // for one digit typed into one of them, `background.dart`'s stat
+          // sweep and `panels.dart`'s module-key allocations included. Each
+          // section subscribes to the values it actually renders instead; see
+          // `ConfigValue` and `StoreSelector` in `controls.dart`.
+          //
+          // The rule that leaves behind: every `store.get`/`getList` under
+          // `settings/shell/` is either inside one of those builders or inside
+          // an event handler. A read left in a bare `build` does not throw — it
+          // silently stops updating, which reads as "I typed and nothing
+          // happened".
+          // Every category builder returns a **sliver** — see
+          // [SliverSettingsSection]. A `SingleChildScrollView` here laid the
+          // whole category out at once and, because its child had no repaint
+          // boundary, re-recorded the entire page's display list on every
+          // scroll frame.
+          //
+          // `cacheExtent` is raised well past the default 250: a `SliverList`
+          // unmounts a child that far past the edge, and the controls on these
+          // pages own their state — a [SettingsTextField]'s
+          // `TextEditingController` reads its seed once, so a remount mid-word
+          // would reset the selection. The keep-alive on that field is the
+          // belt; this is the braces, and it covers scrolling *past* a field
+          // that is not focused at all.
+          child: CustomScrollView(
+            cacheExtent: 600,
+            slivers: [
+              SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                child: category.build(store),
-              );
-            },
+                sliver: category.build(store),
+              ),
+            ],
           ),
         ),
       ],
@@ -363,61 +405,70 @@ class _CategoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: HoverRegion(
-        onTap: onTap,
-        builder: (context, hovered) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          decoration: BoxDecoration(
-            color: hovered ? theme.surfaceHover : theme.controlSurface,
-            borderRadius: BorderRadius.circular(ShellRadii.card),
-            border: Border.all(
-              color: hovered ? theme.accent : theme.divider,
+    // Everything but the leading glyph and the card's own fill is
+    // hover-invariant, so it is built once here and handed to the builder as a
+    // captured child. An identical widget is one the framework skips outright,
+    // which is what keeps the rebuild the RepaintBoundary contains down to a
+    // decoration — see [SettingsRow].
+    final label = Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            category.title,
+            style: TextStyle(
+              fontSize: ShellFontSizes.label,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          child: Row(
-            children: [
-              FaIcon(
-                category.icon,
-                size: ShellFontSizes.title,
-                color: hovered
-                    ? theme.accent
-                    : theme.popupForeground.withValues(alpha: 0.8),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      category.title,
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.label,
-                        fontFamily: theme.fontFamily,
-                        color: theme.popupForeground,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      category.subtitle,
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.secondary,
-                        fontFamily: theme.fontFamily,
-                        color: theme.popupForeground.withValues(alpha: 0.6),
-                      ),
-                    ),
-                  ],
+          const SizedBox(height: 2),
+          Text(
+            category.subtitle,
+            style: TextStyle(
+              fontSize: ShellFontSizes.secondary,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
+      ),
+    );
+    final chevron = FaIcon(
+      FontAwesomeIcons.chevronRight,
+      size: ShellFontSizes.secondary,
+      color: theme.popupForeground.withValues(alpha: 0.4),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      // Not inside a [SettingsRow], so it carries its own — see that class for
+      // the rule.
+      child: RepaintBoundary(
+        child: HoverRegion(
+          onTap: onTap,
+          builder: (context, hovered) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: hovered ? theme.surfaceHover : theme.controlSurface,
+              borderRadius: BorderRadius.circular(ShellRadii.card),
+              border: Border.all(color: hovered ? theme.accent : theme.divider),
+            ),
+            child: Row(
+              children: [
+                FaIcon(
+                  category.icon,
+                  size: ShellFontSizes.title,
+                  color: hovered
+                      ? theme.accent
+                      : theme.popupForeground.withValues(alpha: 0.8),
                 ),
-              ),
-              const SizedBox(width: 10),
-              FaIcon(
-                FontAwesomeIcons.chevronRight,
-                size: ShellFontSizes.secondary,
-                color: theme.popupForeground.withValues(alpha: 0.4),
-              ),
-            ],
+                const SizedBox(width: 14),
+                label,
+                const SizedBox(width: 10),
+                chevron,
+              ],
+            ),
           ),
         ),
       ),
@@ -435,8 +486,6 @@ class _CategoryCard extends StatelessWidget {
 /// per theme under `~/.config/graceful-shell/themes/` and `config.toml` only
 /// names the active one. So this section talks to [ThemeStore], not [store];
 /// the parameter stays because every category builder takes one.
-
-
 
 class _RestartBanner extends StatelessWidget {
   @override

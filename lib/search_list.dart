@@ -51,8 +51,10 @@ double? revealRowOffset(int index, double rowHeight, ScrollMetrics position) {
   final bottom = top + rowHeight;
   if (top < position.pixels) return top;
   if (bottom > position.pixels + position.viewportDimension) {
-    return (bottom - position.viewportDimension)
-        .clamp(0.0, position.maxScrollExtent);
+    return (bottom - position.viewportDimension).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
   }
   return null;
 }
@@ -76,8 +78,10 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
     this.alignRight = false,
     this.initialHighlight,
     this.closeKey,
-  }) : assert(filter != null || search != null,
-            'a dropdown needs either a filter or a search');
+  }) : assert(
+         filter != null || search != null,
+         'a dropdown needs either a filter or a search',
+       );
 
   /// Ranks the items for a query, synchronously. Called with `''` when the list
   /// opens. Null when the items come from [search] instead.
@@ -120,14 +124,14 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
   /// The row's *content*; the generic supplies the row chrome (hover fill,
   /// highlight fill, tap target, fixed [rowHeight]).
   final Widget Function(BuildContext context, T item, bool highlighted)
-      itemBuilder;
+  itemBuilder;
 
   final ValueChanged<T> onSelected;
 
   /// Builds the always-visible trigger. Call [toggle] to open/close;
   /// [open] reports whether the list is up (for a chevron, a border).
   final Widget Function(BuildContext context, bool open, VoidCallback toggle)
-      triggerBuilder;
+  triggerBuilder;
 
   /// The card's width, and the fallback when [matchTriggerWidth] cannot
   /// measure.
@@ -184,6 +188,33 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
   /// the pane.
   bool _above = false;
 
+  /// The scroll position the trigger sits in, while a card is open.
+  ///
+  /// The card is anchored to a [CompositedTransformTarget] on the *trigger*,
+  /// which lives in the page; the card itself is in the root `Overlay`. If the
+  /// page scrolls the trigger away — far enough for a lazy `SliverList` to
+  /// unmount it — the follower has no leader and paints nowhere, leaving an
+  /// invisible card over a full-screen barrier. Today the barrier itself
+  /// happens to block the wheel (`_RenderTheatre.hitTestChildren` stops at the
+  /// first entry that accepts), but that is an accident of the barrier rather
+  /// than a guarantee: a `Scrollable.ensureVisible` from focus traversal would
+  /// scroll it anyway.
+  ScrollPosition? _hostScroll;
+
+  void _watchScroll() {
+    _hostScroll = Scrollable.maybeOf(context)?.position
+      ?..isScrollingNotifier.addListener(_onHostScroll);
+  }
+
+  void _unwatchScroll() {
+    _hostScroll?.isScrollingNotifier.removeListener(_onHostScroll);
+    _hostScroll = null;
+  }
+
+  void _onHostScroll() {
+    if (_entry != null) _close();
+  }
+
   @override
   void didUpdateWidget(AnchoredSearchDropdown<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -192,6 +223,7 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
 
   @override
   void dispose() {
+    _unwatchScroll();
     // Not _close(): that repaints the trigger, and this element is on its way
     // out of the tree.
     _entry?.remove();
@@ -216,6 +248,7 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
     final entry = OverlayEntry(builder: (_) => _buildPicker());
     _entry = entry;
     overlay.insert(entry);
+    _watchScroll();
     setState(() {});
   }
 
@@ -248,6 +281,7 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
   }
 
   void _close() {
+    _unwatchScroll();
     _entry?.remove();
     _entry = null;
     if (mounted) setState(() {});
@@ -423,7 +457,10 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
   void _reveal() {
     if (!mounted || !_scroll.hasClients) return;
     final offset = revealRowOffset(
-        _highlighted, widget.config.rowHeight, _scroll.position);
+      _highlighted,
+      widget.config.rowHeight,
+      _scroll.position,
+    );
     if (offset != null) _scroll.jumpTo(offset);
   }
 
@@ -525,10 +562,13 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
                         color: highlighted
                             ? theme.accent.withValues(alpha: 0.15)
                             : hovered
-                                ? theme.surfaceHover
-                                : const Color(0x00000000),
-                        child: widget.config
-                            .itemBuilder(context, item, highlighted),
+                            ? theme.surfaceHover
+                            : const Color(0x00000000),
+                        child: widget.config.itemBuilder(
+                          context,
+                          item,
+                          highlighted,
+                        ),
                       ),
                     );
                   },

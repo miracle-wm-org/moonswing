@@ -12,15 +12,23 @@ class CalendarSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SettingsSection(
+    return SliverSettingsSection(
       label: 'Calendar',
       children: [
         SettingsRow(
           label: 'Week starts on',
-          control: SettingsSegmented(
-            options: const ['sunday', 'monday'],
-            value: store.get<String>(['calendar', 'week_start']) ?? 'sunday',
-            onChanged: (v) => store.set(['calendar', 'week_start'], v),
+          // Subscribed per key rather than under a page-level
+          // `ListenableBuilder`: [ConfigStore] notifies on every keystroke
+          // anywhere in the settings UI. See [ConfigValue].
+          control: ConfigValue<String>(
+            store: store,
+            path: const ['calendar', 'week_start'],
+            fallback: 'sunday',
+            builder: (context, value) => SettingsSegmented(
+              options: const ['sunday', 'monday'],
+              value: value!,
+              onChanged: (v) => store.set(['calendar', 'week_start'], v),
+            ),
           ),
         ),
       ],

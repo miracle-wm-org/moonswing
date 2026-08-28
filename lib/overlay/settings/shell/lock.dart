@@ -39,90 +39,137 @@ class _LockSectionState extends State<LockSection> {
     store.set(['lock', 'background'], paths.first);
   }
 
+  /// The last wallpaper path this section stat'd, and what it answered.
+  ///
+  /// `existsSync` is a syscall and `build` is not the place for one — this ran
+  /// on every keystroke anywhere in the settings UI for as long as the pane sat
+  /// under a page-level `ListenableBuilder`. The [ConfigValue] below narrows
+  /// *when* the builder runs; this makes a run that is not a path change free.
+  String? _statPath;
+  bool _statMissing = false;
+
+  bool _isMissing(String path) {
+    if (path == _statPath) return _statMissing;
+    _statPath = path;
+    _statMissing = path.isNotEmpty && !File(path).existsSync();
+    return _statMissing;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final path = (store.get<String>(['lock', 'background']) ?? '').trim();
-    final missing = path.isNotEmpty && !File(path).existsSync();
 
-    return SettingsSection(
+    return SliverSettingsSection(
       label: 'Lock Screen',
       children: [
-        SettingsRow(
-          label: 'Wallpaper',
-          alignTop: true,
-          control: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SettingsOptionButton(
-                    label: 'Choose…',
-                    selected: false,
-                    onTap: _chooseWallpaper,
-                  ),
-                  if (path.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    SettingsOptionButton(
-                      label: 'Reset',
-                      selected: false,
-                      onTap: () => store.remove(['lock', 'background']),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 6),
-              SizedBox(
-                width: 240,
-                child: Text(
-                  path.isEmpty ? 'Default wallpaper' : path.split('/').last,
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: theme.fontFamily,
-                    decoration: TextDecoration.none,
-                    fontWeight: FontWeight.normal,
-                    color: missing
-                        ? const Color(0xFFE06C75)
-                        : theme.popupForeground.withValues(alpha: 0.6),
+        // One subscription spanning the row and the "no longer exists" hint
+        // under it, which reads the same key. See [ConfigValue].
+        ConfigValue<String>(
+          store: store,
+          path: const ['lock', 'background'],
+          fallback: '',
+          builder: (context, raw) {
+            final path = (raw ?? '').trim();
+            final missing = _isMissing(path);
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SettingsRow(
+                  label: 'Wallpaper',
+                  alignTop: true,
+                  control: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SettingsOptionButton(
+                            label: 'Choose…',
+                            selected: false,
+                            onTap: _chooseWallpaper,
+                          ),
+                          if (path.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            SettingsOptionButton(
+                              label: 'Reset',
+                              selected: false,
+                              onTap: () => store.remove(['lock', 'background']),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      SizedBox(
+                        width: 240,
+                        child: Text(
+                          path.isEmpty
+                              ? 'Default wallpaper'
+                              : path.split('/').last,
+                          textAlign: TextAlign.right,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontFamily: theme.fontFamily,
+                            decoration: TextDecoration.none,
+                            fontWeight: FontWeight.normal,
+                            color: missing
+                                ? const Color(0xFFE06C75)
+                                : theme.popupForeground.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-            ],
-          ),
+                if (missing)
+                  const SettingsHint(
+                    'That file no longer exists — the shipped default will be '
+                    'used until you choose another.',
+                  ),
+              ],
+            );
+          },
         ),
-        if (missing)
-          const SettingsHint(
-            'That file no longer exists — the shipped default will be used '
-            'until you choose another.',
-          ),
         SettingsRow(
           label: 'Fit',
-          control: SettingsSegmented(
-            options: const ['fill', 'contain', 'natural'],
-            value: store.get<String>(['lock', 'fit']) ?? 'fill',
-            onChanged: (v) => store.set(['lock', 'fit'], v),
+          control: ConfigValue<String>(
+            store: store,
+            path: const ['lock', 'fit'],
+            fallback: 'fill',
+            builder: (context, value) => SettingsSegmented(
+              options: const ['fill', 'contain', 'natural'],
+              value: value!,
+              onChanged: (v) => store.set(['lock', 'fit'], v),
+            ),
           ),
         ),
         SettingsRow(
           label: 'Show name',
-          control: SettingsToggle(
-            value: store.get<bool>(['lock', 'show_username']) ?? true,
-            onChanged: (v) => store.set(['lock', 'show_username'], v),
+          control: ConfigValue<bool>(
+            store: store,
+            path: const ['lock', 'show_username'],
+            fallback: true,
+            builder: (context, value) => SettingsToggle(
+              value: value!,
+              onChanged: (v) => store.set(['lock', 'show_username'], v),
+            ),
           ),
         ),
         SettingsRow(
           label: 'Blur when unlocking',
-          control: SettingsNumberField(
-            value: store.get<num>(['lock', 'blur_sigma']) ?? 18,
-            isInt: false,
-            onChanged: (v) => store.set(
-              ['lock', 'blur_sigma'],
-              v.toDouble().clamp(0.0, 100.0),
+          control: ConfigValue<num>(
+            store: store,
+            path: const ['lock', 'blur_sigma'],
+            fallback: 18,
+            builder: (context, value) => SettingsNumberField(
+              value: value!,
+              isInt: false,
+              onChanged: (v) => store.set([
+                'lock',
+                'blur_sigma',
+              ], v.toDouble().clamp(0.0, 100.0)),
             ),
           ),
         ),

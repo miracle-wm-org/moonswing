@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ffi' as ffi;
+import 'dart:io' show Platform;
 // ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: implementation_imports
 import 'package:flutter/widgets.dart';
@@ -88,6 +89,37 @@ import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:wayland/wayland.dart';
 
+/// Whether every root-owned window drops out of the semantics tree.
+///
+/// **This switches accessibility off, and it is a stopgap.** A screen reader
+/// sees nothing of the bar, the desktop, the overlays or the lock screen while
+/// this is true. It is here because the semantics pass was measured, on a live
+/// miracle session, as the **single largest consumer of the shell's UI
+/// thread** — 1090 ms of a 2935 ms total across a 40-second capture, 37.1%,
+/// against `LAYOUT`'s 27.3% and `BUILD`'s 16.4%.
+///
+/// It costs that much because it is charged *per view per frame* and this
+/// shell has around seven of them: one `SEMANTICS (root)` pass per rasterized
+/// frame per window, 4510 semantics passes over 659 frames in the capture.
+///
+/// There is no supported way to refuse it. The Linux embedder turns semantics
+/// on regardless of whether an assistive client is attached — verified: with
+/// `GTK_A11Y=none`, `NO_AT_BRIDGE=1` and `toolkit-accessibility false`, a
+/// 25-second idle run still produced 95 `SEMANTICS (root)` passes for its 95
+/// frames. There is no `disable-semantics` engine switch, and the framework
+/// creates the semantics owner from whatever the platform reports. So the only
+/// lever left is to hand it an empty tree, which is what [ExcludeSemantics]
+/// does.
+///
+/// Set `GRACEFUL_SHELL_SEMANTICS=1` to put it back — which is also how to
+/// re-measure before removing this, and how somebody who needs a screen reader
+/// gets a working shell today. Reinstating it properly means making the tree
+/// cheap rather than empty; the per-view cost is the thing to attack.
+final bool kExcludeSemantics = () {
+  final on = Platform.environment['GRACEFUL_SHELL_SEMANTICS'];
+  return on == null || on.isEmpty || on == '0';
+}();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -162,13 +194,15 @@ void main() async {
   // Layer-shell controllers are created from within the widget tree (see
   // [_GracefulShellRootState.initState]), not here in main(), so that the GTK
   // windowing system is fully initialized before the first surface is created.
-  runWidget(GracefulShellRoot(
-    appConfig: appConfig,
-    store: store,
-    miracle: miracle,
-    outputs: outputs,
-    services: services,
-  ));
+  runWidget(
+    GracefulShellRoot(
+      appConfig: appConfig,
+      store: store,
+      miracle: miracle,
+      outputs: outputs,
+      services: services,
+    ),
+  );
 
   // Start-up I/O runs after the shell is on screen, never before it. The
   // post-frame callback is what makes that ordering real: the application index
@@ -264,8 +298,10 @@ Future<void> _connectDisplays(
   // ext-input-trigger protocols. It binds its globals from the same registry
   // callback below; on a compositor that lacks them nothing is bound and the
   // shell is unaffected.
-  final inputTriggers =
-      startInputTriggerService(waylandClient, shortcuts: appConfig.shortcuts);
+  final inputTriggers = startInputTriggerService(
+    waylandClient,
+    shortcuts: appConfig.shortcuts,
+  );
 
   final outputCompleters = <Completer<void>>[];
   WaylandRegistry? waylandRegistry;
@@ -291,7 +327,11 @@ Future<void> _connectDisplays(
       // Also offer every global to the input-trigger manager, which binds the
       // registration/action managers it needs and ignores the rest.
       inputTriggers.handleGlobal(
-          waylandRegistry!, globalName, interface, version);
+        waylandRegistry!,
+        globalName,
+        interface,
+        version,
+      );
     },
     onGlobalRemove: (globalName) => outputs.remove(globalName),
   );
@@ -304,8 +344,10 @@ Future<void> _connectDisplays(
   // among them, the compositor doesn't implement these protocols (an older Mir,
   // or not Mir) — the shortcuts silently won't work, so say so once.
   if (!inputTriggers.isRegistered) {
-    debugPrint('input-trigger: compositor did not advertise the '
-        'ext-input-trigger globals; global shortcuts are unavailable');
+    debugPrint(
+      'input-trigger: compositor did not advertise the '
+      'ext-input-trigger globals; global shortcuts are unavailable',
+    );
     // Including the power button, which is the one shortcut whose absence has
     // a consequence beyond itself: the shell must not go on holding logind's
     // inhibitor for a key that will never arrive.
@@ -359,9 +401,9 @@ class _MonitorSurfaces {
 
   /// Every native controller owned by this monitor, for teardown.
   Iterable<LayershellWindowController> get controllers => [
-        if (background != null) background!,
-        ...panels.values,
-      ];
+    if (background != null) background!,
+    ...panels.values,
+  ];
 }
 
 /// One native window the root owns, and the content that goes in it.
@@ -451,18 +493,21 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   final _OverlayWindow _settings = _OverlayWindow();
   final _OverlayWindow _launcher = _OverlayWindow(acquiresAppIndex: true);
   final _OverlayWindow _appChooser = _OverlayWindow(acquiresAppIndex: true);
-  final _OverlayWindow _screencastPicker =
-      _OverlayWindow(policy: TransientPolicy.modal);
-  final _OverlayWindow _filePicker =
-      _OverlayWindow(policy: TransientPolicy.modal);
+  final _OverlayWindow _screencastPicker = _OverlayWindow(
+    policy: TransientPolicy.modal,
+  );
+  final _OverlayWindow _filePicker = _OverlayWindow(
+    policy: TransientPolicy.modal,
+  );
 
   /// The power menu the physical power button opens (`[power] key_action =
   /// "menu"`, the default). Modal, like the two pickers and for the same
   /// reason: it holds a shutdown, and a click elsewhere must not answer it —
   /// the ways out are its own Cancel path (Escape, the backdrop) and nothing
   /// else. It is the sixth root-owned overlay.
-  final _OverlayWindow _powerMenu =
-      _OverlayWindow(policy: TransientPolicy.modal);
+  final _OverlayWindow _powerMenu = _OverlayWindow(
+    policy: TransientPolicy.modal,
+  );
 
   /// The notification panel — the seventh root-owned overlay, and the first
   /// that is not full-screen. It used to be the bell module's own
@@ -474,8 +519,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// `late final` rather than a plain initialiser because it brings its own
   /// window: a column down one output edge, not a backdrop over the whole of
   /// it, so [_createNotificationWindow] is `this`'s to supply.
-  late final _OverlayWindow _notifications =
-      _OverlayWindow(create: _createNotificationWindow);
+  late final _OverlayWindow _notifications = _OverlayWindow(
+    create: _createNotificationWindow,
+  );
 
   /// The page the open (or about-to-open) settings overlay was asked for. Null
   /// is the default landing page.
@@ -574,7 +620,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _lockHost = SessionLockHost(onChanged: _refreshWindows);
     _hasBackgroundSurface =
         (appConfig.background?.entries.isNotEmpty ?? false) ||
-            appConfig.desktop.enabled;
+        appConfig.desktop.enabled;
     _subscriptions = [
       (widget.store, _onConfigChanged),
       (OsdStore.instance, _onOsdChanged),
@@ -626,7 +672,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   String _monitorKey(MonitorInfo monitor) => monitor.connector.isNotEmpty
       ? monitor.connector
       : '${monitor.manufacturer}|${monitor.model}|'
-          '${monitor.position.dx},${monitor.position.dy}';
+            '${monitor.position.dx},${monitor.position.dy}';
 
   /// Builds the layer-shell controllers (background + panels) for [monitor].
   /// This realizes the native GTK windows immediately; the widgets that render
@@ -674,8 +720,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       );
       // Reading the field rather than the store means a monitor hot-plugged
       // after a theme change gets the current margin with no second call site.
-      setPanelMargin(controller,
-          anchor: panelConfig.anchor, margin: _panelMargin);
+      setPanelMargin(
+        controller,
+        anchor: panelConfig.anchor,
+        margin: _panelMargin,
+      );
       panels[entry.key] = controller;
     }
 
@@ -715,10 +764,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // The bottom margin gives back what the surface grew by on that edge, or a
     // shadow would lift the card off the gap the user configured. Floored at 0:
     // a shadow deeper than the margin cannot push the card off-screen.
-    final margin =
-        (_liveConfig.value.osd.margin - shadow.bottom).round();
-    controller.setMargin(
-        LayerShellEdge.bottom, margin < 0 ? 0 : margin);
+    final margin = (_liveConfig.value.osd.margin - shadow.bottom).round();
+    controller.setMargin(LayerShellEdge.bottom, margin < 0 ? 0 : margin);
     return controller;
   }
 
@@ -815,7 +862,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// deliberately not `exclusive`, which would hold the keyboard off whatever
   /// the user was typing in for as long as a panel they only glance at is up.
   LayershellWindowController _createNotificationWindow(
-      ffi.Pointer<ffi.NativeType>? monitor) {
+    ffi.Pointer<ffi.NativeType>? monitor,
+  ) {
     final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
       anchorEdges: const [
@@ -1339,8 +1387,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
     for (final window in desired) {
       if (_rootEntries.containsKey(window.controller)) continue;
-      final entry =
-          WindowEntry(controller: window.controller, builder: window.builder);
+      final entry = WindowEntry(
+        controller: window.controller,
+        builder: window.builder,
+      );
       _rootEntries[window.controller] = entry;
       if (_registry case final registry?) {
         registry.register(entry);
@@ -1536,8 +1586,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         // anchor a surface was built with cannot change without recreating it.
         final panelConfig = widget.appConfig.panels[key];
         if (panelConfig == null) return;
-        setPanelMargin(controller,
-            anchor: panelConfig.anchor, margin: next);
+        setPanelMargin(controller, anchor: panelConfig.anchor, margin: next);
       });
     }
   }
@@ -1614,21 +1663,31 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// installed once per window rather than once for the tree. [ThemeProvider]
   /// stays the only thing that constructs a [ThemeScope].
   Widget _windowChrome(Widget child) => _RegistryBinder(
-        // Every root-owned window's content goes through here, which makes this
-        // the first place under the [WindowManager] that builds — and so the
-        // one place the root can be handed the registry it has to register the
-        // *rest* of its windows into. See [_registry].
-        onRegistry: _bindRegistry,
-        child: ShellServicesScope(
-          services: widget.services,
-          child: LiveConfigProvider(
-            config: _liveConfig,
-            // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
-            // font family every window's text should inherit.
-            child: ThemeProvider(child: ShellTextRoot(child: child)),
-          ),
+    // Every root-owned window's content goes through here, which makes this
+    // the first place under the [WindowManager] that builds — and so the
+    // one place the root can be handed the registry it has to register the
+    // *rest* of its windows into. See [_registry].
+    onRegistry: _bindRegistry,
+    child: ShellServicesScope(
+      services: widget.services,
+      child: LiveConfigProvider(
+        config: _liveConfig,
+        // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
+        // font family every window's text should inherit.
+        child: ThemeProvider(
+          child: ShellTextRoot(child: _maybeExcludeSemantics(child)),
         ),
-      );
+      ),
+    ),
+  );
+
+  /// [child], with the semantics tree switched off — see [kExcludeSemantics].
+  ///
+  /// Here rather than at each call site because this is the one place every
+  /// root-owned window's content goes through, which is the same property the
+  /// theme and text roots above rely on.
+  Widget _maybeExcludeSemantics(Widget child) =>
+      kExcludeSemantics ? ExcludeSemantics(child: child) : child;
 
   @override
   Widget build(BuildContext context) {
@@ -1702,40 +1761,44 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               // tree, so the coordinator remains the only thing that can carry
               // the signal across.
               PopupDismissArea(
-                child: Builder(builder: (context) {
-                  final live = LiveConfigScope.of(context);
-                  // Background surface existence is startup-only; while it
-                  // exists, follow live edits (fit / entry paths) but keep the
-                  // startup wallpaper if the user clears every entry (a full
-                  // removal needs a restart).
-                  //
-                  // Null here means "surface, but nothing to paint" — the
-                  // grid-only case. That must render as *nothing*, not as
-                  // BackgroundWindow's opaque empty fill, or a user with icons
-                  // and no wallpaper gets a black desktop instead of whatever
-                  // their compositor draws.
-                  final liveBg = live.background;
-                  final startupBg = widget.appConfig.background;
-                  final BackgroundConfig? bgConfig = !_hasBackgroundSurface
-                      ? null
-                      : (liveBg != null && liveBg.entries.isNotEmpty
-                          ? liveBg
-                          : startupBg);
-                  return DesktopSurface(
-                    background: bgConfig,
-                    desktop: live.desktop,
-                    store: DesktopStore.instance,
-                    // Startup panel geometry, like _createSurfaces: the anchor
-                    // a surface was built with cannot change without a
-                    // restart.
-                    panels: widget.appConfig.panels,
-                    onChangeBackground: () => SettingsController.instance
-                        .open(SettingsRoute.background),
-                    onAddRequested: _onDesktopAddRequested,
-                    onKeyboardRequested: (wanted) => _setDesktopKeyboard(
-                        _monitorKey(surfaces.monitor), wanted),
-                  );
-                }),
+                child: Builder(
+                  builder: (context) {
+                    final live = LiveConfigScope.of(context);
+                    // Background surface existence is startup-only; while it
+                    // exists, follow live edits (fit / entry paths) but keep the
+                    // startup wallpaper if the user clears every entry (a full
+                    // removal needs a restart).
+                    //
+                    // Null here means "surface, but nothing to paint" — the
+                    // grid-only case. That must render as *nothing*, not as
+                    // BackgroundWindow's opaque empty fill, or a user with icons
+                    // and no wallpaper gets a black desktop instead of whatever
+                    // their compositor draws.
+                    final liveBg = live.background;
+                    final startupBg = widget.appConfig.background;
+                    final BackgroundConfig? bgConfig = !_hasBackgroundSurface
+                        ? null
+                        : (liveBg != null && liveBg.entries.isNotEmpty
+                              ? liveBg
+                              : startupBg);
+                    return DesktopSurface(
+                      background: bgConfig,
+                      desktop: live.desktop,
+                      store: DesktopStore.instance,
+                      // Startup panel geometry, like _createSurfaces: the anchor
+                      // a surface was built with cannot change without a
+                      // restart.
+                      panels: widget.appConfig.panels,
+                      onChangeBackground: () => SettingsController.instance
+                          .open(SettingsRoute.background),
+                      onAddRequested: _onDesktopAddRequested,
+                      onKeyboardRequested: (wanted) => _setDesktopKeyboard(
+                        _monitorKey(surfaces.monitor),
+                        wanted,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
@@ -1757,21 +1820,23 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                     // left behind shows another one's workspaces.
                     monitor: surfaces.monitor,
                     outputs: widget.outputs,
-                    child: Builder(builder: (context) {
-                      final panel = effectivePanel(
-                        entry.value,
-                        LiveConfigScope.of(context).panels[entry.key],
-                      );
-                      // A click anywhere on the bar — an icon whose popup is
-                      // not open, or bare padding — dismisses whatever else
-                      // the shell has up.
-                      return PopupDismissArea(
-                        child: PanelMain(
-                          panelConfig: panel,
-                          anchor: panel.anchor,
-                        ),
-                      );
-                    }),
+                    child: Builder(
+                      builder: (context) {
+                        final panel = effectivePanel(
+                          entry.value,
+                          LiveConfigScope.of(context).panels[entry.key],
+                        );
+                        // A click anywhere on the bar — an icon whose popup is
+                        // not open, or bare padding — dismisses whatever else
+                        // the shell has up.
+                        return PopupDismissArea(
+                          child: PanelMain(
+                            panelConfig: panel,
+                            anchor: panel.anchor,
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -1794,7 +1859,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 // This monitor, not the focused one: the user has just pointed
                 // at this display.
                 onTap: () => _toggleNotificationPanel(
-                    monitor: surfaces.monitor.gdkMonitor),
+                  monitor: surfaces.monitor.gdkMonitor,
+                ),
               ),
             ),
           ),
@@ -1949,25 +2015,33 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               final request = _screencastRequest;
               if (request == null) return const SizedBox.shrink();
               return _windowChrome(
-                Builder(builder: (context) {
-                  final connection = screencastService?.connection;
-                  final sources = connection == null
-                      ? (monitors: <PickerSource>[], windows: <PickerSource>[])
-                      : buildPickerSources(connection, request,
-                          previewFps: LiveConfigScope.of(context)
-                              .screenshare
-                              .previewFps);
-                  return ScreencastPickerOverlay(
-                    request: request,
-                    monitors: sources.monitors,
-                    windows: sources.windows,
-                    closingNotifier: _screencastPicker.closing,
-                    onClosed: _onScreencastPickerClosed,
-                    onConfirm: (picked) => ScreencastPickerController.instance
-                        .complete(PickResult(picked)),
-                    onCancel: ScreencastPickerController.instance.cancel,
-                  );
-                }),
+                Builder(
+                  builder: (context) {
+                    final connection = screencastService?.connection;
+                    final sources = connection == null
+                        ? (
+                            monitors: <PickerSource>[],
+                            windows: <PickerSource>[],
+                          )
+                        : buildPickerSources(
+                            connection,
+                            request,
+                            previewFps: LiveConfigScope.of(
+                              context,
+                            ).screenshare.previewFps,
+                          );
+                    return ScreencastPickerOverlay(
+                      request: request,
+                      monitors: sources.monitors,
+                      windows: sources.windows,
+                      closingNotifier: _screencastPicker.closing,
+                      onClosed: _onScreencastPickerClosed,
+                      onConfirm: (picked) => ScreencastPickerController.instance
+                          .complete(PickResult(picked)),
+                      onCancel: ScreencastPickerController.instance.cancel,
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -1996,12 +2070,14 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         (
           controller: controller,
           builder: (_) => _windowChrome(
-            Builder(builder: (context) {
-              return LockScreen(
-                config: LiveConfigScope.of(context).lock,
-                onUnlocked: _lockHost.unlock,
-              );
-            }),
+            Builder(
+              builder: (context) {
+                return LockScreen(
+                  config: LiveConfigScope.of(context).lock,
+                  onUnlocked: _lockHost.unlock,
+                );
+              },
+            ),
           ),
         ),
     ];
@@ -2025,11 +2101,7 @@ PanelConfig effectivePanel(PanelConfig startup, PanelConfig? live) {
 }
 
 class PanelMain extends StatefulWidget {
-  const PanelMain({
-    super.key,
-    required this.panelConfig,
-    required this.anchor,
-  });
+  const PanelMain({super.key, required this.panelConfig, required this.anchor});
 
   final PanelConfig panelConfig;
   final String anchor;
@@ -2061,20 +2133,15 @@ class _PanelMainState extends State<PanelMain> {
     for (int i = 0; i < modules.length; i++) {
       if (i > 0) {
         children.add(
-            vertical ? const SizedBox(height: 8) : const SizedBox(width: 8));
+          vertical ? const SizedBox(height: 8) : const SizedBox(width: 8),
+        );
       }
       children.add(_buildModule(modules[i]));
     }
     if (vertical) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: children,
-      );
+      return Column(mainAxisSize: MainAxisSize.min, children: children);
     } else {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: children,
-      );
+      return Row(mainAxisSize: MainAxisSize.min, children: children);
     }
   }
 
@@ -2082,7 +2149,8 @@ class _PanelMainState extends State<PanelMain> {
   Widget build(BuildContext context) {
     final layout = widget.panelConfig.layout;
 
-    final bool vertical = widget.panelConfig.anchor == 'left' ||
+    final bool vertical =
+        widget.panelConfig.anchor == 'left' ||
         widget.panelConfig.anchor == 'right';
 
     final stackChildren = <Widget>[
@@ -2092,10 +2160,7 @@ class _PanelMainState extends State<PanelMain> {
           child: _buildSection(layout.left),
         ),
       if (layout.center.isNotEmpty)
-        Align(
-          alignment: Alignment.center,
-          child: _buildSection(layout.center),
-        ),
+        Align(alignment: Alignment.center, child: _buildSection(layout.center)),
       if (layout.right.isNotEmpty)
         Align(
           alignment: vertical ? Alignment.bottomCenter : Alignment.centerRight,
@@ -2182,7 +2247,9 @@ class _OverlayWindow {
   /// `dispose` that cannot be asymmetric with them), none of which cares what
   /// shape the surface is.
   final LayershellWindowController Function(
-      ffi.Pointer<ffi.NativeType>? monitor)? create;
+    ffi.Pointer<ffi.NativeType>? monitor,
+  )?
+  create;
 
   /// Whether the window's content holds `GAppInfo` pointers from [AppIndex] —
   /// the index defers refreshes while it is open (`_openLauncher`'s rule).
@@ -2278,7 +2345,8 @@ class _RegistryBinderState extends State<_RegistryBinder> {
 
 /// The default shape: a backdrop over the whole of one output.
 LayershellWindowController _fullScreenOverlay(
-    ffi.Pointer<ffi.NativeType>? monitor) {
+  ffi.Pointer<ffi.NativeType>? monitor,
+) {
   final controller = LayershellWindowController(
     layer: LayerShellLayer.overlay,
     anchorEdges: const [
@@ -2309,16 +2377,20 @@ LayershellWindowController _fullScreenOverlay(
 class _AppIndexBuilder extends StatelessWidget {
   const _AppIndexBuilder({required this.builder});
 
-  final Widget Function(BuildContext context, List<SearchableApp> apps,
-      bool loading) builder;
+  final Widget Function(
+    BuildContext context,
+    List<SearchableApp> apps,
+    bool loading,
+  )
+  builder;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-        listenable: AppIndex.instance,
-        builder: (context, _) => builder(
-          context,
-          AppIndex.instance.searchable,
-          ShellServicesScope.isLoading(context, ShellService.applications),
-        ),
-      );
+    listenable: AppIndex.instance,
+    builder: (context, _) => builder(
+      context,
+      AppIndex.instance.searchable,
+      ShellServicesScope.isLoading(context, ShellService.applications),
+    ),
+  );
 }

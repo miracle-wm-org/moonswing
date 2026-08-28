@@ -81,16 +81,23 @@ class _DesktopSectionState extends State<DesktopSection> {
       builder: (context, _) {
         final config = _desktop.config;
         final items = _desktop.items;
+        // One pass here rather than a `desktopItemExists` — a `File`/`Directory`
+        // stat — inside every row's `build`. The rows rebuild whenever this
+        // builder does, and a syscall per pinned item per build is a cost that
+        // grows with what the user pinned.
+        final missing = <String>{
+          for (final item in items)
+            if (!desktopItemExists(item)) item.target,
+        };
 
-        return SettingsSection(
+        return SliverSettingsSection(
           label: 'Desktop',
           children: [
             SettingsRow(
               label: 'Show desktop icons',
               control: SettingsToggle(
                 value: config.enabled,
-                onChanged: (v) =>
-                    _setGrid((c) => _copyDesktop(c, enabled: v)),
+                onChanged: (v) => _setGrid((c) => _copyDesktop(c, enabled: v)),
               ),
             ),
             // Enabling the grid is what creates the background surface when
@@ -104,8 +111,8 @@ class _DesktopSectionState extends State<DesktopSection> {
               control: SettingsNumberField(
                 value: config.cellWidth,
                 isInt: true,
-                onChanged: (v) => _setGrid(
-                    (c) => _copyDesktop(c, cellWidth: v.toDouble())),
+                onChanged: (v) =>
+                    _setGrid((c) => _copyDesktop(c, cellWidth: v.toDouble())),
               ),
             ),
             SettingsRow(
@@ -113,8 +120,8 @@ class _DesktopSectionState extends State<DesktopSection> {
               control: SettingsNumberField(
                 value: config.cellHeight,
                 isInt: true,
-                onChanged: (v) => _setGrid(
-                    (c) => _copyDesktop(c, cellHeight: v.toDouble())),
+                onChanged: (v) =>
+                    _setGrid((c) => _copyDesktop(c, cellHeight: v.toDouble())),
               ),
             ),
             SettingsRow(
@@ -169,10 +176,7 @@ class _DesktopSectionState extends State<DesktopSection> {
                     onTap: _addApplication,
                   ),
                   const SizedBox(width: 8),
-                  SettingsAddButton(
-                    label: 'File or folder…',
-                    onTap: _addFiles,
-                  ),
+                  SettingsAddButton(label: 'File or folder…', onTap: _addFiles),
                 ],
               ),
             ),
@@ -182,6 +186,7 @@ class _DesktopSectionState extends State<DesktopSection> {
               for (final item in items)
                 _DesktopItemRow(
                   item: item,
+                  missing: missing.contains(item.target),
                   onRemove: () => _desktop.removeItem(item.target),
                 ),
           ],
@@ -218,68 +223,81 @@ DesktopConfig _copyDesktop(
 
 /// One pinned item: its label, its path, and a remove button.
 class _DesktopItemRow extends StatelessWidget {
-  const _DesktopItemRow({required this.item, required this.onRemove});
+  const _DesktopItemRow({
+    required this.item,
+    required this.missing,
+    required this.onRemove,
+  });
 
   final DesktopItem item;
+
+  /// Whether the target is gone. Passed in rather than stat'd here: this row
+  /// is one of however many the user has pinned, and `build` is not the place
+  /// for a syscall.
+  final bool missing;
+
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final missing = !desktopItemExists(item);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 18,
-            child: FaIcon(
-              switch (item.kind) {
-                DesktopItemKind.app => FontAwesomeIcons.rocket,
-                DesktopItemKind.folder => FontAwesomeIcons.solidFolder,
-                DesktopItemKind.file => FontAwesomeIcons.file,
-              },
+      // Not a [SettingsRow], but it hosts a [SettingsIconButton] that hovers —
+      // see [SettingsRow] for the rule.
+      child: RepaintBoundary(
+        child: Row(
+          children: [
+            SizedBox(
+              width: 18,
+              child: FaIcon(
+                switch (item.kind) {
+                  DesktopItemKind.app => FontAwesomeIcons.rocket,
+                  DesktopItemKind.folder => FontAwesomeIcons.solidFolder,
+                  DesktopItemKind.file => FontAwesomeIcons.file,
+                },
+                size: 12,
+                color: theme.accent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    labelForItem(item),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground,
+                    ),
+                  ),
+                  Text(
+                    item.target,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: theme.fontFamily,
+                      // A target that has gone missing is called out here rather
+                      // than dropped, matching how the desktop dims it.
+                      color: missing ? const Color(0xFFE06C75) : theme.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.trash,
               size: 12,
-              color: theme.accent,
+              onTap: onRemove,
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  labelForItem(item),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                  ),
-                ),
-                Text(
-                  item.target,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: theme.fontFamily,
-                    // A target that has gone missing is called out here rather
-                    // than dropped, matching how the desktop dims it.
-                    color: missing ? const Color(0xFFE06C75) : theme.muted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          SettingsIconButton(
-            icon: FontAwesomeIcons.trash,
-            size: 12,
-            onTap: onRemove,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

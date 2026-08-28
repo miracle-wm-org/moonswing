@@ -28,6 +28,12 @@ class _PanelsSectionState extends State<PanelsSection> {
 
   int _selected = 0;
   bool _adding = false;
+
+  /// The module registry is fixed after `main()` runs, and `registeredKeys`
+  /// mints a fresh iterable — this used to be allocated three times per build
+  /// of the panel form, once per module slot.
+  late final List<String> _moduleKeys = Module.registeredKeys.toList();
+
   final _nameController = TextEditingController();
   final _nameFocus = FocusNode();
 
@@ -69,8 +75,11 @@ class _PanelsSectionState extends State<PanelsSection> {
     }
     // Writing the anchor creates the `[panels.<name>]` table (ConfigStore.set
     // builds intermediate tables); a known anchor name seeds its own position.
-    store.set(
-        ['panels', name, 'anchor'], _anchors.contains(name) ? name : 'top');
+    store.set([
+      'panels',
+      name,
+      'anchor',
+    ], _anchors.contains(name) ? name : 'top');
     setState(() {
       _adding = false;
       _nameController.clear();
@@ -88,12 +97,14 @@ class _PanelsSectionState extends State<PanelsSection> {
     // Read before the await: the count is what the warning is about, and the
     // name is what survives the removal renumbering every index after it.
     final isLast = names.length <= 1;
-    final selectedName =
-        names.isEmpty ? null : names[_selected.clamp(0, names.length - 1)];
+    final selectedName = names.isEmpty
+        ? null
+        : names[_selected.clamp(0, names.length - 1)];
     final confirmed = await showSettingsConfirm(
       context,
       title: 'Remove the $title panel?',
-      message: 'The $title panel and everything under it — its geometry '
+      message:
+          'The $title panel and everything under it — its geometry '
           'and its module layout — are deleted from config.toml. This '
           'cannot be undone.',
       warning: isLast
@@ -101,7 +112,7 @@ class _PanelsSectionState extends State<PanelsSection> {
           // panel when `[panels]` is empty, so saying nothing here would make
           // the panel look like it came back on its own.
           ? 'This is the last panel. With none configured, the shell falls '
-              'back to a single default panel the next time it starts.'
+                'back to a single default panel the next time it starts.'
           : null,
       confirmLabel: 'Remove',
     );
@@ -125,9 +136,22 @@ class _PanelsSectionState extends State<PanelsSection> {
 
   @override
   Widget build(BuildContext context) {
+    // The section's *structure* moves only when a panel is added or removed,
+    // so it is selected on the name list and nothing else — the geometry rows
+    // below subscribe per key. Under the page-level `ListenableBuilder` this
+    // replaces, every keystroke anywhere in the settings UI re-walked
+    // `store.panelNames` and re-allocated `Module.registeredKeys` three times.
+    return StoreSelector<String>(
+      listenable: store,
+      selector: () => store.panelNames.join('\u0000'),
+      builder: (context, _) => _buildSection(context),
+    );
+  }
+
+  Widget _buildSection(BuildContext context) {
     final names = store.panelNames;
     final selected = names.isEmpty ? -1 : _selected.clamp(0, names.length - 1);
-    return SettingsSection(
+    return SliverSettingsSection(
       label: 'Panels & Layout',
       children: [
         _buildTabs(names, selected),
@@ -136,8 +160,10 @@ class _PanelsSectionState extends State<PanelsSection> {
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: SettingsHint(
-              _adding ? 'Name the panel, then press Enter.' : 'No panels yet. '
-                  'Use “Add panel” to create one.',
+              _adding
+                  ? 'Name the panel, then press Enter.'
+                  : 'No panels yet. '
+                        'Use “Add panel” to create one.',
             ),
           )
         else
@@ -205,7 +231,8 @@ class _PanelsSectionState extends State<PanelsSection> {
                 color: theme.popupBackground,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                    color: _nameFocus.hasFocus ? theme.accent : theme.divider),
+                  color: _nameFocus.hasFocus ? theme.accent : theme.divider,
+                ),
               ),
               child: Stack(
                 children: [
@@ -239,10 +266,7 @@ class _PanelsSectionState extends State<PanelsSection> {
             icon: FontAwesomeIcons.check,
             onTap: () => _commitAdd(existing),
           ),
-          SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
-            onTap: _cancelAdd,
-          ),
+          SettingsIconButton(icon: FontAwesomeIcons.xmark, onTap: _cancelAdd),
         ],
       ),
     );
@@ -259,34 +283,54 @@ class _PanelsSectionState extends State<PanelsSection> {
         children: [
           SettingsRow(
             label: 'Height',
-            control: SettingsNumberField(
-              value: store.get<num>(p(['height'])) ?? 32,
-              isInt: true,
-              onChanged: (v) => store.set(p(['height']), v),
+            control: ConfigValue<num>(
+              store: store,
+              path: p(['height']),
+              fallback: 32,
+              builder: (context, value) => SettingsNumberField(
+                value: value!,
+                isInt: true,
+                onChanged: (v) => store.set(p(['height']), v),
+              ),
             ),
           ),
           SettingsRow(
             label: 'Horizontal padding',
-            control: SettingsNumberField(
-              value: store.get<num>(p(['padding_horizontal'])) ?? 8,
-              isInt: true,
-              onChanged: (v) => store.set(p(['padding_horizontal']), v),
+            control: ConfigValue<num>(
+              store: store,
+              path: p(['padding_horizontal']),
+              fallback: 8,
+              builder: (context, value) => SettingsNumberField(
+                value: value!,
+                isInt: true,
+                onChanged: (v) => store.set(p(['padding_horizontal']), v),
+              ),
             ),
           ),
           SettingsRow(
             label: 'Anchor',
-            control: SettingsSegmented(
-              options: const ['top', 'bottom', 'left', 'right'],
-              value: store.get<String>(p(['anchor'])) ?? defaultAnchor,
-              onChanged: (v) => store.set(p(['anchor']), v),
+            control: ConfigValue<String>(
+              store: store,
+              path: p(['anchor']),
+              fallback: defaultAnchor,
+              builder: (context, value) => SettingsSegmented(
+                options: const ['top', 'bottom', 'left', 'right'],
+                value: value!,
+                onChanged: (v) => store.set(p(['anchor']), v),
+              ),
             ),
           ),
           SettingsRow(
             label: 'Layer',
-            control: SettingsSegmented(
-              options: const ['background', 'bottom', 'top', 'overlay'],
-              value: store.get<String>(p(['layer'])) ?? 'top',
-              onChanged: (v) => store.set(p(['layer']), v),
+            control: ConfigValue<String>(
+              store: store,
+              path: p(['layer']),
+              fallback: 'top',
+              builder: (context, value) => SettingsSegmented(
+                options: const ['background', 'bottom', 'top', 'overlay'],
+                value: value!,
+                onChanged: (v) => store.set(p(['layer']), v),
+              ),
             ),
           ),
           for (final slot in const ['left', 'center', 'right'])
@@ -295,13 +339,23 @@ class _PanelsSectionState extends State<PanelsSection> {
               // The editor renders the slot's heading itself, so its "Add
               // module" button sits on that heading's right rather than under
               // a list the third slot had already pushed off the pane.
-              child: SettingsStringListEditor(
-                label: '${slot[0].toUpperCase()}${slot.substring(1)} modules',
-                addLabel: 'Add module',
-                items: store.getList<String>(p(['layout', slot])),
-                onChanged: (list) => store.set(p(['layout', slot]), list),
-                suggestions: Module.registeredKeys.toList(),
-                width: null,
+              //
+              // Selected on the joined list rather than the list itself:
+              // `getList` mints a fresh `List<String>` per call and `List` has
+              // no value equality, so a bare selector would report a change on
+              // every notify.
+              child: StoreSelector<String>(
+                listenable: store,
+                selector: () =>
+                    store.getList<String>(p(['layout', slot])).join('\u0000'),
+                builder: (context, _) => SettingsStringListEditor(
+                  label: '${slot[0].toUpperCase()}${slot.substring(1)} modules',
+                  addLabel: 'Add module',
+                  items: store.getList<String>(p(['layout', slot])),
+                  onChanged: (list) => store.set(p(['layout', slot]), list),
+                  suggestions: _moduleKeys,
+                  width: null,
+                ),
               ),
             ),
         ],
@@ -334,32 +388,36 @@ class _PanelTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return HoverRegion(
-      builder: (context, hovered) => UnderlineTab(
-        label: label,
-        selected: selected,
-        onTap: onTap,
-        icon: icon,
-        iconSize: 11,
-        fontSize: 13,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        trailing: onRemove == null
-            ? null
-            : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(width: 6),
-                  // The slot is occupied whether or not the button is in it: a
-                  // tab that grew on hover would shove every tab to its right
-                  // along inside the scrolling strip, under the pointer.
-                  SizedBox.square(
-                    dimension: _kPanelTabCloseSize,
-                    child: selected || hovered
-                        ? _PanelTabClose(onTap: onRemove!)
-                        : null,
-                  ),
-                ],
-              ),
+    // Not inside a [SettingsRow], so it carries its own — see that class for
+    // the rule.
+    return RepaintBoundary(
+      child: HoverRegion(
+        builder: (context, hovered) => UnderlineTab(
+          label: label,
+          selected: selected,
+          onTap: onTap,
+          icon: icon,
+          iconSize: 11,
+          fontSize: 13,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          trailing: onRemove == null
+              ? null
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(width: 6),
+                    // The slot is occupied whether or not the button is in it: a
+                    // tab that grew on hover would shove every tab to its right
+                    // along inside the scrolling strip, under the pointer.
+                    SizedBox.square(
+                      dimension: _kPanelTabCloseSize,
+                      child: selected || hovered
+                          ? _PanelTabClose(onTap: onRemove!)
+                          : null,
+                    ),
+                  ],
+                ),
+        ),
       ),
     );
   }

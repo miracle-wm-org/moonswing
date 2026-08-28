@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
@@ -20,6 +21,121 @@ import 'package:graceful_shell/theme/tokens.dart';
 /// Extracted from `shell.dart` when the calendar tab needed the same section
 /// headers, rows, text fields, and icon buttons: two copies of this styling
 /// would drift apart the first time the theme changed.
+
+// ---------------------------------------------------------------------------
+// Subscription seams
+// ---------------------------------------------------------------------------
+
+/// Rebuilds [builder] only when [selector]'s value changes between notifies of
+/// [listenable].
+///
+/// The stores behind the settings UI notify far more often than the values a
+/// given widget renders actually move: [ConfigStore] notifies on every `set`,
+/// which is once per keystroke in any field anywhere in the pane, and
+/// `ThemeStore` notifies on every frame of a colour-picker drag. A plain
+/// [ListenableBuilder] around a page therefore rebuilds every row of it for one
+/// digit typed into one of them.
+///
+/// This is the seam that narrows that: it holds the last selected value,
+/// re-reads it on each notify, and `setState`s only when `==` says it moved.
+/// Generalized out of `settings/shell/appearance.dart`, where it was written
+/// for the theme editor and named for it.
+class StoreSelector<T> extends StatefulWidget {
+  const StoreSelector({
+    super.key,
+    required this.listenable,
+    required this.selector,
+    required this.builder,
+  });
+
+  final Listenable listenable;
+  final T Function() selector;
+  final Widget Function(BuildContext context, T value) builder;
+
+  @override
+  State<StoreSelector<T>> createState() => _StoreSelectorState<T>();
+}
+
+class _StoreSelectorState<T> extends State<StoreSelector<T>> {
+  late T _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _value = widget.selector();
+    widget.listenable.addListener(_onNotify);
+  }
+
+  @override
+  void didUpdateWidget(covariant StoreSelector<T> oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.listenable, widget.listenable)) {
+      oldWidget.listenable.removeListener(_onNotify);
+      widget.listenable.addListener(_onNotify);
+    }
+    // A parent rebuild hands in a fresh selector closure; re-read so a value
+    // that changed while this widget was not listening to it is not stale.
+    _value = widget.selector();
+  }
+
+  @override
+  void dispose() {
+    widget.listenable.removeListener(_onNotify);
+    super.dispose();
+  }
+
+  void _onNotify() {
+    final next = widget.selector();
+    if (next == _value) return;
+    setState(() => _value = next);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context, _value);
+}
+
+/// One [ConfigStore] key, and only the widgets that render it.
+///
+/// [StoreSelector] specialized to the shape every settings section wants. The
+/// page-level `ListenableBuilder` this replaces rebuilt all forty-five rows of
+/// the Appearance pane — `background.dart`'s `existsSync` sweep and
+/// `panels.dart`'s three `Module.registeredKeys` allocations included — for one
+/// digit typed into one field.
+///
+/// Wrap the row's *control*, and wrap anything else whose text depends on the
+/// same key: `power.dart`'s hint under the picker reads the action, so it is
+/// inside the same [ConfigValue] as the picker itself. A control that owns its
+/// own `TextEditingController` and reads `initial` once still belongs in one —
+/// the selector's `==` check means a notify that did not move this key does not
+/// even `setState`.
+class ConfigValue<T> extends StatelessWidget {
+  const ConfigValue({
+    super.key,
+    required this.store,
+    required this.path,
+    required this.builder,
+    this.fallback,
+  });
+
+  final ConfigStore store;
+
+  /// The `config.toml` path, as [ConfigStore.get] takes it.
+  final List<String> path;
+
+  /// Answered in place of a missing or wrongly-typed value, so the builder's
+  /// argument is the value the row should render rather than a null it has to
+  /// re-default itself.
+  final T? fallback;
+
+  final Widget Function(BuildContext context, T? value) builder;
+
+  @override
+  Widget build(BuildContext context) => StoreSelector<T?>(
+    listenable: store,
+    selector: () => store.get<T>(path) ?? fallback,
+    builder: builder,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Layout helpers
@@ -43,25 +159,98 @@ class SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trailing = this.trailing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (trailing == null)
-          SettingsSectionLabel(label)
-        else
-          Row(
-            children: [
-              Expanded(child: SettingsSectionLabel(label)),
-              const SizedBox(width: 12),
-              trailing,
-            ],
-          ),
+        SettingsSectionHeading(label: label, trailing: trailing),
         const SizedBox(height: 8),
         ...children,
       ],
     );
   }
+}
+
+/// The heading row [SettingsSection] and [SliverSettingsSection] share.
+///
+/// Extracted so a section's label cannot render one way in the box form and
+/// another in the sliver form — the drift this library exists to prevent.
+class SettingsSectionHeading extends StatelessWidget {
+  const SettingsSectionHeading({super.key, required this.label, this.trailing});
+
+  final String label;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final trailing = this.trailing;
+    if (trailing == null) return SettingsSectionLabel(label);
+    return Row(
+      children: [
+        Expanded(child: SettingsSectionLabel(label)),
+        const SizedBox(width: 12),
+        trailing,
+      ],
+    );
+  }
+}
+
+/// [SettingsSection] for a section that *is* the page, in a page whose
+/// scroller is a [CustomScrollView].
+///
+/// Same label, same trailing slot, same children — emitted as slivers so the
+/// list is lazy and each child gets its repaint boundary from the sliver rather
+/// than by hand. The box [SettingsSection] is still what a section *nested
+/// inside another scroller* wants (the audio tabs, the display page, the file
+/// picker), and is unchanged.
+///
+/// Laziness is the point, and it is worth stating what it does and does not
+/// buy. A `Column` in a `SingleChildScrollView` is laid out once, so scrolling
+/// it costs no layout either way — that half was fixed by the repaint boundary
+/// [SettingsRow] carries. What this buys is that a child off the bottom of the
+/// viewport is never *mounted*: `background.dart` puts up to a hundred and
+/// twenty `Image.file` tiles on one page, and `Image` resolves its provider on
+/// mount rather than on first paint, so every one of them decoded whether or
+/// not it was ever scrolled to.
+class SliverSettingsSection extends StatelessWidget {
+  const SliverSettingsSection({
+    super.key,
+    required this.label,
+    required this.children,
+    this.trailing,
+  });
+
+  final String label;
+
+  /// Box widgets, as [SettingsSection.children] takes them. A child that is
+  /// already a sliver belongs in [slivers] instead.
+  final List<Widget> children;
+
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) => SliverMainAxisGroup(
+    slivers: [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: SettingsSectionHeading(label: label, trailing: trailing),
+        ),
+      ),
+      // `SliverList.list`, not `.builder`: these sections' children are
+      // declarative tables whose widget *construction* is trivial. What is
+      // expensive is element inflation and layout, and `SliverChildListDelegate`
+      // is already lazy in exactly that — which is what lets every section keep
+      // its existing `List<Widget> children` shape.
+      //
+      // `addRepaintBoundaries` stays on (its default), which does mean a
+      // [SettingsRow] child ends up inside two boundaries — its own and the
+      // delegate's. That is one extra `OffsetLayer` per row and it is the right
+      // trade: [SettingsRow] cannot drop its boundary, because it is also used
+      // nested several levels down inside the *box* sections on the audio and
+      // display pages, where nothing else would supply one.
+      SliverList.list(children: children),
+    ],
+  );
 }
 
 class SettingsSectionLabel extends StatelessWidget {
@@ -150,6 +339,37 @@ class SettingsHint extends StatelessWidget {
   }
 }
 
+/// A labelled form row: the label on the left, the [control] on the right.
+///
+/// It carries a [RepaintBoundary], and that is load-bearing rather than
+/// decorative. A settings page scrolls in a `SingleChildScrollView`, whose
+/// `_RenderSingleChildViewport` *is* a repaint boundary but whose child is
+/// painted inline — so without a boundary somewhere below it, a mark landing
+/// anywhere on the page re-records the whole page's display list, and the page
+/// is never eligible for the raster cache (the engine only caches
+/// repaint-boundary layers that stay identical across consecutive frames).
+/// Every control on these pages is a [HoverRegion], which `setState`s on enter
+/// and exit, and `MouseTracker` re-runs its hit test after any frame that
+/// changed the layer tree — so a stationary pointer over a scrolling list marks
+/// one row after another as the rows slide under it.
+///
+/// The boundary goes *here*, and this is the granularity to keep. Not per
+/// [SettingsSection] child, which would boundary the `SettingsHint` paragraphs
+/// that never change and would add a handful of retained layers inside each
+/// already-boundaried `ListView` item on the audio and display pages; not per
+/// icon button, which is a retained layer for a 26px box already inside one of
+/// these. [SettingsRow] is the intersection of "repeats thirty to forty-five
+/// times a page" and "repaints on its own".
+///
+/// The rule that leaves behind, for anything the library does not cover:
+/// **anything that hovers has a [RepaintBoundary] above its [HoverRegion],
+/// unless it is inside a [SettingsRow], which carries one for it.**
+///
+/// A boundary contains a repaint and nothing else, so the companion discipline
+/// is `calendar/clock_column.dart`'s: keep whatever a `HoverRegion.builder`
+/// returns hover-*dependent*, and hoist the rest into the enclosing `build`.
+/// An identical child widget is one the framework skips outright, which is what
+/// makes the contained rebuild a decoration rather than a paragraph.
 class SettingsRow extends StatelessWidget {
   const SettingsRow({
     super.key,
@@ -165,29 +385,31 @@ class SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: alignTop
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(top: alignTop ? 10 : 0),
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.85),
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: alignTop
+              ? CrossAxisAlignment.start
+              : CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(top: alignTop ? 10 : 0),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground.withValues(alpha: 0.85),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 16),
-          control,
-        ],
+            const SizedBox(width: 16),
+            control,
+          ],
+        ),
       ),
     );
   }
@@ -307,9 +529,7 @@ class SettingsOptionButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: bg,
             borderRadius: BorderRadius.circular(ShellRadii.pill),
-            border: Border.all(
-              color: selected ? theme.accent : theme.divider,
-            ),
+            border: Border.all(color: selected ? theme.accent : theme.divider),
           ),
           child: Text(
             label,
@@ -366,8 +586,8 @@ class SettingsActionButton extends StatelessWidget {
           bg = hovered && canTap
               ? theme.accent.withValues(alpha: 0.85)
               : canTap
-                  ? theme.accent
-                  : theme.accent.withValues(alpha: 0.4);
+              ? theme.accent
+              : theme.accent.withValues(alpha: 0.4);
         } else {
           bg = hovered && canTap ? theme.surfaceHover : theme.divider;
         }
@@ -443,7 +663,11 @@ class SettingsBadge extends StatelessWidget {
 /// with a hover-filled background, not a bare icon, and it carries no spin
 /// state — both panes rebuild into a full-body loader while scanning.
 class SettingsRescanButton extends StatelessWidget {
-  const SettingsRescanButton({super.key, required this.onTap, this.label = 'Scan'});
+  const SettingsRescanButton({
+    super.key,
+    required this.onTap,
+    this.label = 'Scan',
+  });
 
   final VoidCallback onTap;
   final String label;
@@ -571,15 +795,10 @@ class SettingsDropdown<T> extends StatelessWidget {
       initialHighlight: (list) =>
           list.indexWhere((item) => item.value == selected),
       onSelected: (item) => onSelected(item.value),
-      itemBuilder: (context, item, _) => _DropdownRow<T>(
-        item: item,
-        selected: item.value == selected,
-      ),
-      triggerBuilder: (context, open, toggle) => _DropdownTrigger(
-        label: _selectedLabel,
-        open: open,
-        onTap: toggle,
-      ),
+      itemBuilder: (context, item, _) =>
+          _DropdownRow<T>(item: item, selected: item.value == selected),
+      triggerBuilder: (context, open, toggle) =>
+          _DropdownTrigger(label: _selectedLabel, open: open, onTap: toggle),
     );
   }
 }
@@ -644,10 +863,7 @@ class _DropdownTrigger extends StatelessWidget {
                   // slack and the chevron is pinned to the far edge; loose
                   // under an unbounded one, where there is no slack to absorb
                   // and `Flexible` is the fit `RenderFlex` allows.
-                  if (bounded)
-                    Expanded(child: text)
-                  else
-                    Flexible(child: text),
+                  if (bounded) Expanded(child: text) else Flexible(child: text),
                   const SizedBox(width: 8),
                   FaIcon(
                     open
@@ -705,7 +921,6 @@ class _DropdownRow<T> extends StatelessWidget {
     );
   }
 }
-
 
 /// Bordered single-line text input backed by [EditableText] (the codebase does
 /// not use Material). Seeds its controller once from [initial]; subsequent
@@ -779,7 +994,8 @@ class SettingsTextField extends StatefulWidget {
   _SettingsTextFieldState createState() => _SettingsTextFieldState();
 }
 
-class _SettingsTextFieldState extends State<SettingsTextField> {
+class _SettingsTextFieldState extends State<SettingsTextField>
+    with AutomaticKeepAliveClientMixin {
   late final TextEditingController _controller =
       widget.controller ?? TextEditingController(text: widget.initial);
   late final bool _ownsController = widget.controller == null;
@@ -809,8 +1025,26 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
     super.dispose();
   }
 
+  /// Kept alive only while focused.
+  ///
+  /// The settings categories scroll in a lazy `SliverList`, which unmounts a
+  /// child far enough past the viewport edge — and this field's
+  /// [TextEditingController] reads [SettingsTextField.initial] once, so a
+  /// remount would drop the caret and the selection out from under somebody
+  /// mid-word. Only while *focused*, because an unfocused field has nothing to
+  /// lose that its `initial` does not restore, and a page that kept every field
+  /// it had ever shown would be the eager list this replaced.
+  ///
+  /// The mixin is inert without an `AutomaticKeepAlive` ancestor (which
+  /// `SliverList` supplies by default), so a field pumped standalone in a test
+  /// behaves exactly as it did.
+  @override
+  bool get wantKeepAlive => _focused;
+
   @override
   Widget build(BuildContext context) {
+    // Required by AutomaticKeepAliveClientMixin. Omitting it throws in debug.
+    super.build(context);
     final theme = ThemeScope.of(context);
     final leading = widget.leading;
     final trailing = widget.trailing;
@@ -836,8 +1070,9 @@ class _SettingsTextFieldState extends State<SettingsTextField> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: ShellFontSizes.body,
-                            color:
-                                theme.popupForeground.withValues(alpha: 0.35),
+                            color: theme.popupForeground.withValues(
+                              alpha: 0.35,
+                            ),
                             fontFamily: theme.fontFamily,
                           ),
                         ),
@@ -911,18 +1146,33 @@ class SettingsNumberField extends StatelessWidget {
 
   final ValueChanged<num> onChanged;
 
+  /// The four filters, compiled once.
+  ///
+  /// A `RegExp` compiles its pattern on construction and a
+  /// [FilteringTextInputFormatter] is immutable, so building either in `build`
+  /// is work charged per rebuild for a value that has four possible answers.
+  /// The Modules pane alone carries twenty of these fields.
+  static final List<TextInputFormatter> _intOnly = [
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
+  ];
+  static final List<TextInputFormatter> _intSigned = [
+    FilteringTextInputFormatter.allow(RegExp(r'[-0-9]')),
+  ];
+  static final List<TextInputFormatter> _decimalOnly = [
+    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+  ];
+  static final List<TextInputFormatter> _decimalSigned = [
+    FilteringTextInputFormatter.allow(RegExp(r'[-0-9.]')),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return SettingsTextField(
       width: 90,
       initial: isInt ? '${value.toInt()}' : _trimDouble(value.toDouble()),
-      inputFormatters: [
-        FilteringTextInputFormatter.allow(
-          isInt
-              ? (allowNegative ? RegExp(r'[-0-9]') : RegExp(r'[0-9]'))
-              : (allowNegative ? RegExp(r'[-0-9.]') : RegExp(r'[0-9.]')),
-        ),
-      ],
+      inputFormatters: isInt
+          ? (allowNegative ? _intSigned : _intOnly)
+          : (allowNegative ? _decimalSigned : _decimalOnly),
       onChanged: (text) {
         if (text.isEmpty) return;
         if (isInt) {
@@ -1059,8 +1309,8 @@ class SettingsFontField extends StatelessWidget {
         return q.isEmpty
             ? fonts
             : fonts
-                .where((f) => f.toLowerCase().contains(q))
-                .toList(growable: false);
+                  .where((f) => f.toLowerCase().contains(q))
+                  .toList(growable: false);
       },
       // Open highlighted-and-scrolled to the current family rather than at
       // the top of a few hundred rows.
@@ -1226,6 +1476,18 @@ class ColorFieldState extends State<SettingsColorField> {
     }
   }
 
+  /// The scroll position the swatch sits in, while the picker is open.
+  ///
+  /// `AnchoredSearchDropdown` states the reasoning: the card is anchored to a
+  /// [CompositedTransformTarget] on this row, and the settings categories now
+  /// scroll in a lazy `SliverList` that can unmount the row the card is
+  /// following.
+  ScrollPosition? _hostScroll;
+
+  void _onHostScroll() {
+    if (_pickerEntry != null) _close();
+  }
+
   void _open() {
     if (_pickerEntry != null) return;
     // Insert into the root overlay so the picker can extend past the settings
@@ -1233,9 +1495,13 @@ class ColorFieldState extends State<SettingsColorField> {
     final entry = OverlayEntry(builder: (context) => _buildPicker());
     _pickerEntry = entry;
     Overlay.of(context, rootOverlay: true).insert(entry);
+    _hostScroll = Scrollable.maybeOf(context)?.position
+      ?..isScrollingNotifier.addListener(_onHostScroll);
   }
 
   void _close() {
+    _hostScroll?.isScrollingNotifier.removeListener(_onHostScroll);
+    _hostScroll = null;
     _pickerEntry?.remove();
     _pickerEntry = null;
   }
@@ -1816,7 +2082,9 @@ class SettingsConfirmCard extends StatelessWidget {
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 6),
+                          horizontal: 8,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: theme.accent.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(4),
@@ -2011,10 +2279,7 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
             child: Align(alignment: Alignment.centerRight, child: button),
           ),
         if (label != null) const SizedBox(height: 6),
-        if (_composing) ...[
-          _buildComposer(context),
-          const SizedBox(height: 6),
-        ],
+        if (_composing) ...[_buildComposer(context), const SizedBox(height: 6)],
         if (widget.items.isEmpty && !_composing)
           const SettingsHint('Nothing here yet.')
         else
@@ -2102,7 +2367,8 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
               color: theme.popupBackground,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(
-                  color: _addFocus.hasFocus ? theme.accent : theme.divider),
+                color: _addFocus.hasFocus ? theme.accent : theme.divider,
+              ),
             ),
             child: Stack(
               children: [
@@ -2150,10 +2416,7 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
             _addFocus.requestFocus();
           },
         ),
-        SettingsIconButton(
-          icon: FontAwesomeIcons.xmark,
-          onTap: _closeComposer,
-        ),
+        SettingsIconButton(icon: FontAwesomeIcons.xmark, onTap: _closeComposer),
       ],
     );
   }
@@ -2209,10 +2472,8 @@ class _AddDropdown extends StatelessWidget {
           ),
         );
       },
-      triggerBuilder: (context, open, toggle) => SettingsAddButton(
-        label: label,
-        onTap: toggle,
-      ),
+      triggerBuilder: (context, open, toggle) =>
+          SettingsAddButton(label: label, onTap: toggle),
     );
   }
 }
@@ -2226,7 +2487,11 @@ class _AddDropdown extends StatelessWidget {
 /// at [ShellSizes.iconButton]'s height, lining up with the column of row icons
 /// below it and staying clear of [ShellSizes.minTapTarget].
 class SettingsAddButton extends StatelessWidget {
-  const SettingsAddButton({super.key, required this.label, required this.onTap});
+  const SettingsAddButton({
+    super.key,
+    required this.label,
+    required this.onTap,
+  });
 
   final String label;
   final VoidCallback onTap;
@@ -2246,9 +2511,11 @@ class SettingsAddButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(FontAwesomeIcons.plus,
-                size: ShellFontSizes.caption,
-                color: hovered ? theme.popupForeground : theme.accent),
+            FaIcon(
+              FontAwesomeIcons.plus,
+              size: ShellFontSizes.caption,
+              color: hovered ? theme.popupForeground : theme.accent,
+            ),
             const SizedBox(width: 8),
             Text(
               label,
