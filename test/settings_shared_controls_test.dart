@@ -59,4 +59,29 @@ void main() {
     await tester.pumpWidget(_host(const SettingsSectionLabel('Devices')));
     _expectAllTextThemed(tester);
   });
+
+  testWidgets('SettingsListRow text carries the theme font', (tester) async {
+    await tester.pumpWidget(_host(SettingsListRow(
+      onMoveUp: () {},
+      onMoveDown: () {},
+      onRemove: () {},
+      trailing: const SettingsBadge('Active'),
+      child: const Text('English (US)',
+          style: TextStyle(fontFamily: _kFamily)),
+    )));
+    _expectAllTextThemed(tester);
+  });
+
+  testWidgets('SettingsBanner text carries the theme font', (tester) async {
+    await tester.pumpWidget(_host(SizedBox(
+      width: 420,
+      child: SettingsBanner(
+        title: 'Could not change the layout',
+        message: 'The system refused the change.',
+        action: SettingsActionButton(
+            label: 'Retry', compact: true, onTap: () {}),
+      ),
+    )));
+    _expectAllTextThemed(tester);
+  });
 }

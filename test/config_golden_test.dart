@@ -64,6 +64,7 @@ void main() {
         'system_tray',
         'battery',
         'weather',
+        'keyboard_layout',
         'system',
       ]);
       final bottom = config.panels['bottom']!;

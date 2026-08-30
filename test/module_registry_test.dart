@@ -4,6 +4,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/clock.dart';
 import 'package:graceful_shell/modules/dock.dart';
+import 'package:graceful_shell/modules/keyboard_layout.dart';
 import 'package:graceful_shell/modules/launcher.dart';
 import 'package:graceful_shell/modules/media_player.dart';
 import 'package:graceful_shell/modules/network.dart';
@@ -38,6 +39,7 @@ void main() {
       launcherModule,
       screenshotModule,
       screenRecorderModule,
+      keyboardLayoutModule,
     ];
     for (final module in modules) {
       Module.register(module);
@@ -58,6 +60,7 @@ void main() {
       'launcher',
       'screenshot',
       'screen_recorder',
+      'keyboard_layout',
     ];
     for (final key in expected) {
       expect(Module.lookup(key), isNotNull, reason: key);

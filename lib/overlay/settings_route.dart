@@ -20,7 +20,7 @@ class SettingsRoute {
   final String tab;
 
   /// One of the settings sidebar ids: `network`, `bluetooth`, `display`,
-  /// `audio`, `shell`.
+  /// `audio`, `keyboard`, `shell`.
   final String category;
 
   /// A `_ShellCategory.title` inside the Shell pane, e.g. `Background`. Null
@@ -33,6 +33,13 @@ class SettingsRoute {
 
   /// Where the desktop grid's own settings live.
   static const SettingsRoute desktop = SettingsRoute(shellCategory: 'Desktop');
+
+  /// Where the keyboard layout popup's "Keyboard settings…" footer goes.
+  ///
+  /// A top-level category rather than a Shell one: the first five sidebar
+  /// entries are the machine's hardware and Shell is this shell's own
+  /// configuration, and an input source is the former.
+  static const SettingsRoute keyboard = SettingsRoute(category: 'keyboard');
 
   @override
   bool operator ==(Object other) =>

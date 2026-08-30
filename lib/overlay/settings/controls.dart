@@ -2293,44 +2293,17 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
 
   Widget _row(BuildContext context, int i, String item) {
     final theme = ThemeScope.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
-        decoration: BoxDecoration(
-          color: theme.controlSurface,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: theme.divider),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                item,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground,
-                ),
-              ),
-            ),
-            SettingsIconButton(
-              icon: FontAwesomeIcons.chevronUp,
-              size: 10,
-              onTap: () => _move(i, -1),
-            ),
-            SettingsIconButton(
-              icon: FontAwesomeIcons.chevronDown,
-              size: 10,
-              onTap: () => _move(i, 1),
-            ),
-            SettingsIconButton(
-              icon: FontAwesomeIcons.xmark,
-              size: 12,
-              onTap: () => _removeAt(i),
-            ),
-          ],
+    return SettingsListRow(
+      onMoveUp: () => _move(i, -1),
+      onMoveDown: () => _move(i, 1),
+      onRemove: () => _removeAt(i),
+      child: Text(
+        item,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: ShellFontSizes.secondary,
+          fontFamily: theme.fontFamily,
+          color: theme.popupForeground,
         ),
       ),
     );
@@ -2527,6 +2500,162 @@ class SettingsAddButton extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The boxed row a settings *collection* is made of.
+///
+/// Generalized out of [SettingsStringListEditor]'s own row, which is where this
+/// chrome was invented and which now builds itself from this — the library
+/// rule's "a control the library lacks gets added to the library, generalized
+/// from the best copy" clause. The keyboard page's input-source row is two
+/// lines with a badge and a compact action, which a `List<String>` editor
+/// cannot express, and copying its `Container` here would have been the sixth
+/// near-identical box in this file.
+///
+/// [child] is laid out `Expanded`; the reorder and remove actions land in the
+/// same trailing icon column every list in the settings UI puts them in. Each
+/// is null-able because not every collection is ordered.
+class SettingsListRow extends StatelessWidget {
+  const SettingsListRow({
+    super.key,
+    required this.child,
+    this.trailing,
+    this.onMoveUp,
+    this.onMoveDown,
+    this.onRemove,
+  });
+
+  final Widget child;
+
+  /// A control between the content and the icon column — a badge, a compact
+  /// action button.
+  final Widget? trailing;
+
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final trailing = this.trailing;
+    final onMoveUp = this.onMoveUp;
+    final onMoveDown = this.onMoveDown;
+    final onRemove = this.onRemove;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+        decoration: BoxDecoration(
+          color: theme.controlSurface,
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+          border: Border.all(color: theme.divider),
+        ),
+        child: Row(
+          children: [
+            Expanded(child: child),
+            if (trailing != null) ...[const SizedBox(width: 8), trailing],
+            if (onMoveUp != null)
+              SettingsIconButton(
+                icon: FontAwesomeIcons.chevronUp,
+                size: 10,
+                onTap: onMoveUp,
+              ),
+            if (onMoveDown != null)
+              SettingsIconButton(
+                icon: FontAwesomeIcons.chevronDown,
+                size: 10,
+                onTap: onMoveDown,
+              ),
+            if (onRemove != null)
+              SettingsIconButton(
+                icon: FontAwesomeIcons.xmark,
+                size: 12,
+                onTap: onRemove,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A failure strip for a settings page: what is wrong, why, and what to do.
+///
+/// The fourth of these in the shell — `NotificationDaemonBanner`, and the audio
+/// and display pages' `_buildError` — and the first on a settings *page*, which
+/// is where the library rule applies. The notification one stays where it is:
+/// it lives inside a layer-shell window, not on a page built from this file.
+///
+/// [action] is a widget rather than a label and a callback so a caller can pass
+/// a [SettingsActionButton] with `loading: true` — which is the state a retry
+/// sitting behind a polkit prompt is in.
+class SettingsBanner extends StatelessWidget {
+  const SettingsBanner({
+    super.key,
+    required this.title,
+    required this.message,
+    this.action,
+  });
+
+  final String title;
+  final String message;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final action = this.action;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: kErrorColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(ShellRadii.control),
+        border: Border.all(color: kErrorColor.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: FaIcon(
+              FontAwesomeIcons.triangleExclamation,
+              size: 14,
+              color: kErrorColor,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.body,
+                    fontFamily: theme.fontFamily,
+                    fontWeight: FontWeight.w600,
+                    color: theme.popupForeground,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.secondary,
+                    fontFamily: theme.fontFamily,
+                    height: 1.4,
+                    color: theme.popupForeground.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (action != null) ...[const SizedBox(width: 10), action],
+        ],
       ),
     );
   }

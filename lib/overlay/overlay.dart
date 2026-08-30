@@ -12,6 +12,7 @@ import 'package:graceful_shell/overlay/calendar/calendar_tab.dart';
 import 'package:graceful_shell/overlay/settings/audio.dart';
 import 'package:graceful_shell/overlay/settings/bluetooth.dart';
 import 'package:graceful_shell/overlay/settings/display.dart';
+import 'package:graceful_shell/overlay/settings/keyboard.dart';
 import 'package:graceful_shell/overlay/settings/network.dart';
 import 'package:graceful_shell/overlay/settings/shell.dart';
 import 'package:graceful_shell/overlay/settings_route.dart';
@@ -358,6 +359,8 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         return const DisplaySettingsPage();
       case 'audio':
         return const AudioSettingsPage();
+      case 'keyboard':
+        return const KeyboardSettingsPage();
       case 'shell':
         return ShellSettingsPage(
           initialCategory: widget.route?.shellCategory,
@@ -413,6 +416,12 @@ class _SettingsSidebar extends StatelessWidget {
               label: 'Audio',
               selected: selectedCategory == 'audio',
               onTap: () => onCategorySelected('audio'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.keyboard,
+              label: 'Keyboard',
+              selected: selectedCategory == 'keyboard',
+              onTap: () => onCategorySelected('keyboard'),
             ),
             _SidebarItem(
               icon: FontAwesomeIcons.gear,

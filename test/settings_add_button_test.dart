@@ -2,6 +2,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/keyboard/xkb_catalog.dart';
+import 'package:graceful_shell/overlay/settings/keyboard/input_source_picker.dart';
+import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -74,6 +77,35 @@ void main() {
     await _pump(tester, const SettingsSubLabel('Available'));
     expect(find.byType(SettingsAddButton), findsNothing);
     expect(find.text('Available'), findsOneWidget);
+  });
+
+  testWidgets('the Input Sources adder is a right-aligned section action',
+      (tester) async {
+    // The keyboard page's own adder: a section whose whole body *is* the
+    // collection, so the button rides the section heading, and the card grows
+    // leftwards from it rather than being sized to it.
+    late final AnchoredSearchDropdown<XkbEntry> dropdown;
+    await _pump(
+      tester,
+      SettingsSection(
+        label: 'Input Sources',
+        trailing: InputSourcePicker(
+          catalog: parseXkbRulesList('! layout\n  us  English (US)\n'),
+          existing: const [],
+          onSelected: (_) {},
+        ),
+        children: const [Text('English (US)')],
+      ),
+    );
+    final label = tester.getRect(find.text('INPUT SOURCES'));
+    final button = tester.getRect(find.text('Add Input Source'));
+    expect(button.left, greaterThan(label.right));
+    expect(button.bottom,
+        lessThanOrEqualTo(tester.getRect(find.text('English (US)')).top));
+
+    dropdown = tester.widget(find.byType(AnchoredSearchDropdown<XkbEntry>));
+    expect(dropdown.alignRight, isTrue);
+    expect(dropdown.matchTriggerWidth, isFalse);
   });
 
   group('the string-list editor', () {

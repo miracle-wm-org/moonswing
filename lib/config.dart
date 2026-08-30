@@ -26,6 +26,7 @@ import 'package:graceful_shell/theme/theme_config.dart';
 
 export 'package:graceful_shell/default_config.dart';
 export 'package:graceful_shell/desktop/desktop_config.dart';
+export 'package:graceful_shell/keyboard/keyboard_config.dart';
 export 'package:graceful_shell/media_paths.dart'
     show imageExtensions, videoExtensions, isImagePath;
 export 'package:graceful_shell/power/power_config.dart';

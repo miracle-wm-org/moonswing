@@ -73,7 +73,7 @@ layer = "top"
 [panels.top.layout]
 left = ["workspaces"]
 center = ["clock"]
-right = ["screenshot", "screen_recorder", "sound_control", "system_tray", "battery", "weather", "system"]
+right = ["screenshot", "screen_recorder", "sound_control", "system_tray", "battery", "weather", "keyboard_layout", "system"]
 
 [panels.bottom]
 height = 32
@@ -100,6 +100,13 @@ poll_seconds = 30
 
 [modules.clock]
 show_date = true
+
+# The badge is hidden while there is only one input source to choose between,
+# which is GNOME's arrangement and costs a fresh config nothing. Settings >
+# Keyboard is where sources are added; the list itself lives in `[keyboard]`.
+[modules.keyboard_layout]
+hide_when_single = true
+uppercase = false
 
 [modules.media_player]
 max_text_width = 200.0
