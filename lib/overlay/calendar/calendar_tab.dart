@@ -124,11 +124,18 @@ class _CalendarTabState extends State<CalendarTab> {
     );
   }
 
-  void _addWorldClock(String zone) {
+  void _addWorldClock(TimeZoneName zone) {
     final current = _worldClocks;
-    // Adding one that is already listed is a no-op, not a duplicate row.
-    if (current.any((clock) => clock.zone == zone)) return;
-    _writeWorldClocks([...current, WorldClock(zone: zone)]);
+    // Adding one that is already listed is a no-op, not a duplicate row — and
+    // "already listed" is by zone, so New Delhi over an existing Mumbai is the
+    // same clock rather than a second one showing the same time.
+    if (current.any((clock) => clock.zone == zone.name)) return;
+    // The label rides along for a city the IANA database does not name: the
+    // row would otherwise be titled Kolkata for a user who picked New Delhi.
+    _writeWorldClocks([
+      ...current,
+      WorldClock(zone: zone.name, label: zone.label),
+    ]);
   }
 
   void _removeWorldClock(String zone) {

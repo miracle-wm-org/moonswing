@@ -38,9 +38,16 @@ class TimeZonePickerButton extends StatelessWidget {
   /// Zone names already on the list. Those rows are shown with a check and
   /// selecting one still fires — a zone vanishing from the picker would read
   /// as a missing zone, not as one already added.
+  ///
+  /// Keyed on the *zone*, so adding New Delhi marks Mumbai and Kolkata as
+  /// added too. That is what they are: a world clock is stored under its zone
+  /// and the three of them are one clock showing one time, so a second row for
+  /// the same offset would be a duplicate the list has no way to tell apart.
   final Set<String> existing;
 
-  final ValueChanged<String> onSelected;
+  /// The whole row rather than its zone: a city the database does not name
+  /// carries the [TimeZoneName.label] the added clock has to be titled with.
+  final ValueChanged<TimeZoneName> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +60,7 @@ class TimeZonePickerButton extends StatelessWidget {
       // column, so the card has to grow leftwards into the panel.
       alignRight: true,
       filter: (query) => rankTimeZones(zones, query),
-      onSelected: (zone) => onSelected(zone.name),
+      onSelected: onSelected,
       itemBuilder: (context, zone, highlighted) {
         final theme = ThemeScope.of(context);
         final added = existing.contains(zone.name);

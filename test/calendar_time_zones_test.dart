@@ -135,5 +135,41 @@ void main() {
       expect(names, isNot(contains('Etc/GMT+5')));
       expect(names.any((n) => n.startsWith('SystemV/')), isFalse);
     });
+
+    test('the picker offers the cities the database does not name', () {
+      // The database names zones, not places: India is `Asia/Kolkata`, so a
+      // picker built from it alone has no New Delhi to find.
+      final zones = worldTimeZoneNames();
+      final delhi = zones.singleWhere((z) => z.city == 'New Delhi');
+      expect(delhi.name, 'Asia/Kolkata');
+      expect(delhi.region, 'Delhi, India');
+      // The label is what stops the added clock being titled "Kolkata".
+      expect(delhi.label, 'New Delhi');
+
+      expect(rankTimeZones(zones, 'new delhi').first.city, 'New Delhi');
+      expect(
+        rankTimeZones(zones, 'san francisco').first.name,
+        'America/Los_Angeles',
+      );
+      expect(rankTimeZones(zones, 'cape town').first.name,
+          'Africa/Johannesburg');
+    });
+
+    test('a city its own zone already names gets no second row', () {
+      final zones = worldTimeZoneNames();
+      final tokyo = zones.singleWhere((z) => z.city == 'Tokyo');
+      expect(tokyo.name, 'Asia/Tokyo');
+      // An IANA row needs no label: the zone already says what it is called.
+      expect(tokyo.label, isNull);
+      expect(zones.singleWhere((z) => z.city == 'New York').label, isNull);
+    });
+
+    test('a city row still answers to the zone it keeps time in', () {
+      // Ranked last, so it can never displace a hit on the name being shown.
+      final zones = worldTimeZoneNames();
+      final kolkata = rankTimeZones(zones, 'kolkata').map((z) => z.city);
+      expect(kolkata.first, 'Kolkata');
+      expect(kolkata, contains('New Delhi'));
+    });
   });
 }

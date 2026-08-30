@@ -13,6 +13,8 @@ import 'package:flutter/foundation.dart' show immutable, visibleForTesting;
 import 'package:timezone/data/latest.dart' show initializeTimeZones;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'package:graceful_shell/world_cities.dart';
+
 bool _initialized = false;
 
 /// Loads the IANA database. Idempotent, and cheap after the first call.
@@ -51,30 +53,68 @@ class ZoneTime {
   final String abbreviation;
 }
 
-/// An IANA zone name with its searchable text pre-folded to lower case.
+/// One row of the zone picker: a place, the zone it keeps time in, and its
+/// searchable text pre-folded to lower case.
 ///
 /// The folding happens once, when the list is built, rather than on every
 /// keystroke across four hundred zones — the [SearchableApp] trick from
 /// `lib/launcher/app_search.dart`.
+///
+/// A row is one of two things. An **IANA row** is a zone standing for itself:
+/// [name] is the zone, [city] its last segment and [region] its first, and
+/// [label] is null because the zone already says what it is called. A **city
+/// row** comes from `lib/world_cities.dart` and is a place the database has no
+/// name for — New Delhi, San Francisco, Cape Town — so [name] is still the
+/// zone that gets stored, [city] is the place, [region] is where it is, and
+/// [label] is what the world-clock row must be titled: without it a user who
+/// picked New Delhi would get a clock labelled Kolkata.
 @immutable
 class TimeZoneName {
-  TimeZoneName(this.name)
-      : city = zoneCityLabel(name),
-        region = name.contains('/') ? name.split('/').first : name,
-        _city = zoneCityLabel(name).toLowerCase(),
-        _region =
-            (name.contains('/') ? name.split('/').first : name).toLowerCase(),
-        _full = name.replaceAll('_', ' ').replaceAll('/', ' ').toLowerCase();
+  TimeZoneName(String name)
+      : this._(
+          name: name,
+          city: zoneCityLabel(name),
+          region: name.contains('/') ? name.split('/').first : name,
+          label: null,
+        );
+
+  /// A place the IANA database does not name, keeping time in [zone].
+  TimeZoneName.place({
+    required String zone,
+    required String city,
+    required String region,
+  }) : this._(name: zone, city: city, region: region, label: city);
+
+  TimeZoneName._({
+    required this.name,
+    required this.city,
+    required this.region,
+    required this.label,
+  })  : _city = city.toLowerCase(),
+        _region = region.toLowerCase(),
+        // The zone's own name stays searchable on a city row, so typing
+        // `kolkata` still turns up every Indian city and `asia` still turns up
+        // the continent — it is ranked last, so it can never displace a hit on
+        // the name the row is actually showing.
+        _full = ('${name.replaceAll('_', ' ').replaceAll('/', ' ')} '
+                '$city $region')
+            .toLowerCase();
 
   /// The raw IANA name, e.g. `America/Argentina/Buenos_Aires`. This is what is
   /// stored in the config.
   final String name;
 
-  /// The last segment, humanised: `Buenos Aires`.
+  /// What the row is called: the zone's last segment, humanised (`Buenos
+  /// Aires`), or a city the database does not name (`New Delhi`).
   final String city;
 
-  /// The first segment: `America`.
+  /// Where it is: the zone's first segment (`America`), or a city's country
+  /// and region (`California, United States`).
   final String region;
+
+  /// The label a world clock added from this row must carry, or null when the
+  /// zone's own city segment already says it.
+  final String? label;
 
   final String _city;
   final String _region;
@@ -97,13 +137,63 @@ bool _isPickableZone(String name) {
   return true;
 }
 
-/// Every zone the picker offers, sorted by name.
+/// Every row the picker offers: the IANA zones, plus the cities from
+/// `lib/world_cities.dart` those zones do not name.
+///
+/// The database's names are *zones* rather than places — one representative
+/// settlement per offset history — so a picker built from it alone has no New
+/// Delhi (India is `Asia/Kolkata`), no San Francisco, no Boston and no Cape
+/// Town, which reads as a search that does not work rather than as a database
+/// that names things differently.
+///
+/// Three things this merge has to keep true:
+///
+/// - **A city whose zone already carries its name is not added twice.** Tokyo,
+///   London and New York are `Asia/Tokyo`, `Europe/London` and
+///   `America/New_York`, so the IANA row is the row; only the places the
+///   database is silent about get one of their own.
+/// - **A city whose zone this build's database does not know is dropped**,
+///   never thrown for — the `TomlReader` rule, applied to data the shell
+///   ships. `test/world_cities_test.dart` is what stops that degradation from
+///   quietly hiding a typo.
+/// - **The order stays the zone's**, so an empty query still reads down the
+///   database alphabetically and the cities sit with the zone they keep time
+///   in — New Delhi, Kolkata, Mumbai and Pune under one another.
 List<TimeZoneName> worldTimeZoneNames() {
   ensureTimeZonesInitialized();
-  return _names ??= [
+  return _names ??= _buildZoneNames();
+}
+
+List<TimeZoneName> _buildZoneNames() {
+  final zones = <TimeZoneName>[
     for (final name in (tz.timeZoneDatabase.locations.keys.toList()..sort()))
       if (_isPickableZone(name)) TimeZoneName(name),
   ];
+  final known = <String>{for (final zone in zones) zone.name};
+  final named = <String>{
+    for (final zone in zones) '${zone.name}\u0000${zone._city}',
+  };
+
+  for (final city in kWorldCities) {
+    if (!known.contains(city.zone)) continue;
+    if (named.contains('${city.zone}\u0000${city.name.toLowerCase()}')) {
+      continue;
+    }
+    zones.add(
+      TimeZoneName.place(
+        zone: city.zone,
+        city: city.name,
+        region: city.qualifier,
+      ),
+    );
+  }
+
+  zones.sort((a, b) {
+    final byZone = a.name.compareTo(b.name);
+    if (byZone != 0) return byZone;
+    return a.city.compareTo(b.city);
+  });
+  return zones;
 }
 
 /// The wall clock in [zone] at the instant [now], or null when the database
