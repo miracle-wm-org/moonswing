@@ -189,6 +189,29 @@ void main() {
         attach);
   });
 
+  test('carbon draws its popups out of the same graphite as its bar', () {
+    final carbon = _shipped('carbon');
+    // The join carries this theme, and a colour step across it is the one
+    // thing that would still read as two surfaces meeting after the gap, the
+    // shadow and the rim have all been taken away. panelBackgroundDecoration
+    // paints panel_background verbatim under panel_gradient = false, so the
+    // fill either side of the join is this one value.
+    expect(carbon.popupBackground, carbon.panelBackground,
+        reason: 'a card that grows out of the bar is made of the bar');
+    expect(carbon.panelGradient, isFalse,
+        reason: 'a fade would step across the join the flare exists to erase');
+    expect(carbon.popupBackground.a, 1.0,
+        reason: 'a translucent card would let the wallpaper decide which half '
+            'of the join is which');
+    // With no step in the fill, the rim is the only thing drawing the flare's
+    // sweep — so it has to be distinguishable from both surfaces it separates.
+    expect(carbon.popupBorderWidth, greaterThan(0));
+    expect(carbon.popupBorder, isNot(carbon.popupBackground));
+    // And a control still has to lift off the card it sits on, which it now
+    // does by two of Carbon's steps rather than one.
+    expect(carbon.controlSurface, isNot(carbon.popupBackground));
+  });
+
   test('a shipped theme that attaches its popups draws no rim on its bar', () {
     // panel_border_width above zero draws the bar's rim along its *inner* edge
     // too — a hairline straight across the join that squaring the corners and
