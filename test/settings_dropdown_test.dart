@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -64,6 +65,61 @@ Future<void> openList(WidgetTester tester, {required String on}) async {
 /// The list is open when an item other than the selected one is on screen —
 /// the trigger shows only the selection.
 bool _listOpen() => find.text('Device 1').evaluate().isNotEmpty;
+
+/// The effects list's shape: a name and a sentence explaining it.
+const _described = <SettingsDropdownItem<String>>[
+  SettingsDropdownItem<String>(
+    value: 'none',
+    label: 'None',
+    description: 'The card appears and disappears with no animation.',
+  ),
+  SettingsDropdownItem<String>(
+    value: 'grow',
+    label: 'Grow from edge',
+    description: 'The card unrolls out of the bar it is anchored to, growing '
+        'from the edge they share.',
+  ),
+];
+
+/// Pumps the control the way a `SettingsRow` does: as an *inflexible* child of
+/// a Row, so the trigger shrink-wraps its label and the card cannot borrow the
+/// row's width.
+Future<void> pumpInRow(
+  WidgetTester tester, {
+  required List<SettingsDropdownItem<String>> items,
+  String? selected,
+  ValueChanged<String>? onSelected,
+}) async {
+  await tester.pumpWidget(
+    Directionality(
+      textDirection: TextDirection.ltr,
+      child: DefaultTextStyle(
+        style: const TextStyle(fontSize: 14),
+        child: ThemeScope(
+          theme: const ThemeConfig(),
+          child: Overlay(
+            initialEntries: [
+              OverlayEntry(
+                builder: (_) => Row(
+                  children: [
+                    const Expanded(child: SizedBox()),
+                    SettingsDropdown<String>(
+                      key: _hostKey,
+                      items: items,
+                      selected: selected,
+                      onSelected: onSelected ?? (_) {},
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+}
 
 void main() {
   testWidgets('shows the selection and no list until tapped', (tester) async {
@@ -275,5 +331,115 @@ void main() {
 
     await openList(tester, on: 'Device 0');
     expect(_listOpen(), isTrue);
+  });
+  group('a described list', () {
+    testWidgets("takes its own width rather than the trigger's", (tester) async {
+      await pumpInRow(tester, items: _described, selected: 'none');
+      final trigger = tester.getRect(find.byKey(_hostKey));
+
+      await openList(tester, on: 'None');
+
+      final card = tester.getRect(find.byType(ListView));
+      // The defect: a card matched to a trigger showing "None" is a card a
+      // sentence cannot be read in.
+      expect(card.width, greaterThan(trigger.width));
+      // It grows leftwards from the trigger's right edge, which in a settings
+      // row is where the pane's width is — rightwards there is nothing but the
+      // edge of the panel. (The list sits inside the card's 1px border.)
+      expect(card.right, moreOrLessEquals(trigger.right - 1, epsilon: 1.0));
+      expect(card.left, lessThan(trigger.left));
+    });
+
+    testWidgets('carries every sentence, and overflows nothing',
+        (tester) async {
+      await pumpInRow(tester, items: _described, selected: 'none');
+      await openList(tester, on: 'None');
+
+      for (final item in _described) {
+        expect(find.text(item.description!), findsOneWidget);
+      }
+      // A sentence in the `detail` slot is laid out unflexed beside an
+      // `Expanded` label: it takes the whole row, leaves the label no width,
+      // and overflows the card it is drawn in. A `description` wraps, into a
+      // row whose extent was measured to hold it.
+      expect(tester.takeException(), isNull);
+      expect(find.text('None'), findsWidgets);
+      expect(find.text('Grow from edge'), findsOneWidget);
+    });
+
+    testWidgets('sizes its rows to the prose, not to a name', (tester) async {
+      await pumpInRow(tester, items: _described, selected: 'none');
+      await openList(tester, on: 'None');
+
+      final row = tester.getSize(
+        find.ancestor(
+          of: find.text(_described.last.description!),
+          matching: find.byType(HoverRegion),
+        ),
+      );
+      // The 34px a label alone needs, which is what an undescribed list uses.
+      expect(row.height, greaterThan(34));
+    });
+
+    testWidgets('picking a row still reports it', (tester) async {
+      final picked = <String>[];
+      await pumpInRow(
+        tester,
+        items: _described,
+        selected: 'none',
+        onSelected: picked.add,
+      );
+      await openList(tester, on: 'None');
+
+      await tester.tap(find.text('Grow from edge'));
+      await tester.pump();
+
+      expect(picked, ['grow']);
+    });
+  });
+
+  group('describedDropdownRowHeight', () {
+    const labelStyle = TextStyle(fontSize: 13);
+    const descriptionStyle = TextStyle(fontSize: 11);
+    const long = 'The card unrolls out of the bar it is anchored to, growing '
+        'from the edge they share.';
+
+    double heightOf(
+      List<String> descriptions, {
+      double width = 200,
+      TextScaler scaler = TextScaler.noScaling,
+    }) =>
+        describedDropdownRowHeight(
+          descriptions: descriptions,
+          contentWidth: width,
+          labelStyle: labelStyle,
+          descriptionStyle: descriptionStyle,
+          textScaler: scaler,
+        );
+
+    // testWidgets rather than test: laying text out needs the binding, and
+    // this file's other cases are the only thing that would have initialized
+    // it. Nothing is pumped.
+    testWidgets('grows as the prose wraps to more lines', (tester) async {
+      expect(heightOf([long], width: 120),
+          greaterThan(heightOf([long], width: 600)));
+    });
+
+    testWidgets('answers for the tallest description, not the first',
+        (tester) async {
+      expect(heightOf(['Short.', long]), heightOf([long]));
+      expect(heightOf(['Short.', long]),
+          greaterThan(heightOf(['Short.'])));
+    });
+
+    testWidgets("follows the theme's font size through the scaler",
+        (tester) async {
+      // A row extent measured in the platform default is a measurement of a
+      // different card: `font_size` scales the whole ShellFontSizes ladder.
+      expect(
+        heightOf([long], scaler: const TextScaler.linear(1.6)),
+        greaterThan(heightOf([long])),
+      );
+    });
   });
 }

@@ -1,11 +1,13 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/config.dart' show ThemeConfig;
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/root_modal.dart';
 import 'package:graceful_shell/hover_region.dart';
@@ -710,18 +712,88 @@ class SettingsRescanButton extends StatelessWidget {
 }
 
 /// One row of a [SettingsDropdown]: the [value] it stands for, the [label]
-/// shown for it, and an optional dim [detail] tag after the label (the display
-/// pane marks its preferred mode this way).
+/// shown for it, an optional dim [detail] tag after the label (the display
+/// pane marks its preferred mode this way), and an optional [description] —
+/// a sentence set *under* the label.
+///
+/// The two dim slots are not interchangeable, and conflating them is what
+/// broke the popup-animation row: [detail] is a word or two that shares the
+/// label's line and is laid out at whatever width it asks for, so a sentence
+/// put there takes the whole row, ellipsises the label to nothing and is then
+/// clipped at the card's edge. A [description] wraps, and is what makes the
+/// card size itself to the prose rather than to the trigger it drops out of —
+/// see [SettingsDropdown.cardWidth].
 class SettingsDropdownItem<T> {
   const SettingsDropdownItem({
     required this.value,
     required this.label,
     this.detail,
+    this.description,
   });
 
   final T value;
   final String label;
   final String? detail;
+  final String? description;
+}
+
+/// The card width a described dropdown takes when its caller names none.
+///
+/// Wider than any settings row's control, which is the whole point: a row of
+/// prose cannot be read in the width of the trigger showing "Slide and fade".
+const double _kDescribedCardWidth = 340;
+
+/// How tall a described card may grow before it scrolls. Enough for the seven
+/// popup effects; a longer list scrolls as any other does.
+const double _kDescribedMaxHeight = 420;
+
+/// A described row's padding above and below its two lines, and the gap
+/// between them.
+const double _kDescribedRowPadding = 7;
+const double _kDescribedRowGap = 3;
+
+/// How many lines of a [SettingsDropdownItem.description] are drawn. Beyond
+/// this the sentence ellipsises — a dropdown row is not a paragraph.
+const int _kDescriptionMaxLines = 3;
+
+/// The row extent a described dropdown needs, measured rather than guessed.
+///
+/// The rows are a *fixed* extent — the generic's keyboard reveal is arithmetic
+/// over it, not a measurement — so the one number has to be the tallest row's,
+/// and it moves with the theme: the same sentence is two lines under one font
+/// and three under another, and `font_size` scales the whole
+/// [ShellFontSizes] ladder through a [TextScaler]. Measuring with the very
+/// styles the row renders in is the rule `TrackMarquee` and `fitFortuneText`
+/// already state.
+double describedDropdownRowHeight({
+  required Iterable<String> descriptions,
+  required double contentWidth,
+  required TextStyle labelStyle,
+  required TextStyle descriptionStyle,
+  required TextScaler textScaler,
+}) {
+  double measure(String text, TextStyle style, int maxLines) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: textScaler,
+      maxLines: maxLines,
+      ellipsis: '\u2026',
+    )..layout(maxWidth: contentWidth);
+    final height = painter.height;
+    painter.dispose();
+    return height;
+  }
+
+  var tallest = 0.0;
+  for (final description in descriptions) {
+    final height = measure(description, descriptionStyle, _kDescriptionMaxLines);
+    if (height > tallest) tallest = height;
+  }
+  // 'Ag' rather than the labels themselves: the label is one line by
+  // construction, so what is wanted is the line height of the style.
+  final label = measure('Ag', labelStyle, 1);
+  return label + _kDescribedRowGap + tallest + 2 * _kDescribedRowPadding;
 }
 
 /// A bordered trigger showing the selected item's label, dropping a list of
@@ -742,6 +814,9 @@ class SettingsDropdownItem<T> {
 /// The filter field appears only past [searchFrom] items: a search box over
 /// the two outputs a machine has is chrome asking to be typed into for no
 /// gain, while the thirty modes a monitor reports genuinely want one.
+///
+/// [cardWidth] is the opt-out from all of that, for the list whose rows carry
+/// prose rather than a name — see [SettingsDropdownItem.description].
 class SettingsDropdown<T> extends StatelessWidget {
   const SettingsDropdown({
     super.key,
@@ -749,6 +824,7 @@ class SettingsDropdown<T> extends StatelessWidget {
     required this.selected,
     required this.onSelected,
     this.searchFrom = 8,
+    this.cardWidth,
   });
 
   final List<SettingsDropdownItem<T>> items;
@@ -758,6 +834,22 @@ class SettingsDropdown<T> extends StatelessWidget {
   /// The item count from which the card carries a filter field.
   final int searchFrom;
 
+  /// Float the card at this width instead of sizing it to the trigger.
+  ///
+  /// The trigger is a control at the right-hand end of a settings row and is
+  /// only as wide as the value it is showing, so a card matched to it is only
+  /// as wide as the word "Fade" — which is right for a list of names and
+  /// hopeless for one whose rows explain themselves. A card with its own width
+  /// therefore also anchors its *right* edge to the trigger's, growing
+  /// leftwards over the pane rather than rightwards off it:
+  /// [AnchoredSearchDropdown.alignRight]'s reasoning, reached from the other
+  /// direction.
+  ///
+  /// Defaulted for a list whose items carry a
+  /// [SettingsDropdownItem.description], since that is the shape that needs
+  /// it; passing one explicitly is how a caller asks for a different width.
+  final double? cardWidth;
+
   String get _selectedLabel {
     for (final item in items) {
       if (item.value == selected) return item.label;
@@ -765,15 +857,53 @@ class SettingsDropdown<T> extends StatelessWidget {
     return '—';
   }
 
+  bool get _described => items.any((item) => item.description != null);
+
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final described = _described;
+    final width = cardWidth ?? (described ? _kDescribedCardWidth : null);
+    final rowHeight = described && width != null
+        ? describedDropdownRowHeight(
+            descriptions: [
+              for (final item in items)
+                if (item.description != null) item.description!,
+            ],
+            contentWidth: dropdownContentWidth(width),
+            // Merged over the ambient default the way `Text` itself merges
+            // it: the card is built under the same `DefaultTextStyle` as this
+            // trigger, and a measurement that skipped it would be taken in a
+            // style with a different line height from the one drawn.
+            labelStyle: DefaultTextStyle.of(
+              context,
+            ).style.merge(_dropdownLabelStyle(theme, selected: false)),
+            descriptionStyle: DefaultTextStyle.of(
+              context,
+            ).style.merge(_dropdownDescriptionStyle(theme)),
+            textScaler:
+                MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling,
+          )
+        : 34.0;
     return AnchoredSearchDropdown<SettingsDropdownItem<T>>(
       // The card drops out of the trigger, so it is the trigger's width — a
       // fixed one would read as a different control on a row that stretches.
-      matchTriggerWidth: true,
+      // Unless the caller named one, in which case it is that, anchored to the
+      // trigger's right edge; see [cardWidth].
+      matchTriggerWidth: width == null,
+      width: width ?? 240,
+      alignRight: width != null,
       showSearch: items.length >= searchFrom,
-      rowHeight: 34,
-      maxHeight: 260,
+      rowHeight: rowHeight,
+      // Tall enough for the whole list where the list is short, so a card
+      // that has been given room to explain itself is not also made to
+      // scroll; a longer one still stops at [_kDescribedMaxHeight].
+      maxHeight: width == null
+          ? 260
+          : math.min(
+              _kDescribedMaxHeight,
+              items.length * rowHeight + kDropdownCardPadding,
+            ),
       // Closes the open list when what it is listing moves underneath it, the
       // guard the font field takes against a stale pick: the card is an
       // OverlayEntry and does not rebuild on the host's setState, so its rows
@@ -882,6 +1012,23 @@ class _DropdownTrigger extends StatelessWidget {
   }
 }
 
+/// The label's style, and the description's. Shared with
+/// [describedDropdownRowHeight], which has to lay the text out in the very
+/// styles the row renders in or it is measuring a different paragraph.
+TextStyle _dropdownLabelStyle(ThemeConfig theme, {required bool selected}) =>
+    TextStyle(
+      fontSize: ShellFontSizes.body,
+      fontFamily: theme.fontFamily,
+      color: selected ? theme.accent : theme.popupForeground,
+    );
+
+TextStyle _dropdownDescriptionStyle(ThemeConfig theme) => TextStyle(
+  fontSize: ShellFontSizes.caption,
+  fontFamily: theme.fontFamily,
+  color: theme.popupForeground.withValues(alpha: 0.55),
+  height: 1.35,
+);
+
 /// One row's *content*; the hover fill, the highlight fill and the tap target
 /// are the dropdown's own chrome.
 class _DropdownRow<T> extends StatelessWidget {
@@ -894,18 +1041,15 @@ class _DropdownRow<T> extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final detail = item.detail;
-    return Row(
+    final description = item.description;
+    final label = Row(
       children: [
         Expanded(
           child: Text(
             item.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: ShellFontSizes.body,
-              fontFamily: theme.fontFamily,
-              color: selected ? theme.accent : theme.popupForeground,
-            ),
+            style: _dropdownLabelStyle(theme, selected: selected),
           ),
         ),
         if (detail != null)
@@ -917,6 +1061,24 @@ class _DropdownRow<T> extends StatelessWidget {
               color: theme.popupForeground.withValues(alpha: 0.4),
             ),
           ),
+      ],
+    );
+    if (description == null) return label;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        label,
+        const SizedBox(height: _kDescribedRowGap),
+        Text(
+          description,
+          // The same cap the row extent was measured against: a sentence
+          // longer than the card was sized for ellipsises rather than
+          // overflowing a fixed-extent row.
+          maxLines: _kDescriptionMaxLines,
+          overflow: TextOverflow.ellipsis,
+          style: _dropdownDescriptionStyle(theme),
+        ),
       ],
     );
   }

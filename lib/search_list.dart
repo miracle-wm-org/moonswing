@@ -40,8 +40,26 @@ const double _kSearchFieldHeight = 48;
 /// Gap between the trigger and the card it drops.
 const double _kGap = 6;
 
+/// The horizontal inset of a row's content inside the card, and the card's own
+/// border width.
+///
+/// Public because a caller that *measures* its rows has to lay its text out in
+/// the width the card will actually give it — [dropdownContentWidth] is that
+/// subtraction, spelled once so a padding change here cannot silently make
+/// somebody else's measurement wrong.
+const double kDropdownRowInset = 12;
+const double kDropdownCardBorder = 1;
+
+/// The width a row's content is laid out in, inside a card [cardWidth] wide.
+double dropdownContentWidth(double cardWidth) =>
+    math.max(0, cardWidth - 2 * (kDropdownRowInset + kDropdownCardBorder));
+
 /// The card's own vertical padding above and below its list, plus its border.
-const double _kCardPadding = 14;
+///
+/// Public alongside [kDropdownRowInset]: a caller sizing a card to its rows
+/// has to add what the card puts around them, and two spellings of that would
+/// drift the first time the padding moved.
+const double kDropdownCardPadding = 14;
 
 /// Scroll offset that brings row [index] (of height [rowHeight]) into view on
 /// [position], or null when it already is. Pure, so the keyboard-navigation
@@ -276,7 +294,7 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
     final search = widget.showSearch ? _kSearchFieldHeight : 0.0;
     return math.min(
       widget.maxHeight,
-      search + rows * widget.rowHeight + _kCardPadding,
+      search + rows * widget.rowHeight + kDropdownCardPadding,
     );
   }
 
@@ -518,7 +536,10 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
           // card floats over the pane's own form rows. See [OpaquePopupScope].
           color: OpaquePopupScope.fill(context, theme),
           borderRadius: BorderRadius.circular(ShellRadii.card),
-          border: Border.all(color: theme.divider),
+          border: Border.all(
+            color: theme.divider,
+            width: kDropdownCardBorder,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -558,7 +579,9 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
                       onTap: () => widget.onSelected(item),
                       builder: (context, hovered) => Container(
                         alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: kDropdownRowInset,
+                        ),
                         color: highlighted
                             ? theme.accent.withValues(alpha: 0.15)
                             : hovered
