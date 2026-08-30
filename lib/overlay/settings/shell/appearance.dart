@@ -404,12 +404,18 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   label: 'Popup animation',
                   control: SettingsDropdown<PopupEffect>(
                     key: ValueKey('popup_animation-$active'),
+                    // `description`, not `detail`: a sentence in the tag slot
+                    // is laid out unflexed beside the label, so it took the
+                    // whole row, ellipsised the name to nothing and was then
+                    // clipped by a card sized to a trigger reading "Fade". A
+                    // description wraps, and is what gives the card a width of
+                    // its own — see [SettingsDropdown.cardWidth].
                     items: [
                       for (final effect in PopupEffect.values)
                         SettingsDropdownItem<PopupEffect>(
                           value: effect,
                           label: effect.label,
-                          detail: effect.description,
+                          description: effect.description,
                         ),
                     ],
                     // The resolved theme's, so a file written before this key
