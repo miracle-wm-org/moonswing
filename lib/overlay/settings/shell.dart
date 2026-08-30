@@ -70,12 +70,14 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
     return Navigator(
       onGenerateInitialRoutes: (navigator, initialRoute) => [
         PageRouteBuilder(
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
           pageBuilder: (context, _, __) => _ShellHome(store: store),
         ),
         // A deep link pushes the category *on top of* the landing page rather
         // than replacing it, so Back still goes where the user expects.
         if (initial != null)
-          _slideRoute(_ShellCategoryView(category: initial, store: store)),
+          _categoryRoute(_ShellCategoryView(category: initial, store: store)),
       ],
     );
   }
@@ -216,7 +218,7 @@ class _ShellHome extends StatelessWidget {
                       _CategoryCard(
                         category: category,
                         onTap: () => Navigator.of(context).push(
-                          _slideRoute(
+                          _categoryRoute(
                             _ShellCategoryView(
                               category: category,
                               store: store,
@@ -314,84 +316,22 @@ class _ShellCategoryView extends StatelessWidget {
   }
 }
 
-/// Subtle horizontal-slide + fade transition for pushing a category view.
-PageRoute<T> _slideRoute<T>(Widget child) {
+/// Instant route for pushing a category view.
+///
+/// There is deliberately no transition here. The pane is a nested [Navigator]
+/// inside the settings panel, and every route in it fills the same box against
+/// the same opaque panel fill — so an animated push spends its whole duration
+/// showing the outgoing page *through* the incoming one, which reads as the
+/// pane flickering rather than as movement. A zero-duration route swaps the
+/// two on one frame, and `transitionsBuilder` is left at its default, which
+/// returns the child unwrapped: nothing is built per frame because there are
+/// no frames to build for.
+PageRoute<T> _categoryRoute<T>(Widget child) {
   return PageRouteBuilder<T>(
-    transitionDuration: const Duration(milliseconds: 220),
-    reverseTransitionDuration: const Duration(milliseconds: 180),
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
     pageBuilder: (context, animation, secondaryAnimation) => child,
-    // The curve and the tween are built once, by [_SlideFadeTransition], and
-    // not here: `transitionsBuilder` is called from a ListenableBuilder on the
-    // route's own animations, so it runs on *every frame* of the transition.
-    // Spelling the CurvedAnimation inline therefore minted one per frame —
-    // each of which registers a status listener on the parent and is never
-    // disposed — and handed FadeTransition/SlideTransition a different
-    // Listenable every frame, so both re-subscribed on each tick instead of
-    // simply being ticked.
-    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-        _SlideFadeTransition(animation: animation, child: child),
   );
-}
-
-/// The [_slideRoute] transition, owning its [CurvedAnimation] for the life of
-/// the route rather than for one frame.
-class _SlideFadeTransition extends StatefulWidget {
-  const _SlideFadeTransition({required this.animation, required this.child});
-
-  final Animation<double> animation;
-  final Widget child;
-
-  @override
-  State<_SlideFadeTransition> createState() => _SlideFadeTransitionState();
-}
-
-class _SlideFadeTransitionState extends State<_SlideFadeTransition> {
-  late CurvedAnimation _curved;
-  late Animation<Offset> _offset;
-
-  @override
-  void initState() {
-    super.initState();
-    _bind();
-  }
-
-  @override
-  void didUpdateWidget(_SlideFadeTransition oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // A route keeps one animation for its whole life, so this is defensive
-    // rather than expected — but a CurvedAnimation left listening to an
-    // animation nobody drives any more is a leak either way.
-    if (!identical(oldWidget.animation, widget.animation)) {
-      _curved.dispose();
-      _bind();
-    }
-  }
-
-  void _bind() {
-    _curved = CurvedAnimation(
-      parent: widget.animation,
-      curve: Curves.easeOutCubic,
-      reverseCurve: Curves.easeInCubic,
-    );
-    _offset = Tween<Offset>(
-      begin: const Offset(0.06, 0),
-      end: Offset.zero,
-    ).animate(_curved);
-  }
-
-  @override
-  void dispose() {
-    _curved.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _curved,
-      child: SlideTransition(position: _offset, child: widget.child),
-    );
-  }
 }
 
 /// Tappable, hover-aware row on the landing page. Styled after the sidebar's
