@@ -39,7 +39,7 @@ FixedClockSource _source() => FixedClockSource(
 Future<void> pumpColumn(
   WidgetTester tester, {
   required List<WorldClock> clocks,
-  ValueChanged<String>? onAdd,
+  ValueChanged<TimeZoneName>? onAdd,
   ValueChanged<String>? onRemove,
   ClockSource? clock,
 }) async {
@@ -207,7 +207,7 @@ void main() {
     testWidgets('filters as the user types, and Enter takes the top match',
         (tester) async {
       String? added;
-      await pumpColumn(tester, clocks: const [], onAdd: (z) => added = z);
+      await pumpColumn(tester, clocks: const [], onAdd: (z) => added = z.name);
       await _openPicker(tester);
 
       await tester.enterText(find.byType(EditableText), 'tok');
@@ -224,7 +224,7 @@ void main() {
 
     testWidgets('the arrows move the selection Enter takes', (tester) async {
       String? added;
-      await pumpColumn(tester, clocks: const [], onAdd: (z) => added = z);
+      await pumpColumn(tester, clocks: const [], onAdd: (z) => added = z.name);
       await _openPicker(tester);
 
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);

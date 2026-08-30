@@ -55,7 +55,7 @@ class CalendarClockColumn extends StatefulWidget {
   final bool active;
 
   final List<WorldClock> clocks;
-  final ValueChanged<String> onAdd;
+  final ValueChanged<TimeZoneName> onAdd;
   final ValueChanged<String> onRemove;
   final ClockSource clock;
 

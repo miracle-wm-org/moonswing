@@ -22,6 +22,7 @@ import 'package:graceful_shell/search_list.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/weather/weather_api.dart';
 import 'package:graceful_shell/weather/weather_config.dart';
+import 'package:graceful_shell/world_cities.dart';
 
 /// The config path each half of the location lives at.
 const List<String> kWeatherLocationPath = ['modules', 'weather', 'location'];
@@ -46,16 +47,31 @@ class WeatherLocationChoice {
 /// Searches for places by name. Injected so a widget test never opens a socket.
 typedef WeatherPlaceSearch = Future<List<WeatherPlace>> Function(String query);
 
+/// How many of the shell's own cities the list offers before the geocoder's
+/// answers. Enough to fill the card, few enough that a real match for what was
+/// typed is never pushed under the fold by places that merely also matched.
+const int kWeatherCityLimit = 6;
+
 /// The settings row that picks where the weather is read for.
 class WeatherLocationField extends StatelessWidget {
   WeatherLocationField({
     super.key,
     required this.store,
     WeatherPlaceSearch? search,
-  }) : search = search ?? const OpenMeteoClient().search;
+    List<WorldCity>? cities,
+  })  : search = search ?? const OpenMeteoClient().search,
+        cities = cities ?? kWorldCities;
 
   final ConfigStore store;
   final WeatherPlaceSearch search;
+
+  /// The shell's own gazetteer — the same table the world-clock picker offers,
+  /// which is the point of it being a table rather than each picker's own list.
+  ///
+  /// A parameter for the reason [AnchoredSearchDropdown] documents about every
+  /// list it is given: a widget test asserting what the card shows must be able
+  /// to say what is in it.
+  final List<WorldCity> cities;
 
   /// What the trigger reads: the saved name, or the automatic label.
   ///
@@ -73,15 +89,56 @@ class WeatherLocationField extends StatelessWidget {
     return place == null ? 'Automatic (from IP)' : place.name;
   }
 
-  Future<List<WeatherLocationChoice>> _search(String query) async {
+  /// The rows to show without asking anybody: the automatic entry and whatever
+  /// the shell's own table matches.
+  ///
+  /// This is the [AnchoredSearchDropdown.filter] half, which answers on the
+  /// keystroke rather than after the debounce — so the card fills in as the
+  /// user types instead of sitting on "Searching…" for a place the shell has
+  /// known about since it was compiled.
+  List<WeatherLocationChoice> _local(String query) {
     // The automatic row is always first, whatever was typed: it is how a
     // chosen location is undone, and a user who has typed three letters of a
     // city they then think better of must not have to clear the field to find
     // it again.
-    final places = await search(query);
     return [
       const WeatherLocationChoice.automatic(),
-      for (final place in places) WeatherLocationChoice.at(place),
+      for (final city
+          in rankWorldCities(cities, query, limit: kWeatherCityLimit))
+        WeatherLocationChoice.at(_placeFor(city)),
+    ];
+  }
+
+  /// The same rows with the geocoder's answers under them.
+  ///
+  /// The two halves are merged rather than swapped, and in that order: the
+  /// table is the places somebody is most likely to mean and the geocoder is
+  /// everywhere else, so a request that lands must not take New Delhi off a
+  /// list it was already on. A place the geocoder repeats is dropped rather
+  /// than listed twice — the row would be identical and the coordinates within
+  /// a mile of each other.
+  ///
+  /// A failed lookup costs the geocoder's half alone. The table is local data
+  /// and a network that is down is no reason to stop offering it; without this
+  /// the one thing this change adds would disappear on exactly the machines
+  /// that most need something to pick from. The dropdown's own catch is what
+  /// this replaces — see [AnchoredSearchDropdown.search].
+  Future<List<WeatherLocationChoice>> _search(String query) async {
+    final local = _local(query);
+    List<WeatherPlace> remote;
+    try {
+      remote = await search(query);
+    } catch (_) {
+      remote = const [];
+    }
+    final seen = <String>{
+      for (final choice in local)
+        if (choice.place != null) _dedupeKey(choice.place!),
+    };
+    return [
+      ...local,
+      for (final place in remote)
+        if (seen.add(_dedupeKey(place))) WeatherLocationChoice.at(place),
     ];
   }
 
@@ -117,8 +174,10 @@ class WeatherLocationField extends StatelessWidget {
       listenable: store,
       selector: () => _label,
       builder: (context, label) => AnchoredSearchDropdown<WeatherLocationChoice>(
-        // No synchronous half: there is no local list of places to rank, so the
-        // list opens on the automatic row alone and fills in as the user types.
+        // Both halves: [_local] answers the keystroke out of the shell's own
+        // table, and [_search] replaces it with the same rows plus whatever the
+        // geocoder found once the request lands.
+        filter: _local,
         search: _search,
         width: 280,
         rowHeight: 40,
@@ -139,6 +198,26 @@ class WeatherLocationField extends StatelessWidget {
     );
   }
 }
+
+/// A city from the shell's table, as the coordinates the forecast API wants.
+///
+/// The conversion lives here rather than on [WorldCity] so `world_cities.dart`
+/// stays a table the weather layer merely reads — the world-clock picker takes
+/// the other half of the same row and must not drag `weather_api.dart` in
+/// behind it.
+WeatherPlace _placeFor(WorldCity city) => WeatherPlace(
+      name: city.name,
+      latitude: city.latitude,
+      longitude: city.longitude,
+      admin: city.admin,
+      country: city.country,
+    );
+
+/// What makes two answers for one place the same place. The name and the
+/// country, folded — not the coordinates, which differ in the third decimal
+/// between two gazetteers naming the same city centre.
+String _dedupeKey(WeatherPlace place) =>
+    '${place.name.toLowerCase()}\u0000${place.country.toLowerCase()}';
 
 class _Trigger extends StatelessWidget {
   const _Trigger({
