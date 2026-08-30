@@ -415,7 +415,14 @@ const String _carbon = '''
 # (popup_gap = 0) and flared (popup_attach_radius = 12), so a menu does not
 # appear beside the bar — it *grows out of* it, each side sweeping outward as
 # it reaches the panel, widest exactly where the two meet. A flat theme with
-# one piece of shaping in it puts that shaping where the eye already is.
+# one piece of shaping in it puts that shaping where the eye already is. And
+# because a card that grows out of the bar is made of the same material as the
+# bar, popup_background is panel_background exactly: the join has no colour
+# step across it, so the two surfaces read as one piece of graphite the menu
+# was cut out of rather than as a card resting against a strip. Every other
+# shipped theme lifts its popups a shade off the bar because a shadow and a gap
+# separate them anyway; this one has neither, so the shade would be the only
+# thing left saying they are two surfaces.
 #
 # The palette is IBM's Carbon greys, which is where the name comes from and
 # also why it is the right one: that design language is flat by conviction
@@ -426,16 +433,20 @@ name = "Carbon"
 font = "Ubuntu Sans"
 font_size = 13.0
 
-# Gray 100 for the deepest surface, Gray 90 for a card, Gray 80 and Gray 70 for
-# the states, Gray 40 for secondary text, Gray 10 for text. Blue 60 is the one
-# colour, and it is the darker interactive blue rather than the lighter one so
-# kOnAccent's white clears 4.5:1 on top of it.
+# Gray 100 for the deepest surface — the bar and every card alike — Gray 80 and
+# Gray 70 for the states, Gray 40 for secondary text, Gray 10 for text. Blue 60
+# is the one colour, and it is the darker interactive blue rather than the
+# lighter one so kOnAccent's white clears 4.5:1 on top of it. Carbon's Gray 100
+# theme layers a card one step up from its background, and skipping that step
+# is the deliberate part: a control on a card still elevates (control_surface
+# is Gray 80, so it now steps twice), but the card itself does not, because a
+# card that grew out of the bar has nothing to elevate away from.
 accent               = "#0F62FE"
 foreground           = "#F4F4F4"
 surface_hover        = "#393939"
 surface_pressed      = "#525252"
 workspace_background = "#161616"
-popup_background     = "#262626"
+popup_background     = "#161616"
 popup_foreground     = "#F4F4F4"
 control_surface      = "#393939"
 slider_track         = "#525252"
@@ -450,7 +461,10 @@ scrim                = "#A6161616"
 # A solid sheet of Gray 100 across the screen edge: no fade, and the only bar
 # shipped with no alpha at all. A gradient would put the accent against the
 # screen edge, and a translucent bar would let the wallpaper decide what colour
-# the flattest surface in the theme is.
+# the flattest surface in the theme is — and, since popup_background is this
+# same value, what colour every menu in the theme is with it. The two keys are
+# a pair here: an alpha or a gradient on either one alone puts a visible step
+# back across the join.
 panel_background     = "#161616"
 panel_gradient       = false
 
@@ -466,9 +480,11 @@ panel_border_width   = 0.0
 
 # A 4px corner: the smallest rounding that still reads as deliberate, on the
 # two corners away from the join. The rim is Carbon's border-strong rather than
-# the divider's border-subtle, because with no shadow beneath it the rim is the
-# card's only edge — over a dark wallpaper a subtle one would leave it with
-# none.
+# the divider's border-subtle, because with no shadow beneath it and no colour
+# step against the bar the rim is the card's only edge — over a dark wallpaper
+# a subtle one would leave it with none, and along the flare it is the only
+# thing that draws the sweep at all, since the fill either side of it is now
+# the same graphite.
 popup_radius         = 4.0
 popup_border         = "#525252"
 popup_border_width   = 1.0

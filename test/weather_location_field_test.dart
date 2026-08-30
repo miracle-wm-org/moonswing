@@ -8,6 +8,7 @@ import 'package:graceful_shell/overlay/settings/shell/weather_location.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/weather/weather_api.dart';
 import 'package:graceful_shell/weather/weather_config.dart';
+import 'package:graceful_shell/world_cities.dart';
 
 const _berlin = WeatherPlace(
   name: 'Berlin',
@@ -40,10 +41,35 @@ Future<ConfigStore> _store(WidgetTester tester, String toml) async {
   return store;
 }
 
+/// The shell's own table, as a widget test can state it.
+///
+/// Injected rather than taken from `kWorldCities` for the reason
+/// `AnchoredSearchDropdown` documents about every list it is given: a test
+/// asserting what the card shows has to be able to say what is in it. Most of
+/// these cases pass `const []` and are about the geocoder's half alone.
+final _cities = [
+  WorldCity(
+    name: 'New Delhi',
+    admin: 'Delhi',
+    country: 'India',
+    zone: 'Asia/Kolkata',
+    latitude: 28.61,
+    longitude: 77.21,
+  ),
+  WorldCity(
+    name: 'Berlin',
+    country: 'Germany',
+    zone: 'Europe/Berlin',
+    latitude: 52.52,
+    longitude: 13.405,
+  ),
+];
+
 Future<void> _pumpField(
   WidgetTester tester,
   ConfigStore store, {
   required WeatherPlaceSearch search,
+  List<WorldCity> cities = const [],
 }) async {
   await tester.pumpWidget(
     Directionality(
@@ -67,6 +93,7 @@ Future<void> _pumpField(
                     builder: (_, _) => WeatherLocationField(
                       store: store,
                       search: search,
+                      cities: cities,
                     ),
                   ),
                 ),
@@ -191,14 +218,16 @@ longitude = 13.405
     expect(store.get<num>(kWeatherLongitudePath), isNull);
   });
 
-  testWidgets('a failed lookup is no matches, not a crash', (tester) async {
-    // The dropdown is not the place to explain a failed HTTP request, and a
-    // list left on the previous query's results would be showing the wrong
-    // ones.
+  testWidgets('a failed lookup costs the geocoder, not the shell\'s own list',
+      (tester) async {
+    // The dropdown is not the place to explain a failed HTTP request — but the
+    // table is local data, and a network that is down is no reason to stop
+    // offering it.
     final store = await _store(tester, '');
     await _pumpField(
       tester,
       store,
+      cities: _cities,
       search: (_) async => throw const WeatherException('offline'),
     );
 
@@ -207,7 +236,70 @@ longitude = 13.405
     await tester.pump(const Duration(milliseconds: 400));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Type a town or city'), findsOneWidget);
+    expect(find.text('New Delhi'), findsOneWidget);
+    expect(find.text('Wherever this machine is'), findsOneWidget);
+  });
+
+  testWidgets('the shell\'s own cities are offered without a request',
+      (tester) async {
+    // The list the world clock picker offers, in the weather row too — and
+    // answered on the keystroke rather than after the debounce, because these
+    // are places the shell has known about since it was compiled.
+    var requests = 0;
+    final store = await _store(tester, '');
+    await _pumpField(
+      tester,
+      store,
+      cities: _cities,
+      search: (_) async {
+        requests++;
+        return const [];
+      },
+    );
+
+    await tester.tap(find.text('Automatic (from IP)'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.enterText(find.byType(EditableText), 'new delhi');
+    // No debounce waited out: this is the synchronous half.
+    await tester.pump();
+
+    expect(find.text('New Delhi'), findsOneWidget);
+    expect(find.text('Delhi, India'), findsOneWidget);
+    expect(requests, 1); // The one made when the list opened, and no other.
+
+    await tester.tap(find.text('New Delhi'));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(store.get<String>(kWeatherLocationPath), 'New Delhi, Delhi, India');
+    expect(store.get<num>(kWeatherLatitudePath), 28.61);
+    expect(store.get<num>(kWeatherLongitudePath), 77.21);
+  });
+
+  testWidgets('the geocoder fills in under them, without repeating one',
+      (tester) async {
+    final store = await _store(tester, '');
+    await _pumpField(
+      tester,
+      store,
+      cities: _cities,
+      // Berlin is in the table already; Springfield is not.
+      search: (_) async => const [_berlin, _springfield],
+    );
+
+    await tester.tap(find.text('Automatic (from IP)'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    await tester.enterText(find.byType(EditableText), 'berlin');
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump();
+
+    // One row, not two: the geocoder's answer for a place already listed is
+    // the same row with coordinates a fraction apart.
+    expect(find.text('Berlin'), findsOneWidget);
+    expect(find.text('Springfield'), findsOneWidget);
   });
 
   testWidgets('a slow answer for an earlier query never lands on a later one',
