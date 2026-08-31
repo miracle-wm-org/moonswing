@@ -153,6 +153,15 @@ class ThemeConfig {
   ///
   /// Width, not alpha, is the off switch: at 0 no `Border` is built at all, so
   /// the default decoration stays exactly what it was before rims existed.
+  ///
+  /// The rim is drawn round the whole bar, its **inner** edge included — which
+  /// is the edge an attached popup meets. A flared join ([popupAttachRadius]
+  /// above 0) reaches this far back into the panel so that the flare picks that
+  /// hairline up rather than hanging beneath it; see `popupAttachCollar`
+  /// (`popup_surface.dart`). Without a flare there is nothing to pick it up
+  /// with, so a theme that attaches its popups square (`popup_gap = 0` and
+  /// `popup_attach_radius = 0`) and rims its bar draws a line straight across
+  /// every menu's mouth, and should leave this at 0.
   final double panelBorderWidth;
 
   /// A popup card's corner rounding.
@@ -199,6 +208,12 @@ class ThemeConfig {
   /// is a `ShapeDecoration`. It also paints *outside* the card's own box, so
   /// the popup's surface is grown by `popupAttachInsets` the way it already is
   /// for the shadow.
+  ///
+  /// A flare is also what lets a bar carry a rim without a hairline across
+  /// every menu it opens: the card reaches [panelBorderWidth] back into the
+  /// panel, its fill takes that hairline out across the mouth, and the two arcs
+  /// — tangent to the join at their tips — pick the line up at either end and
+  /// carry it down the card's sides. `popupAttachCollar` is that reach.
   ///
   /// Read only at [popupGap] 0; with a gap there is no join to flare into. 0,
   /// the default, is a square butt join — the card's sides continue the bar's
