@@ -85,7 +85,7 @@ void main() {
       frame(
         CustomScrollView(
           controller: controller,
-          cacheExtent: 600,
+          scrollCacheExtent: const ScrollCacheExtent.pixels(600),
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),

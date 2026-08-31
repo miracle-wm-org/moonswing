@@ -733,7 +733,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                     : ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: manager.heads.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (_, i) {
                           final head = manager.heads[i];
                           final edit = _edits[head.id];

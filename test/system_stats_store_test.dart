@@ -79,7 +79,7 @@ void main() {
       reader: ProcReader(procRoot: proc.path, sysRoot: sys.path),
       sampler: sampler ?? FakeSampler(),
       // The real DiskReader forks `df`; no test should touch the actual machine.
-      disks: DiskReader(runner: (_, __) async => ProcessResult(0, 0, '', '')),
+      disks: DiskReader(runner: (_, _) async => ProcessResult(0, 0, '', '')),
       config: config,
     );
     addTearDown(store.dispose);

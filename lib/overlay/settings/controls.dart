@@ -1596,8 +1596,8 @@ class ColorFieldState extends State<SettingsColorField> {
   }
 
   @override
-  void didUpdateWidget(SettingsColorField old) {
-    super.didUpdateWidget(old);
+  void didUpdateWidget(SettingsColorField oldWidget) {
+    super.didUpdateWidget(oldWidget);
     // Unlike the other controls, this one is re-seeded: switching themes
     // replaces every value under it, and a swatch still showing the previous
     // theme's colour would be a lie.
@@ -1612,7 +1612,7 @@ class ColorFieldState extends State<SettingsColorField> {
     final same = incoming != null && mine != null
         ? incoming == mine
         : widget.initial == _controller.text;
-    if (widget.initial != old.initial && !same) {
+    if (widget.initial != oldWidget.initial && !same) {
       _controller.text = widget.initial;
       _close();
     }
@@ -1782,7 +1782,11 @@ class ColorFieldState extends State<SettingsColorField> {
 /// Visual HSV color picker: a draggable saturation/value square, hue and alpha
 /// sliders, and a manual hex entry. Emits every change through [onChanged].
 class SettingsColorPicker extends StatefulWidget {
-  const SettingsColorPicker({required this.initial, required this.onChanged});
+  const SettingsColorPicker({
+    super.key,
+    required this.initial,
+    required this.onChanged,
+  });
 
   final Color initial;
   final ValueChanged<Color> onChanged;

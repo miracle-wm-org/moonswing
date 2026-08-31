@@ -345,7 +345,7 @@ class _TrayIconState extends State<_TrayIcon> {
         width: widget.size,
         height: widget.size,
         filterQuality: FilterQuality.medium,
-        errorBuilder: (_, __, ___) => _fallback(),
+        errorBuilder: (_, _, _) => _fallback(),
       );
     }
     if (item.iconName.isNotEmpty) {

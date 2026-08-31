@@ -426,7 +426,7 @@ class _MonitorSurfaces {
 
   /// Every native controller owned by this monitor, for teardown.
   Iterable<LayershellWindowController> get controllers => [
-    if (background != null) background!,
+    ?background,
     ...panels.values,
   ];
 }
@@ -2236,7 +2236,7 @@ class PanelMain extends StatefulWidget {
   final String anchor;
 
   @override
-  _PanelMainState createState() => _PanelMainState();
+  State<PanelMain> createState() => _PanelMainState();
 }
 
 class _PanelMainState extends State<PanelMain> {

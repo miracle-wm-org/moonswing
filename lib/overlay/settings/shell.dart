@@ -72,7 +72,7 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
         PageRouteBuilder(
           transitionDuration: Duration.zero,
           reverseTransitionDuration: Duration.zero,
-          pageBuilder: (context, _, __) => _ShellHome(store: store),
+          pageBuilder: (context, _, _) => _ShellHome(store: store),
         ),
         // A deep link pushes the category *on top of* the landing page rather
         // than replacing it, so Back still goes where the user expects.
@@ -302,7 +302,7 @@ class _ShellCategoryView extends StatelessWidget {
           // belt; this is the braces, and it covers scrolling *past* a field
           // that is not focused at all.
           child: CustomScrollView(
-            cacheExtent: 600,
+            scrollCacheExtent: const ScrollCacheExtent.pixels(600),
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),

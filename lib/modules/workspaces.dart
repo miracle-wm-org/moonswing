@@ -413,7 +413,7 @@ class _WorkspaceButtonState extends State<_WorkspaceButton> {
 
     Color color = widget.backgroundColor;
     if (!enabled) {
-      color = color.withOpacity(0.5);
+      color = color.withValues(alpha: 0.5);
     } else if (_pressed) {
       color = widget.pressedColor;
     } else if (_hovered) {

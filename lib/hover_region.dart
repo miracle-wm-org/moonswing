@@ -1,4 +1,3 @@
-import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 /// A hover state, and the tap that goes with it, without the ceremony.

@@ -10,7 +10,7 @@ MprisPlayer _player(
   Duration position = Duration.zero,
   DateTime? positionAt,
 }) {
-  return MprisPlayer(busName: '${kMprisPrefix}$bus')
+  return MprisPlayer(busName: '$kMprisPrefix$bus')
     ..status = status
     ..title = title
     ..artist = artist

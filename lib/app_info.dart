@@ -744,7 +744,7 @@ class AppIconImage extends StatelessWidget {
         width: size.toDouble(),
         height: size.toDouble(),
         filterQuality: FilterQuality.medium,
-        errorBuilder: (_, __, ___) => _fallback(),
+        errorBuilder: (_, _, _) => _fallback(),
       );
     }
     return XdgIcon(

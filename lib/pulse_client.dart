@@ -1005,8 +1005,9 @@ class _PaIsolate {
       if (appPtr.address != 0) appName = appPtr.cast<Utf8>().toDartString();
       final mediaPtr =
           _pa.pa_proplist_gets(s.proplist, 'media.name'.toNativeUtf8().cast());
-      if (mediaPtr.address != 0)
+      if (mediaPtr.address != 0) {
         mediaName = mediaPtr.cast<Utf8>().toDartString();
+      }
     }
     if (appName.isEmpty) {
       appName =

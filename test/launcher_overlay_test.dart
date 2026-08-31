@@ -29,18 +29,18 @@ final _apps = [
   _app('Terminal'),
 ].map(SearchableApp.new).toList();
 
-class _Harness {
+class LauncherHarness {
   final closing = ValueNotifier(false);
   final launched = <String>[];
   final launchedActions = <String>[];
   var closedCount = 0;
 }
 
-Future<_Harness> pumpLauncher(
+Future<LauncherHarness> pumpLauncher(
   WidgetTester tester, {
   List<SearchableApp>? apps,
 }) async {
-  final harness = _Harness();
+  final harness = LauncherHarness();
   await tester.pumpWidget(
     ThemeScope(
       theme: const ThemeConfig(),

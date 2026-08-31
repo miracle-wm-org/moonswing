@@ -394,8 +394,6 @@ class _ResponseField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final session = widget.session;
-    final answerable = session.canPrompt && !session.isFinished;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -448,8 +446,6 @@ class _IdentityPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final session = widget.session;
-    final answerable = session.canPrompt && !session.isFinished;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -526,8 +522,6 @@ class _DialogButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final session = widget.session;
-    final answerable = session.canPrompt && !session.isFinished;
     return HoverRegion(
       enabled: enabled,
       onTap: onTap,

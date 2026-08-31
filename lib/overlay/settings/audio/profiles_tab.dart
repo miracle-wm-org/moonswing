@@ -145,7 +145,7 @@ class _ProfilesTabState extends State<ProfilesTab> {
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: cards.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 10),
                   itemBuilder: (_, i) => _ProfileCard(
                     card: cards[i],
                     onProfileSelected: (p) => _setProfile(cards[i], p),

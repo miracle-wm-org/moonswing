@@ -50,7 +50,7 @@ void main() {
       sysRoot: proc.path,
       env: env ?? const {},
       proc: ProcReader(procRoot: proc.path, sysRoot: proc.path),
-      runner: runner ?? (_, __) async => ProcessResult(0, 1, '', ''),
+      runner: runner ?? (_, _) async => ProcessResult(0, 1, '', ''),
     );
   }
 
@@ -132,7 +132,7 @@ void main() {
 
     test('a non-zero command exit leaves the field null', () async {
       final info = await reader(
-        runner: (_, __) async => ProcessResult(0, 2, 'garbage', 'boom'),
+        runner: (_, _) async => ProcessResult(0, 2, 'garbage', 'boom'),
       ).read();
 
       expect(info.architecture, isNull);

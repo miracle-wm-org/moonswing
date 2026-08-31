@@ -148,7 +148,7 @@ class _BackgroundWindowState extends State<BackgroundWindow> {
             fit: StackFit.expand,
             children: [
               ...previousChildren,
-              if (currentChild != null) currentChild,
+              ?currentChild,
             ],
           ),
           child: _buildMedia(_currentPath),

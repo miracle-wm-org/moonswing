@@ -96,7 +96,7 @@ void main() {
       sampler: FakeSampler(processes),
       // Must be injected: the real DiskReader shells out to `df`, and a real
       // process never completes inside testWidgets' fake-async zone.
-      disks: DiskReader(runner: (_, __) async => ProcessResult(0, 0, '', '')),
+      disks: DiskReader(runner: (_, _) async => ProcessResult(0, 0, '', '')),
       killer: killer,
       config: config,
     );

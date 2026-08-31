@@ -604,7 +604,7 @@ void main() {
 
     testWidgets('right-clicking a non-member narrows onto it', (tester) async {
       final store = openStore();
-      await pumpGrid(tester, store, onItemMenu: (_, __) {});
+      await pumpGrid(tester, store, onItemMenu: (_, _) {});
       store.select(fileA.path);
       await tester.pump();
 

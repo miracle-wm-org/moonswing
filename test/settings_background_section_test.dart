@@ -104,7 +104,7 @@ void main() {
                       // would not merely be clipped, it would be unmounted and
                       // `find.byKey` would miss it.
                       child: CustomScrollView(
-                        cacheExtent: 600,
+                        scrollCacheExtent: const ScrollCacheExtent.pixels(600),
                         slivers: [
                           BackgroundSection(store: store, catalog: catalog),
                         ],

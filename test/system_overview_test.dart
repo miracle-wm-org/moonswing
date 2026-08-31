@@ -48,7 +48,7 @@ void main() {
       reader: ProcReader(procRoot: proc.path, sysRoot: proc.path),
       sampler: FakeSampler(),
       disks: DiskReader(
-        runner: (_, __) async => ProcessResult(
+        runner: (_, _) async => ProcessResult(
           0,
           0,
           'Filesystem 1B-blocks Used Available Capacity Mounted on\n'
@@ -159,7 +159,7 @@ void main() {
     final store = SystemStatsStore.forTesting(
       reader: ProcReader(procRoot: proc.path, sysRoot: proc.path),
       sampler: FakeSampler(),
-      disks: DiskReader(runner: (_, __) async => ProcessResult(1, 1, '', '')),
+      disks: DiskReader(runner: (_, _) async => ProcessResult(1, 1, '', '')),
     );
     addTearDown(store.dispose);
     store.acquireLight();

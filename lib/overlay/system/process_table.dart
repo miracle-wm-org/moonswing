@@ -654,7 +654,7 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
   }
 
   static String _formatClock(DateTime t) {
-    final two = (int n) => n.toString().padLeft(2, '0');
+    String two(int n) => n.toString().padLeft(2, '0');
     final now = DateTime.now();
     final time = '${two(t.hour)}:${two(t.minute)}';
     final sameDay =
