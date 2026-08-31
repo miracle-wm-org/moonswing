@@ -415,6 +415,41 @@ Turn `inhibit_logind` off if your `logind.conf` already says `HandlePowerKey=ign
 
 - A laptop lid or a "sleep" key is a different key entirely (`sleep`, `code:142`); this section is only about the power button.
 
+## Authentication Prompts
+
+The `[polkit]` section decides whether the shell answers polkit's authentication requests — the "Authentication required" dialog you get when something asks for administrator rights.
+
+```toml
+[polkit]
+enabled = true
+max_attempts = 3
+```
+
+| Key            | Type    | Default | Description                                                    |
+| -------------- | ------- | ------- | -------------------------------------------------------------- |
+| `enabled`      | boolean | `true`  | Register as this session's polkit authentication agent          |
+| `max_attempts` | integer | `3`     | How many times the password may be refused before the dialog gives up (clamped to 1–5) |
+
+### What this is for
+
+polkit never asks anybody anything by itself. When an application requests a privileged operation — changing the system keyboard layout, mounting a disk, installing an update — polkitd looks for an *authentication agent* registered for your session and asks it to get the password. With no agent registered there is nothing to ask, so every one of those requests is refused immediately, which usually surfaces as a setting that silently refuses to change.
+
+Most desktops ship one (`polkit-gnome`, `mate-polkit`, `lxpolkit`). miracle-wm does not, which is why the shell is one.
+
+The prompt is a dialog in the middle of the screen, in your theme: what is being asked, which account is answering, and a field for the password. Escape, a click outside it, or Cancel all *refuse* the request — dismissing is denying, not deferring.
+
+### Turning it off
+
+The shell yields automatically if it finds an agent already registered when it starts: that session already has working prompts, and two agents fighting over the registration is how one of them silently stops prompting. `enabled = false` is for the other ordering — an agent that starts *after* the shell, which would otherwise find the registration taken.
+
+With `enabled = false` and no other agent running, nothing on the desktop can ask for administrator rights.
+
+### If prompts do not appear
+
+- The shell logs `polkit: registered as the authentication agent for session <id>` on start-up, and says so when another agent has the registration instead.
+- The password is checked by `polkit-agent-helper-1`, a small setuid program that ships with polkit itself. If it is missing the dialog says so rather than failing silently; install polkit (`polkitd` on Debian and Ubuntu, `polkit` on Fedora, Arch and openSUSE).
+- Registration needs a logind session. If `echo $XDG_SESSION_ID` prints nothing and `loginctl` does not know about your session, polkit has nothing to register an agent *for*.
+
 ## Theme
 
 Themes live in their own files, one per theme, under `~/.config/graceful-shell/themes/`. `config.toml` picks one by name — the file's basename without `.toml`:
@@ -905,6 +940,10 @@ Both monitors and individual windows can be shared. Frames reach the application
 | `max_fps` | integer | `0` | Cap on the shared stream's frame rate. `0` follows the monitor's refresh rate. |
 
 ```toml
+[polkit]
+enabled = true
+max_attempts = 3
+
 [screenshare]
 enabled = true
 preview_fps = 10

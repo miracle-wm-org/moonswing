@@ -37,6 +37,21 @@ final ffi.Pointer<_Passwd> Function(int) _getpwuid = _libc.lookupFunction<
     ffi.Pointer<_Passwd> Function(ffi.Uint32),
     ffi.Pointer<_Passwd> Function(int)>('getpwuid');
 
+/// The uid the shell is running as.
+///
+/// Its own function because the polkit agent wants the *number* rather than
+/// the account — `BeginAuthentication` names the identities it will accept by
+/// uid, and the dialog opens on the current user's row when they are one of
+/// them (see `defaultIdentityIndex`). Answers null only if `getuid` itself is
+/// unreachable, which is a machine with no libc.
+int? currentUid() {
+  try {
+    return _getuid();
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Who the shell is running as.
 ///
 /// Read from `getpwuid(getuid())` rather than `$USER`: the lock screen has to
@@ -74,6 +89,29 @@ class UserIdentity {
         Platform.environment['LOGNAME'] ??
         '';
     return UserIdentity(username: fallback, displayName: fallback);
+  }
+
+  /// The account [uid] names, or null when the passwd database has no such
+  /// entry.
+  ///
+  /// Null rather than a synthesised name: the polkit agent hands [username]
+  /// straight to `polkit-agent-helper-1`, which authenticates whatever it is
+  /// given — so a guess here would be an authentication attempt against an
+  /// account nobody asked about. An identity that cannot be resolved is
+  /// dropped from the prompt instead.
+  static UserIdentity? forUid(int uid) {
+    try {
+      final entry = _getpwuid(uid);
+      if (entry.address == 0) return null;
+      final name = _readUtf8(entry.ref.pwName);
+      if (name == null || name.isEmpty) return null;
+      return UserIdentity(
+        username: name,
+        displayName: _realNameFromGecos(_readUtf8(entry.ref.pwGecos)) ?? name,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   static String? _readUtf8(ffi.Pointer<Utf8> ptr) {
