@@ -21,6 +21,7 @@ import 'package:graceful_shell/default_config.dart';
 import 'package:graceful_shell/desktop/desktop_config.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/module.dart';
+import 'package:graceful_shell/polkit/polkit_config.dart';
 import 'package:graceful_shell/power/power_config.dart';
 import 'package:graceful_shell/theme/theme_config.dart';
 
@@ -29,6 +30,7 @@ export 'package:graceful_shell/desktop/desktop_config.dart';
 export 'package:graceful_shell/keyboard/keyboard_config.dart';
 export 'package:graceful_shell/media_paths.dart'
     show imageExtensions, videoExtensions, isImagePath;
+export 'package:graceful_shell/polkit/polkit_config.dart';
 export 'package:graceful_shell/power/power_config.dart';
 export 'package:graceful_shell/theme/theme_config.dart';
 
@@ -539,6 +541,11 @@ class AppConfig {
   /// section is the default (show the power menu), not "no power config".
   final PowerConfig power;
 
+  /// Whether the shell is this session's polkit authentication agent. Never
+  /// null — an absent `[polkit]` section is the default (be the agent), not
+  /// "no polkit config".
+  final PolkitConfig polkit;
+
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
@@ -550,6 +557,7 @@ class AppConfig {
     this.shortcuts = const ShortcutsConfig(),
     this.screenshare = const ScreenshareConfig(),
     this.power = const PowerConfig(),
+    this.polkit = const PolkitConfig(),
   });
 
   /// Resolves the absolute path to `config.toml`, honouring
@@ -637,6 +645,7 @@ class AppConfig {
       shortcuts: ShortcutsConfig.fromMap(map.tableOrNull('shortcuts')),
       screenshare: ScreenshareConfig.fromMap(map.tableOrNull('screenshare')),
       power: PowerConfig.fromMap(map.tableOrNull('power')),
+      polkit: PolkitConfig.fromMap(map.tableOrNull('polkit')),
     );
   }
 
@@ -653,7 +662,8 @@ class AppConfig {
           other.lock == lock &&
           other.shortcuts == shortcuts &&
           other.screenshare == screenshare &&
-          other.power == power;
+          other.power == power &&
+          other.polkit == polkit;
 
   /// Hashed on the panel count alone: equal maps have equal
   /// lengths, and two maps that are equal can still iterate in
@@ -671,5 +681,6 @@ class AppConfig {
         shortcuts,
         screenshare,
         power,
+        polkit,
       );
 }

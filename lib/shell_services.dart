@@ -47,6 +47,10 @@ enum ShellService {
   /// The xdg-desktop-portal ScreenCast backend.
   screencast,
 
+  /// The polkit authentication agent: the registration that lets anything on
+  /// the desktop ask for administrator rights at all.
+  polkit,
+
   /// The physical power button: logind's `handle-power-key` inhibitor, taken
   /// once the compositor confirms the shell owns the key.
   power,

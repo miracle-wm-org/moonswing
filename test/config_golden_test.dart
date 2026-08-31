@@ -38,6 +38,11 @@ void main() {
       expect(config.screenshare.maxFps, 0);
       expect(config.power.keyAction, PowerKeyAction.menu);
       expect(config.power.inhibitLogind, isTrue);
+      // With no agent registered polkitd cannot prompt at all, so every
+      // `auth_admin` action on the machine is refused outright — being the
+      // agent is the only default that leaves those actions working.
+      expect(config.polkit.enabled, isTrue);
+      expect(config.polkit.maxAttempts, 3);
     });
   });
 
@@ -87,7 +92,7 @@ void main() {
       expect(bg.entries.single.shown, isTrue);
     });
 
-    test('theme, desktop, lock, shortcuts, screenshare, power', () {
+    test('theme, desktop, lock, shortcuts, screenshare, power, polkit', () {
       expect(config.themeName, 'graceful');
       expect(config.desktop.enabled, isTrue);
       expect(config.desktop.cellWidth, 96);
@@ -113,6 +118,8 @@ void main() {
       expect(config.power.keyAction, PowerKeyAction.menu);
       expect(config.power.inhibitLogind, isTrue);
       expect(config.power.inhibitsLogind, isTrue);
+      expect(config.polkit.enabled, isTrue);
+      expect(config.polkit.maxAttempts, 3);
     });
   });
 

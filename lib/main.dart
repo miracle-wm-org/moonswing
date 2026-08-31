@@ -56,6 +56,11 @@ import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
+import 'package:graceful_shell/polkit/auth_controller.dart';
+import 'package:graceful_shell/polkit/auth_dialog.dart';
+import 'package:graceful_shell/polkit/auth_session.dart';
+import 'package:graceful_shell/polkit/polkit_agent.dart';
+import 'package:graceful_shell/polkit/polkit_types.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/power/power_actions.dart';
 import 'package:graceful_shell/power/power_controller.dart';
@@ -176,6 +181,7 @@ void main() async {
   startSystemStatsService();
 
   screencastLog = (message) => debugPrint('screencast: $message');
+  polkitLog = (message) => debugPrint('polkit: $message');
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.
@@ -266,6 +272,23 @@ void _startShellServices({
     );
   } else {
     services.skip(ShellService.screencast);
+  }
+
+  // Registers the shell as this session's polkit authentication agent, so a
+  // privileged operation anywhere on the desktop gets a prompt instead of a
+  // flat `AccessDenied`. A session that already has an agent is yielded to,
+  // which `run` records as ready; anything else — no system bus, no polkitd,
+  // no logind session to register for — throws and is recorded as failed.
+  if (appConfig.polkit.enabled) {
+    services.run(
+      ShellService.polkit,
+      () => startPolkitAgentService(
+        presenter: PolkitAuthController.instance.present,
+        maxAttempts: appConfig.polkit.maxAttempts,
+      ),
+    );
+  } else {
+    services.skip(ShellService.polkit);
   }
 
   // Takes logind's `handle-power-key` inhibitor so the machine's power button
@@ -480,7 +503,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the monitor whose badge was tapped.
   final Map<String, LayershellWindowController> _badges = {};
 
-  /// Six of the seven root-owned overlays — the full-screen ones; the
+  /// Seven of the eight root-owned overlays — the full-screen ones; the
   /// notification panel below is the exception. Each [_OverlayWindow] carries
   /// the window controller, its [PopupCoordinator] registration, and the
   /// closing notifier — the bookkeeping every overlay used to hand-roll
@@ -510,6 +533,21 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   final _OverlayWindow _powerMenu = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
+
+  /// The polkit prompt — the eighth root-owned overlay. Modal, like the two
+  /// consent pickers and for a stronger version of their reason: it is a
+  /// grant of administrator rights, so nothing else on the desktop may
+  /// dismiss it, and dismissing it *is* the refusal.
+  final _OverlayWindow _polkitPrompt = _OverlayWindow(
+    policy: TransientPolicy.modal,
+  );
+
+  /// The authentication the open prompt is answering, captured when the
+  /// window was created — the controller's `pending` moves on the moment the
+  /// user answers, while the dialog stays mounted through its fade-out, and a
+  /// *superseding* request would otherwise be rendered into the window the
+  /// old one is still animating out of.
+  PolkitAuthSession? _polkitSession;
 
   /// The notification panel — the seventh root-owned overlay, and the first
   /// that is not full-screen. It used to be the bell module's own
@@ -630,6 +668,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (LauncherController.instance, _onLauncherTriggered),
       (PowerController.instance, _onPowerKeyPressed),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
+      (PolkitAuthController.instance, _onPolkitAuthChanged),
       (CaptureSelectionController.instance, _onCaptureSelectionChanged),
       (LockController.instance, _onLockRequested),
       (NotificationPanelController.instance, _onNotificationPanelToggled),
@@ -1161,6 +1200,66 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     CaptureSelectionController.instance.complete(answer);
   }
 
+  /// polkitd asked the user to prove who they are (or the prompt was
+  /// answered).
+  ///
+  /// The agent is blocked inside `BeginAuthentication` awaiting
+  /// [PolkitAuthController]; this raises the dialog when a session appears and
+  /// takes it down once one has been answered — including when *polkitd*
+  /// withdrew the request (`CancelAuthentication`) rather than the user.
+  ///
+  /// A superseding request is the case worth reading twice: the controller has
+  /// already resolved the first one as declined, so all that is left here is
+  /// to bring the window carrying it down. [_onPolkitPromptClosed] re-checks
+  /// `pending` and opens the next one, which is why nothing reopens here.
+  void _onPolkitAuthChanged() {
+    if (!mounted) return;
+    final session = PolkitAuthController.instance.pending;
+    if (session == null) {
+      if (_polkitPrompt.isOpen) _polkitPrompt.closing.value = true;
+      return;
+    }
+    if (_polkitPrompt.isOpen) {
+      if (identical(_polkitSession, session)) return;
+      _polkitPrompt.closing.value = true;
+      return;
+    }
+    _polkitSession = session;
+    // No `monitor:`, like the launcher: the compositor puts the surface on
+    // its focused output, which is the display the user was working on when
+    // whatever asked for privileges asked for them.
+    _polkitPrompt.open();
+    _refreshWindows();
+  }
+
+  /// Called by [PolkitAuthDialog] once its fade-out has finished.
+  void _onPolkitPromptClosed() {
+    if (!mounted) return;
+    final session = _polkitSession;
+    final removed = _polkitPrompt.take();
+    if (removed == null) return;
+    _polkitSession = null;
+    if (session != null) {
+      // A window taken down without the user answering — the session lock
+      // sweeping every transient off the screen, a superseding request, the
+      // shell shutting down — is a refusal, and the helper sitting on a PAM
+      // prompt has to be told so rather than left running.
+      if (!session.isFinished) session.cancel();
+      // Guarded on identity rather than a bare `complete`: by now a
+      // superseding request may be the pending one, and answering *that* with
+      // the outcome of the dialog the user was just looking at would resolve
+      // a prompt nobody has seen.
+      PolkitAuthController.instance.finish(
+        session,
+        session.outcome ?? PolkitAuthOutcome.cancelled,
+      );
+    }
+    _refreshWindows();
+    _destroyAfterFrame([removed]);
+    // A request that arrived while this one was animating out.
+    _onPolkitAuthChanged();
+  }
+
   /// Called by [ScreencastPickerOverlay] once its fade-out has finished.
   void _onScreencastPickerClosed() {
     if (!mounted) return;
@@ -1606,6 +1705,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     // dying State.
     FilePickerController.instance.complete(null);
     ScreencastPickerController.instance.cancel();
+    // Same debt again, and the most expensive one to default on: an
+    // unanswered `BeginAuthentication` blocks whatever asked for privileges
+    // for as long as its own timeout allows. Cancelled is the answer, because
+    // a shell that is going away has not authenticated anybody.
+    PolkitAuthController.instance.complete(PolkitAuthOutcome.cancelled);
     // Same debt, and the caller here is `runCaptureFlow` rather than a D-Bus
     // method — but a future nobody will ever complete is a future nobody will
     // ever complete.
@@ -1638,7 +1742,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _selector.clear();
     PopupCoordinator.instance.close(_selectionHandle);
     _selectionHandle = null;
-    // All six root-owned overlays, symmetrically: each dispose covers the
+    // Every root-owned overlay, symmetrically: each dispose covers the
     // window, the coordinator registration, the AppIndex bracket, and the
     // closing notifier.
     for (final overlay in [
@@ -1648,6 +1752,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       _screencastPicker,
       _filePicker,
       _powerMenu,
+      _polkitPrompt,
       _notifications,
     ]) {
       overlay.dispose();
@@ -2047,6 +2152,28 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               );
             },
           ),
+      // The polkit prompt, open only while an application's request for
+      // administrator rights is waiting on the user. A single window like the
+      // launcher, so it lives outside the per-monitor loop.
+      if (_polkitPrompt.controller case final prompt?)
+        if (_polkitSession != null)
+          (
+            controller: prompt,
+            builder: (_) {
+              // Re-read, as everything mutable in this list is: a surviving
+              // window keeps the [WindowEntry], and so the builder, it was
+              // created with.
+              final session = _polkitSession;
+              if (session == null) return const SizedBox.shrink();
+              return _windowChrome(
+                PolkitAuthDialog(
+                  session: session,
+                  closingNotifier: _polkitPrompt.closing,
+                  onClosed: _onPolkitPromptClosed,
+                ),
+              );
+            },
+          ),
       // The power menu, open only while the physical power button's press is
       // being answered. A single window like the launcher, so it lives outside
       // the per-monitor loop.
@@ -2224,7 +2351,7 @@ class _PanelMainState extends State<PanelMain> {
 /// the [closing] notifier that drives a graceful fade-out, and the AppIndex
 /// bracket for windows whose rows hold `GAppInfo` pointers.
 ///
-/// The deltas between the five are constructor arguments, not subclasses:
+/// The deltas between them are constructor arguments, not subclasses:
 /// [policy] (modal for the consent pickers), [acquiresAppIndex] (launcher and
 /// app chooser), and [open]'s `monitor` (the settings overlay pins to the
 /// first monitor; the rest pass none, so the compositor places them on its
@@ -2240,8 +2367,8 @@ class _OverlayWindow {
 
   /// Builds the native window for the monitor [open] was asked for.
   ///
-  /// Null is the full-screen backdrop six of these seven want, which is what
-  /// the class was for the whole time there was only that one shape. The
+  /// Null is the full-screen backdrop seven of these eight want, which is
+  /// what the class was for the whole time there was only that one shape. The
   /// notification panel is the exception — a column down one output edge —
   /// and it supplies its own rather than growing this into a geometry
   /// builder: what [_OverlayWindow] actually owns is the *bookkeeping* (the
