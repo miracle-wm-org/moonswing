@@ -155,6 +155,40 @@ void main() {
           'Africa/Johannesburg');
     });
 
+    test('a zone tzdata has merged away still resolves and is offered', () {
+      // The embedded database carries canonical zones only, and tzdata has
+      // spent several releases merging zones whose rules have long agreed into
+      // one another. `Europe/Amsterdam` is one of the names those merges left
+      // behind as a link: it is what everything outside the database still
+      // calls Amsterdam's time, it is what the picker writes into the config,
+      // and without the link table it resolves to nothing — the row reads
+      // "Unknown time zone", and a third of Europe's capitals are missing from
+      // the picker entirely.
+      final at = DateTime.utc(2026, 1, 1, 12);
+      final amsterdam = resolveZone('Europe/Amsterdam', at);
+      expect(amsterdam, isNotNull);
+      // Same instant, same wall clock as the zone it was merged into.
+      expect(amsterdam!.time, resolveZone('Europe/Brussels', at)!.time);
+      expect(amsterdam.offset, const Duration(hours: 1));
+
+      for (final zone in const [
+        'Europe/Copenhagen',
+        'Europe/Oslo',
+        'Europe/Stockholm',
+        'Asia/Kuala_Lumpur',
+        'Atlantic/Reykjavik',
+        'America/Nassau',
+      ]) {
+        expect(resolveZone(zone, at), isNotNull, reason: zone);
+      }
+
+      final zones = worldTimeZoneNames();
+      final row = zones.singleWhere((z) => z.city == 'Amsterdam');
+      expect(row.name, 'Europe/Amsterdam');
+      expect(row.label, 'Amsterdam');
+      expect(rankTimeZones(zones, 'copenhagen').first.city, 'Copenhagen');
+    });
+
     test('a city its own zone already names gets no second row', () {
       final zones = worldTimeZoneNames();
       final tokyo = zones.singleWhere((z) => z.city == 'Tokyo');
