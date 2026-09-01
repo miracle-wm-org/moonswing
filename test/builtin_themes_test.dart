@@ -179,44 +179,55 @@ void main() {
         BorderRadius.only(bottomLeft: r, bottomRight: r));
 
     // The flare paints outside the card, so the popup's own surface has to
-    // carry it — and with no shadow to take the larger of, it carries the join
-    // and nothing else: the flare on the two sides that meet it, and the
-    // collar on the join itself.
+    // carry it — and with no shadow to take the larger of, it carries the flare
+    // and nothing else: the two sides that meet the join, and nothing past the
+    // join itself, which is what leaves the surface flush with the bar.
     final attach = popupAttachInsets(carbon, attachEdge: 'top');
     expect(
         attach,
-        EdgeInsets.only(
-          left: carbon.popupAttachRadius,
-          right: carbon.popupAttachRadius,
-          top: carbon.panelBorderWidth,
-        ));
+        EdgeInsets.symmetric(horizontal: carbon.popupAttachRadius));
     expect(
         popupSurfaceInsets(
             popupShadowInsets(carbon, attachEdge: 'top'), attach),
         attach);
   });
 
-  test('carbon runs one rim off the bar and round its menus', () {
+  test('carbon rims its bar everywhere but the edge its menus come out of',
+      () {
     final carbon = _shipped('carbon');
-    // The bar is rimmed, which is only tenable because the join is flared: a
-    // panel rim is drawn along the bar's *inner* edge too, so without a flare
-    // to pick it up it would run straight across the mouth of every menu.
+    // The bar is rimmed, and the one edge it leaves open is the inner one — the
+    // edge every attached card is joined to. That line is on the panel's own
+    // surface, so nothing the card draws can take it out; the bar has to
+    // decline to draw it, which it can, because attaching is a property of the
+    // theme rather than of any popup that happens to be open.
     expect(carbon.panelBorderWidth, greaterThan(0));
-    expect(carbon.popupAttachRadius, greaterThan(0));
+    expect(carbon.popupGap, 0.0);
+    for (final anchor in ['top', 'bottom', 'left', 'right']) {
+      final border =
+          panelBackgroundDecoration(anchor: anchor, theme: carbon).border!
+              as Border;
+      final inner = switch (anchor) {
+        'top' => border.bottom,
+        'bottom' => border.top,
+        'left' => border.right,
+        _ => border.left,
+      };
+      expect(inner.style, BorderStyle.none, reason: anchor);
+      // And exactly that one side: the other three are against the screen edge
+      // and still carry the rim the theme asked for.
+      expect(
+          [border.top, border.bottom, border.left, border.right]
+              .where((s) => s.style == BorderStyle.none),
+          hasLength(1),
+          reason: anchor);
+    }
 
-    // One line, so it cannot step where it turns the corner from the bar onto
-    // the card: the collar lays the flare's stroke over the very band the bar's
-    // rim occupies, and equal widths are what make the two one stroke.
+    // One line, of one colour and one width, so it cannot step where the bar's
+    // outline breaks off and the card's picks up.
     expect(carbon.panelBorder, carbon.popupBorder);
     expect(carbon.panelBorderWidth, carbon.popupBorderWidth);
     expect(carbon.panelBorder.a, greaterThan(0),
         reason: 'a rim with a transparent colour draws nothing');
-
-    // And the card reaches exactly one rim-width back into the bar to do it.
-    expect(popupAttachCollar(carbon, attachEdge: 'top'),
-        carbon.panelBorderWidth);
-    expect(popupAttachCollar(carbon), 0.0,
-        reason: 'a card that floats has no rim to reach for');
   });
 
   test('carbon draws its popups out of the same graphite as its bar', () {
@@ -242,18 +253,30 @@ void main() {
     expect(carbon.controlSurface, isNot(carbon.popupBackground));
   });
 
-  test('a shipped theme rims its bar only if its join can carry the line', () {
-    // panel_border_width above zero draws the bar's rim along its *inner* edge
-    // too, which is the edge an attached popup meets. A *flared* join takes
-    // that over: the card reaches one rim-width into the panel, so its fill
-    // erases the hairline across the mouth and the arcs carry the line down the
-    // card. A square butt join has nothing to carry it with and would leave the
-    // hairline drawn straight across every menu — so for those the two keys are
-    // still a pair, which is where graceful and dracula sit.
+  test('no shipped theme puts a line across the mouth of its own menus', () {
+    // The one seam attaching exists to remove, checked over every shipped
+    // theme rather than over carbon alone: an attached bar (popup_gap = 0)
+    // leaves its inner edge unrimmed whatever its flare, so there is nothing
+    // between it and the card it opens. A theme with a gap has genuinely
+    // floating cards and keeps all four sides.
     for (final slug in kBuiltInThemes.keys) {
       final theme = _shipped(slug);
-      if (theme.popupGap > 0 || theme.popupAttachRadius > 0) continue;
-      expect(theme.panelBorderWidth, 0.0, reason: 'in $slug');
+      for (final anchor in const ['top', 'bottom', 'left', 'right']) {
+        final border =
+            panelBackgroundDecoration(anchor: anchor, theme: theme).border
+                as Border?;
+        if (border == null) continue; // panel_border_width = 0: no rim at all.
+        final inner = switch (anchor) {
+          'top' => border.bottom,
+          'bottom' => border.top,
+          'left' => border.right,
+          _ => border.left,
+        };
+        expect(
+            inner.style,
+            theme.popupGap > 0 ? BorderStyle.solid : BorderStyle.none,
+            reason: '$slug on a $anchor bar');
+      }
     }
   });
 

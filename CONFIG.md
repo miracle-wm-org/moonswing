@@ -586,7 +586,7 @@ The gap is real, not painted: the bar's surface genuinely shrinks, so **windows 
 - **`panel_margin` above zero** — all four corners round, because the bar is a card sitting on the wallpaper.
 - **`panel_margin = 0`** — only the two corners facing the middle of the screen round. A flush bar with rounded outer corners would cut wallpaper wedges out of the display's own corners, which reads as misalignment rather than styling.
 
-`panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
+`panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper. One edge is the exception, and it is the edge the bar's own menus come out of: see `popup_gap` under **Popups** below.
 
 All three follow a theme switch live; no restart is needed.
 
@@ -608,7 +608,9 @@ The flare is drawn *outside* the card's own box, so the shell grows the popup's 
 
 `carbon` is the shipped example of the pair: `popup_gap = 0` with `popup_attach_radius = 12`, on an opaque bar with no shadow anywhere in the theme, so the flared join is the only shaping in the picture and every menu reads as an extension of the panel rather than a card in front of it.
 
-Two things to know before attaching a theme. A theme with a **translucent `popup_background`** should keep a gap: at zero the popup's fill and the bar's composite separately against the wallpaper, so the join shows a step in tone that nothing here can remove, and a flare only makes that step wider — which is why `glassy` sets `popup_gap = 8` to match its own `panel_margin` rather than attaching. And a theme with `panel_border_width` above zero draws the bar's rim on its inner edge too, so an attached popup butts against that line — which is why `carbon`, `graceful` and `dracula` all leave that width at `0`: the rim would be a hairline drawn straight across the join the other keys are working to erase.
+Attaching also changes what `panel_border_width` draws. A rimmed bar would otherwise put that rim along its **inner** edge as well — the very edge the menus come out of — so every attached popup would butt against a hairline running across its own mouth, which reads as a card taped under a line rather than as the bar opening. **At `popup_gap = 0` the bar leaves its inner edge unrimmed**; the other three sides are untouched, so a floating bar keeps the rim it asked for everywhere a menu does not come out of. `carbon` is the shipped example: a 1px rim in the same colour and width as its popups', open along the edge its menus grow from, so the outline runs round the bar, breaks off where a menu is, and is picked up by the card's own rim.
+
+One thing to know before attaching a theme: a theme with a **translucent `popup_background`** should keep a gap. At zero the popup's fill and the bar's composite separately against the wallpaper, so the join shows a step in tone that nothing here can remove, and a flare only makes that step wider — which is why `glassy` sets `popup_gap = 8` to match its own `panel_margin` rather than attaching.
 
 Hover tooltips take the edge anchor but never attach: a label that comes and goes with the pointer reads as a floating card, not as part of the furniture. Menus anchored to the *pointer* — the desktop's context menu, the app-directory's category flyouts — have no panel edge to sit off and are unaffected by either key.
 

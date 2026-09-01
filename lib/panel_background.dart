@@ -60,9 +60,48 @@ BorderRadius panelCornerRadius({
 /// zero-width [Border] on purpose: a `Border` in the decoration carries a
 /// non-zero [BoxDecoration.padding], which a [Container] would silently apply
 /// to the bar's content.
-Border? _panelBorder(ThemeConfig theme) => theme.panelBorderWidth > 0
-    ? Border.all(color: theme.panelBorder, width: theme.panelBorderWidth)
-    : null;
+///
+/// **A bar whose theme attaches its popups carries no rim on its inner edge**
+/// — the edge every menu grows out of. `popup_gap = 0` is the attached mode
+/// (see [ThemeConfig.popupGap]), and it says the card is flush with the bar and
+/// made of the same material: the two are meant to read as one surface, and a
+/// hairline along the join is the one thing that gives away that they are two.
+///
+/// It has to be the *panel* that declines to draw it, because the line is on
+/// the panel's own surface. A popup is a separate compositor surface placed by
+/// the compositor, so painting over the line is a trick that needs the two
+/// surfaces to align to the pixel and needs `popup_background` to equal
+/// `panel_background` — neither of which the shell can promise. Not drawing it
+/// needs neither, and it is a decision the panel can make on its own: attaching
+/// is a property of the *theme*, so the bar knows statically that its inner
+/// edge is a join rather than a boundary, without knowing that any popup is
+/// open or where its mouth is.
+///
+/// The other three sides are untouched. On a flush bar they sit against the
+/// screen edges; on a floating one ([ThemeConfig.panelMargin] > 0) they are the
+/// rim the user asked for, and only the joined edge is spared.
+///
+/// A non-uniform [Border] under a non-zero `borderRadius` is legal *because the
+/// visible sides still share one colour*: `BoxBorder.paint` takes a
+/// `paintNonUniformBorder` path — a `drawDRRect` whose inset is 0 on the side
+/// left at [BorderStyle.none] — before it reaches the uniformity assert. That
+/// path refuses hairline widths, which cannot arise here: no border is built at
+/// all at or below a width of 0. This is `_popupBorder`'s note
+/// (`popup_surface.dart`), which drops the card's own rim on the same join.
+Border? _panelBorder(ThemeConfig theme, String anchor) {
+  if (theme.panelBorderWidth <= 0) return null;
+  final side =
+      BorderSide(color: theme.panelBorder, width: theme.panelBorderWidth);
+  if (theme.popupGap > 0) return Border.fromBorderSide(side);
+  // [anchor] is the screen edge the bar is against, so the inner edge — the one
+  // its menus are anchored to — is the opposite one.
+  return switch (anchor) {
+    'bottom' => Border(left: side, right: side, bottom: side),
+    'left' => Border(top: side, bottom: side, left: side),
+    'right' => Border(top: side, bottom: side, right: side),
+    _ => Border(left: side, right: side, top: side), // 'top'
+  };
+}
 
 /// [theme] is required on purpose: a defaulted palette here would silently
 /// paint the built-in colours over whatever theme is actually active.
@@ -75,7 +114,7 @@ BoxDecoration panelBackgroundDecoration({
   // theme produces exactly the decoration it did before corners were themable.
   final BorderRadius? borderRadius =
       radius == BorderRadius.zero ? null : radius;
-  final border = _panelBorder(theme);
+  final border = _panelBorder(theme, anchor);
 
   if (!theme.panelGradient) {
     return BoxDecoration(
