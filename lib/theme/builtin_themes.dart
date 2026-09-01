@@ -474,17 +474,17 @@ scrim                = "#A6161616"
 panel_background     = "#161616"
 panel_gradient       = false
 
-# Flush and square, and rimmed — which the flare below is what makes possible.
-# A bar with panel_border_width above zero draws that rim along its *inner* edge
-# too, so a menu attached to it used to butt straight into a hairline running
-# across its own mouth: the card read as something taped underneath a line
-# rather than as the bar opening. The flared join now reaches one rim-width back
-# into the panel, so the card's own fill takes that hairline out across the
-# whole mouth and the two arcs pick the line up at either end and carry it down
-# the card's sides. What is left is one continuous outline, which is why the rim
-# is worth having here at all: with no shadow anywhere in this theme and no
-# colour step across the join, an edge drawn all the way round the bar and its
-# menus is the only thing separating either from the wallpaper.
+# Flush and square, and rimmed. A bar with panel_border_width above zero draws
+# that rim along its *inner* edge too, so a menu attached to it used to butt
+# straight into a hairline running across its own mouth: the card read as
+# something taped underneath a line rather than as the bar opening. Any attached
+# card now reaches one rim-width back into the panel, so its own fill takes that
+# hairline out across the whole mouth; what the flare below adds is how the line
+# resumes at either end — the two arcs pick it up and carry it down the card's
+# sides rather than meeting them square. What is left is one continuous outline,
+# which is why the rim is worth having here at all: with no shadow anywhere in
+# this theme and no colour step across the join, an edge drawn all the way round
+# the bar and its menus is the only thing separating either from the wallpaper.
 #
 # It is Carbon's border-strong, and it is popup_border exactly. The two are a
 # pair for the same reason panel_background and popup_background are: the line
@@ -515,9 +515,10 @@ popup_border_width   = 1.0
 # outward into the bar. It paints outside the card's own box, so the shell
 # grows the popup's window by it — which here is the *whole* of that margin,
 # since the shadow contributes none — plus one panel_border_width on the join
-# itself, which is the reach that lands the sweep on the bar's rim rather than
-# under it. Zero here would give the flat butt join back, and with it the
-# hairline across the mouth: the flare and the bar's rim only work together.
+# itself, which is the reach that lays the card's fill over the bar's rim. Zero
+# here would give the flat butt join back: still seamless, since that reach is
+# the join's rather than the flare's, but with the bar's line meeting the card's
+# sides square instead of sweeping into them.
 popup_gap            = 0.0
 popup_attach_radius  = 12.0
 

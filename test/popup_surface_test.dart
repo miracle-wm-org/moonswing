@@ -24,8 +24,9 @@ Future<void> pumpCard(
   );
 }
 
-/// [popupDecoration] answers a plain [Decoration] because an attached card with
-/// a flared join is a [ShapeDecoration]; every case that is not one is still a
+/// [popupDecoration] answers a plain [Decoration] because an attached card that
+/// paints outside its own box — a flared join, or a collar into a rimmed bar —
+/// is a [ShapeDecoration]; every case that is neither is still a
 /// [BoxDecoration], and these read its fields.
 BoxDecoration boxOf(Decoration decoration) => decoration as BoxDecoration;
 
@@ -194,13 +195,69 @@ void main() {
       test('a flare makes the decoration a shape rather than a box', () {
         expect(popupDecoration(theme: flared, attach: 'top'),
             isA<ShapeDecoration>());
-        // And only when there is one to draw: the default join is square, and
-        // must cost exactly the decoration it always did.
+        // And only when there is something to draw outside the card's own box:
+        // a square join against an unrimmed bar must cost exactly the
+        // decoration it always did.
         expect(popupDecoration(theme: flared), isA<BoxDecoration>());
         expect(
             popupDecoration(
                 theme: const ThemeConfig(popupRadius: 12.0), attach: 'top'),
             isA<BoxDecoration>());
+      });
+
+      test('a collar makes it a shape too, flare or no flare', () {
+        // The collar paints one rim-width *outside* the card, which a
+        // BoxDecoration cannot do — so a square join against a rimmed bar takes
+        // this shape as well, with no flare on it.
+        const square = ThemeConfig(popupRadius: 12.0, panelBorderWidth: 1.0);
+        final decoration =
+            popupDecoration(theme: square, attach: 'top') as ShapeDecoration;
+        final shape = decoration.shape as AttachedPopupBorder;
+        expect(shape.attachRadius, 0.0);
+        expect(shape.collar, 1.0);
+        // And it is still a box wherever there is no seam to cover.
+        expect(popupDecoration(theme: square), isA<BoxDecoration>());
+      });
+
+      test('a collared square join is the square card, grown into the panel',
+          () {
+        // No flare, so the outline is exactly what popupCornerRadius describes
+        // — square on the join, popup_radius on the far pair — reaching one
+        // rim-width past the card's own edge so its fill covers the bar's
+        // hairline across the whole mouth.
+        const border = AttachedPopupBorder(
+            edge: 'top', radius: 12.0, attachRadius: 0.0, collar: 2.0);
+        final path = border.getOuterPath(card); // 100,50 200x120
+        expect(path.contains(const Offset(200, 49)), isTrue,
+            reason: 'the card reaches two pixels into the panel');
+        expect(path.contains(const Offset(101, 49)), isTrue,
+            reason: 'and squarely, right out to its own sides');
+        expect(path.contains(const Offset(99, 49)), isFalse,
+            reason: 'but no wider: there is no flare to reach out with');
+        expect(path.contains(const Offset(200, 47)), isFalse,
+            reason: 'nothing is drawn past the collar');
+        expect(path.contains(const Offset(101, 169)), isFalse,
+            reason: 'the far corners still take popup_radius');
+      });
+
+      testWidgets('a collared square join paints without complaint',
+          (tester) async {
+        for (final edge in ['top', 'bottom', 'left', 'right']) {
+          await pumpCard(
+            tester,
+            const ThemeConfig(
+              popupRadius: 12.0,
+              popupBorderWidth: 1.0,
+              panelBorderWidth: 1.0,
+            ),
+            PopupAttachScope(
+              key: ValueKey(edge),
+              edge: edge,
+              child: const PopupCard(child: SizedBox(width: 80, height: 40)),
+            ),
+          );
+          expect(tester.takeException(), isNull, reason: edge);
+        }
       });
 
       test('the shape carries the fill, the shadow and the rim', () {
@@ -408,12 +465,30 @@ void main() {
             const EdgeInsets.symmetric(vertical: 10));
       });
 
-      test('a square join reaches nowhere, and neither does a floating card',
-          () {
+      test('a floating card reaches nowhere, and neither does a bare join', () {
         const flared = ThemeConfig(popupAttachRadius: 10.0);
         expect(popupAttachInsets(flared), EdgeInsets.zero);
+        // A square butt join against a bar with no rim: no flare to reach out
+        // with and no hairline to reach in over, so the surface is exactly the
+        // card, as it was before either existed.
         expect(popupAttachInsets(const ThemeConfig(), attachEdge: 'top'),
             EdgeInsets.zero);
+      });
+
+      test('a square join against a rimmed bar reaches into the panel', () {
+        // The hairline across the mouth is the *bar's* line, so dropping the
+        // card's own rim on the join cannot reach it. Without a flare there is
+        // nothing to reach outward with — but the collar is what covers the
+        // seam, and a square join needs it exactly as much.
+        const rimmed = ThemeConfig(panelBorderWidth: 2.0);
+        expect(popupAttachInsets(rimmed, attachEdge: 'top'),
+            const EdgeInsets.only(top: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'bottom'),
+            const EdgeInsets.only(bottom: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'left'),
+            const EdgeInsets.only(left: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'right'),
+            const EdgeInsets.only(right: 2));
       });
 
       test('a rimmed bar is reached into on the joined side', () {
@@ -438,13 +513,13 @@ void main() {
         expect(popupAttachCollar(rimmed, attachEdge: 'top'), 2.0);
         // A card that floats has no bar to reach into.
         expect(popupAttachCollar(rimmed), 0.0);
-        // A square butt join has no flare to carry the bar's rim down into the
-        // card, and a collar on it would cut a flat slot out of that rim
-        // instead of growing out of it.
+        // A square butt join reaches in exactly as far: the seam it has to
+        // cover is the bar's own rim, which is there whatever shape the join
+        // takes.
         expect(
             popupAttachCollar(const ThemeConfig(panelBorderWidth: 2.0),
                 attachEdge: 'top'),
-            0.0);
+            2.0);
         // An unrimmed bar has nothing to reach for.
         expect(
             popupAttachCollar(const ThemeConfig(popupAttachRadius: 10.0),

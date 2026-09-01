@@ -21,6 +21,14 @@ const _flared = ThemeConfig(
   popupBorderWidth: 1.0,
 );
 
+/// A square join against a bar that carries a rim of its own — the shape a user
+/// gets by taking the default theme and switching `panel_border_width` on.
+const _rimmedBar = ThemeConfig(
+  popupRadius: 12.0,
+  popupBorderWidth: 1.0,
+  panelBorderWidth: 1.0,
+);
+
 Widget _host(Widget card, {String? attach, ThemeConfig theme = _square}) {
   final tree = ThemeScope(theme: theme, child: Center(child: card));
   return Directionality(
@@ -97,6 +105,44 @@ void main() {
       expect(shape.attachRadius, 8.0);
       expect(tester.takeException(), isNull, reason: edge);
     }
+  });
+
+  testWidgets('a rimmed bar reaches the card as a shape, flare or no flare',
+      (tester) async {
+    // A panel's rim is drawn along its *inner* edge too, so a bar that carries
+    // one puts a hairline straight across the mouth of every menu it opens.
+    // That line is the bar's, not the card's, so dropping the card's own rim on
+    // the join cannot reach it — only the card's fill, painted one rim-width
+    // into the panel, can. That reach is outside the card's own box, which is
+    // what makes this a ShapeDecoration even with no flare on it.
+    for (final edge in ['top', 'bottom', 'left', 'right']) {
+      await tester.pumpWidget(_host(_card, attach: edge, theme: _rimmedBar));
+      final shape =
+          (_cardDecoration(tester) as ShapeDecoration).shape
+              as AttachedPopupBorder;
+      expect(shape.edge, edge);
+      expect(shape.attachRadius, 0.0, reason: edge);
+      expect(shape.collar, 1.0, reason: edge);
+      expect(tester.takeException(), isNull, reason: edge);
+    }
+  });
+
+  testWidgets('an unrimmed bar leaves the square card exactly as it was',
+      (tester) async {
+    // Nothing to cover, so nothing paints outside the card and the decoration
+    // is the plain box it has always been. This is what keeps `graceful` and
+    // `dracula` — both attached, both square, neither rimmed — byte-identical.
+    await tester.pumpWidget(_host(_card, attach: 'top'));
+    expect(_cardDecoration(tester), isA<BoxDecoration>());
+  });
+
+  testWidgets('a rimmed bar still floats where nothing is attached',
+      (tester) async {
+    // The collar is the join's, and a popup anchored to the pointer has none.
+    await tester.pumpWidget(_host(_card, theme: _rimmedBar));
+    final decoration = _cardDecoration(tester) as BoxDecoration;
+    expect(decoration.border,
+        Border.all(color: _rimmedBar.popupBorder, width: 1.0));
   });
 
   testWidgets('a flared theme still floats where nothing is attached',
