@@ -256,6 +256,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.1.0"
+  listen:
+    dependency: transitive
+    description:
+      name: listen
+      sha256: "47501a08016a43fcad79252439d723f50f14f88fa7bfd8a177e0a417e5c9e1f2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   lottie:
     dependency: transitive
     description:
@@ -333,10 +341,10 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: "853a2666d1ce8f688e3607bd3574296a2918dc38"
+      resolved-ref: "18b6c7dbd668f3cbeb7daad6f75011f1001bcde3"
       url: "https://github.com/miracle-wm-org/miracle.dart.git"
     source: git
-    version: "2.0.0"
+    version: "2.1.0"
   mocktail:
     dependency: transitive
     description:

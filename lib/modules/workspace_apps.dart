@@ -1,5 +1,4 @@
-// What is open on each workspace, and whether any of it is shouting — for the
-// workspace row's app icons and its urgency flash.
+// What is open on each workspace, for the workspace row's app icons.
 //
 // The bar module ([modules/workspaces.dart]) renders this; nothing here imports
 // Flutter beyond `ChangeNotifier`, so the tree walk and the identity matching
@@ -44,9 +43,11 @@ class WorkspacesConfig {
   /// Whether a workspace carrying something urgent breathes in the theme's
   /// accent until it is looked at. On by default.
   ///
-  /// Switching it off is what makes the tree read stop as well, not just the
-  /// paint: the row leases [WorkspaceAppsStore] for this as well as for the
-  /// icons, so a shell with both off opens no `GET_TREE` at all.
+  /// Costs no I/O of its own: miracle reports urgency on the `GET_WORKSPACES`
+  /// entry the button is already built from, and announces a change as a
+  /// `workspace` event the row is already subscribed to — so this is a flag
+  /// read off a reply that had to be fetched anyway. See
+  /// [shouldFlashWorkspace].
   final bool flashUrgent;
 
   /// How long one full breath of that flash takes, in seconds — out of the
@@ -89,7 +90,6 @@ class WorkspaceApps {
     required this.num,
     required this.name,
     required this.appIds,
-    this.urgent = false,
   });
 
   final String output;
@@ -101,14 +101,6 @@ class WorkspaceApps {
   /// Distinct rather than one per window: this is a bar dot, and two Firefox
   /// windows saying "Firefox" twice costs the width of an icon to say nothing.
   final List<String> appIds;
-
-  /// Whether anything on the workspace is asking to be looked at.
-  ///
-  /// The tree is the only place this can be read. `GET_WORKSPACES` carries an
-  /// `urgent` field too and `miracle.dart` documents it as "legacy, and always
-  /// `false`" — so a row that trusted the list it is otherwise built from
-  /// would render a flash that could never fire.
-  final bool urgent;
 }
 
 /// The `app_id` of [node], or null when it is a split container rather than a
@@ -133,82 +125,65 @@ String? _nonEmpty(String? value) =>
 /// The traversal is `miracle.dart`'s own (`BaseNode.workspaces`, which is
 /// `walk().whereType()`, and `descendants`, which covers tiled and floating
 /// children alike), so nothing here has to know the shape of the tree.
-List<WorkspaceApps> collectWorkspaceApps(BaseNode tree) {
-  final result = <WorkspaceApps>[];
-  for (final workspace in tree.workspaces) {
-    // A set, because two Firefox windows are one icon; it is a LinkedHashSet,
-    // so tree order survives.
-    final appIds = <String>{};
-    // Both flags, because they answer at different moments: miracle raises the
-    // *workspace's* when the workspace is not the one on screen, and leaves the
-    // hint on the container itself while it is. Reading only the workspace
-    // misses a window shouting on the monitor next to this one; reading only
-    // the containers misses everything on a workspace that is switched away
-    // from, which is very nearly the only case worth flashing about.
-    var urgent = workspace.urgent;
-    // One walk for both: `descendants` covers tiled and floating children
-    // alike, and it is the expensive half of this function.
-    for (final node in workspace.descendants.whereType<ContainerNode>()) {
-      final appId = containerAppId(node);
-      if (appId != null) appIds.add(appId);
-      urgent |= node.urgent;
-    }
-    result.add(WorkspaceApps(
-      output: workspace.output,
-      num: workspace.num,
-      name: workspace.name,
-      appIds: appIds.toList(),
-      urgent: urgent,
-    ));
-  }
-  return result;
-}
+List<WorkspaceApps> collectWorkspaceApps(BaseNode tree) => [
+      for (final workspace in tree.workspaces)
+        WorkspaceApps(
+          output: workspace.output,
+          num: workspace.num,
+          name: workspace.name,
+          // A set, because two Firefox windows are one icon; it is a
+          // LinkedHashSet, so tree order survives.
+          appIds: <String>{
+            for (final node in workspace.descendants.whereType<ContainerNode>())
+              ?containerAppId(node),
+          }.toList(),
+        ),
+    ];
 
-/// The tree's entry for the workspace [workspace] names, or null.
+/// The `app_id`s on the workspace [workspace] names, or empty.
 ///
 /// Two passes, so a name match on the right output always beats a number
 /// match: miracle reports a named workspace's `num` as a placeholder, and
 /// several of those on one output would otherwise collide.
-///
-/// One lookup rather than one per field: the row asks for the icons and the
-/// urgency of the same button, and two matchers over the same two passes is
-/// two places for that precedence to drift.
-WorkspaceApps? workspaceAppsFor(
+List<String> appIdsForWorkspace(
   List<WorkspaceApps> apps,
   WorkspaceResult workspace,
 ) {
   final name = workspace.name;
   if (name != null && name.isNotEmpty) {
     for (final entry in apps) {
-      if (entry.output == workspace.output && entry.name == name) return entry;
+      if (entry.output == workspace.output && entry.name == name) {
+        return entry.appIds;
+      }
     }
   }
   final number = workspace.num;
   if (number != null) {
     for (final entry in apps) {
-      if (entry.output == workspace.output && entry.num == number) return entry;
+      if (entry.output == workspace.output && entry.num == number) {
+        return entry.appIds;
+      }
     }
   }
-  return null;
+  return const [];
 }
 
-/// The `app_id`s on the workspace [workspace] names, or empty.
-List<String> appIdsForWorkspace(
-  List<WorkspaceApps> apps,
-  WorkspaceResult workspace,
-) =>
-    workspaceAppsFor(apps, workspace)?.appIds ?? const [];
-
-/// Whether anything on the workspace [workspace] names is urgent.
+/// Whether the button for [workspace] should breathe in the theme's accent.
 ///
-/// A workspace the tree has never mentioned is not urgent: unknown has to read
-/// as quiet, or a row that arrives before its first `GET_TREE` flashes every
-/// button on the bar.
-bool isWorkspaceUrgent(
-  List<WorkspaceApps> apps,
-  WorkspaceResult workspace,
-) =>
-    workspaceAppsFor(apps, workspace)?.urgent ?? false;
+/// `miracle.dart` 2.1 made `WorkspaceResult.urgent` real — it was documented
+/// as "legacy, and always `false`" before — so this is a flag on the
+/// `GET_WORKSPACES` entry the button is already built from, and the flash
+/// costs no round-trip of its own. Urgency propagates up miracle's tree, so
+/// the workspace's own flag already answers for every window on it, floating
+/// ones and ones nested in split containers included.
+///
+/// **Never the focused workspace**, which is one guard doing two jobs that
+/// happen to agree: the user is already looking at it, and it is the one place
+/// the flag can go stale — miracle clears urgency when the window is focused,
+/// and the `GET_WORKSPACES` that would say so is still in flight on the frame
+/// the switch lands.
+bool shouldFlashWorkspace(WorkspacesConfig config, WorkspaceResult workspace) =>
+    config.flashUrgent && workspace.urgent && !workspace.focused;
 
 // ---------------------------------------------------------------------------
 // Store
@@ -241,19 +216,36 @@ class WorkspaceTreeSource {
   final Stream<Event> events;
 }
 
-/// Whether [event] can have changed which applications are on which workspace,
-/// or whether one of them is urgent.
+/// Whether [event] can have changed which applications are on which workspace.
 ///
 /// The filter is the point of the event-driven design rather than an
 /// optimisation on top of it: `window` fires on every focus change, so an
-/// unfiltered listener would re-read the whole window tree on each alt-tab.
-/// The switch over [WindowChange] is exhaustive so that a change miracle.dart
+/// unfiltered listener would re-read the whole window tree on each alt-tab —
+/// and, since miracle.dart 2.1, on every urgency hint raised or cleared
+/// anywhere on the machine, which is announced on both facilities at once and
+/// moves no window. Both switches are exhaustive so that a change miracle.dart
 /// grows later forces a decision here rather than being silently ignored.
 @visibleForTesting
 bool wakesWorkspaceApps(Event event) => switch (event) {
-      // A workspace being created, emptied, renamed, moved to another output,
-      // or switched to.
-      WorkspaceEvent() => true,
+      WorkspaceEvent(:final change) => switch (change) {
+          // A workspace being created, emptied, renamed, moved to another
+          // output, or switched to.
+          WorkspaceChange.init ||
+          WorkspaceChange.empty ||
+          WorkspaceChange.focus ||
+          WorkspaceChange.move ||
+          WorkspaceChange.rename ||
+          WorkspaceChange.reload =>
+            true,
+          // miracle.dart 2.1's other new arm, and the `focused` exclusion's
+          // twin: miracle sends this alongside the window event below so that
+          // a bar watching workspaces sees urgency without walking the tree —
+          // which is exactly what the row does, off `GET_WORKSPACES`. Waking
+          // here would be a whole `GET_TREE` per notification, for icons that
+          // cannot have moved.
+          WorkspaceChange.urgent => false,
+          WorkspaceChange.unknown => true,
+        },
       // miracle never says *which* output changed, and a removed one has its
       // workspaces re-homed onto another with no workspace event of its own —
       // which is exactly what `MiracleManager.outputsRevision` used to stand in
@@ -264,31 +256,32 @@ bool wakesWorkspaceApps(Event event) => switch (event) {
           WindowChange.closed ||
           WindowChange.moved =>
             true,
-          // None of these move a window between workspaces or raise an
-          // urgency hint, and `focused` alone fires on every alt-tab.
+          // None of these move a window between workspaces, and `focused`
+          // alone fires on every alt-tab. `urgent` is miracle.dart 2.1's
+          // addition and belongs with them for the same reason: a window
+          // asking to be looked at has not gone anywhere, and the flash reads
+          // the flag off `GET_WORKSPACES` rather than out of the tree.
           WindowChange.focused ||
           WindowChange.fullscreenMode ||
           WindowChange.floating ||
-          WindowChange.marked =>
+          WindowChange.marked ||
+          WindowChange.urgent =>
             false,
           // A change this package does not model yet: re-read rather than go
-          // quietly stale. This is also the *only* thing the urgency flash
-          // rides on today — i3-style `window::urgent` is exactly such a
-          // change, raised and cleared — so a `WindowChange.urgent` this
-          // switch is one day forced to decide about answers `true`.
+          // quietly stale.
           WindowChange.unknown => true,
         },
       _ => false,
     };
 
-/// The window tree, reduced to "which applications are on which workspace, and
-/// is any of it urgent", for every bar on the machine.
+/// The window tree, reduced to "which applications are on which workspace",
+/// for every bar on the machine.
 ///
 /// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
 /// `SystemStatsStore`'s lease rule: the `GET_TREE` round-trip runs only while
-/// at least one workspace row is on screen *and* wants something out of the
-/// tree — its app icons, its urgency flash, or both — so a two-monitor setup
-/// shares one reader and a shell with both switched off pays nothing at all.
+/// at least one workspace row is on screen *and* has its icons switched on, so
+/// a two-monitor setup shares one reader and a shell with the feature off pays
+/// nothing at all.
 ///
 /// **It is driven by events, and never by a timer.** miracle.dart 2.0 decodes
 /// `window` and `output` events (before it, every event type but `workspace`
@@ -304,10 +297,7 @@ bool wakesWorkspaceApps(Event event) => switch (event) {
 ///   over one round-trip.
 /// - **A read that finds nothing new must not notify.** Every panel on every
 ///   monitor listens, so re-laying every bar to redraw identical icons is the
-///   cost this would otherwise impose. [_publish] compares a signature — which
-///   carries the urgency flags as well, or an alt-tab that raised nothing but
-///   an urgency hint would find the tree "unchanged" and never start the
-///   flash.
+///   cost this would otherwise impose. [_publish] compares a signature.
 /// - **A tree that will not parse costs the icons, never the row.** That is an
 ///   adornment failing, and the workspace buttons must still render and still
 ///   switch.
@@ -342,10 +332,6 @@ class WorkspaceAppsStore extends ChangeNotifier {
   /// The `app_id`s on [workspace], or empty.
   List<String> appIdsFor(WorkspaceResult workspace) =>
       appIdsForWorkspace(_apps, workspace);
-
-  /// Whether anything on [workspace] is asking to be looked at.
-  bool isUrgent(WorkspaceResult workspace) =>
-      isWorkspaceUrgent(_apps, workspace);
 
   /// How [appId] should be drawn. Memoised, because this runs per icon per
   /// build and each miss is a GIO lookup.
@@ -434,7 +420,7 @@ class WorkspaceAppsStore extends ChangeNotifier {
   void _publish(List<WorkspaceApps> apps) {
     final signature = apps
         .map((a) => '${a.output}\u0000${a.num}\u0000${a.name}'
-            '\u0000${a.urgent}\u0000${a.appIds.join('\u0001')}')
+            '\u0000${a.appIds.join('\u0001')}')
         .join('\u0002');
     if (signature == _signature) return;
     _signature = signature;

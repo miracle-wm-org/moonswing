@@ -87,71 +87,39 @@ void main() {
 
       expect(collectWorkspaceApps(tree).single.appIds, ['Steam', 'gimp']);
     });
-
-    test('reads urgency off the workspace and off its windows alike', () {
-      // The two flags answer at different moments — miracle raises the
-      // workspace's while the workspace is off screen and leaves the hint on
-      // the container while it is on — so the walk has to take either.
-      final tree = BaseNode.fromJson(_root([
-        _output('DP-1', [
-          _workspace(1, '1', 'DP-1', urgent: true),
-          _workspace(2, '2', 'DP-1', nodes: [
-            _split([_window('kitty', urgent: true)]),
-          ]),
-          // A floating window shouting is the dialog case, and `descendants`
-          // is what reaches it.
-          _workspace(3, '3', 'DP-1',
-              floating: [_window('org.gnome.Calculator', urgent: true)]),
-          _workspace(4, '4', 'DP-1', nodes: [_window('firefox')]),
-        ]),
-      ]));
-
-      expect(collectWorkspaceApps(tree).map((a) => a.urgent),
-          [true, true, true, false]);
-    });
-
-    test('an urgent workspace still reports what is open on it', () {
-      // The flash is an adornment on the same button the icons are drawn in;
-      // one must not cost the other.
-      final tree = BaseNode.fromJson(_root([
-        _output('DP-1', [
-          _workspace(1, '1', 'DP-1',
-              nodes: [_window('firefox', urgent: true), _window('kitty')]),
-        ]),
-      ]));
-
-      final apps = collectWorkspaceApps(tree).single;
-      expect(apps.urgent, isTrue);
-      expect(apps.appIds, ['firefox', 'kitty']);
-    });
   });
 
-  group('isWorkspaceUrgent', () {
-    final apps = [
-      const WorkspaceApps(
-          output: 'DP-1', num: 1, name: '1', appIds: [], urgent: true),
-      const WorkspaceApps(
-          output: 'HDMI-A-1', num: 1, name: '1', appIds: [], urgent: false),
-    ];
-
-    test('matches on the output as well as the workspace', () {
-      // Workspace "1" exists on both outputs; flashing the quiet monitor's
-      // button because the other one is shouting is the same bug the icons'
-      // own output filter exists for.
-      expect(isWorkspaceUrgent(apps, _result(num: 1, name: '1', output: 'DP-1')),
+  group('shouldFlashWorkspace', () {
+    // miracle.dart 2.1 made `WorkspaceResult.urgent` real — it was documented
+    // as legacy and always false before — so the flash is a flag on the reply
+    // the buttons are already built from, and no tree walk stands behind it.
+    test('flashes a workspace miracle has flagged', () {
+      expect(
+          shouldFlashWorkspace(const WorkspacesConfig(),
+              _result(num: 2, output: 'DP-1', focused: false, urgent: true)),
           isTrue);
       expect(
-          isWorkspaceUrgent(
-              apps, _result(num: 1, name: '1', output: 'HDMI-A-1')),
+          shouldFlashWorkspace(const WorkspacesConfig(),
+              _result(num: 2, output: 'DP-1', focused: false)),
           isFalse);
     });
 
-    test('a workspace the tree has never mentioned is quiet', () {
-      // Unknown has to read as quiet, or a row that paints before its first
-      // GET_TREE lands flashes every button on the bar.
-      expect(isWorkspaceUrgent(apps, _result(num: 9, name: '9', output: 'DP-1')),
+    test('never flashes the focused workspace', () {
+      // One guard, two jobs that agree: the user is already looking at it, and
+      // it is the one place the flag can go stale — miracle clears urgency on
+      // focus, and the GET_WORKSPACES that says so is still in flight on the
+      // frame the switch lands.
+      expect(
+          shouldFlashWorkspace(const WorkspacesConfig(),
+              _result(num: 2, output: 'DP-1', focused: true, urgent: true)),
           isFalse);
-      expect(isWorkspaceUrgent(const [], _result(num: 1, output: 'DP-1')),
+    });
+
+    test('answers false outright with the option off', () {
+      expect(
+          shouldFlashWorkspace(
+              const WorkspacesConfig(flashUrgent: false),
+              _result(num: 2, output: 'DP-1', focused: false, urgent: true)),
           isFalse);
     });
   });
@@ -207,6 +175,16 @@ void main() {
       expect(wakesWorkspaceApps(_outputEvent()), isTrue);
     });
 
+    test('urgency does not, on either of the two events that carry it', () {
+      // miracle.dart 2.1 emits both together, and neither moves a window
+      // between workspaces: the flash reads `GET_WORKSPACES` instead, so
+      // waking here would be a whole GET_TREE per notification for icons that
+      // cannot have changed. `focused`'s exclusion, for `focused`'s reason.
+      expect(wakesWorkspaceApps(_workspaceEvent(WorkspaceChange.urgent)),
+          isFalse);
+      expect(wakesWorkspaceApps(_windowEvent(WindowChange.urgent)), isFalse);
+    });
+
     test('only the window changes that move a window between workspaces do',
         () {
       for (final change in [
@@ -224,6 +202,7 @@ void main() {
         WindowChange.fullscreenMode,
         WindowChange.floating,
         WindowChange.marked,
+        WindowChange.urgent,
       ]) {
         expect(wakesWorkspaceApps(_windowEvent(change)), isFalse,
             reason: change.name);
@@ -386,39 +365,20 @@ void main() {
       store.release();
     });
 
-    test('a window raising its urgency hint is a change worth publishing',
-        () async {
-      var notifications = 0;
+    test('a window going urgent costs no round-trip at all', () async {
       store.acquire();
       await pumpEventQueue();
-      store.addListener(() => notifications++);
+      expect(fetches, 1);
 
-      final quiet = _result(num: 1, name: '1', output: 'DP-1');
-      expect(store.isUrgent(quiet), isFalse);
-
-      // Nothing about *which* applications are open moved, so a signature
-      // carrying only the app ids would call this tree unchanged and the flash
-      // would never start.
-      workspaces = [
-        _workspace(1, '1', 'DP-1', nodes: [_window('firefox', urgent: true)])
-      ];
-      // i3-style `window::urgent` is a change miracle.dart does not model, so
-      // it arrives as `unknown` — which is exactly why that case re-reads.
-      events.add(_windowEvent(WindowChange.unknown));
+      // Both of the events miracle sends for one urgency change. The flash
+      // reads `GET_WORKSPACES` and the icons cannot have moved, so a
+      // notification arriving on a workspace nobody is looking at must not
+      // walk the whole window tree.
+      events.add(_windowEvent(WindowChange.urgent));
+      events.add(_workspaceEvent(WorkspaceChange.urgent));
       await pumpEventQueue();
 
-      expect(notifications, 1);
-      expect(store.isUrgent(quiet), isTrue);
-
-      workspaces = [
-        _workspace(1, '1', 'DP-1', nodes: [_window('firefox')])
-      ];
-      events.add(_windowEvent(WindowChange.unknown));
-      await pumpEventQueue();
-
-      expect(notifications, 2, reason: 'and the flash has to be able to stop');
-      expect(store.isUrgent(quiet), isFalse);
-
+      expect(fetches, 1);
       store.release();
     });
 
@@ -537,22 +497,26 @@ void main() {
 
 int _nextId = 1;
 
-WorkspaceResult _result({required int num, String? name, required String output}) =>
+WorkspaceResult _result({
+  required int num,
+  String? name,
+  required String output,
+  bool focused = true,
+  bool urgent = false,
+}) =>
     WorkspaceResult.fromJson({
       'num': num,
       'name': name,
       'visible': true,
-      'focused': true,
-      // Always false, and deliberately so: miracle.dart documents
-      // `GET_WORKSPACES`'s `urgent` as legacy and never set, which is why the
-      // flash reads the tree instead.
-      'urgent': false,
+      'focused': focused,
+      'urgent': urgent,
       'output': output,
       'rect': _rect(),
     });
 
-Event _workspaceEvent() => Event.fromJson(IpcType.ipcEventWorkspace, {
-      'change': 'focus',
+Event _workspaceEvent([WorkspaceChange change = WorkspaceChange.focus]) =>
+    Event.fromJson(IpcType.ipcEventWorkspace, {
+      'change': change.wireName,
       'old': null,
       'current': _workspace(1, '1', 'DP-1'),
     });
@@ -618,7 +582,6 @@ Map<String, dynamic> _workspace(
   String output, {
   List<Map<String, dynamic>> nodes = const [],
   List<Map<String, dynamic>> floating = const [],
-  bool urgent = false,
 }) =>
     {
       'id': _nextId++,
@@ -628,7 +591,7 @@ Map<String, dynamic> _workspace(
       'num': num,
       'visible': true,
       'focused': false,
-      'urgent': urgent,
+      'urgent': false,
       'output': output,
       'border': 'none',
       'current_border_width': 0,
@@ -650,7 +613,6 @@ Map<String, dynamic> _window(
   Map<String, dynamic>? properties,
   List<Map<String, dynamic>> nodes = const [],
   List<Map<String, dynamic>> floating = const [],
-  bool urgent = false,
 }) =>
     {
       'id': _nextId++,
@@ -668,7 +630,7 @@ Map<String, dynamic> _window(
       'deco_rect': _rect(),
       'geometry': _rect(),
       'window': null,
-      'urgent': urgent,
+      'urgent': false,
       'sticky': false,
       'fullscreen_mode': 0,
       'pid': null,

@@ -35,9 +35,8 @@ class WorkspacesState extends State<Workspaces> {
   MiracleConnection? _connection;
   StreamSubscription<Event>? _events;
 
-  /// What is open on each workspace, and whether any of it is urgent. Shared
-  /// with every other bar on the machine, and only read while somebody wants
-  /// one of the two.
+  /// What is open on each workspace. Shared with every other bar on the
+  /// machine, and only read while somebody's icons are switched on.
   final WorkspaceAppsStore _apps = WorkspaceAppsStore.instance;
 
   /// Whether this row is one of the holders of [_apps]'s lease.
@@ -79,12 +78,13 @@ class WorkspacesState extends State<Workspaces> {
     super.dispose();
   }
 
-  /// Holds the store's lease exactly while this row wants something out of the
-  /// window tree — its icons, its urgency flash, or both — so a shell with both
-  /// switched off never opens a `GET_TREE` at all; the window events still
-  /// arrive, they just wake nothing.
+  /// Holds the store's lease exactly while this row would draw icons, so a
+  /// shell with the option off never opens a `GET_TREE` at all — the window
+  /// events still arrive, they just wake nothing. The urgency flash is
+  /// deliberately not part of this: it reads a flag off the `GET_WORKSPACES`
+  /// reply the row fetches for itself, so it costs no round-trip to lease.
   void _syncLease() {
-    final wanted = widget.config.showAppIcons || widget.config.flashUrgent;
+    final wanted = widget.config.showAppIcons;
     if (wanted == _leased) return;
     _leased = wanted;
     if (wanted) {
@@ -124,13 +124,16 @@ class WorkspacesState extends State<Workspaces> {
     if (connection == null) return;
     _events = connection.listen(
       (Event event) {
-        // A workspace event is the obvious trigger. An output event is the
-        // less obvious one: miracle re-homes a removed output's workspaces
-        // onto another output and emits no workspace event saying so, which
-        // leaves the `workspace -> output` mapping this row filters on stale.
-        // The shell used to infer that from its own `wl_output` view
-        // (`MiracleManager.outputsRevision`) because miracle.dart could not
-        // decode the event; it can now.
+        // A workspace event is the obvious trigger, and it is what carries
+        // urgency too: miracle.dart 2.1 emits `workspace`/`urgent` alongside
+        // the window event precisely so a bar watching workspaces sees it
+        // without walking the tree, and the refetch below is what the flash
+        // rides on. An output event is the less obvious one: miracle re-homes
+        // a removed output's workspaces onto another output and emits no
+        // workspace event saying so, which leaves the `workspace -> output`
+        // mapping this row filters on stale. The shell used to infer that from
+        // its own `wl_output` view (`MiracleManager.outputsRevision`) because
+        // miracle.dart could not decode the event; it can now.
         if (event is WorkspaceEvent || event is OutputEvent) {
           connection.getWorkspaces().then(_updateWorkspaces);
         }
@@ -211,14 +214,7 @@ class WorkspacesState extends State<Workspaces> {
                   : theme.workspaceBackground,
               hoverColor: theme.surfaceHover,
               pressedColor: theme.surfacePressed,
-              // Never on the focused workspace, for two reasons that happen to
-              // agree: the user is already looking at it, and it is the one
-              // place the flag can go stale — miracle clears urgency when the
-              // workspace is switched to, and the round-trip that would tell
-              // us so is still in flight on the frame the switch lands.
-              urgent: config.flashUrgent &&
-                  !workspace.focused &&
-                  _apps.isUrgent(workspace),
+              urgent: shouldFlashWorkspace(config, workspace),
               urgentColor: theme.accent,
               urgentPeriod: urgentPeriod,
               onPressed: () {
