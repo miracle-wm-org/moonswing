@@ -21,6 +21,9 @@
 library;
 
 import 'dart:math' as math;
+// ClipOp is not among the dart:ui symbols `package:flutter/painting.dart`
+// re-exports, unlike Canvas, Paint and PaintingStyle beside it.
+import 'dart:ui' show ClipOp;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
@@ -37,12 +40,14 @@ typedef PanelRimBreak = (double start, double end);
 
 /// Where each panel's inner rim is currently interrupted.
 ///
-/// Keyed on the panel's own window controller, which is what both ends can name:
-/// `PopupHost.openPopup` already reads it out of the enclosing `WindowScope` to
-/// parent the popup, and the panel's own tree reads the same scope. One entry
-/// per panel, because a panel hosts at most one open bar popup — the
-/// [PopupCoordinator] guarantees that much, and a second one would be a menu
-/// nested inside the first, which is not attached to anything.
+/// Keyed on the panel's own `FlutterView`, which is the object both ends resolve
+/// to: the panel's tree is in it, and `PopupHost.openPopup` runs from a module's
+/// context inside that same tree. `View.maybeOf` rather than the `WindowScope`
+/// the popup is parented through, because the view is public API and is present
+/// in any tree a panel can be pumped in. One entry per panel, because a panel
+/// hosts at most one open bar popup — `PopupCoordinator` guarantees that much,
+/// and a second one would be a menu nested inside the first, which is attached
+/// to nothing.
 ///
 /// The singleton `ChangeNotifier` shape of `OsdStore`/`TrayStore`, with their
 /// rule about not notifying for a value that did not move: every panel on every
