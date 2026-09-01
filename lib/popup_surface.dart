@@ -20,7 +20,11 @@ import 'package:graceful_shell/scopes.dart';
 /// [ThemeConfig.popupAttachRadius] is deliberately *not* read here. It is not a
 /// corner rounding at all but an outward flare, which no [BorderRadius] can
 /// express; see [AttachedPopupBorder], which [popupDecoration] uses in this
-/// function's place as soon as it is above zero.
+/// function's place as soon as it is above zero — and also, at a flare of 0,
+/// whenever [popupAttachCollar] is, since the card then has to paint one
+/// rim-width outside its own box and a [BoxDecoration] cannot. The outline that
+/// shape builds for a collared square join is exactly what this function
+/// describes, grown on the joined side.
 ///
 /// Returns [BorderRadius.zero] when all four corners come out square, which
 /// [PopupCard] uses to skip building a clip layer at all.
@@ -56,12 +60,18 @@ BorderRadius popupCornerRadius(ThemeConfig theme, {String? attach}) {
 /// [BorderRadius] can express one — hence a [ShapeBorder], and hence
 /// [popupDecoration] returning a [Decoration] rather than a [BoxDecoration].
 ///
-/// **The flare paints outside [Rect].** It reaches [attachRadius] past the card
+/// **This shape paints outside [Rect].** It reaches [attachRadius] past the card
 /// on each of the two sides that meet the join, and [collar] past it on the
 /// join itself, exactly as a [BoxShadow] paints past its box — so the popup's
-/// surface has to be grown by that much or the ears are clipped off at the
-/// window edge. [popupAttachInsets] is that amount and `PopupHost.openPopup`
-/// folds it into the same padding the shadow uses.
+/// surface has to be grown by that much or what is drawn there is clipped off at
+/// the window edge. [popupAttachInsets] is that amount and
+/// `PopupHost.openPopup` folds it into the same padding the shadow uses.
+///
+/// Painting outside the box is also why an attached card with **no** flare
+/// still comes here whenever [collar] is above zero: at [attachRadius] 0 the
+/// outline is exactly the square-cornered card [popupCornerRadius] describes,
+/// grown into the panel so its fill covers the bar's inner rim, which no
+/// [BoxDecoration] can be made to do.
 ///
 /// The far corners keep [radius]; the join carries no rim, for the reason
 /// [_popupBorder] gives.
@@ -98,11 +108,13 @@ class AttachedPopupBorder extends ShapeBorder {
   /// leave their tips tangent to the join line, rise to meet the rim's inner
   /// face at the two ends and let what is left of it taper into the sweep.
   ///
-  /// Only meaningful with a flare. A square butt join extended by a collar
-  /// would cut a flat-bottomed slot out of the bar's rim instead of growing out
-  /// of it, which is why [popupAttachCollar] answers 0 without one and why the
-  /// [BoxDecoration] branch of [popupDecoration] — the one a square join takes —
-  /// has nowhere to put this.
+  /// A square butt join ([attachRadius] of 0) takes this too, and needs it just
+  /// as badly: the hairline across the mouth is the *bar's* line, so the card
+  /// has to paint over it wherever the two meet. What changes without a flare is
+  /// only how the line resumes at either end — square against the card's sides
+  /// rather than swept into them. That is why a collared square join is still
+  /// drawn by this shape rather than by the [BoxDecoration] branch of
+  /// [popupDecoration], which has no way to paint outside its own box.
   final double collar;
 
   /// The rim, drawn on everything but the join.
@@ -310,11 +322,16 @@ class AttachedPopupBorder extends ShapeBorder {
 
 /// How far an attached card's join reaches past its own box, per side.
 ///
-/// Zero unless the card is attached *and* [ThemeConfig.popupAttachRadius] is
-/// above zero — the default join is square and reaches nowhere. The two sides
-/// that meet the join take the flare; the join itself takes
-/// [popupAttachCollar], the reach *into* the panel that lands the flare on the
-/// bar's own rim; the far side takes none, because nothing is drawn past it.
+/// Zero unless the card is attached, and zero then too unless it actually
+/// reaches somewhere: the two sides that meet the join take
+/// [ThemeConfig.popupAttachRadius], the flare, and the join itself takes
+/// [popupAttachCollar], the reach *into* the panel that lays the card's own fill
+/// over the bar's inner rim. Either may be 0 on its own — a square butt join
+/// against a rimmed bar takes the collar and no flare, a flared join against an
+/// unrimmed one takes the flare and no collar — and only a card that takes
+/// neither reaches nowhere at all, which is what keeps a theme with no panel rim
+/// and no flare byte-identical to what it drew before either existed. The far
+/// side always takes none, because nothing is drawn past it.
 ///
 /// This is [popupShadowInsets]'s job for a different piece of paint, and
 /// `PopupHost.openPopup` merges the two: both are margin the popup's own surface
@@ -323,9 +340,10 @@ class AttachedPopupBorder extends ShapeBorder {
 /// the collar outright — the shadow's own inset there has already been clamped
 /// to [ThemeConfig.popupGap], and attaching *is* that gap being 0.
 EdgeInsets popupAttachInsets(ThemeConfig theme, {String? attachEdge}) {
-  if (attachEdge == null || theme.popupAttachRadius <= 0) return EdgeInsets.zero;
-  final a = theme.popupAttachRadius;
+  if (attachEdge == null) return EdgeInsets.zero;
+  final a = math.max(0.0, theme.popupAttachRadius);
   final c = popupAttachCollar(theme, attachEdge: attachEdge);
+  if (a == 0 && c == 0) return EdgeInsets.zero;
   // The two sides that meet the join take the flare; the join itself takes the
   // collar, and the far side takes nothing. `attachEdge` is the *bar's* anchor,
   // so the joined side of the popup is the one facing it: a top bar's menu is
@@ -339,26 +357,37 @@ EdgeInsets popupAttachInsets(ThemeConfig theme, {String? attachEdge}) {
   };
 }
 
-/// How far an attached card reaches *into* the panel, so that its flare runs
+/// How far an attached card reaches *into* the panel, so that its join runs
 /// into the bar's own rim instead of hanging off it.
 ///
 /// [ThemeConfig.panelBorderWidth], and 0 whenever there is nothing to join to:
 /// a card that floats (no [attachEdge] — which already means
-/// [ThemeConfig.popupGap] is 0, since that is what attaching *is*), a bar with
-/// no rim, or a square butt join, which has no flare to carry the bar's rim
-/// into and would cut a flat slot out of it instead. See
-/// [AttachedPopupBorder.collar] for what the reach buys.
+/// [ThemeConfig.popupGap] is 0, since that is what attaching *is*), or a bar
+/// with no rim. See [AttachedPopupBorder.collar] for what the reach buys.
+///
+/// **A square butt join needs this exactly as much as a flared one does.** A
+/// panel's rim is drawn along its *inner* edge as well as its outer one, so with
+/// no collar the bar's hairline runs straight across the mouth of every menu it
+/// opens — which is the one thing attaching exists to hide, and it is the bar's
+/// line rather than the card's, so dropping the popup's own rim on the join
+/// (which [_popupBorder] and [AttachedPopupBorder] both do) cannot reach it.
+/// The reach is the only thing that can: the card's own fill, painted one
+/// rim-width into the panel, takes that hairline out across the whole mouth.
+/// What the flare adds on top is *how* the line resumes at either end — swept
+/// into the card's sides rather than meeting them square — which is a
+/// difference in the shape of the join and not in whether there is a seam
+/// across it.
 ///
 /// The panel's and the popup's rims are read as two independent keys here — the
-/// collar is [ThemeConfig.panelBorderWidth] and the flare is stroked at
+/// collar is [ThemeConfig.panelBorderWidth] and the card's rim is stroked at
 /// [ThemeConfig.popupBorderWidth] — because nothing makes a theme spell them
 /// the same. Equal widths (which is what a theme that wants one continuous
-/// outline writes, and what `carbon` ships) put the flare's stroke exactly over
+/// outline writes, and what `carbon` ships) lay the card's stroke exactly over
 /// the band the bar's rim occupies, so the two read as one line turning the
-/// corner; unequal ones still meet at the tip, with a step in the line's
-/// thickness there rather than a break in it.
+/// corner; unequal ones still meet, with a step in the line's thickness there
+/// rather than a break in it.
 double popupAttachCollar(ThemeConfig theme, {String? attachEdge}) {
-  if (attachEdge == null || theme.popupAttachRadius <= 0) return 0.0;
+  if (attachEdge == null) return 0.0;
   return math.max(0.0, theme.panelBorderWidth);
 }
 
@@ -525,22 +554,27 @@ Decoration popupDecoration({
   final radius = popupCornerRadius(theme, attach: attach);
   final shadow = popupShadow(theme);
   final rim = border ?? _popupBorder(theme, attach);
-  if (attach != null && theme.popupAttachRadius > 0) {
-    // The flare is not a corner radius and a BoxDecoration cannot draw one, so
-    // this is the one card in the shell that is a ShapeDecoration. Everything
-    // else about it is the same: the same fill, the same shadow, the same rim
+  final collar = popupAttachCollar(theme, attachEdge: attach);
+  if (attach != null && (theme.popupAttachRadius > 0 || collar > 0)) {
+    // Two things a BoxDecoration cannot draw, and either one is enough to need
+    // this shape. The flare is not a corner radius, and the collar paints
+    // *outside* the card's own box — one rim-width into the panel, so the fill
+    // takes the bar's inner hairline out across the mouth. Everything else
+    // about it is the same: the same fill, the same shadow, the same rim
     // colour and width — an explicit `border` contributes its side, since the
-    // shape decides for itself that the join carries none.
+    // shape decides for itself that the join carries none. With no flare the
+    // outline it builds is exactly the square-cornered card
+    // [popupCornerRadius] describes, grown by the collar on the joined side.
     return ShapeDecoration(
       color: opaque ? opaquePopupFill(theme) : theme.popupBackground,
       shape: AttachedPopupBorder(
         edge: attach,
         radius: theme.popupRadius,
         attachRadius: theme.popupAttachRadius,
-        // The bar's own rim, reached into so the flare continues it rather than
-        // hanging beneath it. The margin for this is already in the surface —
-        // popupAttachInsets carries it on the joined side.
-        collar: popupAttachCollar(theme, attachEdge: attach),
+        // The bar's own rim, reached into so the card's fill covers it rather
+        // than hanging beneath it. The margin for this is already in the
+        // surface — popupAttachInsets carries it on the joined side.
+        collar: collar,
         // The explicit override's side when there is one — it is a rim that
         // carries meaning rather than chrome — and the theme's otherwise. Not
         // `rim?.top`: that is the side an attached card has just dropped.
