@@ -107,35 +107,38 @@ void main() {
     }
   });
 
-  testWidgets('the bar\'s own rim is no business of the card\'s',
+  testWidgets('a rimmed bar reaches the card as a shape, flare or no flare',
       (tester) async {
-    // A rimmed bar used to make the card reach back into the panel and paint
-    // over the hairline the bar drew along its inner edge. It cannot: the card
-    // is a separate compositor surface the compositor places, so covering that
-    // line only ever worked where the two happened to align and only for a
-    // theme whose card and bar are one colour. The bar leaves the line off
-    // instead (`_panelBorder`), and the card is exactly the card an unrimmed
-    // bar gets — a plain box, square on the join, with no reach past it.
+    // A panel's rim is drawn along its *inner* edge too, so a bar that carries
+    // one puts a hairline straight across the mouth of every menu it opens.
+    // That line is the bar's, not the card's, so dropping the card's own rim on
+    // the join cannot reach it — only the card's fill, painted one rim-width
+    // into the panel, can. That reach is outside the card's own box, which is
+    // what makes this a ShapeDecoration even with no flare on it.
     for (final edge in ['top', 'bottom', 'left', 'right']) {
       await tester.pumpWidget(_host(_card, attach: edge, theme: _rimmedBar));
-      expect(_cardDecoration(tester), isA<BoxDecoration>(), reason: edge);
+      final shape =
+          (_cardDecoration(tester) as ShapeDecoration).shape
+              as AttachedPopupBorder;
+      expect(shape.edge, edge);
+      expect(shape.attachRadius, 0.0, reason: edge);
+      expect(shape.collar, 1.0, reason: edge);
       expect(tester.takeException(), isNull, reason: edge);
     }
   });
 
   testWidgets('an unrimmed bar leaves the square card exactly as it was',
       (tester) async {
-    // Nothing paints outside the card, so the decoration is the plain box it
-    // has always been. This is what keeps `graceful` and `dracula` — both
-    // attached, both square — byte-identical.
+    // Nothing to cover, so nothing paints outside the card and the decoration
+    // is the plain box it has always been. This is what keeps `graceful` and
+    // `dracula` — both attached, both square, neither rimmed — byte-identical.
     await tester.pumpWidget(_host(_card, attach: 'top'));
     expect(_cardDecoration(tester), isA<BoxDecoration>());
   });
 
   testWidgets('a rimmed bar still floats where nothing is attached',
       (tester) async {
-    // A popup anchored to the pointer has no join at all, and the bar's rim
-    // never reached it either way.
+    // The collar is the join's, and a popup anchored to the pointer has none.
     await tester.pumpWidget(_host(_card, theme: _rimmedBar));
     final decoration = _cardDecoration(tester) as BoxDecoration;
     expect(decoration.border,

@@ -83,9 +83,6 @@ void main() {
         panelRadius: 12,
         panelBorder: const Color(0x40FFFFFF),
         panelBorderWidth: 1.5,
-        // Floating popups, so the bar is a boundary on all four sides; see the
-        // attached case below.
-        popupGap: 6,
       );
       final decoration = panelBackgroundDecoration(theme: theme);
       expect(
@@ -96,111 +93,6 @@ void main() {
       expect(decoration.borderRadius, BorderRadius.circular(12),
           reason: 'gradient $gradient');
     }
-  });
-
-  group('the rim and the edge the menus come out of', () {
-    // `popup_gap = 0` is the attached mode: a bar popup is flush with the
-    // panel's inner edge and made of the same material, so the two are meant to
-    // read as one surface. A rim along that edge is the seam attaching exists
-    // to remove, and it has to be the *panel* that leaves it off — the line is
-    // on the panel's own surface, and a popup is a separate compositor surface
-    // the compositor places, so painting over it would need the two to align to
-    // the pixel and would only ever work where card and bar are one colour.
-    const attached = ThemeConfig(
-      panelBorder: Color(0xFF525252),
-      panelBorderWidth: 1.0,
-    );
-
-    /// The side of [anchor]'s bar that faces the screen's interior.
-    BorderSide inner(Border border, String anchor) => switch (anchor) {
-          'top' => border.bottom,
-          'bottom' => border.top,
-          'left' => border.right,
-          _ => border.left,
-        };
-
-    test('an attached theme leaves the inner edge open, and only that', () {
-      for (final anchor in const ['top', 'bottom', 'left', 'right']) {
-        final border =
-            panelBackgroundDecoration(anchor: anchor, theme: attached).border!
-                as Border;
-        expect(inner(border, anchor).style, BorderStyle.none, reason: anchor);
-        // Exactly one side: the other three are against the screen edge on a
-        // flush bar and are the rim the user asked for on a floating one.
-        expect(
-            [border.top, border.bottom, border.left, border.right]
-                .where((s) => s.style == BorderStyle.none),
-            hasLength(1),
-            reason: anchor);
-        final drawn =
-            [border.top, border.bottom, border.left, border.right]
-                .where((s) => s.style != BorderStyle.none);
-        for (final side in drawn) {
-          expect(side.color, attached.panelBorder, reason: anchor);
-          expect(side.width, attached.panelBorderWidth, reason: anchor);
-        }
-      }
-    });
-
-    test('a gap gives the bar all four sides back', () {
-      // With a gap the cards genuinely float, so the bar's inner edge is a
-      // boundary again and the rim runs the whole way round.
-      for (final anchor in const ['top', 'bottom', 'left', 'right']) {
-        final border = panelBackgroundDecoration(
-          anchor: anchor,
-          theme: const ThemeConfig(
-            panelBorder: Color(0xFF525252),
-            panelBorderWidth: 1.0,
-            popupGap: 6.0,
-          ),
-        ).border! as Border;
-        expect(border.isUniform, isTrue, reason: anchor);
-        expect(inner(border, anchor).style, BorderStyle.solid, reason: anchor);
-      }
-    });
-
-    test('an unrimmed bar is untouched by any of it', () {
-      // Width is still the off switch, and it still has to produce no Border at
-      // all — which is every shipped theme but carbon.
-      expect(panelBackgroundDecoration(theme: const ThemeConfig()).border,
-          isNull);
-    });
-
-    test('the rounding survives the open edge', () {
-      // A rounded bar keeps both: the rounding on the two corners facing the
-      // screen's interior, and the open edge between them. A non-uniform Border
-      // under a borderRadius is legal only because the visible sides share one
-      // colour — BoxBorder.paint takes its paintNonUniformBorder path before it
-      // reaches the uniformity assert — which is what the widget test below
-      // pins, since painting is what would throw.
-      const rounded = ThemeConfig(
-        panelBorder: Color(0xFF525252),
-        panelBorderWidth: 1.0,
-        panelMargin: 8,
-        panelRadius: 12,
-      );
-      final decoration = panelBackgroundDecoration(theme: rounded);
-      expect(decoration.borderRadius, BorderRadius.circular(12));
-      expect((decoration.border! as Border).isUniform, isFalse);
-    });
-
-    testWidgets('an open-edged rim paints without complaint', (tester) async {
-      for (final anchor in const ['top', 'bottom', 'left', 'right']) {
-        await tester.pumpWidget(DecoratedBox(
-          decoration: panelBackgroundDecoration(
-            anchor: anchor,
-            theme: const ThemeConfig(
-              panelBorder: Color(0xFF525252),
-              panelBorderWidth: 1.0,
-              panelMargin: 8,
-              panelRadius: 12,
-            ),
-          ),
-          child: const SizedBox(width: 200, height: 32),
-        ));
-        expect(tester.takeException(), isNull, reason: anchor);
-      }
-    });
   });
 
   test('a floating bar rounds all four corners', () {

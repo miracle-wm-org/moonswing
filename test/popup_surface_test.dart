@@ -25,8 +25,9 @@ Future<void> pumpCard(
 }
 
 /// [popupDecoration] answers a plain [Decoration] because an attached card that
-/// paints outside its own box — a flared join — is a [ShapeDecoration]; every
-/// case that is not is still a [BoxDecoration], and these read its fields.
+/// paints outside its own box — a flared join, or a collar into a rimmed bar —
+/// is a [ShapeDecoration]; every case that is neither is still a
+/// [BoxDecoration], and these read its fields.
 BoxDecoration boxOf(Decoration decoration) => decoration as BoxDecoration;
 
 BoxDecoration decorationOf(WidgetTester tester) =>
@@ -176,6 +177,21 @@ void main() {
             attachRadius: attachRadius,
           ).getOuterPath(card);
 
+      test('the decoration carries the bar\'s rim into the shape', () {
+        const rimmed = ThemeConfig(
+          popupRadius: 12.0,
+          popupAttachRadius: 10.0,
+          popupBorderWidth: 1.0,
+          panelBorderWidth: 1.0,
+        );
+        final shape = (popupDecoration(theme: rimmed, attach: 'top')
+                as ShapeDecoration)
+            .shape as AttachedPopupBorder;
+        expect(shape.collar, rimmed.panelBorderWidth);
+        // And a floating card never grows one, whatever rim the bar has.
+        expect(popupDecoration(theme: rimmed), isA<BoxDecoration>());
+      });
+
       test('a flare makes the decoration a shape rather than a box', () {
         expect(popupDecoration(theme: flared, attach: 'top'),
             isA<ShapeDecoration>());
@@ -189,43 +205,42 @@ void main() {
             isA<BoxDecoration>());
       });
 
-      test('the bar\'s rim never reaches the card', () {
-        // A rimmed bar used to make every attached card a shape, reaching one
-        // rim-width back into the panel to paint over the hairline the bar drew
-        // along its inner edge. The bar leaves that line off instead
-        // (`_panelBorder`), because it is on the bar's own surface and a popup
-        // is a surface of its own that the compositor places. So the card is
-        // exactly the card an unrimmed bar gets, at any flare.
+      test('a collar makes it a shape too, flare or no flare', () {
+        // The collar paints one rim-width *outside* the card, which a
+        // BoxDecoration cannot do — so a square join against a rimmed bar takes
+        // this shape as well, with no flare on it.
         const square = ThemeConfig(popupRadius: 12.0, panelBorderWidth: 1.0);
-        expect(popupDecoration(theme: square, attach: 'top'),
-            isA<BoxDecoration>());
+        final decoration =
+            popupDecoration(theme: square, attach: 'top') as ShapeDecoration;
+        final shape = decoration.shape as AttachedPopupBorder;
+        expect(shape.attachRadius, 0.0);
+        expect(shape.collar, 1.0);
+        // And it is still a box wherever there is no seam to cover.
         expect(popupDecoration(theme: square), isA<BoxDecoration>());
-
-        const rimmedAndFlared = ThemeConfig(
-          popupRadius: 12.0,
-          popupAttachRadius: 10.0,
-          panelBorderWidth: 1.0,
-        );
-        final shape =
-            (popupDecoration(theme: rimmedAndFlared, attach: 'top')
-                    as ShapeDecoration)
-                .shape as AttachedPopupBorder;
-        expect(
-          shape,
-          AttachedPopupBorder(
-            edge: 'top',
-            radius: 12.0,
-            attachRadius: 10.0,
-            side: BorderSide(
-              color: rimmedAndFlared.popupBorder,
-              width: rimmedAndFlared.popupBorderWidth,
-            ),
-          ),
-          reason: 'the flare alone, with nothing added for the bar\'s rim',
-        );
       });
 
-      testWidgets('a square join against a rimmed bar paints without complaint',
+      test('a collared square join is the square card, grown into the panel',
+          () {
+        // No flare, so the outline is exactly what popupCornerRadius describes
+        // — square on the join, popup_radius on the far pair — reaching one
+        // rim-width past the card's own edge so its fill covers the bar's
+        // hairline across the whole mouth.
+        const border = AttachedPopupBorder(
+            edge: 'top', radius: 12.0, attachRadius: 0.0, collar: 2.0);
+        final path = border.getOuterPath(card); // 100,50 200x120
+        expect(path.contains(const Offset(200, 49)), isTrue,
+            reason: 'the card reaches two pixels into the panel');
+        expect(path.contains(const Offset(101, 49)), isTrue,
+            reason: 'and squarely, right out to its own sides');
+        expect(path.contains(const Offset(99, 49)), isFalse,
+            reason: 'but no wider: there is no flare to reach out with');
+        expect(path.contains(const Offset(200, 47)), isFalse,
+            reason: 'nothing is drawn past the collar');
+        expect(path.contains(const Offset(101, 169)), isFalse,
+            reason: 'the far corners still take popup_radius');
+      });
+
+      testWidgets('a collared square join paints without complaint',
           (tester) async {
         for (final edge in ['top', 'bottom', 'left', 'right']) {
           await pumpCard(
@@ -258,6 +273,7 @@ void main() {
         final shape = decoration.shape as AttachedPopupBorder;
         expect(shape.edge, 'top');
         expect(shape.side.width, 2.0);
+        expect(shape.collar, 0.0, reason: 'this bar carries no rim');
         // The join takes no rim inset, because no rim is drawn there.
         expect(shape.dimensions,
             const EdgeInsets.only(left: 2, right: 2, bottom: 2));
@@ -322,41 +338,104 @@ void main() {
           attachRadius: 10.0,
           side: BorderSide(width: 2.0),
         );
-        final outer = border.getOuterPath(card);
-        final inner = border.getInnerPath(card);
-        expect(inner.getBounds().width, lessThan(outer.getBounds().width));
-        // Walked around the inner outline rather than sampled at a few
-        // corners, so a single arc going the wrong way cannot slip through.
-        for (final metric in inner.computeMetrics()) {
-          for (var t = 0.0; t <= 1.0; t += 1 / 64) {
-            final at = metric.getTangentForOffset(metric.length * t)!.position;
-            expect(outer.contains(at), isTrue, reason: '$at is outside');
+        // The collared shape too: the collar reaches both outlines equally,
+        // and an inner path that outran its own outer one at the join is
+        // exactly what a later ShapeBorderClipper would trip on.
+        const collared = AttachedPopupBorder(
+          edge: 'top',
+          radius: 12.0,
+          attachRadius: 10.0,
+          collar: 2.0,
+          side: BorderSide(width: 2.0),
+        );
+        for (final shape in [border, collared]) {
+          final outer = shape.getOuterPath(card);
+          final inner = shape.getInnerPath(card);
+          expect(inner.getBounds().width, lessThan(outer.getBounds().width));
+          // Walked around the inner outline rather than sampled at a few
+          // corners, so a single arc going the wrong way cannot slip through.
+          for (final metric in inner.computeMetrics()) {
+            for (var t = 0.0; t <= 1.0; t += 1 / 64) {
+              final at = metric.getTangentForOffset(metric.length * t)!.position;
+              expect(outer.contains(at), isTrue, reason: '$at is outside');
+            }
           }
         }
       });
 
-      test('nothing is drawn past the join line, on any edge', () {
-        // The card stops exactly at the panel's inner edge and the panel draws
-        // no rim there, so there is nothing between the two to paint over — and
-        // an outline that reached into the bar would be a hairline of the
-        // card's own colour laid over the bar for no reason, which is a seam of
-        // its own wherever the two fills differ.
-        //
-        // card is LTWH(100, 50, 200, 120): left 100, top 50, right 300,
-        // bottom 170.
-        Path joined(String edge) => AttachedPopupBorder(
+      test('the collar reaches the flare back onto the bar\'s own rim', () {
+        // A panel's rim is drawn along its *inner* edge too, so with the join
+        // on the card's own boundary the bar's hairline runs straight across
+        // the mouth of every menu and the card reads as something taped under
+        // a line. The collar moves the join one rim-width into the panel: the
+        // flare is concave, so the card is at its widest exactly there and its
+        // own fill takes that hairline out across the whole mouth.
+        const border = AttachedPopupBorder(
+            edge: 'top', radius: 12.0, attachRadius: 10.0, collar: 2.0);
+        final path = border.getOuterPath(card);
+
+        // The join line has moved off the card and into the panel, and the
+        // outline still reaches a full attachRadius past the card there.
+        expect(path.getBounds().top, 48.0);
+        expect(path.getBounds().left, 90.0);
+        expect(path.getBounds().right, 310.0);
+
+        // The mouth is covered from wall to wall in the band the bar's rim
+        // occupies — this is the notch, and it is the whole point.
+        expect(path.contains(const Offset(200, 49)), isTrue,
+            reason: 'the middle of the mouth, inside the panel\'s rim');
+        expect(path.contains(const Offset(95, 49)), isTrue,
+            reason: 'and out to within a few px of the ear');
+        // But no further: nothing is drawn past the rim's inner face.
+        expect(path.contains(const Offset(200, 47)), isFalse);
+
+        // What is left of the bar's rim tapers into the sweep rather than
+        // stopping dead — by the card's own edge the flare has already pulled
+        // most of the way back in.
+        expect(path.contains(const Offset(91, 50.5)), isFalse);
+
+        // And the card is still entirely inside its own outline.
+        for (final at in [
+          card.center,
+          card.topLeft + const Offset(0.5, 0.5),
+          card.topRight + const Offset(-0.5, 0.5),
+        ]) {
+          expect(path.contains(at), isTrue, reason: '$at');
+        }
+      });
+
+      test('the collar goes into the panel on whichever edge the join is', () {
+        Path collared(String edge) => AttachedPopupBorder(
               edge: edge,
               radius: 12.0,
               attachRadius: 10.0,
+              collar: 2.0,
             ).getOuterPath(card);
-        expect(joined('top').getBounds().top, 50.0);
-        expect(joined('bottom').getBounds().bottom, 170.0);
-        expect(joined('left').getBounds().left, 100.0);
-        expect(joined('right').getBounds().right, 300.0);
-        expect(joined('top').contains(const Offset(200, 49)), isFalse);
-        expect(joined('bottom').contains(const Offset(200, 171)), isFalse);
-        expect(joined('left').contains(const Offset(99, 110)), isFalse);
-        expect(joined('right').contains(const Offset(301, 110)), isFalse);
+        // card is LTWH(100, 50, 200, 120): left 100, top 50, right 300,
+        // bottom 170. The collar is always *away* from the card.
+        expect(collared('top').contains(const Offset(200, 49)), isTrue);
+        expect(collared('bottom').contains(const Offset(200, 171)), isTrue);
+        expect(collared('left').contains(const Offset(99, 110)), isTrue);
+        expect(collared('right').contains(const Offset(301, 110)), isTrue);
+        // Never into the card's far side.
+        expect(collared('top').contains(const Offset(200, 171)), isFalse);
+        expect(collared('bottom').contains(const Offset(200, 49)), isFalse);
+        expect(collared('left').contains(const Offset(301, 110)), isFalse);
+        expect(collared('right').contains(const Offset(99, 110)), isFalse);
+      });
+
+      test('no collar draws exactly the outline it drew before there was one',
+          () {
+        // Every theme whose bar carries no rim, which is every shipped one but
+        // carbon: the join stays on the card's own edge.
+        final plain = outlineFor('top');
+        final zero = const AttachedPopupBorder(
+                edge: 'top', radius: 12.0, attachRadius: 10.0, collar: 0.0)
+            .getOuterPath(card);
+        expect(zero.getBounds(), plain.getBounds());
+        expect(plain.getBounds().top, 50.0);
+        expect(plain.contains(const Offset(200, 49)), isFalse,
+            reason: 'nothing is drawn past the join line');
       });
 
       test('the flare is clamped to what the card can carry', () {
@@ -389,60 +468,85 @@ void main() {
       test('a floating card reaches nowhere, and neither does a bare join', () {
         const flared = ThemeConfig(popupAttachRadius: 10.0);
         expect(popupAttachInsets(flared), EdgeInsets.zero);
-        // A square butt join: no flare to reach out with and nothing drawn
-        // past the join, so the surface is exactly the card.
+        // A square butt join against a bar with no rim: no flare to reach out
+        // with and no hairline to reach in over, so the surface is exactly the
+        // card, as it was before either existed.
         expect(popupAttachInsets(const ThemeConfig(), attachEdge: 'top'),
             EdgeInsets.zero);
       });
 
-      test('a rimmed bar asks for no margin of its own', () {
-        // The card reaches nowhere past the join, whatever rim the bar carries:
-        // the bar leaves its inner rim off (`_panelBorder`) rather than the card
-        // reaching in to paint over it, so there is nothing there to make room
-        // for. A rimmed bar therefore leaves an attached popup's surface exactly
-        // where an unrimmed one does — margin nothing draws in is margin that
-        // swallows clicks, since the shell has no input-region support.
-        const square = ThemeConfig(panelBorderWidth: 2.0);
-        for (final edge in ['top', 'bottom', 'left', 'right']) {
-          expect(popupAttachInsets(square, attachEdge: edge), EdgeInsets.zero,
-              reason: edge);
-        }
-
-        const flared =
-            ThemeConfig(popupAttachRadius: 10.0, panelBorderWidth: 2.0);
-        expect(popupAttachInsets(flared, attachEdge: 'top'),
-            const EdgeInsets.symmetric(horizontal: 10));
-        expect(popupAttachInsets(flared, attachEdge: 'bottom'),
-            const EdgeInsets.symmetric(horizontal: 10));
-        expect(popupAttachInsets(flared, attachEdge: 'left'),
-            const EdgeInsets.symmetric(vertical: 10));
-        expect(popupAttachInsets(flared, attachEdge: 'right'),
-            const EdgeInsets.symmetric(vertical: 10));
+      test('a square join against a rimmed bar reaches into the panel', () {
+        // The hairline across the mouth is the *bar's* line, so dropping the
+        // card's own rim on the join cannot reach it. Without a flare there is
+        // nothing to reach outward with — but the collar is what covers the
+        // seam, and a square join needs it exactly as much.
+        const rimmed = ThemeConfig(panelBorderWidth: 2.0);
+        expect(popupAttachInsets(rimmed, attachEdge: 'top'),
+            const EdgeInsets.only(top: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'bottom'),
+            const EdgeInsets.only(bottom: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'left'),
+            const EdgeInsets.only(left: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'right'),
+            const EdgeInsets.only(right: 2));
       });
 
-      test('the joined side takes no margin from either source', () {
+      test('a rimmed bar is reached into on the joined side', () {
+        // The collar is margin like the flare is, and on the one side the
+        // flare takes none: the card grows into the panel by the bar's rim, so
+        // its fill can take the hairline out across the mouth.
+        const rimmed =
+            ThemeConfig(popupAttachRadius: 10.0, panelBorderWidth: 2.0);
+        expect(popupAttachInsets(rimmed, attachEdge: 'top'),
+            const EdgeInsets.only(left: 10, right: 10, top: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'bottom'),
+            const EdgeInsets.only(left: 10, right: 10, bottom: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'left'),
+            const EdgeInsets.only(top: 10, bottom: 10, left: 2));
+        expect(popupAttachInsets(rimmed, attachEdge: 'right'),
+            const EdgeInsets.only(top: 10, bottom: 10, right: 2));
+      });
+
+      test('the collar is the bar\'s rim, and only where there is a join', () {
+        const rimmed =
+            ThemeConfig(popupAttachRadius: 10.0, panelBorderWidth: 2.0);
+        expect(popupAttachCollar(rimmed, attachEdge: 'top'), 2.0);
+        // A card that floats has no bar to reach into.
+        expect(popupAttachCollar(rimmed), 0.0);
+        // A square butt join reaches in exactly as far: the seam it has to
+        // cover is the bar's own rim, which is there whatever shape the join
+        // takes.
+        expect(
+            popupAttachCollar(const ThemeConfig(panelBorderWidth: 2.0),
+                attachEdge: 'top'),
+            2.0);
+        // An unrimmed bar has nothing to reach for.
+        expect(
+            popupAttachCollar(const ThemeConfig(popupAttachRadius: 10.0),
+                attachEdge: 'top'),
+            0.0);
+      });
+
+      test('the surface margin the collar asks for is the one it gets', () {
         // popupSurfaceInsets takes the per-side larger of the shadow's reach
-        // and the flare's, and on the joined side both are 0: the shadow has
-        // been clamped to popup_gap, which attaching means is 0, and the flare
-        // reaches only sideways. So an attached surface is flush with the bar,
-        // which is what lets the compositor's own clip cut everything exactly
-        // at the join.
-        const flared = ThemeConfig(
+        // and the join's — and on the joined side the shadow's has already
+        // been clamped to popup_gap, which attaching means is 0. So the collar
+        // survives that merge whole, whatever shadow the theme carries.
+        const rimmed = ThemeConfig(
           popupAttachRadius: 10.0,
           panelBorderWidth: 2.0,
           popupShadowBlur: 16.0,
         );
-        final shadow = popupShadowInsets(flared, attachEdge: 'top');
+        final shadow = popupShadowInsets(rimmed, attachEdge: 'top');
         final surface = popupSurfaceInsets(
           shadow,
-          popupAttachInsets(flared, attachEdge: 'top'),
+          popupAttachInsets(rimmed, attachEdge: 'top'),
         );
         expect(shadow.top, 0.0,
             reason: 'the shadow is cut at the join, so it contests nothing');
-        expect(surface.top, 0.0);
-        expect(surface.left, 16.0, reason: 'the flare loses to a wider shadow');
+        expect(surface.top, 2.0);
         expect(surface.bottom, shadow.bottom,
-            reason: 'and the shadow still owns every side the join does not');
+            reason: 'and still owns every side the join does not');
         expect(surface.bottom, greaterThan(0));
       });
 

@@ -425,11 +425,11 @@ const String _carbon = '''
 # appear beside the bar — it *grows out of* it, each side sweeping outward as
 # it reaches the panel, widest exactly where the two meet. A flat theme with
 # one piece of shaping in it puts that shaping where the eye already is. The
-# bar and the cards carry one rim, of one colour and one width, and neither
-# draws it across the join: the bar leaves its inner edge open and the card
-# leaves off the side that meets it, so there is no line between them at all
-# and a menu reads as the bar itself opening. It is the only line in the theme,
-# and the only thing that gives a flat surface an edge over a dark wallpaper.
+# bar and the cards then carry one rim, of one colour and one width, and the
+# flare reaches back into the bar far enough to join the two: the line runs
+# along the panel edge, bends off it where a menu is open, goes round the card
+# and comes back. It is the only line in the theme, and the only thing that
+# gives a flat surface an edge over a dark wallpaper.
 #
 # And because a card that grows out of the bar is made of the same material as
 # the bar, popup_background is panel_background exactly: the join has no colour
@@ -483,26 +483,23 @@ scrim                = "#A6161616"
 panel_background     = "#161616"
 panel_gradient       = false
 
-# Flush and square, and rimmed — but not along the edge the menus come out of.
-# A bar with panel_border_width above zero is rimmed everywhere except its
-# *inner* edge while its popups are attached (popup_gap = 0), because that edge
-# is not a boundary at all: it is where a card continues out of the bar, and a
-# hairline along it is the one thing that gives away that the two are separate
-# surfaces. It has to be the bar declining to draw that line rather than the
-# card painting over it — a popup is a surface of its own that the compositor
-# places, so covering the line would need the two to align to the pixel and
-# would only ever work for a theme whose card and bar are the same colour.
-#
-# So the rim here sits on the three sides that are against the screen edge, and
-# the fourth is left open for the menus. What gives these flat surfaces an edge
-# over a dark wallpaper is then the cards' own outline: it runs down one side of
-# a menu, round it and back up the other, and stops where the menu stops being a
-# menu.
+# Flush and square, and rimmed. A bar with panel_border_width above zero draws
+# that rim along its *inner* edge too, so a menu attached to it used to butt
+# straight into a hairline running across its own mouth: the card read as
+# something taped underneath a line rather than as the bar opening. Any attached
+# card now reaches one rim-width back into the panel, so its own fill takes that
+# hairline out across the whole mouth; what the flare below adds is how the line
+# resumes at either end — the two arcs pick it up and carry it down the card's
+# sides rather than meeting them square. What is left is one continuous outline,
+# which is why the rim is worth having here at all: with no shadow anywhere in
+# this theme and no colour step across the join, an edge drawn all the way round
+# the bar and its menus is the only thing separating either from the wallpaper.
 #
 # It is Carbon's border-strong, and it is popup_border exactly. The two are a
-# pair for the same reason panel_background and popup_background are: a card cut
-# out of the bar wants the bar's own line and the bar's own material, and a
-# different colour or width on either side would show wherever they meet.
+# pair for the same reason panel_background and popup_background are: the line
+# turns the corner from one surface onto the other, so a different colour or a
+# different width on either side would put a visible step at the two points
+# where it does.
 panel_margin         = 0
 panel_radius         = 0.0
 panel_border         = "#525252"
@@ -515,22 +512,22 @@ panel_border_width   = 1.0
 # a subtle one would leave it with none, and along the flare it is the only
 # thing that draws the sweep at all, since the fill either side of it is now
 # the same graphite. It is panel_border to the value, and the width matches
-# too: the card's line and the bar's are the same line seen on two surfaces, so
-# equal widths keep it one thickness where unequal ones would step at the two
-# points the outline breaks off.
+# too: the collar lays the flare's stroke over the very band the bar's rim
+# occupies, so equal widths make one line where unequal ones would make a
+# step in it.
 popup_radius         = 4.0
 popup_border         = "#525252"
 popup_border_width   = 1.0
 
 # The theme's one piece of shaping. The gap is zero, so the card is flush and
 # the two corners on the join square off; the flare then sweeps those two sides
-# outward as they reach the bar. It paints outside the card's own box, so the
-# shell grows the popup's window by it — which here is the *whole* of that
-# margin, since the shadow contributes none. Nothing is painted past the join
-# itself: the card stops exactly at the panel's edge, and it is the bar leaving
-# its inner rim off that makes that edge seamless. Zero here would give the flat
-# butt join back — just as seamless, with the card's sides meeting the bar
-# square instead of sweeping into it.
+# outward into the bar. It paints outside the card's own box, so the shell
+# grows the popup's window by it — which here is the *whole* of that margin,
+# since the shadow contributes none — plus one panel_border_width on the join
+# itself, which is the reach that lays the card's fill over the bar's rim. Zero
+# here would give the flat butt join back: still seamless, since that reach is
+# the join's rather than the flare's, but with the bar's line meeting the card's
+# sides square instead of sweeping into them.
 popup_gap            = 0.0
 popup_attach_radius  = 12.0
 
