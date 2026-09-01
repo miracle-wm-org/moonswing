@@ -190,11 +190,10 @@ void main() {
       });
 
       test('the bar\'s rim never reaches the decoration', () {
-        // The card covers the bar's inner rim by *starting* on it — the anchor
-        // rect is pulled back by attachedAnchorInset — so nothing about the
-        // decoration changes when the bar is rimmed. A square join stays the
-        // plain box it is against an unrimmed bar, and a flared one carries the
-        // flare and nothing else.
+        // The bar's inner rim is dealt with by the bar (see panel_rim.dart),
+        // so nothing about the card's decoration changes when it is there. A
+        // square join stays the plain box it is against an unrimmed bar, and a
+        // flared one carries the flare and nothing else.
         const square = ThemeConfig(popupRadius: 12.0, panelBorderWidth: 1.0);
         expect(popupDecoration(theme: square, attach: 'top'),
             isA<BoxDecoration>());
@@ -395,8 +394,9 @@ void main() {
       });
 
       test('a rimmed bar asks for no surface margin at all', () {
-        // The reach that covers the bar's rim is spent on the anchor rect, not
-        // on the card's own paint, so a rimmed bar leaves an attached popup's
+        // The bar's rim is nothing the card can reach — the compositor places
+        // the popup below the panel — so it is the panel that leaves that line
+        // out across the mouth, and a rimmed bar leaves an attached popup's
         // surface exactly where an unrimmed one does. Margin nothing draws in is
         // margin that swallows clicks, with no input-region support to stop it.
         const square = ThemeConfig(panelBorderWidth: 2.0);
@@ -415,27 +415,6 @@ void main() {
             const EdgeInsets.symmetric(vertical: 10));
         expect(popupAttachInsets(flared, attachEdge: 'right'),
             const EdgeInsets.symmetric(vertical: 10));
-      });
-
-      test('the anchor inset is the bar\'s rim, and nothing else', () {
-        // Two independent keys on purpose: the reach is panel_border_width and
-        // the card's own rim is stroked at popup_border_width, because nothing
-        // makes a theme spell them the same. carbon does, which is what makes
-        // its two outlines read as one line turning the corner.
-        expect(attachedAnchorInset(const ThemeConfig(panelBorderWidth: 2.0)),
-            2.0);
-        // A flare neither adds to it nor is a precondition for it: the line
-        // across the mouth is the bar's whatever shape the join takes.
-        expect(
-            attachedAnchorInset(const ThemeConfig(
-                panelBorderWidth: 2.0, popupAttachRadius: 10.0)),
-            2.0);
-        // An unrimmed bar has nothing to reach for, which is every shipped
-        // theme but carbon.
-        expect(attachedAnchorInset(const ThemeConfig()), 0.0);
-        expect(
-            attachedAnchorInset(const ThemeConfig(popupAttachRadius: 10.0)),
-            0.0);
       });
 
       test('the joined side takes no margin from either source', () {

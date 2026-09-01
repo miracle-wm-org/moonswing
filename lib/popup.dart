@@ -16,7 +16,6 @@
 
 import 'dart:async';
 import 'dart:ffi' as ffi;
-import 'dart:math' as math;
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
@@ -28,6 +27,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 // windowing and positioner pieces this file needs, but not the Linux-specific
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
+import 'package:graceful_shell/panel_rim.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/popup_transition.dart';
@@ -206,42 +206,22 @@ Rect popupAnchorRect(BuildContext context) {
 /// zero-extent rect, which `xdg_positioner` rejects as a protocol error rather
 /// than merely placing badly.
 ///
-/// [inset] pulls the anchored edge *back into* the panel by that many pixels,
-/// so the popup's own joined edge lands that far inside the bar rather than
-/// flush against it. It is [attachedAnchorInset] — the bar's rim — and this is
-/// where that reach is spent, for a reason worth keeping.
-///
-/// **The anchor rect is the only thing that reliably moves a bar popup into its
-/// panel.** The obvious alternative is [WindowPositioner.offset], which is what
-/// the card's old *collar* used: it grew the popup's surface by the rim and
-/// asked the compositor for a matching negative offset. That never landed — and
-/// it could not have been caught anywhere else, because the offset's two terms
-/// ([popupShadowAnchorOffset] and [popupGapOffset]) cancel to exactly zero in
-/// every shipped theme, so the collar's was the only non-zero offset in the
-/// shell. The anchor rect has the opposite history: popups used to be anchored
-/// to the *module's* rect, whose edge sits a couple of pixels inside the bar,
-/// and the observed symptom was every popup overlapping the bar by exactly that
-/// much. So the path that is known to work is the one the reach now takes.
-///
-/// Clamped so the rect cannot invert on a panel thinner than its own rim.
-Rect barAnchorRect(Rect widget, Size panel, String anchor,
-    {double inset = 0}) {
+/// **The anchor edge is the panel's, flush, and the popup lands below it.** A
+/// bar popup is never placed *over* its panel: the compositor puts the card on
+/// the far side of the anchor edge, which is what makes an attached card read
+/// as growing out of the bar. Nothing the card paints can therefore reach the
+/// bar's own inner rim, and two attempts to make it — a *collar* on the card's
+/// shape asking for a negative [WindowPositioner.offset], and an inset on this
+/// rect — are why that is worth stating here. The bar's rim is the bar's to
+/// leave off; see `PanelRimBreaks` (`panel_rim.dart`).
+Rect barAnchorRect(Rect widget, Size panel, String anchor) {
   if (panel.isEmpty) return widget;
-  // The bar's inner edge is the one facing away from the screen edge it is
-  // anchored to, so the inset always moves *towards* that screen edge.
   switch (anchor) {
     case 'left':
-      return Rect.fromLTRB(
-          0, widget.top, math.max(1.0, panel.width - inset), widget.bottom);
     case 'right':
-      return Rect.fromLTRB(math.min(inset, panel.width - 1), widget.top,
-          panel.width, widget.bottom);
-    case 'bottom':
-      return Rect.fromLTRB(widget.left, math.min(inset, panel.height - 1),
-          widget.right, panel.height);
-    default: // 'top'
-      return Rect.fromLTRB(
-          widget.left, 0, widget.right, math.max(1.0, panel.height - inset));
+      return Rect.fromLTRB(0, widget.top, panel.width, widget.bottom);
+    default: // 'top', 'bottom'
+      return Rect.fromLTRB(widget.left, 0, widget.right, panel.height);
   }
 }
 
@@ -252,14 +232,12 @@ Rect barAnchorRect(Rect widget, Size panel, String anchor,
 /// which is `physicalSize / devicePixelRatio` — the very space
 /// [RenderBox.localToGlobal] maps into here. [setPanelMargin]'s margin is
 /// native, outside the surface, so there is nothing to correct for.
-Rect barAnchorRectFor(BuildContext context, String anchor,
-    {double inset = 0}) {
+Rect barAnchorRectFor(BuildContext context, String anchor) {
   final box = context.findRenderObject() as RenderBox;
   return barAnchorRect(
     box.localToGlobal(Offset.zero) & box.size,
     MediaQuery.sizeOf(context),
     anchor,
-    inset: inset,
   );
 }
 
@@ -661,6 +639,48 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   /// to be able to finish them all.
   final List<_ClosingPopup> _outgoing = <_ClosingPopup>[];
 
+  /// The panel whose rim this host's open popup is breaking, if any.
+  ///
+  /// Held rather than re-derived, because [closePopup] runs from `dispose` as
+  /// well and a defunct element cannot be asked for its view.
+  Object? _rimBreakPanel;
+
+  /// Records how much of [view]'s inner rim this popup's mouth covers.
+  ///
+  /// The card is centred on its module and the window is the card plus its
+  /// surface margin, so the mouth starts one leading inset into the window and
+  /// runs the card's own extent — widened by the flare, which bows the card
+  /// outward exactly where it meets the bar. See [attachedMouthRange] for the
+  /// slide the compositor may apply and that this has to predict.
+  void _publishRimBreak({
+    required Object view,
+    required Size panel,
+    required Size window,
+    required Rect anchor,
+    required String edge,
+    required EdgeInsets insets,
+    required double flare,
+  }) {
+    final vertical = edge == 'left' || edge == 'right';
+    final windowExtent = vertical ? window.height : window.width;
+    final leading = vertical ? insets.top : insets.left;
+    final trailing = vertical ? insets.bottom : insets.right;
+    final cardExtent = windowExtent - leading - trailing;
+    if (cardExtent <= 0) return;
+    _rimBreakPanel = view;
+    PanelRimBreaks.instance.set(
+      view,
+      attachedMouthRange(
+        anchorCentre: vertical ? anchor.center.dy : anchor.center.dx,
+        windowExtent: windowExtent,
+        leadingInset: leading,
+        cardExtent: cardExtent,
+        flare: flare < 0 ? 0 : flare,
+        panelExtent: vertical ? panel.height : panel.width,
+      ),
+    );
+  }
+
   /// Whether a popup is currently open.
   ///
   /// A popup that is animating *out* is not open: the host has let go of it
@@ -698,23 +718,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   }) {
     final barAnchor = BarScope.of(context);
     final (parentAnchor, childAnchor) = popupAnchorsForBar(barAnchor);
-    // The reach into the bar that lays the card's own fill over the bar's inner
-    // rim. It is spent on the anchor rect rather than on the positioner offset;
-    // [barAnchorRect] says why. Read from the same theme `openPopup` snapshots,
-    // and gated on the same two things it gates `attachEdge` on, so a tooltip
-    // that declines to attach and a theme with a gap both anchor flush.
-    final theme = ThemeScope.of(context);
     openPopup(
       context,
       child: child,
       preferredConstraints: preferredConstraints,
-      anchorRect: barAnchorRectFor(
-        context,
-        barAnchor,
-        inset: attach && theme.popupGap <= 0
-            ? attachedAnchorInset(theme)
-            : 0.0,
-      ),
+      anchorRect: barAnchorRectFor(context, barAnchor),
       parentAnchor: parentAnchor,
       childAnchor: childAnchor,
       policy: policy,
@@ -772,6 +780,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // while a popup is open would otherwise close it with an animation that is
     // not the reverse of the one it opened with.
     final resolvedEffect = effect ?? theme.popupEffect;
+    // The panel this popup is attached to, and its extent, for the break in its
+    // rim — snapshotted here for the same reason everything else is, and read
+    // from the *module's* context, which is inside the panel's own view.
+    final panelView = attachEdge == null ? null : View.maybeOf(context);
+    final panelSize = attachEdge == null ? null : MediaQuery.sizeOf(context);
     final closing = _closing = ValueNotifier<bool>(false);
     _exitAnimates = resolvedEffect.animates;
     // Both terms are margin outside the card that the surface has to carry, or
@@ -864,6 +877,27 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       final size = contentKey.currentContext?.size;
       if (size == null) return;
       gtkWindow.resize(size.width.ceil(), size.height.ceil());
+      // The same measurement answers the panel's other question: how much of
+      // its inner rim this card's mouth covers, so it can leave that stretch
+      // unpainted. It has to be here rather than at open, because the mouth is
+      // as wide as the card and the card has only just laid out.
+      if (attachEdge != null &&
+          panelView != null &&
+          panelSize != null &&
+          // Still this host's open popup: one closed inside the frame it opened
+          // in has already cleared its break, and re-publishing here would leave
+          // a gap in the bar with nothing left to close it.
+          _popupController == thisController) {
+        _publishRimBreak(
+          view: panelView,
+          panel: panelSize,
+          window: size,
+          anchor: anchorRect,
+          edge: attachEdge,
+          insets: surfaceInsets,
+          flare: theme.popupAttachRadius,
+        );
+      }
     });
     // The root's registry, reached the way any descendant reaches it. A popup
     // opened from inside another popup's content finds the same one, because
@@ -985,6 +1019,14 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   void closePopup() {
     final ctrl = _popupController;
     if (ctrl == null) return;
+    // Synchronously, before anything else in this turn: several call sites
+    // close one popup and open another in the same gesture, and a clear that
+    // ran after the new one had published would take its break away again.
+    final rimPanel = _rimBreakPanel;
+    if (rimPanel != null) {
+      _rimBreakPanel = null;
+      PanelRimBreaks.instance.clear(rimPanel);
+    }
     final record = _ClosingPopup(
       controller: ctrl,
       registry: _registry,
@@ -1046,6 +1088,14 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // the deterministic teardown is worth more than the last few frames of it.
     for (final record in List<_ClosingPopup>.from(_outgoing)) {
       record.finish();
+    }
+    // Belt and braces: a host torn down without its module having closed its
+    // popup would otherwise leave a gap in that panel's rim with nothing left
+    // to close it.
+    final rimPanel = _rimBreakPanel;
+    if (rimPanel != null) {
+      _rimBreakPanel = null;
+      PanelRimBreaks.instance.clear(rimPanel);
     }
     super.dispose();
   }

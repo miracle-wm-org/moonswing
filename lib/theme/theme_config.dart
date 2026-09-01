@@ -156,13 +156,13 @@ class ThemeConfig {
   ///
   /// The rim is drawn round the whole bar, its **inner** edge included — which
   /// is the edge an attached popup meets, and on a flush bar the only side of
-  /// it anybody can see. Any attached card ([popupGap] 0) is therefore
-  /// *anchored* this far back into the panel, so that it starts on the rim and
-  /// its own fill takes that hairline out across the mouth rather than butting
-  /// into it; see `attachedAnchorInset` and `barAnchorRect`.
-  /// [popupAttachRadius] decides only how the line resumes at either end —
-  /// swept down the card's sides by the flare's arcs, or meeting them square
-  /// without one — so a rimmed bar is seamless against its menus either way.
+  /// it anybody can see. A bar popup is placed *below* that edge and can never
+  /// paint over it, so with [popupGap] 0 the **panel** leaves the line out
+  /// across the mouth of whatever menu is open and draws the rest of it itself;
+  /// see `panel_rim.dart`. [popupAttachRadius] decides only how the line
+  /// resumes at either end — swept down the card's sides by the flare's arcs,
+  /// or meeting them square without one — so a rimmed bar is seamless against
+  /// its menus either way.
   final double panelBorderWidth;
 
   /// A popup card's corner rounding.
@@ -210,13 +210,13 @@ class ThemeConfig {
   /// the popup's surface is grown by `popupAttachInsets` the way it already is
   /// for the shadow.
   ///
-  /// What the flare does *not* decide is whether a bar may carry a rim. Every
-  /// attached card is anchored [panelBorderWidth] back into the panel and takes
-  /// the bar's inner hairline out across the mouth with its own fill —
-  /// `attachedAnchorInset` is that reach, and it is the join's rather than the
-  /// flare's. What a flare adds is how the line resumes at either end: the two
-  /// arcs, tangent to the join at their tips, pick it up and carry it down the
-  /// card's sides, where a square join meets them at a right angle instead.
+  /// What the flare does *not* decide is whether a bar may carry a rim. The
+  /// panel leaves [panelBorderWidth] out across the mouth of every attached
+  /// menu, flare or no flare (`panel_rim.dart`); what a flare adds is how the
+  /// line resumes at either end, its two arcs tangent to the join at their tips
+  /// picking it up and carrying it down the card's sides, where a square join
+  /// meets them at a right angle instead. It does widen the break, because the
+  /// flare is how wide the join actually is.
   ///
   /// Read only at [popupGap] 0; with a gap there is no join to flare into. 0,
   /// the default, is a square butt join — the card's sides continue the bar's

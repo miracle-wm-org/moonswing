@@ -4,6 +4,7 @@ import 'package:toml/toml.dart';
 
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/panel_background.dart';
+import 'package:graceful_shell/panel_rim.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/theme/builtin_themes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
@@ -207,12 +208,18 @@ void main() {
     expect(carbon.panelBorder.a, greaterThan(0),
         reason: 'a rim with a transparent colour draws nothing');
 
-    // And the reach that does the covering is exactly one rim-width, spent on
-    // the anchor rect rather than on anything the card paints — so the card's
-    // surface margin is the flare's alone.
-    expect(attachedAnchorInset(carbon), carbon.panelBorderWidth);
+    // And the covering is the *bar's* job, not the card's: the compositor
+    // places the popup below the panel, so the panel paints its own rim and
+    // leaves out the stretch the mouth covers. The card's surface margin is
+    // therefore the flare's alone.
+    expect(panelPaintsOwnRim(carbon), isTrue);
     expect(popupAttachInsets(carbon, attachEdge: 'top').top, 0.0,
-        reason: 'the reach is the anchor\'s, not the surface\'s');
+        reason: 'the card reaches nowhere near the bar');
+    expect(
+        panelBackgroundDecoration(anchor: 'top', theme: carbon, includeRim: false)
+            .border,
+        isNull,
+        reason: 'the decoration leaves the rim to the painter');
   });
 
   test('carbon draws its popups out of the same graphite as its bar', () {

@@ -23,8 +23,8 @@ import 'package:graceful_shell/scopes.dart';
 /// function's place as soon as it is above zero. At a flare of 0 the outline
 /// that shape would build is exactly what this function describes, which is why
 /// a square join stays a plain [BoxDecoration] — the reach that lays the card
-/// over the bar's rim is [attachedAnchorInset]'s now, and it moves the whole
-/// card rather than painting outside it.
+/// over the bar's rim is not the card's at all: the bar leaves that stretch of
+/// its own rim unpainted, which is `PanelRimBreaks`' job (`panel_rim.dart`).
 ///
 /// Returns [BorderRadius.zero] when all four corners come out square, which
 /// [PopupCard] uses to skip building a clip layer at all.
@@ -67,12 +67,12 @@ BorderRadius popupCornerRadius(ThemeConfig theme, {String? attach}) {
 /// the window edge. [popupAttachInsets] is that amount and
 /// `PopupHost.openPopup` folds it into the same padding the shadow uses.
 ///
-/// Nothing past the join is the rule the attached mode rests on: the card's own
-/// box already starts one [attachedAnchorInset] inside the bar, because
-/// `barAnchorRect` put it there, so the fill that covers the bar's rim is the
-/// card's ordinary fill and not an overhang. A shape that reached further would
-/// be painting over the bar's *body*, which for a theme whose card and bar are
-/// different colours is a seam of its own.
+/// Nothing past the join is the rule the attached mode rests on. The compositor
+/// places a bar popup *below* its panel — never over it — so a shape that
+/// reached back towards the bar would be drawing into its own surface's margin
+/// and nothing more. The bar's own inner rim is dealt with at the other end, by
+/// the bar not painting it across the mouth; see `PanelRimBreaks`
+/// (`panel_rim.dart`).
 ///
 /// The far corners keep [radius]; the join carries no rim, for the reason
 /// [_popupBorder] gives.
@@ -290,9 +290,9 @@ class AttachedPopupBorder extends ShapeBorder {
 /// **Nothing past the join** is what makes the attached surface flush with the
 /// bar, so the compositor's own clip cuts the card exactly there. The reach that
 /// lays the card over the bar's inner rim is not spent here at all: it is
-/// [attachedAnchorInset], and `barAnchorRect` spends it by starting the card
-/// that far inside the panel — so the fill covering the rim is the card's
-/// ordinary fill, needing neither margin nor an overhang.
+/// not the card's at all: the compositor places the popup below the panel, so
+/// the bar leaves that stretch of its own rim unpainted instead. See
+/// `PanelRimBreaks` (`panel_rim.dart`).
 ///
 /// This is [popupShadowInsets]'s job for a different piece of paint, and
 /// `PopupHost.openPopup` merges the two: both are margin the popup's own surface
@@ -310,42 +310,6 @@ EdgeInsets popupAttachInsets(ThemeConfig theme, {String? attachEdge}) {
     _ => EdgeInsets.zero,
   };
 }
-
-/// How far an attached bar popup's *anchor* is pulled back into the panel, so
-/// that the card's own top edge lands on the bar's inner rim rather than under
-/// it.
-///
-/// [ThemeConfig.panelBorderWidth], and 0 for a bar that carries no rim.
-///
-/// **A panel's rim is drawn along its *inner* edge as well as its outer one** —
-/// the very edge an attached popup meets — so a rimmed bar puts a hairline
-/// straight across the mouth of every menu it opens, which reads as a card
-/// taped under a line rather than as the bar opening. That line belongs to the
-/// *panel's* surface, so dropping the card's own rim on the join (which
-/// [_popupBorder] and [AttachedPopupBorder] both do) cannot reach it, and
-/// neither can the panel simply leave it off: on a flush bar the inner edge is
-/// the only side of the rim anybody can see. The card has to cover it.
-///
-/// **Where that reach is spent is the whole of this.** It used to be a *collar*
-/// on the card: the shape painted one rim-width outside its own box and asked
-/// the compositor for a matching negative `WindowPositioner.offset`. It never
-/// landed, and nothing else in the shell could have caught that, because the
-/// offset's two terms cancel to exactly zero in every shipped theme — the
-/// collar's was the only non-zero offset the shell ever sent. So the reach is
-/// spent on the **anchor rect** instead (`barAnchorRect`), which has the
-/// opposite history: bar popups were once anchored to the module's own rect,
-/// whose edge sits a couple of pixels inside the bar, and every one of them
-/// visibly overlapped the bar by exactly that much.
-///
-/// The card therefore *starts* one rim-width inside the panel and covers the
-/// hairline with its ordinary fill, painting nothing outside its own box — which
-/// is why a square attached join is a plain [BoxDecoration] again, and why
-/// [popupAttachInsets] asks for no margin on the joined side.
-///
-/// A square butt join needs this exactly as much as a flared one: the line
-/// across the mouth is the bar's whatever shape the join takes.
-double attachedAnchorInset(ThemeConfig theme) =>
-    math.max(0.0, theme.panelBorderWidth);
 
 /// The margin a popup's surface carries, per side: whichever of the shadow's
 /// reach and the flare's is larger.
@@ -518,9 +482,7 @@ Decoration popupDecoration({
     // side, since the shape decides for itself that the join carries none. At a
     // flare of 0 the outline it would build is exactly the square-cornered card
     // [popupCornerRadius] describes, which is why that case stays a
-    // [BoxDecoration]: the reach that lays the card over the bar's rim is
-    // [attachedAnchorInset]'s, and it moves the card rather than painting
-    // past it.
+    // [BoxDecoration]: nothing is ever painted past the join.
     return ShapeDecoration(
       color: opaque ? opaquePopupFill(theme) : theme.popupBackground,
       shape: AttachedPopupBorder(
