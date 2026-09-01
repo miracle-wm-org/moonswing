@@ -16,6 +16,7 @@
 
 import 'dart:async';
 import 'dart:ffi' as ffi;
+import 'dart:math' as math;
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
@@ -204,14 +205,43 @@ Rect popupAnchorRect(BuildContext context) {
 /// panel has been laid out — falls back to [widget] rather than emitting a
 /// zero-extent rect, which `xdg_positioner` rejects as a protocol error rather
 /// than merely placing badly.
-Rect barAnchorRect(Rect widget, Size panel, String anchor) {
+///
+/// [inset] pulls the anchored edge *back into* the panel by that many pixels,
+/// so the popup's own joined edge lands that far inside the bar rather than
+/// flush against it. It is [attachedAnchorInset] — the bar's rim — and this is
+/// where that reach is spent, for a reason worth keeping.
+///
+/// **The anchor rect is the only thing that reliably moves a bar popup into its
+/// panel.** The obvious alternative is [WindowPositioner.offset], which is what
+/// the card's old *collar* used: it grew the popup's surface by the rim and
+/// asked the compositor for a matching negative offset. That never landed — and
+/// it could not have been caught anywhere else, because the offset's two terms
+/// ([popupShadowAnchorOffset] and [popupGapOffset]) cancel to exactly zero in
+/// every shipped theme, so the collar's was the only non-zero offset in the
+/// shell. The anchor rect has the opposite history: popups used to be anchored
+/// to the *module's* rect, whose edge sits a couple of pixels inside the bar,
+/// and the observed symptom was every popup overlapping the bar by exactly that
+/// much. So the path that is known to work is the one the reach now takes.
+///
+/// Clamped so the rect cannot invert on a panel thinner than its own rim.
+Rect barAnchorRect(Rect widget, Size panel, String anchor,
+    {double inset = 0}) {
   if (panel.isEmpty) return widget;
+  // The bar's inner edge is the one facing away from the screen edge it is
+  // anchored to, so the inset always moves *towards* that screen edge.
   switch (anchor) {
     case 'left':
+      return Rect.fromLTRB(
+          0, widget.top, math.max(1.0, panel.width - inset), widget.bottom);
     case 'right':
-      return Rect.fromLTRB(0, widget.top, panel.width, widget.bottom);
-    default: // 'top', 'bottom'
-      return Rect.fromLTRB(widget.left, 0, widget.right, panel.height);
+      return Rect.fromLTRB(math.min(inset, panel.width - 1), widget.top,
+          panel.width, widget.bottom);
+    case 'bottom':
+      return Rect.fromLTRB(widget.left, math.min(inset, panel.height - 1),
+          widget.right, panel.height);
+    default: // 'top'
+      return Rect.fromLTRB(
+          widget.left, 0, widget.right, math.max(1.0, panel.height - inset));
   }
 }
 
@@ -222,12 +252,14 @@ Rect barAnchorRect(Rect widget, Size panel, String anchor) {
 /// which is `physicalSize / devicePixelRatio` — the very space
 /// [RenderBox.localToGlobal] maps into here. [setPanelMargin]'s margin is
 /// native, outside the surface, so there is nothing to correct for.
-Rect barAnchorRectFor(BuildContext context, String anchor) {
+Rect barAnchorRectFor(BuildContext context, String anchor,
+    {double inset = 0}) {
   final box = context.findRenderObject() as RenderBox;
   return barAnchorRect(
     box.localToGlobal(Offset.zero) & box.size,
     MediaQuery.sizeOf(context),
     anchor,
+    inset: inset,
   );
 }
 
@@ -666,11 +698,23 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   }) {
     final barAnchor = BarScope.of(context);
     final (parentAnchor, childAnchor) = popupAnchorsForBar(barAnchor);
+    // The reach into the bar that lays the card's own fill over the bar's inner
+    // rim. It is spent on the anchor rect rather than on the positioner offset;
+    // [barAnchorRect] says why. Read from the same theme `openPopup` snapshots,
+    // and gated on the same two things it gates `attachEdge` on, so a tooltip
+    // that declines to attach and a theme with a gap both anchor flush.
+    final theme = ThemeScope.of(context);
     openPopup(
       context,
       child: child,
       preferredConstraints: preferredConstraints,
-      anchorRect: barAnchorRectFor(context, barAnchor),
+      anchorRect: barAnchorRectFor(
+        context,
+        barAnchor,
+        inset: attach && theme.popupGap <= 0
+            ? attachedAnchorInset(theme)
+            : 0.0,
+      ),
       parentAnchor: parentAnchor,
       childAnchor: childAnchor,
       policy: policy,

@@ -512,9 +512,9 @@ panel_border_width   = 1.0
 # a subtle one would leave it with none, and along the flare it is the only
 # thing that draws the sweep at all, since the fill either side of it is now
 # the same graphite. It is panel_border to the value, and the width matches
-# too: the collar lays the flare's stroke over the very band the bar's rim
-# occupies, so equal widths make one line where unequal ones would make a
-# step in it.
+# too: the card is anchored one panel_border_width into the bar, so its stroke
+# runs over the very band the bar's rim occupies and equal widths make one line
+# where unequal ones would make a step in it.
 popup_radius         = 4.0
 popup_border         = "#525252"
 popup_border_width   = 1.0

@@ -179,17 +179,12 @@ void main() {
         BorderRadius.only(bottomLeft: r, bottomRight: r));
 
     // The flare paints outside the card, so the popup's own surface has to
-    // carry it — and with no shadow to take the larger of, it carries the join
-    // and nothing else: the flare on the two sides that meet it, and the
-    // collar on the join itself.
+    // carry it — and with no shadow to take the larger of, it carries the flare
+    // and nothing else: the two sides that meet the join, and nothing past the
+    // join itself, which is what leaves the surface flush with the bar.
     final attach = popupAttachInsets(carbon, attachEdge: 'top');
-    expect(
-        attach,
-        EdgeInsets.only(
-          left: carbon.popupAttachRadius,
-          right: carbon.popupAttachRadius,
-          top: carbon.panelBorderWidth,
-        ));
+    expect(attach,
+        EdgeInsets.symmetric(horizontal: carbon.popupAttachRadius));
     expect(
         popupSurfaceInsets(
             popupShadowInsets(carbon, attachEdge: 'top'), attach),
@@ -198,25 +193,26 @@ void main() {
 
   test('carbon runs one rim off the bar and round its menus', () {
     final carbon = _shipped('carbon');
-    // The bar is rimmed, which is only tenable because the join is flared: a
-    // panel rim is drawn along the bar's *inner* edge too, so without a flare
-    // to pick it up it would run straight across the mouth of every menu.
+    // The bar is rimmed, and a panel's rim is drawn along its *inner* edge too
+    // — the edge every menu comes out of — so the card has to cover that band
+    // or the theme's one line runs straight across the mouth of every popup.
     expect(carbon.panelBorderWidth, greaterThan(0));
-    expect(carbon.popupAttachRadius, greaterThan(0));
+    expect(carbon.popupGap, 0.0);
 
-    // One line, so it cannot step where it turns the corner from the bar onto
-    // the card: the collar lays the flare's stroke over the very band the bar's
-    // rim occupies, and equal widths are what make the two one stroke.
+    // One line, so it cannot step where the bar's outline hands over to the
+    // card's: equal widths lay the card's stroke over the very band the bar's
+    // rim occupies.
     expect(carbon.panelBorder, carbon.popupBorder);
     expect(carbon.panelBorderWidth, carbon.popupBorderWidth);
     expect(carbon.panelBorder.a, greaterThan(0),
         reason: 'a rim with a transparent colour draws nothing');
 
-    // And the card reaches exactly one rim-width back into the bar to do it.
-    expect(popupAttachCollar(carbon, attachEdge: 'top'),
-        carbon.panelBorderWidth);
-    expect(popupAttachCollar(carbon), 0.0,
-        reason: 'a card that floats has no rim to reach for');
+    // And the reach that does the covering is exactly one rim-width, spent on
+    // the anchor rect rather than on anything the card paints — so the card's
+    // surface margin is the flare's alone.
+    expect(attachedAnchorInset(carbon), carbon.panelBorderWidth);
+    expect(popupAttachInsets(carbon, attachEdge: 'top').top, 0.0,
+        reason: 'the reach is the anchor\'s, not the surface\'s');
   });
 
   test('carbon draws its popups out of the same graphite as its bar', () {
