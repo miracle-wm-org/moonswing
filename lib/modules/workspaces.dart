@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -79,7 +80,9 @@ class WorkspacesState extends State<Workspaces> {
 
   /// Holds the store's lease exactly while this row would draw icons, so a
   /// shell with the option off never opens a `GET_TREE` at all — the window
-  /// events still arrive, they just wake nothing.
+  /// events still arrive, they just wake nothing. The urgency flash is
+  /// deliberately not part of this: it reads a flag off the `GET_WORKSPACES`
+  /// reply the row fetches for itself, so it costs no round-trip to lease.
   void _syncLease() {
     final wanted = widget.config.showAppIcons;
     if (wanted == _leased) return;
@@ -121,13 +124,16 @@ class WorkspacesState extends State<Workspaces> {
     if (connection == null) return;
     _events = connection.listen(
       (Event event) {
-        // A workspace event is the obvious trigger. An output event is the
-        // less obvious one: miracle re-homes a removed output's workspaces
-        // onto another output and emits no workspace event saying so, which
-        // leaves the `workspace -> output` mapping this row filters on stale.
-        // The shell used to infer that from its own `wl_output` view
-        // (`MiracleManager.outputsRevision`) because miracle.dart could not
-        // decode the event; it can now.
+        // A workspace event is the obvious trigger, and it is what carries
+        // urgency too: miracle.dart 2.1 emits `workspace`/`urgent` alongside
+        // the window event precisely so a bar watching workspaces sees it
+        // without walking the tree, and the refetch below is what the flash
+        // rides on. An output event is the less obvious one: miracle re-homes
+        // a removed output's workspaces onto another output and emits no
+        // workspace event saying so, which leaves the `workspace -> output`
+        // mapping this row filters on stale. The shell used to infer that from
+        // its own `wl_output` view (`MiracleManager.outputsRevision`) because
+        // miracle.dart could not decode the event; it can now.
         if (event is WorkspaceEvent || event is OutputEvent) {
           connection.getWorkspaces().then(_updateWorkspaces);
         }
@@ -194,6 +200,8 @@ class WorkspacesState extends State<Workspaces> {
     final visibleWorkspaces =
         _workspaces.where((ws) => ws.output == outputName).toList();
     final config = widget.config;
+    final urgentPeriod = Duration(
+        milliseconds: (config.urgentFlashSeconds * 1000).round());
     return Padding(
         padding: const EdgeInsets.all(4.0),
         child: Row(
@@ -206,6 +214,9 @@ class WorkspacesState extends State<Workspaces> {
                   : theme.workspaceBackground,
               hoverColor: theme.surfaceHover,
               pressedColor: theme.surfacePressed,
+              urgent: shouldFlashWorkspace(config, workspace),
+              urgentColor: theme.accent,
+              urgentPeriod: urgentPeriod,
               onPressed: () {
                 final String command = workspace.num != null
                     ? 'workspace ${workspace.num}'
@@ -380,6 +391,9 @@ class _WorkspaceButton extends StatefulWidget {
     this.backgroundColor = const Color(0xFF3A3A3A),
     this.hoverColor = const Color(0xFF4A4A4A),
     this.pressedColor = const Color(0xFF2A2A2A),
+    this.urgent = false,
+    this.urgentColor = const Color(0xFF853953),
+    this.urgentPeriod = const Duration(seconds: 5),
   });
 
   /// Fixed, not parameters: every call site took the defaults.
@@ -392,6 +406,16 @@ class _WorkspaceButton extends StatefulWidget {
   final Color backgroundColor;
   final Color hoverColor;
   final Color pressedColor;
+
+  /// Whether the button breathes in [urgentColor] to say something on this
+  /// workspace wants looking at.
+  final bool urgent;
+
+  /// The colour it breathes to at the top of each cycle.
+  final Color urgentColor;
+
+  /// How long one breath takes.
+  final Duration urgentPeriod;
 
   @override
   State<_WorkspaceButton> createState() => _WorkspaceButtonState();
@@ -420,6 +444,49 @@ class _WorkspaceButtonState extends State<_WorkspaceButton> {
       color = widget.hoverColor;
     }
 
+    const radius =
+        BorderRadius.all(Radius.circular(_WorkspaceButton._borderRadius));
+    final decoration = BoxDecoration(color: color, borderRadius: radius);
+
+    final content = Padding(
+      padding: _WorkspaceButton._padding,
+      // A *minimum*, not a fixed square: a workspace carrying app icons is
+      // as wide as its icons, and one carrying none still reads as the
+      // 16px dot every workspace used to be. `widthFactor`/`heightFactor`
+      // are what keep the Center sized to its child rather than expanding
+      // to the panel's own width.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+        child: Center(
+          widthFactor: 1,
+          heightFactor: 1,
+          child: widget.child,
+        ),
+      ),
+    );
+
+    // The flash is wrapped on only while urgent, so the ticker, the extra
+    // layers and the wash exist exactly while something is asking to be looked
+    // at — an idle bar is the bar it was before this feature. The fill is
+    // handed over separately there because the wash goes *between* the two:
+    // over the button's own colour, and under its number.
+    final Widget surface = widget.urgent
+        ? UrgencyFlash(
+            color: widget.urgentColor,
+            period: widget.urgentPeriod,
+            borderRadius: radius,
+            background: AnimatedContainer(
+              duration: ShellDurations.fast,
+              decoration: decoration,
+            ),
+            child: content,
+          )
+        : AnimatedContainer(
+            duration: ShellDurations.fast,
+            decoration: decoration,
+            child: content,
+          );
+
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovered = true),
@@ -437,28 +504,182 @@ class _WorkspaceButtonState extends State<_WorkspaceButton> {
               }
             : null,
         onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          padding: _WorkspaceButton._padding,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius:
-                BorderRadius.circular(_WorkspaceButton._borderRadius),
-          ),
-          // A *minimum*, not a fixed square: a workspace carrying app icons is
-          // as wide as its icons, and one carrying none still reads as the
-          // 16px dot every workspace used to be. `widthFactor`/`heightFactor`
-          // are what keep the Center sized to its child rather than expanding
-          // to the panel's own width.
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-            child: Center(
-              widthFactor: 1,
-              heightFactor: 1,
-              child: widget.child,
+        child: surface,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The urgency flash
+// ---------------------------------------------------------------------------
+
+/// Where in one breath the shell is at [now], as a fraction of [period].
+///
+/// Read off the **wall clock**, which is what makes every urgent button agree.
+/// Each bar is its own FlutterView with its own ticker, so two monitors — or
+/// two workspaces going urgent a second apart on the same bar — would otherwise
+/// breathe out of step, and a row of dots pulsing at random phases reads as a
+/// rendering fault rather than as one alarm. Offsetting each controller by the
+/// phase it *started* at cancels its own start time out of the sum, leaving
+/// every one of them a function of the clock alone.
+@visibleForTesting
+double urgencyFlashPhase(DateTime now, Duration period) {
+  final millis = period.inMilliseconds;
+  // A degenerate period cannot be divided by; the caller clamps, so this is
+  // only reachable from a test.
+  if (millis <= 0) return 0;
+  return (now.millisecondsSinceEpoch % millis) / millis;
+}
+
+/// How strongly the flash colour is laid over the button at [t] of a breath.
+///
+/// A raised cosine, so the two ends are *still* rather than merely slow: a
+/// linear ping-pong reverses at a corner, and a corner is the one thing in a
+/// slow animation the eye reliably catches — which puts the emphasis on the
+/// moment the flash is quietest instead of on the colour it is fading up to.
+/// Resting at 0 (and not at some floor) is what keeps an urgent workspace
+/// passing through exactly the colour its neighbours are, once a breath, so the
+/// flash reads as the same button changing rather than as a different one.
+@visibleForTesting
+double urgencyFlashWash(double t) => 0.5 - 0.5 * math.cos(2 * math.pi * t);
+
+/// Breathes [color] across [background], very slowly, under [child], for as
+/// long as it is in the tree.
+///
+/// Deliberately three layers rather than a lerp of one fill: the button goes on
+/// animating its own hover and press colours through [ShellDurations.fast]
+/// exactly as it does at rest, and [child] — which is the number the user
+/// switches by — is painted last and is never touched. A wash over the whole
+/// button is the obvious shape and it *erases the label* at the top of every
+/// breath, which reads as the bar glitching rather than as an alarm.
+///
+/// Four things a change here has to keep true:
+///
+/// - **Nothing about it exists at rest.** The caller wraps this only while the
+///   workspace is urgent, so the ticker is created when the alarm is raised and
+///   disposed when it is cleared. An always-mounted version gated on a flag
+///   would be a `Ticker` per workspace button per monitor, running for the life
+///   of a shell that is usually not being told anything at all.
+/// - **[child] is the one unpositioned layer, and it is listed last.** It is
+///   what sizes the surface — the other two fill whatever it settles on — and
+///   being last is what puts the wash under it rather than over it. The two
+///   halves are not independent: reordering for the paint would take the
+///   sizing with it.
+/// - **The repaint stops here, twice.** A bar has no repaint boundary of its
+///   own, so a colour changing every frame in one dot would otherwise
+///   re-record the whole panel picture — the clock, the tray, every other
+///   workspace — sixty times a second, which is the cost the calendar tab
+///   documents paying for a second hand. The outer boundary keeps the damage
+///   inside this button; the inner one keeps the button's own label and app
+///   icons out of the layer that is actually repainting.
+/// - **The wash never takes a click.** `RenderDecoratedBox.hitTestSelf`
+///   answers for any non-null fill, so a full-size box across the button would
+///   swallow the tap that switches to the workspace — see `HoverRegion`, which
+///   states the same trap from the other side.
+class UrgencyFlash extends StatefulWidget {
+  const UrgencyFlash({
+    super.key,
+    required this.color,
+    required this.period,
+    required this.borderRadius,
+    required this.background,
+    required this.child,
+  });
+
+  /// The colour at the top of each breath — the theme's, so a flash is the
+  /// shell's own accent rather than a red this file chose.
+  final Color color;
+
+  /// One full breath: out of the resting colour, up to [color], and back.
+  final Duration period;
+
+  /// The button's own corner rounding, so the wash stops where it does.
+  final BorderRadius borderRadius;
+
+  /// The button's resting fill, which the wash is laid over. Sized by [child].
+  final Widget background;
+
+  /// The button's content. Sizes the surface, and is painted over the wash.
+  final Widget child;
+
+  @override
+  State<UrgencyFlash> createState() => _UrgencyFlashState();
+}
+
+class _UrgencyFlashState extends State<UrgencyFlash>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller =
+      AnimationController(vsync: this, duration: widget.period);
+
+  /// Where in the breath the wall clock was when this one started; see
+  /// [urgencyFlashPhase].
+  double _phase = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  @override
+  void didUpdateWidget(UrgencyFlash oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A `[modules.workspaces]` edit is the only thing that moves this, and
+    // re-deriving the phase is what keeps the new period aligned with every
+    // other bar's — which is the whole reason the phase exists.
+    if (widget.period != oldWidget.period) {
+      _controller.duration = widget.period;
+      _start();
+    }
+  }
+
+  void _start() {
+    _phase = urgencyFlashPhase(DateTime.now(), widget.period);
+    // Unbounded and unreversed: the breath's shape is [urgencyFlashWash]'s, so
+    // the controller is a bare 0..1 sawtooth the phase can be added to. A
+    // `reverse: true` repeat would run at twice this period on the way back
+    // and leave nothing to add an offset to.
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: Stack(
+        // Non-directional, so this needs no `Directionality` of its own:
+        // `Positioned.fill` supplies all four edges, and the alignment is the
+        // only other thing in a `Stack` that would ask for one.
+        alignment: Alignment.topLeft,
+        children: [
+          Positioned.fill(child: widget.background),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) => DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: widget.color.withValues(
+                      alpha: widget.color.a *
+                          urgencyFlashWash((_controller.value + _phase) % 1.0),
+                    ),
+                    borderRadius: widget.borderRadius,
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+          // Last, so the wash goes under it; unpositioned, so it is what sizes
+          // the stack; and boundaried, so the wash repainting does not
+          // re-record the label and the app icons.
+          RepaintBoundary(child: widget.child),
+        ],
       ),
     );
   }

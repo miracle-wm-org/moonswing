@@ -21,6 +21,8 @@ class WorkspacesConfig {
     this.showAppIcons = true,
     this.iconSize = 14,
     this.maxIcons = 4,
+    this.flashUrgent = true,
+    this.urgentFlashSeconds = 5.0,
   });
 
   /// Whether each workspace button carries the icons of the applications open
@@ -38,12 +40,36 @@ class WorkspacesConfig {
   /// Without a cap a workspace with a dozen windows takes the whole bar.
   final int maxIcons;
 
+  /// Whether a workspace carrying something urgent breathes in the theme's
+  /// accent until it is looked at. On by default.
+  ///
+  /// Costs no I/O of its own: miracle reports urgency on the `GET_WORKSPACES`
+  /// entry the button is already built from, and announces a change as a
+  /// `workspace` event the row is already subscribed to — so this is a flag
+  /// read off a reply that had to be fetched anyway. See
+  /// [shouldFlashWorkspace].
+  final bool flashUrgent;
+
+  /// How long one full breath of that flash takes, in seconds — out of the
+  /// resting colour, up to the accent, and back.
+  ///
+  /// Deliberately slow. This is a bar dot reporting something that has
+  /// *already* happened and will keep being true until the user goes and looks
+  /// at it, so it may be on screen for minutes; anything quick enough to read
+  /// as a blink is a strobe in the corner of the eye for the whole of that
+  /// time. Clamped rather than free, because a period near zero is that
+  /// strobe and one past half a minute never visibly moves.
+  final double urgentFlashSeconds;
+
   factory WorkspacesConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const WorkspacesConfig();
     return WorkspacesConfig(
       showAppIcons: map.boolOr('show_app_icons', true),
       iconSize: map.intOr('icon_size', 14, min: 8, max: 64),
       maxIcons: map.intOr('max_icons', 4, min: 1, max: 16),
+      flashUrgent: map.boolOr('flash_urgent', true),
+      urgentFlashSeconds:
+          map.doubleOr('urgent_flash_seconds', 5.0, min: 1, max: 30),
     );
   }
 }
@@ -142,6 +168,23 @@ List<String> appIdsForWorkspace(
   return const [];
 }
 
+/// Whether the button for [workspace] should breathe in the theme's accent.
+///
+/// `miracle.dart` 2.1 made `WorkspaceResult.urgent` real — it was documented
+/// as "legacy, and always `false`" before — so this is a flag on the
+/// `GET_WORKSPACES` entry the button is already built from, and the flash
+/// costs no round-trip of its own. Urgency propagates up miracle's tree, so
+/// the workspace's own flag already answers for every window on it, floating
+/// ones and ones nested in split containers included.
+///
+/// **Never the focused workspace**, which is one guard doing two jobs that
+/// happen to agree: the user is already looking at it, and it is the one place
+/// the flag can go stale — miracle clears urgency when the window is focused,
+/// and the `GET_WORKSPACES` that would say so is still in flight on the frame
+/// the switch lands.
+bool shouldFlashWorkspace(WorkspacesConfig config, WorkspaceResult workspace) =>
+    config.flashUrgent && workspace.urgent && !workspace.focused;
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -177,14 +220,32 @@ class WorkspaceTreeSource {
 ///
 /// The filter is the point of the event-driven design rather than an
 /// optimisation on top of it: `window` fires on every focus change, so an
-/// unfiltered listener would re-read the whole window tree on each alt-tab.
-/// The switch over [WindowChange] is exhaustive so that a change miracle.dart
+/// unfiltered listener would re-read the whole window tree on each alt-tab —
+/// and, since miracle.dart 2.1, on every urgency hint raised or cleared
+/// anywhere on the machine, which is announced on both facilities at once and
+/// moves no window. Both switches are exhaustive so that a change miracle.dart
 /// grows later forces a decision here rather than being silently ignored.
 @visibleForTesting
 bool wakesWorkspaceApps(Event event) => switch (event) {
-      // A workspace being created, emptied, renamed, moved to another output,
-      // or switched to.
-      WorkspaceEvent() => true,
+      WorkspaceEvent(:final change) => switch (change) {
+          // A workspace being created, emptied, renamed, moved to another
+          // output, or switched to.
+          WorkspaceChange.init ||
+          WorkspaceChange.empty ||
+          WorkspaceChange.focus ||
+          WorkspaceChange.move ||
+          WorkspaceChange.rename ||
+          WorkspaceChange.reload =>
+            true,
+          // miracle.dart 2.1's other new arm, and the `focused` exclusion's
+          // twin: miracle sends this alongside the window event below so that
+          // a bar watching workspaces sees urgency without walking the tree —
+          // which is exactly what the row does, off `GET_WORKSPACES`. Waking
+          // here would be a whole `GET_TREE` per notification, for icons that
+          // cannot have moved.
+          WorkspaceChange.urgent => false,
+          WorkspaceChange.unknown => true,
+        },
       // miracle never says *which* output changed, and a removed one has its
       // workspaces re-homed onto another with no workspace event of its own —
       // which is exactly what `MiracleManager.outputsRevision` used to stand in
@@ -196,11 +257,15 @@ bool wakesWorkspaceApps(Event event) => switch (event) {
           WindowChange.moved =>
             true,
           // None of these move a window between workspaces, and `focused`
-          // alone fires on every alt-tab.
+          // alone fires on every alt-tab. `urgent` is miracle.dart 2.1's
+          // addition and belongs with them for the same reason: a window
+          // asking to be looked at has not gone anywhere, and the flash reads
+          // the flag off `GET_WORKSPACES` rather than out of the tree.
           WindowChange.focused ||
           WindowChange.fullscreenMode ||
           WindowChange.floating ||
-          WindowChange.marked =>
+          WindowChange.marked ||
+          WindowChange.urgent =>
             false,
           // A change this package does not model yet: re-read rather than go
           // quietly stale.

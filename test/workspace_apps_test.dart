@@ -89,6 +89,41 @@ void main() {
     });
   });
 
+  group('shouldFlashWorkspace', () {
+    // miracle.dart 2.1 made `WorkspaceResult.urgent` real — it was documented
+    // as legacy and always false before — so the flash is a flag on the reply
+    // the buttons are already built from, and no tree walk stands behind it.
+    test('flashes a workspace miracle has flagged', () {
+      expect(
+          shouldFlashWorkspace(const WorkspacesConfig(),
+              _result(num: 2, output: 'DP-1', focused: false, urgent: true)),
+          isTrue);
+      expect(
+          shouldFlashWorkspace(const WorkspacesConfig(),
+              _result(num: 2, output: 'DP-1', focused: false)),
+          isFalse);
+    });
+
+    test('never flashes the focused workspace', () {
+      // One guard, two jobs that agree: the user is already looking at it, and
+      // it is the one place the flag can go stale — miracle clears urgency on
+      // focus, and the GET_WORKSPACES that says so is still in flight on the
+      // frame the switch lands.
+      expect(
+          shouldFlashWorkspace(const WorkspacesConfig(),
+              _result(num: 2, output: 'DP-1', focused: true, urgent: true)),
+          isFalse);
+    });
+
+    test('answers false outright with the option off', () {
+      expect(
+          shouldFlashWorkspace(
+              const WorkspacesConfig(flashUrgent: false),
+              _result(num: 2, output: 'DP-1', focused: false, urgent: true)),
+          isFalse);
+    });
+  });
+
   group('appIdsForWorkspace', () {
     final apps = [
       const WorkspaceApps(
@@ -140,6 +175,16 @@ void main() {
       expect(wakesWorkspaceApps(_outputEvent()), isTrue);
     });
 
+    test('urgency does not, on either of the two events that carry it', () {
+      // miracle.dart 2.1 emits both together, and neither moves a window
+      // between workspaces: the flash reads `GET_WORKSPACES` instead, so
+      // waking here would be a whole GET_TREE per notification for icons that
+      // cannot have changed. `focused`'s exclusion, for `focused`'s reason.
+      expect(wakesWorkspaceApps(_workspaceEvent(WorkspaceChange.urgent)),
+          isFalse);
+      expect(wakesWorkspaceApps(_windowEvent(WindowChange.urgent)), isFalse);
+    });
+
     test('only the window changes that move a window between workspaces do',
         () {
       for (final change in [
@@ -157,6 +202,7 @@ void main() {
         WindowChange.fullscreenMode,
         WindowChange.floating,
         WindowChange.marked,
+        WindowChange.urgent,
       ]) {
         expect(wakesWorkspaceApps(_windowEvent(change)), isFalse,
             reason: change.name);
@@ -319,6 +365,23 @@ void main() {
       store.release();
     });
 
+    test('a window going urgent costs no round-trip at all', () async {
+      store.acquire();
+      await pumpEventQueue();
+      expect(fetches, 1);
+
+      // Both of the events miracle sends for one urgency change. The flash
+      // reads `GET_WORKSPACES` and the icons cannot have moved, so a
+      // notification arriving on a workspace nobody is looking at must not
+      // walk the whole window tree.
+      events.add(_windowEvent(WindowChange.urgent));
+      events.add(_workspaceEvent(WorkspaceChange.urgent));
+      await pumpEventQueue();
+
+      expect(fetches, 1);
+      store.release();
+    });
+
     test('a tree that will not parse costs the icons, never the row', () async {
       final broken = WorkspaceAppsStore.forTesting();
       addTearDown(broken.dispose);
@@ -393,6 +456,38 @@ void main() {
       expect(WorkspacesConfig.fromMap({'icon_size': 900}).iconSize, 64);
       expect(WorkspacesConfig.fromMap({'max_icons': 0}).maxIcons, 1);
     });
+
+    test('flashes urgent workspaces by default, slowly', () {
+      const config = WorkspacesConfig();
+      expect(config.flashUrgent, isTrue);
+      expect(WorkspacesConfig.fromMap({}).flashUrgent, isTrue);
+      // The whole point of the feature: a breath, not a blink.
+      expect(config.urgentFlashSeconds, greaterThanOrEqualTo(3.0));
+      expect(WorkspacesConfig.fromMap({}).urgentFlashSeconds,
+          config.urgentFlashSeconds);
+    });
+
+    test('reads and clamps the flash keys', () {
+      expect(
+          WorkspacesConfig.fromMap({'flash_urgent': false}).flashUrgent, isFalse);
+      expect(
+          WorkspacesConfig.fromMap({'urgent_flash_seconds': 8}).urgentFlashSeconds,
+          8.0);
+      // A period near zero is a strobe in the corner of the eye, and one past
+      // half a minute never visibly moves.
+      expect(
+          WorkspacesConfig.fromMap({'urgent_flash_seconds': 0})
+              .urgentFlashSeconds,
+          1.0);
+      expect(
+          WorkspacesConfig.fromMap({'urgent_flash_seconds': 600})
+              .urgentFlashSeconds,
+          30.0);
+      expect(
+          WorkspacesConfig.fromMap({'urgent_flash_seconds': 'slowly'})
+              .urgentFlashSeconds,
+          const WorkspacesConfig().urgentFlashSeconds);
+    });
   });
 }
 
@@ -402,19 +497,26 @@ void main() {
 
 int _nextId = 1;
 
-WorkspaceResult _result({required int num, String? name, required String output}) =>
+WorkspaceResult _result({
+  required int num,
+  String? name,
+  required String output,
+  bool focused = true,
+  bool urgent = false,
+}) =>
     WorkspaceResult.fromJson({
       'num': num,
       'name': name,
       'visible': true,
-      'focused': true,
-      'urgent': false,
+      'focused': focused,
+      'urgent': urgent,
       'output': output,
       'rect': _rect(),
     });
 
-Event _workspaceEvent() => Event.fromJson(IpcType.ipcEventWorkspace, {
-      'change': 'focus',
+Event _workspaceEvent([WorkspaceChange change = WorkspaceChange.focus]) =>
+    Event.fromJson(IpcType.ipcEventWorkspace, {
+      'change': change.wireName,
       'old': null,
       'current': _workspace(1, '1', 'DP-1'),
     });

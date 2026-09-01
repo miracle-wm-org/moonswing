@@ -141,6 +141,17 @@ final List<_ModuleGroup> _moduleGroups = [
       defaultValue: const WorkspacesConfig().maxIcons,
       isInt: true,
     ),
+    _ModuleSetting.toggle(
+      const ['modules', 'workspaces', 'flash_urgent'],
+      'Flash urgent workspaces',
+      defaultValue: const WorkspacesConfig().flashUrgent,
+    ),
+    _ModuleSetting.number(
+      const ['modules', 'workspaces', 'urgent_flash_seconds'],
+      'Urgent flash period (seconds)',
+      defaultValue: const WorkspacesConfig().urgentFlashSeconds,
+      isInt: false,
+    ),
   ]),
   _ModuleGroup('Weather', [
     const _ModuleSetting.weatherLocation('Location'),
