@@ -123,6 +123,83 @@ class TimeZoneName {
 
 List<TimeZoneName>? _names;
 
+/// The IANA *backward* links this shell's own data names, and the canonical
+/// zone each one now points at.
+///
+/// `package:timezone/data/latest.dart` — the variant embedded here — carries
+/// only the **canonical** zones, 341 of them. tzdata has spent the last few
+/// releases merging zones whose rules have agreed since the 1970s into one
+/// another, and what a merged zone leaves behind is a *link*: `Europe/Amsterdam`
+/// is still the name of Amsterdam's time, but the rules now live under
+/// `Europe/Brussels` and only the fuller `latest_all` variant carries the name.
+///
+/// That is 38 of the cities in `lib/world_cities.dart` — Amsterdam, Copenhagen,
+/// Oslo, Stockholm, Kuala Lumpur and thirty-odd more — and without this table
+/// every one of them is dropped by [_buildZoneNames]' own degradation rule, so
+/// the picker silently does not offer a third of Europe's capitals. It also
+/// costs a config naming one of these zones its row: [resolveZone] would answer
+/// null and the world clock would render "Unknown time zone" for a name
+/// `localectl`, every other desktop and every airline ticket still uses.
+///
+/// Switching the embedded variant to `latest_all` is the other way to fix it
+/// and is worse: it carries 206 more pickable names, nearly all of them
+/// deprecated spellings of zones already listed (`Asia/Calcutta` beside
+/// `Asia/Kolkata`, `US/Pacific` beside `America/Los_Angeles`), and nothing in
+/// the package's API says which of two identical zones is the current name — so
+/// the picker cannot filter them and would show both.
+///
+/// Two things this table has to keep true. It is a **fallback**, consulted only
+/// when the database does not know the name itself, so a link that tzdata later
+/// splits back out is answered by the database rather than by this map. And
+/// every entry is a link *to a zone this build carries*, which
+/// `test/world_cities_test.dart` is what checks: it resolves every city in the
+/// shipped table, so an entry that stops landing fails there rather than
+/// silently dropping a city from the picker again.
+const Map<String, String> _kZoneLinks = {
+  'Africa/Accra': 'Africa/Abidjan',
+  'Africa/Addis_Ababa': 'Africa/Nairobi',
+  'Africa/Dakar': 'Africa/Abidjan',
+  'Africa/Dar_es_Salaam': 'Africa/Nairobi',
+  'Africa/Gaborone': 'Africa/Maputo',
+  'Africa/Harare': 'Africa/Maputo',
+  'Africa/Kampala': 'Africa/Nairobi',
+  'Africa/Kigali': 'Africa/Maputo',
+  'Africa/Kinshasa': 'Africa/Lagos',
+  'Africa/Luanda': 'Africa/Lagos',
+  'Africa/Lusaka': 'Africa/Maputo',
+  'America/Nassau': 'America/Toronto',
+  'Asia/Bahrain': 'Asia/Qatar',
+  'Asia/Brunei': 'Asia/Kuching',
+  'Asia/Kuala_Lumpur': 'Asia/Singapore',
+  'Asia/Kuwait': 'Asia/Riyadh',
+  'Asia/Muscat': 'Asia/Dubai',
+  'Asia/Phnom_Penh': 'Asia/Bangkok',
+  'Asia/Vientiane': 'Asia/Bangkok',
+  'Atlantic/Reykjavik': 'Africa/Abidjan',
+  'Europe/Amsterdam': 'Europe/Brussels',
+  'Europe/Bratislava': 'Europe/Prague',
+  'Europe/Copenhagen': 'Europe/Berlin',
+  'Europe/Ljubljana': 'Europe/Belgrade',
+  'Europe/Luxembourg': 'Europe/Brussels',
+  'Europe/Monaco': 'Europe/Paris',
+  'Europe/Oslo': 'Europe/Berlin',
+  'Europe/Sarajevo': 'Europe/Belgrade',
+  'Europe/Skopje': 'Europe/Belgrade',
+  'Europe/Stockholm': 'Europe/Berlin',
+  'Europe/Zagreb': 'Europe/Belgrade',
+  'Indian/Antananarivo': 'Africa/Nairobi',
+};
+
+/// The [tz.Location] for [name], following [_kZoneLinks] when the database does
+/// not carry the name itself. Null when neither answers.
+tz.Location? _locationFor(String name) {
+  final locations = tz.timeZoneDatabase.locations;
+  final direct = locations[name];
+  if (direct != null) return direct;
+  final canonical = _kZoneLinks[name];
+  return canonical == null ? null : locations[canonical];
+}
+
 /// Whether [name] is worth offering in the picker.
 ///
 /// Drops the region-less pseudo-zones (`Factory`, and the `EST`/`SystemV/`
@@ -152,9 +229,12 @@ bool _isPickableZone(String name) {
 ///   London and New York are `Asia/Tokyo`, `Europe/London` and
 ///   `America/New_York`, so the IANA row is the row; only the places the
 ///   database is silent about get one of their own.
-/// - **A city whose zone this build's database does not know is dropped**,
-///   never thrown for — the `TomlReader` rule, applied to data the shell
-///   ships. `test/world_cities_test.dart` is what stops that degradation from
+/// - **A city whose zone this build cannot resolve is dropped**, never thrown
+///   for — the `TomlReader` rule, applied to data the shell ships.
+///   "Resolve" rather than "is listed": tzdata has merged a good many zones
+///   into one another and the shipped database carries only the survivors, so
+///   a city naming one of the links goes through [_kZoneLinks].
+///   `test/world_cities_test.dart` is what stops either degradation from
 ///   quietly hiding a typo.
 /// - **The order stays the zone's**, so an empty query still reads down the
 ///   database alphabetically and the cities sit with the zone they keep time
@@ -169,13 +249,15 @@ List<TimeZoneName> _buildZoneNames() {
     for (final name in (tz.timeZoneDatabase.locations.keys.toList()..sort()))
       if (_isPickableZone(name)) TimeZoneName(name),
   ];
-  final known = <String>{for (final zone in zones) zone.name};
   final named = <String>{
     for (final zone in zones) '${zone.name}\u0000${zone._city}',
   };
 
   for (final city in kWorldCities) {
-    if (!known.contains(city.zone)) continue;
+    // Resolvable rather than listed: a city naming a zone tzdata has since
+    // merged away keeps its own name, and `_kZoneLinks` is what finds the
+    // rules behind it.
+    if (_locationFor(city.zone) == null) continue;
     if (named.contains('${city.zone}\u0000${city.name.toLowerCase()}')) {
       continue;
     }
@@ -201,10 +283,13 @@ List<TimeZoneName> _buildZoneNames() {
 ///
 /// Looked up in the map rather than through `getLocation`, which throws: a
 /// hand-edited or deprecated name in the config must render as a row the user
-/// can see and delete, never take down a build.
+/// can see and delete, never take down a build. A name tzdata has since made a
+/// link — `Europe/Amsterdam` and thirty-odd others — is followed through
+/// [_kZoneLinks] rather than treated as unknown: it is what the rest of the
+/// world still calls that zone, and a clock the picker itself wrote.
 ZoneTime? resolveZone(String zone, DateTime now) {
   ensureTimeZonesInitialized();
-  final location = tz.timeZoneDatabase.locations[zone];
+  final location = _locationFor(zone);
   if (location == null) return null;
   final t = tz.TZDateTime.from(now, location);
   return ZoneTime(

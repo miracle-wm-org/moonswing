@@ -39,9 +39,19 @@ void main() {
     if (await tempDir.exists()) await tempDir.delete(recursive: true);
   });
 
-  Future<ConfigStore> configWith(String contents) async {
-    await File(path).writeAsString(contents);
-    return ConfigStore.loadFrom(path);
+  /// Through [WidgetTester.runAsync], because writing and parsing the file is
+  /// real I/O and a `testWidgets` fake-async zone never pumps it — the note
+  /// `weather_location_field_test.dart` carries about its own config store.
+  Future<ConfigStore> configWith(
+    WidgetTester tester,
+    String contents,
+  ) async {
+    final store = await tester.runAsync(() async {
+      await File(path).writeAsString(contents);
+      return ConfigStore.loadFrom(path);
+    });
+    addTearDown(store!.dispose);
+    return store;
   }
 
   Future<void> pump(WidgetTester tester, KeyboardStore store) async {
@@ -50,7 +60,13 @@ void main() {
         textDirection: TextDirection.ltr,
         child: ThemeScope(
           theme: const ThemeConfig(),
+          // Keyed on the store, so a second `pump` with a different one
+          // rebuilds all of this. `initialEntries` is read once, in `Overlay`'s
+          // own `initState`, so an unkeyed re-pump keeps the first entry and
+          // its builder — and the page would go on rendering the first store
+          // however the widget under it is keyed.
           child: Overlay(
+            key: ObjectKey(store),
             initialEntries: [
               OverlayEntry(
                 builder: (_) => SizedBox(
@@ -103,7 +119,7 @@ void main() {
 
   testWidgets('reorder and remove each issue exactly one config write',
       (tester) async {
-    final config = await configWith('''
+    final config = await configWith(tester, '''
 [[keyboard.sources]]
 layout = "us"
 
@@ -128,6 +144,12 @@ layout = "de"
     await tester.pumpAndSettle();
     expect(writes, 2);
     expect(store.sources, const [_us]);
+
+    // Each `ConfigStore.set` leaves its 400ms debounce behind, and a timer
+    // still pending when the tree comes down fails the test binding's own
+    // invariants. `flush` is the API for it; through `runAsync` because the
+    // write it then makes is real I/O.
+    await tester.runAsync(config.flush);
   });
 
   testWidgets('a failure is a banner with a retry, and the list stays editable',

@@ -398,6 +398,15 @@ popup_shadow_blur    = 26.0
 popup_shadow_spread  = 3.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 0.0
+
+# Its popups float, at the same distance its bar does, so an entrance here has
+# a gap to cross rather than a seam to open along: the card travels that 12px
+# out of the bar under a fade, which is the arrival that reads as the menu
+# coming from its button rather than merely appearing beside it. The glow comes
+# with it, and being symmetrical on both axes it is the one lift in the shell
+# that no direction of travel can contradict — which is why this theme need not
+# take glassy's way out and simply fade.
+popup_animation      = "slide"
 ''';
 
 const String _carbon = '''
@@ -531,4 +540,9 @@ popup_shadow_blur    = 0.0
 popup_shadow_spread  = 0.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 0.0
+
+# The card is flush with the bar and flared into it, so its entrance is a
+# travel out of that join rather than an arrival beside it — the same slide the
+# other two attached themes play, and the one that reads as the bar opening.
+popup_animation      = "slide"
 ''';
