@@ -165,7 +165,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
-  /// Space, Enter, and a click: copy the selection and go.
+  /// Enter, and a click: copy the selection and go.
   ///
   /// Closes *without* the exit animation, the launcher's call and for a
   /// sharper version of its reason: the point of this window is to put
@@ -231,13 +231,11 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
         // should not need two.
         _requestClose();
         return KeyEventResult.handled;
-      // Space is the copy key the picker was asked for, which costs the query
-      // its spaces: returning `handled` is what stops the character reaching
-      // the field (the Linux embedder forwards a key to the input method only
-      // when the framework did not take it). That is the whole reason
-      // `emoji_search.dart` matches a *subsequence* — "grinning face with
-      // sweat" is reachable by typing straight through it.
-      case LogicalKeyboardKey.space:
+      // Enter is the copy key, and Space is deliberately *not* one: a key
+      // this handler takes never reaches the field at all (the Linux embedder
+      // forwards a key to the input method only when the framework did not
+      // take it), so binding Space here would cost every query its spaces and
+      // leave "grinning face with sweat" typeable only as one word.
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.numpadEnter:
         _copySelected();
@@ -267,8 +265,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
         _moveTo(_results.length - 1);
         return KeyEventResult.handled;
     }
-    // Everything else — the letters, Backspace, the caret keys the arrows are
-    // not — belongs to the field.
+    // Everything else — the letters, Space, Backspace, the caret keys the
+    // arrows are not — belongs to the field.
     return KeyEventResult.ignored;
   }
 
@@ -279,7 +277,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
     // No WidgetsApp is mounted, so the default text-editing key bindings have
     // to be supplied by hand. Focus must nest *inside* them: key events
     // propagate upwards from the focused node, so the lower handler is the one
-    // that gets first refusal on Space/Enter/Escape and the arrows.
+    // that gets first refusal on Enter, Escape and the arrows.
     return DefaultTextEditingShortcuts(
       child: Focus(
         onKeyEvent: _onKey,
@@ -381,7 +379,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   }
 }
 
-/// One cell: the glyph, and the ring that says it is the one Space will copy.
+/// One cell: the glyph, and the ring that says it is the one Enter will copy.
 class _EmojiCell extends StatelessWidget {
   const _EmojiCell({
     required this.theme,
@@ -429,8 +427,8 @@ class _EmojiCell extends StatelessWidget {
 ///
 /// The name is the half that makes the grid legible — a wall of glyphs says
 /// nothing about which of three similar faces is under the ring — and the key
-/// hints are the other half: Space-to-copy is this picker's own convention and
-/// not one anybody arrives already knowing.
+/// hints are the other half: nothing about a grid of glyphs says which key
+/// takes the one under the ring, or that Escape leaves without taking it.
 class _EmojiFooter extends StatelessWidget {
   const _EmojiFooter({required this.theme, required this.selected});
 
@@ -478,7 +476,7 @@ class _EmojiFooter extends StatelessWidget {
         ] else
           const Spacer(),
         Text(
-          'Space to copy  ·  Esc to cancel',
+          'Enter to copy  ·  Esc to cancel',
           style: TextStyle(
             color: theme.muted,
             fontSize: ShellFontSizes.caption,

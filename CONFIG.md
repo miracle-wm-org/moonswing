@@ -366,7 +366,7 @@ If another client already owns a combination, the shell logs it and moves on —
 
 ## Emoji Picker
 
-`Ctrl+Shift+E` opens a centred picker over whatever is on screen. Type to search, move with the arrow keys, and press **Space** (or Enter) to copy the highlighted emoji and close. **Escape** — or a click on the backdrop — leaves without copying.
+`Ctrl+Shift+E` opens a centred picker over whatever is on screen. Type to search, move with the arrow keys, and press **Enter** to copy the highlighted emoji and close. **Escape** — or a click on the backdrop — leaves without copying.
 
 The search is fuzzy and runs across every dimension an emoji has, so all four of these find 🍕:
 
@@ -377,7 +377,7 @@ italian    →  one of its keywords
 🍕          →  the character itself
 ```
 
-Fuzzy means the letters need only appear *in order*: `gfws` finds "grinning face with sweat", `thmbs` finds "thumbs up". That matters more than it usually would, because Space is the copy key and so a query cannot contain one — typing straight through a multi-word name is how you reach it.
+Fuzzy means the letters need only appear *in order*: `gfws` finds "grinning face with sweat", `thmbs` finds "thumbs up". Spaces are ordinary characters here — the copy key is Enter, not Space — so a query may be several words, and those words need only appear in order too: `face joy` finds "face with tears of joy".
 
 A literal match always beats a scattered one, and the dimensions are weighted: the name first, then the keywords, then the category. So typing `cat` puts the cat face above the emoji merely filed under a *category*.
 

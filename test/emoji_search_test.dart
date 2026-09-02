@@ -181,11 +181,28 @@ void main() {
     });
 
     test('a multi-word name is reachable without typing its spaces', () {
-      // The property Space-to-copy depends on: a query cannot contain a
-      // space, so typing straight through a name has to work.
       final results = rankEmoji(searchableEmoji, 'grinningfacewithsweat');
       expect(results.isNotEmpty, isTrue);
       expect(results.first.name, 'grinning face with sweat');
+    });
+
+    test('a multi-word query matches its words in order', () {
+      // Enter is the copy key, so Space reaches the field and a query may
+      // carry one; the subsequence match is what lets the words be a long way
+      // apart in the name.
+      final results = rankEmoji(searchableEmoji, 'face joy');
+      expect(results.isNotEmpty, isTrue);
+      expect(results.first.name, 'face with tears of joy');
+    });
+
+    test('a trailing space does not empty the results', () {
+      // Every two-word query passes through this state and no field is folded
+      // with a trailing space, so without the trim the grid would empty on
+      // the keystroke between the words.
+      expect(
+        rankEmoji(searchableEmoji, 'face ').first.name,
+        rankEmoji(searchableEmoji, 'face').first.name,
+      );
     });
 
     test('initials find a multi-word name', () {

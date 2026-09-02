@@ -176,9 +176,9 @@ void main() {
       expect(find.text('No matching emoji'), findsOneWidget);
     });
 
-    testWidgets('space copies the selection and closes', (tester) async {
+    testWidgets('enter copies the selection and closes', (tester) async {
       final harness = await pumpPicker(tester);
-      await _press(tester, LogicalKeyboardKey.space);
+      await _press(tester, LogicalKeyboardKey.enter);
 
       expect(harness.copied, ['🍕']);
       // Straight out, with no exit animation: the window exists to hand the
@@ -187,12 +187,46 @@ void main() {
       expect(harness.closing.value, isFalse);
     });
 
-    testWidgets('enter copies too', (tester) async {
+    testWidgets('the numeric keypad enter copies too', (tester) async {
       final harness = await pumpPicker(tester);
-      await _press(tester, LogicalKeyboardKey.enter);
+      await _press(tester, LogicalKeyboardKey.numpadEnter);
 
       expect(harness.copied, ['🍕']);
       expect(harness.closedCount, 1);
+    });
+
+    testWidgets('space belongs to the query, and copies nothing', (
+      tester,
+    ) async {
+      // The key handler must *not* take Space: a key it takes never reaches
+      // the field, so binding it would cost every query its spaces.
+      final harness = await pumpPicker(tester);
+      await _press(tester, LogicalKeyboardKey.space);
+
+      expect(harness.copied, isEmpty);
+      expect(harness.closedCount, 0);
+      expect(harness.closing.value, isFalse);
+    });
+
+    testWidgets('a multi-word query filters', (tester) async {
+      await pumpPicker(tester);
+      await _type(tester, 'french fries');
+
+      // On the glyphs rather than the name, because `find.text` matches the
+      // EditableText too and the query *is* that name.
+      expect(find.text('🍟'), findsWidgets);
+      expect(find.text('🍔'), findsNothing);
+    });
+
+    testWidgets('a query mid-word keeps its results', (tester) async {
+      // Every two-word query passes through this state, and no field is
+      // folded with a trailing space — without the trim the grid would empty
+      // on the keystroke between the words.
+      await pumpPicker(tester);
+      await _type(tester, 'french ');
+
+      expect(find.text('No matching emoji'), findsNothing);
+      expect(find.text('french fries'), findsOneWidget);
     });
 
     testWidgets('the arrow keys move the selection before copying', (
@@ -206,7 +240,7 @@ void main() {
       expect(find.text('french fries'), findsOneWidget);
 
       await _press(tester, LogicalKeyboardKey.arrowLeft);
-      await _press(tester, LogicalKeyboardKey.space);
+      await _press(tester, LogicalKeyboardKey.enter);
       expect(harness.copied, ['🍔']);
     });
 
@@ -216,7 +250,7 @@ void main() {
       expect(find.text('french fries'), findsOneWidget);
 
       await _press(tester, LogicalKeyboardKey.home);
-      await _press(tester, LogicalKeyboardKey.space);
+      await _press(tester, LogicalKeyboardKey.enter);
       expect(harness.copied, ['🍕']);
     });
 
@@ -226,7 +260,7 @@ void main() {
       final harness = await pumpPicker(tester);
       await _press(tester, LogicalKeyboardKey.arrowRight);
       await _type(tester, 'fries');
-      await _press(tester, LogicalKeyboardKey.space);
+      await _press(tester, LogicalKeyboardKey.enter);
 
       expect(harness.copied, ['🍟']);
     });
@@ -267,7 +301,7 @@ void main() {
 
     testWidgets('the footer says how to take the selection', (tester) async {
       await pumpPicker(tester);
-      expect(find.text('Space to copy  ·  Esc to cancel'), findsOneWidget);
+      expect(find.text('Enter to copy  ·  Esc to cancel'), findsOneWidget);
     });
   });
 }

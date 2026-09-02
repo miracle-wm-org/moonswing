@@ -11,10 +11,13 @@
 //    those four is anything the launcher's model would have found.
 //  * **The match is fuzzy** — a subsequence, so "gfws" finds "grinning face
 //    with sweat" and "thmbs" finds "thumbs up". That is worth more here than
-//    it is over application names for a reason particular to this picker:
-//    Space copies the selection and closes (see `emoji_picker_overlay.dart`),
-//    so a query cannot contain one, and a subsequence match is what lets a
-//    multi-word name be reached by typing straight through it.
+//    it is over application names because an emoji's name is a *description*
+//    rather than a word somebody knows: nobody types "backhand index pointing
+//    right" in full, and a wall of six hundred glyphs is narrowed by typing
+//    the few letters you are sure of. A query may contain spaces (Enter is
+//    the copy key, not Space — see `emoji_picker_overlay.dart`), and because
+//    the match is a subsequence the words in one need only appear *in order*:
+//    "face joy" finds "face with tears of joy".
 //
 // The fuzziness is also what makes the *ordering* here differ from that file's:
 // match quality dominates and the dimension is only the tie-break, where the
@@ -204,6 +207,12 @@ int scoreEmoji(SearchableEmoji emoji, String query) {
 /// An empty query answers the table in its own order, which is grouped by
 /// category — so the picker has something to show before the user types, and
 /// what it shows is browsable rather than arbitrary.
+///
+/// The **trim** is what makes a multi-word query typeable: with Space free to
+/// reach the field, "face " is a state every two-word query passes through,
+/// and a trailing space no field is folded with would empty the grid on the
+/// keystroke between the words. Interior spaces are kept, because they are
+/// the query.
 ///
 /// **Ties break by table order**, which is the one place this departs from
 /// `rankApps` — that sorts equal scores by name, on the grounds that the
