@@ -37,6 +37,9 @@ import 'package:graceful_shell/modules/system_monitor.dart';
 import 'package:graceful_shell/modules/system_tray.dart';
 import 'package:graceful_shell/modules/weather.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
+import 'package:graceful_shell/emoji/emoji_clipboard.dart';
+import 'package:graceful_shell/emoji/emoji_controller.dart';
+import 'package:graceful_shell/emoji/emoji_picker_overlay.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/launcher/app_index.dart';
@@ -503,21 +506,27 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// the monitor whose badge was tapped.
   final Map<String, LayershellWindowController> _badges = {};
 
-  /// Seven of the eight root-owned overlays — the full-screen ones; the
+  /// Eight of the nine root-owned overlays — the full-screen ones; the
   /// notification panel below is the exception. Each [_OverlayWindow] carries
   /// the window controller, its [PopupCoordinator] registration, and the
   /// closing notifier — the bookkeeping every overlay used to hand-roll
   /// separately, which is how `dispose` once missed two of them.
   ///
   /// The settings overlay is opened by the global shortcut (Ctrl+Shift+S);
-  /// the launcher by its shortcut or the magnifier module; the app chooser by
-  /// the desktop's "Add application…"; the two pickers exist only while a
+  /// the launcher by its shortcut or the magnifier module; the emoji picker
+  /// by Ctrl+Shift+E; the app chooser by the desktop's "Add application…"; the two pickers exist only while a
   /// request is outstanding. The pickers are modal: a consent prompt must
   /// displace whatever is up and be displaced by nothing — dismissing one is
   /// a denial, and only its controller may resolve it.
   final _OverlayWindow _settings = _OverlayWindow();
   final _OverlayWindow _launcher = _OverlayWindow(acquiresAppIndex: true);
   final _OverlayWindow _appChooser = _OverlayWindow(acquiresAppIndex: true);
+
+  /// The emoji picker (Ctrl+Shift+E) — the ninth root-owned overlay. A plain
+  /// menu policy like the launcher's rather than a modal one: it copies a
+  /// character and nothing is owed an answer, so anything that wants the
+  /// screen may displace it.
+  final _OverlayWindow _emojiPicker = _OverlayWindow();
   final _OverlayWindow _screencastPicker = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -588,7 +597,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// The screenshot / recording selection surfaces, keyed like [_surfaces].
   ///
   /// One per monitor rather than one window, which is what separates this from
-  /// the six [_OverlayWindow]s: the user has to be able to drag a rectangle or
+  /// the nine [_OverlayWindow]s: the user has to be able to drag a rectangle or
   /// point at a window on *any* display, and a layer-shell surface covers one
   /// output. Like the OSD's and unlike a panel's these exist only while
   /// something is being selected — the shell has no input-region support, so a
@@ -666,6 +675,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (OsdStore.instance, _onOsdChanged),
       (InputTriggerStore.instance, _onSettingsTriggered),
       (LauncherController.instance, _onLauncherTriggered),
+      (EmojiPickerController.instance, _onEmojiPickerTriggered),
       (PowerController.instance, _onPowerKeyPressed),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
       (PolkitAuthController.instance, _onPolkitAuthChanged),
@@ -1283,6 +1293,73 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _destroyAfterFrame([removed]);
   }
 
+  /// The emoji picker's shortcut fired. Toggles the way the launcher's does.
+  void _onEmojiPickerTriggered() {
+    if (!mounted) return;
+    if (_emojiPicker.isOpen) {
+      _emojiPicker.closing.value = true;
+    } else {
+      _openEmojiPicker();
+    }
+  }
+
+  /// Opens the emoji picker as a full-screen overlay-layer window.
+  ///
+  /// No monitor, for [_openLauncher]'s reason: with no `wl_output` on the
+  /// layer surface miracle places it on its focused output, which is where
+  /// the user is — and this window exists to hand a character back to
+  /// whatever they were typing into.
+  void _openEmojiPicker() {
+    _emojiPicker.open();
+    _refreshWindows();
+  }
+
+  /// Called by [EmojiPickerOverlay] once it is finished with its window —
+  /// after the fade-out, or immediately when something was copied.
+  void _onEmojiPickerClosed() {
+    if (!mounted) return;
+    final removed = _emojiPicker.take();
+    if (removed == null) return;
+    _refreshWindows();
+    _destroyAfterFrame([removed]);
+  }
+
+  /// Puts a picked emoji on the clipboard, and says so when it could not.
+  ///
+  /// The copy is fired and not awaited, because the picker closes on the same
+  /// keystroke — waiting would hold a window the user has finished with on
+  /// screen for the length of a fork. Only a *failure* is reported, and it is
+  /// reported through the notification store rather than in the card that is
+  /// already gone: a missing `wl-clipboard` is the difference between an
+  /// emoji arriving in the user's message and nothing happening at all, which
+  /// is `lib/capture/`'s rule that a missing external tool is a message
+  /// rather than a silence.
+  void _onEmojiCopied(String char) {
+    unawaited(
+      copyTextToClipboard(char).then((result) {
+        if (result == ClipboardResult.copied) return;
+        final store = NotificationStore.instance;
+        store.addOrReplace(
+          NotificationItem(
+            id: store.allocateId(),
+            appName: 'Graceful Shell',
+            summary: 'Could not copy $char',
+            body: result == ClipboardResult.unavailable
+                ? 'The emoji picker copies through $kClipboardCommand, which '
+                      'is not installed. Install $kClipboardPackage to use it.'
+                : '$kClipboardCommand could not take the clipboard.',
+            actions: const [],
+            // Stays until dismissed: it is the only place the reason is
+            // written down, and the user is by now looking at a field that
+            // did not receive a paste.
+            expireTimeout: 0,
+            arrivedAt: DateTime.now(),
+          ),
+        );
+      }),
+    );
+  }
+
   /// Opens the settings overlay as a single full-monitor layer-shell window on
   /// the first connected monitor. It sits on the overlay layer and takes
   /// keyboard focus (onDemand) so its text fields and Escape-to-close work —
@@ -1749,6 +1826,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       _settings,
       _launcher,
       _appChooser,
+      _emojiPicker,
       _screencastPicker,
       _filePicker,
       _powerMenu,
@@ -2110,6 +2188,22 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
             ),
           ),
         ),
+      // The emoji picker. A single window like the launcher, and registered
+      // after it: the overlays that open and close all day go late in this
+      // list, because the root's WindowManager renders its registry as
+      // *unkeyed* Windows and dropping one from the middle reparents every
+      // later one (see the reconciliation note on [WindowManager]).
+      if (_emojiPicker.controller case final picker?)
+        (
+          controller: picker,
+          builder: (_) => _windowChrome(
+            EmojiPickerOverlay(
+              closingNotifier: _emojiPicker.closing,
+              onClosed: _onEmojiPickerClosed,
+              onCopy: _onEmojiCopied,
+            ),
+          ),
+        ),
       // The screen-share consent picker, open only while an application's
       // portal request is waiting on an answer. Single window, like the
       // launcher, so it lives outside the per-monitor loop.
@@ -2367,7 +2461,7 @@ class _OverlayWindow {
 
   /// Builds the native window for the monitor [open] was asked for.
   ///
-  /// Null is the full-screen backdrop seven of these eight want, which is
+  /// Null is the full-screen backdrop eight of these nine want, which is
   /// what the class was for the whole time there was only that one shape. The
   /// notification panel is the exception — a column down one output edge —
   /// and it supplies its own rather than growing this into a geometry

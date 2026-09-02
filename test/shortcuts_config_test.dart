@@ -8,12 +8,26 @@ void main() {
       final config = ShortcutsConfig.fromMap(null);
       expect(config.openSettings, kDefaultOpenSettings);
       expect(config.openLauncher, kDefaultOpenLauncher);
+      expect(config.openEmoji, kDefaultOpenEmoji);
     });
 
     test('an absent key keeps its default', () {
       final config = ShortcutsConfig.fromMap(<String, dynamic>{});
       expect(config.openSettings, kDefaultOpenSettings);
       expect(config.openLauncher, kDefaultOpenLauncher);
+      expect(config.openEmoji, kDefaultOpenEmoji);
+    });
+
+    test('open_emoji reads, disables and degrades like the others', () {
+      expect(
+        ShortcutsConfig.fromMap({'open_emoji': 'super+period'}).openEmoji,
+        parseShortcut('super+period'),
+      );
+      expect(ShortcutsConfig.fromMap({'open_emoji': ''}).openEmoji, isNull);
+      expect(
+        ShortcutsConfig.fromMap({'open_emoji': 42}).openEmoji,
+        kDefaultOpenEmoji,
+      );
     });
 
     test('a typo in one key leaves the other alone', () {

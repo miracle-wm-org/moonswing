@@ -9,6 +9,7 @@ void main() {
       // key — the defaults are const and cannot call the parser themselves.
       expect(parseShortcut('ctrl+shift+s'), kDefaultOpenSettings);
       expect(parseShortcut('ctrl+space'), kDefaultOpenLauncher);
+      expect(parseShortcut('ctrl+shift+e'), kDefaultOpenEmoji);
       expect(parseShortcut('poweroff'), kDefaultPowerButton);
     });
 

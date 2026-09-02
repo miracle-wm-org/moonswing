@@ -76,6 +76,13 @@ abstract final class ShellFontSizes {
   /// Control labels and popup text.
   static const double label = 14;
 
+  /// The text somebody is *typing*: the overlay search inputs (the launcher's
+  /// and the emoji picker's, both through `OverlaySearchField`). A rung above
+  /// [label] because a query is the one string on those cards the user is
+  /// composing rather than reading, and a rung below [title] because the card
+  /// still has headings of its own.
+  static const double field = 15;
+
   /// Section titles and emphasis.
   static const double title = 16;
 

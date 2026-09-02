@@ -166,6 +166,7 @@ blur_sigma = 18.0
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
+open_emoji = "ctrl+shift+e"
 # The machine's own power button. Clear it (or set [power] key_action = "none")
 # to hand the key back to systemd-logind.
 power_button = "poweroff"
