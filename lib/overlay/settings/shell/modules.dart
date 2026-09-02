@@ -18,6 +18,8 @@ import 'package:graceful_shell/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:graceful_shell/modules/weather.dart' show WeatherConfig;
 import 'package:graceful_shell/modules/workspaces.dart' show WorkspacesConfig;
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
+import 'package:graceful_shell/overlay/settings/settings_search.dart';
 import 'package:graceful_shell/overlay/settings/shell/weather_location.dart';
 import 'package:graceful_shell/system/system_monitor_config.dart'
     show SystemMonitorConfig;
@@ -25,26 +27,26 @@ import 'package:graceful_shell/system/system_monitor_config.dart'
 /// Which control edits a module setting row.
 enum _Kind { toggle, number, segmented, text, stringList, weatherLocation }
 
-/// One `[modules.*]` row: its config path, its label, and which control edits
-/// it.
+/// One `[modules.*]` row: its catalogue entry, and which control edits it.
 ///
 /// [defaultValue] is read off the module's own const config object
 /// (`const BatteryConfig().pollSeconds` and friends), so the fallback a
 /// control shows when `config.toml` has no value is, by construction, the
 /// value the module's `fromMap` would use — the two can never drift again.
+///
+/// The same trick is what ties a row to the settings search: the row's label
+/// comes off [field], and its **config path is the field's id split on the
+/// dots** — so a key, the row that edits it and the search result that finds
+/// it are one string in one place. See [SettingsCatalog].
 class _ModuleSetting {
-  const _ModuleSetting.toggle(
-    this.path,
-    this.label, {
-    required bool this.defaultValue,
-  }) : kind = _Kind.toggle,
-       isInt = false,
-       options = null,
-       addHint = null;
+  const _ModuleSetting.toggle(this.field, {required bool this.defaultValue})
+    : kind = _Kind.toggle,
+      isInt = false,
+      options = null,
+      addHint = null;
 
   const _ModuleSetting.number(
-    this.path,
-    this.label, {
+    this.field, {
     required num this.defaultValue,
     required this.isInt,
   }) : kind = _Kind.number,
@@ -52,8 +54,7 @@ class _ModuleSetting {
        addHint = null;
 
   const _ModuleSetting.segmented(
-    this.path,
-    this.label, {
+    this.field, {
     required List<String> this.options,
     required String this.defaultValue,
   }) : kind = _Kind.segmented,
@@ -67,13 +68,13 @@ class _ModuleSetting {
   /// folder that is not there yet could not be configured at all. The default
   /// is shown as the placeholder rather than written into the field, so
   /// clearing it goes back to the default instead of to nowhere.
-  const _ModuleSetting.text(this.path, this.label, {this.addHint})
+  const _ModuleSetting.text(this.field, {this.addHint})
     : kind = _Kind.text,
       defaultValue = null,
       isInt = false,
       options = null;
 
-  const _ModuleSetting.stringList(this.path, this.label, {this.addHint})
+  const _ModuleSetting.stringList(this.field, {this.addHint})
     : kind = _Kind.stringList,
       defaultValue = null,
       isInt = false,
@@ -85,17 +86,23 @@ class _ModuleSetting {
   /// config keys written together and the only thing that produces them is a
   /// geocoding lookup, so the control owns its own path list rather than taking
   /// one — see `weather_location.dart`.
-  const _ModuleSetting.weatherLocation(this.label)
+  const _ModuleSetting.weatherLocation(this.field)
     : kind = _Kind.weatherLocation,
-      path = const [],
       defaultValue = null,
       isInt = false,
       options = null,
       addHint = null;
 
-  final List<String> path;
-  final String label;
+  /// The catalogue entry: the row's label, and the config path it edits.
+  final SettingsField field;
+
   final _Kind kind;
+
+  /// The `[modules.*]` key this row writes, from the entry's id.
+  ///
+  /// Unused by [_Kind.weatherLocation], which owns its own three paths — see
+  /// `weather_location.dart`.
+  List<String> get path => field.id.split('.');
 
   /// The module's compiled-in default. Null only for [_Kind.stringList], whose
   /// absent-value state is the empty list [ConfigStore.getList] returns.
@@ -125,199 +132,165 @@ class _ModuleGroup {
 final List<_ModuleGroup> _moduleGroups = [
   _ModuleGroup('Workspaces', [
     _ModuleSetting.toggle(
-      const ['modules', 'workspaces', 'show_app_icons'],
-      'Show app icons',
+      SettingsCatalog.workspacesShowAppIcons,
       defaultValue: const WorkspacesConfig().showAppIcons,
     ),
     _ModuleSetting.number(
-      const ['modules', 'workspaces', 'icon_size'],
-      'Icon size',
+      SettingsCatalog.workspacesIconSize,
       defaultValue: const WorkspacesConfig().iconSize,
       isInt: true,
     ),
     _ModuleSetting.number(
-      const ['modules', 'workspaces', 'max_icons'],
-      'Max icons per workspace',
+      SettingsCatalog.workspacesMaxIcons,
       defaultValue: const WorkspacesConfig().maxIcons,
       isInt: true,
     ),
     _ModuleSetting.toggle(
-      const ['modules', 'workspaces', 'flash_urgent'],
-      'Flash urgent workspaces',
+      SettingsCatalog.workspacesFlashUrgent,
       defaultValue: const WorkspacesConfig().flashUrgent,
     ),
     _ModuleSetting.number(
-      const ['modules', 'workspaces', 'urgent_flash_seconds'],
-      'Urgent flash period (seconds)',
+      SettingsCatalog.workspacesUrgentFlashSeconds,
       defaultValue: const WorkspacesConfig().urgentFlashSeconds,
       isInt: false,
     ),
   ]),
   _ModuleGroup('Weather', [
-    const _ModuleSetting.weatherLocation('Location'),
+    _ModuleSetting.weatherLocation(SettingsCatalog.weatherLocation),
     _ModuleSetting.segmented(
-      const ['modules', 'weather', 'unit'],
-      'Unit',
+      SettingsCatalog.weatherUnit,
       options: const ['fahrenheit', 'celsius'],
       defaultValue: const WeatherConfig().unit,
     ),
     _ModuleSetting.number(
-      const ['modules', 'weather', 'refresh_minutes'],
-      'Refresh (minutes)',
+      SettingsCatalog.weatherRefreshMinutes,
       defaultValue: const WeatherConfig().refreshMinutes,
       isInt: true,
     ),
   ]),
   _ModuleGroup('Battery', [
     _ModuleSetting.number(
-      const ['modules', 'battery', 'poll_seconds'],
-      'Poll (seconds)',
+      SettingsCatalog.batteryPollSeconds,
       defaultValue: const BatteryConfig().pollSeconds,
       isInt: true,
     ),
   ]),
   _ModuleGroup('Clock', [
     _ModuleSetting.toggle(
-      const ['modules', 'clock', 'show_date'],
-      'Show date',
+      SettingsCatalog.clockShowDate,
       defaultValue: const ClockConfig().showDate,
     ),
   ]),
   _ModuleGroup('Media player', [
     _ModuleSetting.number(
-      const ['modules', 'media_player', 'max_text_width'],
-      'Max text width',
+      SettingsCatalog.mediaPlayerMaxTextWidth,
       defaultValue: const MediaPlayerConfig().maxTextWidth,
       isInt: false,
     ),
   ]),
   _ModuleGroup('System tray', [
     _ModuleSetting.number(
-      const ['modules', 'system_tray', 'icon_size'],
-      'Icon size',
+      SettingsCatalog.systemTrayIconSize,
       defaultValue: const SystemTrayConfig().iconSize,
       isInt: false,
     ),
     _ModuleSetting.number(
-      const ['modules', 'system_tray', 'collapsed_overlap'],
-      'Collapsed overlap',
+      SettingsCatalog.systemTrayCollapsedOverlap,
       defaultValue: const SystemTrayConfig().collapsedOverlap,
       isInt: false,
     ),
     _ModuleSetting.number(
-      const ['modules', 'system_tray', 'expanded_spacing'],
-      'Expanded spacing',
+      SettingsCatalog.systemTrayExpandedSpacing,
       defaultValue: const SystemTrayConfig().expandedSpacing,
       isInt: false,
     ),
-    const _ModuleSetting.stringList(
-      ['modules', 'system_tray', 'hidden_items'],
-      'Hidden items',
+    _ModuleSetting.stringList(
+      SettingsCatalog.systemTrayHiddenItems,
       addHint: 'SNI id or title',
     ),
   ]),
   _ModuleGroup('Dock', [
     _ModuleSetting.number(
-      const ['modules', 'dock', 'icon_size'],
-      'Icon size',
+      SettingsCatalog.dockIconSize,
       defaultValue: const DockConfig().iconSize,
       isInt: true,
     ),
     _ModuleSetting.toggle(
-      const ['modules', 'dock', 'show_app_directory'],
-      'Show app directory',
+      SettingsCatalog.dockShowAppDirectory,
       defaultValue: const DockConfig().showAppDirectory,
     ),
-    const _ModuleSetting.stringList(
-      ['modules', 'dock', 'apps'],
-      'Apps',
-      addHint: 'app id',
-    ),
+    _ModuleSetting.stringList(SettingsCatalog.dockApps, addHint: 'app id'),
   ]),
   _ModuleGroup('System monitor', [
     _ModuleSetting.number(
-      const ['modules', 'system_monitor', 'poll_seconds'],
-      'Poll (seconds)',
+      SettingsCatalog.systemMonitorPollSeconds,
       defaultValue: const SystemMonitorConfig().pollSeconds,
       isInt: true,
     ),
     _ModuleSetting.segmented(
-      const ['modules', 'system_monitor', 'temp_unit'],
-      'Temperature unit',
+      SettingsCatalog.systemMonitorTempUnit,
       options: const ['celsius', 'fahrenheit'],
       defaultValue: const SystemMonitorConfig().tempUnit,
     ),
     _ModuleSetting.number(
-      const ['modules', 'system_monitor', 'history_samples'],
-      'Graph history (samples)',
+      SettingsCatalog.systemMonitorHistorySamples,
       defaultValue: const SystemMonitorConfig().historySamples,
       isInt: true,
     ),
     // "machine" makes the process rows sum to the total CPU gauge; "core" is
     // top-style, where 100% is one saturated core.
     _ModuleSetting.segmented(
-      const ['modules', 'system_monitor', 'cpu_percent_mode'],
-      'CPU percentages',
+      SettingsCatalog.systemMonitorCpuPercentMode,
       options: const ['machine', 'core'],
       defaultValue: const SystemMonitorConfig().cpuPercentMode.name,
     ),
     _ModuleSetting.toggle(
-      const ['modules', 'system_monitor', 'show_kernel_threads'],
-      'Show kernel threads',
+      SettingsCatalog.systemMonitorShowKernelThreads,
       defaultValue: const SystemMonitorConfig().showKernelThreads,
     ),
     _ModuleSetting.toggle(
-      const ['modules', 'system_monitor', 'confirm_kill'],
-      'Confirm before quitting a process',
+      SettingsCatalog.systemMonitorConfirmKill,
       defaultValue: const SystemMonitorConfig().confirmKill,
     ),
   ]),
   _ModuleGroup('Network', [
     _ModuleSetting.number(
-      const ['modules', 'network', 'poll_seconds'],
-      'Poll (seconds)',
+      SettingsCatalog.networkPollSeconds,
       defaultValue: const NetworkConfig().pollSeconds,
       isInt: true,
     ),
   ]),
   _ModuleGroup('Screenshot', [
-    const _ModuleSetting.text(
-      ['modules', 'screenshot', 'directory'],
-      'Save to',
+    _ModuleSetting.text(
+      SettingsCatalog.screenshotDirectory,
       addHint: '~/$kDefaultScreenshotDirectory',
     ),
     _ModuleSetting.toggle(
-      const ['modules', 'screenshot', 'copy_to_clipboard'],
-      'Copy to clipboard',
+      SettingsCatalog.screenshotCopyToClipboard,
       defaultValue: const ScreenshotConfig().copyToClipboard,
     ),
     _ModuleSetting.number(
-      const ['modules', 'screenshot', 'delay_seconds'],
-      'Delay (seconds)',
+      SettingsCatalog.screenshotDelaySeconds,
       defaultValue: const ScreenshotConfig().delaySeconds,
       isInt: true,
     ),
     _ModuleSetting.toggle(
-      const ['modules', 'screenshot', 'show_cursor'],
-      'Include the pointer',
+      SettingsCatalog.screenshotShowCursor,
       defaultValue: const ScreenshotConfig().showCursor,
     ),
   ]),
   _ModuleGroup('Screen recorder', [
-    const _ModuleSetting.text(
-      ['modules', 'screen_recorder', 'directory'],
-      'Save to',
+    _ModuleSetting.text(
+      SettingsCatalog.recorderDirectory,
       addHint: '~/$kDefaultRecordingDirectory',
     ),
     _ModuleSetting.segmented(
-      const ['modules', 'screen_recorder', 'container'],
-      'Format',
+      SettingsCatalog.recorderContainer,
       options: kRecorderContainers,
       defaultValue: const RecorderConfig().container,
     ),
     _ModuleSetting.number(
-      const ['modules', 'screen_recorder', 'fps'],
-      'Frames per second',
+      SettingsCatalog.recorderFps,
       defaultValue: const RecorderConfig().fps,
       isInt: true,
     ),
@@ -325,14 +298,12 @@ final List<_ModuleGroup> _moduleGroups = [
     // handed to ffmpeg verbatim and a "quality: 8/10" scale invented here
     // would be a second thing to explain.
     _ModuleSetting.number(
-      const ['modules', 'screen_recorder', 'quality'],
-      'Quality (CRF, lower is better)',
+      SettingsCatalog.recorderQuality,
       defaultValue: const RecorderConfig().quality,
       isInt: true,
     ),
     _ModuleSetting.toggle(
-      const ['modules', 'screen_recorder', 'show_cursor'],
-      'Include the pointer',
+      SettingsCatalog.recorderShowCursor,
       defaultValue: const RecorderConfig().showCursor,
     ),
   ]),
@@ -353,8 +324,8 @@ class ModulesSection extends StatelessWidget {
         for (final group in _moduleGroups) ...[
           SettingsSubLabel(group.label),
           for (final setting in group.settings)
-            SettingsRow(
-              label: setting.label,
+            SettingsRow.field(
+              setting.field,
               // The list editors are tall; their label sits at the top.
               alignTop: setting.kind == _Kind.stringList,
               control: _control(setting),

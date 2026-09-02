@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The lock screen's wallpaper and chrome.
@@ -74,8 +75,8 @@ class _LockSectionState extends State<LockSection> {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SettingsRow(
-                  label: 'Wallpaper',
+                SettingsRow.field(
+                  SettingsCatalog.lockBackground,
                   alignTop: true,
                   control: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -132,8 +133,8 @@ class _LockSectionState extends State<LockSection> {
             );
           },
         ),
-        SettingsRow(
-          label: 'Fit',
+        SettingsRow.field(
+          SettingsCatalog.lockFit,
           control: ConfigValue<String>(
             store: store,
             path: const ['lock', 'fit'],
@@ -145,8 +146,8 @@ class _LockSectionState extends State<LockSection> {
             ),
           ),
         ),
-        SettingsRow(
-          label: 'Show name',
+        SettingsRow.field(
+          SettingsCatalog.lockShowUsername,
           control: ConfigValue<bool>(
             store: store,
             path: const ['lock', 'show_username'],
@@ -157,8 +158,8 @@ class _LockSectionState extends State<LockSection> {
             ),
           ),
         ),
-        SettingsRow(
-          label: 'Blur when unlocking',
+        SettingsRow.field(
+          SettingsCatalog.lockBlurSigma,
           control: ConfigValue<num>(
             store: store,
             path: const ['lock', 'blur_sigma'],

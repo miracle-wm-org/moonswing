@@ -10,6 +10,7 @@ import 'package:graceful_shell/desktop/desktop_store.dart';
 import 'package:graceful_shell/launcher/app_index.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 import 'package:graceful_shell/scopes.dart';
 
 /// The Desktop category: grid geometry plus the list of pinned items.
@@ -93,8 +94,8 @@ class _DesktopSectionState extends State<DesktopSection> {
         return SliverSettingsSection(
           label: 'Desktop',
           children: [
-            SettingsRow(
-              label: 'Show desktop icons',
+            SettingsRow.field(
+              SettingsCatalog.desktopEnabled,
               control: SettingsToggle(
                 value: config.enabled,
                 onChanged: (v) => _setGrid((c) => _copyDesktop(c, enabled: v)),
@@ -106,8 +107,8 @@ class _DesktopSectionState extends State<DesktopSection> {
               'Turning desktop icons on or off takes effect after a restart '
               'when no wallpaper is configured.',
             ),
-            SettingsRow(
-              label: 'Cell width',
+            SettingsRow.field(
+              SettingsCatalog.desktopCellWidth,
               control: SettingsNumberField(
                 value: config.cellWidth,
                 isInt: true,
@@ -115,8 +116,8 @@ class _DesktopSectionState extends State<DesktopSection> {
                     _setGrid((c) => _copyDesktop(c, cellWidth: v.toDouble())),
               ),
             ),
-            SettingsRow(
-              label: 'Cell height',
+            SettingsRow.field(
+              SettingsCatalog.desktopCellHeight,
               control: SettingsNumberField(
                 value: config.cellHeight,
                 isInt: true,
@@ -124,8 +125,8 @@ class _DesktopSectionState extends State<DesktopSection> {
                     _setGrid((c) => _copyDesktop(c, cellHeight: v.toDouble())),
               ),
             ),
-            SettingsRow(
-              label: 'Spacing',
+            SettingsRow.field(
+              SettingsCatalog.desktopSpacing,
               control: SettingsNumberField(
                 value: config.spacing,
                 isInt: true,
@@ -133,8 +134,8 @@ class _DesktopSectionState extends State<DesktopSection> {
                     _setGrid((c) => _copyDesktop(c, spacing: v.toDouble())),
               ),
             ),
-            SettingsRow(
-              label: 'Edge padding',
+            SettingsRow.field(
+              SettingsCatalog.desktopPadding,
               control: SettingsNumberField(
                 value: config.padding,
                 isInt: true,
@@ -142,8 +143,8 @@ class _DesktopSectionState extends State<DesktopSection> {
                     _setGrid((c) => _copyDesktop(c, padding: v.toDouble())),
               ),
             ),
-            SettingsRow(
-              label: 'Icon size',
+            SettingsRow.field(
+              SettingsCatalog.desktopIconSize,
               control: SettingsNumberField(
                 value: config.iconSize,
                 isInt: true,
@@ -151,8 +152,8 @@ class _DesktopSectionState extends State<DesktopSection> {
                     _setGrid((c) => _copyDesktop(c, iconSize: v.toDouble())),
               ),
             ),
-            SettingsRow(
-              label: 'Show labels',
+            SettingsRow.field(
+              SettingsCatalog.desktopShowLabels,
               control: SettingsToggle(
                 value: config.showLabels,
                 onChanged: (v) =>

@@ -10,6 +10,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart' show ThemeConfig;
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/root_modal.dart';
+import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
+import 'package:graceful_shell/overlay/settings/settings_search.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup_surface.dart';
@@ -378,41 +380,228 @@ class SettingsRow extends StatelessWidget {
     required this.label,
     required this.control,
     this.alignTop = false,
+    this.searchId,
   });
+
+  /// The row for a catalogued [SettingsField].
+  ///
+  /// The label comes *from* the field rather than being written again beside
+  /// it, which is what stops the search index drifting: renaming a setting
+  /// renames the row and the result that finds it in one edit. It also carries
+  /// the field's id, which is the address the search bar's "jump to" scrolls
+  /// to — see [SettingsHighlightController].
+  SettingsRow.field(
+    SettingsField field, {
+    super.key,
+    required this.control,
+    this.alignTop = false,
+  }) : label = field.label,
+       searchId = field.id;
 
   final String label;
   final Widget control;
   final bool alignTop;
 
+  /// [SettingsField.id], for a row the settings search can jump to. Null for a
+  /// row that is not in the catalogue — a device in a list, a per-item control.
+  final String? searchId;
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final searchId = this.searchId;
     return RepaintBoundary(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          crossAxisAlignment: alignTop
-              ? CrossAxisAlignment.start
-              : CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(top: alignTop ? 10 : 0),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground.withValues(alpha: 0.85),
+      child: _SettingsRowHighlight(
+        // Null at every row the catalogue does not name, and the widget is
+        // then a pass-through that builds no state and starts no ticker —
+        // `UrgencyFlash`'s rule, for a flash that fires once per search jump
+        // rather than once per notification.
+        searchId: searchId,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            crossAxisAlignment: alignTop
+                ? CrossAxisAlignment.start
+                : CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(top: alignTop ? 10 : 0),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground.withValues(alpha: 0.85),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 16),
-            control,
-          ],
+              const SizedBox(width: 16),
+              control,
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// Pulses a [SettingsRow] the settings search has just jumped to, and scrolls
+/// it into view on the way.
+///
+/// Three things this has to keep true.
+///
+/// **Nothing about it exists at rest.** With no [searchId] it is a
+/// pass-through, and even with one it holds no ticker until a jump claims it —
+/// `UrgencyFlash`'s rule, applied to a widget that repeats forty times a page.
+/// The decoration is null until the flash starts, so a row absorbs no hit and
+/// retains no layer it did not before.
+///
+/// **It reads the controller without depending on it.** The scope is an
+/// `InheritedNotifier`, so a row that resolved it with
+/// `dependOnInheritedWidgetOfExactType` would rebuild every row on the page
+/// twice per jump — once on the target landing and once on it being cleared.
+/// It listens to the controller directly instead and `setState`s only when its
+/// own flash moves, which is `_SelectedIcon`'s arrangement in
+/// `desktop/desktop_grid.dart`.
+///
+/// **The claim is exclusive and the scroll comes after it.** Several rows can
+/// carry one id — every panel in Panels & Layout renders the same "Height"
+/// field — so [SettingsHighlightController.claim] hands the jump to the first
+/// to mount, which is the topmost. The scroll is a post-frame `ensureVisible`
+/// because the row is claiming from inside its own first build, and the
+/// controller is cleared straight after it, which is what lets the category
+/// view stop holding its whole page mounted.
+class _SettingsRowHighlight extends StatefulWidget {
+  const _SettingsRowHighlight({required this.searchId, required this.child});
+
+  final String? searchId;
+  final Widget child;
+
+  @override
+  State<_SettingsRowHighlight> createState() => _SettingsRowHighlightState();
+}
+
+class _SettingsRowHighlightState extends State<_SettingsRowHighlight>
+    with SingleTickerProviderStateMixin {
+  SettingsHighlightController? _highlight;
+  AnimationController? _flash;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.searchId == null || _highlight != null) return;
+    // `readOf`, not `maybeOf`: see the class doc. Null outside a settings
+    // overlay, which is what a page pumped alone in a widget test is.
+    final highlight = SettingsHighlightScope.readOf(context);
+    if (highlight == null) return;
+    _highlight = highlight;
+    highlight.addListener(_onHighlightChanged);
+    // A row mounting *because* of a jump has one waiting for it already — the
+    // category view pushes its route and holds the page mounted before this
+    // ever builds — so the pending target has to be tried here as well as on
+    // the notification.
+    _onHighlightChanged();
+  }
+
+  void _onHighlightChanged() {
+    final id = widget.searchId;
+    final highlight = _highlight;
+    if (id == null || highlight == null) return;
+    if (!highlight.claim(id)) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Guarded: the row is inside a `CustomScrollView` in every catalogued
+      // page, but nothing about [SettingsRow] requires one.
+      if (Scrollable.maybeOf(context) != null) {
+        Scrollable.ensureVisible(
+          context,
+          // Just above the middle: the rows a setting is explained by — the
+          // `SettingsHint` under it — are below it far more often than above.
+          alignment: 0.35,
+          duration: Duration.zero,
+        );
+      }
+      // The jump is over the moment the row is on screen. Clearing here is
+      // what lets the category view drop back to its ordinary cache extent.
+      highlight.clear();
+      _startFlash();
+    });
+  }
+
+  void _startFlash() {
+    var flash = _flash;
+    if (flash == null) {
+      flash = AnimationController(
+        vsync: this,
+        duration: kSettingsHighlightFlash,
+      );
+      // Ends itself: the controller is disposed the moment the pulse finishes,
+      // so the widget goes back to being the pass-through it is at rest rather
+      // than leaving a settled ticker and an `AnimatedBuilder` on every row
+      // the user has ever searched for.
+      flash.addStatusListener((status) {
+        if (status != AnimationStatus.completed) return;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _endFlash());
+      });
+      // The controller's existence is what `build` switches on, so creating
+      // one is a state change.
+      setState(() => _flash = flash);
+    }
+    flash.forward(from: 0);
+  }
+
+  void _endFlash() {
+    final flash = _flash;
+    if (flash == null) return;
+    if (!mounted) {
+      flash.dispose();
+      _flash = null;
+      return;
+    }
+    setState(() {
+      flash.dispose();
+      _flash = null;
+    });
+  }
+
+  @override
+  void dispose() {
+    _highlight?.removeListener(_onHighlightChanged);
+    _flash?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final flash = _flash;
+    if (flash == null) return widget.child;
+    final theme = ThemeScope.of(context);
+    return AnimatedBuilder(
+      animation: flash,
+      // The row itself is hover-invariant under the flash, so it is captured
+      // rather than rebuilt — `HoverRegion`'s companion discipline, and what
+      // keeps this an animated decoration rather than an animated form row.
+      child: widget.child,
+      builder: (context, child) {
+        // A raised cosine, resting at exactly 0 in both directions: the row has
+        // to pass through the very colour its neighbours are, or the pulse
+        // reads as this row being permanently different rather than as the one
+        // being pointed at. `UrgencyFlash`'s breath, once.
+        final wash = (1 - math.cos(2 * math.pi * flash.value)) / 2;
+        if (wash <= 0) return child!;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: theme.accent.withValues(alpha: 0.18 * wash),
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+            border: Border.all(
+              color: theme.accent.withValues(alpha: 0.55 * wash),
+            ),
+          ),
+          child: child,
+        );
+      },
     );
   }
 }
@@ -787,7 +976,11 @@ double describedDropdownRowHeight({
 
   var tallest = 0.0;
   for (final description in descriptions) {
-    final height = measure(description, descriptionStyle, _kDescriptionMaxLines);
+    final height = measure(
+      description,
+      descriptionStyle,
+      _kDescriptionMaxLines,
+    );
     if (height > tallest) tallest = height;
   }
   // 'Ag' rather than the labels themselves: the label is one line by

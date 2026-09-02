@@ -8,6 +8,7 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/overlay/file_picker.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
@@ -252,8 +253,8 @@ class _BackgroundSectionState extends State<BackgroundSection> {
         ),
         SliverList.list(
           children: [
-            SettingsRow(
-              label: 'Fit',
+            SettingsRow.field(
+              SettingsCatalog.backgroundFit,
               control: ConfigValue<String>(
                 store: store,
                 path: const ['background', 'fit'],
@@ -265,8 +266,8 @@ class _BackgroundSectionState extends State<BackgroundSection> {
                 ),
               ),
             ),
-            SettingsRow(
-              label: 'Rotation interval (minutes)',
+            SettingsRow.field(
+              SettingsCatalog.backgroundIntervalMinutes,
               control: ConfigValue<num>(
                 store: store,
                 path: const ['background', 'interval_minutes'],

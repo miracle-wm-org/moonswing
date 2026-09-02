@@ -14,6 +14,9 @@ import 'package:graceful_shell/overlay/settings/bluetooth.dart';
 import 'package:graceful_shell/overlay/settings/display.dart';
 import 'package:graceful_shell/overlay/settings/keyboard.dart';
 import 'package:graceful_shell/overlay/settings/network.dart';
+import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
+import 'package:graceful_shell/overlay/settings/settings_search.dart';
+import 'package:graceful_shell/overlay/settings/settings_search_bar.dart';
 import 'package:graceful_shell/overlay/settings/shell.dart';
 import 'package:graceful_shell/overlay/settings_route.dart';
 import 'package:graceful_shell/overlay/system/system_tab.dart';
@@ -97,21 +100,13 @@ const List<_OverlayTab> _tabs = [
     label: 'Calendar',
     icon: FontAwesomeIcons.calendarDays,
   ),
-  _OverlayTab(
-    id: 'system',
-    label: 'Monitor',
-    icon: FontAwesomeIcons.microchip,
-  ),
+  _OverlayTab(id: 'system', label: 'Monitor', icon: FontAwesomeIcons.microchip),
   _OverlayTab(
     id: 'systeminfo',
     label: 'System Info',
     icon: FontAwesomeIcons.circleInfo,
   ),
-  _OverlayTab(
-    id: 'settings',
-    label: 'Settings',
-    icon: FontAwesomeIcons.gear,
-  ),
+  _OverlayTab(id: 'settings', label: 'Settings', icon: FontAwesomeIcons.gear),
 ];
 
 class SettingsOverlay extends StatefulWidget {
@@ -135,6 +130,17 @@ class SettingsOverlay extends StatefulWidget {
 
 class _SettingsOverlayState extends State<SettingsOverlay> {
   final _focusNode = FocusNode();
+
+  // Where a picked search result is published, and who is listening for it:
+  // the Shell pane pushes the category's route, its category view holds that
+  // page mounted while the jump lands, and the row itself scrolls into view
+  // and pulses. Owned here rather than being a singleton, because it is a
+  // property of *this open overlay* — see [SettingsHighlightController].
+  final SettingsHighlightController _highlight = SettingsHighlightController();
+
+  // Owned here so Ctrl+F from anywhere in the panel reaches the field, which
+  // is the shortcut the file picker's own search box already answers to.
+  final FocusNode _searchFocus = FocusNode();
 
   // The animated panel lives inside an Overlay so descendants (e.g. the theme
   // color pickers) can float OverlayPortal popups. Overlay does not rebuild its
@@ -191,9 +197,30 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
     widget.closingNotifier.value = true;
   }
 
+  /// Takes the user to [field]: the tab, the sidebar category and — through
+  /// [_highlight] — the Shell pane's own route and the row itself.
+  ///
+  /// The three moves are separate because the three pieces of state are: the
+  /// tab and the category are this widget's, while the Shell pane's route is a
+  /// nested `Navigator`'s and a row's scroll offset is a `Scrollable`'s. Only
+  /// the last two travel through the controller.
+  void _jumpToSetting(SettingsField field) {
+    _selectedTab = field.route.tab;
+    _selectedCategory = field.route.category;
+    // Published *before* the rebuild, so a Shell pane being built for the
+    // first time — the user was on Audio, say — can seed its initial route
+    // from the pending target instead of landing on the category list.
+    if (field.highlights || field.route.shellCategory != null) {
+      _highlight.jumpTo(field);
+    }
+    _panelEntry.markNeedsBuild();
+  }
+
   @override
   void dispose() {
     _focusNode.dispose();
+    _searchFocus.dispose();
+    _highlight.dispose();
     super.dispose();
   }
 
@@ -220,9 +247,21 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
             focusNode: _focusNode,
             autofocus: true,
             onKeyEvent: (event) {
-              if (event is KeyDownEvent &&
-                  event.logicalKey == LogicalKeyboardKey.escape) {
+              if (event is! KeyDownEvent) return;
+              if (event.logicalKey == LogicalKeyboardKey.escape) {
                 _requestClose();
+                return;
+              }
+              // Ctrl+F focuses the settings search, which is the binding
+              // `file_picker.dart` already answers to for its own search box.
+              // Read here rather than on the field because this listener is
+              // the panel's root, so it sees the key wherever the pointer and
+              // the focus happen to be; it is gated on the tab because the
+              // search bar is the Settings tab's alone.
+              if (event.logicalKey == LogicalKeyboardKey.keyF &&
+                  HardwareKeyboard.instance.isControlPressed &&
+                  _selectedTab == 'settings') {
+                _searchFocus.requestFocus();
               }
             },
             // Every popup this window opens paints opaque, whatever alpha
@@ -232,8 +271,14 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
             // leaves neither layer readable. Above the Overlay rather than
             // inside the panel, because that is where `showRootModal` and
             // every `AnchoredSearchDropdown` insert their cards.
-            child: OpaquePopupScope(
-              child: Overlay(initialEntries: [_panelEntry]),
+            // Above the Overlay, so the panel *and* everything floating
+            // over it can read the pending jump — the results card is a
+            // sibling of the pane it sends the user to.
+            child: SettingsHighlightScope(
+              controller: _highlight,
+              child: OpaquePopupScope(
+                child: Overlay(initialEntries: [_panelEntry]),
+              ),
             ),
           ),
         ),
@@ -255,12 +300,14 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         children: [
           // Header: the tab bar, plus the close button.
           Container(
-            padding:
-                const EdgeInsets.only(left: 16, right: 12, top: 8, bottom: 0),
+            padding: const EdgeInsets.only(
+              left: 16,
+              right: 12,
+              top: 8,
+              bottom: 0,
+            ),
             decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(color: theme.divider),
-              ),
+              border: Border(bottom: BorderSide(color: theme.divider)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -336,15 +383,44 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   Widget _buildSettingsBody(ThemeConfig theme) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    // The search bar is a `Stack` child over the body rather than a row above
+    // it, and the body indents by [kSettingsSearchBarHeight] to make room. Two
+    // reasons, and both are about not moving what the user is reading: the
+    // results card hangs *over* the pane it is about to send them to instead
+    // of displacing it, and the panes themselves are laid out exactly as they
+    // were before the field existed.
+    return Stack(
       children: [
-        _SettingsSidebar(
-          selectedCategory: _selectedCategory,
-          onCategorySelected: _selectCategory,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: kSettingsSearchBarHeight),
+            Container(height: 1, color: theme.divider),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _SettingsSidebar(
+                    selectedCategory: _selectedCategory,
+                    onCategorySelected: _selectCategory,
+                  ),
+                  Container(width: 1, color: theme.divider),
+                  Expanded(child: _buildCategoryContent(_selectedCategory)),
+                ],
+              ),
+            ),
+          ],
         ),
-        Container(width: 1, color: theme.divider),
-        Expanded(child: _buildCategoryContent(_selectedCategory)),
+        // Fills the body rather than sitting in its corner: the bar draws its
+        // field at the top left and, while results are open, a dismiss barrier
+        // over everything else. It costs the panes nothing at rest — see
+        // [SettingsSearchBar].
+        Positioned.fill(
+          child: SettingsSearchBar(
+            focusNode: _searchFocus,
+            onJump: _jumpToSetting,
+          ),
+        ),
       ],
     );
   }
@@ -362,9 +438,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       case 'keyboard':
         return const KeyboardSettingsPage();
       case 'shell':
-        return ShellSettingsPage(
-          initialCategory: widget.route?.shellCategory,
-        );
+        return ShellSettingsPage(initialCategory: widget.route?.shellCategory);
       default:
         return const SizedBox.shrink();
     }

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 
 /// The Calendar tab's own settings. The tab is a local month grid — there is no
 /// account integration — so this is presentation only.
@@ -15,8 +16,8 @@ class CalendarSection extends StatelessWidget {
     return SliverSettingsSection(
       label: 'Calendar',
       children: [
-        SettingsRow(
-          label: 'Week starts on',
+        SettingsRow.field(
+          SettingsCatalog.calendarWeekStart,
           // Subscribed per key rather than under a page-level
           // `ListenableBuilder`: [ConfigStore] notifies on every keystroke
           // anywhere in the settings UI. See [ConfigValue].

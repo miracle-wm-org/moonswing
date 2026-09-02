@@ -17,6 +17,7 @@ import 'package:graceful_shell/overlay/settings/shell/panels.dart';
 import 'package:graceful_shell/overlay/settings/shell/power.dart';
 
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 
 /// Settings page for graceful-shell's own configuration (`config.toml`).
@@ -41,6 +42,49 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
   // its lifetime is the whole process, and mutating it live-updates the shell.
   final ConfigStore _store = ConfigStore.instance;
 
+  final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
+
+  SettingsHighlightController? _highlight;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_highlight != null) return;
+    // `readOf`, not `maybeOf`: this pane is a `Navigator`'s owner and must not
+    // be rebuilt by a jump landing — what it does about one is push a route,
+    // which is not a build. Null outside the settings overlay, which is what a
+    // page pumped alone in a widget test is.
+    final highlight = SettingsHighlightScope.readOf(context);
+    if (highlight == null) return;
+    _highlight = highlight;
+    highlight.addListener(_onJumpRequested);
+  }
+
+  /// Takes the Shell pane to the category a search result named.
+  ///
+  /// Always pops to the landing page and pushes again, even when the category
+  /// is the one already showing: the row that has to claim the jump does so
+  /// from its own first build, so re-entering the category is what guarantees
+  /// there is one. Both routes are instant (see [_categoryRoute]), so this is
+  /// one frame with nothing to see.
+  void _onJumpRequested() {
+    final target = _highlight?.target;
+    final category = _shellCategoryByTitle(target?.field.route.shellCategory);
+    if (category == null) return;
+    final navigator = _navigator.currentState;
+    if (navigator == null) return;
+    navigator.popUntil((route) => route.isFirst);
+    navigator.push(
+      _categoryRoute(_ShellCategoryView(category: category, store: _store)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _highlight?.removeListener(_onJumpRequested);
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -63,11 +107,17 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
 
   Widget _buildBody() {
     final store = _store;
-    final initial = _shellCategoryByTitle(widget.initialCategory);
+    // A jump that arrives *before* this pane exists — the user was on the
+    // Audio page and searched for a theme colour — has nothing to push onto,
+    // so the pending target seeds the initial route instead. `_onJumpRequested`
+    // covers the other order, where the pane is already built.
+    final pending = _highlight?.target?.field.route.shellCategory;
+    final initial = _shellCategoryByTitle(pending ?? widget.initialCategory);
     // A nested Navigator lets the Shell pane drill from the category menu into
     // a single category's settings and back, while the outer Settings bar and
     // sidebar (owned by SettingsOverlay) stay put around this pane.
     return Navigator(
+      key: _navigator,
       onGenerateInitialRoutes: (navigator, initialRoute) => [
         PageRouteBuilder(
           transitionDuration: Duration.zero,
@@ -248,6 +298,19 @@ class _ShellCategoryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    // Depends on the scope deliberately, unlike the rows and the pane above:
+    // this widget's whole reaction to a jump *is* a rebuild, and it is two of
+    // them — one when the target lands and one when the row clears it.
+    final target = SettingsHighlightScope.maybeOf(context)?.target;
+    // A result with no row to land on — the "Theme", "Wallpapers" and "Pinned
+    // items" entries name a collection rather than a field — navigates here
+    // and nothing more. Holding the page mounted for one of those would be
+    // paying the whole cost of the mechanism for a jump that has nothing to
+    // scroll to, and paying it until the target expires.
+    final jumping =
+        target != null &&
+        target.field.highlights &&
+        target.field.route.shellCategory == category.title;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -302,7 +365,21 @@ class _ShellCategoryView extends StatelessWidget {
           // belt; this is the braces, and it covers scrolling *past* a field
           // that is not focused at all.
           child: CustomScrollView(
-            scrollCacheExtent: const ScrollCacheExtent.pixels(600),
+            // Ordinarily 600 (see above). While a search jump for *this*
+            // category is pending it is effectively unbounded, and that is the
+            // whole mechanism behind "take me to that field": a `SliverList`
+            // never builds a child far enough past the viewport edge, so a row
+            // forty settings down the page has no element for
+            // `Scrollable.ensureVisible` to scroll to and would simply never be
+            // found. Holding the page mounted for the one frame the jump lands
+            // in is what gives it one; the row clears the target as soon as it
+            // has scrolled, which drops this straight back to 600. It is paid
+            // once, on an explicit user action — which is what makes it
+            // affordable even on the Background page, whose hundred-odd
+            // `Image.file` tiles are the reason the laziness exists at all.
+            scrollCacheExtent: jumping
+                ? const ScrollCacheExtent.pixels(1e6)
+                : const ScrollCacheExtent.pixels(600),
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),

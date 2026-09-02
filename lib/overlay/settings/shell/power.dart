@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 
 /// What the machine's physical power button does.
 ///
@@ -64,8 +65,8 @@ class PowerSection extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SettingsRow(
-                  label: 'When pressed',
+                SettingsRow.field(
+                  SettingsCatalog.powerKeyAction,
                   control: SizedBox(
                     width: _pickerWidth,
                     child: SettingsDropdown<String>(
@@ -84,8 +85,8 @@ class PowerSection extends StatelessWidget {
                   'Mir-based does. Everywhere else the key keeps doing '
                   'whatever the system does with it.',
                 ),
-                SettingsRow(
-                  label: 'Hold the system lock',
+                SettingsRow.field(
+                  SettingsCatalog.powerInhibitLogind,
                   control: ConfigValue<bool>(
                     store: store,
                     path: const ['power', 'inhibit_logind'],
