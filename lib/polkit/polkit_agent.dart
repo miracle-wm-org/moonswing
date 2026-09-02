@@ -23,7 +23,12 @@ import 'package:graceful_shell/lock/user_identity.dart';
 
 import 'agent_helper.dart';
 import 'auth_session.dart';
+import 'polkit_log.dart';
 import 'polkit_types.dart';
+
+// `polkitLog` moved to its own file so the layers below this one can report
+// too; re-exported because it is set from `main()`, which knows this file.
+export 'polkit_log.dart' show polkitLog;
 
 /// polkitd's own bus name, on the **system** bus. Authentication is a
 /// system-wide question; the session bus has nothing to do with it.
@@ -57,8 +62,6 @@ const String kPolkitFailedError = 'org.freedesktop.PolicyKit1.Error.Failed';
 typedef PolkitAuthPresenter = Future<PolkitAuthOutcome?> Function(
   PolkitAuthSession session,
 );
-
-void Function(String message) polkitLog = (_) {};
 
 PolkitAgentService? _service;
 

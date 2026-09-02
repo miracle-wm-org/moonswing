@@ -169,6 +169,47 @@ void main() {
     expect(host.closed.length, 1);
   });
 
+  // The reported bug, from the surface it was reported at: a helper that ends
+  // before it prompts used to be read as a wrong password, so the dialog
+  // retried it to exhaustion and closed on "authentication failed" inside a
+  // few milliseconds — it flashed, and there was nothing to read and nothing
+  // to type into. It stays up, and it says what happened.
+  testWidgets('a helper that ends before prompting does not flash away',
+      (tester) async {
+    final runner = FakeHelperRunner();
+    final session = PolkitAuthSession(request: polkitRequest(), runner: runner);
+    addTearDown(session.dispose);
+    final host = await _pump(tester, session);
+    addTearDown(host.closing.dispose);
+
+    await tester.pump();
+    runner.last.send(const PolkitHelperDied(
+      exitCode: 1,
+      detail: 'polkit-agent-helper-1: pam_authenticate failed',
+    ));
+    await tester.pumpAndSettle();
+
+    expect(session.outcome, PolkitAuthOutcome.unavailable);
+    expect(host.closing.value, isFalse);
+    expect(host.closed, isEmpty);
+    expect(runner.attempts.length, 1, reason: 'and no second helper ran');
+    expect(
+      find.textContaining('pam_authenticate failed'),
+      findsOneWidget,
+    );
+    // Its ways out are deliberate: read it, then close it or have another go
+    // once whatever caused it has been dealt with.
+    expect(find.text('Close'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
+
+    await tester.tap(find.text('Try again'));
+    await tester.pumpAndSettle();
+    expect(runner.attempts.length, 2);
+    expect(session.outcome, isNull);
+    expect(find.byType(EditableText), findsOneWidget);
+    expect(host.closed, isEmpty, reason: 'and the window never came down');
+  });
+
   // Nothing the user typed caused this and no password would change it, so
   // the card stays up long enough to say so — the one outcome that does.
   testWidgets('a missing helper stays on screen with its reason',

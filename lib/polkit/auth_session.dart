@@ -13,6 +13,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'agent_helper.dart';
+import 'polkit_log.dart';
 import 'polkit_types.dart';
 
 /// What the dialog should be showing.
@@ -41,6 +42,43 @@ enum PolkitAuthStage {
 /// few enough that a dialog somebody walked away from is not an oracle left
 /// sitting on the screen.
 const int kPolkitMaxAttempts = 3;
+
+/// How a run that ended with neither `SUCCESS` nor `FAILURE` is worded.
+///
+/// Pure, so every shape it takes is a plain unit test. The helper's own
+/// last stderr line leads where there is one — `pam_authenticate failed:
+/// Authentication failure`, `wrong number of arguments`, `needs to be setuid
+/// root` — because it names the actual fault and this file's guess cannot.
+/// [prompted] is the difference between a conversation cut short and a stack
+/// that never opened its mouth, which are two different things to go and look
+/// at.
+String helperDiedMessage({
+  required int exitCode,
+  required bool prompted,
+  String? detail,
+}) {
+  final complaint = detail?.trim();
+  final status = exitCode < 0
+      ? 'It stopped without an exit status.'
+      : 'It exited with status $exitCode.';
+  final why = complaint == null || complaint.isEmpty ? status : complaint;
+  return prompted
+      ? 'The polkit helper stopped before the prompt could be answered. $why'
+      : 'The polkit helper stopped before asking for anything, so nothing was '
+          'checked. $why';
+}
+
+/// How a `FAILURE` for a run nobody typed into is worded.
+///
+/// Pure, so both shapes are a plain unit test.
+String refusedWithoutAskingMessage({String? detail}) {
+  final complaint = detail?.trim();
+  final why = complaint == null || complaint.isEmpty
+      ? 'Its polkit-1 PAM stack denied the request outright.'
+      : complaint;
+  return 'This machine refused before asking for anything, so no password '
+      'was checked. $why';
+}
 
 /// The live state of one `BeginAuthentication` call.
 class PolkitAuthSession extends ChangeNotifier {
@@ -73,6 +111,18 @@ class PolkitAuthSession extends ChangeNotifier {
 
   PolkitHelperAttempt? _live;
   StreamSubscription<PolkitHelperMessage>? _sub;
+
+  /// Whether the running helper has asked the user anything at all.
+  bool _prompted = false;
+
+  /// Whether the user has answered the running helper.
+  ///
+  /// This is what separates a *failed attempt* from a *non-starter*, and both
+  /// terminal paths turn on it rather than on what the helper called the end
+  /// ([_onResult] for a `FAILURE`, [_onDied] for no word at all): PAM only
+  /// ever refuses something it was given, so a run nobody typed into tested
+  /// no password and cost the user no try.
+  bool _answered = false;
 
   PolkitAuthStage _stage = PolkitAuthStage.starting;
   String _prompt = '';
@@ -119,7 +169,11 @@ class PolkitAuthSession extends ChangeNotifier {
   /// the user knows the dialog is counting.
   int get attempt => _attempt;
 
-  /// Set exactly once, when the session ends.
+  /// How the session ended, or null while it is still going.
+  ///
+  /// Written once and never rewritten — [retry] clears it back to null rather
+  /// than replacing one answer with another, which is what keeps "the outcome
+  /// the agent reports is the outcome the user gave" true.
   PolkitAuthOutcome? get outcome => _outcome;
 
   bool get isFinished => _outcome != null;
@@ -127,6 +181,40 @@ class PolkitAuthSession extends ChangeNotifier {
   /// Whether the user can be asked at all. False means no helper or no
   /// identity — a state the dialog reports rather than one it prompts in.
   bool get canPrompt => request.identities.isNotEmpty;
+
+  /// Whether the card may offer another go.
+  ///
+  /// Only over [PolkitAuthOutcome.unavailable], which is precisely the
+  /// outcome that means *nothing was checked*. Every cause of it can be gone
+  /// by the time the user has finished reading the card — a `pam_faillock`
+  /// window expiring, polkit being installed, a stack being fixed in another
+  /// terminal — and the shell can see none of them happen, so the retry is
+  /// the user's to trigger. `NotificationStore.retryDaemon` is the same rule
+  /// at the other end of the shell, for the same reason.
+  ///
+  /// Deliberately not offered over [PolkitAuthOutcome.failed]: that is PAM
+  /// having weighed as many answers as the dialog allows and refused every
+  /// one, and a button that sent it round again would leave a password oracle
+  /// on the screen of a machine somebody has walked away from.
+  bool get canRetry =>
+      _outcome == PolkitAuthOutcome.unavailable && canPrompt;
+
+  /// Starts the conversation over after an [PolkitAuthOutcome.unavailable].
+  ///
+  /// The one place [outcome] goes back to null, and it is safe because
+  /// nothing has been told about it yet: the agent is awaiting
+  /// [PolkitAuthController], which the root only answers once the *window*
+  /// has come down. The attempt count resets with it — the user has not
+  /// failed at anything, since nothing was ever checked.
+  void retry() {
+    if (!canRetry) return;
+    _outcome = null;
+    _error = null;
+    _info = null;
+    _attempt = 0;
+    polkitLog('${request.actionId}: retrying at the user\'s request');
+    _beginAttempt();
+  }
 
   /// Begins the first attempt. Called from the dialog's `initState`, never
   /// from the agent: an authentication nobody is showing must never spawn a
@@ -152,6 +240,7 @@ class PolkitAuthSession extends ChangeNotifier {
     final live = _live;
     if (live == null) return;
     _error = null;
+    _answered = true;
     _stage = PolkitAuthStage.checking;
     notifyListeners();
     live.respond(response);
@@ -190,6 +279,8 @@ class PolkitAuthSession extends ChangeNotifier {
     _stage = PolkitAuthStage.starting;
     _prompt = '';
     _echo = false;
+    _prompted = false;
+    _answered = false;
     notifyListeners();
     unawaited(_run(who, _generation));
   }
@@ -230,6 +321,7 @@ class PolkitAuthSession extends ChangeNotifier {
       case PolkitHelperPrompt(:final text, :final echo):
         _prompt = text;
         _echo = echo;
+        _prompted = true;
         _stage = PolkitAuthStage.prompting;
         notifyListeners();
       case PolkitHelperInfo(:final text):
@@ -242,17 +334,45 @@ class PolkitAuthSession extends ChangeNotifier {
         // so [_onResult] finds it already set and leaves it alone.
         _error = text;
         notifyListeners();
-      case PolkitHelperResult(:final authenticated):
-        _onResult(authenticated);
+      case PolkitHelperResult(:final authenticated, :final detail):
+        _onResult(authenticated, detail);
+      case PolkitHelperDied(:final exitCode, :final detail):
+        _onDied(exitCode, detail);
     }
   }
 
-  void _onResult(bool authenticated) {
+  void _onResult(bool authenticated, [String? detail]) {
     unawaited(_endAttempt());
     if (authenticated) {
       // Nothing is sent to polkitd here, and nothing may be: the helper made
       // the privileged response call itself before printing SUCCESS.
       _finish(PolkitAuthOutcome.authenticated);
+      return;
+    }
+    if (!_answered) {
+      // **The bug this dialog used to have.** `FAILURE` is the helper's
+      // answer to its own early refusals as well as to a password PAM
+      // weighed and rejected: a `polkit-1` stack that denies before it
+      // opens its mouth (`pam_faillock` on a locked-out account, a
+      // `pam_deny`, a helper that cannot run where it is) prints exactly the
+      // same word, with the reason on stderr. PAM cannot have refused an
+      // answer it was never given, so this tested no password and cost the
+      // user no try — and treating it as one is what made the prompt flash:
+      // three refusals arrive inside a couple of milliseconds, the count runs
+      // out, and the card reports "authentication failed" and takes itself
+      // off the screen before anything could be read, let alone typed. Worse,
+      // on a stack with `pam_faillock` in it those three are themselves what
+      // locks the account, so the shell manufactured the state that makes the
+      // next prompt fail the same way.
+      //
+      // [PolkitAuthOutcome.unavailable] instead: it lingers, it carries the
+      // helper's own words, and it offers [retry] rather than taking two more
+      // swings by itself.
+      _finish(
+        PolkitAuthOutcome.unavailable,
+        // PAM's own line where one arrived, the helper's stderr otherwise.
+        error: refusedWithoutAskingMessage(detail: _error ?? detail),
+      );
       return;
     }
     if (_attempt >= maxAttempts) {
@@ -266,6 +386,48 @@ class PolkitAuthSession extends ChangeNotifier {
     // than the agent's guess, and the count says the dialog is still asking.
     _error ??= 'Sorry, that did not work. Try again.';
     _beginAttempt();
+  }
+
+  /// The helper's run ended without PAM ever saying what it thought.
+  ///
+  /// Whether that is an attempt turns on one question: **was anything typed
+  /// into it?** If it was, PAM had something to weigh and the helper died
+  /// before reporting the verdict — worth the attempt, and worth another go.
+  /// If it was not, the run tested no password at all, and counting it as a
+  /// wrong one is both a lie and a trap. A helper that refuses before it
+  /// prompts refuses the same way every time, so the retry loop burns all
+  /// three attempts in about as many milliseconds and closes the dialog on
+  /// "Authentication failed" — which is the whole of what the user sees: a
+  /// prompt that flashes and is gone before it can be read, let alone typed
+  /// into. Worse, on a stack with `pam_faillock` in it those three refusals
+  /// are themselves what locks the account out, so the shell would be
+  /// manufacturing the very state that makes the next prompt fail the same
+  /// way.
+  ///
+  /// So it is [PolkitAuthOutcome.unavailable] — the outcome that *lingers*,
+  /// with the helper's own words on the card — and it retries nothing.
+  void _onDied(int exitCode, String? detail) {
+    if (_answered) {
+      // Something was checked and the verdict never came back. That is an
+      // attempt, and the count is what stops it repeating for ever — but not
+      // a refusal, so it does not borrow the refusal's words.
+      _error ??= 'The check did not finish. Try again.';
+      _onResult(false);
+      return;
+    }
+    unawaited(_endAttempt());
+    _finish(
+      PolkitAuthOutcome.unavailable,
+      error: helperDiedMessage(
+        exitCode: exitCode,
+        prompted: _prompted,
+        // PAM's own words where any reached us, the helper's stderr
+        // otherwise: `PAM_ERROR_MSG Account locked due to 3 failed logins` is
+        // what the user has to act on, and `pam_authenticate failed: …` is
+        // only what the helper made of it.
+        detail: _error ?? detail,
+      ),
+    );
   }
 
   Future<void> _endAttempt() async {
@@ -286,6 +448,7 @@ class PolkitAuthSession extends ChangeNotifier {
     _outcome = outcome;
     if (error != null) _error = error;
     _stage = PolkitAuthStage.finished;
+    polkitLog('${request.actionId}: ${outcome.name} after $_attempt attempt(s)');
     notifyListeners();
   }
 

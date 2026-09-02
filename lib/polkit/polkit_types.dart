@@ -184,8 +184,9 @@ enum PolkitAuthOutcome {
   /// The helper answered `SUCCESS`; polkitd has already been told.
   authenticated,
 
-  /// Every attempt was refused, or the helper died. polkit is answered with
-  /// `org.freedesktop.PolicyKit1.Error.Failed`.
+  /// Every attempt was refused: PAM was given something to check, as many
+  /// times as the dialog allows, and said no each time. polkit is answered
+  /// with `org.freedesktop.PolicyKit1.Error.Failed`.
   failed,
 
   /// The user said no — Escape, the backdrop, the Cancel button — or polkitd
@@ -194,8 +195,11 @@ enum PolkitAuthOutcome {
   /// caller retrying in a loop.
   cancelled,
 
-  /// There is no `polkit-agent-helper-1` on this machine, or no identity the
-  /// agent could offer. Distinct from [failed] because no password the user
-  /// types would change it, so the dialog says so instead of asking again.
+  /// The machine cannot ask the question: no `polkit-agent-helper-1`, no
+  /// identity the agent could offer, or a helper that ended before it
+  /// prompted for anything. Distinct from [failed] because nothing the user
+  /// types would change it and *nothing was checked* — so the dialog says so,
+  /// and stays up while it does, instead of asking again three times over in
+  /// as many milliseconds and closing on "authentication failed".
   unavailable,
 }
