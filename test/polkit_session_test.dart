@@ -109,9 +109,9 @@ void main() {
     expect(session.isFinished, isFalse);
   });
 
-  // The helper exiting without SUCCESS/FAILURE is a failed attempt rather
-  // than a crash of ours — the real runner synthesises the same result.
-  test('a helper that dies mid-prompt costs the attempt', () async {
+  // An answered FAILURE is PAM having weighed something and refused it, so
+  // the last one runs the count out.
+  test('an answered FAILURE with no attempts left finishes failed', () async {
     final runner = FakeHelperRunner();
     final session = PolkitAuthSession(
       request: polkitRequest(),
@@ -122,9 +122,76 @@ void main() {
 
     session.start();
     await settleSession();
+    runner.last.send(const PolkitHelperPrompt('Password: ', echo: false));
+    await settleSession();
+    session.submit('wrong');
     runner.last.send(const PolkitHelperResult(authenticated: false));
     await settleSession();
     expect(session.outcome, PolkitAuthOutcome.failed);
+  });
+
+  // The other half, and the one the reported bug was made of: the helper
+  // answers `FAILURE` to its own early refusals too — `wrong number of
+  // arguments`, `needs to be setuid root`, a `polkit-1` stack that denies
+  // before it asks — and PAM cannot have refused an answer it was never
+  // given. Retrying it burns every attempt in a couple of milliseconds and
+  // closes the card on "authentication failed" before it can be read.
+  test('a FAILURE nobody answered is unavailable, and retries nothing',
+      () async {
+    final runner = FakeHelperRunner();
+    final session = PolkitAuthSession(request: polkitRequest(), runner: runner);
+    addTearDown(session.dispose);
+
+    session.start();
+    await settleSession();
+    runner.last.send(const PolkitHelperResult(
+      authenticated: false,
+      detail: 'polkit-agent-helper-1: needs to be setuid root',
+    ));
+    await settleSession();
+
+    expect(session.outcome, PolkitAuthOutcome.unavailable);
+    expect(session.attempt, 1);
+    expect(runner.attempts.length, 1, reason: 'and starts no second helper');
+    expect(session.error, contains('needs to be setuid root'));
+    expect(session.error, contains('no password was checked'));
+    expect(session.canRetry, isTrue);
+  });
+
+  test('a bare FAILURE nobody answered still says what happened', () async {
+    final runner = FakeHelperRunner();
+    final session = PolkitAuthSession(request: polkitRequest(), runner: runner);
+    addTearDown(session.dispose);
+
+    session.start();
+    await settleSession();
+    runner.last.send(const PolkitHelperResult(authenticated: false));
+    await settleSession();
+    expect(session.error, contains('polkit-1 PAM stack'));
+  });
+
+  // A prompt PAM sent and the user never answered is the same thing: nothing
+  // was checked. `PAM_ERROR_MSG` is what the card should carry, because it
+  // names the fault where the helper's stderr only reports it.
+  test("an unanswered FAILURE keeps PAM's own words", () async {
+    final runner = FakeHelperRunner();
+    final session = PolkitAuthSession(request: polkitRequest(), runner: runner);
+    addTearDown(session.dispose);
+
+    session.start();
+    await settleSession();
+    runner.last.send(
+      const PolkitHelperError('Account locked due to 3 failed logins'),
+    );
+    runner.last.send(const PolkitHelperResult(
+      authenticated: false,
+      detail: 'pam_authenticate failed: Authentication failure',
+    ));
+    await settleSession();
+
+    expect(session.outcome, PolkitAuthOutcome.unavailable);
+    expect(session.error, contains('Account locked'));
+    expect(session.error, isNot(contains('pam_authenticate')));
   });
 
   test('cancelling ends the run and kills the helper', () async {
@@ -219,6 +286,186 @@ void main() {
     expect(runner.usernames, ['ada', 'ada', 'root']);
     expect(session.attempt, 1, reason: 'the count is per account');
     expect(session.error, isNull);
+  });
+
+  // The bug this pair exists for: a helper that ends before it prompts used
+  // to be reported as a wrong password, so the dialog burned every attempt in
+  // a couple of milliseconds and took itself off the screen — a prompt that
+  // flashed and was gone. Nothing was checked, so nothing may be retried.
+  group('a run that ends without a result', () {
+    test('never prompted: unavailable, no retry, the reason kept', () async {
+      final runner = FakeHelperRunner();
+      final session =
+          PolkitAuthSession(request: polkitRequest(), runner: runner);
+      addTearDown(session.dispose);
+
+      session.start();
+      await settleSession();
+      runner.last.send(const PolkitHelperDied(
+        exitCode: 1,
+        detail: 'polkit-agent-helper-1: pam_authenticate failed: '
+            'Authentication failure',
+      ));
+      await settleSession();
+
+      expect(session.outcome, PolkitAuthOutcome.unavailable);
+      expect(session.attempt, 1, reason: 'a non-starter is not an attempt');
+      expect(runner.attempts.length, 1, reason: 'and starts no second helper');
+      expect(session.error, contains('pam_authenticate failed'));
+      expect(session.error, contains('before asking for anything'));
+    });
+
+    test('prompted but unanswered: unavailable, and says so', () async {
+      final runner = FakeHelperRunner();
+      final session =
+          PolkitAuthSession(request: polkitRequest(), runner: runner);
+      addTearDown(session.dispose);
+
+      session.start();
+      await settleSession();
+      runner.last.send(const PolkitHelperPrompt('Password: ', echo: false));
+      await settleSession();
+      runner.last.send(const PolkitHelperDied(exitCode: 15));
+      await settleSession();
+
+      expect(session.outcome, PolkitAuthOutcome.unavailable);
+      expect(session.error, contains('before the prompt could be answered'));
+      expect(runner.attempts.length, 1);
+    });
+
+    test("PAM's own words beat the helper's stderr", () async {
+      final runner = FakeHelperRunner();
+      final session =
+          PolkitAuthSession(request: polkitRequest(), runner: runner);
+      addTearDown(session.dispose);
+
+      session.start();
+      await settleSession();
+      runner.last.send(
+        const PolkitHelperError('Account locked due to 3 failed logins'),
+      );
+      runner.last.send(const PolkitHelperDied(
+        exitCode: 1,
+        detail: 'pam_authenticate failed: Authentication failure',
+      ));
+      await settleSession();
+
+      expect(session.error, contains('Account locked'));
+      expect(session.error, isNot(contains('pam_authenticate')));
+    });
+
+    // The other half: PAM *was* given something to check, so the answer never
+    // coming back is a failed attempt and the count is what ends it.
+    test('answered: costs the attempt', () async {
+      final runner = FakeHelperRunner();
+      final session = PolkitAuthSession(
+        request: polkitRequest(),
+        runner: runner,
+        maxAttempts: 2,
+      );
+      addTearDown(session.dispose);
+
+      session.start();
+      await settleSession();
+      runner.last.send(const PolkitHelperPrompt('Password: ', echo: false));
+      await settleSession();
+      session.submit('hunter2');
+      runner.last.send(const PolkitHelperDied(exitCode: 1, detail: 'died'));
+      await settleSession();
+
+      expect(session.outcome, isNull, reason: 'one attempt left');
+      expect(session.attempt, 2);
+      expect(runner.attempts.length, 2);
+    });
+  });
+
+  group('retry', () {
+    test('offered over unavailable, and starts a fresh conversation',
+        () async {
+      final runner = FakeHelperRunner();
+      final session =
+          PolkitAuthSession(request: polkitRequest(), runner: runner);
+      addTearDown(session.dispose);
+
+      session.start();
+      await settleSession();
+      runner.last.send(const PolkitHelperDied(exitCode: 1, detail: 'locked'));
+      await settleSession();
+      expect(session.canRetry, isTrue);
+
+      session.retry();
+      await settleSession();
+      expect(session.outcome, isNull);
+      expect(session.error, isNull);
+      expect(session.attempt, 1, reason: 'nothing was ever checked');
+      expect(runner.attempts.length, 2);
+
+      // And the fresh conversation is a real one.
+      runner.last.send(const PolkitHelperPrompt('Password: ', echo: false));
+      await settleSession();
+      session.submit('hunter2');
+      runner.last.send(const PolkitHelperResult(authenticated: true));
+      await settleSession();
+      expect(session.outcome, PolkitAuthOutcome.authenticated);
+    });
+
+    // Three refusals is PAM having weighed three answers; a button that sent
+    // it round again is a password oracle on an unattended screen.
+    test('never offered over failed or cancelled', () async {
+      final runner = FakeHelperRunner();
+      final session = PolkitAuthSession(
+        request: polkitRequest(),
+        runner: runner,
+        maxAttempts: 1,
+      );
+      addTearDown(session.dispose);
+
+      session.start();
+      await settleSession();
+      runner.last.send(const PolkitHelperPrompt('Password: ', echo: false));
+      await settleSession();
+      session.submit('wrong');
+      runner.last.send(const PolkitHelperResult(authenticated: false));
+      await settleSession();
+      expect(session.outcome, PolkitAuthOutcome.failed);
+      expect(session.canRetry, isFalse);
+      session.retry();
+      expect(session.outcome, PolkitAuthOutcome.failed);
+      expect(runner.attempts.length, 1);
+    });
+
+    test('never offered when there is nobody to authenticate', () {
+      final runner = FakeHelperRunner();
+      final session = PolkitAuthSession(
+        request: polkitRequest(identities: const []),
+        runner: runner,
+      );
+      addTearDown(session.dispose);
+
+      session.start();
+      expect(session.outcome, PolkitAuthOutcome.unavailable);
+      expect(session.canRetry, isFalse);
+    });
+  });
+
+  group('helperDiedMessage', () {
+    test('leads with the helper\'s own complaint', () {
+      expect(
+        helperDiedMessage(exitCode: 1, prompted: false, detail: '  boom  '),
+        endsWith('boom'),
+      );
+    });
+
+    test('falls back to the exit status', () {
+      expect(
+        helperDiedMessage(exitCode: 127, prompted: false),
+        contains('status 127'),
+      );
+      expect(
+        helperDiedMessage(exitCode: -1, prompted: true),
+        contains('without an exit status'),
+      );
+    });
   });
 
   test('submitting when nothing is being asked is a no-op', () async {

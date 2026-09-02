@@ -84,6 +84,22 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
   }
 
   @override
+  void didUpdateWidget(PolkitAuthDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The root closes one prompt before it opens the next, so a session swap
+    // under a live dialog is not a state it reaches today — but the widget
+    // carries no key, so `canUpdate` would let one through, and a listener
+    // left on the old session is a card that never updates again above a
+    // helper nobody started.
+    if (identical(oldWidget.session, widget.session)) return;
+    oldWidget.session.removeListener(_onSessionChanged);
+    widget.session.addListener(_onSessionChanged);
+    widget.session.start();
+    _shownAttempt = widget.session.attempt;
+    _response.clear();
+  }
+
+  @override
   void dispose() {
     widget.session.removeListener(_onSessionChanged);
     _response.dispose();
@@ -117,9 +133,11 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
   /// to something the user just did — they typed the right password, they
   /// ran out of tries, they pressed Cancel — and a card that had to be
   /// dismissed afterwards would be asking them to acknowledge their own
-  /// action. "There is no polkit helper on this machine" is the opposite: it
-  /// is news, nothing the user typed caused it, and a dialog that vanished
-  /// while delivering it would leave them thinking the prompt was ignored.
+  /// action. "There is no polkit helper on this machine", or "the one there
+  /// is stopped before asking for anything", is the opposite: it is news,
+  /// nothing the user typed caused it, and a dialog that vanished while
+  /// delivering it is a prompt that flashes and is gone — which is the
+  /// failure this state exists to be visible instead of.
   bool _lingers(PolkitAuthOutcome outcome) =>
       outcome == PolkitAuthOutcome.unavailable;
 
@@ -136,6 +154,11 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
       return;
     }
     widget.session.cancel();
+  }
+
+  void _retry() {
+    _response.clear();
+    widget.session.retry();
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -294,6 +317,19 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
               label: session.isFinished ? 'Close' : 'Cancel',
               onTap: _cancel,
             ),
+            // Only over `unavailable`, and only because nothing was checked:
+            // see [PolkitAuthSession.canRetry]. Without it the one outcome
+            // whose cause is usually somewhere else on the machine is also
+            // the one the user has to close and re-provoke the whole
+            // privileged action to have another go at.
+            if (session.canRetry) ...[
+              const SizedBox(width: 8),
+              _DialogButton(
+                label: 'Try again',
+                primary: true,
+                onTap: _retry,
+              ),
+            ],
             if (answerable) ...[
               const SizedBox(width: 8),
               _DialogButton(
