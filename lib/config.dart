@@ -436,6 +436,12 @@ const ShortcutSpec kDefaultOpenSettings =
 const ShortcutSpec kDefaultOpenLauncher =
     ShortcutSpec(modifiers: 0x100, keysym: 0x20);
 
+/// Ctrl+Shift+E, the emoji picker. Shifted keysym (`E`, not `e`) for
+/// [kDefaultOpenSettings]'s reason, and spelled numerically for the same one;
+/// `test/shortcut_parse_test.dart` asserts the two agree.
+const ShortcutSpec kDefaultOpenEmoji =
+    ShortcutSpec(modifiers: 0x108, keysym: 0x45);
+
 /// The machine's own power button — `XF86PowerOff`, no modifiers.
 ///
 /// Bound like any other shortcut because to the compositor it *is* one: the
@@ -462,14 +468,18 @@ class ShortcutsConfig {
   final ShortcutSpec? openSettings;
   final ShortcutSpec? openLauncher;
 
+  /// The emoji picker (Ctrl+Shift+E by default).
+  final ShortcutSpec? openEmoji;
+
   /// The key the machine's power button produces. What a press *does* is
   /// `[power] key_action`, which is live; this is only where the key is
-  /// picked up, and like the other two it latches at start-up.
+  /// picked up, and like the other three it latches at start-up.
   final ShortcutSpec? powerButton;
 
   const ShortcutsConfig({
     this.openSettings = kDefaultOpenSettings,
     this.openLauncher = kDefaultOpenLauncher,
+    this.openEmoji = kDefaultOpenEmoji,
     this.powerButton = kDefaultPowerButton,
   });
 
@@ -478,6 +488,7 @@ class ShortcutsConfig {
     return ShortcutsConfig(
       openSettings: _read(map, 'open_settings', kDefaultOpenSettings),
       openLauncher: _read(map, 'open_launcher', kDefaultOpenLauncher),
+      openEmoji: _read(map, 'open_emoji', kDefaultOpenEmoji),
       powerButton: _read(map, 'power_button', kDefaultPowerButton),
     );
   }
@@ -512,10 +523,12 @@ class ShortcutsConfig {
       other is ShortcutsConfig &&
           other.openSettings == openSettings &&
           other.openLauncher == openLauncher &&
+          other.openEmoji == openEmoji &&
           other.powerButton == powerButton;
 
   @override
-  int get hashCode => Object.hash(openSettings, openLauncher, powerButton);
+  int get hashCode =>
+      Object.hash(openSettings, openLauncher, openEmoji, powerButton);
 }
 
 class AppConfig {

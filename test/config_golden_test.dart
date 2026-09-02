@@ -32,6 +32,7 @@ void main() {
       expect(config.lock.blurSigma, 18.0);
       expect(config.shortcuts.openSettings, kDefaultOpenSettings);
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
+      expect(config.shortcuts.openEmoji, kDefaultOpenEmoji);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
@@ -108,6 +109,7 @@ void main() {
       expect(config.lock.blurSigma, 18.0);
       expect(config.shortcuts.openSettings, kDefaultOpenSettings);
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
+      expect(config.shortcuts.openEmoji, kDefaultOpenEmoji);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);

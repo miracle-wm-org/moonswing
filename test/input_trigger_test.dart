@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/emoji/emoji_controller.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
+import 'package:graceful_shell/launcher/launcher_controller.dart';
 import 'package:wayland/wayland.dart';
 
 /// Builds an event payload the way the compositor would, so decoding is tested
@@ -195,6 +197,7 @@ void main() {
       expect(shortcuts.map((s) => s.name).toSet(), {
         'graceful-shell.open-settings',
         'graceful-shell.open-launcher',
+        'graceful-shell.open-emoji',
         kPowerButtonShortcut,
       });
     });
@@ -242,16 +245,45 @@ void main() {
       expect(launcher.keysym, 0x20);
     });
 
+    test('the default emoji shortcut is Ctrl+Shift+E, shift-resolved', () {
+      final emoji = named(inputShortcutsFor(const ShortcutsConfig()),
+          'graceful-shell.open-emoji');
+
+      expect(emoji.modifiers,
+          InputTriggerModifiers.ctrl | InputTriggerModifiers.shift);
+      // Not 0x65: Mir matches the resolved character, so Shift+e is `E`.
+      expect(emoji.keysym, 0x45);
+    });
+
+    test('the emoji shortcut toggles the picker rather than the launcher', () {
+      // The two sit next to each other in the table and both are a bare
+      // `toggle` on a SignalController, so a copy-paste that wired this to
+      // LauncherController would look right and open the wrong overlay.
+      final before = EmojiPickerController.instance.signalCount;
+      final launcherBefore = LauncherController.instance.signalCount;
+
+      named(inputShortcutsFor(const ShortcutsConfig()),
+              'graceful-shell.open-emoji')
+          .onActivate();
+
+      expect(EmojiPickerController.instance.signalCount, before + 1);
+      expect(LauncherController.instance.signalCount, launcherBefore);
+    });
+
     test('a disabled shortcut is not registered at all', () {
       final shortcuts = inputShortcutsFor(const ShortcutsConfig(
         openSettings: null,
         openLauncher: null,
+        openEmoji: null,
         powerButton: null,
       ));
       expect(shortcuts, isEmpty);
 
-      final onlyLauncher = inputShortcutsFor(
-          const ShortcutsConfig(openSettings: null, powerButton: null));
+      final onlyLauncher = inputShortcutsFor(const ShortcutsConfig(
+        openSettings: null,
+        openEmoji: null,
+        powerButton: null,
+      ));
       expect(onlyLauncher.single.name, 'graceful-shell.open-launcher');
     });
 
@@ -261,6 +293,7 @@ void main() {
       final shortcuts = inputShortcutsFor(ShortcutsConfig(
         openSettings: parseShortcut('ctrl+space'),
         openLauncher: parseShortcut('ctrl+space'),
+        openEmoji: null,
         powerButton: null,
       ));
 
@@ -271,6 +304,7 @@ void main() {
       final shortcuts = inputShortcutsFor(ShortcutsConfig(
         openSettings: parseShortcut('ctrl+code:31'),
         openLauncher: null,
+        openEmoji: null,
         powerButton: null,
       ));
       expect(shortcuts.single.spec.isKeycode, isTrue);

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/emoji/emoji_controller.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
@@ -56,7 +57,7 @@ const String kPowerButtonShortcut = 'graceful-shell.power-button';
 /// registration would come back `failed` and be logged as "owned by another
 /// client", which would be a lie about the shell's own config.
 ///
-/// The power button is registered like the other two and — deliberately —
+/// The power button is registered like the other three and — deliberately —
 /// whatever `[power] key_action` says, `"none"` included. Registration latches
 /// on the compositor's first answer, so a binding skipped here is one no
 /// setting could turn back on without a restart; the action is a dropdown in
@@ -76,6 +77,12 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
       'graceful-shell.open-launcher',
       config.openLauncher,
       LauncherController.instance.toggle,
+      null,
+    ),
+    (
+      'graceful-shell.open-emoji',
+      config.openEmoji,
+      EmojiPickerController.instance.toggle,
       null,
     ),
     (

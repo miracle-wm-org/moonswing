@@ -309,6 +309,7 @@ The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are
 [shortcuts]
 open_settings = "ctrl+shift+s"
 open_launcher = "ctrl+space"
+open_emoji = "ctrl+shift+e"
 power_button = "poweroff"
 ```
 
@@ -316,6 +317,7 @@ power_button = "poweroff"
 | --------------- | ------ | ------------------ | ---------------------------------------------- |
 | `open_settings` | string | `"ctrl+shift+s"`   | Opens (and closes) the settings overlay        |
 | `open_launcher` | string | `"ctrl+space"`     | Opens (and closes) the application launcher    |
+| `open_emoji`    | string | `"ctrl+shift+e"`   | Opens (and closes) the [emoji picker](#emoji-picker) |
 | `power_button`  | string | `"poweroff"`       | The machine's own power button — what it *does* is [`[power]`](#power-button) |
 
 **Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
@@ -361,6 +363,32 @@ open_settings = ""
 An unparseable value is not treated as "disabled": it falls back to the default and logs why, so a typo does not silently cost you a shortcut.
 
 If another client already owns a combination, the shell logs it and moves on — it never fails to start over a shortcut.
+
+## Emoji Picker
+
+`Ctrl+Shift+E` opens a centred picker over whatever is on screen. Type to search, move with the arrow keys, and press **Enter** to copy the highlighted emoji and close. **Escape** — or a click on the backdrop — leaves without copying.
+
+The search is fuzzy and runs across every dimension an emoji has, so all four of these find 🍕:
+
+```
+pizza      →  its name
+food       →  its category
+italian    →  one of its keywords
+🍕          →  the character itself
+```
+
+Fuzzy means the letters need only appear *in order*: `gfws` finds "grinning face with sweat", `thmbs` finds "thumbs up". Spaces are ordinary characters here — the copy key is Enter, not Space — so a query may be several words, and those words need only appear in order too: `face joy` finds "face with tears of joy".
+
+A literal match always beats a scattered one, and the dimensions are weighted: the name first, then the keywords, then the category. So typing `cat` puts the cat face above the emoji merely filed under a *category*.
+
+Copying goes through `wl-copy`, from the **wl-clipboard** package. Wayland has no clipboard a client can write to without a seat, and the shell's surfaces are layer-shell ones, so there is no in-process route; if `wl-copy` is missing the picker says so in a notification rather than failing quietly.
+
+Rebind or disable it under [`[shortcuts]`](#shortcuts):
+
+```toml
+[shortcuts]
+open_emoji = "super+period"
+```
 
 ## Power Button
 
