@@ -210,4 +210,38 @@ void main() {
       expect(_names(results).take(5), contains('grinning face with sweat'));
     });
   });
+
+  group('the folded index', () {
+    test('every emoji in a group shares one category term list', () {
+      // [rankEmoji] scores the category **once per group** rather than once
+      // per row, which is most of the work of a keystroke — and it is only
+      // correct because the terms are the one shared list. Folding them per
+      // emoji (which is what the constructor used to do, compiling the word
+      // splitter afresh six hundred times inside the first frame of the
+      // picker's window) would also make that memo a lie.
+      final seen = <EmojiCategory, List<String>>{};
+      for (final emoji in searchableEmoji) {
+        final terms = seen[emoji.category];
+        if (terms == null) {
+          seen[emoji.category] = emoji.categoryTerms;
+          continue;
+        }
+        expect(
+          identical(emoji.categoryTerms, terms),
+          isTrue,
+          reason:
+              'the category tier is memoised per group, so every emoji in '
+              'one must be scored against the same terms',
+        );
+      }
+      expect(seen.length, EmojiCategory.values.length);
+    });
+
+    test('the shared terms are not writable through one emoji', () {
+      expect(
+        () => searchableEmoji.first.categoryTerms.add('mine'),
+        throwsUnsupportedError,
+      );
+    });
+  });
 }

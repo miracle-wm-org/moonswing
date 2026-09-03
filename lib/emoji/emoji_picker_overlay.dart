@@ -5,6 +5,8 @@
 // so widget tests drive the whole thing without forking `wl-copy`.
 library;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/gestures.dart' show PointerEnterEvent;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -12,7 +14,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/emoji/emoji_data.dart';
 import 'package:graceful_shell/emoji/emoji_search.dart';
-import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/overlay_fade_scaffold.dart';
 import 'package:graceful_shell/overlay_search_field.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -123,9 +124,24 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   final _searchFocus = FocusNode(debugLabel: 'emoji-search');
   final _scrollController = ScrollController();
 
+  /// Which cell Enter would copy, as a notifier rather than a field.
+  ///
+  /// **This is what keeps a pointer moving over the grid from rebuilding the
+  /// card**, and it is the `_SelectedIcon` rule the desktop grid states for
+  /// its own tiles. The selection follows the pointer (hovering a cell picks
+  /// it), and a `MouseRegion` fires enter and exit as the *content* moves
+  /// under a stationary cursor as well as the other way round — Flutter
+  /// re-runs the hit test after any frame that changed the annotations — so a
+  /// scroll with the pointer over the grid moves the selection on every
+  /// frame. Held in `State` and written with `setState`, each of those frames
+  /// rebuilt the whole card: the [OverlaySearchField] and its [EditableText],
+  /// the grid's delegate, and with it every one of the seventy-odd cells on
+  /// screen. Through a notifier the same move rebuilds the two cells whose
+  /// flag actually flipped, plus the footer that names the selection.
+  final _selection = ValueNotifier<int>(0);
+
   late List<SearchableEmoji> _table;
   List<Emoji> _results = const [];
-  int _selected = 0;
 
   @override
   void initState() {
@@ -141,8 +157,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
       _table = widget.emoji ?? searchableEmoji;
       setState(() {
         _results = rankEmoji(_table, _searchController.text);
-        _selected = 0;
       });
+      _selection.value = 0;
     }
   }
 
@@ -151,6 +167,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
     _searchController.dispose();
     _searchFocus.dispose();
     _scrollController.dispose();
+    _selection.dispose();
     super.dispose();
   }
 
@@ -160,8 +177,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   void _onQueryChanged(String value) {
     setState(() {
       _results = rankEmoji(_table, value);
-      _selected = 0;
     });
+    _selection.value = 0;
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
@@ -173,29 +190,40 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   /// is about to paste into, and every frame it spends fading is a frame that
   /// surface does not have the keyboard back.
   void _copySelected() {
-    if (_selected < 0 || _selected >= _results.length) return;
-    widget.onCopy(_results[_selected].char);
+    final selected = _selection.value;
+    if (selected < 0 || selected >= _results.length) return;
+    widget.onCopy(_results[selected].char);
     widget.onClosed();
   }
+
+  /// A cell was clicked: take it, whichever one was under the ring.
+  void _copyAt(int index) {
+    _selection.value = index;
+    _copySelected();
+  }
+
+  /// The pointer entered a cell. Bound once on this state rather than closed
+  /// over per cell, so a rebuilt grid hands every cell the same callback.
+  void _selectAt(int index) => _selection.value = index;
 
   void _move({int columns = 0, int rows = 0}) {
     if (_results.isEmpty) return;
     final next = emojiGridMove(
-      _selected,
+      _selection.value,
       _results.length,
       columns: columns,
       rows: rows,
     );
-    if (next == _selected) return;
-    setState(() => _selected = next);
+    if (next == _selection.value) return;
+    _selection.value = next;
     _scrollSelectedIntoView();
   }
 
   void _moveTo(int index) {
     if (_results.isEmpty) return;
     final next = index.clamp(0, _results.length - 1);
-    if (next == _selected) return;
-    setState(() => _selected = next);
+    if (next == _selection.value) return;
+    _selection.value = next;
     _scrollSelectedIntoView();
   }
 
@@ -204,7 +232,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   /// held arrow key.
   void _scrollSelectedIntoView() {
     if (!_scrollController.hasClients) return;
-    final row = _selected ~/ kEmojiColumns;
+    final row = _selection.value ~/ kEmojiColumns;
     final top = row * kEmojiCellSize;
     final bottom = top + kEmojiCellSize;
     final offset = _scrollController.offset;
@@ -295,9 +323,6 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   }
 
   Widget _buildCard(ThemeConfig theme) {
-    final selected = _selected >= 0 && _selected < _results.length
-        ? _results[_selected]
-        : null;
     return GestureDetector(
       // Absorb taps so clicking inside the card does not dismiss it.
       behavior: HitTestBehavior.opaque,
@@ -331,11 +356,31 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
               Flexible(
                 child: SizedBox(
                   height: kEmojiGridHeight,
-                  child: _buildGrid(theme),
+                  // Scrolling marks the viewport needing paint, and that mark
+                  // travels up to the nearest boundary — which, without this
+                  // one, is the window itself. Every scrolled frame was
+                  // therefore re-recording the search field, the footer and
+                  // the full-output scrim along with the grid. The cells
+                  // carry their own boundaries already (the sliver delegate
+                  // adds them), so this is the other half: the mark stops
+                  // here on the way *out* as well as at each cell on the way
+                  // in.
+                  child: RepaintBoundary(child: _buildGrid(theme)),
                 ),
               ),
               const SizedBox(height: 8),
-              _EmojiFooter(theme: theme, selected: selected),
+              // The footer names the selection, so it is the one part of the
+              // card a hover has to redraw — and, through the notifier, the
+              // only part that does.
+              ValueListenableBuilder<int>(
+                valueListenable: _selection,
+                builder: (context, selected, _) => _EmojiFooter(
+                  theme: theme,
+                  selected: selected >= 0 && selected < _results.length
+                      ? _results[selected]
+                      : null,
+                ),
+              ),
             ],
           ),
         ),
@@ -363,60 +408,151 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
         mainAxisExtent: kEmojiCellSize,
       ),
       itemCount: _results.length,
+      // Two wrappers per cell that this grid has no use for, and a fling
+      // builds cells by the hundred. Nothing in a cell has state worth
+      // keeping alive off screen — the selection lives on this state, not in
+      // the cell — and `kExcludeSemantics` drops every one of the shell's
+      // windows out of the semantics tree anyway, so an index for a node that
+      // is never built is pure cost. The repaint boundaries stay: they are
+      // what a scroll reuses rather than re-records.
+      addAutomaticKeepAlives: false,
+      addSemanticIndexes: false,
       itemBuilder: (context, i) => _EmojiCell(
         theme: theme,
         emoji: _results[i],
-        selected: i == _selected,
-        onTap: () {
-          setState(() => _selected = i);
-          _copySelected();
-        },
-        onHover: () {
-          if (_selected != i) setState(() => _selected = i);
-        },
+        index: i,
+        selection: _selection,
+        onTap: _copyAt,
+        onHover: _selectAt,
       ),
     );
   }
 }
 
 /// One cell: the glyph, and the ring that says it is the one Enter will copy.
-class _EmojiCell extends StatelessWidget {
+///
+/// Stateful, and subscribed to the picker's selection itself, so that moving
+/// the ring costs the two cells it moved between rather than the grid: every
+/// cell's listener runs, and the two whose own flag flipped rebuild. That is
+/// `_SelectedIcon`'s shape in the desktop grid, and it is here for the same
+/// reason — the selection follows the pointer, so it moves on every frame of
+/// a scroll that happens to be under the cursor.
+///
+/// It does **not** go through `HoverRegion`, which is the shell's primitive
+/// for exactly this shape and the wrong tool here: a cell draws no hover
+/// state of its own (entering it *is* selecting it, and the ring is what
+/// says so), so the `bool _hovered` that primitive exists to own would be a
+/// second rebuild per cell, on enter and again on exit, for a value nothing
+/// paints. The `GestureDetector` still carries an explicit `behavior:`, which
+/// is what that primitive's rule actually requires.
+class _EmojiCell extends StatefulWidget {
   const _EmojiCell({
     required this.theme,
     required this.emoji,
-    required this.selected,
+    required this.index,
+    required this.selection,
     required this.onTap,
     required this.onHover,
   });
 
   final ThemeConfig theme;
   final Emoji emoji;
-  final bool selected;
-  final VoidCallback onTap;
-  final VoidCallback onHover;
+
+  /// This cell's place in the results, and so the value of [selection] that
+  /// means "this one".
+  final int index;
+
+  final ValueListenable<int> selection;
+
+  final void Function(int index) onTap;
+  final void Function(int index) onHover;
+
+  @override
+  State<_EmojiCell> createState() => _EmojiCellState();
+}
+
+class _EmojiCellState extends State<_EmojiCell> {
+  late bool _selected;
+
+  /// The glyph, built once and handed back unchanged.
+  ///
+  /// The calendar tab's rule, for its reason: what a selection flip changes is
+  /// a decoration, and an identical child widget is one the framework skips
+  /// outright (`Element.updateChild` short-circuits on `child.widget ==
+  /// newWidget`) rather than shaping the paragraph again. Ringing and
+  /// un-ringing a cell is then a `DecoratedBox` and nothing else.
+  late Widget _glyph;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.selection.value == widget.index;
+    _glyph = _buildGlyph();
+    widget.selection.addListener(_onSelectionChanged);
+  }
+
+  Widget _buildGlyph() => Text(
+    widget.emoji.char,
+    // The glyph comes from whichever colour emoji font fontconfig resolves,
+    // so it carries its own colours and the theme's foreground reaches only a
+    // font that has none.
+    style: const TextStyle(fontSize: kEmojiGlyphSize),
+  );
+
+  @override
+  void didUpdateWidget(_EmojiCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(widget.selection, oldWidget.selection)) {
+      oldWidget.selection.removeListener(_onSelectionChanged);
+      widget.selection.addListener(_onSelectionChanged);
+    }
+    // A recycled cell may be showing a different emoji at a different index,
+    // so both are re-read rather than carried over.
+    if (widget.emoji.char != oldWidget.emoji.char) _glyph = _buildGlyph();
+    _selected = widget.selection.value == widget.index;
+  }
+
+  @override
+  void dispose() {
+    widget.selection.removeListener(_onSelectionChanged);
+    super.dispose();
+  }
+
+  void _onSelectionChanged() {
+    final selected = widget.selection.value == widget.index;
+    if (selected == _selected) return;
+    setState(() => _selected = selected);
+  }
+
+  void _handleTap() => widget.onTap(widget.index);
+  void _handleEnter(PointerEnterEvent _) => widget.onHover(widget.index);
 
   @override
   Widget build(BuildContext context) {
-    return HoverRegion(
-      onTap: onTap,
-      onEnter: onHover,
-      builder: (context, hovered) => Container(
-        margin: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: selected ? theme.surfaceHover : null,
-          borderRadius: BorderRadius.circular(ShellRadii.control),
-          border: Border.all(
-            color: selected ? theme.accent : const Color(0x00000000),
-            width: 1,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          emoji.char,
-          // The glyph comes from whichever colour emoji font fontconfig
-          // resolves, so it carries its own colours and the theme's
-          // foreground reaches only a font that has none.
-          style: const TextStyle(fontSize: kEmojiGlyphSize),
+    final theme = widget.theme;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: _handleEnter,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _handleTap,
+        child: Container(
+          margin: const EdgeInsets.all(2),
+          // Null rather than a transparent border on an unselected cell: a
+          // `Border` at zero alpha is still a stroke the rasteriser is asked
+          // for, on every one of the cells that is not the selected one, and
+          // a decoration that is null is a `DecoratedBox` that is never built
+          // at all. The glyph does not move when one appears — the border's
+          // inset is symmetric and the child is centred.
+          decoration: _selected
+              ? BoxDecoration(
+                  color: theme.surfaceHover,
+                  borderRadius: BorderRadius.circular(ShellRadii.control),
+                  border: Border.all(color: theme.accent, width: 1),
+                )
+              : null,
+          alignment: Alignment.center,
+          child: _glyph,
         ),
       ),
     );

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -302,6 +303,82 @@ void main() {
     testWidgets('the footer says how to take the selection', (tester) async {
       await pumpPicker(tester);
       expect(find.text('Enter to copy  ·  Esc to cancel'), findsOneWidget);
+    });
+  });
+
+  group('pointer cost', () {
+    testWidgets('hovering a cell moves the ring without rebuilding the card', (
+      tester,
+    ) async {
+      // The selection follows the pointer, and a `MouseRegion` fires enter
+      // and exit as the *content* moves under a stationary cursor as well as
+      // the other way round — so a scroll with the pointer over the grid
+      // moves the selection on every frame. Held in `State` and written with
+      // `setState`, each of those frames rebuilt the whole card: the search
+      // field with its `EditableText`, the grid's delegate, and every cell on
+      // screen. Widget identity is what tells a rebuilt subtree from a
+      // repainted one — the desktop grid's `pointer cost` rule.
+      await pumpPicker(tester);
+      final gridBefore = tester.widget<GridView>(find.byType(GridView));
+      final fieldBefore = tester.widget<EditableText>(
+        find.byType(EditableText),
+      );
+      final target = tester.getCenter(find.text('🍟'));
+
+      final gesture = await tester.createGesture(
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.addPointer(location: const Offset(5, 5));
+      addTearDown(() => gesture.removePointer());
+      await tester.pump();
+      await gesture.moveTo(target);
+      await tester.pump();
+
+      // The ring moved: the footer names the cell under the pointer.
+      expect(find.text('french fries'), findsOneWidget);
+      expect(
+        identical(tester.widget<GridView>(find.byType(GridView)), gridBefore),
+        isTrue,
+        reason: 'a hover must not rebuild the grid',
+      );
+      expect(
+        identical(
+          tester.widget<EditableText>(find.byType(EditableText)),
+          fieldBefore,
+        ),
+        isTrue,
+        reason: 'a hover must not rebuild the search field',
+      );
+    });
+
+    testWidgets('an arrow key moves the ring without rebuilding the card', (
+      tester,
+    ) async {
+      await pumpPicker(tester);
+      final gridBefore = tester.widget<GridView>(find.byType(GridView));
+
+      await _press(tester, LogicalKeyboardKey.arrowRight);
+
+      expect(find.text('hamburger'), findsOneWidget);
+      expect(
+        identical(tester.widget<GridView>(find.byType(GridView)), gridBefore),
+        isTrue,
+        reason: 'a held arrow key must not rebuild the grid per repeat',
+      );
+    });
+
+    testWidgets('typing does rebuild the grid', (tester) async {
+      // The other side of the rule: a query genuinely changes what the grid
+      // holds, so this one must not be optimised away with the hovers.
+      await pumpPicker(tester);
+      final gridBefore = tester.widget<GridView>(find.byType(GridView));
+
+      await _type(tester, 'fries');
+
+      expect(
+        identical(tester.widget<GridView>(find.byType(GridView)), gridBefore),
+        isFalse,
+      );
     });
   });
 }
