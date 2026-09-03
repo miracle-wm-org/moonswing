@@ -1555,6 +1555,22 @@ Color? parseHexColor(String hex) {
   return value != null ? Color(value) : null;
 }
 
+/// What a hex colour field accepts as it is typed: the hex digits and one
+/// `#`, capped at the longest form [parseHexColor] reads.
+///
+/// One list for both fields that take a hex — the row's and the picker's —
+/// because a character the row swallows and the picker does not is the two
+/// controls disagreeing about what a colour is spelled with.
+///
+/// The cap is `#AARRGGBB`, so a field that is already full says so by refusing
+/// the keystroke rather than by silently holding a value that cannot parse.
+/// Everything shorter still can't parse, which is the state every hex passes
+/// through on its way to being typed; see [ColorFieldState._onTyped].
+final List<TextInputFormatter> hexColorInputFormatters = [
+  FilteringTextInputFormatter.allow(RegExp(r'[#0-9a-fA-F]')),
+  LengthLimitingTextInputFormatter(9),
+];
+
 /// A glyph with a box around it, and the box is the target.
 ///
 /// The [box] is what accepts the click, not the glyph: a `FaIcon` is a bare
@@ -1747,8 +1763,17 @@ String formatHexColor(Color c) {
   return '#${a.toRadixString(16).padLeft(2, '0').toUpperCase()}$rgb';
 }
 
-/// A color swatch + hex text field. Clicking the swatch opens a visual color
-/// picker ([SettingsColorPicker]) floated over the settings window.
+/// A color swatch + hex text field. The hex is typed straight into the row;
+/// clicking the swatch opens a visual color picker ([SettingsColorPicker])
+/// floated over the settings window.
+///
+/// The two are peers rather than a control and its escape hatch. Somebody who
+/// knows the value wants — `#1E1E2E` out of a palette they are matching, a
+/// colour pasted from somewhere else — has a hex, and making them open a
+/// popup, find its one text box and type it in there is three clicks charged
+/// for a value they arrived holding. The picker is what answers the other
+/// question, "which colour", and the field the swatch sits beside was already
+/// showing the answer to this one; it just refused to take it back.
 class SettingsColorField extends StatefulWidget {
   const SettingsColorField({
     super.key,
@@ -1777,15 +1802,66 @@ class ColorFieldState extends State<SettingsColorField> {
   // The picker floats in the root overlay (not a nearby OverlayPortal target)
   // so a nested Navigator's clipped Overlay can't cut it off. See _open().
   OverlayEntry? _pickerEntry;
-  bool _focused = false;
+
+  /// The last hex this field reported, or was seeded with.
+  ///
+  /// The field's own text is whatever is half-typed into it, which for most of
+  /// a hex being entered is not a colour at all; this is the colour the config
+  /// actually holds, and it is what the swatch draws and what an abandoned
+  /// edit reverts to.
+  late String _committed;
 
   @override
   void initState() {
     super.initState();
     _controller = TextEditingController(text: widget.initial);
-    _focusNode.addListener(
-      () => setState(() => _focused = _focusNode.hasFocus),
-    );
+    _committed = widget.initial;
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  void _onFocusChanged() {
+    if (!mounted) return;
+    if (_focusNode.hasFocus) {
+      // A field being typed into and a picker floating over the same value are
+      // two editors for one colour, and the picker snapshots its HSV at open
+      // (an `OverlayEntry` does not rebuild on our `setState`), so it is the
+      // one that goes. Reached by tabbing in: a *click* on the field lands on
+      // the picker's own dismiss barrier first.
+      _close();
+    } else {
+      _settle();
+    }
+  }
+
+  /// Puts the field back to the value the config holds, on the way out.
+  ///
+  /// Two jobs, and they are one line because they want the same answer. A
+  /// half-typed hex was never reported — nothing parsed — so the field must
+  /// not be left showing a colour that was never set; and a hex that *was*
+  /// reported may have been typed in some other spelling than the one it was
+  /// stored under (`ff5733`, no `#`), which should not stay on screen as
+  /// though the config were holding it that way.
+  ///
+  /// It happens here rather than in [_onTyped] because rewriting the text
+  /// while it is being typed moves the caret out from under the user.
+  void _settle() {
+    if (_controller.text != _committed) _controller.text = _committed;
+  }
+
+  /// A keystroke. Reports the colour if the text is one yet, and nothing at
+  /// all if it is not.
+  ///
+  /// Every hex passes through several non-colours on its way in (`#`, `#F`,
+  /// `#FF57`), so a parse failure here is the ordinary case and never an
+  /// error to show: the swatch goes on drawing [_committed] and the value
+  /// under the field is untouched until something parses. Only [_settle]
+  /// decides that an edit is finished.
+  void _onTyped(String text) {
+    final color = parseHexColor(text);
+    if (color == null) return;
+    final hex = formatHexColor(color);
+    _committed = hex;
+    widget.onChanged(hex);
   }
 
   @override
@@ -1807,6 +1883,7 @@ class ColorFieldState extends State<SettingsColorField> {
         : widget.initial == _controller.text;
     if (widget.initial != oldWidget.initial && !same) {
       _controller.text = widget.initial;
+      _committed = widget.initial;
       _close();
     }
   }
@@ -1814,16 +1891,13 @@ class ColorFieldState extends State<SettingsColorField> {
   @override
   void dispose() {
     _close();
+    _focusNode.removeListener(_onFocusChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
   void _toggle() {
-    if (widget.locked) {
-      widget.onLockedTap?.call();
-      return;
-    }
     if (_pickerEntry != null) {
       _close();
     } else {
@@ -1863,75 +1937,90 @@ class ColorFieldState extends State<SettingsColorField> {
 
   void _apply(Color color) {
     final hex = formatHexColor(color);
+    _committed = hex;
     _controller.value = TextEditingValue(
       text: hex,
       selection: TextSelection.collapsed(offset: hex.length),
     );
-    setState(() {});
     widget.onChanged(hex);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final swatch = parseHexColor(_controller.text);
-    return Opacity(
-      opacity: widget.locked ? 0.45 : 1.0,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CompositedTransformTarget(
-            link: _link,
-            child: HoverRegion(
-              onTap: _toggle,
-              builder: (context, hovered) => Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: swatch ?? const Color(0x00000000),
-                  borderRadius: BorderRadius.circular(ShellRadii.barButton),
-                  border: Border.all(
-                    color: hovered ? theme.accent : theme.divider,
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CompositedTransformTarget(
+          link: _link,
+          // The swatch follows the text through the controller rather than
+          // through a `setState`, the reason `SettingsTextField`'s hint gives:
+          // a rebuild per keystroke would re-record the whole row — the field
+          // and its `EditableText` included — to repaint 22 square.
+          child: ValueListenableBuilder<TextEditingValue>(
+            valueListenable: _controller,
+            builder: (context, value, _) {
+              // Half-typed text is not a colour, and the swatch must not blink
+              // out while somebody types one: what it draws is the value the
+              // config holds. The `?` is kept for the case it was written for
+              // — a hex the *config* carries that will not parse.
+              final swatch =
+                  parseHexColor(value.text) ?? parseHexColor(_committed);
+              return HoverRegion(
+                onTap: _toggle,
+                builder: (context, hovered) => Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: swatch ?? const Color(0x00000000),
+                    borderRadius: BorderRadius.circular(ShellRadii.barButton),
+                    border: Border.all(
+                      color: hovered ? theme.accent : theme.divider,
+                    ),
                   ),
+                  child: swatch == null
+                      ? FaIcon(
+                          FontAwesomeIcons.question,
+                          size: 10,
+                          color: theme.popupForeground.withValues(alpha: 0.4),
+                        )
+                      : null,
                 ),
-                child: swatch == null
-                    ? FaIcon(
-                        FontAwesomeIcons.question,
-                        size: 10,
-                        color: theme.popupForeground.withValues(alpha: 0.4),
-                      )
-                    : null,
-              ),
-            ),
+              );
+            },
           ),
-          const SizedBox(width: 8),
-          Container(
-            width: 110,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: theme.popupBackground,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: _focused ? theme.accent : theme.divider,
-                width: 1,
-              ),
-            ),
-            // Read-only on the main page: the value is edited through the color
-            // picker popup, not typed here.
-            child: EditableText(
-              controller: _controller,
-              focusNode: _focusNode,
-              readOnly: true,
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.popupForeground,
-                fontFamily: theme.fontFamily,
-              ),
-              cursorColor: theme.accent,
-              backgroundCursorColor: theme.divider,
-            ),
-          ),
-        ],
+        ),
+        const SizedBox(width: 8),
+        // The library's field rather than a second hand-rolled `EditableText`:
+        // it was a near-clone of one already (same padding, same radius, same
+        // body size), and going through it is what brings the selection
+        // highlight and the focused-while-scrolled keep-alive with it — the
+        // settings categories scroll in a lazy `SliverList`, and a colour being
+        // typed into is exactly the field that must not be unmounted mid-word.
+        SettingsTextField(
+          width: 110,
+          controller: _controller,
+          focusNode: _focusNode,
+          inputFormatters: hexColorInputFormatters,
+          onChanged: _onTyped,
+          // Enter is done rather than a keystroke: nothing is left to report
+          // (every parse already was), so all it does is drop focus, which is
+          // what runs [_settle].
+          onSubmitted: (_) => _focusNode.unfocus(),
+        ),
+      ],
+    );
+
+    if (!widget.locked) return row;
+    // A shipped theme is read-only, so the row is a *button* offering to
+    // duplicate it: the `IgnorePointer` is what keeps the field it wraps from
+    // being typed into now that the field would otherwise take the text, and
+    // the region around it answers the click the swatch used to.
+    return Opacity(
+      opacity: 0.45,
+      child: HoverRegion(
+        onTap: widget.onLockedTap,
+        builder: (_, _) => IgnorePointer(child: row),
       ),
     );
   }
@@ -2169,11 +2258,7 @@ class ColorPickerPopupState extends State<SettingsColorPicker> {
                       ),
                       cursorColor: theme.accent,
                       backgroundCursorColor: theme.divider,
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'[#0-9a-fA-F]'),
-                        ),
-                      ],
+                      inputFormatters: hexColorInputFormatters,
                       onChanged: _onHex,
                     ),
                   ),
