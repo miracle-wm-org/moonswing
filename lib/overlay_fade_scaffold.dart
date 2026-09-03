@@ -90,35 +90,68 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        // No BackdropFilter here, deliberately — see the note on
-        // [ThemeConfig.blur]. A filter reaches only what Flutter has already
-        // painted beneath it, and this scaffold *is* the first thing painted
-        // into its window: the scrim below is this widget's own child, and
-        // under that is a transparent layer-shell surface whose contents
-        // belong to the compositor. So the backdrop is empty, the filter
-        // resolves to nothing, and every frame the overlay animates paid for
-        // a full-output Gaussian blur that changed no pixel — which is what
-        // the settings page transitions were spending their frame budget on.
-        Widget backdrop = Container(
-          color: theme.scrim,
-          child: Center(
-            child: Transform.scale(scale: _scale.value, child: child),
+    final scrim = ThemeScope.of(context).scrim;
+
+    // No BackdropFilter here, deliberately — see the note on
+    // [ThemeConfig.blur]. A filter reaches only what Flutter has already
+    // painted beneath it, and this scaffold *is* the first thing painted into
+    // its window: the scrim below is this widget's own child, and under that
+    // is a transparent layer-shell surface whose contents belong to the
+    // compositor. So the backdrop is empty, the filter resolves to nothing,
+    // and every frame the overlay animates paid for a full-output Gaussian
+    // that changed no pixel — which is what the settings page transitions
+    // were spending their frame budget on.
+    //
+    // **And no `Opacity` across the whole of it either, for the same
+    // arithmetic.** Every overlay window calls `spanFullOutput`, so an opacity
+    // layer here is bounded by the output: `RenderOpacity` skips the layer at
+    // exactly 1.0, so it cost nothing at rest and then allocated and blended a
+    // full-output offscreen on every one of the dozen frames in and the dozen
+    // frames out. At 4K that is thirty-odd megabytes a frame, on a raster
+    // thread this shell already measures in the tens of milliseconds. The
+    // scrim is a flat fill, so it fades by its own alpha instead and needs no
+    // layer at all; only the card keeps a real one, because a card is a stack
+    // of overlapping pieces and fading them one at a time shows it through
+    // itself — and that layer is now bounded by the card rather than by the
+    // display.
+    Widget backdrop = Stack(
+      // Non-directional, so this does not depend on an ambient
+      // `Directionality` for a stack whose one unpositioned child is centred.
+      alignment: Alignment.center,
+      // `Positioned.fill` and the default loose fit, never `StackFit.expand`:
+      // that tightens *every* child, which would stretch the card to the
+      // output instead of centring it.
+      children: [
+        Positioned.fill(
+          child: AnimatedBuilder(
+            animation: _opacity,
+            builder: (context, _) => ColoredBox(
+              color: scrim.withValues(alpha: scrim.a * _opacity.value),
+            ),
           ),
-        );
-        if (widget.onBackdropTap != null) {
-          backdrop = GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: widget.onBackdropTap,
-            child: backdrop,
-          );
-        }
-        return Opacity(opacity: _opacity.value, child: backdrop);
-      },
-      child: widget.child,
+        ),
+        // Built outside the AnimatedBuilder, and driven by transition widgets
+        // rather than by a rebuild: `ScaleTransition` and `FadeTransition`
+        // tick their own render objects, so the card, the `Center` and the
+        // transform stop being rebuilt on every frame of the animation.
+        Center(
+          child: FadeTransition(
+            opacity: _opacity,
+            child: ScaleTransition(scale: _scale, child: widget.child),
+          ),
+        ),
+      ],
     );
+    if (widget.onBackdropTap != null) {
+      // An ancestor of both, as it has always been: the card's own opaque
+      // detector is deeper in the tree, so it enters the arena first and
+      // wins, and a tap on the card still does not dismiss through this one.
+      backdrop = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onBackdropTap,
+        child: backdrop,
+      );
+    }
+    return backdrop;
   }
 }

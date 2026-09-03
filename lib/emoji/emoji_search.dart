@@ -308,12 +308,88 @@ int _scoreEmoji(
 ///
 /// **The category is scored once per group, not once per row.** Its terms are
 /// shared (see [_categoryTerms]) and there are nine of them against six
-/// hundred rows, so the memo below is most of the work of a keystroke: the
-/// category is the widest of the three dimensions, seven or eight strings
-/// against a name and a handful of keywords.
-List<Emoji> rankEmoji(List<SearchableEmoji> emoji, String query) {
+/// hundred rows, so the memo in [rankEmojiFrom] is most of the work of a
+/// keystroke: the category is the widest of the three dimensions, seven or
+/// eight strings against a name and a handful of keywords.
+///
+/// This is the whole-table entry point, and it is what a caller with no
+/// previous answer to narrow from wants. A picker typing a character at a
+/// time goes through [rankEmojiFrom] instead, which answers the same thing
+/// for a fraction of the work.
+List<Emoji> rankEmoji(List<SearchableEmoji> emoji, String query) =>
+    rankEmojiFrom(emoji, query).results;
+
+/// A ranking, and the rows it came from.
+///
+/// The results are what the grid draws; [survivors] is what makes the *next*
+/// keystroke cheap, and it is kept beside them rather than derived from them
+/// because a result is an [Emoji] and the scorer wants the folded row and its
+/// place in the table.
+class EmojiRanking {
+  const EmojiRanking._(this.query, this.results, this.survivors);
+
+  /// The **normalized** query these results answer — trimmed and folded, so
+  /// it is the string [rankEmojiFrom] compares the next one against. The raw
+  /// text is not it: `"face "` and `"face"` are one query, and only the
+  /// folded form says so.
+  final String query;
+
+  final List<Emoji> results;
+
+  /// Every row that matched, each with its index in the table it was ranked
+  /// against.
+  ///
+  /// The index travels because the sort's tie-break is on it: a candidate's
+  /// place in a narrowed list is not the place the ordering means. Empty for
+  /// the empty query, which narrows nothing — see [rankEmojiFrom].
+  final List<(int, SearchableEmoji)> survivors;
+}
+
+/// [rankEmoji], with the previous answer available to narrow from.
+///
+/// **A longer query can only ever match fewer rows, and that is provable
+/// rather than approximate.** [_scoreField] answers a match iff one of exact,
+/// prefix, word-start, substring or subsequence holds; the first four all
+/// imply the query is a *substring* of the field, and a substring is a
+/// subsequence — so a field matches iff the query is a subsequence of it. A
+/// prefix of a subsequence is itself a subsequence, so if `q2` matched a
+/// field and `q1` is a prefix of `q2`, then `q1` matched it too. Extending a
+/// query therefore cannot make a row *newly* match, and rescoring only the
+/// previous survivors answers exactly what a full scan would: the scores are
+/// computed fresh from the new query, so this is not an approximation and
+/// `test/emoji_search_test.dart` walks the shipped table to say so.
+///
+/// **The character is the one branch that is not a field test**, and so the
+/// one the narrowing cannot reach: `_scoreEmoji`'s `query == emoji.char`
+/// makes a row match on something no prefix of it ever matched, which is a
+/// real state — paste 🧑, then paste 🧑‍💻 over it. It is answered against the
+/// whole table through [_charIndexOf], which is a hash lookup rather than the
+/// six hundred string comparisons the scan was doing anyway.
+///
+/// Deleting a character is not an extension, so it falls through to a full
+/// scan — which is what widening the results costs and has to.
+///
+/// [previous] must be an answer over this same [emoji] table: its survivors
+/// are *indices* into one, so a ranking cannot be carried across a change of
+/// table. The picker drops it in `didUpdateWidget` for that reason.
+EmojiRanking rankEmojiFrom(
+  List<SearchableEmoji> emoji,
+  String query, {
+  EmojiRanking? previous,
+}) {
   final normalized = query.trim().toLowerCase();
-  if (normalized.isEmpty) return [for (final e in emoji) e.emoji];
+  if (normalized.isEmpty) {
+    // No survivors: from the whole table there is nothing to narrow, and the
+    // guard below reads the empty query as "scan".
+    return EmojiRanking._('', [for (final e in emoji) e.emoji], const []);
+  }
+
+  final narrowed =
+      previous != null &&
+          previous.query.isNotEmpty &&
+          normalized.startsWith(previous.query)
+      ? previous.survivors
+      : null;
 
   final spaced = ' $normalized';
   // -1 is "not yet scored"; every real tier, [kEmojiNoMatch] included, is
@@ -321,8 +397,7 @@ List<Emoji> rankEmoji(List<SearchableEmoji> emoji, String query) {
   final categoryTiers = List<int>.filled(EmojiCategory.values.length, -1);
 
   final scored = <(int, int, SearchableEmoji)>[];
-  for (var i = 0; i < emoji.length; i++) {
-    final candidate = emoji[i];
+  void consider(int index, SearchableEmoji candidate) {
     final group = candidate.category.index;
     var tier = categoryTiers[group];
     if (tier < 0) {
@@ -330,7 +405,28 @@ List<Emoji> rankEmoji(List<SearchableEmoji> emoji, String query) {
       categoryTiers[group] = tier;
     }
     final score = _scoreEmoji(candidate, normalized, spaced, tier);
-    if (score != kEmojiNoMatch) scored.add((score, i, candidate));
+    if (score != kEmojiNoMatch) scored.add((score, index, candidate));
+  }
+
+  if (narrowed == null) {
+    for (var i = 0; i < emoji.length; i++) {
+      consider(i, emoji[i]);
+    }
+  } else {
+    for (final (index, candidate) in narrowed) {
+      consider(index, candidate);
+    }
+    final pasted = _charIndexOf(emoji)[normalized];
+    if (pasted != null) {
+      var held = false;
+      for (final (index, _) in narrowed) {
+        if (index == pasted) {
+          held = true;
+          break;
+        }
+      }
+      if (!held) consider(pasted, emoji[pasted]);
+    }
   }
 
   scored.sort((a, b) {
@@ -339,5 +435,31 @@ List<Emoji> rankEmoji(List<SearchableEmoji> emoji, String query) {
     return a.$2.compareTo(b.$2);
   });
 
-  return [for (final (_, _, candidate) in scored) candidate.emoji];
+  return EmojiRanking._(
+    normalized,
+    <Emoji>[for (final (_, _, candidate) in scored) candidate.emoji],
+    <(int, SearchableEmoji)>[
+      for (final (_, index, candidate) in scored) (index, candidate),
+    ],
+  );
+}
+
+/// Char to table index, built once per table and cached against it.
+///
+/// An [Expando] rather than a top-level map because the table is a parameter:
+/// the shipped [searchableEmoji] and the small ones the widget tests inject
+/// are different lists and must not share an index. Built lazily, and only on
+/// the narrowing path, so a picker nobody pastes into never builds one.
+final Expando<Map<String, int>> _charIndexes = Expando<Map<String, int>>(
+  'emoji char index',
+);
+
+Map<String, int> _charIndexOf(List<SearchableEmoji> table) {
+  final cached = _charIndexes[table];
+  if (cached != null) return cached;
+  final index = <String, int>{
+    for (var i = 0; i < table.length; i++) table[i].char: i,
+  };
+  _charIndexes[table] = index;
+  return index;
 }
