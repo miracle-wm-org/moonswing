@@ -30,6 +30,37 @@ library;
 
 import 'package:graceful_shell/emoji/emoji_data.dart';
 
+/// The strings that name each category, folded **once for the enum** rather
+/// than once per emoji.
+///
+/// This list is nine entries long and every [SearchableEmoji] in a group
+/// shares the one instance. Building it per emoji — which is what the
+/// constructor below used to do — compiled [_wordSeparator] afresh for each of
+/// the six hundred rows, lowercased the label twice for each, and threw away
+/// six hundred copies of nine distinct lists, all inside the first frame of
+/// the picker's window. Sharing is also what makes the per-query memo in
+/// [rankEmoji] correct: two emoji in one group are scored against the *same*
+/// terms, so the answer can be computed nine times instead of six hundred.
+final List<List<String>> _categoryTerms = [
+  for (final category in EmojiCategory.values) _termsFor(category),
+];
+
+/// Compiled once, at the top level, rather than per row inside a
+/// collection-for.
+final RegExp _wordSeparator = RegExp(r'[^a-z0-9]+');
+
+List<String> _termsFor(EmojiCategory category) {
+  final label = category.label.toLowerCase();
+  return List<String>.unmodifiable([
+    label,
+    for (final t in category.terms) t.toLowerCase(),
+    // The label's own words too, so "emotion" reaches the smileys through
+    // the category as well as "smileys & emotion" does.
+    for (final word in label.split(_wordSeparator))
+      if (word.isNotEmpty && word != 'and') word,
+  ]);
+}
+
 /// An [Emoji] with every searchable dimension pre-folded to lower case.
 ///
 /// The category's several spellings are flattened into one list at
@@ -37,29 +68,26 @@ import 'package:graceful_shell/emoji/emoji_data.dart';
 /// strings that name this group" and does not care which of them was the
 /// label and which an extra term. Assembling it in [scoreEmoji] instead is an
 /// allocation per emoji per keystroke, which over the whole table is several
-/// hundred lists thrown away for every character typed.
+/// hundred lists thrown away for every character typed. That list comes from
+/// [_categoryTerms] and is *shared* between every emoji in the group — see
+/// there for why it may not be rebuilt here.
 class SearchableEmoji {
   SearchableEmoji(this.emoji)
     : name = emoji.name.toLowerCase(),
       keywords = [for (final k in emoji.keywords) k.toLowerCase()],
-      categoryTerms = [
-        emoji.category.label.toLowerCase(),
-        for (final t in emoji.category.terms) t.toLowerCase(),
-        // The label's own words too, so "emotion" reaches the smileys through
-        // the category as well as "smileys & emotion" does.
-        for (final word in emoji.category.label.toLowerCase().split(
-          RegExp(r'[^a-z0-9]+'),
-        ))
-          if (word.isNotEmpty && word != 'and') word,
-      ];
+      categoryTerms = _categoryTerms[emoji.category.index];
 
   final Emoji emoji;
   final String name;
   final List<String> keywords;
 
   /// Every string that names this emoji's group: the label, its extra terms,
-  /// and the label's own words.
+  /// and the label's own words. Shared with every other emoji in the group.
   final List<String> categoryTerms;
+
+  /// The group itself, which is the key [rankEmoji] memoises the category
+  /// tier under.
+  EmojiCategory get category => emoji.category;
 
   /// The character, unfolded — an emoji has no case.
   String get char => emoji.char;
@@ -120,14 +148,26 @@ const int _kDimensions = 3;
 /// [_kFuzzy] plus the match's spread, else [kEmojiNoMatch].
 ///
 /// Exposed for the unit tests, which pin the tier ordering directly rather
-/// than inferring it from whole-table rankings.
-int scoreEmojiField(String field, String query) {
+/// than inferring it from whole-table rankings. Everything ranking a whole
+/// table goes through [_scoreField] instead, which takes the space-prefixed
+/// query the word-start test needs as a parameter rather than building it
+/// again for every field of every row.
+int scoreEmojiField(String field, String query) =>
+    _scoreField(field, query, ' $query');
+
+/// [scoreEmojiField] with the word-start needle hoisted out.
+///
+/// `' $query'` is one allocation, and the naive spelling makes it once per
+/// *field*: a row carries its name, its keywords and its category's terms, so
+/// over six hundred rows that was several thousand throwaway strings for
+/// every character typed.
+int _scoreField(String field, String query, String spacedQuery) {
   if (field.isEmpty || query.isEmpty) return kEmojiNoMatch;
   if (field == query) return _kExact;
   if (field.startsWith(query)) return _kPrefix;
   // A match at a word boundary ("face" in "grinning face") beats one inside a
   // word ("ace" in "palace").
-  if (field.contains(' $query')) return _kWordStart;
+  if (field.contains(spacedQuery)) return _kWordStart;
   if (field.contains(query)) return _kSubstring;
   final spread = _subsequenceSpread(field, query);
   if (spread == null) return kEmojiNoMatch;
@@ -142,12 +182,29 @@ int scoreEmojiField(String field, String query) {
 /// one already separates "thumbs up" from "trumpet sound" — the ordering this
 /// number exists to make. The answer is bucketed into `0.._kFuzzySpreadMax`
 /// so one extra character between hits cannot outweigh a better dimension.
+///
+/// It walks **code units** rather than `field.indexOf(query[i], at)`, which is
+/// the same search spelled with an allocation per character per field: `[]` on
+/// a `String` hands back a one-character `String`, and this is the innermost
+/// loop of the one pass that runs over every field the literal tests have
+/// already refused — which, for any query that narrows the grid at all, is
+/// nearly all of them.
 int? _subsequenceSpread(String field, String query) {
+  final fieldLength = field.length;
+  final queryLength = query.length;
+  if (queryLength > fieldLength) return null;
   var at = 0;
   var first = -1;
   var gaps = 0;
-  for (var i = 0; i < query.length; i++) {
-    final found = field.indexOf(query[i], at);
+  for (var i = 0; i < queryLength; i++) {
+    final wanted = query.codeUnitAt(i);
+    var found = -1;
+    for (var j = at; j < fieldLength; j++) {
+      if (field.codeUnitAt(j) == wanted) {
+        found = j;
+        break;
+      }
+    }
     if (found < 0) return null;
     if (first < 0) {
       first = found;
@@ -169,11 +226,15 @@ int? _subsequenceSpread(String field, String query) {
 int _combine(int tier, int weight) =>
     tier == kEmojiNoMatch ? kEmojiNoMatch : tier * _kDimensions + weight;
 
+/// The best score any match can carry: an exact hit in the highest-weighted
+/// dimension. Nothing can beat it, so a row that reaches it stops scoring.
+const int _kBestPossible = _kExact * _kDimensions + _kNameWeight;
+
 /// Best tier for [query] across [fields], or [kEmojiNoMatch].
-int _bestTier(Iterable<String> fields, String query) {
+int _bestTier(List<String> fields, String query, String spacedQuery) {
   var best = kEmojiNoMatch;
-  for (final field in fields) {
-    final tier = scoreEmojiField(field, query);
+  for (var i = 0; i < fields.length; i++) {
+    final tier = _scoreField(fields[i], query, spacedQuery);
     if (tier < best) best = tier;
     if (best == _kExact) break;
   }
@@ -185,16 +246,36 @@ int _bestTier(Iterable<String> fields, String query) {
 /// The **character** is checked separately and only ever exactly: pasting 🍕
 /// into the field should find pizza, but a query that merely happens to share
 /// a code unit with one means nothing.
-int scoreEmoji(SearchableEmoji emoji, String query) {
-  if (query == emoji.char) return _combine(_kExact, _kNameWeight);
+///
+/// [categoryTier] is the answer [_bestTier] would give for this emoji's
+/// [SearchableEmoji.categoryTerms], supplied by [rankEmoji], which computes it
+/// once per *group* rather than once per row. Left null it is computed here,
+/// which is what a lone caller wants.
+int scoreEmoji(SearchableEmoji emoji, String query, {int? categoryTier}) =>
+    _scoreEmoji(emoji, query, ' $query', categoryTier);
 
-  var best = _combine(scoreEmojiField(emoji.name, query), _kNameWeight);
+int _scoreEmoji(
+  SearchableEmoji emoji,
+  String query,
+  String spacedQuery,
+  int? categoryTier,
+) {
+  if (query == emoji.char) return _kBestPossible;
 
-  final keyword = _combine(_bestTier(emoji.keywords, query), _kKeywordWeight);
+  var best = _combine(
+    _scoreField(emoji.name, query, spacedQuery),
+    _kNameWeight,
+  );
+  if (best == _kBestPossible) return best;
+
+  final keyword = _combine(
+    _bestTier(emoji.keywords, query, spacedQuery),
+    _kKeywordWeight,
+  );
   if (keyword < best) best = keyword;
 
   final category = _combine(
-    _bestTier(emoji.categoryTerms, query),
+    categoryTier ?? _bestTier(emoji.categoryTerms, query, spacedQuery),
     _kCategoryWeight,
   );
   if (category < best) best = category;
@@ -224,14 +305,32 @@ int scoreEmoji(SearchableEmoji emoji, String query) {
 ///
 /// There is no limit: the table is a few hundred entries and the grid
 /// scrolls, so cutting it off would only ever hide an answer.
+///
+/// **The category is scored once per group, not once per row.** Its terms are
+/// shared (see [_categoryTerms]) and there are nine of them against six
+/// hundred rows, so the memo below is most of the work of a keystroke: the
+/// category is the widest of the three dimensions, seven or eight strings
+/// against a name and a handful of keywords.
 List<Emoji> rankEmoji(List<SearchableEmoji> emoji, String query) {
   final normalized = query.trim().toLowerCase();
   if (normalized.isEmpty) return [for (final e in emoji) e.emoji];
 
+  final spaced = ' $normalized';
+  // -1 is "not yet scored"; every real tier, [kEmojiNoMatch] included, is
+  // non-negative.
+  final categoryTiers = List<int>.filled(EmojiCategory.values.length, -1);
+
   final scored = <(int, int, SearchableEmoji)>[];
   for (var i = 0; i < emoji.length; i++) {
-    final score = scoreEmoji(emoji[i], normalized);
-    if (score != kEmojiNoMatch) scored.add((score, i, emoji[i]));
+    final candidate = emoji[i];
+    final group = candidate.category.index;
+    var tier = categoryTiers[group];
+    if (tier < 0) {
+      tier = _bestTier(candidate.categoryTerms, normalized, spaced);
+      categoryTiers[group] = tier;
+    }
+    final score = _scoreEmoji(candidate, normalized, spaced, tier);
+    if (score != kEmojiNoMatch) scored.add((score, i, candidate));
   }
 
   scored.sort((a, b) {
