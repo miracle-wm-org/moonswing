@@ -120,6 +120,16 @@ register_portal() {
   # has activated the portal yet — is not forced to start it. Nothing is
   # sharing the screen at shell start-up, so this is safe here and nowhere
   # later. Only the frontend; the backends are not ours to bounce.
+  #
+  # This restart necessarily happens *before* the exec below, so the frontend
+  # it brings up reads a backend bus name nobody owns yet and caches "no
+  # capture sources" — which is invisible to an app that just shares and fatal
+  # to one that asks first (OBS). A wrapper cannot fix its own ordering; the
+  # shell does, once it owns the name, from
+  # lib/screencast/portal_frontend.dart. This half stays because that half
+  # cannot replace it: it is the newly written *config* that needs re-reading
+  # here, and a frontend still routed to a working xdg-desktop-portal-wlr
+  # answers with wlr's source types rather than the zero the shell repairs.
   if systemctl --user try-restart xdg-desktop-portal.service 2>/dev/null; then
     :
   else

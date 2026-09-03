@@ -87,6 +87,9 @@ Future<void> _runPortal(List<String> argv) async {
       thinkTime: slowPick ? const Duration(seconds: 5) : Duration.zero,
     ),
     attachToGlibLoop: false,
+    // A diagnostic must not restart the session's portal frontend out from
+    // under whatever is being diagnosed.
+    reconcileFrontend: false,
   );
   final service = screencastService;
   if (service == null) {
