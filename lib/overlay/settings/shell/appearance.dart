@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -32,25 +33,6 @@ class _AppearanceSectionState extends State<AppearanceSection> {
   /// Started once, here rather than in `build`: this section rebuilds on every
   /// ThemeStore notify, which includes every frame of a colour-picker drag.
   final Future<List<String>> _fonts = FontCatalog.instance.list();
-
-  static const Map<String, String> _colorLabels = {
-    'accent': 'Accent',
-    'foreground': 'Foreground',
-    'surface_hover': 'Surface (hover)',
-    'surface_pressed': 'Surface (pressed)',
-    'workspace_background': 'Workspace background',
-    'popup_background': 'Popup background',
-    'popup_foreground': 'Popup foreground',
-    'control_surface': 'Control surface',
-    'slider_track': 'Slider track',
-    'muted': 'Muted text',
-    'divider': 'Divider',
-    'panel_background': 'Panel background',
-    'panel_border': 'Panel border',
-    'popup_border': 'Popup border',
-    'popup_shadow_color': 'Popup shadow',
-    'scrim': 'Overlay scrim',
-  };
 
   void _duplicate() => setState(() => _themes.duplicateActive());
 
@@ -162,8 +144,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   ),
                   const SizedBox(height: 12),
                 ],
-                SettingsRow(
-                  label: 'Font',
+                SettingsRow.field(
+                  SettingsCatalog.font,
                   // Unlike the keyed fields below, the font control renders
                   // its current value on every build, so it follows the store
                   // itself — one row, cheap — or a pick would not show.
@@ -208,8 +190,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Font size',
+                SettingsRow.field(
+                  SettingsCatalog.fontSize,
                   control: SettingsNumberField(
                     key: ValueKey('font_size-$active'),
                     value: current['font_size'] as num? ?? ShellFontSizes.body,
@@ -232,8 +214,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   'Layout: a much larger font wants a taller bar to sit in.',
                 ),
                 const SizedBox(height: 8),
-                SettingsRow(
-                  label: 'Panel gradient',
+                SettingsRow.field(
+                  SettingsCatalog.panelGradient,
                   // Renders its value too, so it follows the store like the
                   // font row does.
                   control: StoreSelector<bool>(
@@ -254,8 +236,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   "the panel background's alpha — so the bar has one opacity.",
                 ),
                 const SizedBox(height: 8),
-                SettingsRow(
-                  label: 'Panel margin',
+                SettingsRow.field(
+                  SettingsCatalog.panelMargin,
                   control: SettingsNumberField(
                     key: ValueKey('panel_margin-$active'),
                     value: current['panel_margin'] as num? ?? 0,
@@ -264,8 +246,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                         _themes.edit('panel_margin', v.toInt().clamp(0, 256)),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Panel corner radius',
+                SettingsRow.field(
+                  SettingsCatalog.panelRadius,
                   control: SettingsNumberField(
                     key: ValueKey('panel_radius-$active'),
                     value: current['panel_radius'] as num? ?? 0,
@@ -276,8 +258,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Panel border width',
+                SettingsRow.field(
+                  SettingsCatalog.panelBorderWidth,
                   control: SettingsNumberField(
                     key: ValueKey('panel_border_width-$active'),
                     value: current['panel_border_width'] as num? ?? 0,
@@ -297,8 +279,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   'border draws only at a width above zero.',
                 ),
                 const SizedBox(height: 8),
-                SettingsRow(
-                  label: 'Popup corner radius',
+                SettingsRow.field(
+                  SettingsCatalog.popupRadius,
                   control: SettingsNumberField(
                     key: ValueKey('popup_radius-$active'),
                     // The fallbacks are the ThemeConfig defaults, not 0: a
@@ -313,8 +295,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup gap from bar',
+                SettingsRow.field(
+                  SettingsCatalog.popupGap,
                   control: SettingsNumberField(
                     key: ValueKey('popup_gap-$active'),
                     value: current['popup_gap'] as num? ?? 0,
@@ -325,8 +307,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup join flare',
+                SettingsRow.field(
+                  SettingsCatalog.popupAttachRadius,
                   control: SettingsNumberField(
                     key: ValueKey('popup_attach_radius-$active'),
                     value: current['popup_attach_radius'] as num? ?? 0,
@@ -337,8 +319,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup border width',
+                SettingsRow.field(
+                  SettingsCatalog.popupBorderWidth,
                   control: SettingsNumberField(
                     key: ValueKey('popup_border_width-$active'),
                     value: current['popup_border_width'] as num? ?? 1,
@@ -349,8 +331,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup shadow blur',
+                SettingsRow.field(
+                  SettingsCatalog.popupShadowBlur,
                   control: SettingsNumberField(
                     key: ValueKey('popup_shadow_blur-$active'),
                     value: current['popup_shadow_blur'] as num? ?? 16,
@@ -361,8 +343,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup shadow spread',
+                SettingsRow.field(
+                  SettingsCatalog.popupShadowSpread,
                   control: SettingsNumberField(
                     key: ValueKey('popup_shadow_spread-$active'),
                     value: current['popup_shadow_spread'] as num? ?? 0,
@@ -374,8 +356,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup shadow offset X',
+                SettingsRow.field(
+                  SettingsCatalog.popupShadowOffsetX,
                   control: SettingsNumberField(
                     key: ValueKey('popup_shadow_offset_x-$active'),
                     value: current['popup_shadow_offset_x'] as num? ?? 0,
@@ -387,8 +369,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup shadow offset Y',
+                SettingsRow.field(
+                  SettingsCatalog.popupShadowOffsetY,
                   control: SettingsNumberField(
                     key: ValueKey('popup_shadow_offset_y-$active'),
                     value: current['popup_shadow_offset_y'] as num? ?? 6,
@@ -400,8 +382,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow(
-                  label: 'Popup animation',
+                SettingsRow.field(
+                  SettingsCatalog.popupAnimation,
                   control: SettingsDropdown<PopupEffect>(
                     key: ValueKey('popup_animation-$active'),
                     // `description`, not `detail`: a sentence in the tag slot
@@ -465,15 +447,18 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   'the colours below.',
                 ),
                 const SizedBox(height: 8),
-                for (final entry in _colorLabels.entries)
-                  SettingsRow(
-                    label: entry.value,
+                // The palette's labels live in [SettingsCatalog] rather than
+                // in a map here, so the search index and these rows are the
+                // same list read twice — see [ThemeColorSetting].
+                for (final colour in SettingsCatalog.themeColors)
+                  SettingsRow.field(
+                    colour.field,
                     control: SettingsColorField(
-                      key: ValueKey('${entry.key}-$active'),
-                      initial: current[entry.key] as String? ?? '#000000',
+                      key: ValueKey('${colour.key}-$active'),
+                      initial: current[colour.key] as String? ?? '#000000',
                       locked: builtIn,
                       onLockedTap: _duplicate,
-                      onChanged: (v) => _themes.edit(entry.key, v),
+                      onChanged: (v) => _themes.edit(colour.key, v),
                     ),
                   ),
               ],

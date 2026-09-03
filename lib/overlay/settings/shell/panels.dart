@@ -5,6 +5,7 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/underline_tabs.dart';
@@ -281,8 +282,8 @@ class _PanelsSectionState extends State<PanelsSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SettingsRow(
-            label: 'Height',
+          SettingsRow.field(
+            SettingsCatalog.panelHeight,
             control: ConfigValue<num>(
               store: store,
               path: p(['height']),
@@ -294,8 +295,8 @@ class _PanelsSectionState extends State<PanelsSection> {
               ),
             ),
           ),
-          SettingsRow(
-            label: 'Horizontal padding',
+          SettingsRow.field(
+            SettingsCatalog.panelPaddingHorizontal,
             control: ConfigValue<num>(
               store: store,
               path: p(['padding_horizontal']),
@@ -307,8 +308,8 @@ class _PanelsSectionState extends State<PanelsSection> {
               ),
             ),
           ),
-          SettingsRow(
-            label: 'Anchor',
+          SettingsRow.field(
+            SettingsCatalog.panelAnchor,
             control: ConfigValue<String>(
               store: store,
               path: p(['anchor']),
@@ -320,8 +321,8 @@ class _PanelsSectionState extends State<PanelsSection> {
               ),
             ),
           ),
-          SettingsRow(
-            label: 'Layer',
+          SettingsRow.field(
+            SettingsCatalog.panelLayer,
             control: ConfigValue<String>(
               store: store,
               path: p(['layer']),
