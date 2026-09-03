@@ -8,6 +8,7 @@ import 'capture_connection.dart';
 import 'capture_host.dart';
 import 'capture_session.dart';
 import 'pick_types.dart';
+import 'portal_frontend.dart';
 import 'screencast_log.dart';
 import 'screencast_portal.dart';
 
@@ -42,10 +43,17 @@ ScreencastService? get screencastService => _service;
 ///
 /// [attachToGlibLoop] drives the capture connection's event pump from the GTK
 /// main loop; the spike tool pumps manually instead.
+///
+/// [reconcileFrontend] repairs an xdg-desktop-portal frontend that started
+/// before this backend owned its name and so is telling every application that
+/// no capture sources exist (see `portal_frontend.dart`). It restarts somebody
+/// else's service, so the spike tool — a diagnostic that must not change the
+/// session it is diagnosing — passes false.
 Future<void> startScreencastService({
   required SourcePicker picker,
   bool attachToGlibLoop = true,
   int maxFrameRate = 0,
+  bool reconcileFrontend = true,
 }) async {
   if (!PipewireVideoStream.ensureInit()) {
     throw StateError('PipeWire not present');
@@ -90,6 +98,33 @@ Future<void> startScreencastService({
     _service = ScreencastService._(connection, client, backend);
     screencastLog('portal backend up as $kScreencastBusName '
         '(windows: ${connection.windowCaptureSupported})');
+
+    // Owning the name is not the same as being *seen*. xdg-desktop-portal
+    // caches this backend's `AvailableSourceTypes` when its own frontend
+    // starts, and the shell claims the name off a post-frame callback — so a
+    // frontend that came up first publishes 0 forever, which is invisible to
+    // an app that just shares (Chrome) and fatal to one that asks first (OBS
+    // registers no capture source at all). See `portal_frontend.dart`.
+    //
+    // Unawaited on purpose: this backend is already up and serving, and the
+    // repair involves restarting somebody else's service and waiting for it.
+    // Holding `ShellService.screencast` on a loader for that would report the
+    // shell's own work as unfinished when it is not; the outcome goes to
+    // `screencastLog` instead. Never from the spike, which is a diagnostic
+    // tool and has no business bouncing the session's portal.
+    if (reconcileFrontend) {
+      final bus = client;
+      unawaited(() async {
+        try {
+          await reconcilePortalFrontend(
+            client: bus,
+            backendSourceTypes: engine.availableSourceTypes,
+          );
+        } catch (e) {
+          screencastLog('portal frontend reconcile failed: $e');
+        }
+      }());
+    }
   } catch (_) {
     final failedClient = client;
     if (failedClient != null) unawaited(failedClient.close());
