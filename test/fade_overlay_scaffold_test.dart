@@ -77,4 +77,54 @@ void main() {
     expect(find.byType(BackdropFilter), findsNothing);
     closing.dispose();
   });
+
+  testWidgets('the opacity layer is bounded by the card, not the output', (
+    tester,
+  ) async {
+    // Every overlay window calls `spanFullOutput`, so an `Opacity` wrapped
+    // around this whole scaffold is bounded by the *display*:
+    // `RenderOpacity` skips its layer at exactly 1.0, so it cost nothing at
+    // rest and then allocated and blended a full-output offscreen on every
+    // one of the dozen frames in and the dozen frames out. At 4K that is
+    // thirty-odd megabytes a frame on a raster thread this shell already
+    // measures in the tens of milliseconds — the same arithmetic that
+    // deleted `ThemeConfig.blur`. The scrim is a flat fill and fades by its
+    // own alpha; only the card keeps a real layer, and it is the card's size.
+    final closing = ValueNotifier(false);
+    await tester.pumpWidget(_host(closing: closing, onClosed: () {}));
+    await tester.pump(const Duration(milliseconds: 80));
+
+    expect(find.byType(Opacity), findsNothing);
+    final fade = tester.renderObject<RenderBox>(find.byType(FadeTransition));
+    expect(fade.size, const Size(100, 100));
+
+    closing.dispose();
+  });
+
+  testWidgets('the scrim fades by its own alpha', (tester) async {
+    // The other half of the rule above: mid-animation the scrim has to be
+    // *dimmer*, not merely drawn under something transparent. A fill at a
+    // lower alpha is the same picture and needs no layer at all.
+    final closing = ValueNotifier(false);
+    await tester.pumpWidget(_host(closing: closing, onClosed: () {}));
+    await tester.pump(const Duration(milliseconds: 80));
+
+    Color scrimNow() => tester
+        .widget<ColoredBox>(
+          find.descendant(
+            of: find.byType(FadeOverlayScaffold),
+            matching: find.byType(ColoredBox),
+          ),
+        )
+        .color;
+
+    final midway = scrimNow();
+    expect(midway.a, greaterThan(0.0));
+    expect(midway.a, lessThan(const ThemeConfig().scrim.a));
+
+    await tester.pumpAndSettle();
+    expect(scrimNow().a, const ThemeConfig().scrim.a);
+
+    closing.dispose();
+  });
 }

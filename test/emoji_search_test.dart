@@ -244,4 +244,105 @@ void main() {
       );
     });
   });
+
+  group('narrowing', () {
+    // A longer query can only ever match fewer rows: a field matches iff the
+    // query is a subsequence of it (every literal tier implies a substring,
+    // and a substring is a subsequence), and a prefix of a subsequence is a
+    // subsequence. So rescoring only the previous survivors must answer
+    // *exactly* what a full scan answers — not nearly. These walk the shipped
+    // table to say so, the way the last rewrite of the scorer was diffed
+    // against the one it replaced.
+
+    List<String> chars(List<Emoji> results) => [
+      for (final e in results) e.char,
+    ];
+
+    test('typing a query one character at a time answers a full scan', () {
+      const queries = [
+        'smile',
+        'face',
+        'lol',
+        'heart',
+        'thumbs up',
+        'face joy',
+        'gfws',
+        'food',
+        'zzzz',
+        'a',
+        'party',
+        'ship it',
+        'linux',
+        'settings',
+        'wfh',
+      ];
+      for (final query in queries) {
+        EmojiRanking? previous;
+        for (var i = 1; i <= query.length; i++) {
+          final typed = query.substring(0, i);
+          previous = rankEmojiFrom(
+            searchableEmoji,
+            typed,
+            previous: previous,
+          );
+          expect(
+            chars(previous.results),
+            chars(rankEmoji(searchableEmoji, typed)),
+            reason: 'narrowing to "$typed" must answer what a scan answers',
+          );
+        }
+      }
+    });
+
+    test('deleting a character widens again', () {
+      // Not an extension, so it falls through to a full scan — which is what
+      // widening has to cost. The bug this pins is a narrowing that kept the
+      // old survivors and so could never grow the list back.
+      var ranking = rankEmojiFrom(searchableEmoji, 'smile');
+      ranking = rankEmojiFrom(searchableEmoji, 'smil', previous: ranking);
+      expect(
+        ranking.results.length,
+        rankEmoji(searchableEmoji, 'smil').length,
+      );
+      expect(
+        ranking.results.length,
+        greaterThan(rankEmoji(searchableEmoji, 'smile').length),
+      );
+    });
+
+    test('a pasted character is found even though no prefix of it was', () {
+      // The one branch of the scorer that is not a field test, and so the one
+      // the narrowing cannot reach on its own: 🧑 matched rows that 🧑‍💻 does
+      // not, and 🧑‍💻 is not among them.
+      final person = rankEmojiFrom(searchableEmoji, '🧑');
+      final worker = rankEmojiFrom(
+        searchableEmoji,
+        '🧑‍💻',
+        previous: person,
+      );
+      expect(worker.results.first.char, '🧑‍💻');
+      expect(chars(worker.results), chars(rankEmoji(searchableEmoji, '🧑‍💻')));
+    });
+
+    test('a trailing space is not a new query', () {
+      // "face " is a state every two-word query passes through, and the
+      // comparison is between *normalized* queries — so this narrows rather
+      // than rescans, and either way answers the same thing.
+      final typed = rankEmojiFrom(searchableEmoji, 'face');
+      final spaced = rankEmojiFrom(searchableEmoji, 'face ', previous: typed);
+      expect(chars(spaced.results), chars(typed.results));
+    });
+
+    test('survivors carry their place in the table, not in the results', () {
+      // The sort's tie-break is the table index; a candidate's place in a
+      // narrowed list is not the place the ordering means. If the index were
+      // re-derived from the narrowed list, ties would reorder on the second
+      // keystroke — which is what the first test above would catch, and this
+      // is the direct statement of why.
+      final ranking = rankEmojiFrom(searchableEmoji, 'fa');
+      for (final (index, candidate) in ranking.survivors) {
+        expect(identical(searchableEmoji[index], candidate), isTrue);
+      }
+    });
+  });
 }

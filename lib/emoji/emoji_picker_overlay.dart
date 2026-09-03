@@ -58,6 +58,59 @@ const double kEmojiCardPadding = 12;
 const double kEmojiCardWidth =
     kEmojiColumns * kEmojiCellSize + kEmojiCardPadding * 2;
 
+/// The colour-emoji families a glyph is drawn from, in the order they are
+/// tried. A name this machine has no font for costs one cached lookup and
+/// falls through to the next; a codepoint none of them covers still reaches
+/// the engine's own last resort.
+const List<String> kEmojiFontFamilies = <String>[
+  'Noto Color Emoji',
+  'Apple Color Emoji',
+  'Segoe UI Emoji',
+  'Twemoji',
+  'JoyPixels',
+  'EmojiOne Color',
+  'Noto Emoji',
+];
+
+/// The grid's glyph, and **the single largest cost the picker used to
+/// carry.**
+///
+/// `ShellTextRoot` seeds every window with `TextStyle(fontFamily:
+/// theme.fontFamily)` — a UI font with no emoji coverage — and this style
+/// named no family of its own, so the engine missed on the primary and had to
+/// resolve a fallback typeface **per codepoint**, which on Linux is a
+/// fontconfig charset query, run inside `RenderParagraph.layout` on the UI
+/// thread. Six hundred and seventeen distinct characters, with every row
+/// scrolled into view bringing ten more that had never been asked for — which
+/// is why this overlay was slow where a settings pane drawing as many
+/// paragraphs in the theme's own font is not. Naming a colour-emoji family
+/// means the primary hits and no fallback runs.
+///
+/// It also settles a picture the theme could otherwise change: the handful of
+/// codepoints a UI font *does* cover — ⚙, ★, ✓, ✉ — were drawn as monochrome
+/// text glyphs beside neighbours drawn in colour.
+///
+/// It **inherits**, and naming the family is what makes that safe rather than
+/// pointless: `TextStyle.merge` takes the family and the fallback list from
+/// the style being merged *in* wherever they are set, so these win over the
+/// theme's while everything else the ambient `DefaultTextStyle` decides still
+/// reaches the glyph. `inherit: false` would win the family the same way and
+/// throw the rest out with it — including any foreground a window's text root
+/// comes to set, which is invisible on a colour font but is the whole picture
+/// on a machine whose only emoji font is monochrome.
+const TextStyle kEmojiGridGlyphStyle = TextStyle(
+  fontSize: kEmojiGlyphSize,
+  fontFamily: 'Noto Color Emoji',
+  fontFamilyFallback: kEmojiFontFamilies,
+);
+
+/// [kEmojiGridGlyphStyle] at the footer's size.
+const TextStyle kEmojiFooterGlyphStyle = TextStyle(
+  fontSize: kEmojiFooterGlyphSize,
+  fontFamily: 'Noto Color Emoji',
+  fontFamilyFallback: kEmojiFontFamilies,
+);
+
 /// Where a keyboard move lands, given [count] results laid out
 /// [kEmojiColumns] wide.
 ///
@@ -140,24 +193,66 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   /// flag actually flipped, plus the footer that names the selection.
   final _selection = ValueNotifier<int>(0);
 
-  late List<SearchableEmoji> _table;
-  List<Emoji> _results = const [];
+  /// What the grid draws, as a notifier for [_selection]'s reason one value
+  /// over: typing genuinely changes what the grid holds, but it does not
+  /// change the search field, and a `setState` on this state rebuilt
+  /// [OverlaySearchField] and its [EditableText] on every character along
+  /// with the card's own chrome.
+  final _results = ValueNotifier<List<Emoji>>(const []);
+
+  /// The folded table, or null while the fold has not been forced.
+  ///
+  /// Null is the default state on open, not an error: [searchableEmoji] is a
+  /// lazy top-level `final`, so *touching* it is what folds six hundred rows
+  /// — and doing that in [initState] put the whole fold inside the frame that
+  /// has to paint. The picker opens on the empty query, which is the table in
+  /// its own order, so the first screenful needs no fold at all. See
+  /// [_tableNow].
+  List<SearchableEmoji>? _table;
+
+  /// The last ranking, kept so the next keystroke can narrow from it rather
+  /// than rescan the table — see [rankEmojiFrom]. Bookkeeping the grid never
+  /// reads, so it is a field and not part of [_results].
+  EmojiRanking? _ranking;
+
+  /// The table, folding it if that has not happened yet.
+  ///
+  /// Every path that actually needs the folded rows goes through here, so the
+  /// fold lands on the first frame that ranks — which was going to do the work
+  /// anyway — rather than on the first frame that paints.
+  List<SearchableEmoji> get _tableNow =>
+      _table ??= widget.emoji ?? searchableEmoji;
 
   @override
   void initState() {
     super.initState();
-    _table = widget.emoji ?? searchableEmoji;
-    _results = rankEmoji(_table, '');
+    if (widget.emoji != null) {
+      // An injected table is already folded, so there is nothing to defer.
+      _table = widget.emoji;
+      _ranking = rankEmojiFrom(widget.emoji!, '');
+      _results.value = _ranking!.results;
+    } else {
+      // The empty query answers the table in its own order, and that order is
+      // [kEmoji]'s — so the grid has everything it needs before a single row
+      // has been lowercased. The fold then happens on the frame *after* the
+      // one that had to paint, or on the first keystroke if that comes first
+      // (see [_tableNow]), whichever the user gets to.
+      _results.value = kEmoji;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _table ??= searchableEmoji;
+      });
+    }
   }
 
   @override
   void didUpdateWidget(EmojiPickerOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(widget.emoji, oldWidget.emoji)) {
-      _table = widget.emoji ?? searchableEmoji;
-      setState(() {
-        _results = rankEmoji(_table, _searchController.text);
-      });
+      // The survivors are indices into the table that is going away, so the
+      // narrowing cache cannot outlive it.
+      _table = widget.emoji;
+      _ranking = rankEmojiFrom(_tableNow, _searchController.text);
+      _results.value = _ranking!.results;
       _selection.value = 0;
     }
   }
@@ -168,6 +263,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
     _searchFocus.dispose();
     _scrollController.dispose();
     _selection.dispose();
+    _results.dispose();
     super.dispose();
   }
 
@@ -175,9 +271,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   void _requestClose() => widget.closingNotifier.value = true;
 
   void _onQueryChanged(String value) {
-    setState(() {
-      _results = rankEmoji(_table, value);
-    });
+    _ranking = rankEmojiFrom(_tableNow, value, previous: _ranking);
+    _results.value = _ranking!.results;
     _selection.value = 0;
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
@@ -191,8 +286,9 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   /// surface does not have the keyboard back.
   void _copySelected() {
     final selected = _selection.value;
-    if (selected < 0 || selected >= _results.length) return;
-    widget.onCopy(_results[selected].char);
+    final results = _results.value;
+    if (selected < 0 || selected >= results.length) return;
+    widget.onCopy(results[selected].char);
     widget.onClosed();
   }
 
@@ -207,10 +303,10 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   void _selectAt(int index) => _selection.value = index;
 
   void _move({int columns = 0, int rows = 0}) {
-    if (_results.isEmpty) return;
+    if (_results.value.isEmpty) return;
     final next = emojiGridMove(
       _selection.value,
-      _results.length,
+      _results.value.length,
       columns: columns,
       rows: rows,
     );
@@ -220,8 +316,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   }
 
   void _moveTo(int index) {
-    if (_results.isEmpty) return;
-    final next = index.clamp(0, _results.length - 1);
+    if (_results.value.isEmpty) return;
+    final next = index.clamp(0, _results.value.length - 1);
     if (next == _selection.value) return;
     _selection.value = next;
     _scrollSelectedIntoView();
@@ -290,7 +386,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
         _moveTo(0);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.end:
-        _moveTo(_results.length - 1);
+        _moveTo(_results.value.length - 1);
         return KeyEventResult.handled;
     }
     // Everything else — the letters, Space, Backspace, the caret keys the
@@ -364,21 +460,32 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
                   // carry their own boundaries already (the sliver delegate
                   // adds them), so this is the other half: the mark stops
                   // here on the way *out* as well as at each cell on the way
-                  // in.
-                  child: RepaintBoundary(child: _buildGrid(theme)),
+                  // in. It also sits *above* the results builder, so the
+                  // element that stops the mark is one a keystroke does not
+                  // replace.
+                  child: RepaintBoundary(
+                    child: ValueListenableBuilder<List<Emoji>>(
+                      valueListenable: _results,
+                      builder: (context, results, _) =>
+                          _buildGrid(theme, results),
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
               // The footer names the selection, so it is the one part of the
               // card a hover has to redraw — and, through the notifier, the
               // only part that does.
-              ValueListenableBuilder<int>(
-                valueListenable: _selection,
-                builder: (context, selected, _) => _EmojiFooter(
-                  theme: theme,
-                  selected: selected >= 0 && selected < _results.length
-                      ? _results[selected]
-                      : null,
+              ValueListenableBuilder<List<Emoji>>(
+                valueListenable: _results,
+                builder: (context, results, _) => ValueListenableBuilder<int>(
+                  valueListenable: _selection,
+                  builder: (context, selected, _) => _EmojiFooter(
+                    theme: theme,
+                    selected: selected >= 0 && selected < results.length
+                        ? results[selected]
+                        : null,
+                  ),
                 ),
               ),
             ],
@@ -388,8 +495,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
     );
   }
 
-  Widget _buildGrid(ThemeConfig theme) {
-    if (_results.isEmpty) {
+  Widget _buildGrid(ThemeConfig theme, List<Emoji> results) {
+    if (results.isEmpty) {
       return Center(
         child: Text(
           'No matching emoji',
@@ -407,7 +514,15 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
         crossAxisCount: kEmojiColumns,
         mainAxisExtent: kEmojiCellSize,
       ),
-      itemCount: _results.length,
+      // `GridView.builder` is a sliver and is already lazy — it builds the
+      // cells the viewport asks for and no others. What it was over-building
+      // is the *cache extent*, which defaults to 250 logical pixels: at a row
+      // height of 46 that is five and a half rows either side of a seven-row
+      // viewport, so the first frame laid out about a hundred and eighty
+      // paragraphs to show seventy, and a fling paid the same ratio the whole
+      // way down. Two rows is enough to stay ahead of a scroll.
+      cacheExtent: kEmojiCellSize * 2,
+      itemCount: results.length,
       // Two wrappers per cell that this grid has no use for, and a fling
       // builds cells by the hundred. Nothing in a cell has state worth
       // keeping alive off screen — the selection lives on this state, not in
@@ -419,7 +534,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
       addSemanticIndexes: false,
       itemBuilder: (context, i) => _EmojiCell(
         theme: theme,
-        emoji: _results[i],
+        emoji: results[i],
         index: i,
         selection: _selection,
         onTap: _copyAt,
@@ -491,13 +606,11 @@ class _EmojiCellState extends State<_EmojiCell> {
     widget.selection.addListener(_onSelectionChanged);
   }
 
-  Widget _buildGlyph() => Text(
-    widget.emoji.char,
-    // The glyph comes from whichever colour emoji font fontconfig resolves,
-    // so it carries its own colours and the theme's foreground reaches only a
-    // font that has none.
-    style: const TextStyle(fontSize: kEmojiGlyphSize),
-  );
+  // The glyph names its own colour-emoji family rather than taking the
+  // theme's — see [kEmojiGridGlyphStyle] for why that is the difference
+  // between a fontconfig query per codepoint and none.
+  Widget _buildGlyph() =>
+      Text(widget.emoji.char, style: kEmojiGridGlyphStyle);
 
   @override
   void didUpdateWidget(_EmojiCell oldWidget) {
@@ -577,10 +690,7 @@ class _EmojiFooter extends StatelessWidget {
     return Row(
       children: [
         if (emoji != null) ...[
-          Text(
-            emoji.char,
-            style: const TextStyle(fontSize: kEmojiFooterGlyphSize),
-          ),
+          Text(emoji.char, style: kEmojiFooterGlyphStyle),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
