@@ -294,6 +294,54 @@ void setPanelMargin(
   controller.tryForceCommit();
 }
 
+/// Lends [parent] keyboard focus for as long as a popup that types needs it,
+/// answering the surface that was flipped — and null when none was.
+///
+/// A bar popup is an `xdg_popup` child of the panel's layer surface, and per
+/// wlr-layer-shell's `set_keyboard_interactivity` the setting "is inherited by
+/// child surfaces set by the get_popup request" — so a panel left at
+/// [LayerShellKeyboardMode.none], which is what every panel now is, hands that
+/// down and an `EditableText` in one of its popups never sees a key event.
+///
+/// This is the desktop rename's bargain one surface over
+/// (`_setDesktopKeyboard`, `main.dart`), made for the same reason: the panel is
+/// not simply left `onDemand`, because a bar that can take focus takes it on
+/// every click anywhere on it — the workspace buttons, the clock, the tray —
+/// and steals it from whatever the user was typing in. Borrowing it only while
+/// a popup with a field is open costs that one popup's opening click and
+/// nothing else.
+///
+/// Answers null — changing nothing — when the parent is already `onDemand`
+/// (a popup opened from the settings overlay or the notification panel, whose
+/// own surfaces take the keyboard) or is not a layer surface at all (a nested
+/// flyout, whose parent is the popup above it and which inherits from the
+/// panel through it either way). Only a borrow that actually flipped the
+/// surface is given back, so a `none` is never sent to a surface that asked
+/// for `onDemand` itself.
+LayershellWindowController? _borrowPopupKeyboard(BaseWindowController? parent) {
+  if (parent is! LayershellWindowController) return null;
+  if (parent.isDestroyed) return null;
+  if (parent.keyboardMode != LayerShellKeyboardMode.none) return null;
+  parent.setKeyboardMode(LayerShellKeyboardMode.onDemand);
+  // A keyboard-mode change on a mapped surface only queues a resize, so
+  // without this it would sit unsent until something else forced a frame —
+  // and the field would come up unable to type into. [setPanelMargin]'s rule.
+  parent.tryForceCommit();
+  return parent;
+}
+
+/// Gives back what [_borrowPopupKeyboard] took.
+///
+/// Guarded on [LayershellWindowController.isDestroyed] rather than assumed
+/// live: a monitor unplugged while its app directory is open destroys the
+/// panel before the module gets to close its popup, and every getter on a
+/// destroyed controller throws.
+void _returnPopupKeyboard(LayershellWindowController? parent) {
+  if (parent == null || parent.isDestroyed) return;
+  parent.setKeyboardMode(LayerShellKeyboardMode.none);
+  parent.tryForceCommit();
+}
+
 /// Carries the [TransientHandle] of the popup a subtree is rendered inside.
 ///
 /// This is what makes nesting work without a single call site passing a parent.
@@ -612,6 +660,13 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   VoidCallback? _onClosed;
   TransientHandle? _handle;
 
+  /// The panel surface this host borrowed keyboard focus from for the open
+  /// popup, and null when it borrowed none — which is every popup but the one
+  /// or two that carry a text field. Held rather than re-derived at close time
+  /// because the closing popup's own `context` is gone by then, and because
+  /// only the surface this host actually flipped may be flipped back.
+  LayershellWindowController? _keyboardLender;
+
   /// The flag the open popup's [PopupTransition] watches, handed to its
   /// [_ClosingPopup] when the popup is closed.
   ValueNotifier<bool>? _closing;
@@ -663,6 +718,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     Object? ownerKey,
     bool attach = true,
     PopupEffect? effect,
+    bool needsKeyboard = false,
   }) {
     final barAnchor = BarScope.of(context);
     final (parentAnchor, childAnchor) = popupAnchorsForBar(barAnchor);
@@ -678,6 +734,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       barAnchor: barAnchor,
       attach: attach,
       effect: effect,
+      needsKeyboard: needsKeyboard,
     );
   }
 
@@ -695,6 +752,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     String? barAnchor,
     bool attach = true,
     PopupEffect? effect,
+    bool needsKeyboard = false,
   }) {
     if (isPopupOpen) return;
     // Identity for the reopen guard, defaulting to the host State because one
@@ -710,6 +768,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     if (PopupCoordinator.instance.consumeReopenGuard(owner)) return;
     _onClosed = onClosed;
     final parentController = WindowScope.of(context);
+    // Before the popup is created, so the surface is already `onDemand` when
+    // the compositor reads the parent's interactivity for the new child.
+    if (needsKeyboard) {
+      _keyboardLender = _borrowPopupKeyboard(parentController);
+    }
     final constraints = preferredConstraints.enforce(kMinPopupConstraints);
     // Snapshotted at open, the same discipline [constraints] has and for the
     // same reason: GTK3 resolves gdk_window_move_to_rect exactly once at map
@@ -950,6 +1013,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       onFinished: _dropOutgoing,
     );
     final animate = _exitAnimates;
+    // Given back now rather than at the end of the exit, for the coordinator
+    // handle's reason below: the card is [IgnorePointer]ed and on its way out,
+    // so nothing is being typed into it, and holding the panel's focus for the
+    // length of an animation is holding it from the window underneath.
+    _returnPopupKeyboard(_keyboardLender);
+    _keyboardLender = null;
     // Released now rather than at the end of the exit: see [_ClosingPopup].
     PopupCoordinator.instance.close(_handle);
     _popupController = null;
@@ -995,6 +1064,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
 
   @override
   void dispose() {
+    // Normally already given back by [closePopup] — this covers the host that
+    // is disposed with its popup still open, which is the desktop's
+    // "including from `dispose`, so a monitor unplugged mid-rename cannot
+    // leave a surface holding focus" written for a panel.
+    _returnPopupKeyboard(_keyboardLender);
+    _keyboardLender = null;
     // Modules close their popup from their own `dispose`, which runs before
     // this: what is left here is a card animating out on behalf of a host that
     // no longer exists. Finish it now rather than leaving a timer and a
