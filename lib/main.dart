@@ -761,6 +761,17 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         height = panelConfig.height;
       }
 
+      // No `keyboardMode`, deliberately: layer_shell defaults it to
+      // [LayerShellKeyboardMode.none], which is what a bar wants. A panel that
+      // takes focus takes it on every click anywhere on it — a workspace
+      // button, the clock, a tray icon — and pulls it off whatever the user
+      // was typing in, which is what waybar's surfaces do not do. The package
+      // defaulted this to `onDemand` until mattkae/layer_shell.dart#5, and
+      // this was the one surface in the shell not passing a mode explicitly,
+      // which is why the bar was the only thing that stole focus.
+      //
+      // The cost is that a popup opened from a panel inherits `none` — see
+      // [_borrowPopupKeyboard] in `popup.dart` for the one that types.
       final controller = LayershellWindowController(
         width: width,
         height: height,
