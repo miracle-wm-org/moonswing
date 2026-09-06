@@ -1,11 +1,10 @@
 // The settings pane's search field, and the results that float under it.
 //
-// Every field in the shell's own settings is spread over six sidebar panes and
-// eight Shell categories, which is a good arrangement for reading and a poor
-// one for *finding*: a user who knows they want the bar taller has no way to
-// discover that the row is called "Height" under Panels & Layout. This is the
-// index made typeable — see `settings_search.dart` for the ranking and
-// `settings_catalog.dart` for what is in it.
+// Every field in the shell's settings is spread over six sidebar panes and eight
+// Shell categories, which is a good arrangement for reading and a poor one for
+// *finding*: a user who wants the bar taller has no way to discover that the row
+// is called "Height" under Panels & Layout. This is the index made typeable — see
+// `settings_search.dart` for the ranking and `settings_catalog.dart` for the table.
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -28,10 +27,10 @@ const double kSettingsSearchBarHeight = 52;
 
 /// How wide the field and its results card are.
 ///
-/// Wider than the 180px sidebar and narrower than the pane, because a result
-/// row is a label over a breadcrumb and a sentence: at the pane's full width
-/// the sentence is one line with two thirds of the card empty after it, and at
-/// the sidebar's it is four.
+/// Wider than the 180px sidebar and narrower than the pane, because a result row
+/// is a label over a breadcrumb and a sentence: at the pane's full width the
+/// sentence is one line with two thirds of the card empty after it, and at the
+/// sidebar's it is four.
 const double kSettingsSearchWidth = 460;
 
 /// One [SettingsRow] is 25px tall and the card must not cover the pane it is
@@ -40,32 +39,24 @@ const double kSettingsSearchMaxResultsHeight = 340;
 
 /// A search field over the whole settings pane, and the results it opens.
 ///
-/// Three things a change here has to keep true.
+/// **It floats; it does not push.** The widget fills the settings body and draws
+/// the field in its top-left corner, so the pane behind stays where it was — a
+/// results list that displaced the sidebar and content would move the very row
+/// the user is about to be shown. Filling the body costs nothing at rest:
+/// `RenderStack` has no `hitTestSelf`, so with no results open every click goes
+/// straight through to the page.
 ///
-/// **It floats; it does not push.** The widget fills the settings body and
-/// draws the field in its top-left corner, so the pane behind stays exactly
-/// where it was — a results list that displaced the sidebar and content would
-/// move the very row the user is about to be shown, and it would re-lay every
-/// pane on every keystroke. It is the reason [kSettingsSearchBarHeight] is a
-/// constant the body indents by rather than a measured height. Filling the body
-/// costs the pane nothing at rest: `RenderStack` has no `hitTestSelf`, and with
-/// no results open there is nothing under the pointer but the field's own
-/// corner, so every click goes straight through to the page.
-///
-/// **An open card is dismissed by a barrier, not by focus.** Clicking anywhere
-/// else in the pane closes the results — `AnchoredSearchDropdown`'s
-/// arrangement, and for its reason: most controls in the settings UI are
-/// `HoverRegion`s with no focus node of their own, so a card that waited to
-/// lose focus would sit over the page through every toggle the user flipped.
+/// **An open card is dismissed by a barrier, not by focus** —
+/// `AnchoredSearchDropdown`'s arrangement, and for its reason: most controls here
+/// are `HoverRegion`s with no focus node, so a card that waited to lose focus
+/// would sit over the page through every toggle the user flipped.
 ///
 /// **An empty query shows nothing.** [rankSettings] answers an empty list, so
-/// clicking into the field does not drop two hundred rows over the page. The
-/// hint is what says what the field is for.
+/// clicking into the field does not drop two hundred rows over the page.
 ///
-/// **The keys are handled below the text bindings.** The overlay wraps
-/// everything in `DefaultTextEditingShortcuts`; this [Focus] is nested inside
-/// it, so Up/Down/Enter/Escape are taken here while Backspace and the arrows
-/// still edit the query — the launcher's rule, and for its reason.
+/// **The keys are handled below the text bindings.** This [Focus] is nested
+/// inside `DefaultTextEditingShortcuts`, so Up/Down/Enter/Escape are taken here
+/// while Backspace and the arrows still edit the query.
 class SettingsSearchBar extends StatefulWidget {
   const SettingsSearchBar({
     super.key,
@@ -127,10 +118,8 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
 
   /// Keeps the highlighted row in the card, the way the launcher's list does.
   ///
-  /// Arithmetic against a fixed row extent rather than an `ensureVisible`,
-  /// because the rows are two lines of text and the card is a plain
-  /// `ListView` — the same reason `launcher_overlay.dart` gives its own list a
-  /// fixed `itemExtent`.
+  /// Arithmetic against a fixed row extent rather than an `ensureVisible`, because
+  /// the rows are two lines of text and the card is a plain `ListView`.
   void _revealSelected() {
     if (!_scroll.hasClients) return;
     final top = _selected * kSettingsSearchResultHeight;

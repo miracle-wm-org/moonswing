@@ -1,11 +1,11 @@
 // "Take me to that field", from the settings search bar to the row itself.
 //
 // The settings body is an `IndexedStack` whose tab and sidebar category are
-// private state, and the Shell pane below it owns a nested `Navigator`. So a
-// result cannot simply be *rendered*: picking one has to move three separate
-// pieces of state and then reach a row several scroll views down, which is what
-// this controller is the seam for — `request_controller.dart`'s shape, scoped
-// to one open settings overlay rather than to the process.
+// private state, and the Shell pane owns a nested `Navigator`. So a result cannot
+// simply be *rendered*: picking one has to move three separate pieces of state
+// and then reach a row several scroll views down, which is what this controller
+// is the seam for — `request_controller.dart`'s shape, scoped to one open
+// settings overlay rather than to the process.
 
 import 'dart:async';
 
@@ -15,12 +15,10 @@ import 'package:graceful_shell/overlay/settings/settings_search.dart';
 
 /// How long a target waits to be claimed before it is dropped.
 ///
-/// Nothing guarantees a claimant: a page-level result (the hardware panes)
-/// highlights no row at all, and a field whose row is behind a `ConfigValue`
-/// that is not rendering — a panel the user has since deleted — has none to
-/// claim it. The category view holds its whole page mounted while a target for
-/// it is pending (see [SettingsHighlightScope]), so an unclaimed one has to
-/// expire rather than sit there.
+/// Nothing guarantees a claimant: a page-level result highlights no row at all,
+/// and a field whose row is behind a `ConfigValue` that is not rendering has none
+/// to claim it. The category view holds its whole page mounted while a target for
+/// it is pending, so an unclaimed one has to expire rather than sit there.
 const Duration kSettingsHighlightTimeout = Duration(seconds: 2);
 
 /// How long a claimed row pulses once it has been scrolled to.
@@ -50,11 +48,10 @@ class SettingsHighlightController extends ChangeNotifier {
 
   /// Whether a row has taken [target] already.
   ///
-  /// Several rows can legitimately carry one id — every panel in Panels &
-  /// Layout renders a "Height", and they share the field — so the *first* to
-  /// mount wins the scroll and the flash. Without this the last one to build
-  /// would decide where the pane scrolled to, which is the bottom of the page
-  /// rather than the top.
+  /// Several rows can legitimately carry one id — every panel in Panels & Layout
+  /// renders a "Height" — so the *first* to mount wins the scroll and the flash.
+  /// Without this the last one to build would decide where the pane scrolled to,
+  /// which is the bottom of the page rather than the top.
   bool get claimed => _claimed;
 
   /// Asks for [field]'s row to be scrolled to and flashed.
@@ -102,11 +99,9 @@ class SettingsHighlightController extends ChangeNotifier {
 /// Hands the open overlay's [SettingsHighlightController] to the pane below it.
 ///
 /// An `InheritedNotifier` rather than a plain `InheritedWidget`, so a page that
-/// has to *react* to a jump — the Shell pane, which pushes the category's route,
-/// and the category view, which holds its list mounted while the jump lands —
-/// simply depends on it. A row does not: it subscribes to the controller
-/// directly and rebuilds itself alone, because a jump must not re-lay every row
-/// on the page it is jumping into.
+/// has to *react* to a jump simply depends on it. A row does not: it subscribes
+/// to the controller directly and rebuilds itself alone, because a jump must not
+/// re-lay every row on the page it is jumping into.
 class SettingsHighlightScope
     extends InheritedNotifier<SettingsHighlightController> {
   const SettingsHighlightScope({

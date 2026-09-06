@@ -13,10 +13,10 @@ import 'package:graceful_shell/theme/theme_store.dart';
 
 /// Theme picker + editor.
 ///
-/// The palette no longer lives in `config.toml` — [ThemeStore] owns a file
-/// per theme under `~/.config/graceful-shell/themes/` and `config.toml` only
-/// names the active one. So this section talks to [ThemeStore], not [store];
-/// the parameter stays because every category builder takes one.
+/// The palette no longer lives in `config.toml` — [ThemeStore] owns a file per
+/// theme and `config.toml` only names the active one. So this section talks to
+/// [ThemeStore], not [store]; the parameter stays because every category builder
+/// takes one.
 class AppearanceSection extends StatefulWidget {
   const AppearanceSection({super.key, required this.store});
 
@@ -108,10 +108,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
         // The editor's structure — which rows exist, their keys, the read-only
         // state, the seed values of the self-managing fields — depends only on
         // *which* theme is active, not on the palette's current values. So it
-        // rebuilds only when the active theme changes (a switch, a duplicate,
-        // a create), never on the per-frame notifies of a colour-picker drag:
-        // the swatch grid above and the field being dragged are the only
-        // widgets that repaint mid-drag.
+        // rebuilds on a switch, duplicate or create and never on the per-frame
+        // notifies of a colour-picker drag.
         StoreSelector<(String, bool, String)>(
           listenable: _themes,
           selector: () => (
@@ -386,12 +384,11 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   SettingsCatalog.popupAnimation,
                   control: SettingsDropdown<PopupEffect>(
                     key: ValueKey('popup_animation-$active'),
-                    // `description`, not `detail`: a sentence in the tag slot
-                    // is laid out unflexed beside the label, so it took the
-                    // whole row, ellipsised the name to nothing and was then
-                    // clipped by a card sized to a trigger reading "Fade". A
-                    // description wraps, and is what gives the card a width of
-                    // its own — see [SettingsDropdown.cardWidth].
+                    // `description`, not `detail`: a sentence in the tag slot is
+                    // laid out unflexed beside the label, so it took the whole
+                    // row, ellipsised the name to nothing and was clipped by a
+                    // card sized to a trigger reading "Fade". A description
+                    // wraps, and gives the card a width of its own.
                     items: [
                       for (final effect in PopupEffect.values)
                         SettingsDropdownItem<PopupEffect>(
@@ -571,14 +568,12 @@ class _ThemeCard extends StatelessWidget {
               Row(
                 children: [
                   name,
-                  // The slot is occupied whether or not either glyph is in it.
-                  // A tick is 11px and a [SettingsIconButton] is 26 square, so
+                  // The slot is occupied whether or not either glyph is in it. A
+                  // tick is 11px and a [SettingsIconButton] is 26 square, so
                   // swapping one for the other on hover marked the card needing
-                  // *layout* — and a RepaintBoundary contains a repaint but
-                  // never a relayout, so the mark walked straight past it and
-                  // re-laid the whole Wrap under the pointer. `panels.dart`'s
-                  // `_PanelTab` reserves its close button's square for the same
-                  // reason.
+                  // *layout* — and a RepaintBoundary contains a repaint but never
+                  // a relayout, so the mark walked past it and re-laid the whole
+                  // Wrap under the pointer.
                   SizedBox.square(
                     dimension: ShellSizes.iconButtonDense,
                     child: Center(

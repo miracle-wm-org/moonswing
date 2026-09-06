@@ -29,15 +29,14 @@ enum _Kind { toggle, number, segmented, text, stringList, weatherLocation }
 
 /// One `[modules.*]` row: its catalogue entry, and which control edits it.
 ///
-/// [defaultValue] is read off the module's own const config object
-/// (`const BatteryConfig().pollSeconds` and friends), so the fallback a
-/// control shows when `config.toml` has no value is, by construction, the
-/// value the module's `fromMap` would use — the two can never drift again.
+/// [defaultValue] is read off the module's own const config object, so the
+/// fallback a control shows when `config.toml` has no value is by construction
+/// the value the module's `fromMap` would use.
 ///
-/// The same trick is what ties a row to the settings search: the row's label
-/// comes off [field], and its **config path is the field's id split on the
-/// dots** — so a key, the row that edits it and the search result that finds
-/// it are one string in one place. See [SettingsCatalog].
+/// The same trick ties a row to the settings search: the row's label comes off
+/// [field], and its **config path is the field's id split on the dots** — so a
+/// key, the row that edits it and the result that finds it are one string in one
+/// place. See [SettingsCatalog].
 class _ModuleSetting {
   const _ModuleSetting.toggle(this.field, {required bool this.defaultValue})
     : kind = _Kind.toggle,
@@ -63,11 +62,10 @@ class _ModuleSetting {
 
   /// A free-typed string — a path, in the only two rows that use it.
   ///
-  /// Deliberately not a file picker: these name a *directory to create*, and
-  /// the picker browses what already exists, so the first recording into a
-  /// folder that is not there yet could not be configured at all. The default
-  /// is shown as the placeholder rather than written into the field, so
-  /// clearing it goes back to the default instead of to nowhere.
+  /// Deliberately not a file picker: these name a *directory to create*, and the
+  /// picker browses what already exists. The default is shown as the placeholder
+  /// rather than written into the field, so clearing it goes back to the default
+  /// instead of to nowhere.
   const _ModuleSetting.text(this.field, {this.addHint})
     : kind = _Kind.text,
       defaultValue = null,
@@ -82,10 +80,9 @@ class _ModuleSetting {
 
   /// The weather location picker.
   ///
-  /// The one row here whose control is not a value editor: a location is three
-  /// config keys written together and the only thing that produces them is a
-  /// geocoding lookup, so the control owns its own path list rather than taking
-  /// one — see `weather_location.dart`.
+  /// The one row whose control is not a value editor: a location is three config
+  /// keys written together and only a geocoding lookup produces them, so the
+  /// control owns its own path list rather than taking one.
   const _ModuleSetting.weatherLocation(this.field)
     : kind = _Kind.weatherLocation,
       defaultValue = null,
@@ -337,13 +334,11 @@ class ModulesSection extends StatelessWidget {
 
   /// The control for one row, subscribed to its own key.
   ///
-  /// Every one of these is inside a [ConfigValue] rather than under a
-  /// page-level `ListenableBuilder`: [ConfigStore] notifies on every `set`, so
-  /// a digit typed into one number field used to rebuild all thirty-two of
-  /// these rows. The controls that own a `TextEditingController` and read their
-  /// seed once are wrapped too — the selector's `==` check means a notify that
-  /// did not move *this* key does not reach them at all, which is the cheapest
-  /// possible answer and the one that cannot go stale.
+  /// Every one is inside a [ConfigValue] rather than under a page-level
+  /// `ListenableBuilder`: [ConfigStore] notifies on every `set`, so a digit typed
+  /// into one number field used to rebuild all thirty-two rows. The controls that
+  /// own a `TextEditingController` are wrapped too — the selector's `==` check
+  /// means a notify that did not move *this* key does not reach them at all.
   Widget _control(_ModuleSetting setting) {
     final path = setting.path;
     switch (setting.kind) {
