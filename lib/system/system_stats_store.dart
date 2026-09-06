@@ -13,28 +13,24 @@ import 'package:graceful_shell/system/system_monitor_config.dart';
 
 /// The single source of system stats for the whole shell.
 ///
-/// Same shape as [OsdStore] and [TrayStore]: a singleton [ChangeNotifier] that
-/// a start-up function configures and the widgets watch.
+/// [OsdStore]'s shape: a singleton [ChangeNotifier] that a start-up function
+/// configures and the widgets watch.
 ///
 /// **Leases, not timers.** Callers say what they need and for how long, and the
 /// store polls only while somebody is listening:
 ///
-///  * a *light* lease gets CPU, memory, temperature, load, and network — cheap
-///    enough to read on the UI isolate. The bar module holds one for as long as
-///    it is on a panel.
+///  * a *light* lease gets CPU, memory, temperature, load and network — cheap
+///    enough to read on the UI isolate. The bar module holds one for its life.
 ///  * a *detail* lease adds the per-process walk, which is expensive and runs
 ///    off-isolate. Only the process table takes one.
 ///
 /// This is what keeps the overlay honest: [IndexedStack] keeps every tab alive
-/// once built, so a tab that owned a `Timer` would keep walking `/proc` forever
-/// while the user sat on Settings. Leasing ties the cost to visibility.
+/// once built, so a tab that owned a `Timer` would keep walking `/proc` while the
+/// user sat on Settings. It also means one sampler for the machine — before this
+/// a two-monitor setup ran two independent `/proc` walks.
 ///
-/// It also means there is exactly one sampler for the machine. Before this, a
-/// two-monitor setup ran two independent timers each doing a full `/proc` walk.
-///
-/// A happy consequence: because the bar module holds a light lease from
-/// start-up, [cpuHistory] is already full by the time anyone opens the monitor
-/// tab, so the graphs draw populated instead of filling in over two minutes.
+/// A happy consequence: the bar module's light lease means [cpuHistory] is
+/// already full by the time anyone opens the monitor tab.
 class SystemStatsStore extends ChangeNotifier {
   SystemStatsStore._({
     ProcReader? reader,
@@ -375,9 +371,8 @@ class SystemStatsStore extends ChangeNotifier {
 /// Configures [SystemStatsStore.instance] from the live config and keeps it in
 /// step with edits made in the settings UI.
 ///
-/// It deliberately does not start polling: the first lease does that, so a shell
-/// with no system-monitor module on any panel and the tab unopened reads nothing
-/// at all.
+/// Deliberately does not start polling: the first lease does that, so a shell
+/// with no system-monitor module and the tab unopened reads nothing at all.
 void startSystemStatsService() {
   final store = SystemStatsStore.instance;
 

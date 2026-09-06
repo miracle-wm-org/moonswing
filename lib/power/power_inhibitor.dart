@@ -9,8 +9,8 @@ import 'package:graceful_shell/dbus_clients.dart';
 ///
 /// Abstract because the interesting half is *when* the shell holds one (see
 /// [PowerKeyService]), and that reconciliation has to be testable on a machine
-/// with no logind — a unit test that took a real inhibitor would be a test
-/// that changes what its host does when somebody presses the power button.
+/// with no logind — a unit test taking a real inhibitor would change what its
+/// host does when somebody presses the power button.
 abstract class PowerInhibitor {
   /// Takes the lock, if it is not already held. Throws when the bus or logind
   /// refuses — the caller records that as a failed service rather than

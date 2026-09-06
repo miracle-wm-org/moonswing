@@ -14,14 +14,14 @@ abstract class ProcessSampler {
 
 /// Runs the walk in a throwaway isolate.
 ///
-/// A 500-process walk is on the order of a thousand syscalls. Doing that
-/// synchronously on the UI isolate drops a frame every poll — and it does it
-/// most visibly while you are scrolling the very process list it feeds.
+/// A 500-process walk is on the order of a thousand syscalls; doing that on the
+/// UI isolate drops a frame every poll, most visibly while scrolling the very
+/// process list it feeds.
 ///
-/// [Isolate.run] spawns a fresh isolate per poll, which costs a millisecond or
-/// two. A persistent isolate would avoid that, at the price of the whole port
-/// and lifecycle apparatus `PulseClient` carries. At a two-second cadence the
-/// spawn is a rounding error, so the simpler thing wins.
+/// [Isolate.run] spawns a fresh isolate per poll, costing a millisecond or two. A
+/// persistent isolate would avoid that at the price of the whole port and
+/// lifecycle apparatus `PulseClient` carries; at a two-second cadence the spawn
+/// is a rounding error.
 class IsolateProcessSampler implements ProcessSampler {
   IsolateProcessSampler({this.procRoot = '/proc'});
 

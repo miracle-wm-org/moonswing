@@ -1,30 +1,24 @@
 // The one Wayland capture connection in the process.
 //
-// `CaptureConnection` used to be created by, and belong to,
-// `startScreencastService` — which was right while the portal backend was the
-// only thing capturing. It is not the only one any more: the shell's own
-// screenshot and recording features (`lib/capture/`) bind the same globals,
-// create sessions on the same sources, and would otherwise each open a second
-// connection with a second registry, a second `wl_shm` and a second copy of
-// the foreign-toplevel list, on a compositor that already advertises one of
-// each.
+// `CaptureConnection` used to belong to `startScreencastService`, which was right
+// while the portal backend was the only thing capturing. The shell's own
+// screenshot and recording features bind the same globals and create sessions on
+// the same sources, and would otherwise each open a second connection with a
+// second registry, a second `wl_shm` and a second copy of the foreign-toplevel
+// list, on a compositor that advertises one of each.
 //
-// So the connection is hoisted here and both features borrow it. Two rules
-// come out of the sharing, and neither is optional:
+// So the connection is hoisted here and both features borrow it. Two rules come
+// out of the sharing:
 //
-// - **A failed connect is remembered, not retried per caller.** The two
-//   reasons this returns null — no display to reach, no libwayland to load —
-//   do not resolve while the shell is running, and a screenshot module that
-//   re-attempted the dlopen on every click would pay for it on every click.
-// - **`onDied` fans out, and drops the connection.** `CaptureConnection`
-//   carries one callback and there are now two interested parties; worse, the
-//   old arrangement left the dead connection in place, so every capture after
-//   a compositor restart would have been made against a socket nobody was
-//   listening on. Clearing it here is what lets the next caller reconnect.
+// - **A failed connect is remembered, not retried per caller.** The two reasons
+//   this returns null — no display to reach, no libwayland to load — do not
+//   resolve while the shell is running.
+// - **`onDied` fans out, and drops the connection.** `CaptureConnection` carries
+//   one callback and there are two interested parties; and the old arrangement
+//   left the dead connection in place, so every capture after a compositor
+//   restart was made against a socket nobody was listening on.
 //
-// Deliberately Flutter-free, like everything else below the screencast UI:
-// `tool/screencast_spike.dart` compiles this whole layer with `dart compile
-// exe`.
+// Deliberately Flutter-free, like everything else below the screencast UI.
 
 import 'capture_connection.dart';
 import 'screencast_log.dart';
@@ -48,9 +42,8 @@ class CaptureHost {
   /// The shared connection, connecting on the first call.
   ///
   /// [attachToGlibLoop] is honoured on the connect that actually happens; the
-  /// shell always wants it (the Dart UI isolate runs on the GLib main thread),
-  /// and only `tool/screencast_spike.dart`, which has no GLib loop, passes
-  /// false and pumps by hand.
+  /// shell always wants it, and only `tool/screencast_spike.dart`, which has no
+  /// GLib loop, passes false and pumps by hand.
   static CaptureConnection? connect({bool attachToGlibLoop = true}) {
     final existing = _connection;
     if (existing != null) return existing;

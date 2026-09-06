@@ -21,8 +21,8 @@ enum KillOutcome {
   refused,
 }
 
-/// Sends signals to processes, with the three guards that make it safe to wire
-/// a kill button to a desktop shell.
+/// Sends signals to processes, with the three guards that make it safe to wire a
+/// kill button to a desktop shell.
 ///
 /// The `send` and `statOf` seams exist so tests can drive every outcome without
 /// signalling anything real.
@@ -41,11 +41,11 @@ class ProcessKiller {
 
   /// Asks a process to exit.
   ///
-  /// [expectedStarttimeTicks] is the identity check. Between the table
-  /// rendering a row and the user confirming the kill — and, worse, between a
-  /// SIGTERM and a later SIGKILL — the target can exit and the kernel can
-  /// recycle its PID onto something else. Signalling by PID alone would then
-  /// kill an innocent process, so a start-time mismatch refuses outright.
+  /// [expectedStarttimeTicks] is the identity check. Between the table rendering
+  /// a row and the user confirming the kill — and, worse, between a SIGTERM and a
+  /// later SIGKILL — the target can exit and the kernel can recycle its PID.
+  /// Signalling by PID alone would then kill an innocent process, so a start-time
+  /// mismatch refuses outright.
   Future<KillOutcome> terminate(int pid, {required int expectedStarttimeTicks}) =>
       _signal(pid, expectedStarttimeTicks, ProcessSignal.sigterm);
 

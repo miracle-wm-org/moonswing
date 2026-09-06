@@ -1,15 +1,15 @@
 /// The two shapes of "seam" controller between something deep in a surface's
 /// widget tree and `_GracefulShellRootState`, which owns every window.
 ///
-/// A widget that needs a root-owned window (a picker, an overlay) cannot
-/// create one, so it pokes a process-wide singleton and the root — the only
-/// listener — reacts. [RequestController] carries a request/response pair
-/// and hands the asker a future; [SignalController] carries a bare signal
-/// with optional payload state in the subclass.
+/// A widget that needs a root-owned window cannot create one, so it pokes a
+/// process-wide singleton and the root — the only listener — reacts.
+/// [RequestController] carries a request/response pair and hands the asker a
+/// future; [SignalController] carries a bare signal with optional payload state
+/// in the subclass.
 ///
-/// Both are deliberately not `InputTriggerStore`: that store reports
-/// *compositor* triggers and its listener toggles on any notification, so a
-/// second signal there would trip the wrong handler.
+/// Both are deliberately not `InputTriggerStore`: that store reports *compositor*
+/// triggers and its listener toggles on any notification, so a second signal
+/// there would trip the wrong handler.
 library;
 
 import 'dart:async';
@@ -21,16 +21,14 @@ import 'package:flutter/foundation.dart';
 ///
 /// Three rules every subclass inherits, none optional:
 ///
-/// - **No listener means an immediate decline.** A headless run or a unit
-///   test must never await a window that will not appear — and for the
-///   screencast picker this is a security posture: a backend that could
-///   answer without a visible consent surface could silently record the
-///   screen.
-/// - **A second request supersedes the first**, which resolves as declined,
-///   so no caller is ever left awaiting a window that has been replaced.
-/// - **Teardown still owes every awaiting caller an answer.** [dispose]
-///   declines the pending request rather than stranding its future — a
-///   D-Bus `Start` call awaiting a pick must return, not hang forever.
+/// - **No listener means an immediate decline.** A headless run or a unit test
+///   must never await a window that will not appear — and for the screencast
+///   picker this is a security posture: a backend that could answer without a
+///   visible consent surface could silently record the screen.
+/// - **A second request supersedes the first**, which resolves as declined, so no
+///   caller is left awaiting a window that has been replaced.
+/// - **Teardown still owes every awaiting caller an answer.** [dispose] declines
+///   the pending request rather than stranding its future.
 abstract class RequestController<Req, Res> extends ChangeNotifier {
   Req? _pending;
   Completer<Res?>? _completer;

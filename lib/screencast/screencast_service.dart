@@ -23,32 +23,24 @@ ScreencastService? get screencastService => _service;
 
 /// Starts the ScreenCast portal backend.
 ///
-/// One graceful decline: [kScreencastBusName] already taken means another
-/// backend instance owns it, so this logs and returns and screen sharing
-/// stays with the owner. Everything else that used to be a log line —
-/// PipeWire missing, no display to reach, a compositor without
-/// ext-image-copy-capture, a bus or export error — throws, so
-/// `ShellServices.run` records the service as failed rather than "ready with
-/// screen sharing dead". (The spike tool calls this outside `run` and
-/// surfaces a throw as an uncaught, non-zero exit — the same signal its FAIL
-/// path gives.) A `[screenshare] enabled = false` config never even reaches
-/// here: `main.dart` skips the service, and the bus name goes unclaimed on
-/// purpose.
+/// One graceful decline: [kScreencastBusName] already taken means another backend
+/// owns it, so this logs and returns. Everything else — PipeWire missing, no
+/// display to reach, a compositor without ext-image-copy-capture, a bus or export
+/// error — throws, so `ShellServices.run` records the service as failed rather
+/// than "ready with screen sharing dead". A `[screenshare] enabled = false`
+/// config never reaches here: `main.dart` skips the service.
 ///
 /// [picker] is how consent is obtained — the shell passes
-/// `ScreencastPickerController.instance`, which raises the layer-shell
-/// overlay; `tool/screencast_spike.dart` passes a headless stand-in. There is
-/// deliberately no default: a backend that could start without asking would
-/// be a backend that can silently record the screen.
+/// `ScreencastPickerController.instance`; the spike tool passes a headless
+/// stand-in. There is deliberately no default: a backend that could start without
+/// asking would be one that can silently record the screen.
 ///
 /// [attachToGlibLoop] drives the capture connection's event pump from the GTK
-/// main loop; the spike tool pumps manually instead.
+/// main loop; the spike tool pumps manually.
 ///
-/// [reconcileFrontend] repairs an xdg-desktop-portal frontend that started
-/// before this backend owned its name and so is telling every application that
-/// no capture sources exist (see `portal_frontend.dart`). It restarts somebody
-/// else's service, so the spike tool — a diagnostic that must not change the
-/// session it is diagnosing — passes false.
+/// [reconcileFrontend] repairs an xdg-desktop-portal frontend that started before
+/// this backend owned its name (see `portal_frontend.dart`). It restarts somebody
+/// else's service, so the spike tool passes false.
 Future<void> startScreencastService({
   required SourcePicker picker,
   bool attachToGlibLoop = true,
@@ -99,19 +91,15 @@ Future<void> startScreencastService({
     screencastLog('portal backend up as $kScreencastBusName '
         '(windows: ${connection.windowCaptureSupported})');
 
-    // Owning the name is not the same as being *seen*. xdg-desktop-portal
-    // caches this backend's `AvailableSourceTypes` when its own frontend
-    // starts, and the shell claims the name off a post-frame callback — so a
-    // frontend that came up first publishes 0 forever, which is invisible to
-    // an app that just shares (Chrome) and fatal to one that asks first (OBS
-    // registers no capture source at all). See `portal_frontend.dart`.
+    // Owning the name is not the same as being *seen*. xdg-desktop-portal caches
+    // this backend's `AvailableSourceTypes` when its frontend starts, and the
+    // shell claims the name off a post-frame callback — so a frontend that came up
+    // first publishes 0 forever, which is invisible to an app that just shares and
+    // fatal to one that asks first. See `portal_frontend.dart`.
     //
-    // Unawaited on purpose: this backend is already up and serving, and the
-    // repair involves restarting somebody else's service and waiting for it.
-    // Holding `ShellService.screencast` on a loader for that would report the
-    // shell's own work as unfinished when it is not; the outcome goes to
-    // `screencastLog` instead. Never from the spike, which is a diagnostic
-    // tool and has no business bouncing the session's portal.
+    // Unawaited on purpose: this backend is already up and serving, and the repair
+    // restarts somebody else's service. Holding `ShellService.screencast` on a
+    // loader for that would report the shell's own work as unfinished.
     if (reconcileFrontend) {
       final bus = client;
       unawaited(() async {
