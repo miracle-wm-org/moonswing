@@ -14,26 +14,22 @@ const String kDefaultThemeName = 'graceful';
 
 /// How a theme key parses and encodes.
 ///
-/// [color] goes through [ThemeConfig.formatColor] and its inverse; [number]
-/// is a clamped double; [integer] is read as a double and rounded, so a TOML
-/// float coerces rather than falling back; [flag] and [text] are verbatim.
-/// [effect] is a [PopupEffect] spelled by its slug — a closed set, so a slug
-/// this build does not know falls back like any other wrongly-typed value
-/// rather than costing the theme.
+/// [color] goes through [ThemeConfig.formatColor] and its inverse; [number] is a
+/// clamped double; [integer] is read as a double and rounded, so a TOML float
+/// coerces; [flag] and [text] are verbatim. [effect] is a [PopupEffect] spelled
+/// by its slug — a closed set, so an unknown slug falls back like any other
+/// wrongly-typed value.
 enum _ThemeKeyKind { color, number, integer, flag, text, effect }
 
 /// One TOML theme key: its spelling, its kind, its clamp range, and where it
 /// lives on a [ThemeConfig].
 ///
-/// [ThemeConfig._keys] is the single place a key is described. `fromMap`'s
-/// parse rules (kind, clamps, and the default — read off `const ThemeConfig()`
-/// through [get]), `toMap`, [ThemeConfig.colorKeys], `==` and `hashCode` are
-/// all derived from that table, so adding a key means declaring the field,
-/// giving the constructor its default, adding one row to the table, and
-/// linking key to constructor parameter in `fromMap`. A key cannot be
-/// *partially* added: the built-in themes' lossless round-trip test fails on
-/// any row `fromMap` forgets, and `fromMap` throws in any test on a key the
-/// table does not carry.
+/// [ThemeConfig._keys] is the single place a key is described: `fromMap`'s parse
+/// rules, `toMap`, [ThemeConfig.colorKeys], `==` and `hashCode` are all derived
+/// from it. Adding a key means declaring the field, giving the constructor its
+/// default, adding one row, and linking key to parameter in `fromMap`. A key
+/// cannot be *partially* added — the built-in themes' round-trip test fails on
+/// any row `fromMap` forgets, and `fromMap` throws on a key the table lacks.
 class _ThemeKey {
   const _ThemeKey(this.key, this.kind, this.get, {this.min, this.max});
 
@@ -91,10 +87,9 @@ class _ThemeKey {
 
 /// A resolved palette.
 ///
-/// Themes are no longer part of `config.toml` — each one is its own file under
-/// `~/.config/graceful-shell/themes/` and `config.toml` names the active one.
-/// The file *is* this table, flat, so [fromMap] parses a whole theme document.
-/// See `lib/theme/theme_store.dart`.
+/// Each theme is its own file under `~/.config/graceful-shell/themes/`, with
+/// `config.toml` naming the active one. The file *is* this table, flat, so
+/// [fromMap] parses a whole theme document. See `lib/theme/theme_store.dart`.
 class ThemeConfig {
   final Color foreground;
   final Color accent;
@@ -110,40 +105,35 @@ class ThemeConfig {
 
   /// The bar's own background.
   ///
-  /// The one surface that had no colour of its own — the panel used to be
-  /// painted from [workspaceBackground] at a hardcoded 93% opacity, so a
-  /// translucent theme could not see through the very surface that sits on top
-  /// of the desktop. Its alpha is honoured verbatim, and it also sets the
-  /// opacity of the whole bar: see [panelGradient].
+  /// The one surface that had no colour of its own — the panel used to be painted
+  /// from [workspaceBackground] at a hardcoded 93% opacity, so a translucent theme
+  /// could not see through the surface sitting on the desktop. Its alpha is
+  /// honoured verbatim and sets the whole bar's opacity: see [panelGradient].
   final Color panelBackground;
 
   /// Whether the bar fades from [accent] across to [panelBackground].
   ///
-  /// A theme that wants a plain sheet of glass sets this false and gets a flat
-  /// [panelBackground]. When true the gradient's stops all take their alpha
-  /// from [panelBackground], so the bar has exactly one opacity and cannot
-  /// band partway across.
+  /// False gives a flat [panelBackground]. When true every gradient stop takes
+  /// its alpha from [panelBackground], so the bar has exactly one opacity and
+  /// cannot band partway across.
   final bool panelGradient;
 
   /// How far each bar floats off the screen edges it is anchored to.
   ///
-  /// This is a *native* `gtk_layer_set_margin` applied in `main.dart`, never a
-  /// Flutter `Padding`: the shell has no input-region support, so an inset
-  /// inside a full-size surface would swallow every click in the gap instead of
-  /// letting it reach the desktop.
+  /// A *native* `gtk_layer_set_margin`, never a Flutter `Padding`: with no
+  /// input-region support, an inset inside a full-size surface would swallow
+  /// every click in the gap.
   ///
-  /// The exclusive zone is deliberately left at the panel's thickness. Per
-  /// wlr-layer-shell's `set_margin`, "the exclusive zone includes the margin",
-  /// so the compositor already keeps windows out of the gap; reserving
-  /// `height + margin` ourselves would reserve it twice.
+  /// The exclusive zone is left at the panel's thickness. Per wlr-layer-shell,
+  /// "the exclusive zone includes the margin", so reserving `height + margin`
+  /// would reserve it twice.
   final int panelMargin;
 
   /// The bar's corner rounding.
   ///
   /// A floating bar ([panelMargin] > 0) rounds all four corners. A flush one
-  /// rounds only the two corners facing the screen's interior, because
-  /// rounding the pair against the screen edge cuts wallpaper wedges out of
-  /// the display's own corners.
+  /// rounds only the two facing the screen's interior, because rounding the pair
+  /// against the screen edge cuts wallpaper wedges out of the display's corners.
   final double panelRadius;
 
   /// The colour of the bar's rim. Only drawn when [panelBorderWidth] > 0.
@@ -151,75 +141,54 @@ class ThemeConfig {
 
   /// The bar's rim thickness, or 0 for no rim.
   ///
-  /// Width, not alpha, is the off switch: at 0 no `Border` is built at all, so
-  /// the default decoration stays exactly what it was before rims existed.
+  /// Width, not alpha, is the off switch: at 0 no `Border` is built at all.
   ///
-  /// The rim is drawn round the whole bar, its **inner** edge included — which
-  /// is the edge an attached popup meets. Any attached card ([popupGap] 0)
-  /// therefore reaches this far back into the panel, so that its own fill takes
-  /// that hairline out across the mouth rather than butting into it; see
-  /// `popupAttachCollar` (`popup_surface.dart`). [popupAttachRadius] decides
-  /// only how the line resumes at either end — swept down the card's sides by
-  /// the flare's arcs, or meeting them square without one — so a rimmed bar is
-  /// seamless against its menus either way.
+  /// The rim is drawn round the whole bar, its **inner** edge included — the edge
+  /// an attached popup meets. Any attached card ([popupGap] 0) therefore reaches
+  /// this far back into the panel so its own fill takes that hairline out across
+  /// the mouth; see `popupAttachCollar`. [popupAttachRadius] decides only how the
+  /// line resumes at either end.
   final double panelBorderWidth;
 
   /// A popup card's corner rounding.
   ///
-  /// All four corners for a popup that floats: it sits over a transparent
-  /// surface with nothing behind it to cut into, unlike a flush bar, which
-  /// spares the pair against the screen edge where rounding would cut wallpaper
-  /// wedges out of the display's own corners. A bar popup at [popupGap] 0 is
-  /// the exception — it is *attached* to the bar, so the two corners on the
-  /// join are squared off and only the far pair take this. See
-  /// `popupCornerRadius` (`popup_surface.dart`).
+  /// All four corners for a popup that floats. A bar popup at [popupGap] 0 is the
+  /// exception — it is *attached*, so the two corners on the join are squared off
+  /// and only the far pair take this. See `popupCornerRadius`.
   final double popupRadius;
 
   /// How far a bar popup's card sits off the inner edge of its panel.
   ///
   /// The popup analogue of [panelMargin], one layer up: that floats the bar off
-  /// the screen edge, this floats a popup off the bar. A bar popup is anchored
-  /// to the panel's inner edge, centred on the module that opened it, so this
-  /// is the whole distance between the two surfaces.
+  /// the screen edge, this floats a popup off the bar.
   ///
   /// **0 is the attached mode**, not merely a small gap: the card is flush with
   /// the bar, the two corners touching it are squared off and flared out by
   /// [popupAttachRadius], the rim on that edge is dropped and the shadow is cut
-  /// at the join — so the popup reads as growing out of the panel rather than
-  /// floating over it. There is no separate flag; this key is the switch.
+  /// at the join. There is no separate flag; this key is the switch.
   ///
-  /// Only bar popups are affected. A menu anchored to the pointer — the
-  /// desktop's context menu, the dock's unpin menu — has no panel edge to sit
-  /// off and keeps the geometry it always had.
+  /// Only bar popups are affected. A menu anchored to the pointer has no panel
+  /// edge to sit off and keeps the geometry it always had.
   final double popupGap;
 
   /// How far an attached popup **flares outward** into the bar it is joined to.
   ///
-  /// Reads as a corner radius and is the inverse of one, which is the whole
-  /// point. A convex corner curves *away* from the surface behind it and leaves
-  /// two transparent wedges where the card meets the bar, so the card reads as
-  /// resting against it. This sweeps each side *outward* instead, as it reaches
-  /// the panel, the way a branch runs into a trunk — so the card is wider than
-  /// itself exactly where it meets the bar and the two look like one surface.
+  /// Reads as a corner radius and is the inverse of one. A convex corner curves
+  /// *away* from the surface behind it, leaving transparent wedges where the card
+  /// meets the bar; this sweeps each side *outward* as it reaches the panel, so
+  /// the card is widest exactly where the two meet and they read as one surface.
   ///
-  /// Being a concave fillet, it is no [BorderRadius] and cannot be one: it is
-  /// drawn by `AttachedPopupBorder` (`popup_surface.dart`), which is why an
-  /// attached card with a flare is the one card in the shell whose decoration
-  /// is a `ShapeDecoration`. It also paints *outside* the card's own box, so
-  /// the popup's surface is grown by `popupAttachInsets` the way it already is
-  /// for the shadow.
+  /// Being a concave fillet it is no [BorderRadius]: it is drawn by
+  /// `AttachedPopupBorder`, which is why an attached card with a flare is the one
+  /// card whose decoration is a `ShapeDecoration`. It paints *outside* the card's
+  /// box, so the surface is grown by `popupAttachInsets`.
   ///
-  /// What the flare does *not* decide is whether a bar may carry a rim. Every
-  /// attached card reaches [panelBorderWidth] back into the panel and takes the
-  /// bar's inner hairline out across the mouth with its own fill —
-  /// `popupAttachCollar` is that reach, and it is the join's rather than the
-  /// flare's. What a flare adds is how the line resumes at either end: the two
-  /// arcs, tangent to the join at their tips, pick it up and carry it down the
-  /// card's sides, where a square join meets them at a right angle instead.
+  /// It does *not* decide whether a bar may carry a rim: every attached card
+  /// reaches [panelBorderWidth] back into the panel (`popupAttachCollar`) and
+  /// takes the bar's inner hairline out with its own fill. A flare only decides
+  /// how the line resumes at either end.
   ///
-  /// Read only at [popupGap] 0; with a gap there is no join to flare into. 0,
-  /// the default, is a square butt join — the card's sides continue the bar's
-  /// with no flare at all.
+  /// Read only at [popupGap] 0. The default of 0 is a square butt join.
   final double popupAttachRadius;
 
   /// The colour of a popup card's rim. Only drawn when [popupBorderWidth] > 0.
@@ -227,27 +196,24 @@ class ThemeConfig {
 
   /// A popup card's rim thickness, or 0 for no rim.
   ///
-  /// Width, not alpha, is the off switch, for the same reason as
-  /// [panelBorderWidth]: at 0 no `Border` is built at all, and a `Border` in a
-  /// decoration carries a [BoxDecoration.padding] that a `Container` silently
-  /// adds to its child's.
+  /// Width, not alpha, is the off switch, for [panelBorderWidth]'s reason: at 0
+  /// no `Border` is built at all, and a `Border` carries a
+  /// [BoxDecoration.padding] a `Container` silently adds to its child's.
   final double popupBorderWidth;
 
   /// The colour of a popup card's shadow.
   ///
-  /// Alpha *is* the off switch here, unlike [popupBorderWidth]: a shadow
-  /// carries no [BoxDecoration.padding] for a `Container` to silently apply,
-  /// so there is nothing a zero-alpha shadow can shift. At alpha 0 — or with
+  /// Alpha *is* the off switch here, unlike [popupBorderWidth]: a shadow carries
+  /// no [BoxDecoration.padding] to shift. At alpha 0 — or with
   /// [popupShadowBlur], [popupShadowSpread] and both offsets at 0 —
   /// `popupDecoration` builds no `boxShadow` at all.
   final Color popupShadowColor;
 
-  /// The shadow's blur radius, in the CSS sense: the distance the falloff
-  /// reaches past the card's edge.
+  /// The shadow's blur radius, in the CSS sense: how far the falloff reaches past
+  /// the card's edge.
   ///
-  /// Flutter's [BoxShadow.blurRadius] maps to a sigma the same way CSS does,
-  /// so this doubles as the extent `popupShadowInsets` grows the popup's own
-  /// window by. See `lib/popup_surface.dart`.
+  /// Flutter's [BoxShadow.blurRadius] maps to a sigma the way CSS does, so this
+  /// doubles as the extent `popupShadowInsets` grows the popup's window by.
   final double popupShadowBlur;
 
   /// How far the shadow's shape is grown (or, negative, shrunk) before it is
@@ -262,22 +228,20 @@ class ThemeConfig {
 
   /// Which animation a popup plays as it opens, and — reversed — as it closes.
   ///
-  /// Shape and colour are what a theme decides, and a card's *arrival* is part
-  /// of its shape: a menu that unrolls out of the bar and one that fades in
-  /// place belong to different themes even when every colour matches. Hence a
-  /// theme key rather than a `config.toml` one, alongside [popupGap] and
-  /// [popupRadius], which decide the same card's other two dimensions.
+  /// A card's *arrival* is part of its shape: a menu that unrolls out of the bar
+  /// and one that fades in place belong to different themes even when every
+  /// colour matches. Hence a theme key, alongside [popupGap] and [popupRadius].
   ///
   /// The exit is the entrance played backwards, always — see
-  /// `lib/popup_transition.dart`. [PopupEffect.none] is a real off switch:
-  /// nothing is wrapped, no controller is created, and the window is destroyed
-  /// on the frame it is closed, exactly as it was before this key existed.
+  /// `lib/popup_transition.dart`. [PopupEffect.none] is a real off switch: nothing
+  /// is wrapped, no controller is created, and the window is destroyed on the
+  /// frame it is closed.
   final PopupEffect popupEffect;
 
   /// [popupShadowOffsetX] and [popupShadowOffsetY] as one offset.
   ///
-  /// The two are separate fields because a [_ThemeKey] maps one TOML scalar to
-  /// one accessor; this is what every painter actually wants.
+  /// The two are separate fields because a [_ThemeKey] maps one TOML scalar to one
+  /// accessor; this is what every painter actually wants.
   Offset get popupShadowOffset =>
       Offset(popupShadowOffsetX, popupShadowOffsetY);
 
@@ -287,41 +251,33 @@ class ThemeConfig {
 
   // There is no `blur` key. A `BackdropFilter` reaches only what Flutter has
   // already painted beneath it, and the overlay scaffold is the first thing
-  // painted into its own window — under it is a transparent layer-shell
-  // surface whose contents belong to the compositor, and Mir exposes no blur
-  // protocol. So the filter had an empty backdrop and changed no pixel, while
-  // every animated frame paid for a full-output Gaussian. Translucency over
-  // the desktop comes from alpha in the colours above.
+  // painted into its own window — under it is a transparent layer-shell surface
+  // whose contents belong to the compositor, and Mir exposes no blur protocol. So
+  // the filter had an empty backdrop and changed no pixel while every animated
+  // frame paid for a full-output Gaussian. Translucency comes from alpha instead.
 
   final String fontFamily;
 
   /// The shell's body text size, and through it every other size in the shell.
   ///
-  /// This is the size [ShellFontSizes.body] names — the tier most of the shell
-  /// is set in — so the shipped default is that constant and a theme that
-  /// spells no `font_size` renders exactly as it did before the key existed.
+  /// The size [ShellFontSizes.body] names, so the shipped default is that constant
+  /// and a theme spelling no `font_size` renders exactly as before the key existed.
   ///
-  /// It is a *default* in the strong sense: the rest of the type scale is a
-  /// fixed ratio to it rather than a set of independent numbers. A theme that
-  /// could only move the text no `TextStyle` had sized would move almost
-  /// nothing — nearly every string in the shell names its tier explicitly —
-  /// which is the setting that appears to do nothing. See [textScale] for how
-  /// the ratio is applied.
+  /// A *default* in the strong sense: the rest of the type scale is a fixed ratio
+  /// to it. A theme that could only move the text no `TextStyle` had sized would
+  /// move almost nothing. See [textScale].
   final double fontSize;
 
   /// How far every size in the shell is scaled, as a plain factor.
   ///
-  /// `ThemeProvider` turns this into the `TextScaler` on the `MediaQuery` it
-  /// puts above every themed tree, which is what reaches the three hundred-odd
-  /// explicit `fontSize:` values as well as the text that names none. 1.0 —
-  /// the default — is `TextScaler.noScaling`, so an unset key costs nothing at
-  /// all.
+  /// `ThemeProvider` turns this into the `TextScaler` on the `MediaQuery` above
+  /// every themed tree, which reaches the three hundred-odd explicit `fontSize:`
+  /// values as well as the text that names none. 1.0 is `TextScaler.noScaling`,
+  /// so an unset key costs nothing.
   ///
-  /// Sizes in *pixels* are not scaled: a panel's `height`, the grid's cell
-  /// size and [ShellSizes] are config or layout, not type, and growing the
-  /// text is not an instruction to grow the bar. A large enough font in a bar
-  /// left at its default height will crop, and the answer is the panel's own
-  /// `height` key.
+  /// Sizes in *pixels* are not scaled: a panel's `height`, the grid's cell size
+  /// and [ShellSizes] are layout, not type. A large font in a bar left at its
+  /// default height will crop, and the answer is that panel's `height` key.
   double get textScale => fontSize / ShellFontSizes.body;
 
   const ThemeConfig({
@@ -358,21 +314,19 @@ class ThemeConfig {
     this.fontSize = ShellFontSizes.body,
   });
 
-  /// Every theme key, in the order [toMap] writes them; the colour
-  /// subsequence is the order the settings editor lists ([colorKeys]).
+  /// Every theme key, in the order [toMap] writes them; the colour subsequence is
+  /// the order the settings editor lists ([colorKeys]).
   ///
   /// `static final` rather than `const` only because each row carries a field
-  /// accessor and a function literal is not a constant expression; the list is
-  /// built once and never mutated.
+  /// accessor and a function literal is not a constant expression.
   static final List<_ThemeKey> _keys = [
     _ThemeKey('font', _ThemeKeyKind.text, (t) => t.fontFamily),
     // A theme file is hand-edited, and the two ends of this key are not
-    // symmetrical failures of degree: 0 lays every string in the shell out as
-    // nothing, and a few hundred leaves one letter on the screen. Either is
-    // recoverable only by editing the file back with the shell unusable, so
-    // neither is allowed through. The ceiling is well above any size the bars
-    // can hold at their default height, which is the panel's problem to solve
-    // and not this key's.
+    // symmetrical failures of degree: 0 lays every string out as nothing, and a
+    // few hundred leaves one letter on the screen. Either is recoverable only by
+    // editing the file back with the shell unusable. The ceiling is well above
+    // any size the bars can hold at their default height, which is the panel's
+    // problem rather than this key's.
     _ThemeKey('font_size', _ThemeKeyKind.number, (t) => t.fontSize,
         min: 6.0, max: 32.0),
     _ThemeKey('accent', _ThemeKeyKind.color, (t) => t.accent),
@@ -446,11 +400,11 @@ class ThemeConfig {
 
   factory ThemeConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ThemeConfig();
-    // A theme file is hand-editable, so every read goes through TomlReader —
-    // a wrongly-typed value costs that one key, not the theme — and every
-    // number is clamped into a range that cannot crash a painter. Kind, clamp
-    // and default all come from [_keys]; the constructor call below only links
-    // each TOML key to its named parameter, which Dart cannot do dynamically.
+    // A theme file is hand-editable, so every read goes through TomlReader — a
+    // wrongly-typed value costs that one key, not the theme — and every number is
+    // clamped into a range that cannot crash a painter. Kind, clamp and default
+    // come from [_keys]; the constructor call below only links each TOML key to
+    // its named parameter, which Dart cannot do dynamically.
     const defaults = ThemeConfig();
     final parsed = <String, Object>{
       for (final k in _keys) k.key: k.parse(map, k.get(defaults)),
