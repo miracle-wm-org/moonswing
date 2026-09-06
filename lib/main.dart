@@ -23,6 +23,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/monitor_watcher.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/dock.dart';
+import 'package:graceful_shell/modules/keybinds.dart';
 import 'package:graceful_shell/modules/keyboard_layout.dart';
 import 'package:graceful_shell/modules/launcher.dart';
 import 'package:graceful_shell/modules/sound_control.dart';
@@ -42,6 +43,9 @@ import 'package:graceful_shell/emoji/emoji_controller.dart';
 import 'package:graceful_shell/emoji/emoji_picker_overlay.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
+import 'package:graceful_shell/keybinds/keybind_cheatsheet_controller.dart';
+import 'package:graceful_shell/keybinds/keybind_cheatsheet_overlay.dart';
+import 'package:graceful_shell/keybinds/keybind_store.dart';
 import 'package:graceful_shell/launcher/app_index.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
@@ -130,6 +134,7 @@ void main() async {
   Module.register(screenshotModule);
   Module.register(screenRecorderModule);
   Module.register(keyboardLayoutModule);
+  Module.register(keybindsModule);
 
   // The desktop grid's own registry, populated the same way: `[[desktop.widgets]]`
   // names a type, and lookup happens at render time. See
@@ -165,6 +170,12 @@ void main() async {
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.
   final miracle = MiracleManager();
+
+  // Points the keybind cheat sheet's store at that connection. Not a
+  // `ShellService`: there is nothing to start — the sheet's first lease is what
+  // reads — and a machine with no compositor must not settle a start-up task
+  // `failed` over a cheat sheet nobody has opened.
+  startKeybindService(miracle);
 
   // Live registry of outputs, kept current as monitors come and go. Empty until
   // [_connectDisplays] has enumerated them, which is why panels render before
@@ -452,7 +463,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// clicks. One per monitor; tapping any opens the one panel, on that monitor.
   final Map<String, LayershellWindowController> _badges = {};
 
-  /// Eight of the nine root-owned overlays — the full-screen ones; the
+  /// Nine of the ten root-owned overlays — the full-screen ones; the
   /// notification panel is the exception. Each [_OverlayWindow] carries the
   /// controller, its [PopupCoordinator] registration and the closing notifier.
   ///
@@ -462,10 +473,15 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   final _OverlayWindow _launcher = _OverlayWindow(acquiresAppIndex: true);
   final _OverlayWindow _appChooser = _OverlayWindow(acquiresAppIndex: true);
 
-  /// The emoji picker (Ctrl+Shift+E) — the ninth root-owned overlay. A menu
-  /// policy rather than a modal one: it copies a character and nothing is owed
-  /// an answer, so anything wanting the screen may displace it.
+  /// The emoji picker (Ctrl+Shift+E). A menu policy rather than a modal one: it
+  /// copies a character and nothing is owed an answer, so anything wanting the
+  /// screen may displace it.
   final _OverlayWindow _emojiPicker = _OverlayWindow();
+
+  /// The miracle keybind cheat sheet, opened by the bar's keyboard icon. A menu
+  /// policy like the emoji picker: it is a thing to read, it owes nobody an
+  /// answer, and anything wanting the screen may displace it.
+  final _OverlayWindow _keybinds = _OverlayWindow();
   final _OverlayWindow _screencastPicker = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -480,9 +496,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     policy: TransientPolicy.modal,
   );
 
-  /// The polkit prompt — the eighth root-owned overlay. Modal, for a stronger
-  /// version of the consent pickers' reason: it grants administrator rights, so
-  /// nothing else may dismiss it and dismissing it *is* the refusal.
+  /// The polkit prompt. Modal, for a stronger version of the consent pickers'
+  /// reason: it grants administrator rights, so nothing else may dismiss it and
+  /// dismissing it *is* the refusal.
   final _OverlayWindow _polkitPrompt = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -493,10 +509,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// request would otherwise render into the window the old one is leaving.
   PolkitAuthSession? _polkitSession;
 
-  /// The notification panel — the seventh root-owned overlay, and the first that
-  /// is not full-screen. The bell and the badge share no widget ancestry, so both
-  /// ask the root instead. `late final` because it brings its own window, a
-  /// column down one output edge.
+  /// The notification panel — the tenth root-owned overlay, and the only one
+  /// that is not full-screen. The bell and the badge share no widget ancestry,
+  /// so both ask the root instead. `late final` because it brings its own
+  /// window, a column down one output edge.
   late final _OverlayWindow _notifications = _OverlayWindow(
     create: _createNotificationWindow,
   );
@@ -593,6 +609,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (InputTriggerStore.instance, _onSettingsTriggered),
       (LauncherController.instance, _onLauncherTriggered),
       (EmojiPickerController.instance, _onEmojiPickerTriggered),
+      (KeybindCheatsheetController.instance, _onKeybindsTriggered),
       (PowerController.instance, _onPowerKeyPressed),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
       (PolkitAuthController.instance, _onPolkitAuthChanged),
@@ -1213,6 +1230,36 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     );
   }
 
+  /// The bar's keyboard icon was pressed. Toggles the way the launcher's does.
+  void _onKeybindsTriggered() {
+    if (!mounted) return;
+    if (_keybinds.isOpen) {
+      _keybinds.closing.value = true;
+    } else {
+      _openKeybinds();
+    }
+  }
+
+  /// Opens the keybind cheat sheet as a full-screen overlay-layer window.
+  ///
+  /// No monitor, for [_openLauncher]'s reason: miracle places the surface on the
+  /// focused output, which is the one the user is looking at — and on a
+  /// multi-head shell every bar carries the same icon, so a fixed monitor would
+  /// answer half of them on the wrong screen.
+  void _openKeybinds() {
+    _keybinds.open();
+    _refreshWindows();
+  }
+
+  /// Called by [KeybindCheatsheetOverlay] once its fade-out has finished.
+  void _onKeybindsClosed() {
+    if (!mounted) return;
+    final removed = _keybinds.take();
+    if (removed == null) return;
+    _refreshWindows();
+    _destroyAfterFrame([removed]);
+  }
+
   /// Opens the settings overlay as a single full-monitor layer-shell window on
   /// the first connected monitor, on the overlay layer with `onDemand` keyboard
   /// focus so its text fields and Escape-to-close work.
@@ -1644,6 +1691,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       _launcher,
       _appChooser,
       _emojiPicker,
+      _keybinds,
       _screencastPicker,
       _filePicker,
       _powerMenu,
@@ -1985,6 +2033,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
               closingNotifier: _emojiPicker.closing,
               onClosed: _onEmojiPickerClosed,
               onCopy: _onEmojiCopied,
+            ),
+          ),
+        ),
+      // The keybind cheat sheet, registered beside the emoji picker and for the
+      // same reason: it opens and closes all day, so it goes late in this list.
+      if (_keybinds.controller case final sheet?)
+        (
+          controller: sheet,
+          builder: (_) => _windowChrome(
+            KeybindCheatsheetOverlay(
+              closingNotifier: _keybinds.closing,
+              onClosed: _onKeybindsClosed,
             ),
           ),
         ),
