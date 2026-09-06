@@ -1,20 +1,16 @@
 // What the shell's own screenshot and recording features capture.
 //
-// Deliberately Flutter-free, the rule `screencast/pick_types.dart` states for
-// its half of this: everything below the UI — the miracle walk, the toplevel
-// match, the grab and the recorder — imports these without pulling Flutter in,
-// which is what keeps the geometry a plain unit test.
+// Deliberately Flutter-free, the rule `screencast/pick_types.dart` states for its
+// half of this — which is what keeps the geometry a plain unit test.
 //
-// One coordinate rule runs through the whole file, and getting it wrong is the
-// difference between a crop and a crop of somewhere else. Everything the user
-// selects is in the compositor's **logical** pixels, because that is what
-// miracle's IPC reports and what a layer-shell surface is laid out in; a
-// captured buffer is in **physical** pixels, because that is what the
-// compositor copies. The two differ by the output's scale, fractional scales
-// included, so a [CaptureRect] is always logical and always carries the
-// logical [CaptureSize] it was measured against — [CaptureRect.scaledInto] is
-// the one place the conversion happens, and it derives the factor from the
-// buffer it is handed rather than from any advertised scale.
+// One coordinate rule runs through the whole file. Everything the user selects is
+// in the compositor's **logical** pixels, because that is what miracle's IPC
+// reports and what a layer-shell surface is laid out in; a captured buffer is in
+// **physical** pixels. The two differ by the output's scale, fractional scales
+// included, so a [CaptureRect] is always logical and always carries the logical
+// [CaptureSize] it was measured against — [CaptureRect.scaledInto] is the one
+// place the conversion happens, and it derives the factor from the buffer it is
+// handed rather than from any advertised scale.
 
 /// A size in logical pixels.
 class CaptureSize {
@@ -61,14 +57,12 @@ class CapturePoint {
 class CaptureRect {
   const CaptureRect(this.x, this.y, this.width, this.height);
 
-  /// The rectangle spanned by two corners, in either order — a drag that ends
-  /// up and to the left of where it started is the same selection as one that
-  /// ends down and to the right.
+  /// The rectangle spanned by two corners, in either order — a drag that ends up
+  /// and to the left is the same selection as one that ends down and to the right.
   ///
-  /// Spelled with ternaries in the initialiser list rather than as a factory
-  /// so it stays `const`: nothing here needs that today, but a geometry type
-  /// that cannot appear in a constant is a type every test has to build at
-  /// run time.
+  /// Spelled with ternaries in the initialiser list rather than as a factory so it
+  /// stays `const`: a geometry type that cannot appear in a constant is one every
+  /// test has to build at run time.
   const CaptureRect.fromCorners(int x0, int y0, int x1, int y1)
       : x = x0 < x1 ? x0 : x1,
         y = y0 < y1 ? y0 : y1,
@@ -106,12 +100,11 @@ class CaptureRect {
   /// This rectangle mapped from [logical] space into a capture buffer of
   /// [bufferWidth] x [bufferHeight], clipped to the buffer.
   ///
-  /// The factor comes from the buffer the compositor actually produced rather
-  /// than from the output's advertised `scale`: a fractional-scaled output
-  /// reports 1.5 and hands back a buffer whose ratio is whatever rounding it
-  /// settled on, and a crop off by that rounding shows a sliver of the wrong
-  /// window down one edge. Returns null when either space is degenerate —
-  /// there is no honest mapping, and the caller keeps the whole frame.
+  /// The factor comes from the buffer the compositor actually produced rather than
+  /// from the output's advertised `scale`: a fractional-scaled output reports 1.5
+  /// and hands back a buffer at whatever rounding it settled on, and a crop off by
+  /// that shows a sliver of the wrong window down one edge. Null when either space
+  /// is degenerate — there is no honest mapping, and the caller keeps the frame.
   CaptureRect? scaledInto(
     CaptureSize logical,
     int bufferWidth,
@@ -150,19 +143,16 @@ class CaptureRect {
 /// What a capture is of: one whole output, one window, or a rectangle the user
 /// dragged out.
 ///
-/// Every variant names an [connector] — a `wl_output.name`, the same string
-/// miracle's `OutputNode.name` and GDK's connector carry — because even a
-/// window capture needs a fallback source when the compositor cannot hand us a
-/// foreign-toplevel handle for it, and that fallback is its output cropped to
-/// [crop].
+/// Every variant names a [connector] — a `wl_output.name`, the string miracle's
+/// `OutputNode.name` and GDK's connector both carry — because even a window
+/// capture needs a fallback source when the compositor cannot hand us a
+/// foreign-toplevel handle, and that fallback is its output cropped to [crop].
 ///
-/// The name is the identity and [outputOrigin] is the second pass behind it,
-/// for the same reason `resolveOutput` keeps a second pass of its own: the
-/// connector is only an identity while *both* sides of a correlation have one.
-/// GDK reports none on a compositor with no `xdg-output` manager, and
-/// `wl_output.name` does not exist below version 4 — either gap leaves the
-/// string empty at one end, and matching two empty strings resolves to nothing
-/// at all rather than to the display the user is pointing at.
+/// The name is the identity and [outputOrigin] is the second pass behind it, for
+/// `resolveOutput`'s reason: a connector is only an identity while *both* sides
+/// have one. GDK reports none without an `xdg-output` manager and
+/// `wl_output.name` does not exist below version 4, and matching two empty
+/// strings resolves to nothing at all.
 sealed class CaptureTarget {
   const CaptureTarget();
 
@@ -172,13 +162,12 @@ sealed class CaptureTarget {
   /// The output's logical size, which [crop] is expressed against.
   CaptureSize get outputSize;
 
-  /// This output's top-left corner in the compositor's global logical space,
-  /// or null when the shell could not learn it.
+  /// This output's top-left corner in the compositor's global logical space, or
+  /// null when the shell could not learn it.
   ///
-  /// Carried so that [connector] is not the *only* way back to the display
-  /// this was taken from: two monitors cannot share a corner, so a position is
-  /// an identity wherever a name is missing at either end. Nothing else reads
-  /// it — a crop is always output-local.
+  /// Carried so [connector] is not the *only* way back to the display: two
+  /// monitors cannot share a corner, so a position is an identity wherever a name
+  /// is missing at either end. Nothing else reads it — a crop is output-local.
   CapturePoint? get outputOrigin => null;
 
   /// The region of the output to keep, in that output's *local* logical
@@ -225,8 +214,8 @@ class OutputCapture extends CaptureTarget {
 ///
 /// [toplevelIdentifier] is null on a compositor without
 /// `ext-foreign-toplevel-list`, and on a window the match could not resolve
-/// unambiguously — see `toplevel_match.dart`. Either way [crop] answers, at
-/// the cost of a rectangle that does not follow the window.
+/// unambiguously. Either way [crop] answers, at the cost of a rectangle that does
+/// not follow the window.
 class WindowCapture extends CaptureTarget {
   const WindowCapture({
     required this.connector,

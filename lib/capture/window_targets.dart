@@ -1,16 +1,14 @@
 // The windowing environment as the selection overlay needs it: where every
-// visible window is, and where every output is, in one global logical
-// coordinate space.
+// visible window is, and where every output is, in one global logical space.
 //
-// This is miracle's `GET_TREE` read a second way. `modules/workspace_apps.dart`
-// walks the same reply for *which* applications are on a workspace; this one
-// wants *where* each window is, because a window picker that cannot draw a
-// rectangle around what the pointer is over is a list, not a picker.
+// miracle's `GET_TREE` read a second way. `modules/workspace_apps.dart` walks the
+// same reply for *which* applications are on a workspace; this one wants *where*
+// each window is, because a window picker that cannot draw a rectangle around
+// what the pointer is over is a list rather than a picker.
 //
 // The walk is deliberately explicit about outputs rather than a flat
-// `whereType<ContainerNode>()` over the whole tree: a window has to be
-// attributed to the output it is on, since that is the surface the capture
-// comes from and the surface the overlay drawing its highlight is mapped to.
+// `whereType<ContainerNode>()`: a window has to be attributed to the output it is
+// on, since that is the surface the capture comes from.
 
 import 'package:miracle/miracle.dart';
 
@@ -61,10 +59,9 @@ class SelectableWindow {
 
 /// Every active output in [tree].
 ///
-/// An output with no area is dropped rather than returned empty: it is either
-/// disabled or mid-reconfiguration, and a zero-sized rectangle would make
-/// every hit test against it answer false anyway while still offering the user
-/// a screen to pick.
+/// An output with no area is dropped rather than returned empty: it is disabled
+/// or mid-reconfiguration, and a zero-sized rectangle would make every hit test
+/// against it answer false while still offering the user a screen to pick.
 List<ScreenOutput> collectOutputs(BaseNode tree) => [
       for (final output in tree.outputs)
         if (output.active && !_rectOf(output.rect).isEmpty)
@@ -73,18 +70,15 @@ List<ScreenOutput> collectOutputs(BaseNode tree) => [
 
 /// Every window on a *visible* workspace of an active output, back to front.
 ///
-/// Three filters, each of which is the difference between a usable picker and
-/// a confusing one. Only visible workspaces, or the list carries every window
-/// the user has ever opened on every workspace and the hit test picks one that
-/// is not on screen. Only containers with an `app_id` ([containerAppId], which
-/// is also what covers XWayland's `window_properties.class`), or the split
-/// containers holding them are returned as windows of their own and the
-/// topmost thing under the pointer is a layout node. And only non-empty
-/// rectangles, because a window mid-map reports none.
+/// Three filters, each the difference between a usable picker and a confusing
+/// one. Only visible workspaces, or the list carries every window ever opened on
+/// every workspace. Only containers with an `app_id` ([containerAppId], which
+/// also covers XWayland's `window_properties.class`), or the split containers
+/// holding them come back as windows of their own. And only non-empty rectangles,
+/// because a window mid-map reports none.
 ///
-/// Order is the tree's own, which puts a workspace's floating children after
-/// its tiled ones — so later in this list is nearer the front, which is what
-/// [windowAt] relies on.
+/// Order is the tree's own, which puts a workspace's floating children after its
+/// tiled ones — so later is nearer the front, which [windowAt] relies on.
 List<SelectableWindow> collectWindows(BaseNode tree) {
   final windows = <SelectableWindow>[];
   for (final output in tree.outputs) {
@@ -109,12 +103,11 @@ List<SelectableWindow> collectWindows(BaseNode tree) {
   return windows;
 }
 
-/// The frontmost window in [windows] containing the global logical point
-/// ([x], [y]), or null.
+/// The frontmost window in [windows] containing the global logical point ([x],
+/// [y]), or null.
 ///
 /// Iterated in reverse, because [collectWindows] returns back to front: a
-/// floating window over a tiled one is later in the list, and the pointer is
-/// over the one the user can see.
+/// floating window over a tiled one is later in the list.
 SelectableWindow? windowAt(List<SelectableWindow> windows, int x, int y) {
   for (var i = windows.length - 1; i >= 0; i--) {
     if (windows[i].rect.contains(x, y)) return windows[i];
@@ -133,13 +126,11 @@ ScreenOutput? outputNamed(List<ScreenOutput> outputs, String connector) {
 /// The output a surface on [connector], whose top-left corner is [origin], is
 /// covering — or null when nothing in [outputs] answers for it.
 ///
-/// `capture_source.dart`'s `indexOfCaptureOutput` passes, against miracle's
-/// tree instead of the capture connection's outputs, and for the same reason:
-/// GDK reports no connector at all on a compositor with no `xdg-output`
-/// manager, and an empty string matches none of miracle's names. Without the
-/// second pass a window selection on such a machine finds no windows to point
-/// at and the mapping falls back to the identity — the surface is drawn, and
-/// there is simply nothing on it.
+/// `capture_source.dart`'s `indexOfCaptureOutput` passes, against miracle's tree
+/// instead of the capture connection's outputs and for the same reason: GDK
+/// reports no connector at all without an `xdg-output` manager, and an empty
+/// string matches none of miracle's names. Without the second pass a window
+/// selection on such a machine finds no windows to point at.
 ScreenOutput? resolveScreenOutput(
   List<ScreenOutput> outputs,
   String connector, {
@@ -168,11 +159,9 @@ CaptureRect _rectOf(Rect rect) =>
 ///
 /// A snapshot rather than a live view, and one for the machine rather than one
 /// per surface: the selection surfaces are a window per output and each would
-/// otherwise open its own `GET_TREE` round trip, on a shell that renders as
-/// many of them as the user has monitors. It is also *right* that it does not
-/// update — the rectangles the user is pointing at have to be the ones being
-/// drawn, and a window that opens behind the selection surface cannot be
-/// clicked through it anyway.
+/// otherwise open its own `GET_TREE`. It is also *right* that it does not update
+/// — the rectangles the user is pointing at have to be the ones being drawn, and
+/// a window that opens behind the surface cannot be clicked through it anyway.
 class CaptureScene {
   const CaptureScene({required this.outputs, required this.windows});
 

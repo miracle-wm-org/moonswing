@@ -7,11 +7,9 @@ import 'package:graceful_shell/power/power_config.dart';
 
 /// One thing the shell can do to the session or the machine.
 ///
-/// The verbs used to be spelled inline in the system module's popup, one
-/// closure per button, which is why the bar menu had no Restart: there was
-/// nowhere for a fifth verb to be defined once. The power menu the physical
-/// power button opens offers the same five, and both take their labels from
-/// here so the two lists cannot drift apart.
+/// The verbs used to be spelled inline in the system module's popup, one closure
+/// per button, which is why the bar menu had no Restart. The power menu offers
+/// the same five, and both take their labels from here so the two cannot drift.
 enum PowerAction {
   lock('Lock', FontAwesomeIcons.lock),
   logout('Log Out', FontAwesomeIcons.arrowRightFromBracket),
@@ -26,22 +24,20 @@ enum PowerAction {
   final String label;
 
   /// The glyph both menus draw. Here rather than at the two call sites for
-  /// the same reason [label] is: the bar popup and the power menu are the
-  /// same five verbs, and a user who has learned one picture should not have
-  /// to learn a second.
+  /// [label]'s reason: a user who has learned one picture should not have to
+  /// learn a second.
   ///
   /// [FaIconData] rather than `IconData`: it is a *wrapper* around one rather
-  /// than a subclass, and `FaIcon` — which is what draws these, because the
-  /// plain `Icon` clips a non-square Font Awesome glyph — takes only the
-  /// wrapper.
+  /// than a subclass, and `FaIcon` — which draws these, because the plain `Icon`
+  /// clips a non-square Font Awesome glyph — takes only the wrapper.
   final FaIconData icon;
 
   /// Whether the action is worth confirming before it is performed.
   ///
-  /// Locking is trivially reversible with a password; the other four end the
-  /// session or the uptime and take unsaved work with them. The power *menu*
-  /// is itself a deliberate choice, so it acts on the press — this is for the
-  /// bar popup, where a mis-click lands on a verb the user was not aiming at.
+  /// Locking is trivially reversible; the other four end the session or the
+  /// uptime and take unsaved work with them. The power *menu* is itself a
+  /// deliberate choice, so it acts on the press — this is for the bar popup,
+  /// where a mis-click lands on a verb the user was not aiming at.
   bool get needsConfirmation => this != PowerAction.lock;
 }
 
@@ -64,14 +60,12 @@ PowerAction? powerActionFor(PowerKeyAction action) => switch (action) {
 /// Performs [action] on the real session.
 typedef PowerActionRunner = Future<void> Function(PowerAction action);
 
-/// The seam between "a button was pressed" and the machine actually going
-/// down.
+/// The seam between "a button was pressed" and the machine actually going down.
 ///
-/// A static rather than a constructor parameter because the three call sites
-/// — the bar popup, the power menu, and the root acting on a configured key —
-/// are each several layers from anything that could inject one, and because
-/// what a test needs is not a *different* runner but *no* runner: a widget
-/// test that suspends the machine running it is not a test anybody runs twice.
+/// A static rather than a constructor parameter because the three call sites are
+/// each several layers from anything that could inject one, and because what a
+/// test needs is not a *different* runner but *no* runner: a widget test that
+/// suspends the machine running it is not one anybody runs twice.
 abstract final class PowerActions {
   /// Replaced by tests, restored in their teardown.
   @visibleForTesting
@@ -82,10 +76,10 @@ abstract final class PowerActions {
 
 /// The real implementation of [PowerActions.runner].
 ///
-/// [UbuntuSession] resolves the session manager the desktop actually has
-/// (GNOME's, MATE's, or systemd-logind as the fallback, which is what runs
-/// here) and is what the bar popup already used for logout and shutdown.
-/// Suspend has no place in that interface, so it goes to logind directly.
+/// [UbuntuSession] resolves the session manager the desktop actually has (GNOME's,
+/// MATE's, or systemd-logind as the fallback) and is what the bar popup already
+/// used for logout and shutdown. Suspend has no place in that interface, so it
+/// goes to logind directly.
 Future<void> performPowerAction(PowerAction action) async {
   switch (action) {
     case PowerAction.lock:

@@ -1,33 +1,24 @@
-// What Tux is saying, for the whole shell: one greeting, however many surfaces
-// are drawing it, and one timer behind all of them.
+// What Tux is saying, for the whole shell: one greeting however many surfaces
+// draw it, and one timer behind all of them.
 //
 // `FortuneStore`'s singleton-`ChangeNotifier`-with-leases shape. The desktop
 // surface is one FlutterView per monitor, so without a store a two-monitor user
-// would be greeted by two penguins saying different things — and the tap that
-// asks one of them for another line would leave the other one unchanged.
+// would be greeted by two penguins saying different things.
 //
 // Four things a change here has to keep true:
 //
 // - **The greeting is derived, never stored.** [greeting] is
-//   `greetingForDay(today)` and nothing else, so there is no state to get out
-//   of step with the clock and nothing to persist. That is also why a restart
-//   brings back the same line: the day did not change.
+//   `greetingForDay(today)` and nothing else, so there is no state to get out of
+//   step with the clock and a restart brings back the same line.
 // - **The timer exists only while somebody is looking, and it is a one-shot.**
-//   `TimersStore._syncTicker`'s rule — an idle shell must wake for this exactly
-//   never, and a desktop with no Tux on it holds no lease and arms nothing. It
-//   fires once at the next local midnight rather than ticking: the thing being
-//   waited for happens once a day, and a card that repainted every minute to
-//   notice it would be the most expensive still picture on the desktop.
-// - **The rollover instant is built from the date's parts.** `nextRollover`
-//   does that (`DateTime(y, m, d + 1)`), because the day the clocks change is
-//   23 or 25 hours long and `add(Duration(days: 1))` lands an hour either side
-//   of midnight — which would either fire early and show tomorrow's greeting
-//   tonight, or fire late and leave yesterday's up.
+//   `TimersStore._syncTicker`'s rule. It fires once at the next local midnight
+//   rather than ticking: the thing being waited for happens once a day.
+// - **The rollover instant is built from the date's parts** (`nextRollover`),
+//   because the day the clocks change is 23 or 25 hours long and
+//   `add(Duration(days: 1))` lands an hour either side of midnight.
 // - **`acquire` notifies nothing.** It runs inside the acquiring widget's
 //   `initState`, and a synchronous `notifyListeners` from there is a `setState`
-//   on every *other* surface already holding a lease, during a build.
-//   `FortuneStore.refresh` and `WeatherStore.refresh` are arranged the same way
-//   and for the same reason.
+//   on every other surface already holding a lease, during a build.
 //
 // Flutter-free apart from `ChangeNotifier`, like the other stores.
 
@@ -41,10 +32,10 @@ import 'package:graceful_shell/tux/tux_greetings.dart';
 /// Who to greet, resolved once.
 ///
 /// The account's GECOS name, which is the display name the rest of the desktop
-/// shows — `lock/user_identity.dart` already reads it for the lock screen, and
-/// a second place to ask would be a second place to be wrong. Falls back to the
-/// account name, and then to nothing at all: a bare `Hello` is the correct
-/// greeting for a machine whose passwd entry says nothing about a person.
+/// shows — `lock/user_identity.dart` already reads it, and a second place to ask
+/// would be a second place to be wrong. Falls back to the account name and then
+/// to nothing at all: a bare `Hello` is the correct greeting for a machine whose
+/// passwd entry says nothing about a person.
 String defaultGreetedName() {
   try {
     return tidyGreetedName(UserIdentity.current().displayName);
@@ -61,8 +52,7 @@ String defaultGreetedName() {
 ///
 /// The first word only: `Hey there, Alex` is a greeting and `Hey there, Alex
 /// Fernandez-Whitmore` is a summons. An all-lowercase account name is
-/// capitalised, because `Hello, sam` reads as a shell echoing a variable rather
-/// than as somebody saying hello.
+/// capitalised, because `Hello, sam` reads as a shell echoing a variable.
 String tidyGreetedName(String displayName) {
   final first = displayName.trim().split(RegExp(r'\s+')).first.trim();
   if (first.isEmpty) return '';
@@ -88,14 +78,13 @@ class TuxStore extends ChangeNotifier {
 
   static final TuxStore instance = TuxStore._();
 
-  /// A detached store on an injected clock and name, so a widget test can take
-  /// a real lease, name the day it is pretending to be, and never touch `libc`
-  /// or arm a timer that outlives the test.
+  /// A detached store on an injected clock and name, so a widget test can take a
+  /// real lease, name the day it is pretending to be, and never touch `libc` or
+  /// arm a timer that outlives the test.
   ///
-  /// [resolveName] is the same seam one level down, for the one test that has
-  /// to count how many times the passwd database is asked — a `getpwuid` per
-  /// monitor is exactly what [greetedName]'s memoisation exists to prevent, and
-  /// a constant name cannot show that.
+  /// [resolveName] is the same seam one level down, for the one test that counts
+  /// how many times the passwd database is asked — a `getpwuid` per monitor is
+  /// what [greetedName]'s memoisation exists to prevent.
   @visibleForTesting
   factory TuxStore.forTesting({
     required DateTime Function() now,
@@ -177,11 +166,10 @@ class TuxStore extends ChangeNotifier {
 
   /// Step to the next line without moving the day — what a tap on Tux does.
   ///
-  /// A greeting is a nice thing to be handed once, and somebody who wants
-  /// another one should not have to wait until tomorrow for it. There is no
-  /// animation on the change, for the reason the fortune card states: a
-  /// transition here would be the only moving thing on a still card, moving
-  /// exactly when the user has asked to read something.
+  /// A greeting is a nice thing to be handed once, and somebody who wants another
+  /// should not have to wait until tomorrow. No animation on the change, for the
+  /// fortune card's reason: it would be the only moving thing on a still card,
+  /// moving exactly when the user has asked to read something.
   void another() {
     _offset++;
     notifyListeners();

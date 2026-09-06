@@ -2,14 +2,11 @@
 //
 // The singleton-`ChangeNotifier`-with-leases shape of `MprisStore` and
 // `SystemStatsStore`: the HTTP requests exist only while some widget holds a
-// lease, so a two-monitor setup with a bar module on each and a desktop widget
-// besides shares one poller rather than hitting the geolocation and forecast
-// APIs five times per interval.
+// lease, so two monitors with a bar module each and a desktop widget besides
+// share one poller rather than hitting the APIs five times per interval.
 //
-// Flutter-free apart from `ChangeNotifier` — no widgets, no `BuildContext` —
-// so the bar module and the desktop widget can both consume it and neither
-// owns it. It was the bar module: the fetch, the unit and the parse all lived
-// in `WeatherState`.
+// Flutter-free apart from `ChangeNotifier`, so the bar module and the desktop
+// widget can both consume it and neither owns it.
 
 import 'dart:async';
 
@@ -46,10 +43,9 @@ class WeatherStore extends ChangeNotifier {
 
   /// Applies [config]; the module's `fromMap` pushes it here.
   ///
-  /// A cadence change while leased restarts the timer at the new interval; a
-  /// change of *unit or location* refetches, because both of them change what
-  /// the reading on screen says and waiting out a ten-minute interval to see
-  /// the setting take effect reads as the setting not working.
+  /// A cadence change while leased restarts the timer; a change of *unit or
+  /// location* refetches, because both change what the reading says and waiting
+  /// out the interval reads as the setting not working.
   void configure(WeatherConfig config) {
     final previous = _config;
     if (previous == config) return;
@@ -102,9 +98,8 @@ class WeatherStore extends ChangeNotifier {
   /// Why there is no reading, or empty when there is one.
   ///
   /// A visible state rather than a silent one, the rule
-  /// `NotificationDaemonStatus` documents: the shell cannot tell a machine with
-  /// no network from a quiet API, and an empty bar module is indistinguishable
-  /// from a module the user has not enabled.
+  /// `NotificationDaemonStatus` documents: an empty bar module is
+  /// indistinguishable from one the user never enabled.
   String _error = '';
   String get error => _error;
 
@@ -144,12 +139,11 @@ class WeatherStore extends ChangeNotifier {
   Future<WeatherPlace>? _locating;
 
   /// Take a lease. The first one starts the refresh timer and fetches
-  /// immediately, so the first consumer never waits a full interval for a
-  /// reading.
+  /// immediately, so the first consumer never waits a full interval.
   ///
-  /// There is one lease level, unlike `MprisStore`'s: the desktop widget wants
-  /// the same single response the bar does, and a second tier would buy nothing
-  /// but a second code path.
+  /// One lease level, unlike `MprisStore`'s: the desktop widget wants the same
+  /// single response the bar does, and a second tier would buy a second code
+  /// path and nothing else.
   void acquire() {
     _leases++;
     if (_timer == null) {
@@ -183,18 +177,14 @@ class WeatherStore extends ChangeNotifier {
 
   /// Where the shell thinks it is, without fetching any weather.
   ///
-  /// The lunar widget needs a *location* and nothing else: the phase is the
-  /// same everywhere on Earth, and the coordinates only decide the moonrise
-  /// times and which way up the disc is seen. Taking a weather lease for that
-  /// would start a ten-minute forecast poll to answer a question the config may
-  /// already contain, so this answers from the configured coordinates, then
-  /// from whatever a weather fetch has already resolved, and only then makes
-  /// the one IP lookup — shared with [refresh]'s, and cached for the life of
-  /// the shell exactly as that one is.
+  /// The lunar widget needs a *location* and nothing else, and taking a weather
+  /// lease for that would start a forecast poll to answer a question the config
+  /// may already contain. So: the configured coordinates, then whatever a weather
+  /// fetch has already resolved, then the one IP lookup — shared with [refresh]'s
+  /// and cached for the life of the shell.
   ///
-  /// Null rather than a throw when there is no answer. A consumer of this is by
-  /// definition one that works without a location; the weather cannot, which is
-  /// why [refresh] still lets the failure through to [error].
+  /// Null rather than a throw when there is no answer: a consumer of this is by
+  /// definition one that works without a location.
   Future<WeatherPlace?> resolvePlace() async {
     final configured = _config.place;
     if (configured != null) return configured;
