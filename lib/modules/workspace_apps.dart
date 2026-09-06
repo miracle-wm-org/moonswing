@@ -23,6 +23,7 @@ class WorkspacesConfig {
     this.maxIcons = 4,
     this.flashUrgent = true,
     this.urgentFlashSeconds = 5.0,
+    this.showPolicyToggle = true,
   });
 
   /// Whether each workspace button carries the icons of the applications open on
@@ -56,6 +57,15 @@ class WorkspacesConfig {
   /// and one past half a minute never visibly moves.
   final double urgentFlashSeconds;
 
+  /// Whether the focused workspace's button carries the button that switches
+  /// that workspace between tiling and floating new windows. On by default.
+  ///
+  /// Only ever drawn on the focused workspace, so it costs one glyph in the bar
+  /// and nothing at all on the other buttons — and, like the urgency flash, no
+  /// round-trip: miracle reports the policy on the `GET_WORKSPACES` entry the
+  /// button is already built from.
+  final bool showPolicyToggle;
+
   factory WorkspacesConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const WorkspacesConfig();
     return WorkspacesConfig(
@@ -65,6 +75,7 @@ class WorkspacesConfig {
       flashUrgent: map.boolOr('flash_urgent', true),
       urgentFlashSeconds:
           map.doubleOr('urgent_flash_seconds', 5.0, min: 1, max: 30),
+      showPolicyToggle: map.boolOr('show_policy_toggle', true),
     );
   }
 }
@@ -176,6 +187,49 @@ List<String> appIdsForWorkspace(
 /// still in flight on the frame the switch lands.
 bool shouldFlashWorkspace(WorkspacesConfig config, WorkspaceResult workspace) =>
     config.flashUrgent && workspace.urgent && !workspace.focused;
+
+/// How a `workspace` command names [workspace].
+///
+/// Its number when it has a real one, otherwise its name. miracle reports a
+/// named workspace's number as the placeholder `-1`, which addresses nothing,
+/// so a bare `num != null` would spell a selector no command could act on.
+///
+/// Null when miracle reported neither — the one workspace nothing can be sent
+/// about, which is why both call sites take a nullable and go inert rather than
+/// interpolating the word `null` into a command.
+String? workspaceSelector(WorkspaceResult workspace) {
+  final number = workspace.num;
+  if (number != null && number >= 0) return number.toString();
+  final name = workspace.name;
+  return name != null && name.isNotEmpty ? name : null;
+}
+
+/// Whether the button for [workspace] carries the tile/float policy toggle.
+///
+/// **The focused workspace only.** The toggle changes where the *next* window
+/// opens, which is a statement about the workspace the user is about to open it
+/// on; on the other buttons it would be five more click targets in a bar, each
+/// one a switch-workspace tap waiting to be missed. It is also what keeps the
+/// row's width honest — one button grows by a glyph, and it is the button the
+/// user is already looking at.
+bool shouldShowPolicyToggle(
+  WorkspacesConfig config,
+  WorkspaceResult workspace,
+) =>
+    config.showPolicyToggle &&
+    workspace.focused &&
+    workspaceSelector(workspace) != null;
+
+/// The policy one press of that toggle moves [policy] to.
+///
+/// Exhaustive rather than a `!=`, so a placement policy miracle grows later
+/// forces a decision about where it sits in the cycle instead of quietly
+/// becoming "anything that is not tiling".
+WindowPlacementPolicy nextWorkspacePolicy(WindowPlacementPolicy policy) =>
+    switch (policy) {
+      WindowPlacementPolicy.tile => WindowPlacementPolicy.float,
+      WindowPlacementPolicy.float => WindowPlacementPolicy.tile,
+    };
 
 // ---------------------------------------------------------------------------
 // Store

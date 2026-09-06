@@ -333,10 +333,10 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: "1093ee8b1ebaec35dc337da82891d4a7d320d501"
+      resolved-ref: "5de1c4a0ef3d536144be6618cfefa0e23cae4232"
       url: "https://github.com/miracle-wm-org/miracle.dart.git"
     source: git
-    version: "2.2.0"
+    version: "2.4.0"
   mocktail:
     dependency: transitive
     description:
