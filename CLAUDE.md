@@ -241,5 +241,6 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `polkit/`, `power/`, `lock/` | Authentication agent, power-key policy and menu, session lock |
 | `native/`, `wayland_ffi/`, `pipewire/` | dlopen plumbing, libwayland bindings, libpipewire + SPA |
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
+| `keybinds/` | The cheat sheet behind the bar's keyboard icon: miracle's own bindings over `GET_KEYBINDS`, the pure model that turns one into key caps, its store and its overlay |
 
 Feature-level rationale that used to live in this file is in the git history of `CLAUDE.md` and in the doc comments of the files themselves.

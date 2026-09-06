@@ -70,6 +70,7 @@ void main() {
         'system_tray',
         'battery',
         'weather',
+        'keybinds',
         'keyboard_layout',
         'system',
       ]);
