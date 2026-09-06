@@ -38,11 +38,10 @@ bool _initialized = false;
 
 /// Initializes session-lock support and installs the windowing owner globally.
 ///
-/// Call this once after `WidgetsFlutterBinding.ensureInitialized()`, *instead
-/// of* `initLayerShell()` — it calls that first (so layer-shell windows keep
-/// working) and then swaps in a [SessionLockWindowingOwnerLinux], which is an
-/// [ExtendedWindowingOwnerLinux] and therefore satisfies every existing
-/// layer-shell and popup code path.
+/// Call this once after `WidgetsFlutterBinding.ensureInitialized()`, *instead of*
+/// `initLayerShell()` — it calls that first and then swaps in a
+/// [SessionLockWindowingOwnerLinux], which is an [ExtendedWindowingOwnerLinux]
+/// and so satisfies every existing layer-shell and popup code path.
 void initSessionLock() {
   initLayerShell();
   WidgetsBinding.instance.windowingOwner = SessionLockWindowingOwnerLinux();
@@ -55,15 +54,15 @@ void initSessionLock() {
 ///
 /// 1. [prepare] creates the lock object and wires its signals.
 /// 2. [lock] asks the compositor to lock the session. Every normal and
-///    layer-shell surface — including the shell's own panels — is hidden, and
-///    outputs without a lock surface are blanked with an opaque colour.
-/// 3. One [SessionLockWindowController] per monitor turns a GTK window into
-///    that output's lock surface (it calls [newSurface] for you).
-/// 4. [onLocked] fires once the compositor confirms the session is locked.
+///    layer-shell surface is hidden, and outputs without a lock surface are
+///    blanked with an opaque colour.
+/// 3. One [SessionLockWindowController] per monitor turns a GTK window into that
+///    output's lock surface.
+/// 4. [onLocked] fires once the compositor confirms the lock.
 /// 5. [unlockAndDestroy] unlocks and tears the lock down.
 ///
-/// If the client disconnects without unlocking, the compositor keeps the
-/// session locked — a crash can never expose the session.
+/// If the client disconnects without unlocking, the compositor keeps the session
+/// locked — a crash can never expose the session.
 class SessionLock {
   SessionLock({this.onLocked, this.onFinished});
 
@@ -203,13 +202,10 @@ class SessionLock {
 
   /// Tears the lock down with whichever destructor the protocol allows.
   ///
-  /// The choice is not the caller's to make: once the `locked` event has been
-  /// received, `ext_session_lock_v1.destroy` is a protocol error
-  /// (`invalid_destroy`) and `unlock_and_destroy` is the only legal request —
-  /// and before it, the reverse. Getting this wrong kills the Wayland
-  /// connection, taking the whole shell with it.
-  ///
-  /// Use this when responding to [onFinished] or unwinding a failed lock.
+  /// The choice is not the caller's: once the `locked` event has been received,
+  /// `ext_session_lock_v1.destroy` is a protocol error (`invalid_destroy`) and
+  /// `unlock_and_destroy` is the only legal request — and before it, the reverse.
+  /// Getting this wrong kills the Wayland connection and the whole shell with it.
   void release() {
     if (!isPrepared) return;
     if (_everLocked) {
@@ -225,13 +221,12 @@ class SessionLock {
     _closeCallbacks();
   }
 
-  /// Drops the lock without telling the compositor anything, leaving the
-  /// session locked.
+  /// Drops the lock without telling the compositor anything, leaving the session
+  /// locked.
   ///
-  /// For shutdown while locked. There is deliberately no Wayland request here:
-  /// after `locked`, the only legal destructor is `unlock_and_destroy`, which
-  /// would *unlock* the session — the opposite of what a dying shell wants.
-  /// Simply disconnecting leaves the session locked, which is the protocol's
+  /// For shutdown while locked. Deliberately no Wayland request: after `locked`
+  /// the only legal destructor is `unlock_and_destroy`, which would *unlock* the
+  /// session. Simply disconnecting leaves it locked, which is the protocol's
   /// documented behaviour.
   void abandon() {
     if (!isPrepared) return;
@@ -299,8 +294,7 @@ class SessionLockWindowingOwnerLinux extends ExtendedWindowingOwnerLinux {
 /// gtk-session-lock setup inserted *before* the window is realized:
 /// `gtk_session_lock_lock_new_surface()` has to claim the GDK window's surface
 /// before GTK maps it, which is why window creation is driven here rather than
-/// reusing the SDK's regular controller (which realizes in its own
-/// constructor).
+/// reusing the SDK's regular controller.
 class SessionLockWindowController extends WindowController
     implements BaseWindowControllerLinux {
   /// Creates a lock window on [monitor] for an already-[SessionLock.prepare]d
@@ -337,11 +331,10 @@ class SessionLockWindowController extends WindowController
     sessionLock.newSurface(_window, monitor);
 
     // Measured immediately, because this is the step that silently no-ops:
-    // gtk_session_lock_lock_new_surface() passes the lock object straight to
+    // gtk_session_lock_lock_new_surface() passes the lock object to
     // lock_surface_new(), which bails on `g_return_val_if_fail (session_lock)`
-    // before it connects the realize/map handlers. When that happens nothing
-    // claims the surface and GDK maps an ordinary xdg_toplevel — a floating
-    // window instead of a lock surface.
+    // before connecting the realize/map handlers — and then nothing claims the
+    // surface and GDK maps an ordinary xdg_toplevel.
     attachedAsLockSurface = isLockWindow;
 
     // gtk-layer-shell disables decorations itself in layer_surface_new(); the
@@ -353,11 +346,10 @@ class SessionLockWindowController extends WindowController
     // Size the window to the monitor before it is ever laid out.
     //
     // gtk-session-lock only constrains the size once the compositor's
-    // lock-surface configure arrives (it sets min == max geometry hints).
-    // Until then GTK uses the window's natural size, so the first Flutter
-    // layout would run in a tiny window and blow up with overflow errors.
-    // Starting at the monitor's geometry means the very first frame is laid
-    // out at the size the configure is going to ask for anyway.
+    // lock-surface configure arrives, so until then GTK uses the window's natural
+    // size and the first Flutter layout would run in a tiny window and overflow.
+    // Starting at the monitor's geometry lays the first frame out at the size the
+    // configure is going to ask for anyway.
     final geometry = GdkMonitor(monitor).getGeometry();
     if (geometry.width > 0 && geometry.height > 0) {
       _window.setDefaultSize(geometry.width.toInt(), geometry.height.toInt());
@@ -428,12 +420,11 @@ class SessionLockWindowController extends WindowController
     if (_destroyed) return;
     _viewMonitor.close();
     _viewMonitor.unref();
-    // The role object must die before the wl_surface: gtk_widget_destroy
-    // tears down the wl_surface on unmap while gtk-session-lock only destroys
-    // the ext_session_lock_surface_v1 in the window's finalizer, and Mir
-    // answers that reversed order by deleting the role server-side — the
-    // finalizer's destroy then hits an unknown object and the compositor
-    // kills the connection.
+    // The role object must die before the wl_surface: gtk_widget_destroy tears
+    // down the wl_surface on unmap while gtk-session-lock only destroys the
+    // ext_session_lock_surface_v1 in the window's finalizer, and Mir answers that
+    // reversed order by deleting the role server-side — the finalizer's destroy
+    // then hits an unknown object and the compositor kills the connection.
     GtkSessionLockBindings.instance?.unmapLockWindow(_window.instance.cast());
     _window.destroy();
     _windowMonitor.close();
@@ -442,13 +433,11 @@ class SessionLockWindowController extends WindowController
     _owner.unregisterSessionLockWindow(rootView.viewId);
   }
 
-  /// Whether gtk-session-lock actually took this window over as a lock
-  /// surface.
+  /// Whether gtk-session-lock actually took this window over as a lock surface.
   ///
-  /// False means `gtk_session_lock_lock_new_surface()` did not attach — GDK
-  /// will map the window as an ordinary `xdg_toplevel`, i.e. a normal floating
-  /// window rather than a lock surface. Worth logging: the failure is silent
-  /// apart from a `g_critical` on stderr.
+  /// False means `gtk_session_lock_lock_new_surface()` did not attach, so GDK
+  /// will map an ordinary `xdg_toplevel` — a normal floating window. Worth
+  /// logging: the failure is silent apart from a `g_critical` on stderr.
   bool get isLockWindow {
     if (_destroyed) return false;
     final bindings = GtkSessionLockBindings.instance;

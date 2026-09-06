@@ -1,11 +1,10 @@
 // The launcher's unit converter: turns a typed quantity into the same quantity
 // said in other units, or null when the query is not one.
 //
-// Pure — no Flutter, no I/O — so the table, the gate and the peer choice are
-// unit tested without a widget in sight. `expression.dart`'s shape, and its
-// sibling: the two rows are the same idea (a query that is worth answering
-// rather than searching for) and they cannot both fire, because a conversion
-// carries no operator and `looksLikeExpression` demands one.
+// Pure — no Flutter, no I/O — so the table, the gate and the peer choice are unit
+// tested without a widget in sight. `expression.dart`'s sibling: the two rows
+// cannot both fire, because a conversion carries no operator and
+// `looksLikeExpression` demands one.
 
 import 'dart:math' as math;
 
@@ -43,9 +42,8 @@ enum UnitSystem {
 /// One unit, and how to reach its dimension's base unit.
 ///
 /// `base = value * factor + offset`. The offset is what makes temperature work:
-/// it is the one dimension here whose conversions are affine rather than a
-/// ratio, and a table of plain factors would have to special-case it somewhere
-/// less visible than this field.
+/// it is the one dimension whose conversions are affine rather than a ratio, and
+/// a table of plain factors would special-case it somewhere less visible.
 class ConvertibleUnit {
   const ConvertibleUnit({
     required this.id,
@@ -81,12 +79,11 @@ class ConvertibleUnit {
 
   /// Whether the unit is reachable only by being asked for.
   ///
-  /// A knot is the right answer to `100 kph in knots` and the wrong first line
-  /// of `100 kph`, which is a question about miles per hour. The same goes for
-  /// nautical miles and gradians: each is the nearest-to-human-sized peer in
-  /// its dimension and each would therefore lead every bare query in it, which
-  /// is the peer chooser's ordering being right about the arithmetic and wrong
-  /// about the reader.
+  /// A knot is the right answer to `100 kph in knots` and the wrong first line of
+  /// `100 kph`, which is a question about miles per hour. Nautical miles and
+  /// gradians likewise: each is the nearest-to-human-sized peer in its dimension
+  /// and would therefore lead every bare query in it — the peer chooser being
+  /// right about the arithmetic and wrong about the reader.
   final bool specialist;
 
   double toBase(double value) => value * factor + offset;
@@ -127,13 +124,12 @@ class UnitConversion {
 /// scrollable region above the results it is supposed to be introducing.
 const int kUnitPeerLimit = 4;
 
-/// The window a converted value has to land in to be worth printing, when the
-/// dimension is one where magnitude means anything.
+/// The window a converted value has to land in to be worth printing, where the
+/// dimension is one in which magnitude means anything.
 ///
-/// `1 mm` in miles is `0.00000062`, which is not an answer anybody reads — it
-/// is the row spending a quarter of itself saying "very small". The bounds are
-/// generous rather than tight, because dropping a conversion the user was
-/// after is the worse failure.
+/// `1 mm` in miles is `0.00000062`, which is the row spending a quarter of itself
+/// saying "very small". The bounds are generous rather than tight, because
+/// dropping a conversion the user was after is the worse failure.
 const double kReadableMin = 1e-2;
 const double kReadableMax = 1e5;
 
@@ -568,9 +564,9 @@ const List<ConvertibleUnit> kConvertibleUnits = [
 /// Dimensions whose peers are chosen by declared order rather than by how
 /// readable the converted number is.
 ///
-/// Temperature is the whole of it: `0 °C` and `-40 °F` are perfectly ordinary
-/// readings, and a rule that judges a conversion by its distance from 1 would
-/// throw away the freezing point of water for being too near zero.
+/// Temperature is the whole of it: `0 °C` and `-40 °F` are ordinary readings, and
+/// a rule judging a conversion by its distance from 1 would throw away the
+/// freezing point of water for being too near zero.
 const Set<UnitDimension> kUnorderedByMagnitude = {UnitDimension.temperature};
 
 final Map<String, ConvertibleUnit> _byAlias = {
@@ -631,9 +627,8 @@ UnitConversion? convertQuery(String query) {
 /// `5 km to mi` — the form that names its own target.
 ///
 /// Splits over whole tokens and tries the keywords from the right, so `5 in in
-/// cm` and `5 cm in in` both land on the split that leaves a quantity on one
-/// side and a unit on the other. A split whose halves do not both parse is not
-/// a conversion at all, which is what keeps `2 to 3` and `5 apps in dock` out.
+/// cm` and `5 cm in in` both land. A split whose halves do not both parse is not
+/// a conversion, which keeps `2 to 3` and `5 apps in dock` out.
 UnitConversion? _parseExplicit(String trimmed) {
   final words = trimmed.split(RegExp(r'\s+'));
   for (var i = words.length - 1; i > 0; i--) {
@@ -657,11 +652,10 @@ UnitConversion? _parseExplicit(String trimmed) {
 /// What a bare quantity is answered with: the units of its dimension that say
 /// something useful about it, best first, capped at [kUnitPeerLimit].
 ///
-/// Two rules decide the order, and both exist because `1kg` is a question about
-/// pounds far more often than it is one about grams. A peer from a *different*
-/// system comes first; within each group the one whose converted value is
-/// nearest a human-sized number comes first, so `1 mi` leads with kilometres
-/// and `1 mm` with inches without either being special-cased.
+/// Two rules decide the order, both because `1kg` is a question about pounds far
+/// more often than about grams. A peer from a *different* system comes first;
+/// within each group the one nearest a human-sized number leads, so `1 mi` leads
+/// with kilometres and `1 mm` with inches without either being special-cased.
 List<Quantity> peersFor(Quantity input) {
   final candidates = [
     for (final unit in kConvertibleUnits)
@@ -697,9 +691,9 @@ List<Quantity> _orderedAsDeclared(Quantity input, List<Quantity> candidates) {
 /// person would say out loud.
 ///
 /// The unreadable ones are dropped rather than sorted to the back — but only
-/// while something survives: a query whose every peer is enormous still gets
-/// the least enormous of them, because a row that renders nothing is a
-/// conversion the shell decided the user did not want.
+/// while something survives: a query whose every peer is enormous still gets the
+/// least enormous, because a row that renders nothing is a conversion the shell
+/// decided the user did not want.
 List<Quantity> _orderedByReadability(
     Quantity input, List<Quantity> candidates) {
   var readable = candidates
@@ -723,13 +717,12 @@ int _systemRank(Quantity input, Quantity peer) =>
 /// How much harder than `2.2` a value is to read, in decades.
 ///
 /// Distance from 1 either way, but a value *below* it counts for three times as
-/// much: `0.125 d` and `180 min` are the same three hours and the same decade
-/// and a half from 1, and only one of them is a number somebody says out loud.
-/// Without the asymmetry the days would lead, which is the ordering being right
-/// about the arithmetic and wrong about the reader.
+/// much: `0.125 d` and `180 min` are the same three hours and the same decade and
+/// a half from 1, and only one is a number somebody says out loud. Without the
+/// asymmetry the days would lead.
 ///
-/// Zero cannot reach this — the dimensions where a conversion can legitimately
-/// be zero do not sort by it.
+/// Zero cannot reach this — the dimensions where a conversion can legitimately be
+/// zero do not sort by it.
 double _magnitudeDistance(double value) {
   final magnitude = value.abs();
   if (magnitude == 0) return double.maxFinite;
@@ -747,9 +740,8 @@ String formatQuantity(Quantity quantity) {
 /// The number half of a conversion, or null when there is nothing to print.
 ///
 /// Six significant figures rather than the calculator's twelve: a conversion
-/// factor is a measurement, and printing `2.20462262185 lb` claims a precision
-/// the question never had. Long integers are grouped, `formatKilometres`'s
-/// rule — `1000000000 B` is a number nobody reads.
+/// factor is a measurement, and `2.20462262185 lb` claims a precision the question
+/// never had. Long integers are grouped, `formatKilometres`'s rule.
 String? formatQuantityValue(double value) {
   final text = formatResult(value, precision: 6);
   if (text == null) return null;

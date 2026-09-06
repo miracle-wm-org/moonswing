@@ -62,11 +62,10 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
 
   /// Takes the Shell pane to the category a search result named.
   ///
-  /// Always pops to the landing page and pushes again, even when the category
-  /// is the one already showing: the row that has to claim the jump does so
-  /// from its own first build, so re-entering the category is what guarantees
-  /// there is one. Both routes are instant (see [_categoryRoute]), so this is
-  /// one frame with nothing to see.
+  /// Always pops to the landing page and pushes again, even when the category is
+  /// the one already showing: the row that claims the jump does so from its own
+  /// first build, so re-entering the category is what guarantees there is one.
+  /// Both routes are instant, so this is one frame with nothing to see.
   void _onJumpRequested() {
     final target = _highlight?.target;
     final category = _shellCategoryByTitle(target?.field.route.shellCategory);
@@ -338,45 +337,35 @@ class _ShellCategoryView extends StatelessWidget {
         ),
         Container(height: 1, color: theme.divider),
         Expanded(
-          // No `ListenableBuilder` here, deliberately. [ConfigStore] notifies
-          // on every `set` — which is once per keystroke in any field on any
-          // pane — so a builder at this level rebuilt every row of the category
-          // for one digit typed into one of them, `background.dart`'s stat
-          // sweep and `panels.dart`'s module-key allocations included. Each
-          // section subscribes to the values it actually renders instead; see
-          // `ConfigValue` and `StoreSelector` in `controls.dart`.
+          // No `ListenableBuilder` here, deliberately. [ConfigStore] notifies on
+          // every `set` — once per keystroke in any field on any pane — so a
+          // builder at this level rebuilt every row of the category for one digit
+          // typed into one of them. Each section subscribes to the values it
+          // renders instead; see `ConfigValue` and `StoreSelector`.
           //
           // The rule that leaves behind: every `store.get`/`getList` under
-          // `settings/shell/` is either inside one of those builders or inside
-          // an event handler. A read left in a bare `build` does not throw — it
+          // `settings/shell/` is either inside one of those builders or inside an
+          // event handler. A read left in a bare `build` does not throw — it
           // silently stops updating, which reads as "I typed and nothing
           // happened".
-          // Every category builder returns a **sliver** — see
-          // [SliverSettingsSection]. A `SingleChildScrollView` here laid the
-          // whole category out at once and, because its child had no repaint
-          // boundary, re-recorded the entire page's display list on every
-          // scroll frame.
+          //
+          // Every category builder returns a **sliver**. A
+          // `SingleChildScrollView` laid the whole category out at once and,
+          // with no repaint boundary on its child, re-recorded the entire page's
+          // display list on every scroll frame.
           //
           // `cacheExtent` is raised well past the default 250: a `SliverList`
-          // unmounts a child that far past the edge, and the controls on these
-          // pages own their state — a [SettingsTextField]'s
-          // `TextEditingController` reads its seed once, so a remount mid-word
-          // would reset the selection. The keep-alive on that field is the
-          // belt; this is the braces, and it covers scrolling *past* a field
-          // that is not focused at all.
+          // unmounts a child that far past the edge, and these controls own their
+          // state — a [SettingsTextField]'s controller reads its seed once, so a
+          // remount mid-word would reset the selection.
           child: CustomScrollView(
-            // Ordinarily 600 (see above). While a search jump for *this*
-            // category is pending it is effectively unbounded, and that is the
-            // whole mechanism behind "take me to that field": a `SliverList`
-            // never builds a child far enough past the viewport edge, so a row
-            // forty settings down the page has no element for
-            // `Scrollable.ensureVisible` to scroll to and would simply never be
-            // found. Holding the page mounted for the one frame the jump lands
-            // in is what gives it one; the row clears the target as soon as it
-            // has scrolled, which drops this straight back to 600. It is paid
-            // once, on an explicit user action — which is what makes it
-            // affordable even on the Background page, whose hundred-odd
-            // `Image.file` tiles are the reason the laziness exists at all.
+            // Ordinarily 600. While a search jump for *this* category is pending
+            // it is effectively unbounded, which is the whole mechanism behind
+            // "take me to that field": a `SliverList` never builds a child far
+            // past the viewport edge, so a row forty settings down has no element
+            // for `Scrollable.ensureVisible` to scroll to. Holding the page
+            // mounted for the one frame the jump lands in is what gives it one,
+            // and the row clears the target as soon as it has scrolled.
             scrollCacheExtent: jumping
                 ? const ScrollCacheExtent.pixels(1e6)
                 : const ScrollCacheExtent.pixels(600),
@@ -395,14 +384,11 @@ class _ShellCategoryView extends StatelessWidget {
 
 /// Instant route for pushing a category view.
 ///
-/// There is deliberately no transition here. The pane is a nested [Navigator]
-/// inside the settings panel, and every route in it fills the same box against
-/// the same opaque panel fill — so an animated push spends its whole duration
-/// showing the outgoing page *through* the incoming one, which reads as the
-/// pane flickering rather than as movement. A zero-duration route swaps the
-/// two on one frame, and `transitionsBuilder` is left at its default, which
-/// returns the child unwrapped: nothing is built per frame because there are
-/// no frames to build for.
+/// Deliberately no transition. Every route in this nested [Navigator] fills the
+/// same box against the same opaque panel fill, so an animated push spends its
+/// whole duration showing the outgoing page *through* the incoming one — which
+/// reads as the pane flickering rather than as movement. `transitionsBuilder` is
+/// left at its default, which returns the child unwrapped.
 PageRoute<T> _categoryRoute<T>(Widget child) {
   return PageRouteBuilder<T>(
     transitionDuration: Duration.zero,
@@ -499,10 +485,10 @@ class _CategoryCard extends StatelessWidget {
 
 /// Theme picker + editor.
 ///
-/// The palette no longer lives in `config.toml` — `[ThemeStore]` owns a file
-/// per theme under `~/.config/graceful-shell/themes/` and `config.toml` only
-/// names the active one. So this section talks to [ThemeStore], not [store];
-/// the parameter stays because every category builder takes one.
+/// The palette no longer lives in `config.toml` — [ThemeStore] owns a file per
+/// theme and `config.toml` only names the active one. So this section talks to
+/// [ThemeStore], not [store]; the parameter stays because every category builder
+/// takes one.
 
 class _RestartBanner extends StatelessWidget {
   @override
