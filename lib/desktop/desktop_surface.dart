@@ -19,9 +19,8 @@ import 'package:graceful_shell/theme/theme_provider.dart';
 /// What the background layer-shell window renders: the wallpaper, with the
 /// desktop icon grid over it and the grid's context menus.
 ///
-/// [background] is null in the grid-only case — the desktop grid is enabled but
-/// no wallpaper is configured. That must render as *nothing*, not as
-/// [BackgroundWindow]'s opaque empty fill, or a user with icons and no
+/// [background] is null in the grid-only case. That must render as *nothing*, not
+/// as [BackgroundWindow]'s opaque empty fill, or a user with icons and no
 /// wallpaper gets a black desktop instead of whatever their compositor draws.
 class DesktopSurface extends StatefulWidget {
   const DesktopSurface({
@@ -67,8 +66,8 @@ class _DesktopSurfaceState extends State<DesktopSurface>
   /// The "Open with…" candidates for the open menu.
   ///
   /// These carry live `GAppInfo*`s that this state owns — `appsForPath` is
-  /// transfer-full and deliberately not served from `AppIndex`. Disposed when
-  /// the popup closes and again in [dispose], because a popup dismissed by the
+  /// transfer-full and deliberately not served from `AppIndex`. Disposed when the
+  /// popup closes and again in [dispose], because a popup dismissed by the
   /// compositor routes through `onClosed` but a shell teardown does not.
   List<AppEntry> _handlers = const [];
 
@@ -86,9 +85,8 @@ class _DesktopSurfaceState extends State<DesktopSurface>
 
   /// Opens a menu at [position] (surface-local).
   ///
-  /// `openPopup` no-ops while one is open, so an already-open menu is closed
-  /// first and the new one opened after the frame — the same dance
-  /// `modules/dock.dart` does.
+  /// `openPopup` no-ops while one is open, so an already-open menu is closed first
+  /// and the new one opened after the frame — the dance `modules/dock.dart` does.
   void _openMenu(Offset position, Widget child) {
     void open() {
       if (!mounted) return;
@@ -242,12 +240,11 @@ class _DesktopSurfaceState extends State<DesktopSurface>
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Its own layer. The wallpaper is the most expensive single draw on
-          // this surface — a full-output image resampled to fit — and it
-          // changes once every few minutes at most, while the grid over it
-          // changes under the pointer. Without a boundary every hover
-          // highlight, every rubber-band move and every drag re-records that
-          // scale into the surface's one picture.
+          // Its own layer. The wallpaper is the most expensive single draw on this
+          // surface — a full-output image resampled to fit — and it changes once
+          // every few minutes at most, while the grid over it changes under the
+          // pointer. Without a boundary every hover, band move and drag
+          // re-records that scale into the surface's one picture.
           if (widget.background != null)
             RepaintBoundary(child: BackgroundWindow(config: widget.background!))
           else

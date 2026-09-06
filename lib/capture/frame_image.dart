@@ -3,16 +3,13 @@
 //
 // The frame's `data` points into the capture session's shm mapping and is only
 // valid inside the `onFrame` callback, so everything here copies out
-// synchronously and the *encode* — which is asynchronous — is handed a Dart
-// list that is ours.
+// synchronously and the asynchronous *encode* is handed a Dart list that is ours.
 //
-// Byte order is read off the frame rather than assumed.
+// Byte order is read off the frame rather than assumed:
 // `capture_session.dart` negotiates one of four `wl_shm` formats and prefers
-// XRGB, whose little-endian bytes are B,G,R,X — byte-identical to BGRA, which
-// is why `screencast/preview.dart` decodes it with no reorder loop at all. The
-// two `*BGR*` variants are the same trick the other way round. A per-pixel
-// swizzle is never needed and must never be added: at 4K a reorder loop is
-// tens of milliseconds a frame.
+// XRGB, whose little-endian bytes are B,G,R,X — byte-identical to BGRA. A
+// per-pixel swizzle is never needed and must never be added: at 4K a reorder loop
+// is tens of milliseconds a frame.
 
 import 'dart:ffi'; // for the Pointer.asTypedList extension
 import 'dart:typed_data';
@@ -61,14 +58,13 @@ class FrameBytes {
   final FrameByteOrder order;
 }
 
-/// Copies [frame] — all of it, or just [crop] in *buffer* pixels — into a
-/// fresh, tightly packed list.
+/// Copies [frame] — all of it, or just [crop] in *buffer* pixels — into a fresh,
+/// tightly packed list.
 ///
-/// [opaque] forces the alpha byte of every pixel, which the PNG path needs and
-/// the recorder does not: the XRGB the session prefers leaves those bytes
-/// undefined, so a shot saved without this comes out transparent, while the
-/// recorder's `format=yuv420p` conversion discards alpha anyway and would be
-/// paying for a whole extra pass over the frame.
+/// [opaque] forces the alpha byte of every pixel, which the PNG path needs and the
+/// recorder does not: the XRGB the session prefers leaves those bytes undefined,
+/// so a shot saved without this comes out transparent, while the recorder's
+/// `yuv420p` conversion discards alpha anyway.
 FrameBytes copyFrame(
   CapturedFrame frame, {
   CaptureRect? crop,
@@ -106,16 +102,14 @@ FrameBytes copyFrame(
   );
 }
 
-/// Copies [frame] into [canvas], a fixed [canvasWidth] x [canvasHeight]
-/// buffer, clipped and top-left aligned.
+/// Copies [frame] into [canvas], a fixed [canvasWidth] x [canvasHeight] buffer,
+/// clipped and top-left aligned.
 ///
 /// The recorder pins its geometry when it starts, because ffmpeg's rawvideo
-/// demuxer is told the frame size once and a stream that changes size mid-way
-/// is not a stream it can read. A window that is resized while being recorded
-/// therefore lands in the canvas it started with: grown, it is cropped to it;
-/// shrunk, the uncovered margin is cleared. That is a visible compromise and
-/// it is the right one — the alternative is a recording that ends the moment
-/// somebody drags a corner.
+/// demuxer is told the frame size once. A window resized while being recorded
+/// therefore lands in the canvas it started with: grown, it is cropped; shrunk,
+/// the uncovered margin is cleared. A visible compromise, and the right one — the
+/// alternative is a recording that ends the moment somebody drags a corner.
 void blitIntoCanvas(
   CapturedFrame frame,
   Uint8List canvas,

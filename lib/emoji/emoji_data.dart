@@ -1,33 +1,26 @@
 // The emoji the picker offers, embedded as a Dart constant.
 //
-// Deliberately dependency-free — no Flutter, no I/O — so the table and
-// everything ranked against it are plain unit tests, and so `emoji_search.dart`
-// can fold it without dragging the widget layer in behind it.
+// Deliberately dependency-free — no Flutter, no I/O — so the table and everything
+// ranked against it are plain unit tests.
 //
-// **It is a constant rather than an asset, which is what keeps "the shell ships
-// no image assets" true one file over.** `theme/builtin_themes.dart` embeds the
-// shipped palettes as TOML text and `tux/tux_art.dart` embeds a penguin as SVG
-// source for the same reason: nothing in the shell resolves paths relative to
-// the bundle, so a table read from a share dir would work under `flutter run`
-// and not under `make install` or the snap. A Unicode data file (`emoji-test.txt`)
-// is the obvious alternative source and it is the wrong one twice over — it is
-// four thousand entries the picker would page through to find a smiley, and it
-// carries CLDR *names* alone, where the whole point of the search here is the
-// **keywords** a person actually types ("lol", "party", "wfh"), which no
-// upstream file supplies in a form this can use.
+// **It is a constant rather than an asset, which keeps "the shell ships no image
+// assets" true one file over.** Nothing in the shell resolves paths relative to
+// the bundle, so a table read from a share dir would work under `flutter run` and
+// not under `make install` or the snap. Unicode's own `emoji-test.txt` is the
+// obvious alternative and wrong twice over: four thousand entries to page through
+// for a smiley, and CLDR *names* alone, where the point of this search is the
+// **keywords** a person types ("lol", "party", "wfh").
 //
-// The set is curated rather than exhaustive: what a shell's quick picker is for
-// is the emoji somebody reaches for in a message, and a list long enough to
-// need paging is one where the search does the work anyway.
+// The set is curated rather than exhaustive: a shell's quick picker is for the
+// emoji somebody reaches for in a message.
 library;
 
 /// The groups the table is written in, and the coarsest of the four dimensions
-/// the search matches on — typing "food" is a legitimate way to ask for a
-/// slice of pizza.
+/// the search matches on — typing "food" is a legitimate way to ask for pizza.
 ///
-/// [label] is what the picker prints under a selected emoji; [terms] are the
-/// extra words that mean the same group, because "nature" and "plants" are
-/// both reasonable ways to ask for a leaf.
+/// [label] is what the picker prints under a selected emoji; [terms] are the extra
+/// words that mean the same group, because "nature" and "plants" are both
+/// reasonable ways to ask for a leaf.
 enum EmojiCategory {
   smileys('Smileys & Emotion', ['face', 'emotion', 'smiley']),
   people('People & Body', ['person', 'body', 'hand', 'gesture']),
@@ -74,9 +67,8 @@ class Emoji {
 /// The table, in the order an empty query shows it: grouped by category, and
 /// within a group roughly by how often the emoji is reached for.
 ///
-/// A new entry needs a name and at least one keyword somebody would type that
-/// the name does not already contain — an entry whose keywords merely repeat
-/// its name costs the search nothing and the table a line.
+/// A new entry needs a name and at least one keyword somebody would type that the
+/// name does not already contain.
 const List<Emoji> kEmoji = [
   // ---- Smileys & Emotion -------------------------------------------------
   Emoji('😀', 'grinning face', EmojiCategory.smileys, [
@@ -2131,9 +2123,9 @@ const List<Emoji> kEmoji = [
   // ---- Flags -------------------------------------------------------------
   //
   // A handful of signalling flags plus a short list of national ones. National
-  // flags are a set with no natural end — every one of the two hundred is
-  // somebody's — so the table takes the few that come up as *symbols* in
-  // conversation and leaves a country picker to a picker of countries.
+  // flags are a set with no natural end, so the table takes the few that come up
+  // as *symbols* in conversation and leaves a country picker to a picker of
+  // countries.
   Emoji('🏁', 'chequered flag', EmojiCategory.flags, [
     'race',
     'finish',
