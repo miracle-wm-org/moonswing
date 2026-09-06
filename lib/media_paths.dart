@@ -1,9 +1,8 @@
 /// The file-extension predicates that decide how a media path renders.
 ///
-/// Pure and I/O-free on purpose: existence is checked separately at call
-/// sites, so these stay unit-testable predicates. Shared by the background
-/// rotation, the lock screen wallpaper, the file picker's filters, and the
-/// settings UI's wallpaper list.
+/// Pure and I/O-free on purpose: existence is checked separately at call sites,
+/// so these stay unit-testable predicates. Shared by the background rotation, the
+/// lock screen wallpaper, the file picker's filters and the settings UI.
 library;
 
 /// File extensions considered valid image wallpapers. Paths with any other

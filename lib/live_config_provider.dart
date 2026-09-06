@@ -7,14 +7,13 @@ import 'package:graceful_shell/scopes.dart';
 /// Provides the live [AppConfig] to a window's widget subtree.
 ///
 /// **This is the only thing in the shell that should construct a
-/// [LiveConfigScope]** — the `ThemeProvider` rule, and installed the same way,
-/// once per window, because an `InheritedWidget` cannot span FlutterViews.
+/// [LiveConfigScope]** — the `ThemeProvider` rule, installed the same way, once
+/// per window, because an `InheritedWidget` cannot span FlutterViews.
 ///
-/// The root owns the notifier and refreshes it from its `ConfigStore`
-/// listener, because deriving the typed config has side effects and must not
-/// happen during `build`. Everything downstream of that is ordinary: the value
-/// changes, the scope is rebuilt, and only the widgets that actually depend on
-/// it are rebuilt with it.
+/// The root owns the notifier and refreshes it from its `ConfigStore` listener,
+/// because deriving the typed config has side effects and must not happen during
+/// `build`. Everything downstream is ordinary: the value changes, the scope is
+/// rebuilt, and only the widgets that depend on it are rebuilt with it.
 class LiveConfigProvider extends StatelessWidget {
   const LiveConfigProvider({
     super.key,

@@ -1,13 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-/// Signals raised by the compositor's global input triggers (registered through
-/// the ext-input-trigger protocols) that the widget tree acts on.
+/// Signals raised by the compositor's global input triggers that the widget tree
+/// acts on.
 ///
-/// Same shape as [OsdStore] and [TrayStore]: a singleton [ChangeNotifier] that a
-/// start-up service pokes and a window watches. The store carries no policy — it
-/// only reports that the "open settings" shortcut fired; the root decides
-/// whether that opens or closes the overlay, which keeps the Wayland layer and
-/// the widget layer decoupled and independently testable.
+/// [OsdStore]'s shape: a singleton [ChangeNotifier] that a start-up service pokes
+/// and a window watches. The store carries no policy — it only reports that the
+/// "open settings" shortcut fired; the root decides whether that opens or closes
+/// the overlay, which keeps the two layers independently testable.
 class InputTriggerStore extends ChangeNotifier {
   InputTriggerStore._();
 

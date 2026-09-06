@@ -4,11 +4,10 @@ import 'package:graceful_shell/request_controller.dart';
 
 /// The seam between anything that wants the launcher open and the shell root.
 ///
-/// Two things ask for it: the global shortcut (via the ext-input-trigger
-/// service) and the magnifier bar module, which lives deep inside a panel's
-/// widget tree. Neither can create a window — `_GracefulShellRootState` owns
-/// them all — so both poke this singleton and the root reacts. (Why not
-/// `InputTriggerStore`: see [SignalController].)
+/// Two things ask for it: the global shortcut and the magnifier bar module.
+/// Neither can create a window — `_GracefulShellRootState` owns them all — so
+/// both poke this singleton and the root reacts. (Why not `InputTriggerStore`:
+/// see [SignalController].)
 class LauncherController extends SignalController {
   LauncherController._();
 

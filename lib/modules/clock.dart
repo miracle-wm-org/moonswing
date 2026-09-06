@@ -75,10 +75,9 @@ class ClockState extends State<Clock>
       context,
       // Width pinned, height hugging its rows: this card rebuilds while it is
       // open, so a content-*width* one would walk away from its button as the
-      // digits changed (see `modules/sound_control.dart`). Starting a timer is
-      // only possible from the calendar overlay, which dismisses this popup on
-      // its way up, so rows can leave the card while it is open but never
-      // arrive — the height it maps at is the largest it ever needs.
+      // digits changed. Starting a timer is only possible from the calendar
+      // overlay, which dismisses this popup on its way up, so rows can leave the
+      // card while it is open but never arrive.
       preferredConstraints: const BoxConstraints(
         minWidth: kTimersPopupWidth,
         maxWidth: kTimersPopupWidth,

@@ -15,10 +15,10 @@ import 'package:graceful_shell/lock/user_identity.dart';
 
 /// The lock screen drawn on an `ext-session-lock-v1` surface.
 ///
-/// Starts as just a clock and the account name over the wallpaper. The
-/// password field is revealed by the unlock button, Enter, or any other key —
-/// and revealing it blurs the wallpaper behind it, so the state of the screen
-/// reads at a glance from across the room.
+/// Starts as just a clock and the account name over the wallpaper. The password
+/// field is revealed by the unlock button, Enter, or any other key — and
+/// revealing it blurs the wallpaper behind it, so the state of the screen reads
+/// at a glance from across the room.
 class LockScreen extends StatefulWidget {
   const LockScreen({
     super.key,
