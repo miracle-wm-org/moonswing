@@ -3,29 +3,25 @@ import 'package:flutter/foundation.dart';
 import 'package:graceful_shell/power/power_config.dart';
 import 'package:graceful_shell/power/power_inhibitor.dart';
 
-/// Decides when the shell holds logind's power-key inhibitor, and it is the
-/// *and* of the two things that have to be true for the shell to answer the
-/// button at all.
+/// Decides when the shell holds logind's power-key inhibitor — the *and* of the
+/// two things that have to be true for the shell to answer the button at all.
 ///
-/// Both halves are load-bearing, and neither is enough on its own:
+/// Neither half is enough on its own:
 ///
 /// * **The compositor has to deliver the key.** Registration goes through
 ///   `ext-input-trigger`, which a compositor that is not a recent Mir does not
-///   advertise, and a combination another client already owns is refused. In
-///   either case the press never reaches the shell — and a shell that had
-///   inhibited logind anyway would have turned the power button into a key
-///   that does nothing at all, which is worse than either behaviour on its
-///   own. [setKeyOwned] is the compositor's answer, and the lock waits for it.
+///   advertise, and a combination another client owns is refused. Either way the
+///   press never reaches the shell — and a shell that had inhibited logind anyway
+///   would have turned the power button into a key that does nothing at all.
+///   [setKeyOwned] is the compositor's answer, and the lock waits for it.
 /// * **The user has to want it.** `[power] key_action = "none"` hands the key
-///   back to logind, and `inhibit_logind = false` says the machine's own
-///   `HandlePowerKey` is already `ignore` and no lock is wanted. Both arrive
-///   through [setConfig], which the root calls on every live config change, so
-///   turning the feature off in Settings releases the lock rather than waiting
-///   for a restart.
+///   back, and `inhibit_logind = false` says `HandlePowerKey` is already `ignore`.
+///   Both arrive through [setConfig], which the root calls on every live config
+///   change, so turning the feature off releases the lock rather than waiting for
+///   a restart.
 ///
-/// A singleton with the shell's other start-up stores, and for the same
-/// reason: the two callers are a Wayland-layer service and the widget root,
-/// which have no path to each other.
+/// A singleton with the shell's other start-up stores: the two callers are a
+/// Wayland-layer service and the widget root, which have no path to each other.
 class PowerKeyService {
   PowerKeyService._({PowerInhibitor? inhibitor})
       : _inhibitor = inhibitor ?? LogindPowerInhibitor();
@@ -44,17 +40,15 @@ class PowerKeyService {
   PowerConfig _config = const PowerConfig();
   bool _keyOwned = false;
 
-  /// Whether [setConfig] has ever been called — that is, whether [_config] is
-  /// the user's or merely the built-in default.
+  /// Whether [setConfig] has ever been called — that is, whether [_config] is the
+  /// user's or merely the built-in default.
   ///
-  /// The third condition on the lock, and it exists because the two inputs
-  /// arrive from services that race: `startPowerService` publishes the config
-  /// on its own event-loop turn while the compositor answers the registration
-  /// after a Wayland round trip. The order is all but fixed in practice, but
-  /// "all but" is how a machine whose `config.toml` says `inhibit_logind =
-  /// false` would take a lock for a moment anyway, on the strength of a
-  /// default the user had overridden. Nothing is claimed before the shell has
-  /// read what was asked for.
+  /// The third condition on the lock, and it exists because the two inputs arrive
+  /// from services that race: `startPowerService` publishes the config on its own
+  /// event-loop turn while the compositor answers the registration after a
+  /// Wayland round trip. The order is all but fixed in practice, and "all but" is
+  /// how a machine whose config says `inhibit_logind = false` would take a lock
+  /// for a moment anyway, on the strength of a default the user had overridden.
   bool _configured = false;
 
   /// Serializes [_reconcile]: taking and releasing the lock are both round

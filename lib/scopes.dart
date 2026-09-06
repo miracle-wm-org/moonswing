@@ -27,10 +27,9 @@ S _of<S extends InheritedWidget>(BuildContext context, String provider) {
 
 /// Provides the shell's [MiracleManager] to the widget subtree.
 ///
-/// The manager — not the connection — is scoped, because the connection can
-/// come and go at runtime (Miracle may not be up when the shell starts, and a
-/// user can retry from any bar). Consumers read `manager.connection` and listen
-/// to the manager for changes; the scope itself is stable.
+/// The manager — not the connection — is scoped, because the connection can come
+/// and go at runtime. Consumers read `manager.connection` and listen to the
+/// manager for changes; the scope itself is stable.
 class MiracleScope extends InheritedWidget {
   const MiracleScope({
     super.key,
@@ -87,8 +86,8 @@ class DisplayScope extends InheritedWidget {
   ///
   /// Nullable because output enumeration is no longer awaited before the first
   /// frame: a bar paints as soon as its geometry is known and learns which
-  /// physical display it is on a moment later. Consumers show a loader for that
-  /// moment rather than an empty row that then pops full.
+  /// display it is on a moment later. Consumers show a loader for that moment
+  /// rather than an empty row that then pops full.
   final WaylandOutput? output;
 
   /// Deliberately `maybeOf`-shaped: null means "not known yet" as much as
@@ -100,21 +99,20 @@ class DisplayScope extends InheritedWidget {
   bool updateShouldNotify(DisplayScope old) => output?.name != old.output?.name;
 }
 
-/// Provides the live [AppConfig] — the typed view of `config.toml` as the user
-/// is editing it — to the widget subtree.
+/// Provides the live [AppConfig] — the typed view of `config.toml` as the user is
+/// editing it — to the widget subtree.
 ///
 /// Never constructed outside `LiveConfigProvider`, the [ThemeScope] rule.
 ///
 /// The value cannot be read from `build` at its source: `ConfigStore.appConfig`
-/// rebuilds the whole typed config and re-applies every module's options via
-/// `Module.loadAll` as a side effect, so the shell root derives it in a
-/// listener and publishes it here. What that buys is the rebuild *boundary* —
-/// `ConfigStore` notifies on every keystroke anywhere in the settings UI, and
-/// before this the root answered each one by rebuilding every view it owns.
+/// rebuilds the whole typed config and re-applies every module's options as a
+/// side effect, so the root derives it in a listener and publishes it here. What
+/// that buys is the rebuild *boundary* — `ConfigStore` notifies on every
+/// keystroke anywhere in the settings UI.
 ///
-/// Window *geometry* is not in here. Anchor, height and layer are frozen at
-/// startup because the native layer-shell surface was created from them; the
-/// startup snapshot stays on `GracefulShellRoot.appConfig`.
+/// Window *geometry* is not in here: anchor, height and layer are frozen at
+/// startup because the native surface was created from them, and the startup
+/// snapshot stays on `GracefulShellRoot.appConfig`.
 class LiveConfigScope extends InheritedWidget {
   const LiveConfigScope({
     super.key,
