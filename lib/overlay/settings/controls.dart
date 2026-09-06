@@ -650,6 +650,61 @@ class SettingsSegmented extends StatelessWidget {
   }
 }
 
+/// The multiple-choice form of [SettingsSegmented]: the same pills, any number
+/// of them lit at once.
+///
+/// Added to the library rather than spelled inline where it was first needed
+/// (the modifiers of a miracle key binding, which are a `Set<Modifier>`), under
+/// this file's own rule — a control the library lacks gets added to the library.
+///
+/// Generic over the value, because the only set-valued settings in the shell are
+/// sets of *enums*, and a `List<String>` form would have every caller mapping
+/// names back to members. [labelOf] keeps the display name out of the enum,
+/// where `wireName` is the wrong string to show a person.
+class SettingsChipToggles<T> extends StatelessWidget {
+  const SettingsChipToggles({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.labelOf,
+    required this.onChanged,
+    this.alignment = WrapAlignment.end,
+  });
+
+  final List<T> options;
+  final Set<T> selected;
+  final String Function(T value) labelOf;
+
+  /// Handed the whole new set, not the value that moved: a caller writing a set
+  /// straight through to a configuration wants the set.
+  final ValueChanged<Set<T>> onChanged;
+
+  /// Right-aligned by default, like [SettingsSegmented], because that is where a
+  /// [SettingsRow]'s control sits. A full-width editor passes `start`.
+  final WrapAlignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      alignment: alignment,
+      children: [
+        for (final option in options)
+          SettingsOptionButton(
+            label: labelOf(option),
+            selected: selected.contains(option),
+            onTap: () => onChanged(
+              selected.contains(option)
+                  ? ({...selected}..remove(option))
+                  : {...selected, option},
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class SettingsOptionButton extends StatelessWidget {
   const SettingsOptionButton({
     super.key,
@@ -1041,11 +1096,20 @@ class SettingsDropdown<T> extends StatelessWidget {
       // go on offering devices that have since been unplugged. The inline list
       // this replaced rebuilt with the pane and needed neither.
       closeKey: Object.hash(selected, items.length),
+      // Matched against the [SettingsDropdownItem.detail] as well as the
+      // label, because the detail is often the *unambiguous* spelling of the
+      // row: a monitor's mode is marked "preferred" there, and a key binding's
+      // key carries its `KEY_LEFTBRACE` beside a label reading "Left bracket
+      // ([)". Somebody who knows the exact name types that one.
       filter: (query) {
         final q = query.trim().toLowerCase();
         if (q.isEmpty) return items;
         return items
-            .where((item) => item.label.toLowerCase().contains(q))
+            .where(
+              (item) =>
+                  item.label.toLowerCase().contains(q) ||
+                  (item.detail?.toLowerCase().contains(q) ?? false),
+            )
             .toList(growable: false);
       },
       // Opens highlighted on the current item rather than at the top of a
@@ -3023,6 +3087,97 @@ class SettingsBanner extends StatelessWidget {
             ),
           ),
           if (action != null) ...[const SizedBox(width: 10), action],
+        ],
+      ),
+    );
+  }
+}
+
+
+/// [SettingsBanner]'s calm sibling: an accent-tinted note about something that
+/// went *right* and still needs the user to do something.
+///
+/// Not a colour parameter on [SettingsBanner], deliberately. That banner is the
+/// shell's one error surface — red border, warning triangle — and the two are
+/// read differently: a banner is "this is broken", a notice is "this worked,
+/// here is the next step". Written for the one case where saving a file is only
+/// half the job: miracle-wm does not watch its own configuration, so a save the
+/// user is not told to reload is a save that appears to have done nothing.
+///
+/// [onDismiss] adds a close button. A notice with none stays until whatever
+/// raised it stops being true.
+class SettingsNotice extends StatelessWidget {
+  const SettingsNotice({
+    super.key,
+    required this.title,
+    required this.message,
+    this.icon = FontAwesomeIcons.circleInfo,
+    this.action,
+    this.onDismiss,
+  });
+
+  final String title;
+  final String message;
+  final FaIconData icon;
+  final Widget? action;
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final action = this.action;
+    final onDismiss = this.onDismiss;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: theme.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(ShellRadii.control),
+        border: Border.all(color: theme.accent.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: FaIcon(icon, size: 14, color: theme.accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.body,
+                    fontFamily: theme.fontFamily,
+                    fontWeight: FontWeight.w600,
+                    color: theme.popupForeground,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.secondary,
+                    fontFamily: theme.fontFamily,
+                    height: 1.4,
+                    color: theme.popupForeground.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (action != null) ...[const SizedBox(width: 10), action],
+          if (onDismiss != null) ...[
+            const SizedBox(width: 4),
+            SettingsIconButton(
+              icon: FontAwesomeIcons.xmark,
+              size: 12,
+              onTap: onDismiss,
+            ),
+          ] else
+            const SizedBox(width: 6),
         ],
       ),
     );

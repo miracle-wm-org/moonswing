@@ -84,4 +84,54 @@ void main() {
     )));
     _expectAllTextThemed(tester);
   });
+
+  testWidgets('SettingsNotice text carries the theme font', (tester) async {
+    await tester.pumpWidget(_host(SizedBox(
+      width: 420,
+      child: SettingsNotice(
+        title: 'Saved — now tell miracle to read it',
+        message: 'Press Action Key + Shift + R to apply it.',
+        onDismiss: () {},
+      ),
+    )));
+    _expectAllTextThemed(tester);
+  });
+
+  testWidgets('SettingsChipToggles text carries the theme font',
+      (tester) async {
+    await tester.pumpWidget(_host(SizedBox(
+      width: 420,
+      child: SettingsChipToggles<String>(
+        options: const ['Ctrl', 'Shift'],
+        selected: const {'Shift'},
+        labelOf: (value) => value,
+        onChanged: (_) {},
+      ),
+    )));
+    _expectAllTextThemed(tester);
+  });
+
+  // The multi-select is the single-select with more than one pill lit, so what
+  // is worth pinning is the selection arithmetic rather than the chrome: a
+  // toggle that replaced the set instead of adding to it would look identical
+  // until the second chip was tapped.
+  testWidgets('SettingsChipToggles adds to and removes from the set',
+      (tester) async {
+    var latest = <String>{'Shift'};
+    await tester.pumpWidget(_host(SizedBox(
+      width: 420,
+      child: SettingsChipToggles<String>(
+        options: const ['Ctrl', 'Shift'],
+        selected: latest,
+        labelOf: (value) => value,
+        onChanged: (next) => latest = next,
+      ),
+    )));
+
+    await tester.tap(find.text('Ctrl'));
+    expect(latest, {'Shift', 'Ctrl'});
+
+    await tester.tap(find.text('Shift'));
+    expect(latest, isEmpty);
+  });
 }

@@ -81,6 +81,30 @@ SettingsField shellField(
   tags: tags,
 );
 
+/// A field in the Window Manager pane's [section] category.
+///
+/// [shellField]'s counterpart for the compositor's own configuration. [section]
+/// is a `_MiracleCategory.title` — `test/settings_search_test.dart` asserts
+/// every one resolves, the same way it does for the Shell pane.
+///
+/// The `Window Manager ›` prefix is what a result row shows on its second line,
+/// and it is what tells the two panes' near-identical rows apart: both have a
+/// "Font", both have colours, and "Keyboard" is a category in each.
+SettingsField miracleField(
+  String id,
+  String label, {
+  required String section,
+  String description = '',
+  List<String> tags = const <String>[],
+}) => SettingsField(
+  id: id,
+  label: label,
+  section: 'Window Manager › $section',
+  route: SettingsRoute(category: 'miracle', miracleCategory: section),
+  description: description,
+  tags: tags,
+);
+
 /// A [SettingsField] with its searchable text pre-folded to lower case.
 class SearchableSetting {
   SearchableSetting(this.field)

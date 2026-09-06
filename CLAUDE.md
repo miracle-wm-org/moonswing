@@ -103,6 +103,43 @@ A `Module` is a panel strip sized by its content: a `configKey` matching `[modul
 
 **`Module.configChanges` keeps `[modules.*]` options live.** Config is pushed imperatively — `loadAll` mutates each module's config in place — so nothing about a module widget's inputs tells Flutter anything moved. `loadConfig` compares a stringified signature of the raw sub-map and `loadAll` fires the notifier once per sweep; a panel listens per module, so a `[modules.clock]` edit rebuilds the clock and nothing else. The guard also stops side-effecting `fromMap`s re-running per keystroke.
 
+### The compositor's configuration (`lib/miracle_config/`, `lib/overlay/settings/miracle/`)
+
+Settings › Window Manager edits `~/.config/miracle-wm/config.yaml` through
+`MiracleConfig` — `package:miracle`'s FFI wrapper around `libmiracle-wm-c` — and
+is the one pane that writes *another program's* file. Three things follow, and
+none of them is how the Shell pane works.
+
+- **Nothing is written until Save.** `ConfigStore` debounces every keystroke to
+  disk because the shell re-reads its own config live; a compositor does not, so
+  a half-typed border size written as it is typed is what the user's next
+  `reload_config` would apply — and a compositor that will not start has no
+  settings page to fix it from. `MiracleConfigStore` therefore accumulates edits
+  in native memory, `save()` is a deliberate act and `reset()` re-reads the file.
+  **A save is only half the job**: miracle does not watch its own configuration,
+  so the pane names the shortcut that reloads it, read off
+  `builtInKeyCommandOverrides` rather than hard-coded, because it can be rebound.
+- **The lease frees native memory, except while dirty.** One loaded tree for the
+  machine, `acquire()`/`release()` as everywhere else — but a release that would
+  discard unsaved edits keeps the tree instead. The bound is the user's own Save
+  or Reset.
+- **Rows subscribe per value; lists subscribe on a signature.** `MiracleValue` is
+  `StoreSelector` over one FFI getter, which is what stops one digit rebuilding
+  twenty rows. A collection cannot be one: the live `List` views mint a fresh
+  Dart object per read, so `MiracleCollection` compares a *spelling* of what the
+  editor renders. And because a `SettingsTextField` seeds its controller once,
+  anything that replaces or reorders a list goes through `editStructure`, whose
+  revision keys the rows — without it, deleting the first of three bindings
+  leaves the second row's field showing the first row's text, and Reset leaves
+  every field showing the values it just discarded.
+
+Two hazards the package documents and the pane has to respect: an unset keymap
+must never have its options touched (the C library dereferences it unchecked and
+aborts), and the key-repeat settings are dropped by a save unless a keymap is
+set. `miracle_config/` is otherwise Flutter-free — the evdev table, the enum
+labels and the colour conversion are plain Dart, because they are what
+`test/miracle_config_test.dart` can reach on a machine with no compositor.
+
 ### Stores and leases
 
 Shared state is a singleton `ChangeNotifier` (`ThemeStore`, `OsdStore`, `TrayStore`, `SystemStatsStore`, `NotificationStore`, `MprisStore`, `WeatherStore`, `AppIndex`, `TimersStore`, `DesktopStore`, …). Four rules run through all of them:
@@ -192,6 +229,7 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `modules/` | Bar modules — one file per `[modules.<key>]` strip |
 | `desktop/` | Desktop grid: layout maths, store, surface, icons, menus, `widgets/` |
 | `overlay/` | The settings/calendar/system overlay, `settings/controls.dart`, the file picker |
+| `miracle_config/` | The compositor's own configuration: the store behind `overlay/settings/miracle/`, the evdev key table, enum labels |
 | `theme/` | `ThemeConfig`, `ThemeStore`, `ThemeProvider`, built-in themes, tokens, fonts |
 | `launcher/`, `emoji/` | The two search overlays: index, pure ranking, controller, card |
 | `weather/`, `moon/`, `media/`, `fortune/`, `tux/` | Data layers behind a bar module and/or desktop widget: store + pure model + painters |

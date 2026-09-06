@@ -13,6 +13,7 @@ class SettingsRoute {
     this.tab = 'settings',
     this.category = 'shell',
     this.shellCategory,
+    this.miracleCategory,
   });
 
   /// One of the overlay's top tab ids: `calendar`, `system`, `systeminfo`,
@@ -20,12 +21,23 @@ class SettingsRoute {
   final String tab;
 
   /// One of the settings sidebar ids: `network`, `bluetooth`, `display`,
-  /// `audio`, `keyboard`, `shell`.
+  /// `audio`, `keyboard`, `miracle`, `shell`.
   final String category;
 
   /// A `_ShellCategory.title` inside the Shell pane, e.g. `Background`. Null
   /// lands on the category list.
   final String? shellCategory;
+
+  /// A `_MiracleCategory.title` inside the Window Manager pane, e.g. `Gaps &
+  /// Borders`. Null lands on that pane's category list.
+  ///
+  /// A second field rather than a rename of [shellCategory] to something
+  /// neutral: the two panes are two nested `Navigator`s with two unrelated sets
+  /// of category titles, and one field holding either would let a Shell route
+  /// name a Window Manager category. `test/settings_search_test.dart` checks
+  /// each against its own pane's list, which it can only do while they are
+  /// separate.
+  final String? miracleCategory;
 
   /// Where "Change background…" on the desktop goes.
   static const SettingsRoute background =
@@ -41,15 +53,20 @@ class SettingsRoute {
   /// an input source is the former.
   static const SettingsRoute keyboard = SettingsRoute(category: 'keyboard');
 
+  /// Where anything offering to configure the *compositor* goes.
+  static const SettingsRoute windowManager = SettingsRoute(category: 'miracle');
+
   @override
   bool operator ==(Object other) =>
       other is SettingsRoute &&
       other.tab == tab &&
       other.category == category &&
-      other.shellCategory == shellCategory;
+      other.shellCategory == shellCategory &&
+      other.miracleCategory == miracleCategory;
 
   @override
-  int get hashCode => Object.hash(tab, category, shellCategory);
+  int get hashCode =>
+      Object.hash(tab, category, shellCategory, miracleCategory);
 }
 
 /// The seam between "something deep in a surface wants the settings overlay
