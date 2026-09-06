@@ -1,13 +1,12 @@
 // The calendar tab's time zone layer.
 //
-// This is the only file in the shell that imports `package:timezone`. Keeping
-// it that way is what lets [rankTimeZones] and the formatters be plain unit
-// tests with no database behind them, and what keeps `config.dart` — which is
-// parsed at start-up, long before the overlay exists — free of the dependency.
+// The only file in the shell that imports `package:timezone`. Keeping it that
+// way is what lets [rankTimeZones] and the formatters be plain unit tests, and
+// what keeps `config.dart` — parsed at start-up, long before the overlay exists
+// — free of the dependency.
 //
 // The database is *data*, not the formatting machinery `month.dart` refuses:
-// daylight-saving transition tables change every few months by political
-// decision and cannot be hand-rolled.
+// daylight-saving tables change every few months by political decision.
 
 import 'package:flutter/foundation.dart' show immutable, visibleForTesting;
 import 'package:timezone/data/latest.dart' show initializeTimeZones;
@@ -21,11 +20,11 @@ bool _initialized = false;
 ///
 /// Deliberately not called from `main()`: the calendar starts no service, and
 /// `package:timezone/data/latest.dart` embeds the database as a Dart byte
-/// literal — there is no asset bundle and no binding that would force it
-/// earlier. The cost is one parse the first time the overlay is opened.
+/// literal, so nothing forces it earlier. The cost is one parse the first time
+/// the overlay is opened.
 ///
-/// `standalone.dart` and `browser.dart` are the variants that read the database
-/// from disk or over HTTP; neither is usable here.
+/// `standalone.dart` and `browser.dart` read the database from disk or over HTTP;
+/// neither is usable here.
 void ensureTimeZonesInitialized() {
   if (_initialized) return;
   initializeTimeZones();
@@ -56,18 +55,15 @@ class ZoneTime {
 /// One row of the zone picker: a place, the zone it keeps time in, and its
 /// searchable text pre-folded to lower case.
 ///
-/// The folding happens once, when the list is built, rather than on every
-/// keystroke across four hundred zones — the [SearchableApp] trick from
-/// `lib/launcher/app_search.dart`.
+/// The folding happens once, when the list is built — the [SearchableApp] trick
+/// from `lib/launcher/app_search.dart`.
 ///
 /// A row is one of two things. An **IANA row** is a zone standing for itself:
-/// [name] is the zone, [city] its last segment and [region] its first, and
-/// [label] is null because the zone already says what it is called. A **city
-/// row** comes from `lib/world_cities.dart` and is a place the database has no
-/// name for — New Delhi, San Francisco, Cape Town — so [name] is still the
-/// zone that gets stored, [city] is the place, [region] is where it is, and
-/// [label] is what the world-clock row must be titled: without it a user who
-/// picked New Delhi would get a clock labelled Kolkata.
+/// [name] is the zone, [city] its last segment, [region] its first, and [label]
+/// null. A **city row** comes from `lib/world_cities.dart` and is a place the
+/// database has no name for — New Delhi, San Francisco, Cape Town — so [name] is
+/// still the zone that gets stored and [label] is what the world-clock row must
+/// be titled: without it, picking New Delhi gives a clock labelled Kolkata.
 @immutable
 class TimeZoneName {
   TimeZoneName(String name)
@@ -123,38 +119,29 @@ class TimeZoneName {
 
 List<TimeZoneName>? _names;
 
-/// The IANA *backward* links this shell's own data names, and the canonical
-/// zone each one now points at.
+/// The IANA *backward* links this shell's own data names, and the canonical zone
+/// each now points at.
 ///
-/// `package:timezone/data/latest.dart` — the variant embedded here — carries
-/// only the **canonical** zones, 341 of them. tzdata has spent the last few
-/// releases merging zones whose rules have agreed since the 1970s into one
-/// another, and what a merged zone leaves behind is a *link*: `Europe/Amsterdam`
-/// is still the name of Amsterdam's time, but the rules now live under
-/// `Europe/Brussels` and only the fuller `latest_all` variant carries the name.
+/// `package:timezone/data/latest.dart` carries only the **canonical** zones, 341
+/// of them. tzdata has spent recent releases merging zones whose rules have
+/// agreed since the 1970s, and what a merged zone leaves behind is a *link*:
+/// `Europe/Amsterdam` is still the name of Amsterdam's time, but the rules now
+/// live under `Europe/Brussels`.
 ///
-/// That is 38 of the cities in `lib/world_cities.dart` — Amsterdam, Copenhagen,
-/// Oslo, Stockholm, Kuala Lumpur and thirty-odd more — and without this table
-/// every one of them is dropped by [_buildZoneNames]' own degradation rule, so
-/// the picker silently does not offer a third of Europe's capitals. It also
-/// costs a config naming one of these zones its row: [resolveZone] would answer
-/// null and the world clock would render "Unknown time zone" for a name
-/// `localectl`, every other desktop and every airline ticket still uses.
+/// That is 38 of the cities in `lib/world_cities.dart`, and without this table
+/// every one is dropped by [_buildZoneNames]' degradation rule — so the picker
+/// silently does not offer a third of Europe's capitals, and a config naming one
+/// renders "Unknown time zone" for a name every airline ticket still uses.
 ///
-/// Switching the embedded variant to `latest_all` is the other way to fix it
-/// and is worse: it carries 206 more pickable names, nearly all of them
-/// deprecated spellings of zones already listed (`Asia/Calcutta` beside
-/// `Asia/Kolkata`, `US/Pacific` beside `America/Los_Angeles`), and nothing in
-/// the package's API says which of two identical zones is the current name — so
-/// the picker cannot filter them and would show both.
+/// Switching the embedded variant to `latest_all` is the other fix and is worse:
+/// it carries 206 more pickable names, nearly all deprecated spellings of zones
+/// already listed, and nothing in the package's API says which of two identical
+/// zones is the current name.
 ///
-/// Two things this table has to keep true. It is a **fallback**, consulted only
-/// when the database does not know the name itself, so a link that tzdata later
-/// splits back out is answered by the database rather than by this map. And
-/// every entry is a link *to a zone this build carries*, which
-/// `test/world_cities_test.dart` is what checks: it resolves every city in the
-/// shipped table, so an entry that stops landing fails there rather than
-/// silently dropping a city from the picker again.
+/// Two things to keep. It is a **fallback**, consulted only when the database
+/// does not know the name itself, so a link tzdata later splits back out is
+/// answered by the database. And every entry links *to a zone this build
+/// carries*, which `test/world_cities_test.dart` checks.
 const Map<String, String> _kZoneLinks = {
   'Africa/Accra': 'Africa/Abidjan',
   'Africa/Addis_Ababa': 'Africa/Nairobi',
@@ -203,10 +190,10 @@ tz.Location? _locationFor(String name) {
 /// Whether [name] is worth offering in the picker.
 ///
 /// Drops the region-less pseudo-zones (`Factory`, and the `EST`/`SystemV/`
-/// aliases the fuller database variants carry) because none of them is a place,
-/// and the whole `Etc/` block **except** `Etc/UTC` because `Etc/GMT+5` counts
-/// its offset backwards — the one entry in the database guaranteed to be read
-/// wrong. `Etc/UTC` stays: it is the one name with no city that people want.
+/// aliases) because none is a place, and the whole `Etc/` block **except**
+/// `Etc/UTC`, because `Etc/GMT+5` counts its offset backwards — the one entry
+/// guaranteed to be read wrong. `Etc/UTC` stays: it is the one name with no city
+/// that people want.
 bool _isPickableZone(String name) {
   if (!name.contains('/')) return false;
   if (name.startsWith('SystemV/')) return false;
@@ -217,28 +204,21 @@ bool _isPickableZone(String name) {
 /// Every row the picker offers: the IANA zones, plus the cities from
 /// `lib/world_cities.dart` those zones do not name.
 ///
-/// The database's names are *zones* rather than places — one representative
-/// settlement per offset history — so a picker built from it alone has no New
-/// Delhi (India is `Asia/Kolkata`), no San Francisco, no Boston and no Cape
-/// Town, which reads as a search that does not work rather than as a database
-/// that names things differently.
+/// The database's names are *zones* rather than places, so a picker built from it
+/// alone has no New Delhi (India is `Asia/Kolkata`), no San Francisco and no Cape
+/// Town — which reads as a search that does not work.
 ///
 /// Three things this merge has to keep true:
 ///
 /// - **A city whose zone already carries its name is not added twice.** Tokyo,
-///   London and New York are `Asia/Tokyo`, `Europe/London` and
-///   `America/New_York`, so the IANA row is the row; only the places the
-///   database is silent about get one of their own.
-/// - **A city whose zone this build cannot resolve is dropped**, never thrown
-///   for — the `TomlReader` rule, applied to data the shell ships.
-///   "Resolve" rather than "is listed": tzdata has merged a good many zones
-///   into one another and the shipped database carries only the survivors, so
-///   a city naming one of the links goes through [_kZoneLinks].
-///   `test/world_cities_test.dart` is what stops either degradation from
+///   London and New York keep their one IANA row.
+/// - **A city whose zone this build cannot resolve is dropped**, never thrown for
+///   — the `TomlReader` rule applied to data the shell ships. "Resolve" rather
+///   than "is listed", since a city naming a merged zone goes through
+///   [_kZoneLinks]. `test/world_cities_test.dart` stops either degradation from
 ///   quietly hiding a typo.
-/// - **The order stays the zone's**, so an empty query still reads down the
-///   database alphabetically and the cities sit with the zone they keep time
-///   in — New Delhi, Kolkata, Mumbai and Pune under one another.
+/// - **The order stays the zone's**, so an empty query reads down the database
+///   alphabetically and the cities sit with the zone they keep time in.
 List<TimeZoneName> worldTimeZoneNames() {
   ensureTimeZonesInitialized();
   return _names ??= _buildZoneNames();
@@ -278,15 +258,13 @@ List<TimeZoneName> _buildZoneNames() {
   return zones;
 }
 
-/// The wall clock in [zone] at the instant [now], or null when the database
-/// does not know the zone.
+/// The wall clock in [zone] at the instant [now], or null when the database does
+/// not know the zone.
 ///
 /// Looked up in the map rather than through `getLocation`, which throws: a
-/// hand-edited or deprecated name in the config must render as a row the user
-/// can see and delete, never take down a build. A name tzdata has since made a
-/// link — `Europe/Amsterdam` and thirty-odd others — is followed through
-/// [_kZoneLinks] rather than treated as unknown: it is what the rest of the
-/// world still calls that zone, and a clock the picker itself wrote.
+/// hand-edited or deprecated name in the config must render as a row the user can
+/// see and delete, never take down a build. A name tzdata has since made a link is
+/// followed through [_kZoneLinks] rather than treated as unknown.
 ZoneTime? resolveZone(String zone, DateTime now) {
   ensureTimeZonesInitialized();
   final location = _locationFor(zone);
@@ -330,12 +308,12 @@ int _scoreZone(TimeZoneName zone, String query) {
 
 /// The zones matching [query], best first.
 ///
-/// An empty query lists everything alphabetically, so the picker has something
-/// to show before the user types.
+/// An empty query lists everything alphabetically, so the picker has something to
+/// show before the user types.
 ///
-/// Abbreviations and UTC offsets are deliberately not searchable: both have to
-/// be resolved from the database per candidate, and both change under daylight
-/// saving — a search for `BST` that worked in July would fail in January.
+/// Abbreviations and UTC offsets are deliberately not searchable: both have to be
+/// resolved per candidate, and both change under daylight saving — a search for
+/// `BST` that worked in July would fail in January.
 List<TimeZoneName> rankTimeZones(
   List<TimeZoneName> zones,
   String query, {

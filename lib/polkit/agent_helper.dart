@@ -1,14 +1,13 @@
 // `polkit-agent-helper-1`: the only way an unprivileged agent can prove an
 // authentication to polkitd.
 //
-// The shell already talks to PAM directly for the lock screen
-// (`lib/lock/pam_authenticator.dart`), and that is deliberately *not* what
-// happens here. A polkit authentication is not "did this password check out"
-// — it is "tell polkitd that the holder of this cookie authenticated", and
-// only the setuid-root helper can say so: it runs the `polkit-1` PAM stack
-// itself and then makes the privileged `AuthenticationAgentResponse2` call on
-// the agent's behalf. An agent that ran PAM itself would have authenticated
-// the user and still have nothing polkitd would accept.
+// The shell talks to PAM directly for the lock screen, and that is deliberately
+// *not* what happens here. A polkit authentication is not "did this password
+// check out" but "tell polkitd that the holder of this cookie authenticated",
+// and only the setuid-root helper can say so: it runs the `polkit-1` PAM stack
+// and then makes the privileged `AuthenticationAgentResponse2` call on the
+// agent's behalf. An agent that ran PAM itself would have authenticated the user
+// and still have nothing polkitd would accept.
 //
 // Flutter-free, so the line protocol below is a plain unit test.
 
@@ -20,10 +19,9 @@ import 'polkit_log.dart';
 
 /// One line from the helper.
 ///
-/// The helper's conversation function writes `"<PREFIX> <text>\n"` for each
-/// PAM message and a bare `SUCCESS` or `FAILURE` when `pam_authenticate` and
-/// `pam_acct_mgmt` are done. Verified against polkit 124's helper binary,
-/// which contains exactly these five tokens.
+/// The helper's conversation function writes `"<PREFIX> <text>\n"` per PAM
+/// message and a bare `SUCCESS` or `FAILURE` when `pam_authenticate` and
+/// `pam_acct_mgmt` are done. Verified against polkit 124's helper binary.
 sealed class PolkitHelperMessage {
   const PolkitHelperMessage();
 }
@@ -69,29 +67,25 @@ final class PolkitHelperResult extends PolkitHelperMessage {
 
   /// The helper's last stderr line, attached to a **refusal** only.
   ///
-  /// The helper answers `FAILURE` to every one of its own early refusals as
-  /// well as to a password PAM weighed and rejected — `wrong number of
-  /// arguments`, `needs to be setuid root`, `pam_authenticate failed: …` are
-  /// all `FAILURE` on stdout with the actual reason on stderr, and dropping
-  /// it leaves the agent unable to tell a broken machine from a typo. Null on
-  /// a success, which needs no diagnosis, and null where the helper went
+  /// The helper answers `FAILURE` to its own early refusals as well as to a
+  /// password PAM weighed and rejected — `wrong number of arguments`, `needs to
+  /// be setuid root`, `pam_authenticate failed: …` are all `FAILURE` on stdout
+  /// with the reason on stderr, and dropping it leaves the agent unable to tell a
+  /// broken machine from a typo. Null on a success and where the helper went
   /// quietly.
   final String? detail;
 }
 
-/// The run ended with neither `SUCCESS` nor `FAILURE`: the helper exited, or
-/// its stdout closed, before it said what PAM made of anything.
+/// The run ended with neither `SUCCESS` nor `FAILURE`: the helper exited, or its
+/// stdout closed, before it said what PAM made of anything.
 ///
-/// Deliberately **not** a synthesised `FAILURE`, which is what this used to
-/// be. The two are indistinguishable at the wire and could not be more
-/// different to the user: a `FAILURE` is PAM having weighed an answer and
-/// refused it, and this is the helper never getting that far — the `polkit-1`
-/// stack denying before it opens its mouth (`pam_faillock` on a locked-out
-/// account is the common one), a binary that cannot run where it is, a PAM
-/// module that aborted. Reported as its own message so
-/// [PolkitAuthSession] can tell an attempt from a non-starter; see the rule
-/// there, and note that three non-starters take a couple of milliseconds
-/// end to end, which is the whole of what the user sees.
+/// Deliberately **not** a synthesised `FAILURE`. The two are indistinguishable at
+/// the wire and could not be more different to the user: a `FAILURE` is PAM
+/// having weighed an answer and refused it, and this is the helper never getting
+/// that far — the stack denying before it opens its mouth (`pam_faillock` on a
+/// locked-out account is the common one), a binary that cannot run where it is, a
+/// module that aborted. Its own message so [PolkitAuthSession] can tell an
+/// attempt from a non-starter.
 final class PolkitHelperDied extends PolkitHelperMessage {
   const PolkitHelperDied({required this.exitCode, this.detail});
 
@@ -161,9 +155,9 @@ class PolkitHelperUnavailable implements Exception {
 /// [PolkitHelperResult] — or, where the helper never got that far, one
 /// [PolkitHelperDied].
 ///
-/// A run is single-shot by construction — the helper calls `pam_authenticate`
-/// once and exits — so a retry is a *new* attempt, not a second password down
-/// the same pipe.
+/// Single-shot by construction: the helper calls `pam_authenticate` once and
+/// exits, so a retry is a *new* attempt rather than a second password down the
+/// same pipe.
 abstract class PolkitHelperAttempt {
   /// Closes after the result, or after the helper died without sending one.
   Stream<PolkitHelperMessage> get messages;
@@ -194,20 +188,18 @@ class ProcessPolkitHelperRunner implements PolkitHelperRunner {
   /// The binary to run, or null to take the first of [helperCandidates] that
   /// exists.
   ///
-  /// A seam for tests, and the only one this class has: every other layer of
-  /// the feature is exercised through [PolkitHelperRunner], which forks
-  /// nothing — so the pipe handling below, which is where the ordering
-  /// hazards live, is the one part with no coverage at all unless a test can
-  /// point it at a program of its own.
+  /// A seam for tests, and the only one this class has: every other layer is
+  /// exercised through [PolkitHelperRunner], which forks nothing — so the pipe
+  /// handling below, where the ordering hazards live, has no coverage at all
+  /// unless a test can point it at a program of its own.
   final String? path;
 
   /// Where the helper lives, most likely first.
   ///
   /// It is not on `PATH` anywhere — it is a setuid-root helper in a libexec
-  /// directory, and which one depends on the distribution's layout rather
-  /// than on its polkit version. `lib/fortune/fortune_reader.dart` states the
-  /// same rule about `/usr/games`: a program that is present but unreachable
-  /// must not be reported as missing.
+  /// directory, and which one depends on the distribution's layout.
+  /// `lib/fortune/fortune_reader.dart` states the same rule about `/usr/games`: a
+  /// program that is present but unreachable must not be reported as missing.
   static const List<String> helperCandidates = <String>[
     // Fedora, Arch, openSUSE, Debian/Ubuntu with polkitd >= 121.
     '/usr/lib/polkit-1/polkit-agent-helper-1',
@@ -257,22 +249,20 @@ class ProcessPolkitHelperRunner implements PolkitHelperRunner {
   }
 }
 
-/// How long a run whose stdout has closed waits for the exit status, and how
-/// long one whose *process* has gone waits for the last of its stdout.
+/// How long a run whose stdout has closed waits for the exit status, and how long
+/// one whose *process* has gone waits for the last of its stdout.
 ///
-/// Both are the same imperceptible beat and both exist for the same reason:
-/// the exit and the end of stdout are two separate events on two separate
-/// descriptors, and nothing orders them.
+/// The same imperceptible beat, for the same reason: the exit and the end of
+/// stdout are two events on two descriptors, and nothing orders them.
 const Duration _kExitGrace = Duration(milliseconds: 250);
 
 class _ProcessAttempt implements PolkitHelperAttempt {
   _ProcessAttempt(this._process, this._path, String cookie) {
     // The cookie goes on **stdin**, never in `argv`: CVE-2015-3255 is exactly
-    // that — a cookie on a command line is world-readable through `/proc`, so
-    // any process on the machine could have claimed somebody else's pending
-    // authentication. The helper has read it from stdin ever since, and the
-    // argv form is not offered as a fallback here: a helper old enough to
-    // need it is one with the vulnerability.
+    // that — a cookie on a command line is world-readable through `/proc`, so any
+    // process could claim somebody else's pending authentication. The argv form
+    // is not offered as a fallback: a helper old enough to need it is one with
+    // the vulnerability.
     _write(cookie);
     _stdout = _process.stdout
         .transform(utf8.decoder)
@@ -334,10 +324,10 @@ class _ProcessAttempt implements PolkitHelperAttempt {
 
   /// `FAILURE`, held back just long enough to say why.
   ///
-  /// The helper prints it to stdout and its reason to stderr, and those are
-  /// two descriptors with no ordering between them — so forwarding the
-  /// refusal the instant its line arrives throws the reason away most of the
-  /// time. The wait is bounded for [_settleDiagnostics]'s reason.
+  /// The helper prints it to stdout and its reason to stderr, two descriptors
+  /// with no ordering between them — so forwarding the refusal the instant its
+  /// line arrives throws the reason away most of the time. Bounded for
+  /// [_settleDiagnostics]'s reason.
   Future<void> _refused() async {
     if (_closed || _dying) return;
     _dying = true;
@@ -352,9 +342,9 @@ class _ProcessAttempt implements PolkitHelperAttempt {
   /// Waits, briefly, for the two descriptors that carry a run's diagnosis.
   ///
   /// The exit status and the last stderr line are delivered independently of
-  /// stdout and of each other, and between them they are the whole account of
-  /// a run that went wrong. Both waits are bounded, because a pipe that never
-  /// closes has to cost the wording and never the run.
+  /// stdout and of each other, and between them they are the whole account of a
+  /// run that went wrong. Both waits are bounded, because a pipe that never closes
+  /// has to cost the wording and never the run.
   Future<void> _settleDiagnostics() async {
     _exitCode ??=
         await _process.exitCode.timeout(_kExitGrace, onTimeout: () => -1);
@@ -383,13 +373,12 @@ class _ProcessAttempt implements PolkitHelperAttempt {
 
   /// The process is gone. **Not** the end of the run on its own.
   ///
-  /// The exit pipe and stdout are two descriptors and the event loop is free
-  /// to deliver either first, so finishing here would throw away a `SUCCESS`
-  /// still sitting in the stdout buffer — an authenticated user reported as a
-  /// wrong password, on a race that only ever shows up on somebody else's
-  /// machine. Stdout's own EOF ([_onStdoutClosed]) is what ends a run; this is
-  /// the status for the message, plus a safety net for a run whose stdout
-  /// never closes at all.
+  /// The exit pipe and stdout are two descriptors and the event loop may deliver
+  /// either first, so finishing here would throw away a `SUCCESS` still sitting in
+  /// the stdout buffer — an authenticated user reported as a wrong password, on a
+  /// race that only shows up on somebody else's machine. Stdout's own EOF ends a
+  /// run; this is the status for the message, plus a safety net for a run whose
+  /// stdout never closes.
   void _onExit(int code) {
     _exitCode = code;
     if (_closed || _stdoutClosed) return;
