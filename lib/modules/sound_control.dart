@@ -39,12 +39,11 @@ class SoundControlState extends State<SoundControl>
     with PopupHost<SoundControl> {
   /// The default sink's level.
   ///
-  /// A notifier rather than a pair of `setState` fields because the popup is
-  /// its own layer-shell window, built once into a `WindowEntry` builder — the
-  /// parent never rebuilds it, so a popup handed a *value* freezes at whatever
-  /// was current when it opened. This is the `ThemeProvider` shape: hand the
-  /// popup something to listen to. It is also what carries a device switch
-  /// into an already-open popup rather than only into the bar.
+  /// A notifier rather than a pair of `setState` fields because the popup is its
+  /// own layer-shell window, built once into a `WindowEntry` builder — the parent
+  /// never rebuilds it, so a popup handed a *value* freezes at whatever was
+  /// current when it opened. It is also what carries a device switch into an
+  /// already-open popup.
   final _level = ValueNotifier<_SinkLevel>((volume: 0.0, muted: false));
 
   /// The sink every read and write goes to. Re-resolved whenever PulseAudio
@@ -88,23 +87,20 @@ class SoundControlState extends State<SoundControl>
         _level.value = (volume: sink.volume, muted: sink.mute);
       });
 
-      // A default sink moving is reported on PulseAudio's *server* facility
-      // and nowhere else: the sink being adopted emits no event of its own.
-      // Without this the module goes on filtering every event against the name
-      // it resolved at start-up, so it keeps reporting the level of a device
-      // the user has stopped listening to — and its slider keeps writing to
-      // that device too.
+      // A default sink moving is reported on PulseAudio's *server* facility and
+      // nowhere else: the sink being adopted emits no event of its own. Without
+      // this the module goes on filtering events against the name it resolved at
+      // start-up, reporting the level of a device the user has stopped listening
+      // to — and its slider keeps writing to that device too.
       _serverChangedSub = client.onServerChanged.listen((info) {
         if (info.defaultSinkName == _defaultSinkName) return;
         _adoptDefaultSink(info.defaultSinkName);
       });
 
-      // The server went away and came back — `pipewire-pulse` restarting, say.
-      // The re-read is unconditional, unlike the `onServerChanged` one above:
-      // a restart normally brings the same sink name back, so a name compare
-      // would answer "nothing moved" and leave the module showing the level it
-      // read from the server that died — while its slider went on writing to a
-      // sink index that no longer means anything.
+      // The server went away and came back. The re-read is unconditional, unlike
+      // the `onServerChanged` one above: a restart normally brings the same sink
+      // name back, so a name compare would answer "nothing moved" and leave the
+      // module showing the level it read from the server that died.
       _reconnectedSub = client.onReconnected.listen((_) async {
         try {
           final info = await client.getServerInfo();
@@ -124,15 +120,14 @@ class SoundControlState extends State<SoundControl>
 
   /// Points the module at [name] and reads the level it is currently at.
   ///
-  /// The name is committed before the query, not after, so an event for the
-  /// newly adopted device that lands while the query is in flight is kept
-  /// rather than filtered out against the name being left.
+  /// The name is committed before the query, so an event for the newly adopted
+  /// device landing while the query is in flight is kept rather than filtered out
+  /// against the name being left.
   ///
-  /// `_available` is only ever set, never cleared: a sink the shell cannot
-  /// find is far more likely to be a device mid-switch than a machine that has
-  /// lost its audio, and a module that popped out of the bar and re-laid the
-  /// whole panel on every switch would be worse than one showing a stale
-  /// reading for a moment.
+  /// `_available` is only ever set, never cleared: a sink the shell cannot find is
+  /// far more likely to be a device mid-switch than a machine that has lost its
+  /// audio, and a module that popped out of the bar on every switch would be
+  /// worse than one showing a stale reading for a moment.
   Future<void> _adoptDefaultSink(String name) async {
     _defaultSinkName = name;
     final client = _client;
@@ -164,14 +159,12 @@ class SoundControlState extends State<SoundControl>
 
     openBarPopup(
       context,
-      // Height hugs the content; width stays pinned, on both counts
-      // deliberately. A slider has no intrinsic length — _VolumeSlider paints
-      // through a CustomPaint sized `double.infinity` along its axis, so it
-      // takes whatever it is given — and this is the one popup that rebuilds
-      // while open, swapping its label between `Muted`, `5%` and `100%` on
-      // every drag. Flutter's Linux popup does not set the positioner's
-      // reactive flag, so a popup that resizes after mapping keeps its original
-      // anchor placement; a content-width one would walk away from the bar
+      // Height hugs the content; width stays pinned, both deliberately. A slider
+      // has no intrinsic length — _VolumeSlider paints through a CustomPaint
+      // sized `double.infinity` along its axis — and this is the one popup that
+      // rebuilds while open, swapping its label between `Muted`, `5%` and `100%`
+      // on every drag. Flutter's Linux popup does not set the positioner's
+      // reactive flag, so a content-width popup would walk away from the bar
       // under the pointer.
       preferredConstraints: isVertical
           ? const BoxConstraints(minWidth: 80, maxWidth: 80, maxHeight: 320)

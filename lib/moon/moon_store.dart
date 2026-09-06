@@ -1,20 +1,16 @@
 // The Moon, for the whole shell: one clock, one location lookup, one set of
 // numbers, however many surfaces are drawing them.
 //
-// `WeatherStore`'s shape, down to the lease rule — a singleton `ChangeNotifier`
-// whose ticker runs only while something is on screen — with two differences
-// that follow from the Moon not being on the far end of a network:
+// `WeatherStore`'s shape down to the lease rule, with two differences that follow
+// from the Moon not being on the far end of a network:
 //
-// - **There is no loading state and no failure state.** The phase is
-//   arithmetic over the current time, so [reading] can always answer and the
-//   widget never has an empty frame to fill. The only thing that can be missing
-//   is the *location*, and all that costs is the rise and set times.
+// - **There is no loading state and no failure state.** The phase is arithmetic
+//   over the current time, so [reading] can always answer. The only thing that
+//   can be missing is the *location*, and all that costs is the rise and set
+//   times.
 // - **The location is borrowed, never asked for twice.** It comes from
-//   `WeatherStore.resolvePlace()`, which answers from `[modules.weather]`'s
-//   coordinates when the user has picked a place, from whatever a weather fetch
-//   has already resolved when they have not, and only then makes an IP lookup —
-//   one per shell, shared with the weather's own. A lunar widget on a machine
-//   whose weather is configured therefore opens no socket at all.
+//   `WeatherStore.resolvePlace()`, so a lunar widget on a machine whose weather
+//   is configured opens no socket at all.
 
 import 'dart:async';
 
@@ -69,12 +65,10 @@ class MoonStore extends ChangeNotifier {
   /// [reading]'s consequences, derived once per reading.
   ///
   /// Here rather than in the widget's `build` for the reason `_WeatherSkyState`
-  /// caches its field: a desktop widget's `build` runs on every frame of a drag
-  /// and of a resize, and this one costs two more evaluations of the whole
-  /// ephemeris (`moon_facts.dart` reads the Moon's ecliptic latitude at both
-  /// upcoming syzygies) on top of a dozen strings and a sort. None of it can
-  /// move between two frames of the same reading, so none of it should be paid
-  /// twice — and the store is the one thing that knows when the reading moved.
+  /// caches its field: a desktop widget's `build` runs on every frame of a drag,
+  /// and this costs two more evaluations of the whole ephemeris on top of a dozen
+  /// strings and a sort. None of it can move between two frames of the same
+  /// reading, and the store is the one thing that knows when the reading moved.
   List<MoonFact> get facts => _facts ??= moonFacts(reading);
 
   MoonTimes? _times;
@@ -90,11 +84,10 @@ class MoonStore extends ChangeNotifier {
 
   /// The coordinates `[modules.weather]` carried at the last tick.
   ///
-  /// Watched rather than waited for: `WeatherStore.configure` only notifies
-  /// while the weather itself is polling, so on a machine with no weather
-  /// module or widget on screen — which this widget is perfectly usable
-  /// without — a location picked in settings would otherwise not reach the
-  /// Moon until the next restart.
+  /// Watched rather than waited for: `WeatherStore.configure` only notifies while
+  /// the weather itself is polling, so on a machine with no weather module on
+  /// screen a location picked in settings would otherwise not reach the Moon
+  /// until the next restart.
   WeatherPlace? _configuredPlace;
 
   bool _locating = true;
@@ -202,25 +195,21 @@ class MoonStore extends ChangeNotifier {
 
   /// Notify only when something a reader can see has moved.
   ///
-  /// Every desktop surface on the machine listens to this, and most minutes
-  /// change nothing on the card: the illumination moves by a tenth of a percent
-  /// an hour and the rise time is fixed for the day. This is the `_publish`
-  /// discipline `WorkspaceAppsStore` states — a store watched by every monitor
-  /// must not re-lay them all to redraw an identical row.
+  /// Every desktop surface listens, and most minutes change nothing on the card:
+  /// the illumination moves by a tenth of a percent an hour and the rise time is
+  /// fixed for the day. The `_publish` discipline `WorkspaceAppsStore` states.
   void _publish({bool notify = true}) {
     final current = reading;
-    // Every entry is something a surface draws, which is the whole of the rule
-    // and what the altitude and `isUp` used to break: no card in the shell
-    // renders either, and both move continuously, so they could only ever add
-    // wake-ups. What is left that moves every minute is the distance, and that
-    // one is genuinely printed to the kilometre.
+    // Every entry is something a surface draws, which is the whole of the rule and
+    // what the altitude and `isUp` used to break: no card renders either, and both
+    // move continuously, so they could only add wake-ups. What is left that moves
+    // every minute is the distance, which is genuinely printed to the kilometre.
     //
-    // The next principal phase is here as the *phase* rather than as its
-    // instant, which is the same test one Newton search cheaper — the instant
-    // changes exactly when the Moon crosses a quadrant of elongation, and so
-    // does which phase is next. That is what keeps `_publish` off
-    // `MoonReading`'s lazy getters, so a tick costs one position evaluation
-    // rather than fifty.
+    // The next principal phase is here as the *phase* rather than its instant,
+    // which is the same test one Newton search cheaper — the instant changes
+    // exactly when the Moon crosses a quadrant of elongation, and so does which
+    // phase is next. That is what keeps `_publish` off `MoonReading`'s lazy
+    // getters, so a tick costs one position evaluation rather than fifty.
     final signature = [
       current.phase.index,
       current.illuminationPercent,

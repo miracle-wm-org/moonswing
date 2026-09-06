@@ -12,13 +12,12 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
-/// Width of the whole column. Fixed rather than fractional: the overlay panel
-/// is 800 wide at its smallest, and the month grid beside this has to stay
-/// usable at that size.
+/// Width of the whole column. Fixed rather than fractional: the overlay panel is
+/// 800 wide at its smallest, and the month grid beside this has to stay usable.
 ///
-/// Wider than it was, because the column now carries the timers section under
-/// the world clocks: a duration field, two buttons and an entry's three
-/// controls all have to fit across it, and at 220 they did not.
+/// Wider than it was, because the column now carries the timers section under the
+/// world clocks: a duration field, two buttons and an entry's three controls all
+/// have to fit across it.
 const double kClockColumnWidth = 280;
 
 /// The dial at full size. Shrinks on a short surface — see the [LayoutBuilder]
@@ -30,12 +29,12 @@ const double kAnalogClockSize = 128;
 /// column moved to.
 const double kWorldClockRowHeight = 50;
 
-/// The local time, as a dial and a digital readout, over the user's list of
-/// world clocks.
+/// The local time, as a dial and a digital readout, over the user's list of world
+/// clocks.
 ///
-/// Takes its list and its callbacks as parameters and its time from a
-/// [ClockSource], so a widget test drives it with a frozen clock and a handful
-/// of fixed offsets and never touches `ConfigStore` or the IANA database.
+/// Takes its list and callbacks as parameters and its time from a [ClockSource],
+/// so a widget test drives it with a frozen clock and never touches
+/// `ConfigStore` or the IANA database.
 class CalendarClockColumn extends StatefulWidget {
   const CalendarClockColumn({
     super.key,
@@ -62,11 +61,9 @@ class CalendarClockColumn extends StatefulWidget {
   /// What is rendered under the world clocks — the calendar's timers section.
   ///
   /// It splits the space below the dial with the clock list, half each, rather
-  /// than being sized to its content: the list and the timers both grow with
-  /// what the user has put in them, and an equal share is the only division
-  /// that does not privilege whichever of the two was given a fixed height.
-  /// Null leaves the whole of that space to the clocks, which is what the
-  /// column's own widget tests pump.
+  /// than being sized to its content: both grow with what the user put in them,
+  /// and an equal share is the only division that does not privilege whichever
+  /// was given a fixed height. Null leaves the whole space to the clocks.
   final Widget? footer;
 
   @override
@@ -121,30 +118,24 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    // **The whole column, boundaried.** A tick rewrites the dial, the readout
-    // and the date, and a `RenderObject` marked needing paint dirties
-    // everything up to the nearest repaint boundary — of which this surface
-    // had none, so one second's worth of second hand re-recorded the entire
-    // overlay picture — the month grid, both lists, the tab strip — and, the
-    // GTK embedder implementing no partial repaint, rastered the whole output
-    // again after it. That is a bill paid once a second underneath whatever
-    // the pointer is doing.
+    // **The whole column, boundaried.** A tick rewrites the dial, the readout and
+    // the date, and a `RenderObject` marked needing paint dirties everything up
+    // to the nearest repaint boundary — of which this surface had none, so one
+    // second's worth of second hand re-recorded the entire overlay picture and,
+    // the GTK embedder implementing no partial repaint, rastered the whole output
+    // again after it.
     //
-    // The boundary goes here rather than around the three readouts, and the
-    // difference is not cosmetic: changing a `Text` marks needs *layout*, not
-    // needs paint, and layout stops at the nearest *relayout* boundary — the
-    // `Column` below, whose constraints are tight — which then marks *itself*
-    // needing paint on the way out. A boundary inside that `Column` would have
-    // been stepped straight over. This one is above it.
+    // The boundary goes here rather than around the three readouts: changing a
+    // `Text` marks needs *layout*, and layout stops at the nearest *relayout*
+    // boundary — the tightly-constrained `Column` below — which then marks itself
+    // needing paint on the way out, stepping over any boundary nested inside it.
     return RepaintBoundary(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // The dial gives way rather than either list being squeezed to
-          // nothing: it shrinks with the column, and on a pathologically short
-          // output it goes altogether, leaving the digital readout — which says
-          // the same thing in a fifth of the height. Both thresholds are lower
-          // than they were, because the space below is now shared by two
-          // sections instead of held by one.
+          // The dial gives way rather than either list being squeezed to nothing:
+          // it shrinks with the column, and on a very short output it goes
+          // altogether, leaving the digital readout — which says the same thing
+          // in a fifth of the height.
           final height = constraints.hasBoundedHeight
               ? constraints.maxHeight
               : double.infinity;

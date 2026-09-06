@@ -1,23 +1,19 @@
-// The values that cross the polkit wire, as types the rest of the shell can
-// use, plus the two decisions that are pure arithmetic over them: which
-// identities the agent can actually authenticate, and which of them the
-// dialog should start on.
+// The values that cross the polkit wire, as types the rest of the shell can use,
+// plus the two decisions that are pure arithmetic over them: which identities the
+// agent can authenticate, and which of them the dialog starts on.
 //
-// Flutter-free (it imports `package:dbus` alone, the way
-// `lib/keyboard/locale1_client.dart` does), so the identity parse and the
-// default-identity rule are plain unit tests with no bus and no passwd
-// database behind them.
+// Flutter-free (it imports `package:dbus` alone), so the identity parse and the
+// default-identity rule are plain unit tests with no bus and no passwd database.
 
 import 'package:dbus/dbus.dart';
 
 /// An account polkit will accept an answer from.
 ///
 /// Only `unix-user` identities become one of these. polkit also names
-/// `unix-group` identities in a `BeginAuthentication` call, and there is
-/// nothing an agent can do with one: the helper authenticates *a user*, so a
-/// group has to be resolved to a member first and polkit does not say which
-/// member it means. libpolkit-agent draws the same line — its session takes a
-/// `PolkitUnixUser` and nothing else — so [parsePolkitIdentities] drops them.
+/// `unix-group` identities, and there is nothing an agent can do with one: the
+/// helper authenticates *a user*, so a group would have to be resolved to a
+/// member first and polkit does not say which member it means. libpolkit-agent
+/// draws the same line, so [parsePolkitIdentities] drops them.
 class PolkitIdentity {
   const PolkitIdentity({
     required this.uid,
@@ -56,13 +52,12 @@ typedef PolkitUserLookup = ({String username, String displayName})? Function(
   int uid,
 );
 
-/// Turns `BeginAuthentication`'s `a(sa{sv})` identity array into the accounts
-/// the agent can actually offer.
+/// Turns `BeginAuthentication`'s `a(sa{sv})` identity array into the accounts the
+/// agent can actually offer.
 ///
-/// Degrades per entry, the rule `TomlReader` states at the config end of the
-/// shell: an identity of a kind this build cannot use, one with no `uid`, or
-/// one naming a uid with no passwd entry costs *that identity* and never the
-/// prompt — the remaining ones are still offered, and a request whose whole
+/// Degrades per entry, the rule `TomlReader` states at the config end: an
+/// identity of an unusable kind, one with no `uid`, or one naming a uid with no
+/// passwd entry costs *that identity* and never the prompt. A request whose whole
 /// array is unusable is refused with a reason rather than throwing out of a
 /// D-Bus handler.
 List<PolkitIdentity> parsePolkitIdentities(
@@ -116,12 +111,11 @@ int? _uidOf(Map<String, DBusValue> details) {
 
 /// Which identity the dialog starts on.
 ///
-/// The current user when polkit named them, because answering as yourself is
-/// the case that needs no thought and no second password; otherwise the first
-/// identity polkit listed, which is the order it considers them in. Nothing
-/// here prefers root: an agent that opened on the root row would be teaching
-/// the user to type the root password at prompts they could have answered
-/// themselves.
+/// The current user when polkit named them, because answering as yourself needs
+/// no thought and no second password; otherwise the first identity polkit listed.
+/// Nothing here prefers root: an agent that opened on the root row would be
+/// teaching the user to type the root password at prompts they could have
+/// answered themselves.
 int defaultIdentityIndex(List<PolkitIdentity> identities, {int? currentUid}) {
   if (identities.isEmpty) return 0;
   if (currentUid != null) {
@@ -195,11 +189,9 @@ enum PolkitAuthOutcome {
   /// caller retrying in a loop.
   cancelled,
 
-  /// The machine cannot ask the question: no `polkit-agent-helper-1`, no
-  /// identity the agent could offer, or a helper that ended before it
-  /// prompted for anything. Distinct from [failed] because nothing the user
-  /// types would change it and *nothing was checked* — so the dialog says so,
-  /// and stays up while it does, instead of asking again three times over in
-  /// as many milliseconds and closing on "authentication failed".
+  /// The machine cannot ask the question: no `polkit-agent-helper-1`, no identity
+  /// the agent could offer, or a helper that ended before it prompted. Distinct
+  /// from [failed] because nothing the user types would change it and *nothing
+  /// was checked* — so the dialog says so and stays up while it does.
   unavailable,
 }

@@ -2,8 +2,7 @@
 // list of input sources.
 //
 // Kept out of `keyboard_store.dart` so all of it is a plain unit test with no
-// D-Bus behind it — `overlay/calendar/month.dart` and `timers/timer_format.dart`
-// have the same split for the same reason.
+// D-Bus behind it.
 
 import 'package:graceful_shell/keyboard/keyboard_config.dart';
 import 'package:graceful_shell/keyboard/locale1_client.dart';
@@ -11,11 +10,10 @@ import 'package:graceful_shell/keyboard/xkb_catalog.dart';
 
 /// The source locale1 is *currently* applying, or null when it reports nothing.
 ///
-/// `X11Layout` and `X11Variant` are comma-separated lists when more than one
-/// xkb group is configured. miral joins layout, variant and options into a
-/// single `ParameterKeymap`, and nothing in the stack can select a group, so
-/// group 1 — the first component — is what the user is actually typing in and
-/// is the only honest answer.
+/// `X11Layout` and `X11Variant` are comma-separated lists when more than one xkb
+/// group is configured. miral joins layout, variant and options into a single
+/// `ParameterKeymap`, and nothing in the stack can select a group, so group 1 is
+/// what the user is actually typing in and is the only honest answer.
 InputSource? effectiveSource(Locale1Keyboard state) {
   final layout = state.layout.split(',').first.trim();
   if (layout.isEmpty) return null;
@@ -26,13 +24,11 @@ InputSource? effectiveSource(Locale1Keyboard state) {
 
 /// Which of [sources] locale1 is applying, or `-1`.
 ///
-/// Matching is **exact** on the pair. Nothing fuzzier: `de` and `de+nodeadkeys`
-/// are two rows in the user's list, and matching one against the other lights
-/// the wrong one.
+/// Matching is **exact** on the pair: `de` and `de+nodeadkeys` are two rows in
+/// the user's list, and matching one against the other lights the wrong one.
 ///
 /// `-1` is a real answer, not a failure — see `KeyboardStore.unlistedActive`.
-/// Falling back to index 0 would be the lie: it says "you are typing in `us`"
-/// while the machine is in `fr`.
+/// Falling back to index 0 would be the lie.
 int activeSourceIndex(List<InputSource> sources, Locale1Keyboard state) {
   final active = effectiveSource(state);
   if (active == null) return -1;
@@ -41,14 +37,13 @@ int activeSourceIndex(List<InputSource> sources, Locale1Keyboard state) {
 
 /// Every group locale1 has configured, as sources.
 ///
-/// This is what the shell's list is seeded from on first run, because locale1
-/// holds only the *active* layout: the first `SetX11Keyboard` the shell makes
-/// destroys whatever the installer configured, and this is the one moment it
-/// still exists.
+/// What the shell's list is seeded from on first run, because locale1 holds only
+/// the *active* layout: the first `SetX11Keyboard` destroys whatever the
+/// installer configured, and this is the one moment it still exists.
 ///
-/// The variant list can be shorter than the layout list (`X11Layout="us,de"`
-/// with `X11Variant=""` is two groups, both on their default variant), so it is
-/// indexed defensively rather than zipped.
+/// The variant list can be shorter than the layout list (`X11Layout="us,de"` with
+/// `X11Variant=""` is two groups on their default variant), so it is indexed
+/// defensively rather than zipped.
 List<InputSource> seedSourcesFrom(Locale1Keyboard state) {
   final layouts = state.layout
       .split(',')
@@ -70,11 +65,11 @@ List<InputSource> seedSourcesFrom(Locale1Keyboard state) {
 
 /// What a source is called, for a human.
 ///
-/// A variant's own description already carries its language ("Portuguese
-/// (Brazil, Nativo)"), so it is returned **verbatim** rather than concatenated
-/// onto the layout's. With no catalogue — or a layout this build's
-/// xkeyboard-config does not know — the xkb spelling is the answer, which is
-/// truthful where a guess would not be.
+/// A variant's own description already carries its language ("Portuguese (Brazil,
+/// Nativo)"), so it is returned **verbatim** rather than concatenated onto the
+/// layout's. With no catalogue — or a layout this build's xkeyboard-config does
+/// not know — the xkb spelling is the answer, which is truthful where a guess
+/// would not be.
 String describeSource(XkbCatalog catalog, InputSource source) {
   if (source.hasVariant) {
     final variant = catalog.variantFor(source.layout, source.variant);

@@ -1,10 +1,10 @@
 // The prompt polkit cannot draw for itself.
 //
-// One card in the middle of a full-output layer-shell surface, in the shell's
-// own theme — the same scaffold the power menu and the screencast consent
-// picker sit on, because it is the same kind of question: something is asking
-// for authority the user has to grant deliberately, and the surface has to be
-// unmistakably the shell's rather than the application's.
+// One card in the middle of a full-output layer-shell surface, in the shell's own
+// theme — the scaffold the power menu and the screencast consent picker sit on,
+// because it is the same kind of question: something is asking for authority the
+// user has to grant deliberately, and the surface has to be unmistakably the
+// shell's rather than the application's.
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -63,13 +63,11 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
 
   /// False until `initState` has returned.
   ///
-  /// [PolkitAuthSession.start] notifies synchronously — it has to, because
-  /// the helper is spawned from it and the card's first frame should already
-  /// show that an attempt is under way — and `setState` from inside
-  /// `initState` is a `markNeedsBuild` on an element that has not built once.
-  /// The build that follows reads the session's fields anyway, so nothing is
-  /// lost by not asking for a second one. (`FortuneStore.refresh` states the
-  /// same hazard from the store's side.)
+  /// [PolkitAuthSession.start] notifies synchronously — the helper is spawned
+  /// from it and the card's first frame should already show an attempt under way
+  /// — and `setState` from inside `initState` is a `markNeedsBuild` on an element
+  /// that has not built once. The build that follows reads the session's fields
+  /// anyway, so nothing is lost.
   bool _built = false;
 
   @override
@@ -129,15 +127,12 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
 
   /// Whether a finished session stays on screen for the user to read.
   ///
-  /// Only [PolkitAuthOutcome.unavailable] does. The other three are answers
-  /// to something the user just did — they typed the right password, they
-  /// ran out of tries, they pressed Cancel — and a card that had to be
-  /// dismissed afterwards would be asking them to acknowledge their own
-  /// action. "There is no polkit helper on this machine", or "the one there
-  /// is stopped before asking for anything", is the opposite: it is news,
-  /// nothing the user typed caused it, and a dialog that vanished while
-  /// delivering it is a prompt that flashes and is gone — which is the
-  /// failure this state exists to be visible instead of.
+  /// Only [PolkitAuthOutcome.unavailable] does. The other three are answers to
+  /// something the user just did, and a card that had to be dismissed afterwards
+  /// would be asking them to acknowledge their own action. "There is no polkit
+  /// helper on this machine" is the opposite: it is news, nothing the user typed
+  /// caused it, and a dialog that vanished while delivering it is the flash this
+  /// state exists to prevent.
   bool _lingers(PolkitAuthOutcome outcome) =>
       outcome == PolkitAuthOutcome.unavailable;
 
@@ -189,13 +184,11 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
           decoration: TextDecoration.none,
           fontWeight: FontWeight.normal,
         ),
-        // No `autofocus` while there is a field below — the response field
-        // takes it, and this node is its ancestor, so Escape still arrives
-        // here by propagation (the launcher overlay's arrangement, and for
-        // its reason: two autofocus nodes in one scope resolve in tree order,
-        // so an ancestor that asked for focus would take it *from* the field
-        // the user has to type in). With no field there is nothing else to
-        // hold it, and Escape has to keep working.
+        // No `autofocus` while there is a field below — the response field takes
+        // it, and this node is its ancestor, so Escape still arrives by
+        // propagation. Two autofocus nodes in one scope resolve in tree order, so
+        // an ancestor asking for focus would take it *from* the field the user
+        // has to type in. With no field there is nothing else to hold it.
         child: Focus(
           focusNode: _cardFocus,
           autofocus: !answerable,
@@ -462,10 +455,9 @@ class _ResponseField extends StatelessWidget {
 
 /// Which account is answering, when polkit named more than one.
 ///
-/// A row of chips rather than a dropdown: there are two or three of these at
-/// most (the user and root, typically), the choice changes what the password
-/// field means, and a control that has to be opened to see the alternatives
-/// hides exactly that.
+/// A row of chips rather than a dropdown: there are two or three at most, the
+/// choice changes what the password field means, and a control that has to be
+/// opened to see the alternatives hides exactly that.
 class _IdentityPicker extends StatelessWidget {
   const _IdentityPicker({
     required this.identities,
