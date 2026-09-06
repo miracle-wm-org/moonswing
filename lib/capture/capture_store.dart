@@ -1,15 +1,14 @@
 // The state behind the two bar modules: what is being recorded, what the last
 // still capture did, and why the last attempt failed.
 //
-// Singleton `ChangeNotifier`, the shape `OsdStore`/`TrayStore`/`ThemeStore`
-// have, and for this feature's own version of their reason: the shell renders
-// one panel per monitor, so a recorder module that kept its own state would
-// show a stopwatch running on one bar and an idle icon on the other, and
-// clicking either would start a *second* recording of the same screen. One
+// Singleton `ChangeNotifier`, the shape `OsdStore`/`TrayStore`/`ThemeStore` have.
+// The shell renders one panel per monitor, so a recorder module keeping its own
+// state would show a stopwatch running on one bar and an idle icon on the other,
+// and clicking either would start a *second* recording of the same screen. One
 // recording for the machine, one shutter for the machine.
 //
 // The ticker follows `TimersStore._syncTicker`'s rule: it exists only while
-// something is being recorded, so an idle shell wakes for this exactly never.
+// something is being recorded, so an idle shell wakes for this never.
 
 import 'dart:async';
 import 'dart:io';
@@ -37,10 +36,10 @@ class CaptureNotice {
 
 /// How often the recording readout in the bar is re-rendered.
 ///
-/// One second, because that is the resolution the readout shows. Unlike
-/// `lib/timers/`, which ticks four times a second, there is only ever one of
-/// these and it is started at a known instant, so its own boundary is never
-/// more than a few milliseconds late.
+/// One second, the resolution the readout shows. Unlike `lib/timers/`, which
+/// ticks four times a second, there is only ever one of these and it is started
+/// at a known instant, so its own boundary is never more than a few milliseconds
+/// late.
 const Duration kRecordingTick = Duration(seconds: 1);
 
 class CaptureStore extends ChangeNotifier {
@@ -303,9 +302,8 @@ class CaptureStore extends ChangeNotifier {
 /// A store write rather than a D-Bus round trip, for
 /// `postTimerFinishedNotification`'s reason: the shell *is*
 /// `org.freedesktop.Notifications`. A success expires on its own after a few
-/// seconds — the file is where the body says it is and there is nothing to
-/// act on — while a failure stays until it is dismissed, because it is the
-/// only place the reason is written down.
+/// seconds; a failure stays until dismissed, because it is the only place the
+/// reason is written down.
 void postCaptureNotification(CaptureNotice notice) {
   final store = NotificationStore.instance;
   store.addOrReplace(
@@ -323,10 +321,9 @@ void postCaptureNotification(CaptureNotice notice) {
 
 /// The recording readout: `M:SS`, or `H:MM:SS` past an hour.
 ///
-/// Its own function rather than `formatTimerDuration`'s, because that one
-/// pads the minutes for a countdown that is aligned to nothing and this one
-/// sits in a bar next to a clock, where a leading zero reads as a stopwatch
-/// that has not started.
+/// Its own function rather than `formatTimerDuration`'s, which pads the minutes
+/// for a countdown aligned to nothing. This one sits in a bar next to a clock,
+/// where a leading zero reads as a stopwatch that has not started.
 String formatRecordingElapsed(Duration elapsed) {
   final seconds = elapsed.inSeconds;
   final s = (seconds % 60).toString().padLeft(2, '0');

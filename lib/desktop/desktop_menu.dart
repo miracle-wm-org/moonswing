@@ -28,11 +28,10 @@ class DesktopMenuEntry {
 
 /// The themed card both desktop context menus render into.
 ///
-/// The surface is shared with `ContextMenuCard` in `modules/app_directory.dart`
-/// — both render into a [PopupCard], so the theme's popup shape reaches them
-/// from one place — as is the IntrinsicWidth that lets the popup size to
-/// content. Only the rows differ: this one has room for a leading icon and a
-/// disabled state, which "Open with…" needs.
+/// The surface is shared with `ContextMenuCard` in `modules/app_directory.dart` —
+/// both render into a [PopupCard], so the theme's popup shape reaches them from
+/// one place — as is the IntrinsicWidth that lets the popup size to content. Only
+/// the rows differ: this one has room for a leading icon and a disabled state.
 class DesktopMenuCard extends StatelessWidget {
   const DesktopMenuCard({
     super.key,
@@ -198,8 +197,8 @@ class DesktopItemMenu extends StatefulWidget {
   /// right-clicked a member of a band selection — [item] is then just the one
   /// under the cursor, and the callbacks are the host's to fan out.
   ///
-  /// A right-click on a *non*-member needs no special case: the press has
-  /// already narrowed the selection to that icon, so the count is 1.
+  /// A right-click on a *non*-member needs no special case: the press has already
+  /// narrowed the selection to that icon, so the count is 1.
   final int selectionCount;
 
   /// Resolved lazily by the host, which also owns and disposes the entries —
@@ -280,10 +279,9 @@ class _DesktopItemMenuState extends State<DesktopItemMenu> {
 
 /// The menu shown on right-clicking bare desktop.
 ///
-/// Two pages, like [DesktopItemMenu] and for the same reason: "Add widget…"
-/// lists whatever `DesktopWidgetRegistry` holds, which is a list that grows
-/// with every widget type added, and a child popup would be a second Wayland
-/// surface for a list that is mutually exclusive with the page behind it.
+/// Two pages, like [DesktopItemMenu] and for the same reason: "Add widget…" lists
+/// whatever `DesktopWidgetRegistry` holds, and a child popup would be a second
+/// Wayland surface for a list mutually exclusive with the page behind it.
 class DesktopEmptyMenu extends StatefulWidget {
   const DesktopEmptyMenu({
     super.key,

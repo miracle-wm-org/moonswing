@@ -1,26 +1,23 @@
 /// Formatting and parsing for the shell's timers and stopwatches.
 ///
-/// Pure functions with no Flutter and no store behind them — the
-/// `overlay/calendar/month.dart` discipline. The readout the bar paints while a
-/// timer runs and the duration the user types into the calendar page are both
-/// decided here, so both are plain unit tests.
+/// Pure functions with no Flutter and no store behind them. The readout the bar
+/// paints while a timer runs and the duration the user types into the calendar
+/// page are both decided here, so both are plain unit tests.
 library;
 
 /// The longest countdown that can be started.
 ///
-/// A cap rather than a free-for-all because the readout is laid out for
-/// `H:MM:SS`, and because the parser reads a bare number as minutes: a
-/// fat-fingered `999999` is a typo, not a 694-day timer, and answering null
-/// lets the Start button simply stay inert instead of accepting it.
+/// A cap because the readout is laid out for `H:MM:SS`, and because the parser
+/// reads a bare number as minutes: a fat-fingered `999999` is a typo rather than
+/// a 694-day timer, and answering null lets the Start button stay inert.
 const Duration kMaxTimerDuration = Duration(hours: 99);
 
 /// `MM:SS`, or `H:MM:SS` once there is an hour to show.
 ///
 /// Minutes always take two digits so the string keeps its width as the seconds
 /// roll over — this readout sits next to the clock in the bar, and one that
-/// changed width every ten seconds would drag the whole panel's layout with it.
-/// A negative duration reads as `00:00`: a countdown that has run out shows
-/// zero, never a minus sign.
+/// changed width every ten seconds would drag the panel's layout with it. A
+/// negative duration reads as `00:00`.
 String formatTimerDuration(Duration d) {
   final total = d.isNegative ? 0 : d.inSeconds;
   final hours = total ~/ 3600;

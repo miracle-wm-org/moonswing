@@ -1,37 +1,32 @@
 // Screen recording: a capture session on one side, an ffmpeg process on the
 // other, and a constant-rate clock in between.
 //
-// The clock is the whole design. `ext-image-copy-capture` is *event driven* —
-// the compositor holds each copy until the content actually changes, which is
-// what makes the screencast path cost nothing on a still screen — and a video
-// file is the opposite: a sequence of frames at a fixed rate, because
-// ffmpeg's rawvideo demuxer has nowhere to put a timestamp. Handing it only
-// the frames the compositor produced would render a minute of somebody
-// reading a document as a fraction of a second of video.
+// The clock is the whole design. `ext-image-copy-capture` is *event driven* — the
+// compositor holds each copy until the content changes — and a video file is the
+// opposite: a sequence of frames at a fixed rate, because ffmpeg's rawvideo
+// demuxer has nowhere to put a timestamp. Handing it only the frames the
+// compositor produced would render a minute of somebody reading a document as a
+// fraction of a second of video.
 //
-// So the recorder keeps the newest frame in a canvas and writes that canvas
-// [RecorderConfig.fps] times a second whether or not anything moved, and it
-// works out *how many* writes it owes from the wall clock rather than counting
-// its own ticks — a timer that fires late (and under load they all do) would
-// otherwise shorten the recording by exactly however late it was.
+// So the recorder keeps the newest frame in a canvas and writes it
+// [RecorderConfig.fps] times a second whether or not anything moved, working out
+// *how many* writes it owes from the wall clock rather than counting its own
+// ticks — a timer that fires late would otherwise shorten the recording by
+// exactly however late it was.
 //
-// Three more rules the file keeps:
+// Three more rules:
 //
-// - **The geometry is pinned at the first frame.** The demuxer is told the
-//   frame size once, so a window resized mid-recording is clipped into the
-//   canvas it started in rather than ending the recording. Both dimensions are
-//   rounded *down* to even numbers, because `yuv420p` — which every encoder
-//   here converts to — cannot represent an odd one, and an area drag is very
-//   often odd.
+// - **The geometry is pinned at the first frame.** The demuxer is told the frame
+//   size once, so a window resized mid-recording is clipped into the canvas it
+//   started in. Both dimensions are rounded *down* to even, because `yuv420p`
+//   cannot represent an odd one and an area drag very often is.
 // - **Writes are copied, pooled, and bounded.** `IOSink.add` does not copy, so
 //   handing it the canvas would let the next frame tear the one being written;
 //   and an encoder slower than real time would grow the sink's queue without
-//   limit. Buffers come from a small pool and no more than [_maxInFlight] are
-//   outstanding, which turns overload into dropped frames — visible as a
-//   shorter file — instead of into memory.
-// - **A missing ffmpeg is a message, not a silence.** It names the package,
-//   never a package manager: it is `ffmpeg` on Debian, Fedora and Arch alike,
-//   which is the rule `lib/fortune/` states about `fortune-mod`.
+//   limit. No more than [_maxInFlight] are outstanding, which turns overload into
+//   dropped frames rather than into memory.
+// - **A missing ffmpeg is a message, not a silence.** It names the package, never
+//   a package manager — the rule `lib/fortune/` states about `fortune-mod`.
 
 import 'dart:async';
 import 'dart:convert';
@@ -238,10 +233,10 @@ class ScreenRecorder {
 
   /// Emits however many frames the wall clock says are owed.
   ///
-  /// Derived from the elapsed time rather than incremented per tick, which is
-  /// the discipline `lib/timers/` states: a ticker that counted its own
-  /// wakeups would lose however late each one was, and the file would come out
-  /// shorter than the thing it recorded.
+  /// Derived from the elapsed time rather than incremented per tick, the
+  /// discipline `lib/timers/` states: a ticker counting its own wakeups would
+  /// lose however late each was, and the file would come out shorter than the
+  /// thing it recorded.
   void _onTick() {
     final started = _startedAt;
     final canvas = _canvas;
@@ -356,13 +351,12 @@ class ScreenRecorder {
 
 /// The ffmpeg command line for one recording.
 ///
-/// A top-level function so it is a plain unit test: it is the part of this
-/// file most likely to be wrong and the only part that can be checked without
-/// a compositor. Per-encoder quality flags rather than one set for all of
-/// them, because `-preset` is an x26x option that VP9 rejects outright and a
-/// user-supplied encoder (a hardware one, say) may take neither — so an
-/// unrecognised encoder is handed no quality flags at all rather than flags
-/// that would stop it from starting.
+/// A top-level function so it is a plain unit test: the part of this file most
+/// likely to be wrong and the only part checkable without a compositor.
+/// Per-encoder quality flags rather than one set for all, because `-preset` is an
+/// x26x option that VP9 rejects outright and a user-supplied hardware encoder may
+/// take neither — so an unrecognised encoder is handed no quality flags rather
+/// than flags that would stop it from starting.
 List<String> ffmpegArguments({
   required RecorderConfig config,
   required int width,
