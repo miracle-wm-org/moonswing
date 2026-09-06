@@ -1,35 +1,29 @@
 // Standalone harness for the PulseAudio client's event path.
 //
-// `lib/pulse_client.dart` imports no Flutter, for the same reason the
-// screencast stack does not: it lets the whole subscribe -> dispatch -> stream
-// chain be exercised against the real server with no engine to draw with. That
-// matters here because the bug this was written for only appears when *nothing
-// else* is in flight — a change made through the client drives the mainloop by
-// a different path and always worked.
+// `lib/pulse_client.dart` imports no Flutter, which lets the whole subscribe →
+// dispatch → stream chain be exercised against the real server with no engine to
+// draw with. That matters because the bug this was written for only appears when
+// *nothing else* is in flight — a change made through the client drives the
+// mainloop by a different path and always worked.
 //
 //   dart run tool/pulse_spike.dart [seconds]
 //   GRACEFUL_PULSE_LOG=1 dart run tool/pulse_spike.dart
 //
-// While it runs, change the volume from somewhere else — the keyboard's knob,
-// or `pactl set-sink-volume @DEFAULT_SINK@ +5%`. Exits non-zero if nothing
-// arrived.
+// While it runs, change the volume from somewhere else — the keyboard's knob, or
+// `pactl set-sink-volume @DEFAULT_SINK@ +5%`. Exits non-zero if nothing arrived.
 //
 // It also reports default-device moves, which arrive on PulseAudio's *server*
-// facility and on no other. That half is worth exercising here for the same
-// reason as the rest: the shell filters every level event against a device
+// facility and no other. The shell filters every level event against a device
 // name, so a server event that never arrives does not look like a bug in the
 // event path — it looks like the volume module and the OSD quietly deciding to
-// stop reporting, from the moment the user picks another output. Switch the
-// default while this runs:
+// stop reporting. Switch the default while this runs:
 //
 //   pactl set-default-sink <name>   # `pactl list short sinks` for the names
 //
-// And it is the regression check for surviving a server restart, which is the
-// one failure a widget test cannot reach — this whole layer is an FFI isolate
-// against a live server. `--reconnect` demands both halves of that: that a
-// reconnect happened at all, and that events still arrive *afterwards*. The
-// second is what separates a live process from a merely surviving one, since
-// the crash fix alone leaves a client that has stopped hearing anything.
+// And it is the regression check for surviving a server restart, the one failure
+// a widget test cannot reach. `--reconnect` demands both halves: that a reconnect
+// happened at all, and that events still arrive *afterwards* — the second is what
+// separates a live process from a merely surviving one.
 //
 //   dart run tool/pulse_spike.dart --reconnect 60
 //   # while it runs, in another terminal:

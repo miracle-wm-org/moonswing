@@ -5,9 +5,8 @@ import 'package:graceful_shell/modules/workspace_apps.dart';
 import 'package:miracle/miracle.dart';
 
 /// Pins the workspace row's app icons: the tree walk that turns a `GET_TREE`
-/// reply into "what is open on each workspace", the identity matching that
-/// joins it to the `GET_WORKSPACES` list the row actually renders, and the
-/// lease/notify discipline of the store between them.
+/// reply into "what is open on each workspace", the identity matching that joins
+/// it to the `GET_WORKSPACES` list, and the lease/notify discipline between them.
 ///
 /// The tree is built as JSON and parsed by `miracle.dart`'s own `fromJson`, so
 /// this also fails if the reply shape the walk assumes stops being the one the

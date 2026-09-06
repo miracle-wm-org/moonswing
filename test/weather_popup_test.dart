@@ -7,18 +7,17 @@ import 'package:graceful_shell/weather/weather_store.dart';
 
 import 'weather_fakes.dart';
 
-/// The bar's forecast card, pumped the way the shell actually builds it:
-/// under a [ThemeScope] and **nothing else**.
+/// The bar's forecast card, pumped the way the shell builds it: under a
+/// [ThemeScope] and **nothing else**.
 ///
-/// Popup content is laid out directly under its own FlutterView (see
-/// `PopupHost.openPopup`), so there is no `_windowChrome` above it and nothing
-/// supplies a [Directionality] — which every `Text` and `Row` in the card needs.
-/// Every other popup content widget in the shell carries its own; this one had
-/// its dropped in the move to `lib/weather/`, and the card came up empty.
+/// Popup content is laid out directly under its own FlutterView, so there is no
+/// `_windowChrome` above it and nothing supplies a [Directionality] — which every
+/// `Text` and `Row` in the card needs. This card's was dropped in the move to
+/// `lib/weather/` and it came up empty.
 ///
-/// So the wrapper here is deliberately *not* `popup_content_size_test.dart`'s,
-/// which supplies a Directionality of its own and would have measured a card
-/// that could not render in the shell.
+/// So the wrapper here is deliberately *not*
+/// `popup_content_size_test.dart`'s, which supplies a Directionality of its own
+/// and would have measured a card that could not render in the shell.
 Future<void> pumpPopup(WidgetTester tester, WeatherStore store) async {
   await tester.pumpWidget(
     ThemeScope(

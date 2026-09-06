@@ -13,8 +13,8 @@ import 'package:graceful_shell/timers/timer_widgets.dart';
 /// Every store here is hand-driven: [TimersStore.forTesting] starts no ticker,
 /// and a pending [Timer] fails the binding's end-of-test invariants.
 ///
-/// The clock is frozen unless a test steps its own, which is not fastidiousness
-/// — a readout truncates, so a countdown started against the real clock reads
+/// The clock is frozen unless a test steps its own, which is not fastidiousness —
+/// a readout truncates, so a countdown started against the real clock reads
 /// `02:29` a millisecond after it was asked for two and a half minutes.
 TimersStore _store({DateTime Function()? now}) =>
     TimersStore.forTesting(now: now ?? () => DateTime(2026, 8, 24, 12));

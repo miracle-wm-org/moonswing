@@ -10,11 +10,9 @@ import 'package:xml/xml.dart';
 /// Diffs the hand-transcribed `wl_interface` tables in `wl_interfaces.dart`
 /// against the protocol XMLs in `protocol/`.
 ///
-/// This is the load-bearing test for the FFI layer: libwayland trusts those
-/// structs completely when it marshals requests and dispatches events, so a
-/// wrong signature or a missing event is memory corruption, not an exception.
-/// Everything here is derived from the XML the same way `wayland-scanner`
-/// derives its C output.
+/// The load-bearing test for the FFI layer: libwayland trusts those structs
+/// completely when it marshals requests and dispatches events, so a wrong
+/// signature or a missing event is memory corruption, not an exception.
 
 /// The scanner's signature encoding: one char per argument, prefixed by the
 /// `since` version when it is greater than 1, plus `?` for nullable args.

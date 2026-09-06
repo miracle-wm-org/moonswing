@@ -7,19 +7,18 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 
-/// The regression test for the guarantee the theming engine is built on: a
-/// tree under a [ThemeProvider] restyles when the theme changes, *without* the
-/// widget that opened it rebuilding.
+/// The regression test for the guarantee the theming engine is built on: a tree
+/// under a [ThemeProvider] restyles when the theme changes, *without* the widget
+/// that opened it rebuilding.
 ///
-/// That last part is what the shell's popups need. Popup content is built once
-/// and captured in a `WindowEntry` builder, so the widget instance never comes
-/// back — only the elements already mounted in that tree can respond. Here the
-/// content is deliberately held in a `const` child so nothing above it can
-/// rebuild it.
+/// That last part is what the shell's popups need. Popup content is built once and
+/// captured in a `WindowEntry` builder, so the widget instance never comes back —
+/// only the elements already mounted in that tree can respond. Here the content is
+/// held in a `const` child so nothing above it can rebuild it.
 ///
-/// No [ConfigStore] is bound: the store's config-driven path is covered in
-/// `theme_store_test.dart`, and its debounced disk write does real async I/O,
-/// which does not mix with `testWidgets`' fake async.
+/// No [ConfigStore] is bound: that path is covered in `theme_store_test.dart`, and
+/// its debounced disk write does real async I/O, which does not mix with
+/// `testWidgets`' fake async.
 void main() {
   late Directory tempDir;
   late ThemeStore themes;
