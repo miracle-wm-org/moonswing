@@ -9,18 +9,17 @@ import 'package:graceful_shell/capture/window_targets.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/scopes.dart';
 
-/// The selection surface. Every input it has is a parameter, so the whole
-/// thing pumps with no compositor, no Wayland and no IPC socket — which is the
-/// property that makes the geometry it answers with checkable at all.
+/// The selection surface. Every input it has is a parameter, so the whole thing
+/// pumps with no compositor, no Wayland and no IPC socket — which is what makes
+/// the geometry it answers with checkable at all.
 ///
 /// The surface is the test's own 800x600, standing in for one output.
 const Size _surface = Size(800, 600);
 
 /// One output at the origin and one to its right, with a window on each. The
 /// second is what pins the mapping: miracle reports one *global* space and a
-/// layer-shell surface is laid out in its own output-local one, so a highlight
-/// on the second monitor is only in the right place if the origin is
-/// subtracted.
+/// layer-shell surface is laid out in its own output-local one, so a highlight on
+/// the second monitor is only right if the origin is subtracted.
 final _scene = CaptureScene(
   outputs: const [
     ScreenOutput(name: 'DP-1', rect: CaptureRect(0, 0, 800, 600)),
@@ -233,10 +232,9 @@ void main() {
   });
 
   // A compositor with no `xdg-output` manager leaves GDK with no connector at
-  // all, so these surfaces are handed an empty string and the corner is the
-  // only identity they carry. Without the second pass the whole feature is
-  // dead on those machines: no windows to point at, and every pick answering a
-  // display the capture stack then cannot find.
+  // all, so these surfaces are handed an empty string and the corner is the only
+  // identity they carry. Without the second pass the whole feature is dead on
+  // those machines.
   group('an output GDK could not name', () {
     testWidgets('resolves by its corner, so its windows are still pointable',
         (tester) async {

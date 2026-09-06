@@ -6,11 +6,11 @@ import 'package:graceful_shell/modules/workspaces.dart';
 
 /// Pins the workspace row's urgency flash: the shape of one breath, the
 /// wall-clock phase that keeps every urgent button on every monitor breathing
-/// together, and the widget's own three rules — it runs only while it is in the
-/// tree, it passes through both colours, and it never takes a click.
+/// together, and the widget's three rules — it runs only while it is in the tree,
+/// it passes through both colours, and it never takes a click.
 ///
-/// Nothing here may be `pumpAndSettle`ed: a flash that settled would be a flash
-/// that stopped.
+/// Nothing here may be `pumpAndSettle`ed: a flash that settled would be one that
+/// stopped.
 void main() {
   group('urgencyFlashWash', () {
     test('rests at the button own colour and peaks at the flash colour', () {
@@ -146,11 +146,11 @@ void main() {
     });
 
     testWidgets('paints the wash under the label, never over it', (tester) async {
-      // The obvious shape — one wash across the whole button — erases the
-      // number the user switches by at the top of every breath, which reads as
-      // the bar glitching rather than as an alarm. The label is therefore the
-      // last child of the stack, and it is also the only unpositioned one, so
-      // the two properties cannot be separated by a reorder.
+      // The obvious shape — one wash across the whole button — erases the number
+      // the user switches by at the top of every breath, which reads as the bar
+      // glitching rather than as an alarm. The label is therefore the last child
+      // of the stack, and the only unpositioned one, so the two properties cannot
+      // be separated by a reorder.
       await tester.pumpWidget(host());
 
       final stack = tester.widget<Stack>(find.byType(Stack));

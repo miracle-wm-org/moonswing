@@ -13,11 +13,11 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/wallpaper_catalog.dart';
 
 /// The two sources of the wallpaper list, and the rule that separates them: a
-/// wallpaper the machine ships is always offered and can never be deleted,
-/// while one the user added can be.
+/// wallpaper the machine ships is always offered and can never be deleted, while
+/// one the user added can be.
 ///
-/// The catalogue is injected and pointed at a temp tree, so this never walks
-/// the real `/usr/share`.
+/// The catalogue is injected and pointed at a temp tree, so this never walks the
+/// real `/usr/share`.
 void main() {
   /// A 1x1 transparent PNG, so the tiles decode instead of falling through to
   /// the error placeholder.
