@@ -9,12 +9,12 @@ import 'package:ffi/ffi.dart';
 
 /// The running process as a library.
 ///
-/// GTK, GLib and GIO are already linked in — Flutter's Linux embedder pulls
-/// them in and gtk-layer-shell links against them — so their symbols resolve
-/// from the running process rather than a separately-opened library. Lookups
-/// through this are lazy and throw only when first touched, which is what
-/// lets `flutter_tester` (which links no GLib) run everything that guards
-/// its native calls.
+/// GTK, GLib and GIO are already linked in — Flutter's Linux embedder pulls them
+/// in and gtk-layer-shell links against them — so their symbols resolve from the
+/// running process rather than a separately-opened library. Lookups through this
+/// are lazy and throw only when first touched, which is what lets
+/// `flutter_tester` (which links no GLib) run everything that guards its native
+/// calls.
 final ffi.DynamicLibrary processLibrary = ffi.DynamicLibrary.process();
 
 /// Opens the first of [sonames] that loads, or null when none does — the

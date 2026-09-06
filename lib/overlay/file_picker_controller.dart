@@ -19,17 +19,16 @@ class FilePickerRequest {
   final String? initialDirectory;
 }
 
-/// The seam between "a surface that cannot host a modal wants a file picker"
-/// and `_GracefulShellRootState`, which owns the windows.
+/// The seam between "a surface that cannot host a modal wants a file picker" and
+/// `_GracefulShellRootState`, which owns the windows.
 ///
-/// [showFilePicker] inserts into the nearest root [Overlay], which is fine
-/// inside the settings overlay but useless on the desktop: the background
-/// surface is on the *background* layer, so a picker rendered there would be
-/// drawn underneath every application window and every panel. The root puts
-/// one on the overlay layer instead.
+/// [showFilePicker] inserts into the nearest root [Overlay], which is fine inside
+/// the settings overlay and useless on the desktop: the background surface is on
+/// the *background* layer, so a picker rendered there would be drawn underneath
+/// every application window. The root puts one on the overlay layer instead.
 ///
-/// [pick] resolves to the chosen absolute paths, or null when cancelled —
-/// the decline/supersede/teardown rules are [RequestController]'s.
+/// [pick] resolves to the chosen absolute paths, or null when cancelled — the
+/// decline/supersede/teardown rules are [RequestController]'s.
 class FilePickerController
     extends RequestController<FilePickerRequest, List<String>> {
   FilePickerController._();

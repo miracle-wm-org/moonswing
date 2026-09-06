@@ -46,17 +46,15 @@ class CapturedFrame {
   int get sizeBytes => stride * height;
 }
 
-/// A continuous image-copy-capture session on one source (an output or a
-/// foreign toplevel).
+/// A continuous image-copy-capture session on one source (an output or a foreign
+/// toplevel).
 ///
-/// Lifecycle: [start] → constraints batch (`shm_format`*, `buffer_size`,
-/// `done`) → shm buffer alloc → frame loop (`create_frame` → `attach_buffer`
-/// → full `damage_buffer` → `capture` → `ready`/`failed`). On `ready` the
-/// frame is delivered and the next one starts — immediately in streaming
-/// mode (the compositor self-paces on content changes), or after
-/// [minFrameInterval] in preview mode. On constraint changes (window resize)
-/// the buffer is reallocated and [onSizeChanged] fires so the PipeWire layer
-/// can renegotiate.
+/// Lifecycle: [start] → constraints batch (`shm_format`*, `buffer_size`, `done`)
+/// → shm buffer alloc → frame loop (`create_frame` → `attach_buffer` → full
+/// `damage_buffer` → `capture` → `ready`/`failed`). On `ready` the frame is
+/// delivered and the next starts — immediately in streaming mode, or after
+/// [minFrameInterval] in preview mode. On constraint changes the buffer is
+/// reallocated and [onSizeChanged] fires so PipeWire can renegotiate.
 class CaptureSession {
   CaptureSession.forOutput(
     this._connection,

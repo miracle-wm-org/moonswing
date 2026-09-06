@@ -1,9 +1,8 @@
-// The pick request/response types, shared by the portal backend (which asks)
-// and the picker UI (which answers).
+// The pick request/response types, shared by the portal backend (which asks) and
+// the picker UI (which answers).
 //
-// Deliberately Flutter-free and in their own file: everything below the UI —
-// the portal backend, the engine, the capture and PipeWire layers — imports
-// these without pulling in Flutter, which is what lets
+// Deliberately Flutter-free and in their own file: everything below the UI
+// imports these without pulling in Flutter, which is what lets
 // `tool/screencast_spike.dart` exercise the whole stack as a plain
 // `dart compile exe` binary.
 

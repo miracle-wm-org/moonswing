@@ -3,8 +3,8 @@
 // The one page in this shell that edits the *machine* rather than the shell,
 // which is why the footer says so: `SetX11Keyboard` writes
 // `/etc/default/keyboard` for every account and the console, and its polkit
-// action is `auth_admin_keep` on any box without Ubuntu's
-// gnome-control-center rule.
+// action is `auth_admin_keep` on any box without Ubuntu's gnome-control-center
+// rule.
 
 import 'package:flutter/widgets.dart';
 

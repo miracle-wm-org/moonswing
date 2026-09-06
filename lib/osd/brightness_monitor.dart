@@ -6,13 +6,12 @@ import 'package:udev/udev.dart';
 
 /// Watches the display backlight and reports its level as a 0..1 fraction.
 ///
-/// The kernel emits a udev `change` event on the `backlight` subsystem whenever
-/// a device's brightness is written, so this is event-driven rather than polled
-/// — the same approach the battery module takes with `power_supply`.
+/// The kernel emits a udev `change` event on the `backlight` subsystem whenever a
+/// device's brightness is written, so this is event-driven rather than polled —
+/// the approach the battery module takes with `power_supply`.
 ///
-/// Machines with no backlight (desktops, external-only setups) have an empty
-/// `/sys/class/backlight`; there [start] finds no device and the monitor stays
-/// silent for the life of the process.
+/// Machines with no backlight have an empty `/sys/class/backlight`; there [start]
+/// finds no device and the monitor stays silent for the life of the process.
 class BrightnessMonitor {
   BrightnessMonitor({String sysfsRoot = '/sys/class/backlight'})
       : _sysfsRoot = sysfsRoot;

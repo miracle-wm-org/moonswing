@@ -34,15 +34,15 @@ class OsdRequest {
   int get hashCode => Object.hash(kind, value, muted);
 }
 
-/// The single on-screen indicator the shell shows when volume, microphone
-/// volume, or screen brightness changes.
+/// The single on-screen indicator the shell shows when volume, microphone volume
+/// or screen brightness changes.
 ///
-/// Same shape as [NotificationStore] and [TrayStore]: a singleton
-/// [ChangeNotifier] that a start-up function feeds and the window watches.
+/// [NotificationStore]'s shape: a singleton [ChangeNotifier] that a start-up
+/// function feeds and the window watches.
 ///
 /// There is deliberately only one [current] request. A [show] call overwrites
-/// whatever was on screen, so changing brightness while the volume bar is still
-/// up replaces it rather than stacking a second indicator.
+/// whatever was on screen, so changing brightness while the volume bar is up
+/// replaces it rather than stacking a second indicator.
 class OsdStore extends ChangeNotifier {
   OsdStore._();
 

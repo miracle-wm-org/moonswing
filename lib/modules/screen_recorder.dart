@@ -1,12 +1,12 @@
-// The video camera in the bar, and the only thing in the shell that has two
+// The video camera in the bar, and the only thing in the shell with two
 // completely different jobs depending on what it is already doing.
 //
 // Idle it is the screenshot module with a different verb: a menu of the three
 // ways to choose what to record. Recording it stops being a menu at all — the
-// icon becomes a red dot beside a running readout, and the popup's first row
-// is Stop. That asymmetry is the point: a recording is the one thing the shell
-// can be doing that the user cannot see, so the bar has to say so and ending
-// it has to be one click away from wherever the pointer is.
+// icon becomes a red dot beside a running readout, and the popup's first row is
+// Stop. That asymmetry is the point: a recording is the one thing the shell can
+// be doing that the user cannot see, so the bar has to say so and ending it has
+// to be one click away.
 //
 // One recording for the machine. The state is [CaptureStore]'s, so the icon on
 // every monitor's bar shows the same clock and any of them stops the same

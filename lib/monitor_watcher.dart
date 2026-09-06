@@ -4,14 +4,13 @@ import 'package:ffi/ffi.dart';
 
 import 'package:graceful_shell/native/ffi_util.dart';
 
-/// Watches the default GDK display for monitors being plugged in or unplugged
-/// and invokes [onChanged] whenever the set of monitors changes.
+/// Watches the default GDK display for monitors being plugged in or unplugged and
+/// invokes [onChanged] whenever the set changes.
 ///
-/// GDK emits `monitor-added` / `monitor-removed` on the default display as the
-/// compositor advertises or drops `wl_output`s. This class connects both
-/// signals to the same handler; callers re-enumerate with `listMonitors()` in
-/// response rather than relying on the (possibly already-invalidated)
-/// `GdkMonitor` pointer passed to the signal.
+/// GDK emits `monitor-added` / `monitor-removed` as the compositor advertises or
+/// drops `wl_output`s. This connects both signals to the same handler; callers
+/// re-enumerate with `listMonitors()` rather than relying on the (possibly
+/// already-invalidated) `GdkMonitor` pointer the signal passes.
 class MonitorWatcher {
   MonitorWatcher(this.onChanged) {
     try {
