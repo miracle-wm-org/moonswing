@@ -124,16 +124,13 @@ class WorkspacesState extends State<Workspaces> {
     if (connection == null) return;
     _events = connection.listen(
       (Event event) {
-        // A workspace event is the obvious trigger, and it is what carries
-        // urgency too: miracle.dart 2.1 emits `workspace`/`urgent` alongside
-        // the window event precisely so a bar watching workspaces sees it
-        // without walking the tree, and the refetch below is what the flash
-        // rides on. An output event is the less obvious one: miracle re-homes
-        // a removed output's workspaces onto another output and emits no
-        // workspace event saying so, which leaves the `workspace -> output`
-        // mapping this row filters on stale. The shell used to infer that from
-        // its own `wl_output` view (`MiracleManager.outputsRevision`) because
-        // miracle.dart could not decode the event; it can now.
+        // A workspace event is the obvious trigger, and it carries urgency too:
+        // miracle.dart 2.1 emits `workspace`/`urgent` alongside the window event
+        // precisely so a bar watching workspaces sees it without walking the
+        // tree. An output event is the less obvious one: miracle re-homes a
+        // removed output's workspaces onto another output and emits no workspace
+        // event saying so, which leaves the `workspace -> output` mapping this
+        // row filters on stale.
         if (event is WorkspaceEvent || event is OutputEvent) {
           connection.getWorkspaces().then(_updateWorkspaces);
         }
@@ -189,11 +186,10 @@ class WorkspacesState extends State<Workspaces> {
     }
 
     // Bars paint before Wayland output enumeration finishes, so which display
-    // this one is on may not be known yet. Filtering on an unknown name would
-    // render an empty row that then popped full.
-    // `WaylandOutput.name` is non-nullable and starts empty, so an output that
-    // is bound but has not delivered its `name` yet would otherwise pass this
-    // guard and filter every workspace away — an empty row, not a loader.
+    // this one is on may not be known yet — filtering on an unknown name would
+    // render an empty row that then popped full. `WaylandOutput.name` is
+    // non-nullable and starts empty, so an output bound but not yet named would
+    // otherwise pass this guard and filter every workspace away.
     final outputName = DisplayScope.of(context)?.name;
     if (outputName == null || outputName.isEmpty) return _pending(theme);
 
@@ -517,12 +513,11 @@ class _WorkspaceButtonState extends State<_WorkspaceButton> {
 /// Where in one breath the shell is at [now], as a fraction of [period].
 ///
 /// Read off the **wall clock**, which is what makes every urgent button agree.
-/// Each bar is its own FlutterView with its own ticker, so two monitors — or
-/// two workspaces going urgent a second apart on the same bar — would otherwise
-/// breathe out of step, and a row of dots pulsing at random phases reads as a
-/// rendering fault rather than as one alarm. Offsetting each controller by the
-/// phase it *started* at cancels its own start time out of the sum, leaving
-/// every one of them a function of the clock alone.
+/// Each bar is its own FlutterView with its own ticker, so two monitors — or two
+/// workspaces going urgent a second apart — would otherwise breathe out of step,
+/// and a row of dots pulsing at random phases reads as a rendering fault rather
+/// than as one alarm. Offsetting each controller by the phase it *started* at
+/// cancels its own start time out of the sum.
 @visibleForTesting
 double urgencyFlashPhase(DateTime now, Duration period) {
   final millis = period.inMilliseconds;

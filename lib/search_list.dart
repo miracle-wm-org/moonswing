@@ -1,22 +1,16 @@
-/// The anchored, searchable dropdown: a trigger that floats a filterable
-/// list in the *root* overlay.
+/// The anchored, searchable dropdown: a trigger that floats a filterable list in
+/// the *root* overlay.
 ///
-/// `SettingsFontField` and the calendar's time-zone picker were two
-/// comment-identical copies of this whole arrangement; each is now a thin
-/// wrapper supplying its trigger, its ranking, and its row content, as are the
-/// weather location row and — since the settings UI stopped having two kinds
-/// of dropdown — `SettingsDropdown` and the module adder. Two properties are
-/// load-bearing and documented at their origin (`SettingsColorField`): the
-/// list floats in the **root** overlay, because the settings content pane is a
-/// nested `Navigator` whose `Overlay` would clip a list hanging below the row;
-/// and the items arrive **as a parameter**, so widget tests never fork
-/// `fc-list` or load the IANA tables.
+/// Every selector in the settings UI is a thin wrapper over this, supplying its
+/// trigger, its ranking and its row content. Two properties are load-bearing and
+/// documented at their origin (`SettingsColorField`): the list floats in the
+/// **root** overlay, because the settings content pane is a nested `Navigator`
+/// whose `Overlay` would clip a list hanging below the row; and the items arrive
+/// **as a parameter**, so widget tests never fork `fc-list` or load the IANA
+/// tables.
 ///
-/// Two of the parameters exist for those last two wrappers, and both are about
-/// a card that has to pass for the control it drops out of: `matchTriggerWidth`
-/// sizes it to the trigger, and `showSearch` lets a short list do without a
-/// filter field. Neither changes the card itself, which is the point — every
-/// selector in the settings UI is now this one surface.
+/// `matchTriggerWidth` sizes the card to the trigger, and `showSearch` lets a
+/// short list do without a filter field. Neither changes the card itself.
 library;
 
 import 'dart:async';
@@ -43,10 +37,10 @@ const double _kGap = 6;
 /// The horizontal inset of a row's content inside the card, and the card's own
 /// border width.
 ///
-/// Public because a caller that *measures* its rows has to lay its text out in
-/// the width the card will actually give it — [dropdownContentWidth] is that
-/// subtraction, spelled once so a padding change here cannot silently make
-/// somebody else's measurement wrong.
+/// Public because a caller that *measures* its rows has to lay text out in the
+/// width the card will actually give it — [dropdownContentWidth] is that
+/// subtraction, spelled once so a padding change cannot silently make somebody
+/// else's measurement wrong.
 const double kDropdownRowInset = 12;
 const double kDropdownCardBorder = 1;
 
@@ -105,18 +99,18 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
   /// opens. Null when the items come from [search] instead.
   final List<T> Function(String query)? filter;
 
-  /// Ranks the items for a query *asynchronously* — a network lookup rather
-  /// than a ranking of a list already in memory.
+  /// Ranks the items for a query *asynchronously* — a network lookup rather than
+  /// a ranking of a list already in memory.
   ///
-  /// Supersedes [filter] when both are given, which is the shape a caller with
-  /// a local list *and* a remote one wants: [filter] answers the first frame
-  /// with what is already known, [search] replaces it when the request lands.
+  /// Supersedes [filter] when both are given, which is what a caller with a local
+  /// list *and* a remote one wants: [filter] answers the first frame, [search]
+  /// replaces it when the request lands.
   ///
-  /// Debounced by [searchDebounce], and answers are applied in request order —
-  /// a slow response for "lon" must not land on top of a fast one for
-  /// "london". A call that throws is reported as no matches; the dropdown is
-  /// not the place to explain a failed HTTP request, and a list that stayed on
-  /// the previous query's results would be showing the wrong ones.
+  /// Debounced by [searchDebounce], and answers are applied in request order — a
+  /// slow response for "lon" must not land on top of a fast one for "london". A
+  /// call that throws is reported as no matches: the dropdown is not the place to
+  /// explain a failed HTTP request, and a list left on the previous query's
+  /// results would be showing the wrong ones.
   final Future<List<T>> Function(String query)? search;
 
   /// How long typing has to stop before [search] is called. A request per
@@ -130,10 +124,9 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
 
   /// Whether the card carries its filter field.
   ///
-  /// A few hundred font families need one; the two output devices a machine
-  /// has do not, and a search box over a list shorter than the box is chrome
-  /// asking to be typed into for no gain. False keeps the rest of the card —
-  /// the same surface, radius, border and rows — and moves the autofocus to
+  /// A few hundred font families need one; the two output devices a machine has
+  /// do not, and a search box over a list shorter than the box is chrome asking to
+  /// be typed into. False keeps the rest of the card and moves the autofocus to
   /// the key handler, so Up/Down/Enter/Escape still drive the list.
   ///
   /// A [search] dropdown ignores this: its list *is* the query.
@@ -208,15 +201,12 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
 
   /// The scroll position the trigger sits in, while a card is open.
   ///
-  /// The card is anchored to a [CompositedTransformTarget] on the *trigger*,
-  /// which lives in the page; the card itself is in the root `Overlay`. If the
-  /// page scrolls the trigger away — far enough for a lazy `SliverList` to
-  /// unmount it — the follower has no leader and paints nowhere, leaving an
-  /// invisible card over a full-screen barrier. Today the barrier itself
-  /// happens to block the wheel (`_RenderTheatre.hitTestChildren` stops at the
-  /// first entry that accepts), but that is an accident of the barrier rather
-  /// than a guarantee: a `Scrollable.ensureVisible` from focus traversal would
-  /// scroll it anyway.
+  /// The card is anchored to a [CompositedTransformTarget] on the *trigger*, which
+  /// lives in the page, while the card is in the root `Overlay`. If the page
+  /// scrolls the trigger far enough away for a lazy `SliverList` to unmount it,
+  /// the follower has no leader and paints nowhere — leaving an invisible card
+  /// over a full-screen barrier. The barrier happening to block the wheel today
+  /// is an accident of the barrier, not a guarantee.
   ScrollPosition? _hostScroll;
 
   void _watchScroll() {

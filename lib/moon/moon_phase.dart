@@ -1,23 +1,19 @@
 // What the Moon is doing right now, as one value object.
 //
-// The layer above `moon_ephemeris.dart` and the one the rest of the shell
-// talks to: it turns the raw series into the four things a person actually
-// asks — which phase this is, how lit it is, when the next principal phase
-// lands, and (where the shell knows where the user is) when the Moon comes up
-// and goes down tonight.
+// The layer above `moon_ephemeris.dart`: it turns the raw series into the four
+// things a person asks — which phase this is, how lit it is, when the next
+// principal phase lands, and (where the shell knows where the user is) when the
+// Moon rises and sets.
 //
-// Still Flutter-free and still clock-free: every entry point takes the instant
-// it is being asked about. `MoonStore` is the only thing in the feature that
-// knows what time it is, exactly as `WeatherStore` is the only thing that
-// knows there is a network.
+// Still Flutter-free and clock-free: every entry point takes the instant it is
+// asked about. `MoonStore` is the only thing in the feature that knows the time.
 //
 // **Every phase instant here is found by search, never by counting synodic
 // months from a fixed epoch.** A mean lunation is 29.530588853 days and a real
-// one runs from 29.27 to 29.83, so an epoch-plus-multiples calculation is up to
-// seven hours out at the worst of it — which is a full moon predicted on the
-// wrong evening. Newton's method against the true elongation costs about six
-// position evaluations and lands within a couple of minutes of the published
-// times (`test/moon_phase_test.dart` pins four of them, 1977 to 2024).
+// one runs from 29.27 to 29.83, so epoch-plus-multiples is up to seven hours out
+// — a full moon predicted on the wrong evening. Newton's method against the true
+// elongation costs about six position evaluations and lands within a couple of
+// minutes of the published times.
 
 import 'dart:math' as math;
 
@@ -57,9 +53,9 @@ enum MoonPhase {
 /// How far either side of a principal phase still counts as that phase, in
 /// cycles. 0.02 of a lunation is about 14 hours.
 ///
-/// A wider window is the more common implementation and it reads wrong: at an
-/// eighth of a cycle either side, the sky is showing an obvious crescent for
-/// nearly two days after the shell has stopped calling it new.
+/// A wider window is the more common implementation and reads wrong: at an eighth
+/// of a cycle either side, the sky shows an obvious crescent for nearly two days
+/// after the shell has stopped calling it new.
 const double _principalWindow = 0.02;
 
 /// The phase at [cyclePosition], a fraction of the lunation from new (0) to
@@ -95,13 +91,11 @@ DateTime _addDays(DateTime time, double days) =>
 
 /// Newton's method on the elongation, from [estimate].
 ///
-/// Converges on whichever crossing of [target] is nearest the estimate, which
-/// is what makes one solver answer both [moonPhaseAfter] and [moonPhaseBefore]
-/// — they differ only in which side they guess from. The derivative is taken
-/// over ten minutes rather than analytically: the elongation rate swings by a
-/// quarter between perigee and apogee, so a constant would cost iterations,
-/// and the series is cheap enough that measuring it is simpler than
-/// differentiating it.
+/// Converges on whichever crossing of [target] is nearest the estimate, which is
+/// what makes one solver answer both [moonPhaseAfter] and [moonPhaseBefore]. The
+/// derivative is taken over ten minutes rather than analytically: the elongation
+/// rate swings by a quarter between perigee and apogee, so a constant would cost
+/// iterations, and measuring the series is simpler than differentiating it.
 DateTime _solveElongation(DateTime estimate, double target) {
   var time = estimate;
   for (var i = 0; i < 6; i++) {
@@ -116,15 +110,14 @@ DateTime _solveElongation(DateTime estimate, double target) {
   return time;
 }
 
-/// How close to [start] a solution counts as *being* [start] rather than being
-/// the next one along.
+/// How close to [start] a solution counts as *being* [start] rather than the next
+/// one along.
 ///
-/// Both searches are strict: asked for the next full Moon at the instant of a
-/// full Moon, the answer has to be the one next month. Without a tolerance that
-/// depends on which side of the root Newton happened to land, and "full Moon in
-/// 0 days" is a readout nobody wants. A second is enormous next to the
-/// microseconds the solver converges to and nothing next to the 29 days
-/// between roots.
+/// Both searches are strict: asked for the next full Moon at the instant of one,
+/// the answer has to be next month's. Without a tolerance that depends on which
+/// side of the root Newton landed, and "full moon in 0 days" is a readout nobody
+/// wants. A second is enormous next to the solver's convergence and nothing next
+/// to the 29 days between roots.
 const Duration _phaseSearchEpsilon = Duration(seconds: 1);
 
 /// The first time strictly after [start] that the Moon's elongation is
@@ -159,14 +152,12 @@ DateTime moonPhaseBefore(DateTime start, double target) {
 
 /// Everything the shell knows about the Moon at one instant.
 ///
-/// **The four phase instants are found on first read, not on construction.**
-/// Each one is a Newton search costing about a dozen evaluations of the whole
-/// of Meeus 47.A/B, and together they were nine tenths of what a reading cost —
-/// paid every minute by `MoonStore._tick`, whose own `_publish` needs none of
-/// them, and paid again by a compact card that draws neither an age nor a
-/// countdown. Everything eager here falls out of the one position evaluation
-/// the reading is already making; everything that would need another is a
-/// memoised getter below.
+/// **The four phase instants are found on first read, not on construction.** Each
+/// is a Newton search costing about a dozen evaluations of the whole of Meeus
+/// 47.A/B, and together they were nine tenths of a reading — paid every minute by
+/// `MoonStore._tick`, whose `_publish` needs none of them, and again by a compact
+/// card that draws neither an age nor a countdown. Everything eager here falls
+/// out of the one position evaluation the reading already makes.
 class MoonReading {
   MoonReading({
     required this.time,
@@ -205,10 +196,9 @@ class MoonReading {
 
   /// The elongation the next principal phase lands at: 0, 90, 180 or 270.
   ///
-  /// Which principal phase is next is not a search at all — it is which
-  /// quadrant of the elongation the Moon is in, which this reading already
-  /// has. Carried as the target rather than as the phase because it is also
-  /// the key [nextPrincipalTime] is memoised against.
+  /// Which phase is next is not a search but which quadrant of the elongation the
+  /// Moon is in, which this reading already has. Carried as the target because it
+  /// is also the key [nextPrincipalTime] is memoised against.
   final int nextPrincipalTargetDegrees;
 
   /// The next of the four principal phases.
@@ -282,13 +272,12 @@ class MoonReading {
   double get distanceAnomaly => (distanceKm - 385000.56) / 385000.56;
 }
 
-/// The reading at [at], for an observer at [latitude]/[longitude] where they
-/// are known.
+/// The reading at [at], for an observer at [latitude]/[longitude] where they are
+/// known.
 ///
-/// The phase half of this is the same everywhere on Earth — the Moon is lit by
-/// the Sun, not by the observer — so a shell that has never resolved a location
-/// still draws the right shape. The location buys two things and no more: the
-/// altitude (and with it the rise and set times, see [moonTimesFor]) and the
+/// The phase half is the same everywhere on Earth, so a shell that has never
+/// resolved a location still draws the right shape. The location buys two things
+/// and no more: the altitude (and with it the rise and set times) and the
 /// hemisphere the disc is seen from.
 MoonReading computeMoonReading({
   required DateTime at,
@@ -349,12 +338,11 @@ MoonReading computeMoonReading({
 
 /// When the Moon rises and sets on one local day.
 ///
-/// Both are nullable and both being null is not a failure: above the Arctic and
-/// below the Antarctic circles the Moon regularly stays up or stays down for a
-/// whole day, and at every latitude it rises about fifty minutes later each
-/// day, so roughly once a month a calendar day genuinely contains no moonrise.
-/// [alwaysUp] and [alwaysDown] are what tell those cases apart, so the widget
-/// can say which one it is instead of showing two blanks.
+/// Both are nullable and both being null is not a failure: near the poles the
+/// Moon regularly stays up or down for a whole day, and at every latitude it
+/// rises about fifty minutes later each day, so roughly once a month a calendar
+/// day contains no moonrise. [alwaysUp] and [alwaysDown] tell those cases apart,
+/// so the widget can say which it is instead of showing two blanks.
 class MoonTimes {
   const MoonTimes({
     this.rise,
@@ -374,12 +362,11 @@ class MoonTimes {
 /// The Moon's rise and set on the local calendar day containing [day].
 ///
 /// Found by sampling the altitude every twenty minutes and bisecting the sign
-/// changes, rather than by Meeus's interpolation from three positions. The
-/// Moon is the one body that makes the closed form awkward — its declination
-/// moves several degrees in a day and its parallax moves the horizon it is
-/// measured against — while a scan handles a day with two moonrises, or none,
-/// by simply not finding a crossing. Seventy-two altitude evaluations is a
-/// millisecond, once a day, on a widget that is redrawn every minute anyway.
+/// changes, rather than by Meeus's interpolation from three positions: the Moon's
+/// declination moves several degrees in a day and its parallax moves the horizon
+/// it is measured against, while a scan handles a day with two moonrises, or
+/// none, by simply not finding a crossing. Seventy-two altitude evaluations is a
+/// millisecond, once a day.
 MoonTimes moonTimesFor({
   required DateTime day,
   required double latitude,
