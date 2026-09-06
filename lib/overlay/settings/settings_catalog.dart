@@ -386,6 +386,22 @@ abstract final class SettingsCatalog {
     'How long one breath of the urgency flash takes.',
     const ['workspace', 'urgent', 'speed', 'blink'],
   );
+  static final workspacesShowPolicyToggle = _module(
+    'modules.workspaces.show_policy_toggle',
+    'Tiling/floating toggle',
+    'Puts a button on the focused workspace that switches it between tiling '
+        'and floating the windows opened on it next.',
+    const [
+      'workspace',
+      'tile',
+      'tiling',
+      'float',
+      'floating',
+      'policy',
+      'placement',
+      'layout',
+    ],
+  );
 
   static final weatherLocation = _module(
     'modules.weather.location',
@@ -1814,6 +1830,7 @@ abstract final class SettingsCatalog {
     workspacesMaxIcons,
     workspacesFlashUrgent,
     workspacesUrgentFlashSeconds,
+    workspacesShowPolicyToggle,
     weatherLocation,
     weatherUnit,
     weatherRefreshMinutes,

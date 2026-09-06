@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
@@ -148,6 +149,42 @@ class WorkspacesState extends State<Workspaces> {
     });
   }
 
+  /// Flips [workspace] between tiling what is opened on it next and floating
+  /// it, then re-reads the row from miracle.
+  ///
+  /// **The re-read happens whether or not the command succeeded**, and the glyph
+  /// is never flipped optimistically: `workspace <n> policy float` is miracle's
+  /// own, so a compositor older than it answers with a parse error, and a toggle
+  /// that had already moved would be reporting a policy nothing took. Flipping
+  /// only once miracle has been asked again is what makes a refusal visible as
+  /// the button snapping back.
+  ///
+  /// The re-read is [MiracleConnection.getWorkspaces] — the same round-trip the
+  /// row is built from — and it lands on the bar that was clicked. Another bar on
+  /// the same output picks the change up from miracle's own `workspace` event,
+  /// or, failing that, from the next one it sends.
+  Future<void> _togglePolicy(WorkspaceResult workspace) async {
+    final connection = _connection;
+    final selector = workspaceSelector(workspace);
+    if (connection == null || selector == null) return;
+    try {
+      await connection.runOrThrow(MiracleCommand.workspacePolicy(
+        nextWorkspacePolicy(workspace.policy),
+        workspace: selector,
+      ));
+    } catch (error) {
+      debugPrint('workspaces: could not set the workspace policy: $error');
+    }
+    // The socket can die, or be replaced by a reconnect, while the command is
+    // in flight; `_updateWorkspaces` answers for the widget being gone.
+    if (!mounted || !identical(_connection, connection)) return;
+    try {
+      _updateWorkspaces(await connection.getWorkspaces());
+    } catch (error) {
+      debugPrint('workspaces: could not re-read the workspaces: $error');
+    }
+  }
+
   /// The placeholder that stands in for the workspace row while something it
   /// needs is still on its way. One button's worth of space, so the modules
   /// beside it do not shuffle sideways when the row arrives.
@@ -203,6 +240,11 @@ class WorkspacesState extends State<Workspaces> {
         child: Row(
           spacing: 4,
           children: visibleWorkspaces.map((workspace) {
+            // Null for the one workspace miracle reported neither a number nor a
+            // name for: there is no selector to send, so the button switches
+            // nothing and carries no policy toggle rather than spelling `null`
+            // into a command.
+            final selector = workspaceSelector(workspace);
             return _WorkspaceButton(
               key: ValueKey(workspace.num ?? workspace.name),
               backgroundColor: workspace.focused
@@ -213,18 +255,23 @@ class WorkspacesState extends State<Workspaces> {
               urgent: shouldFlashWorkspace(config, workspace),
               urgentColor: theme.accent,
               urgentPeriod: urgentPeriod,
-              onPressed: () {
-                final String command = workspace.num != null
-                    ? 'workspace ${workspace.num}'
-                    : 'workspace ${workspace.name}';
-                connection.command(command);
-              },
+              onPressed: selector == null
+                  ? null
+                  : () => unawaited(
+                        connection.run(MiracleCommand.workspace(selector)),
+                      ),
               child: _WorkspaceLabel(
                 label: workspace.name ?? workspace.num?.toString() ?? '?',
                 appIds:
                     config.showAppIcons ? _apps.appIdsFor(workspace) : const [],
                 config: config,
                 foreground: theme.foreground,
+                // Null on every button but the focused one; see
+                // [shouldShowPolicyToggle].
+                policy: shouldShowPolicyToggle(config, workspace)
+                    ? workspace.policy
+                    : null,
+                onTogglePolicy: () => unawaited(_togglePolicy(workspace)),
               ),
             );
           }).toList(),
@@ -232,17 +279,20 @@ class WorkspacesState extends State<Workspaces> {
   }
 }
 
-/// One workspace button's content: its number or name, plus the icons of what
-/// is open on it.
+/// One workspace button's content: its number or name, the icons of what is
+/// open on it, and — on the focused workspace alone — the tile/float toggle.
 ///
-/// The label stays whatever the icons do — it is the number the user switches
-/// by, and an empty workspace has nothing else to render.
+/// The label stays whatever the rest does — it is the number the user switches
+/// by, and an empty workspace with the toggle switched off has nothing else to
+/// render.
 class _WorkspaceLabel extends StatelessWidget {
   const _WorkspaceLabel({
     required this.label,
     required this.appIds,
     required this.config,
     required this.foreground,
+    required this.policy,
+    required this.onTogglePolicy,
   });
 
   final String label;
@@ -250,10 +300,18 @@ class _WorkspaceLabel extends StatelessWidget {
   final WorkspacesConfig config;
   final Color foreground;
 
+  /// The workspace's window placement policy, or null when this button is not
+  /// the one that carries the toggle. See [shouldShowPolicyToggle].
+  final WindowPlacementPolicy? policy;
+
+  /// Flips [policy]. Only reached while [policy] is non-null.
+  final VoidCallback onTogglePolicy;
+
   @override
   Widget build(BuildContext context) {
     final text = Text(label, style: TextStyle(color: foreground));
-    if (appIds.isEmpty) return text;
+    final policy = this.policy;
+    if (appIds.isEmpty && policy == null) return text;
 
     final shown = appIds.length <= config.maxIcons
         ? appIds
@@ -282,7 +340,86 @@ class _WorkspaceLabel extends StatelessWidget {
               fontSize: ShellFontSizes.caption,
             ),
           ),
+        // Last, so the toggle sits at the trailing edge of the button whether or
+        // not the workspace is carrying icons — a control that moved to the
+        // middle of the row as windows opened would be a control nobody could
+        // aim at.
+        if (policy != null)
+          WorkspacePolicyToggle(policy: policy, onToggle: onTogglePolicy),
       ],
+    );
+  }
+}
+
+/// The focused workspace's tile/float switch.
+///
+/// Nested inside `_WorkspaceButton`'s own detector on purpose: this *is* a
+/// control on that button, and the gesture arena resolves it correctly by
+/// construction — hit testing runs deepest-first, so this recognizer enters the
+/// arena before the button's and wins the sweep, which leaves the workspace
+/// switch untriggered by a press on the glyph. The button's own tap-down still
+/// draws its pressed fill and is cancelled when this one wins, which is the
+/// feedback a press wants anyway. `test/workspace_policy_test.dart` is what
+/// keeps that true, which is why this widget is public rather than private.
+class WorkspacePolicyToggle extends StatelessWidget {
+  const WorkspacePolicyToggle({
+    super.key,
+    required this.policy,
+    required this.onToggle,
+  });
+
+  /// The pointer target, which is also the hover box — one rect, per
+  /// [HoverRegion].
+  ///
+  /// Below [ShellSizes.iconButtonDense] because the bar's height forces it, and
+  /// only just: a default 32px panel is spent exactly by the row's 8px padding,
+  /// the button's 8px padding and its 16px minimum content box, so a taller box
+  /// here grows the workspace row past the bar it is drawn in.
+  static const double _box = 16;
+
+  /// The glyph inside that box. Never the target — see [ShellSizes].
+  static const double _glyph = 9;
+
+  final WindowPlacementPolicy policy;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final bool floating = policy == WindowPlacementPolicy.float;
+    return RepaintBoundary(
+      // A bar has no repaint boundary of its own, so without this one the
+      // pointer crossing a 16px glyph would re-record the whole panel picture
+      // and damage the whole output.
+      child: HoverRegion(
+        onTap: onToggle,
+        builder: (context, hovered) => SizedBox(
+          width: _box,
+          height: _box,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: hovered ? theme.surfaceHover : null,
+              borderRadius: BorderRadius.circular(ShellRadii.barButton),
+            ),
+            child: Center(
+              child: FaIcon(
+                // Two overlapping windows against a grid of cells: the picture
+                // is what the *workspace* will do with the next window, not
+                // what the button does when pressed.
+                floating
+                    ? FontAwesomeIcons.solidClone
+                    : FontAwesomeIcons.tableCells,
+                size: _glyph,
+                // Floating is the departure from miracle's default, so it is the
+                // state that carries the accent; tiling reads as the quiet one.
+                color: floating
+                    ? theme.accent
+                    : theme.foreground.withValues(alpha: 0.65),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

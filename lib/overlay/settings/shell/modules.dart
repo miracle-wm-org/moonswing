@@ -151,6 +151,10 @@ final List<_ModuleGroup> _moduleGroups = [
       defaultValue: const WorkspacesConfig().urgentFlashSeconds,
       isInt: false,
     ),
+    _ModuleSetting.toggle(
+      SettingsCatalog.workspacesShowPolicyToggle,
+      defaultValue: const WorkspacesConfig().showPolicyToggle,
+    ),
   ]),
   _ModuleGroup('Weather', [
     _ModuleSetting.weatherLocation(SettingsCatalog.weatherLocation),

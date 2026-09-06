@@ -456,6 +456,23 @@ void main() {
       expect(WorkspacesConfig.fromMap({'max_icons': 0}).maxIcons, 1);
     });
 
+    test('carries the tiling/floating toggle by default', () {
+      const config = WorkspacesConfig();
+      expect(config.showPolicyToggle, isTrue);
+      expect(WorkspacesConfig.fromMap(null).showPolicyToggle, isTrue);
+      expect(WorkspacesConfig.fromMap({}).showPolicyToggle, isTrue);
+      expect(
+          WorkspacesConfig.fromMap({'show_policy_toggle': false})
+              .showPolicyToggle,
+          isFalse);
+      // The one rule of this layer: a wrongly-typed value costs that key and
+      // nothing else.
+      expect(
+          WorkspacesConfig.fromMap({'show_policy_toggle': 'yes'})
+              .showPolicyToggle,
+          isTrue);
+    });
+
     test('flashes urgent workspaces by default, slowly', () {
       const config = WorkspacesConfig();
       expect(config.flashUrgent, isTrue);

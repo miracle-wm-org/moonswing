@@ -159,13 +159,15 @@ max_text_width = 200.0
 show_app_icons = true
 icon_size = 14
 max_icons = 4
+show_policy_toggle = true
 ```
 
-| Key              | Type | Default | Description                                                           |
-| ---------------- | ---- | ------- | --------------------------------------------------------------------- |
-| `show_app_icons` | bool | `true`  | Show the icons of the applications open on each workspace             |
-| `icon_size`      | int  | `14`    | Icon size in pixels (8–64)                                            |
-| `max_icons`      | int  | `4`     | Icons one workspace shows before the rest collapse into a `+N` (1–16) |
+| Key                  | Type | Default | Description                                                           |
+| -------------------- | ---- | ------- | --------------------------------------------------------------------- |
+| `show_app_icons`     | bool | `true`  | Show the icons of the applications open on each workspace             |
+| `icon_size`          | int  | `14`    | Icon size in pixels (8–64)                                            |
+| `max_icons`          | int  | `4`     | Icons one workspace shows before the rest collapse into a `+N` (1–16) |
+| `show_policy_toggle` | bool | `true`  | Put the tiling/floating switch on the focused workspace's button      |
 
 With `show_app_icons` on, each workspace button carries its number or name
 *and* the icons of what is open on it, so the buttons are no longer all the
@@ -178,6 +180,20 @@ The tree is re-read in response to Miracle's own `window`, `workspace` and
 a window between workspaces count, so switching focus costs nothing. Nothing
 is read at all while `show_app_icons` is off, and one reader serves every panel
 on every monitor.
+
+With `show_policy_toggle` on, the **focused** workspace's button carries one
+more glyph: a grid of cells while that workspace tiles the windows opened on
+it, two overlapping windows in the accent colour while it floats them. Clicking
+it sends Miracle `workspace <n> policy tile|float`, which changes where the
+*next* window opens — whatever is already on the workspace stays where it is.
+
+It is drawn on the focused workspace alone, because that is the workspace the
+next window will open on, and because five more click targets in a bar are five
+switch-workspace clicks waiting to be missed. Like the urgency flash it costs no
+extra round-trip: Miracle reports the policy on the `GET_WORKSPACES` entry the
+button is already built from. A Miracle too old to know the command answers with
+a parse error, and the glyph visibly snaps back rather than reporting a policy
+nothing took.
 
 ### Dock
 
