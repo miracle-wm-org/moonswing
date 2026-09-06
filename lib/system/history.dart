@@ -3,9 +3,9 @@ import 'dart:collection';
 /// A fixed-capacity FIFO of samples, oldest first.
 ///
 /// The graphs read this straight through: [toList] is in chart order, and
-/// [capacity] — not [length] — is what maps the x axis, so a buffer that is
-/// still filling draws a line growing in from the left instead of one that
-/// rescales horizontally on every new sample.
+/// [capacity] — not [length] — is what maps the x axis, so a buffer still filling
+/// draws a line growing in from the left rather than one that rescales on every
+/// new sample.
 class HistoryBuffer<T> {
   HistoryBuffer(int capacity) : _capacity = capacity < 1 ? 1 : capacity;
 

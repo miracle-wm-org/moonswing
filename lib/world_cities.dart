@@ -1,36 +1,27 @@
 // The shell's own gazetteer: the major cities the two place pickers offer.
 //
-// Both pickers had a list already and neither of them was one a user
-// recognises. The world clock's came from the IANA database, whose names are
-// *zones* rather than places — one representative settlement per offset
-// history — so India is `Asia/Kolkata` and New Delhi, Mumbai, Bengaluru and
-// Chennai are simply not in it, as San Francisco, Boston and Seattle are not
-// in `America/Los_Angeles` and `America/New_York`. The weather's came from a
-// geocoding request, which knows every one of them and answers none of them
-// until the network does.
+// Both pickers had a list already and neither was one a user recognises. The
+// world clock's came from the IANA database, whose names are *zones* rather than
+// places, so New Delhi, Mumbai, San Francisco and Boston are simply not in it.
+// The weather's came from a geocoding request, which knows every one of them and
+// answers none until the network does.
 //
-// So the table is here, once, and each picker adds it to what it already had:
-// the clock offers these beside the IANA zones (storing the zone, and the
-// city's name as the row's label), and the weather offers them ahead of the
-// geocoder — which still answers for everywhere this table has never heard of.
+// So the table is here once, and each picker adds it to what it had.
 //
-// Flutter-free and I/O-free, so it is a plain unit test and so `weather_api`'s
-// own Flutter-free property survives importing it.
+// Flutter-free and I/O-free, so it is a plain unit test and `weather_api`'s own
+// Flutter-free property survives importing it.
 //
 // Three things a change here has to keep true:
 //
 // - **A city carries its zone *and* its coordinates**, because the two pickers
-//   want different halves of the same row and a table that served only one of
-//   them would be a second table to keep in step. `test/world_cities_test.dart`
-//   checks every zone against the live IANA database, which is the only thing
-//   standing between a typo here and a city that silently never appears.
-// - **A wrong row costs that row.** The clock picker drops a city whose zone
-//   the database does not know rather than throwing, the `TomlReader`
-//   discipline applied to data the shell ships rather than data it reads.
-// - **[aliases] is what makes a renamed city findable.** Bombay, Madras,
-//   Saigon, Peking and Rangoon are what a good many people still type, and a
-//   picker that answers "no matches" to a name printed on every map before
-//   1996 reads as a broken search rather than as a rename.
+//   want different halves of the same row. `test/world_cities_test.dart` checks
+//   every zone against the live IANA database, which is the only thing standing
+//   between a typo here and a city that silently never appears.
+// - **A wrong row costs that row**: the clock picker drops a city whose zone the
+//   database does not know rather than throwing.
+// - **[aliases] is what makes a renamed city findable.** Bombay, Madras, Saigon,
+//   Peking and Rangoon are what a good many people still type, and answering "no
+//   matches" to a name printed on every map before 1996 reads as a broken search.
 
 /// One place: what it is called, where it is, and which zone it keeps time in.
 ///
@@ -127,9 +118,9 @@ int _scoreCity(WorldCity city, String query) {
 
 /// The cities matching [query], best first, at most [limit] of them.
 ///
-/// An empty query answers the head of the table, which is ordered by how
-/// likely a row is to be the one wanted rather than alphabetically: a list
-/// opening on Abu Dhabi, Abidjan and Accra is a list nobody scrolls.
+/// An empty query answers the head of the table, ordered by how likely a row is
+/// to be the one wanted rather than alphabetically: a list opening on Abu Dhabi,
+/// Abidjan and Accra is a list nobody scrolls.
 ///
 /// Ties keep table order — [List.sort] is not stable, so the index is carried
 /// through the comparison rather than assumed.
@@ -163,9 +154,8 @@ List<WorldCity> rankWorldCities(
 /// Every city the pickers offer, roughly in order of how often one is wanted:
 /// the world's best-known cities first, then the rest grouped by region.
 ///
-/// A `final` rather than a `const`, so the fold in the constructor happens
-/// once, lazily, the first time either picker is opened — a shell whose user
-/// never opens the calendar or the weather settings builds none of it.
+/// A `final` rather than a `const`, so the fold in the constructor happens once,
+/// lazily, the first time either picker is opened.
 final List<WorldCity> kWorldCities = [
   // The two dozen that are wanted most often, whatever the region — an empty
   // query opens on this block.

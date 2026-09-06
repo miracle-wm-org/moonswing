@@ -10,11 +10,10 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:layer_shell/layer_shell.dart';
 
-/// A popup surface is grown by the shadow's reach so the shadow is not clipped
-/// at the surface edge, which leaves the *card* sitting that far inside its own
-/// window. [popupShadowAnchorOffset] is what puts the card back where an
-/// unshadowed popup's window would have gone, and these pin the arithmetic per
-/// anchor — there is no way to observe it without a compositor otherwise.
+/// A popup surface is grown by the shadow's reach so the shadow is not clipped at
+/// the surface edge, which leaves the *card* sitting that far inside its own
+/// window. [popupShadowAnchorOffset] puts it back where an unshadowed popup's
+/// window would have gone, and these pin the arithmetic per anchor.
 void main() {
   // Deliberately asymmetric on both axes, so a sign error cannot pass.
   const insets = EdgeInsets.only(left: 4, top: 10, right: 12, bottom: 22);
@@ -107,9 +106,8 @@ void main() {
   group('the two terms compose to the gap exactly', () {
     // What openPopup actually sends. On the joined edge the shadow inset has
     // already been clamped to the gap, so the correction term contributes
-    // `gap - min(reach, gap)` there and the sum is the gap — whatever the
-    // shadow's reach. This is the arithmetic that puts an attached card flush
-    // against the bar rather than the shadow's reach away from it.
+    // `gap - min(reach, gap)` there and the sum is the gap — whatever the shadow's
+    // reach. This is what puts an attached card flush against the bar.
     const shadow = ThemeConfig(
       popupShadowBlur: 16.0,
       popupShadowOffsetY: 6.0,

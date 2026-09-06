@@ -1,10 +1,9 @@
 // The menu both capture modules open from the bar.
 //
-// One card rather than one per module, because they are the same card: the
-// same three ways of choosing what to capture, in the same order, drawn the
-// same way. The recorder adds a Stop row while it is running and the
-// screenshot module never does, which is the whole of the difference — so the
-// rows are the parameter and the card is shared.
+// One card rather than one per module, because they are the same card: the same
+// three ways of choosing what to capture, in the same order. The recorder adds a
+// Stop row while it is running and the screenshot module never does, which is the
+// whole of the difference — so the rows are the parameter and the card is shared.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';

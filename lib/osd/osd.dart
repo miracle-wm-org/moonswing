@@ -4,24 +4,21 @@ import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
-/// Logical size of the OSD *card*. The window is kept tight around it because
-/// the shell has no input-region support — a larger surface would swallow
-/// clicks meant for whatever is underneath it.
+/// Logical size of the OSD *card*. The window is kept tight around it because the
+/// shell has no input-region support — a larger surface would swallow clicks
+/// meant for whatever is underneath.
 ///
-/// The window itself is this grown by `popupShadowInsets`, because the card's
-/// Row has an [Expanded] and so fills the surface edge to edge: a theme's
-/// shadow would be clipped on both sides otherwise. `_createOsd` in `main.dart`
-/// does that inflation, and takes the extra height back off the bottom margin
-/// so the card stays where the user put it.
+/// The window itself is this grown by `popupShadowInsets`, because the card's Row
+/// has an [Expanded] and fills the surface edge to edge. `_createOsd` in
+/// `main.dart` does that inflation and takes the extra height back off the bottom
+/// margin.
 const Size kOsdWindowSize = Size(340, 96);
 
 /// The card that appears when volume, microphone volume, or brightness changes.
 ///
-/// Renders whatever [OsdStore] currently holds and drives the fade. When the
-/// store stops being [OsdStore.visible] the card plays its exit animation and
-/// then calls [OsdStore.onFadeOutComplete], which is the host's signal to
-/// destroy the window — the same reverse-then-callback handshake the settings
-/// overlay uses.
+/// Renders whatever [OsdStore] holds and drives the fade. When the store stops
+/// being [OsdStore.visible] the card plays its exit animation and calls
+/// [OsdStore.onFadeOutComplete], the host's signal to destroy the window.
 class OsdWindow extends StatefulWidget {
   const OsdWindow({super.key, required this.store});
 
@@ -121,11 +118,10 @@ class _OsdWindowState extends State<OsdWindow>
             ),
           ),
           child: Center(
-            // The window was created this much larger than [kOsdWindowSize];
-            // this is what hands that margin back to the shadow instead of to
-            // the card. `_createOsd` (`main.dart`) makes the same call with no
-            // `attachEdge`, and the two have to stay the same call — an OSD
-            // card is not attached to anything.
+            // The window was created this much larger than [kOsdWindowSize]; this
+            // hands that margin back to the shadow instead of to the card.
+            // `_createOsd` makes the same call with no `attachEdge`, and the two
+            // have to stay the same call — an OSD card is attached to nothing.
             child: Padding(
               padding: popupShadowInsets(theme),
               child: PopupCard(

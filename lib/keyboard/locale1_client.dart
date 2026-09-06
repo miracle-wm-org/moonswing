@@ -1,12 +1,10 @@
 // systemd-localed, which is where the keyboard layout actually lives.
 //
-// This reaches the running compositor for free: miracle-wm constructs its
-// keymap as `miral::Keymap::system_locale1()`, whose implementation subscribes
-// to this object's `PropertiesChanged` and re-applies the keymap to every live
-// keyboard device on the spot. So a `SetX11Keyboard` here changes the layout
-// with no restart, no `libxkbcommon` binding, and no compositor IPC — miracle's
-// own `input type:keyboard xkb_layout` command validates its payload and then
-// discards it.
+// This reaches the running compositor for free: miracle-wm constructs its keymap
+// as `miral::Keymap::system_locale1()`, which subscribes to this object's
+// `PropertiesChanged` and re-applies the keymap to every live keyboard device on
+// the spot. So a `SetX11Keyboard` here changes the layout with no restart, no
+// `libxkbcommon` binding and no compositor IPC.
 //
 // Flutter-free, so the whole error mapping is a plain unit test.
 
@@ -65,9 +63,9 @@ class Locale1Keyboard {
 
 /// Why a write did not land.
 ///
-/// [denied] and "no polkit authentication agent answered" are the **same**
-/// answer at the wire — polkit returns `AccessDenied` for both — so nothing
-/// below can tell them apart and [Locale1Failure.message] has to cover both.
+/// [denied] and "no polkit authentication agent answered" are the **same** answer
+/// at the wire — polkit returns `AccessDenied` for both — so nothing below can
+/// tell them apart and [Locale1Failure.message] has to cover both.
 enum Locale1FailureKind { denied, interactionRequired, unavailable, failed }
 
 class Locale1Failure implements Exception {
@@ -173,10 +171,10 @@ class DBusLocale1Client implements Locale1Client {
 
   /// Re-reads rather than trusting the signal payload.
   ///
-  /// locale1 declares these properties `emits-change`, so the payload is
-  /// complete today — but a property set that ever moved to `invalidates` would
-  /// silently freeze the shell's view of the layout, and one `GetAll` per
-  /// signal is free at this cadence.
+  /// locale1 declares these properties `emits-change`, so the payload is complete
+  /// today — but a property set that ever moved to `invalidates` would silently
+  /// freeze the shell's view of the layout, and one `GetAll` per signal is free at
+  /// this cadence.
   @override
   Stream<Locale1Keyboard> get changes => _remote.propertiesChanged
       .where((signal) => signal.propertiesInterface == kLocale1BusName)

@@ -1,16 +1,14 @@
 import 'package:graceful_shell/pulse_client.dart';
 
-/// The OSD's memory of which audio devices are the default ones, and of the
-/// level each was last seen at.
+/// The OSD's memory of which audio devices are the default ones, and of the level
+/// each was last seen at.
 ///
-/// This exists as its own type for two reasons. It is the piece that decides
-/// whether a PulseAudio event is worth raising the indicator for, and
-/// [startOsdService] owns a real [PulseClient] — a live server connection in
-/// its own isolate — which no widget or unit test can drive, so the decision
-/// would otherwise be untestable. And it is the piece a default-device switch
-/// invalidates: every event this shell receives is filtered against a device
-/// *name*, so the names and the levels have to move together or the filter
-/// starts measuring one device's events against another device's baseline.
+/// Its own type for two reasons. It decides whether a PulseAudio event is worth
+/// raising the indicator for, and [startOsdService] owns a real [PulseClient] —
+/// a live server connection in its own isolate — which no test can drive. And it
+/// is the piece a default-device switch invalidates: every event is filtered
+/// against a device *name*, so the names and the levels have to move together or
+/// the filter measures one device's events against another's baseline.
 ///
 /// Flutter-free on purpose, like the rest of the sampling layer.
 class OsdAudioTracker {
@@ -32,14 +30,13 @@ class OsdAudioTracker {
   /// Adopts [server]'s default devices and the level each is at right now.
   ///
   /// Names and levels are committed together, which is the whole point of this
-  /// being one call rather than a pair of setters: the caller reaches here
-  /// after awaiting several queries, and a level event that lands between them
-  /// would otherwise be measured against the *other* device's last-known
-  /// level and flash the indicator for a change nobody made.
+  /// being one call rather than a pair of setters: the caller reaches here after
+  /// awaiting several queries, and a level event landing between them would
+  /// otherwise be measured against the *other* device's last-known level and
+  /// flash the indicator for a change nobody made.
   ///
-  /// A default device that is not in the list it should be in leaves this
-  /// tracker with no baseline for it, which [observeSink]/[observeSource]
-  /// treat as "not seen yet" rather than as "changed from nothing".
+  /// A default device missing from its list leaves no baseline, which
+  /// [observeSink]/[observeSource] treat as "not seen yet".
   void seed({
     required PaServerInfo server,
     required Iterable<PaSink> sinks,
@@ -70,19 +67,18 @@ class OsdAudioTracker {
   /// Whether [info] names devices this tracker is not already following.
   ///
   /// PulseAudio emits a server event for more than a default-device move, and
-  /// re-seeding runs three queries, so the ones that changed nothing are
-  /// dropped here rather than paid for.
+  /// re-seeding runs three queries, so the ones that changed nothing are dropped
+  /// here rather than paid for.
   bool defaultsMoved(PaServerInfo info) =>
       info.defaultSinkName != _sink || info.defaultSourceName != _source;
 
   /// Records [sink] and answers whether it should raise the indicator.
   ///
-  /// PulseAudio emits sink events for plenty of reasons that have nothing to
-  /// do with the level — a stream connecting, a port switch — so only an
-  /// actual move in volume or mute counts. The first sighting of a device
-  /// never counts either: that is state the shell merely *discovered*, and
-  /// showing a card for it is how a device switch, or start-up itself, would
-  /// flash a level nobody touched.
+  /// PulseAudio emits sink events for plenty of reasons that have nothing to do
+  /// with the level — a stream connecting, a port switch — so only an actual move
+  /// in volume or mute counts. The first sighting of a device never counts
+  /// either: that is state the shell merely *discovered*, and showing a card for
+  /// it is how a device switch would flash a level nobody touched.
   bool observeSink(PaSink sink) {
     if (sink.name != _sink) return false;
     final known = _sinkVolume != null && _sinkMute != null;

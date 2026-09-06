@@ -1,10 +1,9 @@
-// Shared fakes for the weather tests: an offline [WeatherClient] and the
-// builders that make a reading.
+// Shared fakes for the weather tests: an offline [WeatherClient] and the builders
+// that make a reading.
 //
-// Not a `_test.dart` file, so `flutter test` does not try to run it. The point
-// of it is the same one `MprisStore.forTesting` makes — every weather test in
-// the suite takes a real lease on a real store, and not one of them may reach
-// for a network the test runner does not have.
+// Not a `_test.dart` file, so `flutter test` does not try to run it. The point is
+// the one `MprisStore.forTesting` makes — every weather test takes a real lease
+// on a real store, and none may reach for a network the runner does not have.
 
 import 'dart:async';
 
@@ -38,10 +37,9 @@ class FakeWeatherClient implements WeatherClient {
 
   /// When true, [fetch] never completes.
   ///
-  /// The only way a widget test can hold the store in its loading state: a
-  /// widget takes a lease in `initState`, so the fetch it starts lands during
-  /// the first `pump` and a seeded loading flag is gone before the frame the
-  /// test is looking at.
+  /// The only way a widget test can hold the store in its loading state: a widget
+  /// takes a lease in `initState`, so the fetch it starts lands during the first
+  /// `pump` and a seeded loading flag is gone before the frame the test looks at.
   bool pending;
 
   int locateCalls = 0;

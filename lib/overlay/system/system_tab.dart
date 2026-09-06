@@ -12,10 +12,10 @@ enum _SubTab { overview, processes }
 /// The System tab: the machine's hardware at a glance, and every process on it.
 ///
 /// **The tab must be told when it is visible.** The overlay's [IndexedStack]
-/// builds every tab once and keeps them all alive, so this widget's `State`
-/// exists — and would happily keep polling — while the user sits on Calendar or
-/// Settings. [active] is what gates that: the detail lease, and with it the
-/// per-process `/proc` walk, is held only while this is the selected tab.
+/// builds every tab once and keeps them alive, so this widget's `State` would
+/// happily keep polling while the user sits on Calendar. [active] gates that: the
+/// detail lease, and with it the per-process `/proc` walk, is held only while this
+/// is the selected tab.
 class SystemTab extends StatefulWidget {
   const SystemTab({super.key, required this.active});
 

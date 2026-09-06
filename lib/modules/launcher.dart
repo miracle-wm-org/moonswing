@@ -1,8 +1,8 @@
 // The magnifier button that opens the application launcher.
 //
-// It creates no window of its own: it pokes [LauncherController], exactly as
-// the global shortcut does, so both entry points end up in the same code path
-// and there can only ever be one launcher.
+// It creates no window of its own: it pokes [LauncherController], exactly as the
+// global shortcut does, so both entry points end up in the same code path and
+// there can only ever be one launcher.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';

@@ -7,13 +7,10 @@ import 'package:graceful_shell/timers/timer_format.dart';
 
 /// How often the store re-notifies while something is counting.
 ///
-/// The readouts show whole seconds, so the *content* only changes once a
-/// second — but the entries are not aligned to each other or to the wall clock,
-/// and a one-second period would leave a countdown's own boundary up to a full
-/// second late. Four times a second is close enough that no transition reads as
-/// stuck, and it costs nothing when nothing is running: the ticker exists only
-/// while at least one entry is, the [SystemStatsStore] lease discipline applied
-/// to a store whose consumers cannot hold leases.
+/// The readouts show whole seconds, but the entries are aligned neither to each
+/// other nor to the wall clock, so a one-second period would leave a countdown's
+/// own boundary up to a full second late. Four times a second costs nothing when
+/// nothing is running: the ticker exists only while at least one entry does.
 const Duration kTimerTickInterval = Duration(milliseconds: 250);
 
 /// Which way an entry counts.
@@ -27,11 +24,11 @@ enum ShellTimerKind {
 
 /// One running (or paused, or finished) timer or stopwatch.
 ///
-/// The elapsed time is *derived*, never accumulated by the ticker: an entry
-/// holds the time banked by previous runs plus the instant the current run
-/// began, and every readout is a subtraction against the wall clock. A ticker
-/// that added its own period instead would drift by however much the frame it
-/// woke on was late, and would lose the whole of a suspend.
+/// The elapsed time is *derived*, never accumulated by the ticker: an entry holds
+/// the time banked by previous runs plus the instant the current run began, and
+/// every readout is a subtraction against the wall clock. A ticker that added its
+/// own period would drift by however late each frame was, and would lose the
+/// whole of a suspend.
 @immutable
 class ShellTimer {
   const ShellTimer({
@@ -111,28 +108,22 @@ class ShellTimer {
 
 /// The shell's timers and stopwatches.
 ///
-/// Same singleton-[ChangeNotifier] shape as [OsdStore] and `ThemeStore`: the
-/// calendar page and the clock module's bar readout are separate widget trees
-/// in separate FlutterViews, so a store is the only thing that can hold state
-/// both of them see.
+/// The singleton-[ChangeNotifier] shape: the calendar page and the clock module's
+/// bar readout are separate widget trees in separate FlutterViews, so a store is
+/// the only thing that can hold state both see.
 ///
 /// Four things a change here has to keep true:
 ///
-///  * **Nothing is persisted.** A countdown restored across a shell restart is
-///    either wrong (the shell was down for longer than it had left) or a
-///    surprise, and a stopwatch that survived one measures nothing the user
-///    asked it to. Timers are runtime state like the OSD's, so there is no
-///    config schema, no start-up service, and nothing for `main()` to await.
+///  * **Nothing is persisted.** A countdown restored across a restart is either
+///    wrong or a surprise, and a stopwatch that survived one measures nothing.
+///    Timers are runtime state like the OSD's: no config schema, no start-up
+///    service, nothing for `main()` to await.
 ///  * **Stopping removes.** "Stopped" is what makes an entry stop rendering in
-///    the bar, so the verb has to be a removal rather than a third state —
-///    otherwise the clock module would need its own rule for which non-running
-///    entries still count, and a paused timer (which must stay visible, or the
-///    user could not resume it) would be indistinguishable from a stopped one.
-///  * **The ticker exists only while something runs.** It is started and
-///    stopped by [_syncTicker] off every mutation, so an idle shell with no
-///    timers wakes for this store exactly never.
-///  * **Elapsed time is derived, not counted.** See [ShellTimer.elapsedAt] —
-///    the ticker's only job is to ask for a repaint.
+///    the bar, so the verb has to be a removal rather than a third state — a
+///    paused timer must stay visible, or the user could not resume it.
+///  * **The ticker exists only while something runs**, started and stopped by
+///    [_syncTicker] off every mutation, so an idle shell wakes for this never.
+///  * **Elapsed time is derived, not counted.** See [ShellTimer.elapsedAt].
 class TimersStore extends ChangeNotifier {
   TimersStore._({
     DateTime Function()? now,
@@ -151,9 +142,8 @@ class TimersStore extends ChangeNotifier {
   /// A store a test drives by hand.
   ///
   /// [autoTick] is false because a pending [Timer] fails the widget binding's
-  /// end-of-test invariants, and because a test that wants to watch a countdown
-  /// finish should step its own clock rather than wait out real seconds. Call
-  /// [tick] to advance it.
+  /// end-of-test invariants, and because a test watching a countdown finish
+  /// should step its own clock. Call [tick] to advance it.
   @visibleForTesting
   factory TimersStore.forTesting({
     DateTime Function()? now,
@@ -373,11 +363,10 @@ class TimersStore extends ChangeNotifier {
 
 /// Posts a finished countdown to the shell's own notification store.
 ///
-/// The bar readout is not enough on its own: a timer that runs out while the
-/// user is looking at something else has to say so, and the shell already owns
+/// The bar readout is not enough: a timer that runs out while the user is looking
+/// elsewhere has to say so, and the shell already owns
 /// `org.freedesktop.Notifications`, so this is one store write rather than a
-/// D-Bus round trip to ourselves. No timeout — a fired timer stays in the list
-/// until it is dismissed.
+/// D-Bus round trip to ourselves. No timeout — a fired timer stays until dismissed.
 void postTimerFinishedNotification(ShellTimer entry) {
   final store = NotificationStore.instance;
   store.addOrReplace(

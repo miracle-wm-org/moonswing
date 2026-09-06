@@ -1,6 +1,6 @@
-// The screen-share consent picker: a card of live monitor and window
-// previews over a full-screen layer-shell backdrop, shown while the portal's
-// `Start` call is blocked awaiting a choice.
+// The screen-share consent picker: a card of live monitor and window previews
+// over a full-screen layer-shell backdrop, shown while the portal's `Start` call
+// is blocked awaiting a choice.
 //
 // The sources and their preview feeds are injected, so widget tests drive the
 // whole surface without touching Wayland.

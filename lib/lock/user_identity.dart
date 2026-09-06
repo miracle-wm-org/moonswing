@@ -39,11 +39,10 @@ final ffi.Pointer<_Passwd> Function(int) _getpwuid = _libc.lookupFunction<
 
 /// The uid the shell is running as.
 ///
-/// Its own function because the polkit agent wants the *number* rather than
-/// the account — `BeginAuthentication` names the identities it will accept by
-/// uid, and the dialog opens on the current user's row when they are one of
-/// them (see `defaultIdentityIndex`). Answers null only if `getuid` itself is
-/// unreachable, which is a machine with no libc.
+/// Its own function because the polkit agent wants the *number* rather than the
+/// account: `BeginAuthentication` names the identities it will accept by uid, and
+/// the dialog opens on the current user's row when they are one of them. Answers
+/// null only if `getuid` itself is unreachable.
 int? currentUid() {
   try {
     return _getuid();
@@ -56,8 +55,8 @@ int? currentUid() {
 ///
 /// Read from `getpwuid(getuid())` rather than `$USER`: the lock screen has to
 /// authenticate the account that actually owns the session, and the passwd
-/// database is the authority for that. It also hands us the GECOS field, which
-/// is the display name the rest of the desktop shows.
+/// database is the authority. It also hands us the GECOS field, which is the
+/// display name the rest of the desktop shows.
 class UserIdentity {
   const UserIdentity({required this.username, required this.displayName});
 
@@ -91,14 +90,12 @@ class UserIdentity {
     return UserIdentity(username: fallback, displayName: fallback);
   }
 
-  /// The account [uid] names, or null when the passwd database has no such
-  /// entry.
+  /// The account [uid] names, or null when the passwd database has no such entry.
   ///
   /// Null rather than a synthesised name: the polkit agent hands [username]
   /// straight to `polkit-agent-helper-1`, which authenticates whatever it is
   /// given — so a guess here would be an authentication attempt against an
-  /// account nobody asked about. An identity that cannot be resolved is
-  /// dropped from the prompt instead.
+  /// account nobody asked about.
   static UserIdentity? forUid(int uid) {
     try {
       final entry = _getpwuid(uid);

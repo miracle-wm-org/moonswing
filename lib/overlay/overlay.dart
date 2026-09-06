@@ -35,12 +35,12 @@ const Size kOverlayPanelMinSize = Size(800, 800 / kOverlayPanelAspect);
 const Size kOverlayPanelMaxSize = Size(1600, 1600 / kOverlayPanelAspect);
 
 /// Panel size for an overlay surface of [available] logical pixels. The overlay
-/// window is anchored to all four edges (see `_openOverlay` in
-/// `modules/clock.dart`), so [available] is the usable size of the monitor.
+/// window is anchored to all four edges, so [available] is the usable size of the
+/// monitor.
 ///
-/// Every clamp re-derives the other axis from [kOverlayPanelAspect], so the
-/// ratio survives all of them — except the last one, where fitting on screen
-/// wins over the minimum size.
+/// Every clamp re-derives the other axis from [kOverlayPanelAspect], so the ratio
+/// survives all of them — except the last, where fitting on screen wins over the
+/// minimum size.
 Size overlayPanelSize(Size available) {
   double width = available.width * kOverlayPanelWidthFraction;
   double height = width / kOverlayPanelAspect;
@@ -68,16 +68,11 @@ Size overlayPanelSize(Size available) {
 
 /// The panel's base fill: [ThemeConfig.popupBackground], always opaque.
 ///
-/// A theme's `popup_background` carries its author's alpha — `glassy` ships it
-/// at `0xB0` — which is right for a menu of three rows sitting over the
-/// desktop, and wrong for this panel. This is a workspace of small text, chart
-/// strokes and form fields, and reading any of them through whatever the
-/// wallpaper happens to be is what that translucency costs; a dark theme over a
-/// light wallpaper washes the text out altogether. The hue stays the theme's
-/// and only the alpha is overridden, so a theme still colours the panel — it
-/// just cannot make it see-through. Depth comes from the scrim and blur
-/// [FadeOverlayScaffold] paints behind it instead, which dim the desktop
-/// without costing the content any contrast.
+/// A theme's `popup_background` carries its author's alpha, which is right for a
+/// three-row menu over the desktop and wrong for this panel: a workspace of small
+/// text, chart strokes and form fields, all of which the translucency costs. Only
+/// the alpha is overridden, so a theme still colours the panel. Depth comes from
+/// the scrim [FadeOverlayScaffold] paints behind it instead.
 Color overlayPanelFill(ThemeConfig theme) => opaquePopupFill(theme);
 
 /// One top-level tab in the overlay. Adding a tab is one entry here plus one
@@ -198,12 +193,11 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   /// Takes the user to [field]: the tab, the sidebar category and — through
-  /// [_highlight] — the Shell pane's own route and the row itself.
+  /// [_highlight] — the Shell pane's route and the row itself.
   ///
-  /// The three moves are separate because the three pieces of state are: the
-  /// tab and the category are this widget's, while the Shell pane's route is a
-  /// nested `Navigator`'s and a row's scroll offset is a `Scrollable`'s. Only
-  /// the last two travel through the controller.
+  /// The three moves are separate because the three pieces of state are: the tab
+  /// and category are this widget's, while the pane's route is a nested
+  /// `Navigator`'s and a row's offset is a `Scrollable`'s.
   void _jumpToSetting(SettingsField field) {
     _selectedTab = field.route.tab;
     _selectedCategory = field.route.category;

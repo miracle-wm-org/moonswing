@@ -15,13 +15,12 @@ import 'package:graceful_shell/system/system_stats_store.dart';
 import 'package:graceful_shell/usage_bar.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
 
-/// CPU, memory, and temperature in the panel, with a popup breaking out the
+/// CPU, memory and temperature in the panel, with a popup breaking out the
 /// per-core figures and the heaviest processes.
 ///
-/// It reads nothing itself: [SystemStatsStore] does the sampling for the whole
-/// shell, and this holds a lease on it for as long as it is mounted. Before that
-/// existed, a two-monitor setup ran two independent `/proc` walks; now they
-/// share one. For the full picture — graphs, sorting, killing — see the System
+/// It reads nothing itself: [SystemStatsStore] samples for the whole shell, and
+/// this holds a lease on it while mounted. Before that existed, a two-monitor
+/// setup ran two independent `/proc` walks. For the full picture see the System
 /// tab in the overlay.
 class SystemMonitor extends StatefulWidget {
   const SystemMonitor({super.key});

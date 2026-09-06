@@ -1,40 +1,30 @@
 // The Tux desktop widget: a penguin who says something nice, once a day.
 //
 // The fifth entry in `DesktopWidgetRegistry`, and the smallest — everything
-// before it takes two cells at its floor because a phase name, a track title
-// or a fortune needs a width of text to sit in. This one is asked to work at
-// **1x1**, which is 96 logical pixels on the default grid, and that single
-// constraint is what every decision below comes out of.
+// before it takes two cells at its floor because a phase name or a track title
+// needs a width of text to sit in. This one is asked to work at **1x1**, 96
+// logical pixels on the default grid, and that constraint is what every decision
+// below comes out of.
 //
 // Four things a change here has to keep true:
 //
 // - **1x1 is the design, not the degraded case.** A 96px square holds a picture
-//   or a sentence and not both, so at that size the card is Tux and the
-//   greeting is revealed by hovering him. Setting the line under him at 7px
-//   instead would be a card that technically shows the greeting and factually
-//   shows nobody the greeting — the rule `fitFortuneText` states about a
-//   fortune set too small to read. Widen him to two cells and the line moves
-//   out beside him, permanently; two cells *and* two rows and it moves under
-//   him, larger.
-// - **The type size is measured, never chosen.** The greetings are one line
-//   here and three there, and the card is the same size either way. This
-//   borrows `fitFortuneText` rather than growing a second ladder beside it: it
-//   is the fortune card's by history and not by subject — it measures a string
-//   against a box with the very `TextStyle` about to be rendered, which is
-//   exactly this problem — and two copies of a measured ladder is the drift
-//   `settings/controls.dart` exists to prevent.
-// - **He is on the theme's card, not on a picture of his own.** The weather,
-//   lunar and fortune widgets paint a backdrop and set white text on it,
-//   because their pictures run from near-black to near-white and no theme
-//   foreground survives both. Tux is one drawing on a flat surface, so the
-//   surface may as well be the one every other popup in the shell uses, and the
-//   greeting is then plain themed text — which also means a theme that changes
-//   its font changes his.
-// - **Nothing animates but the hover.** The lunar and fortune cards' rule, and
-//   this card has even less excuse than they do: it changes once a day. A new
-//   line replaces the old one outright — no fade, no slide — because a
-//   transition would be the only moving thing on the desktop and it would be
-//   moving exactly when somebody has just asked to read something.
+//   or a sentence and not both, so at that size the card is Tux and the greeting
+//   is revealed by hovering him. Setting the line under him at 7px would be a
+//   card that technically shows the greeting and factually shows nobody it.
+//   Widen him to two cells and the line moves out beside him; two cells *and*
+//   two rows and it moves under him, larger.
+// - **The type size is measured, never chosen.** This borrows `fitFortuneText`
+//   rather than growing a second ladder beside it: it measures a string against
+//   a box with the very `TextStyle` about to be rendered, which is exactly this
+//   problem, and two copies of a measured ladder is drift waiting to happen.
+// - **He is on the theme's card, not a picture of his own.** The other widgets
+//   paint a backdrop and set white text on it because their pictures run from
+//   near-black to near-white; Tux is one drawing on a flat surface, so the
+//   greeting is plain themed text and a theme that changes its font changes his.
+// - **Nothing animates but the hover.** A new line replaces the old outright: a
+//   transition would be the only moving thing on the desktop, moving exactly
+//   when somebody has just asked to read something.
 
 import 'dart:math' as math;
 
@@ -77,9 +67,8 @@ const double _maxScale = 2.2;
 /// The sizes the greeting is set at, largest first, before the card's scale.
 ///
 /// A shorter ladder than the fortune's and a lower top: a greeting is one
-/// sentence and the card is often a square, so the useful range is narrow, and
-/// a four-word line set as a headline on a large card would be shouting the
-/// friendly thing.
+/// sentence and the card is often a square, so the useful range is narrow, and a
+/// four-word line set as a headline would be shouting the friendly thing.
 const List<double> _greetingSizes = [17, 16, 15, 14, 13, 12, 11, 10, 9];
 
 /// The card's chrome scale.

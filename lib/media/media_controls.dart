@@ -1,9 +1,9 @@
 // The pieces both media surfaces are made of: the transport buttons, the
 // scrolling title, and the playing animation.
 //
-// Everything here takes what it draws as parameters and reaches for no store,
-// so the bar module and the desktop widget share one implementation and a
-// widget test can pump any of them alone.
+// Everything here takes what it draws as parameters and reaches for no store, so
+// the bar module and the desktop widget share one implementation and a widget
+// test can pump any of them alone.
 
 import 'dart:math' as math;
 
@@ -16,10 +16,9 @@ import 'package:graceful_shell/theme/tokens.dart';
 
 /// A transport control: a hover-lit icon in a rounded box.
 ///
-/// One class for both surfaces, sized by [size]: the bar wants a 12px glyph in
-/// a 4px box, the desktop widget a 16px one in a circle. [prominent] is the
-/// play/pause button, filled with the theme's accent so the primary action is
-/// findable without reading the glyphs.
+/// One class for both surfaces, sized by [size]. [prominent] is the play/pause
+/// button, filled with the theme's accent so the primary action is findable
+/// without reading the glyphs.
 class MediaTransportButton extends StatefulWidget {
   const MediaTransportButton({
     super.key,
@@ -114,17 +113,14 @@ class _MediaTransportButtonState extends State<MediaTransportButton> {
 /// A single line of text that scrolls when it does not fit, and sits still when
 /// it does.
 ///
-/// The measurement is what decides, not a character count: the same 30
-/// characters fit at 11px and overflow at 16px, and the bar module's old
-/// `length > 32` rule got both wrong under a theme with a wider font. A
-/// [TextPainter] answers exactly, and re-answers whenever the text, the style
-/// or [maxWidth] moves — a theme with a different font family scrolls by a
-/// different distance, and using the old one clips or over-runs.
+/// The measurement is what decides, not a character count: the same 30 characters
+/// fit at 11px and overflow at 16px, and the bar module's old `length > 32` rule
+/// got both wrong under a theme with a wider font. A [TextPainter] answers
+/// exactly, and re-answers whenever the text, the style or [maxWidth] moves.
 ///
 /// The theme's `font_size` reaches the [Text] below through the ambient
-/// `TextScaler`, so the measurement takes the same scaler; a marquee that
-/// measured unscaled would sit still at the exact size the track starts
-/// running off the end of its box.
+/// `TextScaler`, so the measurement takes the same scaler; a marquee measuring
+/// unscaled would sit still at exactly the size the track runs off its box.
 class TrackMarquee extends StatefulWidget {
   const TrackMarquee({
     super.key,
@@ -259,14 +255,14 @@ class _TrackMarqueeState extends State<TrackMarquee>
     );
     final distance = _textWidth + widget.gap;
 
-    // Two absolutely-positioned copies a [distance] apart, so the second is
-    // arriving as the first leaves and the loop has no visible seam.
+    // Two absolutely-positioned copies a [distance] apart, so the second arrives
+    // as the first leaves and the loop has no visible seam.
     //
-    // A `Row` inside the clip is the obvious spelling and it is wrong: the
-    // box is exactly [maxWidth] wide and hands that down as a tight
-    // constraint, so the row — which is by definition wider — overflows and
-    // Flutter reports it every frame. Positioned children are laid out against
-    // the measured text width instead and are simply clipped.
+    // A `Row` inside the clip is the obvious spelling and it is wrong: the box is
+    // exactly [maxWidth] wide and hands that down as a tight constraint, so the
+    // row — which is by definition wider — overflows and Flutter reports it every
+    // frame. Positioned children are laid out against the measured text width
+    // instead and are simply clipped.
     return SizedBox(
       width: widget.maxWidth,
       height: _textHeight,
@@ -296,12 +292,10 @@ class _TrackMarqueeState extends State<TrackMarquee>
 
 /// The bouncing level meter that says, without words, that audio is playing.
 ///
-/// Deliberately not a visualiser: the shell has no access to the stream's
-/// samples (PulseAudio peak metering would mean a monitor source per player),
+/// Deliberately not a visualiser: the shell has no access to the stream's samples,
 /// so this is an *ornament* driven by one repeating controller and a per-bar
 /// phase. Honest about it, too — when [playing] goes false the bars settle to a
-/// flat rest line rather than freezing mid-bounce, which is what a frozen
-/// visualiser would look like.
+/// flat rest line rather than freezing mid-bounce.
 class PlayingBars extends StatefulWidget {
   const PlayingBars({
     super.key,

@@ -8,12 +8,11 @@ import 'package:graceful_shell/dbus_service_object.dart';
 
 /// StatusNotifierItem (SNI) system-tray support.
 ///
-/// This file makes the shell act as both a `StatusNotifierWatcher` (the
-/// registry every tray application looks for) and a `StatusNotifierHost` (the
-/// consumer that displays the items). Registered items are tracked, their
-/// icon/title/status/menu properties are read and kept live via the item's
-/// change signals, and the current set is published through [TrayStore] for the
-/// panel widget to render.
+/// This file makes the shell act as both a `StatusNotifierWatcher` (the registry
+/// every tray application looks for) and a `StatusNotifierHost` (the consumer
+/// that displays the items). Registered items are tracked, their
+/// icon/title/status/menu properties kept live via the item's change signals, and
+/// the current set published through [TrayStore].
 ///
 /// Mirrors the server pattern in `notification_service.dart` and the remote
 /// object tracking pattern in `modules/media_player.dart`.
@@ -257,10 +256,9 @@ final Map<String, _ItemTracker> _trackers = {};
 
 /// Parses a StatusNotifierItem service string into (busName, objectPath).
 ///
-/// Registrations and watcher item lists come in several shapes: a bare bus
-/// name (item lives at `/StatusNotifierItem`), the KDE `busName/path` form, the
-/// GNOME `busName@path` form, or an object path alone (the bus name is the
-/// [sender] of the registration call).
+/// Registrations and watcher item lists come in several shapes: a bare bus name
+/// (item at `/StatusNotifierItem`), the KDE `busName/path` form, the GNOME
+/// `busName@path` form, or an object path alone (the bus name is then [sender]).
 (String, DBusObjectPath) _parseService(String service, String? sender) {
   String busName;
   String path;
@@ -468,15 +466,14 @@ class StatusNotifierWatcher extends DBusServiceObject {
 
 /// Starts system-tray support on the session bus.
 ///
-/// If no `org.kde.StatusNotifierWatcher` exists yet, the shell becomes the
-/// watcher (and its own host). Another watcher already owning the name (e.g.
-/// gnome-shell in a mixed desktop session) is not even a decline — the shell
-/// attaches to it as a host and mirrors its registered items, so the tray
-/// works either way. Genuine errors — the bus unreachable, a name
-/// request erroring, the watcher object failing to export — throw, and
-/// `ShellServices.run` records the service as failed. (A flaky *foreign*
-/// watcher stays soft inside [_startHostConsumer]: the shell has yielded, and
-/// still listens for registrations even when that watcher answers nothing.)
+/// With no `org.kde.StatusNotifierWatcher` yet, the shell becomes the watcher and
+/// its own host. Another watcher already owning the name is not even a decline —
+/// the shell attaches to it as a host and mirrors its registered items, so the
+/// tray works either way. Genuine errors — an unreachable bus, a name request
+/// that errored, an export failure — throw, and `ShellServices.run` records the
+/// service as failed. A flaky *foreign* watcher stays soft inside
+/// [_startHostConsumer]: the shell has yielded, and still listens for
+/// registrations.
 Future<void> startStatusNotifierService() async {
   final client = DBusClient.session();
   try {

@@ -3,8 +3,8 @@ import 'package:flutter/widgets.dart';
 /// A horizontal fill bar, 0..1.
 ///
 /// Lives at the root rather than in `overlay/settings/controls.dart` because the
-/// bar module uses it too, outside the overlay — and unlike the settings
-/// controls it depends only on `flutter/widgets`.
+/// bar module uses it too, outside the overlay — and unlike the settings controls
+/// it depends only on `flutter/widgets`.
 class UsageBar extends StatelessWidget {
   const UsageBar({
     super.key,

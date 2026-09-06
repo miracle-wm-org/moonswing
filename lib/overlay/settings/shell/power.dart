@@ -7,10 +7,9 @@ import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 
 /// What the machine's physical power button does.
 ///
-/// Both settings are live: the key *binding* (`[shortcuts] power_button`)
-/// latches at start-up and is not editable here, but which verb a press runs
-/// and whether logind's lock is held are re-read on every change, so nothing
-/// on this page asks for a restart.
+/// Both settings are live: the key *binding* latches at start-up and is not
+/// editable here, but which verb a press runs and whether logind's lock is held
+/// are re-read on every change, so nothing on this page asks for a restart.
 class PowerSection extends StatelessWidget {
   const PowerSection({super.key, required this.store});
 
@@ -18,10 +17,9 @@ class PowerSection extends StatelessWidget {
 
   /// The width the picker is given.
   ///
-  /// A [SettingsRow] sizes its control to itself, so without this the trigger
-  /// is as wide as whichever verb happens to be selected — and it would
-  /// resize, along with the card `matchTriggerWidth` sizes to it, every time
-  /// the user picked a different one.
+  /// A [SettingsRow] sizes its control to itself, so without this the trigger is
+  /// as wide as whichever verb happens to be selected — and it would resize, along
+  /// with the card sized to it, every time the user picked a different one.
   static const double _pickerWidth = 260;
 
   /// What each verb does is said in the hint under the row rather than in a
@@ -46,11 +44,10 @@ class PowerSection extends StatelessWidget {
     return SliverSettingsSection(
       label: 'Power Button',
       children: [
-        // One subscription spanning the picker *and* the two hints under it:
-        // the second hint's text reads the action, so it has to be inside the
-        // same [ConfigValue] rather than beside it. Subscribed per key rather
-        // than under a page-level `ListenableBuilder`, because [ConfigStore]
-        // notifies on every keystroke anywhere in the settings UI.
+        // One subscription spanning the picker *and* the two hints under it: the
+        // second hint's text reads the action, so it has to be inside the same
+        // [ConfigValue] rather than beside it. Subscribed per key, because
+        // [ConfigStore] notifies on every keystroke anywhere in the settings UI.
         ConfigValue<String>(
           store: store,
           path: const ['power', 'key_action'],

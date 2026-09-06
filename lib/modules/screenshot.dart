@@ -1,12 +1,11 @@
-// The camera in the bar: click, choose an area, a window or a screen, and the
-// PNG is on the disk and on the clipboard.
+// The camera in the bar: click, choose an area, a window or a screen, and the PNG
+// is on the disk and on the clipboard.
 //
 // The module owns nothing. The selection surfaces belong to the root (a bar
-// module cannot create a window), the shutter and the file belong to
-// [CaptureStore] (one shutter for the machine, however many bars are drawing
-// this icon), and both are reached through the seams `lib/capture/` defines.
-// What is left here is the button, the menu, and the two states the button has
-// to be able to show: busy, and last-attempt-failed.
+// module cannot create a window), and the shutter and the file belong to
+// [CaptureStore] — one shutter for the machine, however many bars draw this icon.
+// What is left here is the button, the menu, and the two states the button has to
+// show: busy, and last-attempt-failed.
 
 import 'dart:async';
 
@@ -110,11 +109,10 @@ final Module screenshotModule = Module.simple<ScreenshotConfig>(
   configKey: 'screenshot',
   fromMap: (map) {
     final config = ScreenshotConfig.fromMap(map);
-    // A side effect in `fromMap`, the shape `system_monitor.dart` has and for
-    // its reason: the store is where the shutter reads its settings and there
-    // may be no panel carrying this module at all on the monitor that fires
-    // it. `Module.simple`'s signature guard is what stops this re-running on
-    // every keystroke in the settings UI.
+    // A side effect in `fromMap`, the shape `system_monitor.dart` has and for its
+    // reason: the store is where the shutter reads its settings, and there may be
+    // no panel carrying this module on the monitor that fires it.
+    // `Module.simple`'s signature guard stops this re-running per keystroke.
     CaptureStore.instance.configureScreenshot(config);
     return config;
   },

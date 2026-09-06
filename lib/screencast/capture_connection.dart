@@ -2,23 +2,22 @@ import '../wayland_ffi/wl_ffi.dart';
 import '../wayland_ffi/wl_interfaces.dart';
 import '../wayland_ffi/wl_protocols.dart';
 
-/// The capture-side Wayland connection: registry, `wl_shm`, the capture
-/// managers, live outputs, and the foreign-toplevel tracker.
+/// The capture-side Wayland connection: registry, `wl_shm`, the capture managers,
+/// live outputs, and the foreign-toplevel tracker.
 ///
-/// This is a second connection alongside the shell's pure-Dart
-/// `package:wayland` one (which cannot pass fds — see `wl_ffi.dart`). It owns
-/// everything the screencast feature binds; if the compositor doesn't
-/// advertise the capture globals, [supported] is false and the feature is
-/// disabled (fail-soft in `startScreencastService`).
+/// A second connection alongside the shell's pure-Dart `package:wayland` one,
+/// which cannot pass fds. It owns everything the screencast feature binds; if the
+/// compositor does not advertise the capture globals, [supported] is false and
+/// the feature is disabled.
 class CaptureConnection {
   CaptureConnection._(this.conn);
 
-  /// Connects and performs the two startup roundtrips (globals burst, then
-  /// output geometry / initial toplevels). Returns null if the display is
-  /// unreachable or libwayland is missing.
+  /// Connects and performs the two startup roundtrips (globals burst, then output
+  /// geometry / initial toplevels). Returns null if the display is unreachable or
+  /// libwayland is missing.
   ///
-  /// [attachToGlibLoop] drives the event pump from the GLib main loop — the
-  /// shell always wants this; the spike tool pumps manually instead.
+  /// [attachToGlibLoop] drives the event pump from the GLib main loop — the shell
+  /// always wants this; the spike tool pumps manually.
   static CaptureConnection? connect({bool attachToGlibLoop = true}) {
     final display = WlDisplayConnection.connect();
     if (display == null) return null;

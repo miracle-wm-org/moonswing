@@ -4,11 +4,10 @@ import 'package:graceful_shell/system/models.dart';
 
 /// Filesystem usage, via `df`.
 ///
-/// Shelling out costs a fork, which is why this runs on its own slow cadence
-/// rather than with the other stats — disk usage moves on the scale of minutes.
-/// The alternative, calling `statvfs` through `dart:ffi`, avoids the fork but
-/// hardcodes a struct layout that differs across architecture and libc; a
-/// segfault in the shell process is a steep price for a number this static.
+/// Shelling out costs a fork, which is why this runs on its own slow cadence —
+/// disk usage moves on the scale of minutes. Calling `statvfs` through
+/// `dart:ffi` avoids the fork but hardcodes a struct layout that differs across
+/// architecture and libc; a segfault is a steep price for a number this static.
 class DiskReader {
   DiskReader({
     Future<ProcessResult> Function(String, List<String>)? runner,
@@ -45,8 +44,8 @@ class DiskReader {
 /// Parses POSIX `df -B1 -P` output.
 ///
 /// Columns: filesystem, 1-blocks, used, available, capacity, mount point. The
-/// mount point is last and may contain spaces, so it is taken as the remainder
-/// of the line rather than as a field.
+/// mount point is last and may contain spaces, so it is taken as the remainder of
+/// the line rather than as a field.
 List<DiskUsage> parseDfOutput(String stdout) {
   final lines = stdout.split('\n');
   final disks = <DiskUsage>[];

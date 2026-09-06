@@ -1,38 +1,28 @@
 // Whether xdg-desktop-portal has actually *noticed* this backend.
 //
-// Owning `org.freedesktop.impl.portal.desktop.graceful_shell` and exporting the
-// object is not the whole job, because there is a third party in the middle.
-// An application never talks to this backend: it talks to the xdg-desktop-portal
-// *frontend*, which reads `AvailableSourceTypes` off the backend's proxy **once**
-// — in `screen_cast_create`, as the frontend starts — and republishes it on
-// `org.freedesktop.portal.ScreenCast`. GDBus fills that proxy's property cache
-// with a `GetAll` at construction, so a frontend that starts while nobody owns
-// the backend name caches *nothing* and publishes `AvailableSourceTypes = 0` for
-// the rest of its life.
+// Owning the backend name and exporting the object is not the whole job, because
+// there is a third party in the middle. An application never talks to this
+// backend: it talks to the xdg-desktop-portal *frontend*, which reads
+// `AvailableSourceTypes` off the backend's proxy **once**, as it starts, and
+// republishes it. GDBus fills that proxy's cache with a `GetAll` at construction,
+// so a frontend that starts while nobody owns the backend name caches nothing and
+// publishes `AvailableSourceTypes = 0` for the rest of its life.
 //
-// That is a race the shell loses by default. `startScreencastService` runs off a
-// post-frame callback (`main.dart`), so the name is claimed a good deal later
-// than the session starts; the snap's own launcher restarts the frontend
-// *before* it execs the shell binary; and xdg-desktop-portal is bus-activated,
-// so any application asking for any portal can start it first.
+// The shell loses that race by default three ways: `startScreencastService` runs
+// off a post-frame callback, the snap's launcher restarts the frontend *before*
+// it execs the shell, and xdg-desktop-portal is bus-activated.
 //
-// The symptom is specific and misleading: screen sharing still works. The
-// frontend does not validate a `SelectSources` request against
-// `AvailableSourceTypes` (it validates against the set of types the protocol
-// defines), so a browser asking to share a monitor gets this shell's picker and
-// a working stream. What breaks is every client that *asks first* — OBS reads
-// the property in `get_available_capture_types()` and registers no PipeWire
-// capture source at all when it reads 0, so "Screen Capture (PipeWire)" is
-// missing from the source list on a machine where Google Meet shares the screen
-// perfectly well.
+// The symptom is misleading: screen sharing still works, because the frontend
+// validates a `SelectSources` request against the types the protocol defines
+// rather than against the property. What breaks is every client that *asks
+// first* — OBS reads it in `get_available_capture_types()` and registers no
+// PipeWire capture source at all when it reads 0.
 //
 // Nothing tells the frontend to look again: it re-syncs on a `notify::` for a
-// property name that does not exist on the proxy, so the value it publishes is
-// frozen at its own start-up. Restarting the frontend is the repair, and this
-// file is the one place that decides to.
+// property name that does not exist on the proxy. Restarting the frontend is the
+// repair, and this file is the one place that decides to.
 //
-// Flutter-free, like the rest of `lib/screencast/` — `tool/screencast_spike.dart`
-// compiles this whole layer.
+// Flutter-free, like the rest of `lib/screencast/`.
 
 import 'dart:io';
 
@@ -55,23 +45,17 @@ const Duration kFrontendRestartGrace = Duration(milliseconds: 750);
 
 /// Reads `AvailableSourceTypes` from a frontend that is *already running*.
 ///
-/// Three answers, and the difference between the last two is the whole point:
-/// - `null` — nothing to reason about. The frontend is not running, could not
-///   be asked, or serves no ScreenCast interface at all (xdg-desktop-portal
-///   absent, or no ScreenCast backend routed to it, in which case
-///   `screen_cast_create` returned NULL and there is no property to read).
-///   None of that is repairable from here; the last is a `portals.conf`
-///   question.
-/// - `0` — a backend *is* routed and answered nothing, which is the frozen
-///   cache above.
+/// Three answers, and the difference between the last two is the point:
+/// - `null` — nothing to reason about: the frontend is not running, could not be
+///   asked, or serves no ScreenCast interface at all. None of that is repairable
+///   from here; the last is a `portals.conf` question.
+/// - `0` — a backend *is* routed and answered nothing, which is the frozen cache.
 /// - anything else — a live backend answered, and the frontend is current.
 ///
 /// The owner check is what keeps this from *activating* the frontend. Reading a
-/// property off a well-known name starts its service, and a frontend that is
-/// not running is precisely the case with nothing wrong: whenever it does come
-/// up, this backend will already be on the bus for it to read. Starting
-/// xdg-desktop-portal on every shell launch to discover that would be the
-/// check paying a cost the bug never had.
+/// property off a well-known name starts its service, and a frontend that is not
+/// running is precisely the case with nothing wrong: whenever it does come up,
+/// this backend will already be on the bus for it to read.
 Future<int?> readFrontendSourceTypes(DBusClient client) async {
   try {
     if (!(await client.listNames()).contains(portalFrontendName)) return null;
@@ -90,10 +74,9 @@ Future<int?> readFrontendSourceTypes(DBusClient client) async {
 
 /// Restarts the frontend, and only the frontend.
 ///
-/// `try-restart` rather than `restart`, the rule the snap's launcher already
-/// follows: it is a no-op when the unit is not running, so a session with no
-/// systemd user instance — or one that has never activated the portal — is not
-/// forced to start one. The backends are not ours to bounce.
+/// `try-restart` rather than `restart`, the rule the snap's launcher follows: it
+/// is a no-op when the unit is not running, so a session with no systemd user
+/// instance is not forced to start one. The backends are not ours to bounce.
 Future<bool> restartPortalFrontend({
   Future<ProcessResult> Function(String, List<String>)? runner,
 }) async {
@@ -113,17 +96,15 @@ Future<bool> restartPortalFrontend({
 /// Called after the backend owns its name and has exported its object, so the
 /// restarted frontend is guaranteed to find somebody to ask.
 ///
-/// The trigger is `0` and deliberately not "differs from [backendSourceTypes]".
-/// A frontend routed to *another* backend legitimately answers that backend's
-/// number, and restarting would bring back the same routing — so a mismatch
-/// rule would restart xdg-desktop-portal on every shell start for the rest of
-/// that machine's life, which is the noise the snap's revision stamp exists to
-/// avoid. Zero is the one value that cannot be a live backend's answer.
+/// The trigger is `0` and deliberately not "differs from [backendSourceTypes]": a
+/// frontend routed to *another* backend legitimately answers that backend's
+/// number, and restarting would bring back the same routing — so a mismatch rule
+/// would restart xdg-desktop-portal on every shell start for the life of that
+/// machine. Zero is the one value no live backend can have given.
 ///
-/// Best-effort throughout: a frontend that cannot be reached, a restart that
-/// cannot be run, and a restart that did not help are all logged and none of
-/// them is a failure of this shell's backend, which is up and serving either
-/// way.
+/// Best-effort throughout: an unreachable frontend, a restart that cannot be run
+/// and a restart that did not help are all logged, and none is a failure of this
+/// backend, which is up and serving either way.
 Future<void> reconcilePortalFrontend({
   required DBusClient client,
   required int backendSourceTypes,

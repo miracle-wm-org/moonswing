@@ -30,15 +30,14 @@ class InputShortcut {
   /// Run when the compositor reports the trigger's `begin`.
   final VoidCallback onActivate;
 
-  /// Run with whether the compositor actually gave the shell this
-  /// combination — true on the trigger's `done`, false when it was refused,
-  /// became unavailable, or (see [startInputTriggerService]) the globals were
-  /// never advertised at all.
+  /// Run with whether the compositor actually gave the shell this combination —
+  /// true on the trigger's `done`, false when it was refused, became unavailable,
+  /// or the globals were never advertised at all.
   ///
   /// Only the power button has one, and it is what stops the shell inhibiting
-  /// logind's power-key handling on a machine where the press will never
-  /// arrive: an inhibited key nobody answers is a power button that does
-  /// nothing. Everything else here fails soft by simply not firing.
+  /// logind's power-key handling on a machine where the press will never arrive:
+  /// an inhibited key nobody answers is a power button that does nothing.
+  /// Everything else fails soft by simply not firing.
   final void Function(bool owned)? onOwnership;
 
   int get modifiers => spec.modifiers;
@@ -52,19 +51,16 @@ const String kPowerButtonShortcut = 'graceful-shell.power-button';
 
 /// Turns the user's `[shortcuts]` config into the list the manager registers.
 ///
-/// Disabled shortcuts (a null spec) are dropped, and two shortcuts that resolve
-/// to the same combination are collapsed to the first — otherwise the second
+/// Disabled shortcuts (a null spec) are dropped, and two shortcuts resolving to
+/// the same combination are collapsed to the first — otherwise the second
 /// registration would come back `failed` and be logged as "owned by another
 /// client", which would be a lie about the shell's own config.
 ///
-/// The power button is registered like the other three and — deliberately —
-/// whatever `[power] key_action` says, `"none"` included. Registration latches
-/// on the compositor's first answer, so a binding skipped here is one no
-/// setting could turn back on without a restart; the action is a dropdown in
-/// Settings, so it has to stay live. What `"none"` costs instead is the
-/// logind inhibitor (see [PowerKeyService]) and the root's response to the
-/// press, both of which are read from the live config at the moment they
-/// matter.
+/// The power button is registered whatever `[power] key_action` says, `"none"`
+/// included: registration latches on the compositor's first answer, so a binding
+/// skipped here is one no setting could turn back on without a restart. What
+/// `"none"` costs instead is the logind inhibitor and the root's response to the
+/// press, both read from the live config at the moment they matter.
 List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
   final wanted = <(String, ShortcutSpec?, VoidCallback, void Function(bool)?)>[
     (
@@ -131,13 +127,11 @@ List<InputShortcut> defaultInputShortcuts() =>
 /// ext-input-trigger protocols and routes their activations into
 /// [InputTriggerStore].
 ///
-/// It binds two globals: the registration manager (to register a trigger and
-/// mint an action token) and the action manager (to subscribe to that token),
-/// running the handshake once both are present. Everything is best-effort, the
-/// same posture as `startOsdService`: a compositor that advertises neither
-/// global (older Mir, or not Mir at all) simply gets no shortcuts, and a trigger
-/// already owned by another client is logged and skipped — the shell never fails
-/// because of this.
+/// It binds two globals — the registration manager, to register a trigger and
+/// mint an action token, and the action manager, to subscribe to that token —
+/// running the handshake once both are present. Everything is best-effort: a
+/// compositor advertising neither global gets no shortcuts, and a trigger already
+/// owned by another client is logged and skipped.
 class InputTriggerManager {
   InputTriggerManager(this._client, {List<InputShortcut>? shortcuts})
       : _shortcuts = shortcuts ?? defaultInputShortcuts();
@@ -251,8 +245,8 @@ class InputTriggerManager {
 
 /// Creates the manager that wires the shell's global shortcuts into the
 /// compositor. The caller feeds it globals from the shared Wayland registry
-/// callback (see [InputTriggerManager.handleGlobal]). Safe on a compositor
-/// without the ext-input-trigger globals: the manager just never binds anything.
+/// callback. Safe on a compositor without the ext-input-trigger globals: the
+/// manager just never binds anything.
 ///
 /// [shortcuts] comes from the start-up config snapshot, not the live store:
 /// registration latches, so a later edit cannot take effect anyway.

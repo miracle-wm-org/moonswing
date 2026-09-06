@@ -1,10 +1,9 @@
 // Shared GIO application-info layer.
 //
-// Wraps GLib's `GAppInfo` / `GDesktopAppInfo` over FFI so both the dock
-// ([modules/dock.dart], which resolves a fixed set of pinned ids) and the app
-// directory ([modules/app_directory.dart], which enumerates every installed
-// app) go through one implementation. Also provides [AppIconImage], the shared
-// icon-rendering widget, so pinned icons and directory icons look identical.
+// Wraps GLib's `GAppInfo` / `GDesktopAppInfo` over FFI so the dock (a fixed set
+// of pinned ids) and the app directory (every installed app) go through one
+// implementation. Also provides [AppIconImage], so pinned icons and directory
+// icons look identical.
 
 import 'dart:convert';
 import 'dart:ffi' as ffi;
@@ -130,9 +129,9 @@ external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetGenericName(
 /// `StartupWMClass=` — the window class the entry declares its windows carry.
 ///
 /// The freedesktop-sanctioned way back from a *window* to the application that
-/// opened it, which is what the workspace row needs: a toplevel reports an
-/// `app_id` (or, under XWayland, a WM class) that need not be the desktop-file
-/// id. May be NULL; owned by the appinfo, so read it and never free it.
+/// opened it, which is what the workspace row needs: a toplevel's `app_id` need
+/// not be the desktop-file id. May be NULL; owned by the appinfo, so never free
+/// it.
 @ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
     symbol: 'g_desktop_app_info_get_startup_wm_class')
 external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetStartupWmClass(
@@ -156,12 +155,11 @@ external ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefault();
 ///
 /// One call covers both halves of "open this thing": a `file://` URI is
 /// content-type sniffed, and a *directory* sniffs as `inode/directory`, whose
-/// default handler is the file manager. There is deliberately no separate
-/// folder path.
+/// default handler is the file manager. There is deliberately no separate folder
+/// path.
 ///
-/// Takes a URI, not a path — it must be percent-encoded, which is what
-/// `Uri.file(path).toString()` is for. The GError out-param is passed NULL,
-/// matching [launchApp]'s swallow-the-error posture.
+/// Takes a URI, not a path — it must be percent-encoded. The GError out-param is
+/// NULL, matching [launchApp]'s swallow-the-error posture.
 @ffi.Native<
     ffi.Int Function(ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.NativeType>,
         ffi.Pointer<ffi.NativeType>)>(
@@ -175,8 +173,7 @@ external int _gAppInfoLaunchDefaultForUri(
 ///
 /// The companion to [_gDesktopAppInfoNew], which resolves by *id* and so only
 /// finds entries under `XDG_DATA_DIRS`. The desktop grid stores paths, because
-/// that is what the file picker yields and a user may well pin a `.desktop`
-/// from their own home directory. Caller owns one ref.
+/// that is what the file picker yields. Caller owns one ref.
 @ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.Uint8>)>(
     symbol: 'g_desktop_app_info_new_from_filename')
 external ffi.Pointer<ffi.NativeType> _gDesktopAppInfoNewFromFilename(
@@ -241,10 +238,9 @@ external ffi.Pointer<_GList> _gListAppend(
 /// `GDesktopAppInfo*` — the absolute path of the `.desktop` file it was loaded
 /// from, or NULL for an appinfo that has none.
 ///
-/// **Transfer-none**: owned by the appinfo, so read it and never free it. This
-/// is what lets the desktop grid pin an app the user picked out of a list —
-/// `DesktopItem.target` is a path, not a desktop id, so that entries outside
-/// `XDG_DATA_DIRS` work too.
+/// **Transfer-none**: owned by the appinfo, so never free it. This is what lets
+/// the desktop grid pin an app the user picked out of a list, since
+/// `DesktopItem.target` is a path rather than a desktop id.
 @ffi.Native<ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>)>(
     symbol: 'g_desktop_app_info_get_filename')
 external ffi.Pointer<ffi.Uint8> _gDesktopAppInfoGetFilename(
@@ -477,12 +473,12 @@ void disposeAppEntries(Iterable<AppEntry> entries) {
   }
 }
 
-/// A `GdkAppLaunchContext*` for the default display, or NULL if there isn't
-/// one. The caller owns it and must unref it.
+/// A `GdkAppLaunchContext*` for the default display, or NULL if there isn't one.
+/// The caller owns it and must unref it.
 ///
-/// Worth the extra call: without a launch context the launched application has
-/// no startup-notification token, and a shell surface closing in the same frame
-/// can win the focus race against it.
+/// Worth the extra call: without a launch context the launched application has no
+/// startup-notification token, and a shell surface closing in the same frame can
+/// win the focus race against it.
 ffi.Pointer<ffi.NativeType> _launchContext() {
   try {
     final display = _gdkDisplayGetDefault();
@@ -616,12 +612,11 @@ String iconNameForPath(String path, {required bool isDirectory}) {
 ///
 /// The caller owns every entry's `GAppInfo*` (see [disposeAppEntries]).
 /// Deliberately **not** served from `AppIndex`: its `_rebuild()` unrefs the
-/// pointers it handed out, and this list outlives a refresh inside an open
-/// popup — the same reason `modules/app_directory.dart` loads its own copy.
+/// pointers it handed out, and this list outlives a refresh inside an open popup.
 ///
-/// Unlike [loadInstalledApps] this does not filter on `g_app_info_should_show`:
-/// a handler marked `NoDisplay=true` is hidden from menus but is still a
-/// legitimate "Open with" target.
+/// Unlike [loadInstalledApps] this does not filter on `g_app_info_should_show`: a
+/// handler marked `NoDisplay=true` is hidden from menus but is still a legitimate
+/// "Open with" target.
 List<AppEntry> appsForPath(String path, {required bool isDirectory}) {
   final type = contentTypeForPath(path, isDirectory: isDirectory);
   if (type.isEmpty) return const [];

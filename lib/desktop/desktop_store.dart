@@ -9,17 +9,15 @@ import 'package:graceful_shell/desktop/desktop_layout.dart';
 /// The desktop grid's state: the pinned items, and what the user is doing to
 /// them right now.
 ///
-/// Same singleton-[ChangeNotifier] shape as `ThemeStore`/`OsdStore`, and for
-/// `ThemeStore`'s reason: it reads [ConfigStore] for the `desktop` subtree
-/// alone and **never** [ConfigStore.appConfig], whose getter rebuilds the whole
-/// typed config and re-applies every module's options via `Module.loadAll`.
+/// The singleton-[ChangeNotifier] shape, and for `ThemeStore`'s reason it reads
+/// [ConfigStore] for the `desktop` subtree alone and **never**
+/// [ConfigStore.appConfig], whose getter rebuilds the whole typed config and
+/// re-applies every module's options.
 ///
 /// The split that matters is persisted vs. ephemeral. [items] and [config] are
-/// written back through [ConfigStore]; [selectedTargets], [draggingTarget] and
-/// [renamingTarget] are not, and never touch the disk. Every `ConfigStore.set`
-/// notifies synchronously and rebuilds every panel on every monitor, so a drag
-/// persists once **on drop** rather than per-frame — routing pointer positions
-/// through the config would rebuild the shell dozens of times per gesture.
+/// written back; [selectedTargets], [draggingTarget] and [renamingTarget] never
+/// touch the disk. Every `ConfigStore.set` notifies synchronously and rebuilds
+/// every panel on every monitor, so a drag persists once **on drop**.
 class DesktopStore extends ChangeNotifier {
   DesktopStore._();
 
@@ -89,9 +87,8 @@ class DesktopStore extends ChangeNotifier {
 
   /// Seeds the store directly, with no [ConfigStore] behind it.
   ///
-  /// For widget tests: `ConfigStore.loadFrom` does real async file I/O, and a
-  /// real I/O completion never lands inside `testWidgets`' fake-async zone — the
-  /// same trap `test/system_tab_test.dart` documents for `DiskReader`. Mutations
+  /// For widget tests: `ConfigStore.loadFrom` does real async file I/O, and a real
+  /// I/O completion never lands inside `testWidgets`' fake-async zone. Mutations
   /// on an unbound store stay in memory, which is all a widget test needs.
   @visibleForTesting
   void seed(DesktopConfig config) {
@@ -222,10 +219,9 @@ class DesktopStore extends ChangeNotifier {
 
   /// Unpins every target in [targets] with a **single** commit.
   ///
-  /// One write rather than one per item: `_commit` goes through
-  /// `ConfigStore.set`, whose notification is synchronous and rebuilds every
-  /// panel on every monitor, so removing a five-icon selection one at a time
-  /// would do that five times over.
+  /// `_commit` goes through `ConfigStore.set`, whose notification is synchronous
+  /// and rebuilds every panel on every monitor, so removing a five-icon selection
+  /// one at a time would do that five times over.
   void removeItems(Iterable<String> targets) {
     final doomed = targets.toSet();
     if (!_desktop.items.any((item) => doomed.contains(item.target))) return;
@@ -305,10 +301,10 @@ class DesktopStore extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   // Widgets
   //
-  // Every one of these commits **both** lists at once, because a widget
-  // landing on an icon displaces it: two `ConfigStore.set` calls would notify
-  // twice, and for one frame between them the config would hold a widget and
-  // an icon in the same cell.
+  // Every one of these commits **both** lists at once, because a widget landing
+  // on an icon displaces it: two `ConfigStore.set` calls would notify twice, and
+  // for one frame between them the config would hold a widget and an icon in the
+  // same cell.
   // ---------------------------------------------------------------------------
 
   /// Adds [widget], at its own area when that is free and at the nearest free
@@ -407,10 +403,9 @@ class DesktopStore extends ChangeNotifier {
 
   /// Applies [items] in memory and writes them back.
   ///
-  /// The in-memory update is not left to [_onConfigChanged] to apply: the write
-  /// is debounced but the *notification* is synchronous, and a listener that
-  /// rebuilt from a stale item list would show the icon snapping back to its
-  /// old cell for a frame.
+  /// The in-memory update is not left to [_onConfigChanged]: the write is
+  /// debounced but the *notification* is synchronous, and a listener rebuilding
+  /// from a stale item list would show the icon snapping back for a frame.
   void _commit({List<DesktopItem>? items, List<DesktopWidgetItem>? widgets}) {
     if (items == null && widgets == null) return;
     _desktop = _desktop.copyWith(items: items, widgets: widgets);

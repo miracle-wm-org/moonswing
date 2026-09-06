@@ -1,18 +1,15 @@
 // Every field the settings search can find, in one table.
 //
-// This is deliberately not a *description* of the settings UI written beside
-// it — it is where the labels live. Each row that appears here is built with
-// `SettingsRow.field`, which reads its label from the entry, and each module
-// row derives its config path from the entry's id, so a rename or a moved key
-// is one edit and the index cannot fall behind the pane. The catalogue is what
-// the pages import; nothing here imports a page, which is what keeps the file
-// Flutter-widget-free and its invariants a plain unit test
-// (`test/settings_search_test.dart`).
+// Deliberately not a *description* of the settings UI written beside it — this is
+// where the labels live. Each row here is built with `SettingsRow.field`, which
+// reads its label from the entry, and each module row derives its config path
+// from the entry's id, so a rename is one edit and the index cannot fall behind
+// the pane. The catalogue is what the pages import; nothing here imports a page,
+// which keeps the file widget-free and its invariants a plain unit test.
 //
-// What belongs here: a control the user can be *sent to*. What does not: a
-// device in a list, a wallpaper tile, a theme swatch — those come and go with
-// the machine, and the entry that finds them is the page-level one at the head
-// of each group.
+// What belongs here: a control the user can be *sent to*. What does not: a device
+// in a list, a wallpaper tile, a theme swatch — those come and go with the
+// machine, and the entry that finds them is the page-level one.
 library;
 
 import 'package:flutter/foundation.dart' show immutable;
@@ -22,9 +19,9 @@ import 'package:graceful_shell/overlay/settings_route.dart';
 
 /// One themeable colour: the key it is written under, and its catalogue entry.
 ///
-/// The Appearance pane renders its colour rows from this list, so the palette
-/// is spelled once — it replaced a `Map<String, String>` of key to label that
-/// the search index would otherwise have had to copy.
+/// The Appearance pane renders its colour rows from this list, so the palette is
+/// spelled once — it replaced a `Map<String, String>` of key to label that the
+/// search index would otherwise have had to copy.
 @immutable
 class ThemeColorSetting {
   const ThemeColorSetting(this.key, this.field);

@@ -71,9 +71,9 @@ bool isSameDay(DateTime a, DateTime b) =>
 /// tomorrow relative to [here], -1 when it is still yesterday.
 ///
 /// Both sides are re-expressed as UTC midnights before subtracting. Differencing
-/// the two dates as-is would measure elapsed *time*, and `inDays` truncates —
-/// so a 23-hour or 25-hour DST day reports 0 and the badge silently disappears
-/// on the two days of the year it is most likely to be wrong about.
+/// the two dates as-is would measure elapsed *time*, and `inDays` truncates — so
+/// a 23- or 25-hour DST day reports 0 and the badge silently disappears on the
+/// two days of the year it is most likely to be wrong about.
 int dayDelta(DateTime there, DateTime here) =>
     DateTime.utc(there.year, there.month, there.day)
         .difference(DateTime.utc(here.year, here.month, here.day))

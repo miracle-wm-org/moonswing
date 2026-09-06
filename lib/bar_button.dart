@@ -7,10 +7,9 @@ import 'package:graceful_shell/theme/tokens.dart';
 /// The chrome around a bar module's clickable area.
 ///
 /// Seven modules used to hand-roll these fifteen lines each, all with a
-/// hard-coded `0x28FFFFFF` hover fill — which made bar-button hover the one
-/// hover in the shell that ignored `theme.surfaceHover`. The fill now comes
-/// from the theme, at the alpha the old constant had, so an opaque theme
-/// colour still reads as a wash rather than a slab.
+/// hard-coded `0x28FFFFFF` hover fill — which made bar-button hover the one hover
+/// in the shell that ignored `theme.surfaceHover`. The fill now comes from the
+/// theme, at the alpha the old constant had.
 class BarButton extends StatelessWidget {
   const BarButton({
     super.key,

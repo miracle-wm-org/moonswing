@@ -1,11 +1,10 @@
 // The web half of the weather: where the machine is, what the sky is doing
 // there, and how to find a place by name.
 //
-// Flutter-free, and behind an interface, for two reasons. The store leases a
-// poller that both the bar and the desktop widget read, so a test that drives
-// it must not reach the network; and the parsing is where a shape change at
-// Open-Meteo turns into a crash, so it is a pure function over a decoded map
-// rather than something only a live response can exercise.
+// Flutter-free and behind an interface for two reasons. The store leases a
+// poller both the bar and the desktop widget read, so a test driving it must not
+// reach the network; and the parsing is where a shape change at Open-Meteo turns
+// into a crash, so it is a pure function over a decoded map.
 
 import 'dart:convert';
 
@@ -34,9 +33,9 @@ enum TemperatureUnit {
 
 /// Somewhere weather can be read for: a set of coordinates with a name on it.
 ///
-/// The name is carried rather than looked up because the coordinates are what
-/// the forecast API wants and the name is what the user recognises; resolving
-/// one from the other on every render would be a geocoding request per frame.
+/// The name is carried rather than looked up because the coordinates are what the
+/// forecast API wants and the name is what the user recognises; resolving one
+/// from the other on every render would be a geocoding request per frame.
 class WeatherPlace {
   const WeatherPlace({
     required this.name,
@@ -140,9 +139,9 @@ class WeatherReading {
 
   /// How much cloud the animation draws, 0..1.
   ///
-  /// The measured figure wins over the condition's nominal one: "partly
-  /// cloudy" spans two wisps to a nearly closed lid, and the sky is the one
-  /// consumer that can show the difference.
+  /// The measured figure wins over the condition's nominal one: "partly cloudy"
+  /// spans two wisps to a nearly closed lid, and the sky is the one consumer that
+  /// can show the difference.
   double get cloudCover {
     final measured = cloudCoverPercent;
     if (measured == null) return condition.cloudCover;
@@ -306,11 +305,10 @@ List<WeatherPlace> parseGeocoding(Map<String, dynamic> json) {
 /// The forecast endpoint's answer.
 ///
 /// A missing `current` block is fatal — there is no reading to show — while a
-/// missing or ragged `daily` block costs the forecast alone, because the bar's
-/// temperature is worth showing without the seven-day popup behind it. The day
-/// loop is bounded by the shortest column for the same reason: Open-Meteo
-/// returns parallel arrays, and one short array must not take the whole parse
-/// down with a range error.
+/// missing or ragged `daily` block costs the forecast alone. The day loop is
+/// bounded by the shortest column for the same reason: Open-Meteo returns
+/// parallel arrays, and one short array must not take the whole parse down with
+/// a range error.
 WeatherSnapshot parseForecast(
   Map<String, dynamic> json, {
   required WeatherPlace place,

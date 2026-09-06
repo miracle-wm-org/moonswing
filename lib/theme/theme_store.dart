@@ -32,19 +32,19 @@ class ThemeSummary {
 
 /// The live palette, and the catalogue of palettes to choose from.
 ///
-/// Same singleton-[ChangeNotifier] shape as `OsdStore`/`AppIndex`: one
-/// instance for the process, a `@visibleForTesting` factory that takes its own
-/// directory, and an idempotent [start] called from `main()`.
+/// The singleton-[ChangeNotifier] shape: one instance for the process, a
+/// `@visibleForTesting` factory taking its own directory, and an idempotent
+/// [start] called from `main()`.
 ///
 /// Two rules hold this together:
 ///
-/// * **`config.toml` names the theme; this store owns its contents.** The
-///   store listens to [ConfigStore] for the `theme` key alone and never reads
+/// * **`config.toml` names the theme; this store owns its contents.** It listens
+///   to [ConfigStore] for the `theme` key alone and never reads
 ///   `ConfigStore.appConfig`, whose getter re-runs `Module.loadAll` as a side
 ///   effect — that would fire on every keystroke anywhere in the settings UI.
 /// * **Shipped themes are read-only.** [edit] silently forks a built-in into a
-///   user copy before applying the change, so `themes/dracula.toml` stays
-///   byte-identical to what the shell seeded and can be re-seeded safely.
+///   user copy first, so `themes/dracula.toml` stays byte-identical to what the
+///   shell seeded and can be re-seeded safely.
 class ThemeStore extends ChangeNotifier {
   ThemeStore._(this._directory);
 
@@ -253,8 +253,7 @@ class ThemeStore extends ChangeNotifier {
   /// The theme `config.toml` names, falling back to the default.
   ///
   /// Deliberately not `ConfigStore.appConfig`: that getter rebuilds the whole
-  /// typed config and re-applies every module's options as a side effect,
-  /// which would fire on every keystroke anywhere in the settings UI.
+  /// typed config and re-applies every module's options as a side effect.
   String _selectedName() {
     final name = _config?.get<String>(['theme'])?.trim();
     return (name == null || name.isEmpty) ? kDefaultThemeName : name;
@@ -269,12 +268,11 @@ class ThemeStore extends ChangeNotifier {
 
   /// Writes any built-in whose file is missing *or out of date*.
   ///
-  /// The shell owns these files; [edit] forks rather than touching them, so
-  /// there is nothing of the user's to lose. Leaving a stale copy in place
-  /// instead would mean a palette fix never reaches anyone who has already run
-  /// the shell once — which is exactly what happened when the panel gained its
-  /// own colour: the shipped `glassy.toml` on disk kept the old keys and the
-  /// bar stayed opaque. Someone who wants their own version duplicates it.
+  /// The shell owns these files; [edit] forks rather than touching them, so there
+  /// is nothing of the user's to lose. Leaving a stale copy in place would mean a
+  /// palette fix never reaches anyone who has already run the shell once — which
+  /// is what happened when the panel gained its own colour: the shipped
+  /// `glassy.toml` kept the old keys and the bar stayed opaque.
   void _seedBuiltIns() {
     try {
       final dir = Directory(_directory);

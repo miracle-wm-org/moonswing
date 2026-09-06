@@ -1,11 +1,10 @@
 // The mapping from the WMO table to the Meteocons set.
 //
 // A slug is a string, and the pack is a version constraint like any other: an
-// upstream rename is a silent degrade to `not-available` on whichever row it
-// hit — visible in the shell only to somebody who happens to be looking at that
-// weather. This is the guardrail `weather_icons.dart`'s "costs the icon, not
-// the panel" rule needs on the other side, and it is why `_glyph` degrades
-// rather than throws: the throw would be louder but it would be in a `build`.
+// upstream rename is a silent degrade to `not-available` on whichever row it hit,
+// visible only to somebody looking at that weather. This is the guardrail
+// `weather_icons.dart`'s "costs the icon, not the panel" rule needs on the other
+// side, and it is why `_glyph` degrades rather than throws.
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -130,10 +129,9 @@ void main() {
     testWidgets('nothing here reaches for the pack\'s animated formats',
         (tester) async {
       // The hero glyph on the desktop card used to be a Lottie — a `Ticker`
-      // running for as long as a wallpaper widget was on screen, beside a sky
-      // running another. Both are gone, so this asserts the *absence*: every
-      // rendering is an SVG picture, and there is no flag that turns one into
-      // anything else.
+      // running for as long as a wallpaper widget was on screen. It is gone, so
+      // this asserts the *absence*: every rendering is an SVG picture, and there
+      // is no flag that turns one into anything else.
       await pumpIcon(
         tester,
         WeatherIcon(weatherIcon(conditionForCode(61)), size: 58),

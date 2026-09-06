@@ -75,11 +75,10 @@ List<T> moveDockItem<T>(List<T> items, int from, int to) {
 
 /// Rewrites `[modules.dock].apps` for a new on-screen order.
 ///
-/// [configIds] can name apps that failed to resolve (an id whose `.desktop`
-/// file is gone), which never appear in the dock and so are absent from
-/// [newOrder]. Those keep their original index; the resolved ids fill the
-/// slots around them, so a reorder cannot silently drop or move an entry the
-/// user cannot see.
+/// [configIds] can name apps that failed to resolve (an id whose `.desktop` file
+/// is gone), which never appear in the dock and so are absent from [newOrder].
+/// Those keep their original index; the resolved ids fill the slots around them,
+/// so a reorder cannot silently drop or move an entry the user cannot see.
 List<String> mergeDockOrder(List<String> configIds, List<String> newOrder) {
   final resolved = newOrder.toSet();
   final slots = <String?>[
@@ -112,11 +111,10 @@ class DockState extends State<Dock> {
 
   // --- Drag-to-reorder state -------------------------------------------------
   //
-  // Dragging is hand-rolled for the same reason the desktop grid's is: Flutter's
-  // [Draggable] needs an [Overlay] ancestor, and a panel has none. Nothing here
-  // reaches [ConfigStore] until the drop — every `set` notifies synchronously
-  // and rebuilds every panel on every monitor, so writing pointer positions
-  // through the config would rebuild the shell dozens of times per gesture.
+  // Dragging is hand-rolled for the desktop grid's reason: Flutter's [Draggable]
+  // needs an [Overlay] ancestor and a panel has none. Nothing here reaches
+  // [ConfigStore] until the drop — every `set` notifies synchronously and
+  // rebuilds every panel on every monitor.
 
   /// Index into [_apps] of the button being dragged, or null when idle. The
   /// list is reordered live as the pointer crosses slot boundaries, so this
@@ -430,12 +428,10 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       // Edge-anchored like every bar popup, but never glued to the bar: a label
       // that comes and goes with the pointer is a floating card, not furniture.
       attach: false,
-      // And never animated, whatever `popup_animation` says. The dock is a
-      // strip the pointer sweeps along, opening and abandoning a surface at
-      // every button on the way past; a card that slid or scaled at each of
-      // them would read as the shell twitching rather than answering. Both of
-      // the dock's popups opt out, so the menu cannot arrive differently from
-      // the label it replaces.
+      // And never animated, whatever `popup_animation` says. The dock is a strip
+      // the pointer sweeps along, opening and abandoning a surface at every button
+      // on the way past; a card that slid or scaled at each would read as the
+      // shell twitching rather than answering.
       effect: PopupEffect.none,
     );
   }

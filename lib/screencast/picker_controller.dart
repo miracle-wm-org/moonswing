@@ -7,13 +7,11 @@ import 'pick_types.dart';
 export 'pick_types.dart';
 
 /// The seam between the portal backend (which awaits a choice inside a D-Bus
-/// `Start` call) and `_GracefulShellRootState` (which owns every window and
-/// shows the picker overlay).
+/// `Start` call) and `_GracefulShellRootState`, which owns every window.
 ///
 /// All of the behaviour is [RequestController]'s: decline-when-unheard (screen
-/// sharing must never start without a visible consent surface), supersede on a
-/// new portal request, and an answer on teardown so the `Start` call cannot
-/// hang forever.
+/// sharing must never start without a visible consent surface), supersede on a new
+/// portal request, and an answer on teardown so `Start` cannot hang forever.
 class ScreencastPickerController extends RequestController<PickRequest, PickResult>
     implements SourcePicker {
   ScreencastPickerController._();

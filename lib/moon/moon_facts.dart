@@ -2,20 +2,16 @@
 // the half that answers "so what?".
 //
 // Pure, like the rest of `lib/moon/` — a fact is a kind, a title and a line of
-// text, and the widget is what turns a kind into a glyph. That split is what
-// keeps the wording a unit test (`test/moon_facts_test.dart` pins which facts
-// appear at a new moon, at perigee and inside an eclipse window) and keeps this
-// file free of Flutter.
+// text, and the widget turns a kind into a glyph. That split keeps the wording a
+// unit test and this file free of Flutter.
 //
-// One editorial rule runs through all of it, and it is the same one
-// `weather_sky.dart` states about its picture: **say only what the numbers
-// support.** Spring tides, dark skies for meteor watching, the reduced activity
-// of nocturnal animals under a bright moon and the eclipse windows are all
-// consequences of the geometry this feature already computes. Everything the
-// Moon is popularly supposed to do and demonstrably does not — to sleep, to
-// moods, to birth rates, to the stock market — is absent on purpose, and a
-// change that adds one of them back is a change that makes the shell lie to
-// somebody.
+// One editorial rule runs through all of it, the same one `weather_sky.dart`
+// states about its picture: **say only what the numbers support.** Spring tides,
+// dark skies for meteor watching, the reduced activity of nocturnal animals under
+// a bright moon and the eclipse windows all follow from the geometry this feature
+// already computes. Everything the Moon is popularly supposed to do and
+// demonstrably does not — to sleep, to moods, to birth rates — is absent on
+// purpose, and adding one back is making the shell lie to somebody.
 
 import 'dart:math' as math;
 
@@ -76,14 +72,13 @@ const double kPerigeeThresholdKm = 362000;
 /// Far enough out to call it small.
 const double kApogeeThresholdKm = 402000;
 
-/// How near a node a syzygy has to be for an eclipse to be possible somewhere
-/// on Earth, in degrees of ecliptic latitude.
+/// How near a node a syzygy has to be for an eclipse to be possible somewhere on
+/// Earth, in degrees of ecliptic latitude.
 ///
-/// The real limits are not a single number — they depend on the Sun's and the
-/// Moon's apparent sizes and on the kind of eclipse — but every eclipse falls
-/// inside this and very little else does. Verified against four eclipses and
-/// two ordinary syzygies in `test/moon_facts_test.dart`; the phrasing says
-/// *possible*, which is what a one-number test can honestly claim.
+/// The real limits are not a single number — they depend on the Sun's and Moon's
+/// apparent sizes and on the kind of eclipse — but every eclipse falls inside
+/// this and very little else does. The phrasing says *possible*, which is what a
+/// one-number test can honestly claim.
 const double kEclipseLatitudeLimit = 1.5;
 
 /// How near a principal phase counts as "at" it, in days, for the tides.
@@ -91,10 +86,9 @@ const double _syzygyWindowDays = 1.5;
 
 /// The facts for [reading], most notable first.
 ///
-/// Ordered rather than filtered: the widget shows as many as it has room for
-/// and drops the rest off the bottom, so what matters is that an eclipse
-/// window outranks the day's tides and the day's tides outrank the countdown
-/// to the next quarter.
+/// Ordered rather than filtered: the widget shows as many as it has room for and
+/// drops the rest, so what matters is that an eclipse window outranks the day's
+/// tides and the tides outrank the countdown to the next quarter.
 List<MoonFact> moonFacts(MoonReading reading) {
   final facts = <MoonFact>[
     ..._eclipse(reading),
@@ -280,10 +274,10 @@ MoonFact _nextPhase(MoonReading reading) {
 ///
 /// An eclipse happens when a syzygy falls near one of the two points where the
 /// Moon's orbit crosses the ecliptic — which is exactly the statement that the
-/// Moon's ecliptic latitude is near zero at that instant, and that latitude is
-/// something `moon_ephemeris.dart` already computes to a thousandth of a
-/// degree. Both upcoming syzygies are checked, because the interesting one is
-/// as often the full Moon as the new one.
+/// Moon's ecliptic latitude is near zero at that instant, and
+/// `moon_ephemeris.dart` already computes that to a thousandth of a degree. Both
+/// upcoming syzygies are checked, because the interesting one is as often the
+/// full Moon as the new one.
 List<MoonFact> _eclipse(MoonReading reading) {
   final facts = <MoonFact>[];
   final candidates = <(DateTime, bool)>[

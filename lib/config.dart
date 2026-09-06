@@ -1,14 +1,10 @@
-/// The startup snapshot of `config.toml` — [AppConfig] and the per-section
-/// config classes that still live here.
+/// The startup snapshot of `config.toml` — [AppConfig] and the per-section config
+/// classes that still live here.
 ///
 /// The sections that belong to a subsystem live beside it and are re-exported
-/// below, so `import 'package:graceful_shell/config.dart'` keeps providing
-/// every name it always has: the theme palette in `lib/theme/theme_config.dart`,
-/// the desktop grid model in `lib/desktop/desktop_config.dart`, the generated
-/// default config in `lib/default_config.dart`, and the media-extension
-/// predicates in `lib/media_paths.dart` (whose `isVideoPath` is re-exported by
-/// `lib/background.dart`, which historically defined it), and the power-button
-/// policy in `lib/power/power_config.dart`.
+/// below, so `import 'package:graceful_shell/config.dart'` keeps providing every
+/// name it always has: the theme palette, the desktop grid model, the generated
+/// default config, the media-extension predicates and the power-button policy.
 library;
 
 import 'dart:io';
@@ -210,10 +206,10 @@ class PanelConfig {
 class WorldClock {
   /// An IANA zone name, e.g. `Europe/London`.
   ///
-  /// Deliberately not validated here. This file is parsed at start-up and must
-  /// not depend on the timezone database, and a name this build's database
-  /// variant does not carry is still the user's data: the tab renders it as an
-  /// unknown-zone row it can delete rather than dropping it on the next write.
+  /// Deliberately not validated here: this file is parsed at start-up and must
+  /// not depend on the timezone database, and a name this build's database does
+  /// not carry is still the user's data — the tab renders it as an unknown-zone
+  /// row it can delete rather than dropping it on the next write.
   final String zone;
 
   /// Display override. Null falls back to the zone's city segment.
@@ -444,26 +440,24 @@ const ShortcutSpec kDefaultOpenEmoji =
 
 /// The machine's own power button — `XF86PowerOff`, no modifiers.
 ///
-/// Bound like any other shortcut because to the compositor it *is* one: the
-/// ACPI power button is an input device emitting `KEY_POWER`. What it is not
-/// is the shell's alone — systemd-logind reads the same device and powers the
-/// machine off on a press — so registering this is only half of intercepting
-/// the button; `[power] inhibit_logind` is the other half. Spelled numerically
-/// for the reason [kDefaultOpenSettings] is; `test/shortcut_parse_test.dart`
-/// asserts it agrees with `parseShortcut('poweroff')`.
+/// Bound like any other shortcut because to the compositor it *is* one: the ACPI
+/// power button is an input device emitting `KEY_POWER`. What it is not is the
+/// shell's alone — systemd-logind reads the same device and powers the machine
+/// off on a press — so this is only half of intercepting the button;
+/// `[power] inhibit_logind` is the other half.
 const ShortcutSpec kDefaultPowerButton =
     ShortcutSpec(modifiers: 0, keysym: 0x1008ff2a);
 
 /// The compositor-level shortcuts the shell registers at start-up.
 ///
-/// A null field means the shortcut is *disabled* (the user wrote `""`), which
-/// is distinct from the key being absent — absent falls back to the default.
+/// A null field means the shortcut is *disabled* (the user wrote `""`), which is
+/// distinct from the key being absent — absent falls back to the default.
 ///
-/// Registration latches on the first successful handshake
-/// (`InputTriggerManager._registered`), so these are read once from the startup
-/// snapshot and editing them needs a restart. If the settings UI ever grows a
-/// shortcut editor, add `shortcuts` to `ConfigStore._restartSignature()` so the
-/// "restart to apply" banner tells the truth.
+/// Registration latches on the first successful handshake, so these are read once
+/// from the startup snapshot and editing them needs a restart. A shortcut editor
+/// in the settings UI would have to add `shortcuts` to
+/// `ConfigStore._restartSignature()` so the "restart to apply" banner tells the
+/// truth.
 class ShortcutsConfig {
   final ShortcutSpec? openSettings;
   final ShortcutSpec? openLauncher;

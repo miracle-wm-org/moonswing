@@ -1,15 +1,12 @@
 // The dock's app-directory button and its popup.
 //
-// [AppDirectoryButton] sits at the right edge of the dock (after a divider).
-// Tapping it opens a [PopupWindow] (via [PopupHost]) listing every installed
-// application, with global type-to-search. Categories are browsed by hovering:
-// each category opens a child popup (a flyout) anchored to its right, flipping
-// to the left when there is not enough room. The popup is sized by that
-// category browser and stays that size: search results scroll inside it rather
-// than growing or shrinking the window under the field being typed into.
-// Right-clicking an app offers "Pin to dock", which appends its id to
-// `[modules.dock].apps` in the shared [ConfigStore] — the running dock then
-// reloads live.
+// [AppDirectoryButton] sits at the right edge of the dock. Tapping it opens a
+// [PopupWindow] listing every installed application, with global type-to-search.
+// Categories are browsed by hovering: each opens a child popup anchored to its
+// right, flipping left when there is not enough room. The popup is sized by that
+// category browser and stays that size, so search results scroll inside it rather
+// than resizing the window under the field being typed into. Right-clicking an
+// app offers "Pin to dock", which appends its id to `[modules.dock].apps`.
 
 // WindowPositionerAnchor is re-exported from layer_shell but marked @internal.
 // ignore_for_file: invalid_use_of_internal_member
@@ -338,21 +335,17 @@ class _AppDirectoryState extends State<_AppDirectory>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Flexible(
-                    // The body keeps the height the category browser gave it
-                    // when the popup opened, and the search results scroll
-                    // inside that box rather than resizing it.
+                    // The body keeps the height the category browser gave it when
+                    // the popup opened, and search results scroll inside that box
+                    // rather than resizing it.
                     //
-                    // A popup is its own compositor surface sized to its
-                    // content, and GTK3 resolves `gdk_window_move_to_rect`
-                    // once at map time (see [PopupHost.openPopup]) — so a
+                    // A popup is its own surface sized to its content, and GTK3
+                    // resolves `gdk_window_move_to_rect` once at map time — so a
                     // body that grew and shrank per keystroke was a window
-                    // jumping between sizes underneath a placement that was
-                    // never revised, with the search field the user is typing
-                    // in moving with it. Sizing the box off the browser is
-                    // also the one measurement that needs no measuring pass:
-                    // it is laid out for real, on the first frame and every
-                    // frame after, so the pinned height is exactly the height
-                    // the popup opened at with no second frame to correct.
+                    // jumping between sizes under a placement that was never
+                    // revised, with the search field moving with it. Sizing off
+                    // the browser also needs no measuring pass: it is laid out
+                    // for real on the first frame and every frame after.
                     child: Stack(
                       children: [
                         // Kept in the tree while searching purely for its
@@ -438,13 +431,13 @@ class _AppDirectoryState extends State<_AppDirectory>
   }
 }
 
-/// A scrolling list of app rows: left-click launches, right-click opens a real
-/// child "Pin to dock" popup anchored at the cursor. Reused for both the global
-/// search results and each category flyout.
+/// A scrolling list of app rows: left-click launches, right-click opens a child
+/// "Pin to dock" popup anchored at the cursor. Reused for both the global search
+/// results and each category flyout.
 ///
 /// [onMenuOpened]/[onMenuClosed] bracket the pin popup's lifetime so a host that
-/// auto-closes on pointer-exit (the category flyout) can stay open while the
-/// pin popup — a separate surface the pointer moves onto — is up.
+/// auto-closes on pointer-exit (the category flyout) can stay open while the pin
+/// popup — a separate surface the pointer moves onto — is up.
 class _AppListView extends StatefulWidget {
   const _AppListView({
     required this.apps,
@@ -465,11 +458,10 @@ class _AppListView extends StatefulWidget {
 
   /// Whether the list sizes itself to its rows.
   ///
-  /// True where the list is what gives its popup a height — every category
-  /// flyout — and false where it is handed one, which is the search results
-  /// inside the directory's pinned body: a shrink-wrapping viewport lays out
-  /// every row it has, and a global search over a few hundred applications is
-  /// the one list here long enough for that to be worth avoiding.
+  /// True where the list is what gives its popup a height — every category flyout
+  /// — and false where it is handed one. A shrink-wrapping viewport lays out every
+  /// row it has, and a global search over a few hundred applications is the one
+  /// list here long enough for that to be worth avoiding.
   final bool shrinkWrap;
 
   @override
@@ -617,10 +609,10 @@ class _SearchField extends StatelessWidget {
 
 /// A hover-highlighted list row used for both categories and apps.
 ///
-/// [onEnter]/[onExit] fire on pointer transitions (used to drive the category
-/// flyouts); [onEnter] receives the row's own [BuildContext] so callers can
-/// anchor a popup to it. [active] keeps the row highlighted while its flyout is
-/// open even after the pointer has moved into the flyout.
+/// [onEnter]/[onExit] fire on pointer transitions and drive the category flyouts;
+/// [onEnter] receives the row's own [BuildContext] so callers can anchor a popup
+/// to it. [active] keeps the row highlighted while its flyout is open even after
+/// the pointer has moved into it.
 class _MenuRow extends StatefulWidget {
   const _MenuRow({
     required this.theme,

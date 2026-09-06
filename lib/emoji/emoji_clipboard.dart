@@ -17,27 +17,25 @@ typedef ClipboardRunner =
 
 /// The command that owns the Wayland selection.
 ///
-/// Flutter's own `Clipboard` is not the route here for the reason
-/// `capture/capture_grab.dart` documents for screenshots: a Wayland client
-/// cannot set the selection without a seat and a serial, and the shell's
-/// surfaces are layer-shell ones. `wl-copy` (from `wl-clipboard`) forks a
-/// daemon that serves the selection and exits, which is exactly the ownership
-/// this has no other way to hold.
+/// Flutter's own `Clipboard` is not the route, for the reason
+/// `capture/capture_grab.dart` documents: a Wayland client cannot set the
+/// selection without a seat and a serial, and the shell's surfaces are
+/// layer-shell ones. `wl-copy` forks a daemon that serves the selection and
+/// exits, which is exactly the ownership this has no other way to hold.
 const String kClipboardCommand = 'wl-copy';
 
 /// The package to name when [kClipboardCommand] is missing.
 ///
-/// The *package*, never a package manager: it is `wl-clipboard` on Debian,
-/// Fedora and Arch alike, and guessing between three managers is how a hint
-/// becomes wrong on two distributions out of three — `lib/fortune/`'s rule.
+/// The *package*, never a package manager: it is `wl-clipboard` on Debian, Fedora
+/// and Arch alike, and guessing between three managers is how a hint becomes
+/// wrong on two distributions out of three.
 const String kClipboardPackage = 'wl-clipboard';
 
 /// What a copy did, so the caller can say something true about it.
 ///
 /// A missing helper is a *message*, not a silence: the user pressed a key
-/// expecting to paste, and the one thing worse than not copying is not
-/// copying quietly. `lib/capture/`'s rule about `ffmpeg` and `wl-copy`, which
-/// is the same tool.
+/// expecting to paste, and the one thing worse than not copying is not copying
+/// quietly.
 enum ClipboardResult {
   copied,
 
@@ -50,9 +48,9 @@ enum ClipboardResult {
 
 /// Puts [text] on the clipboard as UTF-8 plain text.
 ///
-/// The MIME type is spelled with its charset because an emoji is not ASCII and
-/// a receiver offered a bare `text/plain` is entitled to read it as Latin-1 —
-/// which pastes a smiley as four bytes of mojibake.
+/// The MIME type is spelled with its charset because an emoji is not ASCII and a
+/// receiver offered a bare `text/plain` is entitled to read it as Latin-1 — which
+/// pastes a smiley as four bytes of mojibake.
 Future<ClipboardResult> copyTextToClipboard(
   String text, {
   ClipboardRunner runner = Process.start,

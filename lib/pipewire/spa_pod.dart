@@ -2,13 +2,12 @@ import 'dart:typed_data';
 
 import 'spa_constants.dart';
 
-/// SPA pod builder/parser over plain byte buffers — no FFI, fully
-/// unit-testable (`test/spa_pod_test.dart`).
+/// SPA pod builder/parser over plain byte buffers — no FFI, fully unit-testable.
 ///
-/// Wire layout: every pod is a `{u32 size, u32 type}` header followed by
-/// `size` body bytes; the next pod starts at the body rounded up to 8.
-/// An Object body is `{u32 objectType, u32 objectId}` followed by properties,
-/// each `{u32 key, u32 flags}` + a nested pod. A Choice body is
+/// Wire layout: every pod is a `{u32 size, u32 type}` header followed by `size`
+/// body bytes; the next pod starts at the body rounded up to 8. An Object body is
+/// `{u32 objectType, u32 objectId}` followed by properties, each
+/// `{u32 key, u32 flags}` + a nested pod. A Choice body is
 /// `{u32 choiceType, u32 flags}` + a child pod header + packed child values.
 int _pad8(int n) => (n + 7) & ~7;
 

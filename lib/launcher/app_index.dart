@@ -10,18 +10,16 @@ import 'package:graceful_shell/launcher/app_search.dart';
 ///
 /// `loadInstalledApps()` is thousands of FFI round-trips on the UI isolate: a
 /// `g_app_info_get_all` walk plus, per entry, the id, name, icon, categories,
-/// keywords, and actions, each with a UTF-8 decode. That is invisible behind a
-/// deliberate mouse click (which is why the dock's app directory just calls it
-/// in `initState`), but the launcher has to paint the instant the shortcut
-/// fires, so the cost is paid once at start-up instead.
+/// keywords and actions, each with a UTF-8 decode. That is invisible behind a
+/// deliberate mouse click, but the launcher has to paint the instant the shortcut
+/// fires, so the cost is paid once at start-up.
 ///
-/// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`.
+/// The singleton-`ChangeNotifier` shape.
 ///
 /// The entries here are deliberately *not* shared with
 /// `modules/app_directory.dart`: that widget unrefs its own list in `dispose`,
 /// and unref'ing pointers this index still holds would make the next launch a
-/// use-after-free. Two lists of the same `GAppInfo*`s is a few hundred extra
-/// refs, which is nothing.
+/// use-after-free. Two lists of the same `GAppInfo*`s is a few hundred extra refs.
 class AppIndex extends ChangeNotifier {
   AppIndex._();
 
@@ -103,9 +101,9 @@ typedef _GAppInfoMonitorGetDart = ffi.Pointer<ffi.Void> Function();
 
 /// Watches GIO for applications being installed or removed.
 ///
-/// Same shape as [MonitorWatcher]: symbols come from the running process (GIO
-/// is already linked in), the callback is `isolateLocal` because GLib invokes
-/// it on the thread-default main context — which, since `g_app_info_monitor_get`
+/// [MonitorWatcher]'s shape: symbols come from the running process (GIO is
+/// already linked in), and the callback is `isolateLocal` because GLib invokes it
+/// on the thread-default main context — which, since `g_app_info_monitor_get`
 /// runs on the platform thread, is the GTK main loop.
 class _AppInfoMonitor {
   _AppInfoMonitor(this.onChanged) {

@@ -1,22 +1,18 @@
 // The lunar desktop widget: what the Moon looks like tonight, and what it is
 // doing to the world while it does.
 //
-// The third entry in `DesktopWidgetRegistry`, and built the way the weather
-// widget is: a lease on a store nobody owns, a picture painted to the rim of a
-// card with no padding, and white text on it rather than the theme's — the
-// backdrop runs from a starlit indigo to the glare beside a full Moon, and the
-// call is the one the weather widget and the lock screen both make.
+// The third entry in `DesktopWidgetRegistry`, built the way the weather widget
+// is: a lease on a store nobody owns, a picture painted to the rim of a card with
+// no padding, and white text on it rather than the theme's.
 //
 // Two things that are its own:
 //
-// - **There is no loading state, and there is no error state.** The phase is
-//   arithmetic over the current time; the widget can always draw. What can be
-//   missing is the *location*, and the only thing that costs is the rise and
-//   set times — so that is the one row that has something else to say.
-// - **The location is the weather module's.** `[modules.weather] location`, or
-//   whatever the weather has already resolved, or one IP lookup shared with it
-//   (`WeatherStore.resolvePlace`). Setting a place for the weather sets it for
-//   the Moon, which is the only behaviour that would not surprise somebody.
+// - **There is no loading state and no error state.** The phase is arithmetic
+//   over the current time, so the widget can always draw. What can be missing is
+//   the *location*, and the only thing that costs is the rise and set times.
+// - **The location is the weather module's** — `[modules.weather] location`, or
+//   whatever the weather has already resolved, or one IP lookup shared with it.
+//   Setting a place for the weather sets it for the Moon.
 
 import 'dart:math' as math;
 
@@ -33,11 +29,10 @@ import 'package:graceful_shell/moon/moon_phase.dart';
 import 'package:graceful_shell/moon/moon_render.dart';
 import 'package:graceful_shell/moon/moon_store.dart';
 import 'package:graceful_shell/theme/tokens.dart';
-// The place marker and the three tokens for text over a picture. Both live
-// beside the weather because that is where the first surface needing them was;
-// nothing about either is about the weather. `WeatherIcon` is deliberately not
-// borrowed with them — it draws Meteocons now, which is a weather set with no
-// glyph for anything on this card.
+// The place marker and the three tokens for text over a picture. Both live beside
+// the weather because that is where the first surface needing them was.
+// `WeatherIcon` is deliberately not borrowed with them — it draws Meteocons, a
+// weather set with no glyph for anything on this card.
 import 'package:graceful_shell/weather/weather_icons.dart' show kLocationIcon;
 import 'package:graceful_shell/weather/weather_sky.dart'
     show kSkyForeground, kSkyMutedForeground, kSkyTextShadows;
@@ -327,11 +322,10 @@ class _TimesRow extends StatelessWidget {
       if (store.locating) {
         return const Row(
           children: [
-            // The one thing on this card that animates, and it is on the card's
-            // own layer with the readout and the facts — so without a boundary
-            // of its own a lookup that hangs (no route to the IP service, and
-            // nothing to time it out) repaints the whole desktop surface at
-            // frame rate for as long as it takes.
+            // The one thing on this card that animates, and it shares the card's
+            // layer with the readout and the facts — so without a boundary of its
+            // own a lookup that hangs repaints the whole desktop surface at frame
+            // rate for as long as it takes.
             RepaintBoundary(
               child: LoadingIndicator(color: kSkyMutedForeground, size: 11),
             ),
@@ -415,11 +409,9 @@ class _TimeCell extends StatelessWidget {
 
 /// As many facts as fit, in the order [moonFacts] returned them.
 ///
-/// The count is arithmetic against the height the column has left rather than
-/// a scroll view: a desktop widget is dragged from anywhere on its card, and a
-/// vertical scroller inside one would be a pan recognizer fighting the drag —
-/// the rule the media widget's buttons are allowed by, and a slider would not
-/// be.
+/// The count is arithmetic against the height the column has left rather than a
+/// scroll view: a desktop widget is dragged from anywhere on its card, and a
+/// vertical scroller inside one would be a pan recognizer fighting the drag.
 class _Facts extends StatelessWidget {
   const _Facts({required this.facts, required this.detailed});
 
@@ -511,9 +503,7 @@ IconData _factIcon(MoonFactKind kind) => switch (kind) {
 /// read at these sizes.
 ///
 /// Spelled here rather than borrowed from `weather_icons.dart`: that wrapper
-/// draws Meteocons now, which is a weather set — it has no moon-rise arrow, no
-/// wave and no ruler, and its own author's note says the place marker beside
-/// the weather is a plain [Icon] for the same reason.
+/// draws Meteocons, which has no moon-rise arrow, no wave and no ruler.
 class _MoonIcon extends StatelessWidget {
   const _MoonIcon(this.icon, {required this.size, this.bright = false});
 
@@ -584,10 +574,10 @@ final DesktopWidgetSpec moonDesktopWidget = DesktopWidgetSpec(
   description: 'Tonight\'s Moon, and what it is pulling on',
   icon: moonDesktopWidgetIcon,
   // Two cells wide is the floor for the weather widget's reason: one cell is an
-  // icon, and a phase name beside a disc does not fit in the width of a
-  // launcher tile. The default is larger than the floor deliberately — 3x2 is
-  // the smallest span that carries the disc at a size worth looking at, the
-  // rise and set times, and a line of consequence under them.
+  // icon, and a phase name beside a disc does not fit in a launcher tile's width.
+  // The default is larger deliberately — 3x2 is the smallest span carrying the
+  // disc at a size worth looking at, the rise and set times, and a line of
+  // consequence under them.
   minSpan: (columns: 2, rows: 1),
   maxSpan: (columns: 6, rows: 4),
   defaultSpan: (columns: 3, rows: 2),

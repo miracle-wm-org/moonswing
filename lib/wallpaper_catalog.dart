@@ -2,33 +2,28 @@ import 'dart:io';
 
 import 'package:graceful_shell/media_paths.dart';
 
-/// The wallpapers this machine already ships — Ubuntu's
-/// `/usr/share/backgrounds`, Fedora's day/night sets, KDE's
-/// `/usr/share/wallpapers` themes, and whatever else the running distribution
-/// installed — discovered at runtime and offered in the background settings
-/// page alongside the user's own picks.
+/// The wallpapers this machine already ships — Ubuntu's `/usr/share/backgrounds`,
+/// Fedora's day/night sets, KDE's `/usr/share/wallpapers` themes — discovered at
+/// runtime and offered in the background settings page alongside the user's own
+/// picks.
 ///
-/// These are deliberately *not* written into `[[background.entries]]`. A config
-/// entry is something the user chose and can therefore drop again; a system
-/// wallpaper is a permanent fixture of the machine, so the settings page reads
-/// it from here on every visit instead. Three things follow from that split,
-/// and they are the reason it exists:
+/// Deliberately *not* written into `[[background.entries]]`. A config entry is
+/// something the user chose and can therefore drop again; a system wallpaper is a
+/// permanent fixture of the machine, so the page reads it from here on every
+/// visit. Three things follow:
 ///
-/// - **The list cannot be deleted**, because there is nothing on disk backing
-///   it to delete. `background.dart` offers a remove button on user-added tiles
-///   only; a catalogue tile has none, and hiding one simply drops the entry the
-///   selection created and leaves the wallpaper where it was.
+/// - **The list cannot be deleted**, because there is nothing on disk backing it
+///   to delete. A catalogue tile has no remove button, and hiding one drops the
+///   entry the selection created rather than the wallpaper.
 /// - **It follows the distribution.** A release upgrade that replaces
-///   `f41-01-day.png` with `f42-01-day.png` is picked up on the next scan,
-///   where a seeded config would keep a dead path until the auto-prune
-///   noticed.
-/// - **It costs an absent user nothing.** A machine with no wallpapers
-///   installed yields an empty list, which renders exactly as the page did
-///   before.
+///   `f41-01-day.png` is picked up on the next scan, where a seeded config would
+///   keep a dead path until the auto-prune noticed.
+/// - **It costs an absent user nothing**: a machine with no wallpapers installed
+///   yields an empty list.
 ///
-/// Follows the [FontCatalog] shape (`lib/theme/font_catalog.dart`): roots are
-/// injectable so tests never touch the real `/usr`, the *future* is memoised so
-/// racing callers share one walk, and every failure resolves to an empty list.
+/// Follows the [FontCatalog] shape: roots are injectable so tests never touch the
+/// real `/usr`, the *future* is memoised so racing callers share one walk, and
+/// every failure resolves to an empty list.
 class SystemWallpaperCatalog {
   SystemWallpaperCatalog({
     List<String>? roots,
@@ -127,10 +122,9 @@ class SystemWallpaperCatalog {
   /// The files of one directory that are worth a tile.
   ///
   /// Everything is, except a KDE wallpaper package: `<Theme>/contents/images/`
-  /// holds the same picture at every resolution the theme ships
-  /// (`1920x1080.png`, `3840x2160.png`, …), so listing them all would fill the
-  /// grid with a dozen identical previews per theme. One is kept — the largest,
-  /// which is also the best-looking preview.
+  /// holds the same picture at every resolution the theme ships, so listing them
+  /// all would fill the grid with a dozen identical previews per theme. One is
+  /// kept — the largest, which is also the best-looking preview.
   static List<String> _presentable(String dir, List<String> files) {
     if (files.length < 2) return files;
     if (!dir.contains('/contents/images')) return files;
@@ -162,11 +156,10 @@ class SystemWallpaperCatalog {
 ///
 /// Most of the list is derived rather than enumerated: `backgrounds/` and
 /// `wallpapers/` under every XDG data directory covers Ubuntu, Fedora, Debian,
-/// Arch, Manjaro, Mint, Pop!_OS, elementary, Zorin, openSUSE, Deepin and every
-/// KDE spin at once, because that is the pair of names the desktops have agreed
-/// on. `$XDG_DATA_DIRS` is honoured rather than hardcoding `/usr/share`, which
-/// is what makes the shell's own `make install PREFIX=…` tree and a snap's
-/// `$SNAP/share` fall out for free.
+/// Arch, Mint, Pop, elementary, openSUSE and every KDE spin at once, because that
+/// is the pair of names the desktops have agreed on. `$XDG_DATA_DIRS` is honoured
+/// rather than hardcoding `/usr/share`, which makes the shell's own
+/// `make install PREFIX=…` tree and a snap's `$SNAP/share` fall out for free.
 ///
 /// The handful appended after that are the layouts that predate the convention
 /// and are still shipped: Debian's `desktop-base` theme, and the `pixmaps`

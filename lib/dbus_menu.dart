@@ -3,17 +3,16 @@ import 'package:dbus/dbus.dart';
 /// Client for the `com.canonical.dbusmenu` protocol used by StatusNotifierItem
 /// tray icons to expose their context menu.
 ///
-/// A tray item advertises a menu object path via its `Menu` property; this
-/// class fetches the menu layout as a [MenuNode] tree and reports clicks back
-/// to the application. The recursive `GetLayout` result has D-Bus signature
-/// `(ia{sv}av)` — (id, properties, children-as-variants).
+/// A tray item advertises a menu object path via its `Menu` property; this class
+/// fetches the layout as a [MenuNode] tree and reports clicks back. The recursive
+/// `GetLayout` result has signature `(ia{sv}av)` — id, properties, children.
 const String dbusMenuInterface = 'com.canonical.dbusmenu';
 
 /// A single node in a dbusmenu tree.
 ///
-/// The root node (id 0) is a container whose [children] are the top-level menu
-/// entries. Leaf nodes are clickable items; nodes with a non-empty [children]
-/// list are submenus; nodes whose type is `separator` render as a divider.
+/// The root node (id 0) is a container whose [children] are the top-level
+/// entries. Leaf nodes are clickable; nodes with a non-empty [children] list are
+/// submenus; nodes whose type is `separator` render as a divider.
 class MenuNode {
   MenuNode({
     required this.id,
@@ -93,11 +92,11 @@ class DBusMenuClient {
 
   final DBusRemoteObject _object;
 
-  /// Notifies the application the menu is about to be shown (lets apps that
+  /// Notifies the application the menu is about to be shown (letting apps that
   /// populate menus lazily fill them in), then fetches and parses the layout.
   ///
-  /// Returns the root [MenuNode] (id 0); its [MenuNode.children] are the
-  /// top-level entries. Returns `null` if the menu could not be retrieved.
+  /// Returns the root [MenuNode] (id 0), or null if the menu could not be
+  /// retrieved.
   Future<MenuNode?> fetchLayout() async {
     try {
       // AboutToShow(0) — root id. Ignore failures; some apps don't implement it.

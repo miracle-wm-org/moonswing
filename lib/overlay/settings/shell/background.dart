@@ -18,24 +18,19 @@ import 'package:graceful_shell/wallpaper_catalog.dart';
 /// reordering of the shown wallpapers, and a single global rotation interval.
 ///
 /// The list has two sources, and which one a wallpaper came from is the only
-/// thing that distinguishes two tiles:
+/// thing distinguishing two tiles:
 ///
-/// - The on-disk `[[background.entries]]` list — what the user picked. It is
-///   kept normalized (shown wallpapers first in presentation order, then
-///   hidden ones) and pruned of any entry whose path is empty, non-image, or
-///   missing on disk.
-/// - [SystemWallpaperCatalog] — what the distribution installed. These are
-///   discovered on every visit and **never written to the config**, which is
-///   what makes them permanent: the tile carries no remove button, and hiding
-///   one drops the entry the selection created rather than leaving a hidden
-///   entry behind, so the wallpaper simply returns to Available. See the
-///   catalogue's own doc comment for why the alternative — seeding the paths
-///   into `[[background.entries]]` at first run — is worse.
+/// - The on-disk `[[background.entries]]` list — what the user picked. Kept
+///   normalized (shown first, then hidden) and pruned of any entry whose path is
+///   empty, non-image, or missing on disk.
+/// - [SystemWallpaperCatalog] — what the distribution installed. Discovered on
+///   every visit and **never written to the config**, which is what makes them
+///   permanent: the tile carries no remove button, and hiding one drops the entry
+///   the selection created rather than leaving a hidden one behind.
 ///
-/// Removal therefore exists for user-added wallpapers only. It has to exist:
-/// with the machine's own wallpapers in the list, "hidden" is no longer a
-/// synonym for "gone", and a mistaken pick from the file picker would otherwise
-/// sit in Available forever.
+/// Removal therefore exists for user-added wallpapers only, and has to: with the
+/// machine's own wallpapers in the list "hidden" is no longer a synonym for
+/// "gone", and a mistaken pick would otherwise sit in Available forever.
 class BackgroundSection extends StatefulWidget {
   const BackgroundSection({super.key, required this.store, this.catalog});
 
@@ -77,12 +72,11 @@ class _BackgroundSectionState extends State<BackgroundSection> {
 
   /// Paths this section has already stat'd, and what `existsSync` answered.
   ///
-  /// `_normalize` runs from `build`, and a stat is a syscall — for as long as
-  /// this pane sat under a page-level `ListenableBuilder`, every wallpaper in
-  /// the config was stat'd on every keystroke anywhere in the settings UI. The
-  /// [StoreSelector] below narrows *when* the build runs; this makes a run over
-  /// an unchanged path list free. Cleared whenever the entry list moves, so a
-  /// file deleted behind the shell is noticed on the next edit.
+  /// `_normalize` runs from `build` and a stat is a syscall — for as long as this
+  /// pane sat under a page-level `ListenableBuilder`, every wallpaper was stat'd
+  /// on every keystroke anywhere in the settings UI. The [StoreSelector] narrows
+  /// *when* the build runs; this makes a run over an unchanged path list free.
+  /// Cleared whenever the entry list moves.
   final Map<String, bool> _exists = {};
 
   bool _pathExists(String path) =>
@@ -149,9 +143,8 @@ class _BackgroundSectionState extends State<BackgroundSection> {
   /// Takes [path] out of the rotation.
   ///
   /// A catalogue wallpaper's entry is dropped rather than flipped to
-  /// `shown = false`: it is listed in Available either way, and keeping a
-  /// hidden entry would show it twice and write a path into the config that
-  /// the user cannot delete.
+  /// `shown = false`: it is listed in Available either way, and a hidden entry
+  /// would show it twice and write a path the user cannot delete.
   void _hide(String path) {
     final list = _normalize(_rawEntries());
     final idx = list.indexWhere((e) => e['path'] == path);
@@ -348,12 +341,12 @@ class _BackgroundSectionState extends State<BackgroundSection> {
   }
 }
 
-/// One tile's worth of wallpaper: where it is, and whether the user is allowed
-/// to drop it from the list.
+/// One tile's worth of wallpaper: where it is, and whether the user may drop it
+/// from the list.
 ///
-/// A wallpaper the distribution installed is never removable, however it got
-/// into the config — picking one through the file picker does not make it the
-/// user's to delete, because it would come straight back from the catalogue.
+/// A wallpaper the distribution installed is never removable, however it got into
+/// the config — picking one through the file picker does not make it the user's
+/// to delete, because it would come straight back from the catalogue.
 class _WallpaperRef {
   _WallpaperRef(this.path, Set<String> systemPaths)
     : removable = !systemPaths.contains(path);
@@ -383,19 +376,17 @@ class _LookingForWallpapers extends StatelessWidget {
 /// drops to reorder.
 ///
 /// A `LayoutBuilder` + `Wrap` before this, which measured and so mounted every
-/// tile — `Wrap` has to, to break its runs. `SystemWallpaperCatalog.maxEntries`
-/// is 120 and every tile is an `Image.file`, which resolves its provider on
-/// *mount* rather than on first paint, so the whole catalogue decoded on a
-/// visit to this page whether or not the user ever scrolled to it.
+/// tile. `SystemWallpaperCatalog.maxEntries` is 120 and every tile is an
+/// `Image.file`, which resolves its provider on *mount* rather than on first
+/// paint, so the whole catalogue decoded on a visit to this page.
 ///
-/// The trap on the way back to a box: `GridView.builder(shrinkWrap: true)`
-/// inside a scroll view is **not** a fix — `shrinkWrap` makes the sliver lay
-/// out all of its children to report its own extent, which is the same eager
-/// layout plus a nested viewport and a second `ScrollPosition`. The same goes
-/// for a `GridView` with `NeverScrollableScrollPhysics`.
+/// The trap on the way back to a box: `GridView.builder(shrinkWrap: true)` inside
+/// a scroll view is **not** a fix — `shrinkWrap` makes the sliver lay out all of
+/// its children to report its own extent, which is the same eager layout plus a
+/// nested viewport. The same goes for `NeverScrollableScrollPhysics`.
 ///
-/// Drag-reorder survives: `Draggable`/`DragTarget` register per built child,
-/// and a target scrolled out of the viewport was never a drop candidate anyway.
+/// Drag-reorder survives: `Draggable`/`DragTarget` register per built child, and
+/// a target scrolled out of the viewport was never a drop candidate anyway.
 class _WallpaperGrid extends StatelessWidget {
   const _WallpaperGrid({
     required this.entries,
@@ -499,12 +490,10 @@ class _WallpaperGrid extends StatelessWidget {
 }
 
 /// A single wallpaper preview cell. Renders the image cover-cropped with a
-/// selection border + check badge, mirroring [SettingsOptionButton]'s selected
-/// styling.
+/// selection border and check badge, mirroring [SettingsOptionButton].
 ///
 /// [onRemove] is null for a wallpaper the machine ships, which is the whole of
-/// "system wallpapers cannot be deleted" as far as this widget is concerned:
-/// no button is drawn, so there is nothing to click.
+/// "system wallpapers cannot be deleted" as far as this widget is concerned.
 class _WallpaperTile extends StatelessWidget {
   const _WallpaperTile({
     required this.path,

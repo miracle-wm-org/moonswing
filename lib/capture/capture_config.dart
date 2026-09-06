@@ -1,12 +1,10 @@
-// `[modules.screenshot]` and `[modules.screen_recorder]`, beside the feature
-// they configure — the shape `weather/weather_config.dart` and
-// `power/power_config.dart` have, and for the same reason: the settings UI and
-// the stores both read these, and neither is the module.
+// `[modules.screenshot]` and `[modules.screen_recorder]`, beside the feature they
+// configure — the shape `weather/weather_config.dart` has, and for its reason:
+// the settings UI and the stores both read these, and neither is the module.
 //
-// Both carry value equality, which is load-bearing rather than tidy:
-// `Module.loadAll` pushes a fresh object on every sweep and `ConfigStore`
-// notifies on every keystroke anywhere in the settings UI, so the stores
-// compare before acting on a change (`WeatherStore.configure`'s rule).
+// Both carry value equality, which is load-bearing: `Module.loadAll` pushes a
+// fresh object on every sweep and `ConfigStore` notifies on every keystroke
+// anywhere in the settings UI, so the stores compare before acting.
 
 import 'package:graceful_shell/config_reader.dart';
 
@@ -158,18 +156,17 @@ const String kDefaultRecordingDirectory = 'Videos/Screencasts';
 /// The encoder a container is written with when the user names none.
 ///
 /// WebM cannot carry H.264, so this is a correctness mapping rather than a
-/// preference: handing `libx264` to the WebM muxer is an ffmpeg error at
-/// start-up, which would read as "recording is broken".
+/// preference: handing `libx264` to the WebM muxer is an ffmpeg error at start-up,
+/// which would read as "recording is broken".
 String defaultEncoderFor(String container) =>
     container == 'webm' ? 'libvpx-vp9' : 'libx264';
 
 /// The directory a capture is written to.
 ///
-/// [configured] wins when it names one, with `~` and a leading `$HOME`
-/// expanded; otherwise it is [fallback] under [home]. A relative path is taken
-/// as relative to [home] rather than to the shell's working directory, which
-/// is wherever the session manager happened to start it and is never what
-/// somebody typing `Pictures/shots` meant.
+/// [configured] wins when it names one, with `~` and a leading `$HOME` expanded;
+/// otherwise it is [fallback] under [home]. A relative path is taken as relative
+/// to [home] rather than to the shell's working directory, which is wherever the
+/// session manager started it.
 String resolveCaptureDirectory(
   String configured, {
   required String home,
@@ -188,9 +185,9 @@ String resolveCaptureDirectory(
 /// The file name one capture is written under: the prefix, then the local date
 /// and time, then the extension.
 ///
-/// Seconds are included and the whole thing is sortable, because a burst of
-/// three shots a few seconds apart is the normal way this feature is used and
-/// `Screenshot (3)` tells the user nothing about which one it is.
+/// Seconds are included and the whole thing is sortable, because a burst of three
+/// shots a few seconds apart is the normal way this feature is used and
+/// `Screenshot (3)` says nothing about which one it is.
 String captureFileName(String prefix, DateTime at, String extension) {
   String two(int value) => value.toString().padLeft(2, '0');
   final cleaned = prefix.trim().isEmpty ? 'Capture' : prefix.trim();

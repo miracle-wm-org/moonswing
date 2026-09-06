@@ -5,23 +5,20 @@ import 'package:ffi/ffi.dart';
 import 'wl_ffi.dart';
 import 'wl_types.dart';
 
-/// The `wl_interface` graph for the capture protocols, hand-transcribed from
-/// the XMLs kept in `protocol/` (ext-image-capture-source-v1,
-/// ext-image-copy-capture-v1, ext-foreign-toplevel-list-v1) — exactly what
-/// `wayland-scanner` would emit as C, built once into calloc'd memory that is
-/// deliberately never freed: libwayland holds the pointers for the life of
-/// every proxy.
+/// The `wl_interface` graph for the capture protocols, hand-transcribed from the
+/// XMLs in `protocol/` — exactly what `wayland-scanner` would emit as C, built
+/// once into calloc'd memory that is deliberately never freed: libwayland holds
+/// the pointers for the life of every proxy.
 ///
-/// Core interfaces (`wl_output`, `wl_shm`, `wl_buffer`, …) are *not*
-/// transcribed — libwayland-client exports them as data symbols and the real
-/// structs are used directly, so only the ext protocols carry transcription
-/// risk. `test/wl_interfaces_test.dart` diffs this table against the
-/// installed protocol XMLs.
+/// Core interfaces (`wl_output`, `wl_shm`, `wl_buffer`, …) are *not* transcribed
+/// — libwayland-client exports them as data symbols and the real structs are used
+/// directly, so only the ext protocols carry transcription risk.
+/// `test/wl_interfaces_test.dart` diffs this table against the installed XMLs.
 ///
-/// Signatures follow scanner rules: one character per argument (`i` int,
-/// `u` uint, `s` string, `o` object, `n` new_id, `a` array, `h` fd), with a
-/// leading since-version digit where the XML has one. The `types` array has
-/// one entry per argument, null except for typed `o`/`n` slots.
+/// Signatures follow scanner rules: one character per argument (`i` int, `u`
+/// uint, `s` string, `o` object, `n` new_id, `a` array, `h` fd), with a leading
+/// since-version digit where the XML has one. The `types` array has one entry per
+/// argument, null except for typed `o`/`n` slots.
 class WlProtocolInterfaces {
   WlProtocolInterfaces._() {
     final w = WlFfi.instance;

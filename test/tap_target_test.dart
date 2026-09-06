@@ -14,10 +14,9 @@ import 'tap_target.dart';
 
 /// The house rule, pinned: a control's hover box and its tap box are one rect.
 ///
-/// Every one of these passes a *centre* tap today, because the glyph or the
-/// label sits at the centre and is the only render object accepting a hit. The
-/// corners are what a `GestureDetector` at `deferToChild` gave away — and what
-/// the pointer cursor kept promising anyway.
+/// Every one of these passes a *centre* tap today, because the glyph or the label
+/// sits at the centre and is the only render object accepting a hit. The corners
+/// are what a `GestureDetector` at `deferToChild` gave away.
 Widget _host(Widget child) => Directionality(
       textDirection: TextDirection.ltr,
       child: ThemeScope(

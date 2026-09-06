@@ -124,16 +124,13 @@ class WorkspacesState extends State<Workspaces> {
     if (connection == null) return;
     _events = connection.listen(
       (Event event) {
-        // A workspace event is the obvious trigger, and it is what carries
-        // urgency too: miracle.dart 2.1 emits `workspace`/`urgent` alongside
-        // the window event precisely so a bar watching workspaces sees it
-        // without walking the tree, and the refetch below is what the flash
-        // rides on. An output event is the less obvious one: miracle re-homes
-        // a removed output's workspaces onto another output and emits no
-        // workspace event saying so, which leaves the `workspace -> output`
-        // mapping this row filters on stale. The shell used to infer that from
-        // its own `wl_output` view (`MiracleManager.outputsRevision`) because
-        // miracle.dart could not decode the event; it can now.
+        // A workspace event is the obvious trigger, and it carries urgency too:
+        // miracle.dart 2.1 emits `workspace`/`urgent` alongside the window event
+        // precisely so a bar watching workspaces sees it without walking the
+        // tree. An output event is the less obvious one: miracle re-homes a
+        // removed output's workspaces onto another output and emits no workspace
+        // event saying so, which leaves the `workspace -> output` mapping this
+        // row filters on stale.
         if (event is WorkspaceEvent || event is OutputEvent) {
           connection.getWorkspaces().then(_updateWorkspaces);
         }
@@ -189,11 +186,10 @@ class WorkspacesState extends State<Workspaces> {
     }
 
     // Bars paint before Wayland output enumeration finishes, so which display
-    // this one is on may not be known yet. Filtering on an unknown name would
-    // render an empty row that then popped full.
-    // `WaylandOutput.name` is non-nullable and starts empty, so an output that
-    // is bound but has not delivered its `name` yet would otherwise pass this
-    // guard and filter every workspace away — an empty row, not a loader.
+    // this one is on may not be known yet — filtering on an unknown name would
+    // render an empty row that then popped full. `WaylandOutput.name` is
+    // non-nullable and starts empty, so an output bound but not yet named would
+    // otherwise pass this guard and filter every workspace away.
     final outputName = DisplayScope.of(context)?.name;
     if (outputName == null || outputName.isEmpty) return _pending(theme);
 
@@ -517,12 +513,11 @@ class _WorkspaceButtonState extends State<_WorkspaceButton> {
 /// Where in one breath the shell is at [now], as a fraction of [period].
 ///
 /// Read off the **wall clock**, which is what makes every urgent button agree.
-/// Each bar is its own FlutterView with its own ticker, so two monitors — or
-/// two workspaces going urgent a second apart on the same bar — would otherwise
-/// breathe out of step, and a row of dots pulsing at random phases reads as a
-/// rendering fault rather than as one alarm. Offsetting each controller by the
-/// phase it *started* at cancels its own start time out of the sum, leaving
-/// every one of them a function of the clock alone.
+/// Each bar is its own FlutterView with its own ticker, so two monitors — or two
+/// workspaces going urgent a second apart — would otherwise breathe out of step,
+/// and a row of dots pulsing at random phases reads as a rendering fault rather
+/// than as one alarm. Offsetting each controller by the phase it *started* at
+/// cancels its own start time out of the sum.
 @visibleForTesting
 double urgencyFlashPhase(DateTime now, Duration period) {
   final millis = period.inMilliseconds;
@@ -544,39 +539,32 @@ double urgencyFlashPhase(DateTime now, Duration period) {
 @visibleForTesting
 double urgencyFlashWash(double t) => 0.5 - 0.5 * math.cos(2 * math.pi * t);
 
-/// Breathes [color] across [background], very slowly, under [child], for as
-/// long as it is in the tree.
+/// Breathes [color] across [background], very slowly, under [child], for as long
+/// as it is in the tree.
 ///
 /// Deliberately three layers rather than a lerp of one fill: the button goes on
-/// animating its own hover and press colours through [ShellDurations.fast]
-/// exactly as it does at rest, and [child] — which is the number the user
-/// switches by — is painted last and is never touched. A wash over the whole
-/// button is the obvious shape and it *erases the label* at the top of every
-/// breath, which reads as the bar glitching rather than as an alarm.
+/// animating its own hover and press colours exactly as it does at rest, and
+/// [child] — the number the user switches by — is painted last and never
+/// touched. A wash over the whole button is the obvious shape and it *erases the
+/// label* at the top of every breath, which reads as the bar glitching.
 ///
 /// Four things a change here has to keep true:
 ///
 /// - **Nothing about it exists at rest.** The caller wraps this only while the
 ///   workspace is urgent, so the ticker is created when the alarm is raised and
-///   disposed when it is cleared. An always-mounted version gated on a flag
-///   would be a `Ticker` per workspace button per monitor, running for the life
-///   of a shell that is usually not being told anything at all.
-/// - **[child] is the one unpositioned layer, and it is listed last.** It is
-///   what sizes the surface — the other two fill whatever it settles on — and
-///   being last is what puts the wash under it rather than over it. The two
-///   halves are not independent: reordering for the paint would take the
-///   sizing with it.
-/// - **The repaint stops here, twice.** A bar has no repaint boundary of its
-///   own, so a colour changing every frame in one dot would otherwise
-///   re-record the whole panel picture — the clock, the tray, every other
-///   workspace — sixty times a second, which is the cost the calendar tab
-///   documents paying for a second hand. The outer boundary keeps the damage
-///   inside this button; the inner one keeps the button's own label and app
-///   icons out of the layer that is actually repainting.
-/// - **The wash never takes a click.** `RenderDecoratedBox.hitTestSelf`
-///   answers for any non-null fill, so a full-size box across the button would
-///   swallow the tap that switches to the workspace — see `HoverRegion`, which
-///   states the same trap from the other side.
+///   disposed when it clears. An always-mounted version gated on a flag would be
+///   a `Ticker` per workspace button per monitor.
+/// - **[child] is the one unpositioned layer, and it is listed last.** It sizes
+///   the surface, and being last is what puts the wash under it rather than over
+///   it — reordering for the paint would take the sizing with it.
+/// - **The repaint stops here, twice.** A bar has no repaint boundary of its own,
+///   so a colour changing every frame in one dot would re-record the whole panel
+///   picture sixty times a second. The outer boundary keeps the damage inside
+///   this button; the inner one keeps its label and app icons out of the layer
+///   that is actually repainting.
+/// - **The wash never takes a click.** `RenderDecoratedBox.hitTestSelf` answers
+///   for any non-null fill, so a full-size box would swallow the tap that
+///   switches workspace — `HoverRegion`'s trap from the other side.
 class UrgencyFlash extends StatefulWidget {
   const UrgencyFlash({
     super.key,

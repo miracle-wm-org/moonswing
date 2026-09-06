@@ -5,26 +5,11 @@ import 'package:ffi/ffi.dart';
 /// Raw FFI bindings for `libgtk-session-lock`, the GTK3 helper library that
 /// implements the `ext-session-lock-v1` Wayland protocol.
 ///
-/// This mirrors how `package:layer_shell` binds `libgtk-layer-shell`: the
-/// library is opened at runtime rather than linked. Unlike that package,
-/// however, loading is *tolerated to fail* — a machine without
-/// `libgtk-session-lock0` installed must still run the shell, so
-/// [GtkSessionLockBindings.instance] returns null and the lock screen reports
-/// itself unsupported rather than taking the whole shell down at startup.
-///
-/// C declarations (from `gtk-session-lock.h`):
-/// ```c
-/// gboolean gtk_session_lock_is_supported();
-/// guint    gtk_session_lock_get_protocol_version();
-/// GtkSessionLockLock *gtk_session_lock_prepare_lock(void);
-/// void gtk_session_lock_lock_lock(GtkSessionLockLock *lock);
-/// void gtk_session_lock_lock_destroy(GtkSessionLockLock *lock);
-/// void gtk_session_lock_lock_unlock_and_destroy(GtkSessionLockLock *lock);
-/// void gtk_session_lock_lock_new_surface(
-///     GtkSessionLockLock *lock, GtkWindow *gtk_window, GdkMonitor *monitor);
-/// gboolean gtk_session_lock_is_lock_window(GtkWindow *window);
-/// void gtk_session_lock_unmap_lock_window(GtkWindow *window);
-/// ```
+/// Mirrors how `package:layer_shell` binds `libgtk-layer-shell`: the library is
+/// opened at runtime rather than linked. Unlike that package, loading is
+/// *tolerated to fail* — a machine without `libgtk-session-lock0` must still run
+/// the shell, so [GtkSessionLockBindings.instance] returns null and the lock
+/// screen reports itself unsupported rather than taking the shell down.
 ///
 /// Note `gboolean` is a `gint` (32-bit), not a C `bool`, so it is bound as
 /// [ffi.Int32] and compared against zero.
@@ -135,10 +120,9 @@ class GtkSessionLockBindings {
   /// Must be called *before* the window is hidden or destroyed. GTK3's Wayland
   /// backend destroys the `wl_surface` on unmap, and gtk-session-lock only
   /// destroys the role in the window's finalize handler — after the surface is
-  /// already gone from the wire. Mir reacts to a surface dying before its role
-  /// by deleting the role resource server-side, so that trailing destroy then
-  /// hits an unknown object and the compositor kills the connection with an
-  /// `invalid_object` error.
+  /// already gone from the wire. Mir reacts by deleting the role resource
+  /// server-side, so that trailing destroy hits an unknown object and the
+  /// compositor kills the connection with `invalid_object`.
   void unmapLockWindow(ffi.Pointer<ffi.Void> window) =>
       _unmapLockWindow(window);
 }
@@ -184,10 +168,10 @@ final _gtkWindowSetDecorated = _process.lookupFunction<
 
 /// Enables or disables GTK's client-side decorations on [window].
 ///
-/// Lock windows must be created undecorated: gtk-layer-shell disables
-/// decorations itself in `layer_surface_new()`, but the gtk-session-lock fork
-/// dropped that call, so an untouched GTK3 window draws its CSD titlebar
-/// *inside* the lock surface.
+/// Lock windows must be created undecorated: gtk-layer-shell disables decorations
+/// itself in `layer_surface_new()`, but the gtk-session-lock fork dropped that
+/// call, so an untouched GTK3 window draws its CSD titlebar *inside* the lock
+/// surface.
 void gtkWindowSetDecorated(ffi.Pointer<ffi.Void> window, bool decorated) =>
     _gtkWindowSetDecorated(window, decorated ? 1 : 0);
 
@@ -199,8 +183,7 @@ final _gdkDisplaySync = _process.lookupFunction<
 ///
 /// `ext-session-lock-v1` requires this after `unlock_and_destroy`: without it
 /// "the server might terminate the client with a protocol error before it
-/// processes the unlock_and_destroy request". gtk-session-lock's own example
-/// calls `gdk_display_sync()` in exactly this spot.
+/// processes the unlock_and_destroy request".
 void gdkDisplaySync() {
   try {
     final display = _gdkDisplayGetDefault();

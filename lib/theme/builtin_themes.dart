@@ -1,16 +1,14 @@
 /// The themes that ship with the shell.
 ///
-/// They are embedded here rather than installed to a share directory because
-/// nothing in the shell resolves paths relative to the bundle — the wallpapers
-/// that *are* installed by the Makefile are found only via a hardcoded
-/// `$HOME/.local/share`, which breaks under a custom `PREFIX`. Seeding from a
-/// constant sidesteps that entirely and works identically in `flutter run`, a
-/// `make install`, and the snap.
+/// Embedded here rather than installed to a share directory because nothing in
+/// the shell resolves paths relative to the bundle — the wallpapers the Makefile
+/// *does* install are found only via a hardcoded `$HOME/.local/share`, which
+/// breaks under a custom `PREFIX`. Seeding from a constant works identically in
+/// `flutter run`, `make install` and the snap.
 ///
 /// `ThemeStore` rewrites any entry whose file differs at start-up and treats
 /// membership in [kBuiltInThemes] as the read-only test, so this map is the
-/// single source of truth for "shipped" — a fix here reaches an existing
-/// install, and a user who wants their own palette duplicates instead.
+/// single source of truth for "shipped".
 library;
 
 /// Slug -> the full TOML text of that theme file.

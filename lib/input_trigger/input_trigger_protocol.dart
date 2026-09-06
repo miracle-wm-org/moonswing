@@ -3,12 +3,11 @@ import 'dart:typed_data';
 import 'package:wayland/wayland.dart';
 
 /// Dart bindings for Mir's `ext-input-trigger-registration-v1` and
-/// `ext-input-trigger-action-v1` protocols, written as [WaylandObject]
-/// subclasses in the same shape as the interfaces in `package:wayland` (e.g.
-/// [WaylandOutput]): a request builds a payload and calls
-/// `client.sendRequest(id, opcode, payload)`; a constructor request allocates
-/// `client.getNextId()` and returns a new typed object; events dispatch through
-/// the `processEvent(code, payload)` switch.
+/// `ext-input-trigger-action-v1` protocols, written as [WaylandObject] subclasses
+/// in the same shape as the interfaces in `package:wayland`: a request builds a
+/// payload and calls `client.sendRequest(id, opcode, payload)`; a constructor
+/// request allocates `client.getNextId()` and returns a new typed object; events
+/// dispatch through the `processEvent(code, payload)` switch.
 ///
 /// These live in the app rather than in the vendored `package:wayland` checkout,
 /// which is an immutable git dependency.
@@ -41,10 +40,9 @@ class InputTriggerModifiers {
 
 /// The handful of `xkbcommon-keysyms.h` keysyms the shell's built-in shortcuts
 /// use. The keysym is the character the layout actually produces *after*
-/// modifiers are applied — so a trigger that includes [InputTriggerModifiers.shift]
-/// must use the shifted form ([capitalS], not [s]), even though the Shift bit is
-/// also set. Mir matches on the resolved keysym: registering `s` for Ctrl+Shift+S
-/// never fires because holding Shift turns the key into `S`.
+/// modifiers are applied, so a trigger including [InputTriggerModifiers.shift]
+/// must use the shifted form ([capitalS], not [s]): Mir matches on the resolved
+/// keysym, and registering `s` for Ctrl+Shift+S never fires.
 class InputTriggerKeysyms {
   InputTriggerKeysyms._();
 

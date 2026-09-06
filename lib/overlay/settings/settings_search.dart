@@ -1,10 +1,8 @@
-// The settings search index: what a searchable field *is*, and the ranking
-// behind the search bar at the top of the settings pane.
+// The settings search index: what a searchable field *is*, and the ranking behind
+// the search bar at the top of the settings pane.
 //
-// Pure — no Flutter widgets, no I/O — so the ordering is a plain unit test, the
-// way `launcher/app_search.dart` and `emoji/emoji_search.dart` are. The folding
-// to lower case happens once, when the index is built, rather than on every
-// keystroke across every field in the shell.
+// Pure — no Flutter widgets, no I/O — so the ordering is a plain unit test. The
+// folding to lower case happens once, when the index is built.
 library;
 
 import 'package:flutter/foundation.dart' show immutable;
@@ -14,16 +12,15 @@ import 'package:graceful_shell/overlay/settings_route.dart';
 /// One searchable setting: what it is called, what it does, and where it lives.
 ///
 /// This is the **source of truth for a row's label**, not a description of one
-/// written beside it. Every row that carries an [id] is built with
+/// written beside it: every row carrying an [id] is built with
 /// `SettingsRow.field`, which takes its label from here — so a renamed setting
-/// cannot go on answering to its old name in the search index, which is the one
-/// way a hand-maintained catalogue rots.
+/// cannot go on answering to its old name, which is the one way a hand-maintained
+/// catalogue rots.
 ///
 /// [description] and [tags] are search-only. A description is a sentence the
 /// result row shows under the label, so what the index matched on is what the
-/// user reads; tags are the words somebody would *type* looking for the field
-/// without knowing what the shell calls it — "wallpaper" for Background,
-/// "colour" for the palette rows, "screenshot" for the capture directories.
+/// user reads; tags are the words somebody would *type* without knowing what the
+/// shell calls the field — "wallpaper" for Background, "colour" for the palette.
 @immutable
 class SettingsField {
   const SettingsField({
@@ -35,12 +32,12 @@ class SettingsField {
     this.tags = const <String>[],
   });
 
-  /// Stable identity, and the address the highlight is keyed on — the config
-  /// path where there is one (`modules.clock.show_date`, `theme.font_size`).
+  /// Stable identity, and the address the highlight is keyed on — the config path
+  /// where there is one (`modules.clock.show_date`, `theme.font_size`).
   ///
-  /// Empty for a *page-level* entry: the hardware panes are lists of whatever
-  /// the machine happens to have rather than tables of named fields, so a
-  /// result there jumps to the pane and highlights nothing.
+  /// Empty for a *page-level* entry: the hardware panes are lists of whatever the
+  /// machine happens to have rather than tables of named fields, so a result there
+  /// jumps to the pane and highlights nothing.
   final String id;
 
   /// The row's label, verbatim.
@@ -67,8 +64,8 @@ class SettingsField {
 /// A field in the Shell pane's [section] category.
 ///
 /// [section] is a `_ShellCategory.title` — `test/settings_search_test.dart`
-/// asserts every one of them resolves, so a category renamed in `shell.dart`
-/// cannot leave a result pointing nowhere.
+/// asserts every one resolves, so a category renamed in `shell.dart` cannot leave
+/// a result pointing nowhere.
 SettingsField shellField(
   String id,
   String label, {

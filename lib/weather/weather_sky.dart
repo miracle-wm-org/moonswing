@@ -1,55 +1,40 @@
 // The sky the weather desktop widget is drawn on: one still picture of the
-// conditions — a graded sky, a sun or a moon behind however much cloud there
+// conditions — a graded sky, a sun or moon behind however much cloud there
 // actually is, and whatever is falling out of it.
 //
 // **Nothing here moves, and that is the design rather than an omission.** This
 // painter used to run a 30fps `Ticker` for as long as the widget was on the
-// desktop, which is to say permanently, on a machine that may be doing nothing
-// else — a repaint every 33ms, forever, for a decoration. The card now paints
-// once per change of conditions and then costs exactly nothing until the next
-// reading lands half an hour later. There is no `Ticker` in this file, no
-// `ValueNotifier` handed to a painter, and no `animate` flag: a surface that
-// renders [WeatherSky] may be `pumpAndSettle`ed like any other.
+// desktop, for a decoration. The card now paints once per change of conditions
+// and costs nothing until the next reading lands. There is no `Ticker`, no
+// `ValueNotifier` handed to a painter and no `animate` flag, so a tree
+// containing [WeatherSky] may be `pumpAndSettle`ed.
 //
-// Losing the motion means the still frame has to carry the picture on its own,
-// which is what the rest of this file is arranged around:
+// A still frame has to carry the picture on its own, which is what the rest of
+// the file is arranged around:
 //
-// - **The layout is data, and it is computed once.** [SkyField] holds every
-//   cloud, drop, star and fog band as plain numbers, built from a seeded
-//   [math.Random] when the *conditions* change. That is what makes "how many
-//   clouds at 60% cover" and "nothing falls out of a clear sky" plain unit
-//   tests with no canvas behind them — and, now that there is no ticker, it is
-//   also the whole per-card cost.
-// - **Everything a frame used to derive from the elapsed time is a field
-//   instead.** A drop carries its [SkyDrop.y] rather than a phase and a speed,
-//   a star its [SkyStar.brightness] rather than a twinkle rate, a fog band its
-//   [SkyFogBand.shift] rather than a drift. The animated version chose those
-//   per frame; the still one chooses them once, from the same seed, so the
-//   picture is stable across a rebuild, a resize, a restart and both monitors.
-// - **A drop knows what shape it is.** [SkyDropShape] is on the drop rather
-//   than re-derived in the painter from `precipitation` plus a sideways-drift
-//   test, which is what let sleet be a *mixture* — half streaks, half flakes —
-//   in the one place that decides it.
-// - **Depth is what makes a still sky a scene.** Each cloud carries a
-//   [SkyCloud.depth]; the far ones are smaller, higher, paler and flatter,
-//   the near ones larger and more contrasted. Without it a static field of
-//   clouds reads as stickers on a gradient, which is exactly what motion was
-//   hiding.
-// - **The clouds are one path, not a pile of circles.** Overlapping *ovals* in
-//   a single non-zero path fill as their union, so a translucent cloud has no
-//   seams where its puffs overlap. Each one is then painted in three passes —
-//   a blurred mass beneath it, the graded body, and a lit crown clipped back
-//   inside its own silhouette — because a flat fill is the other half of what
-//   read as amateurish.
-// - **A thunderstorm gets a bolt, not a flash.** A veil that appears for a
-//   fifth of a second is meaningless in a picture that is painted once, so the
-//   field carries a single [SkyBolt] drawn with a glow behind it. It is the
-//   still-illustration answer to the same question.
+// - **The layout is data, computed once.** [SkyField] holds every cloud, drop,
+//   star and fog band as plain numbers, built from a seeded [math.Random] when
+//   the conditions change — which makes the counts plain unit tests and is the
+//   whole per-card cost.
+// - **Everything a frame used to derive from elapsed time is a field.** A drop
+//   carries its [SkyDrop.y], a star its [SkyStar.brightness], a fog band its
+//   [SkyFogBand.shift] — chosen once from the seed, so the picture is stable
+//   across a rebuild, a resize, a restart and both monitors.
+// - **A drop knows what shape it is.** [SkyDropShape] is on the drop rather than
+//   re-derived in the painter, which is what lets sleet be a real mixture.
+// - **Depth is what makes a still sky a scene.** [SkyCloud.depth] paints the far
+//   clouds smaller, higher, paler and flatter. Without it a static field reads
+//   as stickers on a gradient, which motion was hiding.
+// - **The clouds are one path, not a pile of circles.** Overlapping ovals in a
+//   single non-zero path fill as their union, so a translucent cloud has no
+//   seams. Each is painted in three passes — a blurred mass, a graded body, and
+//   a lit crown clipped inside its own silhouette.
+// - **A thunderstorm gets a bolt, not a flash.** A veil lasting a fifth of a
+//   second is meaningless in a picture painted once, so the field carries a
+//   single [SkyBolt] with a glow behind it.
 //
-// The picture is honest about what it knows: the cloud count comes from the
-// API's `cloud_cover` percentage, the fall rate from the WMO code's intensity,
-// and the sun or moon from the location's own `is_day`. Nothing here is a
-// weather *simulation* — it is a reading, drawn.
+// The cloud count comes from the API's `cloud_cover`, the fall rate from the WMO
+// code's intensity, and the sun or moon from the location's own `is_day`.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -59,10 +44,9 @@ import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/weather/weather_condition.dart';
 /// The colours one condition is drawn in.
 ///
-/// Deliberately *not* from [ThemeConfig]: this is a picture of the sky, and a
-/// sky that took its blue from the user's accent colour would stop being one.
-/// The widget's text sits on a scrim above it for exactly that reason — see
-/// [WeatherSky]'s doc.
+/// Deliberately *not* from [ThemeConfig]: this is a picture of the sky, and a sky
+/// that took its blue from the user's accent colour would stop being one. The
+/// widget's text sits on a scrim above it for that reason.
 class SkyPalette {
   const SkyPalette({
     required this.top,
@@ -101,7 +85,7 @@ class SkyPalette {
 ///
 /// Grouped by what the sky *looks* like rather than by [WeatherKind]: drizzle,
 /// rain and rain showers are one grey, and both thunderstorm codes are the same
-/// near-black. Pure, so the mapping is a unit test.
+/// near-black.
 SkyPalette skyPalette(WeatherCondition condition, {required bool night}) {
   switch (condition.kind) {
     case WeatherKind.thunderstorm:
@@ -179,9 +163,9 @@ const _daySnow = SkyPalette(
   precipitation: Color(0xFFFFFFFF),
 );
 // Darker than the greyness of real fog, on purpose: the haze bands are painted
-// in near-white and there has to be something for them to be lighter *than*.
-// A palette matched to the fog itself leaves the animation invisible and the
-// condition indistinguishable from overcast.
+// in near-white and there has to be something for them to be lighter *than*. A
+// palette matched to the fog itself leaves the condition indistinguishable from
+// overcast.
 const _dayFog = SkyPalette(
   top: Color(0xFF72808A),
   middle: Color(0xFF95A1A9),
@@ -255,9 +239,8 @@ const _nightFog = SkyPalette(
 
 /// One cloud, in unit coordinates.
 ///
-/// [x] and [y] are fractions of the painted box, [puffs] and [radii] are
-/// relative to [scale] — so one field draws correctly at every size the user
-/// resizes the widget to, without being rebuilt.
+/// [x] and [y] are fractions of the painted box, [puffs] and [radii] relative to
+/// [scale] — so one field draws correctly at every size the widget is resized to.
 class SkyCloud {
   const SkyCloud({
     required this.x,
@@ -275,10 +258,9 @@ class SkyCloud {
 
   /// How near the front of the scene this cloud is, 0..1.
   ///
-  /// The still picture's substitute for parallax: the far ones are painted
-  /// smaller, higher, paler and flatter, the near ones larger and more
-  /// contrasted. A field with no depth in it reads as stickers on a gradient,
-  /// which is what the drift used to hide.
+  /// The still picture's substitute for parallax: the far ones smaller, higher,
+  /// paler and flatter, the near ones larger and more contrasted. A field with no
+  /// depth reads as stickers on a gradient.
   final double depth;
 
   final double opacity;
@@ -292,10 +274,8 @@ class SkyCloud {
 
 /// What one falling thing is drawn as.
 ///
-/// On the drop rather than re-derived in the painter, which is what lets sleet
-/// be a genuine mixture: the decision is made once, where the field is built,
-/// instead of in a branch that asks `precipitation` and then second-guesses it
-/// per particle.
+/// On the drop rather than re-derived in the painter, which is what lets sleet be
+/// a genuine mixture: the decision is made once, where the field is built.
 enum SkyDropShape {
   /// Rain and drizzle: a leaning line.
   streak,
@@ -321,8 +301,8 @@ class SkyDrop {
   final double x;
 
   /// Vertical position, 0..1 of the height. Stratified when the field is built
-  /// rather than drawn at random, because a still frame is the one place a
-  /// clump of drops cannot be excused by the next frame moving them apart.
+  /// rather than drawn at random: in a still frame a clump of drops cannot be
+  /// excused by the next frame moving them apart.
   final double y;
 
   /// Length (a streak) or radius (a flake, a pellet), in fractions of the
@@ -348,9 +328,9 @@ class SkyStar {
   final double y;
   final double radius;
 
-  /// 0..1, fixed. The animated sky twinkled these; a still one varies them
-  /// across the field instead, which is the same picture at one instant and
-  /// costs no frames.
+  /// 0..1, fixed. The animated sky twinkled these; a still one varies them across
+  /// the field instead, which is the same picture at one instant and costs no
+  /// frames.
   final double brightness;
 }
 
@@ -373,13 +353,11 @@ class SkyFogBand {
   final double opacity;
 }
 
-/// The single lightning stroke a thunderstorm is drawn with, in unit
-/// coordinates.
+/// The single lightning stroke a thunderstorm is drawn with, in unit coordinates.
 ///
-/// The animated sky flashed the whole card for a fifth of a second every six.
-/// In a picture that is painted once that is either always on — which is not
-/// what lightning looks like — or never seen, so the still answer is the one
-/// every illustration of a storm uses: one bolt, with a glow behind it.
+/// The animated sky flashed the whole card for a fifth of a second every six. In
+/// a picture painted once that is either always on or never seen, so the still
+/// answer is the one every illustration of a storm uses: one bolt with a glow.
 class SkyBolt {
   const SkyBolt(this.points);
 
@@ -390,10 +368,9 @@ class SkyBolt {
 /// How many clouds a cover fraction draws.
 ///
 /// Zero at a genuinely clear sky — the one case that has to be exact, because a
-/// single stray cloud over a "Clear sky" label is the picture contradicting the
-/// reading next to it. [kMaxClouds] at a closed lid, and the count rounds *up*
-/// in between so the first wisp appears as soon as there is any cover to speak
-/// of.
+/// stray cloud over a "Clear sky" label is the picture contradicting the reading
+/// beside it. [kMaxClouds] at a closed lid, rounding *up* in between so the first
+/// wisp appears as soon as there is any cover to speak of.
 int cloudsForCover(double cover) {
   final clamped = cover.clamp(0.0, 1.0);
   if (clamped < 0.05) return 0;
@@ -438,37 +415,32 @@ class SkyField {
   /// How visible the sun or moon is through the cloud, 0..1.
   ///
   /// Fully hidden under a closed lid rather than merely dimmed — a sun burning
-  /// through an overcast sky is the picture of a *break* in the cloud, which is
-  /// the one thing an overcast reading rules out. Everywhere short of that it
-  /// stays *mostly* visible, which is why the ramp is steep rather than linear:
-  /// the clouds themselves already occlude the disc, so fading it in proportion
-  /// to the cover dims it twice over — and a half-alpha yellow disc over a blue
-  /// sky composites to green.
+  /// through overcast is the picture of a *break* in the cloud. Everywhere short
+  /// of that it stays mostly visible, which is why the ramp is steep rather than
+  /// linear: the clouds already occlude the disc, so fading it in proportion to
+  /// the cover dims it twice over — and a half-alpha yellow disc over a blue sky
+  /// composites to green.
   double get celestialOpacity {
-    // Ramped off a floor rather than straight off the cover. The clouds are
-    // drawn in a band across the top of the card now, so under a heavy sky the
-    // disc no longer has three cloud layers in front of it — and at 90% cover
-    // the linear figure left a pale circle hanging in clear air below the
-    // cloud line, which reads as a smudge on the wallpaper rather than as the
-    // sun. Subtracting the floor and rescaling keeps the whole range in play
-    // between a clear sky and a nearly closed one.
+    // Ramped off a floor rather than straight off the cover. The clouds are drawn
+    // in a band across the top of the card, so at 90% cover the linear figure
+    // left a pale circle hanging in clear air below the cloud line — a smudge on
+    // the wallpaper rather than the sun. Subtracting the floor and rescaling
+    // keeps the whole range in play.
     final open =
         (((1.0 - cloudCover) * 1.7 - 0.25) / 0.75).clamp(0.0, 1.0).toDouble();
-    // Fog draws no clouds (see [SkyField.build]), so nothing else would be
-    // holding the disc back — and a bright sun over a fog reading is the
-    // picture contradicting the word under it. A pale one showing through is
-    // exactly right, which is what the cap leaves.
+    // Fog draws no clouds, so nothing else would be holding the disc back — and
+    // a bright sun over a fog reading is the picture contradicting the word under
+    // it. A pale one showing through is what the cap leaves.
     if (condition.kind == WeatherKind.fog) return math.min(open, 0.35);
     return open;
   }
 
   /// Builds the layout for one set of conditions.
   ///
-  /// [seed] is fixed by default, so the same weather draws the same sky on
-  /// every monitor and across a restart — a cloud field that reshuffled itself
-  /// whenever the widget rebuilt would be the most distracting thing on the
-  /// desktop, and with nothing moving it would also be the only thing that
-  /// ever changed.
+  /// [seed] is fixed by default, so the same weather draws the same sky on every
+  /// monitor and across a restart. A cloud field that reshuffled itself on every
+  /// rebuild would be the most distracting thing on the desktop — and, with
+  /// nothing moving, the only thing that ever changed.
   factory SkyField.build({
     required WeatherCondition condition,
     required double cloudCover,
@@ -479,10 +451,9 @@ class SkyField {
     final cover = cloudCover.clamp(0.0, 1.0).toDouble();
 
     // Fog is the one condition drawn with no clouds at all, whatever the cover
-    // says. What is in the air *is* the weather, and a cover figure taken
-    // during fog describes a lid nobody under it can see: drawing it puts a
-    // bank of distinct, edged clouds over the haze bands that are the actual
-    // picture, and the result is indistinguishable from overcast.
+    // says. A cover figure taken during fog describes a lid nobody under it can
+    // see, and drawing it puts edged clouds over the haze bands that are the
+    // actual picture — indistinguishable from overcast.
     final cloudCount =
         condition.kind == WeatherKind.fog ? 0 : cloudsForCover(cover);
     final clouds = <SkyCloud>[
@@ -511,9 +482,8 @@ class SkyField {
       for (var i = 0; i < count; i++) {
         stars.add(SkyStar(
           x: random.nextDouble(),
-          // Kept out of the bottom third: that is where the widget's own text
-          // sits, and a star behind a temperature reads as a rendering
-          // artefact.
+          // Kept out of the bottom third: that is where the widget's text sits,
+          // and a star behind a temperature reads as a rendering artefact.
           y: random.nextDouble() * 0.55,
           radius: 0.6 + random.nextDouble() * 1.1,
           // A spread rather than a constant: a field of identically bright
@@ -525,16 +495,15 @@ class SkyField {
 
     final fogBands = <SkyFogBand>[];
     if (condition.kind == WeatherKind.fog) {
-      // Five bands, spread from near the top to near the bottom edge: fog is
-      // the one condition where the *air* is the weather, so it has to reach
-      // the ground rather than sit in a layer where every other palette leaves
-      // a clear horizon.
+      // Five bands from near the top to near the bottom edge: fog is the one
+      // condition where the *air* is the weather, so it has to reach the ground
+      // rather than sit in a layer.
       for (var i = 0; i < 5; i++) {
         fogBands.add(SkyFogBand(
-          // Separated, with sky between them. Bands wide enough to overlap
-          // blur together into one flat veil, which is a gradient rather than
-          // a picture of fog: what says "fog" is streaks at different heights
-          // lying across each other.
+          // Separated, with sky between them. Bands wide enough to overlap blur
+          // into one flat veil, which is a gradient rather than a picture of fog:
+          // what says "fog" is streaks at different heights lying across each
+          // other.
           y: 0.16 + i * 0.17 + random.nextDouble() * 0.04,
           height: 0.06 + random.nextDouble() * 0.05,
           // Alternating in sign so the bands lie past each other rather than
@@ -565,10 +534,9 @@ SkyCloud _buildCloud(
   double cover,
   WeatherCondition condition,
 ) {
-  // Spread across the width by index rather than at random: a handful of
-  // random x values clumps often enough to look like a mistake, and a cloud
-  // field is the one thing on the card the eye reads as evenly spaced. With
-  // nothing drifting, a clump stays a clump.
+  // Spread across the width by index rather than at random: a handful of random
+  // x values clumps often enough to look like a mistake, and with nothing
+  // drifting a clump stays a clump.
   final slot = (index + 0.5) / count;
   final jitter = (random.nextDouble() - 0.5) * (0.7 / count);
 
@@ -577,9 +545,9 @@ SkyCloud _buildCloud(
   final radii = <double>[];
   var x = 0.0;
   for (var i = 0; i < puffCount; i++) {
-    // Biggest in the middle, and varied on top of that. Equal radii draw a row
-    // of identical bumps — a caterpillar, which is what this looked like at
-    // the sizes a still card is actually read at.
+    // Biggest in the middle, varied on top of that. Equal radii draw a row of
+    // identical bumps — a caterpillar, which is what this looked like at the
+    // sizes a still card is read at.
     final swell = 0.55 + 0.45 * math.sin((i + 1) / (puffCount + 1) * math.pi);
     final radius = (0.34 + random.nextDouble() * 0.30) * swell * 1.35;
     // Each puff sits a little into the last, and the middle ones ride higher —
@@ -599,33 +567,30 @@ SkyCloud _buildCloud(
   final low =
       condition.isPrecipitating || condition.kind == WeatherKind.overcast;
 
-  // Alternating, so the field always has both a back and a front rather than
-  // whatever the seed happened to draw — with only a handful of clouds, three
-  // random depths land in the same plane often enough to be noticed.
+    // Alternating, so the field always has both a back and a front rather than
+    // whatever the seed drew: with only a handful of clouds, three random depths
+    // land in the same plane often enough to be noticed.
   final depth =
       ((index % 3) / 2 + (random.nextDouble() - 0.5) * 0.2).clamp(0.0, 1.0);
 
   return SkyCloud(
     x: slot + jitter,
-    // Kept to the top third of the card, and the near ones lower within it.
-    // The band is narrow on purpose: everything below it is the readout, and a
-    // cloud drifting down behind a 38px temperature is the one thing on this
-    // card that cannot be excused by the next frame moving it — there is no
-    // next frame.
+    // Kept to the top third of the card, near ones lower within it. The band is
+    // narrow on purpose: everything below it is the readout, and there is no next
+    // frame to move a cloud drifting behind a 38px temperature.
     y: (low ? 0.09 : 0.11) + (0.04 + random.nextDouble() * 0.09) * (0.6 + depth),
-    // Scaled by the cover and by the depth: at 20% the sky wants a couple of
-    // small wisps, and drawing them at overcast size fills the card with three
-    // clouds and calls it "mainly clear". The multipliers here put a cloud at
-    // roughly a quarter to a third of the card's width — the animated version
-    // was set at twice that, which motion made read as scale and a still frame
-    // makes read as three grey blobs.
+    // Scaled by the cover and the depth: at 20% the sky wants a couple of small
+    // wisps, and drawing them at overcast size fills the card and calls it
+    // "mainly clear". These multipliers put a cloud at roughly a quarter to a
+    // third of the card's width; the animated version was set at twice that,
+    // which motion made read as scale and a still frame makes read as grey blobs.
     scale: ((low ? 0.070 : 0.055) + random.nextDouble() * 0.028) *
         (0.7 + 0.45 * cover) *
         (0.75 + 0.5 * depth),
     depth: depth,
-    // Nearly opaque, which is what stops the sun behind one from tinting it:
-    // a half-transparent cloud over a yellow disc composites to olive, which
-    // reads as a rendering fault rather than as weather.
+    // Nearly opaque, which is what stops the sun behind one tinting it: a
+    // half-transparent cloud over a yellow disc composites to olive, which reads
+    // as a rendering fault rather than as weather.
     opacity: 0.9 + random.nextDouble() * 0.1,
     puffs: puffs,
     radii: radii,
@@ -652,18 +617,18 @@ SkyDrop _buildDrop(
           ? SkyDropShape.pellet
           : SkyDropShape.streak;
 
-  // Stratified down the box, with jitter inside each band. Purely random y
-  // values leave visible gaps and clumps in a picture the eye has all the time
-  // in the world to study.
+  // Stratified down the box, with jitter inside each band. Purely random y values
+  // leave visible gaps and clumps in a picture the eye has all the time in the
+  // world to study.
   final y = ((index + random.nextDouble()) / count) * 1.04 - 0.02;
 
   return SkyDrop(
     x: random.nextDouble(),
     y: y,
     size: switch (shape) {
-      // Small, and only a little varied. Drawn at the size the animated field
-      // used, a still snowfall is a handful of pale bubbles rather than
-      // weather — motion was doing the work of saying what they were.
+      // Small, and only a little varied. At the size the animated field used, a
+      // still snowfall is a handful of pale bubbles rather than weather — motion
+      // was doing the work of saying what they were.
       SkyDropShape.flake => 0.005 + random.nextDouble() * 0.007,
       SkyDropShape.pellet => 0.010 + random.nextDouble() * 0.007,
       SkyDropShape.streak =>
@@ -678,14 +643,13 @@ SkyDrop _buildDrop(
 
 /// One jagged stroke down the left-of-centre of the card.
 ///
-/// Left of centre because the sun and moon are drawn at [kCelestialCentre] and
-/// a bolt through the disc reads as a mistake; stopping at 0.52 of the height
-/// because below that is the readout, and lightning drawn across a temperature
-/// reads as a crack in the screen.
+/// Left of centre because the sun and moon are at [kCelestialCentre] and a bolt
+/// through the disc reads as a mistake; stopping at 0.52 of the height because
+/// below that is the readout.
 ///
 /// The shape is a real zig-zag — each segment crossing back over the last —
-/// rather than the gentle wander a random walk produces. A stroke that only
-/// drifts is a scratch on the card; what says *lightning* is the reversal.
+/// rather than the wander a random walk produces: a stroke that only drifts is a
+/// scratch on the card, and what says *lightning* is the reversal.
 SkyBolt _buildBolt(math.Random random) {
   double wobble(double base) => base + (random.nextDouble() - 0.5) * 0.02;
   final x = 0.30 + random.nextDouble() * 0.10;
@@ -703,13 +667,12 @@ SkyBolt _buildBolt(math.Random random) {
 
 /// The sky for one set of conditions, painted once.
 ///
-/// Fills its box; the caller clips it. Text drawn over this belongs on a scrim
-/// — see [SkyScrim] — because the palettes run from a near-black storm to an
+/// Fills its box; the caller clips it. Text drawn over this belongs on a scrim —
+/// see [SkyScrim] — because the palettes run from a near-black storm to an
 /// almost-white snowfall and nothing legible sits on both.
 ///
-/// Unlike nearly every other picture in the shell there is no ticker behind
-/// this and no `animate` flag on it, so a widget test may `pumpAndSettle` a
-/// tree containing one. See the file header for why.
+/// There is no ticker behind this and no `animate` flag, so a widget test may
+/// `pumpAndSettle` a tree containing one. See the file header.
 class WeatherSky extends StatefulWidget {
   const WeatherSky({
     super.key,
@@ -733,8 +696,7 @@ class WeatherSky extends StatefulWidget {
 ///
 /// Building the layout is a couple of hundred random draws, and this widget's
 /// `build` runs on every resize of the card it backs — a `StatelessWidget`
-/// that built its field inline would redo all of it for every frame of a
-/// desktop-widget drag, which is the one moment the shell is busy.
+/// building its field inline would redo all of it for every frame of a drag.
 class _WeatherSkyState extends State<WeatherSky> {
   late SkyField _field = _buildField();
 
@@ -773,16 +735,16 @@ class _WeatherSkyState extends State<WeatherSky> {
 
 /// Where the sun or the moon sits, as a fraction of the box.
 ///
-/// Named because the card's own layout depends on it: the readout is set
-/// bottom-left precisely so the disc is never behind it, and the bolt is drawn
-/// left of centre for the same reason.
+/// Named because the card's layout depends on it: the readout is bottom-left
+/// precisely so the disc is never behind it, and the bolt is drawn left of centre
+/// for the same reason.
 const Offset kCelestialCentre = Offset(0.78, 0.27);
 
 /// Paints a [SkyField].
 ///
-/// Public so a golden or a paint-counting test can drive it directly with no
-/// widget around it. Immutable and `const`-constructible: there is no clock in
-/// it, so two painters over the same field and palette paint the same picture.
+/// Public so a golden or paint-counting test can drive it with no widget around
+/// it. Immutable and `const`-constructible: there is no clock in it, so two
+/// painters over the same field and palette paint the same picture.
 class SkyPainter extends CustomPainter {
   const SkyPainter({required this.field, required this.palette});
 
@@ -808,8 +770,8 @@ class SkyPainter extends CustomPainter {
   /// The light that collects along the horizon of a real sky.
   ///
   /// The gradient alone runs top-to-bottom in three flat stops, which is the
-  /// single biggest reason the old card read as a paint-by-numbers backdrop: a
-  /// sky is brightest where it meets the ground, in a band rather than a line.
+  /// biggest reason the old card read as paint-by-numbers: a sky is brightest
+  /// where it meets the ground, in a band rather than a line.
   void _paintHorizonGlow(Canvas canvas, Size size) {
     final centre = Offset(size.width * 0.5, size.height * 1.06);
     final radius = size.width * 0.95;
@@ -829,9 +791,9 @@ class SkyPainter extends CustomPainter {
     for (final star in field.stars) {
       final alpha = star.brightness * palette.starOpacity;
       final centre = Offset(star.x * size.width, star.y * size.height);
-      // The brightest few get a halo. Every star drawn as a hard dot of one
-      // size is the picture of a dust-speck on a lens; a handful of them
-      // blooming is what a night sky actually looks like.
+      // The brightest few get a halo. Every star drawn as a hard dot of one size
+      // is the picture of a dust-speck on a lens; a handful blooming is what a
+      // night sky actually looks like.
       if (star.brightness > 0.8) {
         canvas.drawCircle(
           centre,
@@ -854,12 +816,10 @@ class SkyPainter extends CustomPainter {
   /// The sun or the moon, with its glow, behind whatever cloud there is.
   ///
   /// Dimmed by **washing out towards haze white**, not by dropping its alpha
-  /// towards the sky. A half-transparent yellow disc composited over a blue
-  /// sky is *green*, and so is a yellow lerped halfway to blue; either one
-  /// reads as a rendering fault rather than as a hazy afternoon. Washed out and
-  /// then faded on a square-root ramp, it goes pale the way a sun behind thin
-  /// cloud does, and disappears exactly when [SkyField.celestialOpacity]
-  /// reaches zero.
+  /// towards the sky: a half-transparent yellow disc over a blue sky is *green*,
+  /// and so is a yellow lerped halfway to blue. Washed out and faded on a
+  /// square-root ramp it goes pale the way a sun behind thin cloud does, and
+  /// disappears exactly when [SkyField.celestialOpacity] reaches zero.
   void _paintCelestial(Canvas canvas, Size size) {
     final opacity = field.celestialOpacity;
     if (opacity <= 0.01) return;
@@ -880,9 +840,9 @@ class SkyPainter extends CustomPainter {
     final glowColour =
         dim(field.night ? const Color(0xFFB9CFEA) : const Color(0xFFFFE9A8));
 
-    // Two glows rather than one, with a tight bright core inside a wide faint
-    // halo. A single linear falloff has a visible edge where it reaches zero,
-    // which on a flat gradient sky is a ring.
+    // Two glows rather than one, a tight bright core inside a wide faint halo. A
+    // single linear falloff has a visible edge where it reaches zero, which on a
+    // flat gradient sky is a ring.
     for (final (reach, strength) in const [(4.0, 0.16), (2.1, 0.30)]) {
       canvas.drawCircle(
         centre,
@@ -897,9 +857,8 @@ class SkyPainter extends CustomPainter {
 
     if (field.night) {
       // The crescent is cut rather than drawn: a filled disc with a
-      // background-coloured disc offset into it would need the sky's exact
-      // colour at that point, which is a gradient. `difference` is the one that
-      // works over anything.
+      // background-coloured disc offset into it would need the sky's exact colour
+      // at that point, which is a gradient. `difference` works over anything.
       final disc = Path()
         ..addOval(Rect.fromCircle(center: centre, radius: radius));
       final bite = Path()
@@ -925,18 +884,17 @@ class SkyPainter extends CustomPainter {
     }
   }
 
-  /// Three passes per cloud: the mass it casts under itself, the graded body,
-  /// and a lit crown clipped back inside its own silhouette.
+  /// Three passes per cloud: the mass it casts under itself, the graded body, and
+  /// a lit crown clipped back inside its own silhouette.
   ///
-  /// The old single flat fill with a two-stop gradient is the other half of
-  /// what read as amateurish — a cloud has a shaded underside and a lit top,
-  /// and in a still picture that modelling is all the volume there is.
+  /// A flat fill is the other half of what read as amateurish — a cloud has a
+  /// shaded underside and a lit top, and in a still picture that modelling is all
+  /// the volume there is.
   void _paintClouds(Canvas canvas, Size size) {
-    // A cloud's size is a fraction of the *width* — but capped against the
-    // height, or a 2x1 card (204 by 96 on the default grid) draws clouds half
-    // its width and twice its height, which is what the compact layout came
-    // out looking like. 1.5 is a little above the widest card's own ratio, so
-    // on anything squarer than a letterbox the width still decides.
+    // A cloud's size is a fraction of the *width*, capped against the height — or
+    // a 2x1 card draws clouds half its width and twice its height, which is what
+    // the compact layout came out looking like. 1.5 is a little above the widest
+    // card's ratio, so on anything squarer the width still decides.
     final reference = math.min(size.width, size.height * 1.5);
 
     for (final cloud in field.clouds) {
@@ -952,11 +910,10 @@ class SkyPainter extends CustomPainter {
           radius: cloud.radii[i] * scale,
         ));
       }
-      // The body under the puffs — a cloud's underside is one mass, not a row
-      // of scallops. An *ellipse* rather than the rounded rect this started
-      // as: a rect's ends stay square however large the corner radius is next
-      // to a puff three times its height, and at a wide span they read as a
-      // shelf sticking out from under the cloud.
+      // The body under the puffs — a cloud's underside is one mass, not a row of
+      // scallops. An *ellipse* rather than the rounded rect this started as: a
+      // rect's ends stay square however large the corner radius, and at a wide
+      // span they read as a shelf sticking out from under the cloud.
       final bounds = path.getBounds();
       path.addOval(Rect.fromLTRB(
         bounds.left + scale * 0.10,
@@ -1001,11 +958,10 @@ class SkyPainter extends CustomPainter {
       canvas.drawPath(
         path.shift(Offset(0, -scale * 0.16)),
         Paint()
-          // Lifted towards white rather than set in it, and blurred by more
-          // than it is shifted. A crown any brighter or any crisper than this
-          // leaves a hard white wedge where the shifted silhouette crosses one
-          // of its own notches — which on a dark night cloud reads as a
-          // clipping bug rather than as a lit top.
+          // Lifted towards white rather than set in it, and blurred by more than
+          // it is shifted. Any brighter or crisper leaves a hard white wedge where
+          // the shifted silhouette crosses one of its own notches, which reads as
+          // a clipping bug rather than a lit top.
           ..color = Color.lerp(light, const Color(0xFFFFFFFF), 0.45)!
               .withValues(alpha: 0.5 * alpha)
           ..maskFilter = MaskFilter.blur(BlurStyle.normal, scale * 0.28),
@@ -1017,9 +973,8 @@ class SkyPainter extends CustomPainter {
   void _paintFog(Canvas canvas, Size size) {
     if (field.fogBands.isEmpty) return;
     // Blurred, not clipped. A band drawn as a rectangle with a horizontal
-    // gradient has hard edges along its top and bottom however soft its ends
-    // are, and four of those stacked up the card read as venetian blinds. A
-    // blur is the only thing that makes the edge of fog look like fog.
+    // gradient has hard edges along its top and bottom however soft its ends are,
+    // and four of those stacked up the card read as venetian blinds.
     for (final band in field.fogBands) {
       final height = band.height * size.height;
       final blur = height * 0.7;
@@ -1045,8 +1000,7 @@ class SkyPainter extends CustomPainter {
 
     // The veil first: a barely-there wash in the precipitation's own colour,
     // heavier towards the bottom. A still frame of rain is mostly this — the
-    // individual streaks say *what* is falling, and the wash is what says the
-    // air itself is full of it.
+    // streaks say *what* is falling, the wash says the air is full of it.
     canvas.drawRect(
       Offset.zero & size,
       Paint()
@@ -1117,10 +1071,9 @@ class SkyPainter extends CustomPainter {
     final width = math.max(1.2, size.width * 0.005);
 
     // Drawn segment by segment with a falling stroke width rather than as one
-    // path: a stroke is uniform, and a bolt that does not taper towards its
-    // tip is a lightning symbol rather than lightning. The glow is a second
-    // pass over the whole run — a bare white jag on a dark sky is a scratch on
-    // the card, and the halo is what makes it light.
+    // path: a stroke is uniform, and a bolt that does not taper is a lightning
+    // symbol rather than lightning. The glow is a second pass over the whole run
+    // — a bare white jag on a dark sky is a scratch on the card.
     for (final (reach, colour, alpha) in [
       (5.0, const Color(0xFF9FC4FF), 0.22),
       (2.4, const Color(0xFFDCEAFF), 0.35),
@@ -1146,8 +1099,7 @@ class SkyPainter extends CustomPainter {
   /// The corner falloff every photograph has and no flat gradient does.
   ///
   /// Slight, and centred a little above the middle so it darkens the bottom
-  /// corners — where the readout sits — more than the top, which is where the
-  /// picture is.
+  /// corners — where the readout sits — more than the top.
   void _paintVignette(Canvas canvas, Size size) {
     final centre = Offset(size.width * 0.5, size.height * 0.38);
     final radius = math.max(size.width, size.height) * 0.78;
@@ -1220,13 +1172,13 @@ const List<Shadow> kSkyTextShadows = [
 ];
 
 /// White, at the weights the readout uses. The sky is a picture, and text on it
-/// takes its colour from the picture rather than from the theme — the same call
-/// the lock screen makes over a wallpaper.
+/// takes its colour from the picture rather than from the theme — the call the
+/// lock screen makes over a wallpaper.
 const Color kSkyForeground = Color(0xFFFFFFFF);
 const Color kSkyMutedForeground = Color(0xCCFFFFFF);
 
-/// The hairline the card rules its sections off with, and the dimmest text on
-/// it. Both are the sky's white at low alpha rather than a theme colour, for
-/// the reason [kSkyForeground] states.
+/// The hairline the card rules its sections off with, and the dimmest text on it.
+/// Both are the sky's white at low alpha rather than a theme colour, for
+/// [kSkyForeground]'s reason.
 const Color kSkyHairline = Color(0x2EFFFFFF);
 const Color kSkyFaintForeground = Color(0x99FFFFFF);

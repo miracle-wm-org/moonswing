@@ -2,32 +2,27 @@ import 'package:flutter/widgets.dart';
 
 /// A hover state, and the tap that goes with it, without the ceremony.
 ///
-/// The shell has no Material, so before this primitive every hover-highlight
-/// row and button was its own `StatefulWidget` carrying `bool _hovered`, a
-/// `MouseRegion`, and two `setState` calls — about thirty classes existed for
-/// nothing else. `HoverRegion` owns that bool and hands it to [builder].
+/// The shell has no Material, so before this primitive every hover-highlight row
+/// and button was its own `StatefulWidget` carrying `bool _hovered`, a
+/// `MouseRegion` and two `setState` calls. `HoverRegion` owns that bool and hands
+/// it to [builder].
 ///
-/// It owns the `GestureDetector` as well, at [HitTestBehavior.opaque], and
-/// **that half is the load-bearing one**. A `GestureDetector` with no
-/// `behavior:` is `deferToChild`, and nearly everything a control is built from
-/// answers `hitTestSelf == false`: `Padding`, `Align`, `ConstrainedBox`,
-/// `ClipRRect`, `Row`/`Column`/`Stack`, `RenderImage`, and a `Container` with
-/// neither `color:` nor `decoration:`. So in
-/// `Container(width: 26, height: 26, alignment: center, child: FaIcon(size: 11))`
-/// the only render object left accepting a hit is the glyph's own
-/// `RenderParagraph` — the button hovered and cursored over 26 square and fired
-/// over about 11. Emitting the detector here, around [builder]'s result, makes
-/// the hover box and the tap box the same rect by construction: a
-/// `GestureDetector` is a proxy box with no layout effect, so its rect is
-/// [builder]'s rect is the `MouseRegion`'s rect.
+/// It owns the `GestureDetector` as well, at [HitTestBehavior.opaque], and **that
+/// half is the load-bearing one**. A `GestureDetector` with no `behavior:` is
+/// `deferToChild`, and nearly everything a control is built from answers
+/// `hitTestSelf == false` — `Padding`, `Align`, `ConstrainedBox`, `ClipRRect`,
+/// `Row`/`Column`/`Stack`, and a `Container` with neither `color:` nor
+/// `decoration:`. So in a 26-square `Container` around an 11px `FaIcon` the only
+/// render object accepting a hit is the glyph's own `RenderParagraph`: the button
+/// hovered over 26 square and fired over about 11. Emitting the detector here
+/// makes the hover box and the tap box the same rect by construction.
 ///
-/// The `builder`-only form (hover with no tap) emits no detector at all. An
-/// unconditional opaque box would start swallowing hits meant for a `Stack`
-/// sibling underneath, since `RenderStack.hitTestChildren` stops at the first
-/// child that accepts.
+/// The `builder`-only form (hover with no tap) emits no detector at all: an
+/// unconditional opaque box would swallow hits meant for a `Stack` sibling
+/// underneath, since `RenderStack.hitTestChildren` stops at the first child that
+/// accepts.
 ///
-/// The cursor defaults to a pointer because nearly every hoverable surface in
-/// the shell is clickable; pass [cursor] for the exceptions.
+/// The cursor defaults to a pointer; pass [cursor] for the exceptions.
 class HoverRegion extends StatefulWidget {
   const HoverRegion({
     super.key,
@@ -53,9 +48,8 @@ class HoverRegion extends StatefulWidget {
 
   /// Whether the gestures fire. False drops every callback and switches to
   /// [disabledCursor] — but the region **still absorbs the pointer**, which is
-  /// what a disabled button has always done (its `Container(decoration:)` was
-  /// hit-testable whether or not `onTap` was null). `hovered` still flips; call
-  /// sites that dim on hover already spell `hovered && canTap`.
+  /// what a disabled button has always done. `hovered` still flips; call sites
+  /// that dim on hover already spell `hovered && canTap`.
   final bool enabled;
 
   final VoidCallback? onEnter;
@@ -67,9 +61,8 @@ class HoverRegion extends StatefulWidget {
   /// Tap on press. **Not interchangeable with [onTap].** Every popup toggle in
   /// the shell opens on tap-*down*, because `PopupDismissArea`'s ancestor
   /// `Listener` fires before any descendant recognizer and the coordinator's
-  /// reopen guard is armed and consumed inside that one pointer-down (see the
-  /// Dismissal section of CLAUDE.md). Moving one of those to [onTap] moves the
-  /// open a full press-and-release later, outside the guard's window.
+  /// reopen guard is armed and consumed inside that one pointer-down. Moving one
+  /// of those to [onTap] moves the open outside the guard's window.
   final GestureTapDownCallback? onTapDown;
   final GestureTapUpCallback? onTapUp;
   final VoidCallback? onTapCancel;

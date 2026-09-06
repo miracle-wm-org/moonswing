@@ -26,9 +26,8 @@ const _springfield = WeatherPlace(
 
 /// A store over a temp file, so no test touches the user's real config.toml.
 ///
-/// Through [WidgetTester.runAsync], because writing and parsing the file is
-/// real I/O and a `testWidgets` fake-async zone never pumps it — the same note
-/// `settings_background_section_test.dart` carries about its catalogue walk.
+/// Through [WidgetTester.runAsync], because writing and parsing the file is real
+/// I/O and a `testWidgets` fake-async zone never pumps it.
 Future<ConfigStore> _store(WidgetTester tester, String toml) async {
   final store = await tester.runAsync(() async {
     final dir = await Directory.systemTemp.createTemp('weather_location_test');
@@ -44,9 +43,9 @@ Future<ConfigStore> _store(WidgetTester tester, String toml) async {
 /// The shell's own table, as a widget test can state it.
 ///
 /// Injected rather than taken from `kWorldCities` for the reason
-/// `AnchoredSearchDropdown` documents about every list it is given: a test
-/// asserting what the card shows has to be able to say what is in it. Most of
-/// these cases pass `const []` and are about the geocoder's half alone.
+/// `AnchoredSearchDropdown` documents: a test asserting what the card shows has
+/// to be able to say what is in it. Most cases pass `const []` and are about the
+/// geocoder's half alone.
 final _cities = [
   WorldCity(
     name: 'New Delhi',
@@ -83,9 +82,8 @@ Future<void> _pumpField(
               OverlayEntry(
                 // Right-aligned, where the control actually sits: the field
                 // passes `alignRight`, so its list grows leftwards out of a
-                // trigger at the right edge of the settings pane. Pumped at
-                // the left edge the card hangs off the screen and nothing in
-                // it is tappable.
+                // trigger at the right edge of the pane. Pumped at the left edge
+                // the card hangs off the screen and nothing in it is tappable.
                 builder: (_) => Align(
                   alignment: Alignment.topRight,
                   child: ListenableBuilder(

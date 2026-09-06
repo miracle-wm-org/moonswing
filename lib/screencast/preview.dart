@@ -32,11 +32,11 @@ class CaptureSessionPreviewFrames implements PreviewFrames {
 
 /// Renders live frames from a [PreviewFrames].
 ///
-/// The decode path is deliberately `ImmutableBuffer` + `ImageDescriptor.raw`
-/// with a BGRA pixel format rather than `decodeImageFromPixels` with a
-/// per-pixel reorder loop: the capture buffers are already
-/// XRGB8888/ARGB8888, which is byte-identical to BGRA on little-endian, so
-/// the only work per frame is one bulk copy out of the shm mapping.
+/// The decode path is deliberately `ImmutableBuffer` + `ImageDescriptor.raw` with
+/// a BGRA pixel format rather than `decodeImageFromPixels` with a per-pixel
+/// reorder loop: the capture buffers are already XRGB8888/ARGB8888, which is
+/// byte-identical to BGRA on little-endian, so the only work per frame is one
+/// bulk copy out of the shm mapping.
 class CapturePreview extends StatefulWidget {
   const CapturePreview({
     super.key,

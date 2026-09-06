@@ -1,15 +1,12 @@
 // Windowing infrastructure built on Flutter's regular (experimental) windowing
 // API. Two things live here:
-//   * [PopupHost] — compositor-positioned popups (xdg_popup) created by the
-//     default WindowingOwnerLinux that layer_shell's initLayerShell() installs;
-//     the compositor places the popup from the parent-local [anchorRect] and
-//     [WindowPositioner].
+//   * [PopupHost] — compositor-positioned popups (xdg_popup), placed from the
+//     parent-local [anchorRect] and [WindowPositioner].
 //   * [LayerShellHost] — full layer-shell windows (panels/overlays/dialogs)
 //     whose [LayershellWindowController] the module creates itself.
 // Both register a [WindowEntry] into the [WindowRegistry] the root's
-// [WindowManager] publishes, so every window in the shell — the panels the root
-// owns and the popups a module opens from inside one — is rendered by one
-// mechanism, at one place.
+// [WindowManager] publishes, so every window in the shell is rendered by one
+// mechanism in one place.
 
 // ignore_for_file: implementation_imports
 // ignore_for_file: invalid_use_of_internal_member
@@ -41,16 +38,16 @@ import 'package:layer_shell/src/gtk.dart';
 const BoxConstraints kMinPopupConstraints =
     BoxConstraints(minWidth: 48, minHeight: 24);
 
-/// Every popup and tooltip is anchored to a widget in a bar that may sit near a
-/// screen edge, so let the compositor translate the window along both axes to
-/// keep it on-screen. Slide (rather than flip) preserves the popup's side of the
-/// bar, which is what the anchor pair from [popupAnchorsForBar] encodes.
+/// Every popup is anchored to a widget in a bar that may sit near a screen edge,
+/// so let the compositor translate the window along both axes to keep it
+/// on-screen. Slide (rather than flip) preserves the popup's side of the bar,
+/// which is what [popupAnchorsForBar]'s anchor pair encodes.
 const WindowPositionerConstraintAdjustment kPopupSlide =
     WindowPositionerConstraintAdjustment(slideX: true, slideY: true);
 
 /// Adjustment for a flyout submenu anchored to the side of its parent: flip to
-/// the opposite side when the preferred side would run off-screen, and slide
-/// vertically to stay on-screen. Used for the app-directory category submenus.
+/// the opposite side when the preferred one would run off-screen, and slide
+/// vertically. Used for the app-directory category submenus.
 const WindowPositionerConstraintAdjustment kPopupFlipX =
     WindowPositionerConstraintAdjustment(flipX: true, slideY: true);
 
@@ -70,7 +67,7 @@ class PopupDelegate extends PopupWindowControllerDelegate {
 /// a popup appear flush against the inner edge of the bar.
 ///
 /// The popup's [anchorRect] is the triggering widget's rect in the parent
-/// window's coordinate space, so only the anchor pair varies per edge.
+/// window's space, so only the anchor pair varies per edge.
 (WindowPositionerAnchor, WindowPositionerAnchor) popupAnchorsForBar(
     String anchor) {
   switch (anchor) {
@@ -88,17 +85,13 @@ class PopupDelegate extends PopupWindowControllerDelegate {
 /// The positioner offset that puts a shadowed popup's *card* where an
 /// unshadowed one's window would have gone.
 ///
-/// A popup surface is grown by [popupShadowInsets] so the theme's shadow has
-/// room to paint (see [PopupHost.openPopup]), which leaves the card sitting
-/// `insets` inside its own window. The compositor aligns the *window's*
-/// [childAnchor] point to the anchor rect, so without this every menu in the
-/// shell would visibly walk away from the button that opened it by the shadow's
-/// extent. The offset is the negation of where the card's corresponding point
-/// moved within the grown window.
+/// A popup surface is grown by [popupShadowInsets] so the shadow has room to
+/// paint, which leaves the card sitting `insets` inside its own window. The
+/// compositor aligns the *window's* [childAnchor] to the anchor rect, so without
+/// this every menu would walk away from its button by the shadow's extent.
 ///
 /// The halved cases are not a rounding convenience: [popupAnchorsForBar] returns
-/// edge-*centred* anchors, so an asymmetric shadow — any non-zero
-/// `popup_shadow_offset_x` on a top or bottom bar — would otherwise shift every
+/// edge-*centred* anchors, so an asymmetric shadow would otherwise shift every
 /// bar popup sideways by half the asymmetry.
 Offset popupShadowAnchorOffset(
   WindowPositionerAnchor childAnchor,
@@ -139,32 +132,22 @@ Offset popupShadowAnchorOffset(
 
 /// The constraints a shadowed popup's *window* is given, grown from the card's.
 ///
-/// [PopupWindowController]'s `constraints` are not layout constraints. The
-/// Linux backend adds a *sized-to-content* view, which the engine registers
-/// with an unbounded `1x1 .. G_MAXSIZE` metrics range — so nothing here ever
-/// reaches Flutter's layout — and turns them into the GTK window's
-/// `GDK_HINT_MIN_SIZE`/`GDK_HINT_MAX_SIZE` geometry hints instead. They cap the
-/// *surface*, and with a shadow the surface is the card plus
-/// [popupShadowInsets].
+/// [PopupWindowController]'s `constraints` are not layout constraints. The Linux
+/// backend registers a sized-to-content view with an unbounded metrics range —
+/// so they never reach Flutter's layout — and turns them into the GTK window's
+/// `GDK_HINT_MIN_SIZE`/`GDK_HINT_MAX_SIZE` instead. They cap the *surface*, and
+/// with a shadow the surface is the card plus [popupShadowInsets].
 ///
-/// This is the third piece of the shadow arithmetic, and it is the one that was
-/// missing: the padding grows the content and the [popupShadowAnchorOffset]
-/// puts the card back on its button, but GTK clamped the `gtkWindow.resize` in
-/// [PopupHost.openPopup] back to the card's own maximum. Every popup that pins
-/// a width by passing `minWidth == maxWidth` — the app directory and its
-/// category flyout, the sound slider, the system monitor's
-/// [BoxConstraints.tightFor] — therefore mapped a window exactly as wide as its
-/// card while rendering that card `insets.left` inside it: the card came out
-/// half the shadow's reach off-centre from its button with its far side clipped,
-/// and the compositor placed the too-small window as though that were the popup.
-/// The loose-constrained menus, whose content sat well under their maximum, were
-/// never clamped and stayed put, which is what made it look like only some
-/// popups had drifted.
+/// This is the third piece of the shadow arithmetic and the one that was
+/// missing: without it GTK clamped the `gtkWindow.resize` back to the card's own
+/// maximum, so every popup pinning a width with `minWidth == maxWidth` mapped a
+/// window exactly as wide as its card and drew that card `insets.left` inside it
+/// — off its button by half the shadow's reach and clipped on the far side. The
+/// loose-constrained menus were never clamped, which is what made it look like
+/// only some popups had drifted.
 ///
-/// An infinite maximum stays infinite — the backend maps that onto its own
-/// `_kMaxWindowDimensions` — and a shadowless theme's zero insets hand the
-/// card's constraints straight back, so turning the shadow off restores the
-/// exact pre-shadow geometry here as well as everywhere else.
+/// An infinite maximum stays infinite, and a shadowless theme's zero insets hand
+/// the card's constraints straight back.
 BoxConstraints popupWindowConstraints(BoxConstraints card, EdgeInsets shadow) {
   if (shadow == EdgeInsets.zero) return card;
   return BoxConstraints(
@@ -185,25 +168,20 @@ Rect popupAnchorRect(BuildContext context) {
   return box.localToGlobal(Offset.zero) & box.size;
 }
 
-/// [widget]'s rect grown across the panel, so that a bar popup is anchored to
-/// the panel's *inner edge* while staying centred on the module that opened it.
+/// [widget]'s rect grown across the panel, so a bar popup is anchored to the
+/// panel's *inner edge* while staying centred on the module that opened it.
 ///
 /// [popupAnchorsForBar] returns edge-centred anchors, so what the compositor
-/// reads off this rect is a single point: the centre of the edge facing away
-/// from the screen. Handing it the widget's own rect puts that point wherever
-/// the module's padding happens to end — a `BarButton` is inset 2px vertically
-/// and the panel's sections are aligned inside a padding of their own — so every
-/// popup opened a couple of pixels *inside* the bar, overlapping it, by an
-/// amount that differed per module. Spanning the panel's whole cross-axis extent
-/// makes the anchor the bar's own edge for every module alike, and leaves the
-/// other axis exactly as it was, which is what keeps the popup centred on its
-/// icon.
+/// reads off this rect is a single point. Handing it the widget's own rect put
+/// that point wherever the module's padding happened to end, so every popup
+/// opened a couple of pixels *inside* the bar, by an amount differing per
+/// module. Spanning the panel's whole cross-axis extent makes the anchor the
+/// bar's own edge for every module alike, and leaves the other axis alone, which
+/// keeps the popup centred on its icon.
 ///
-/// [panel] is the panel surface's size, which is the space [popupAnchorRect]
-/// already reports in. A degenerate one — a module opening a popup before the
-/// panel has been laid out — falls back to [widget] rather than emitting a
-/// zero-extent rect, which `xdg_positioner` rejects as a protocol error rather
-/// than merely placing badly.
+/// [panel] is the panel surface's size, the space [popupAnchorRect] reports in.
+/// A degenerate one falls back to [widget] rather than emitting a zero-extent
+/// rect, which `xdg_positioner` rejects as a protocol error.
 Rect barAnchorRect(Rect widget, Size panel, String anchor) {
   if (panel.isEmpty) return widget;
   switch (anchor) {
@@ -219,9 +197,9 @@ Rect barAnchorRect(Rect widget, Size panel, String anchor) {
 /// [anchor].
 ///
 /// The panel surface's size comes from the [MediaQuery] its `View` installs,
-/// which is `physicalSize / devicePixelRatio` — the very space
-/// [RenderBox.localToGlobal] maps into here. [setPanelMargin]'s margin is
-/// native, outside the surface, so there is nothing to correct for.
+/// which is the very space [RenderBox.localToGlobal] maps into.
+/// [setPanelMargin]'s margin is native and outside the surface, so there is
+/// nothing to correct for.
 Rect barAnchorRectFor(BuildContext context, String anchor) {
   final box = context.findRenderObject() as RenderBox;
   return barAnchorRect(
@@ -234,11 +212,11 @@ Rect barAnchorRectFor(BuildContext context, String anchor) {
 /// The positioner offset that floats a bar popup [gap] px off the panel edge it
 /// is anchored to.
 ///
-/// Keyed on the *bar's* anchor, the same string [popupAnchorsForBar] takes: the
-/// popup sits on the far side of that edge, so this always pushes it away from
-/// the panel. Added to [popupShadowAnchorOffset] rather than folded into it,
-/// because the two answer different questions — that one cancels the margin the
-/// shadow added, this one is the distance the theme asked for.
+/// Keyed on the *bar's* anchor, the string [popupAnchorsForBar] takes: the popup
+/// sits on the far side of that edge, so this always pushes it away from the
+/// panel. Added to [popupShadowAnchorOffset] rather than folded into it — that
+/// one cancels the margin the shadow added, this is the distance the theme asked
+/// for.
 Offset popupGapOffset(String anchor, double gap) {
   switch (anchor) {
     case 'bottom':
@@ -255,32 +233,28 @@ Offset popupGapOffset(String anchor, double gap) {
 /// Tells the compositor not to shrink [controller]'s surface to make room for
 /// other layer-shell surfaces' exclusive zones.
 ///
-/// gtk-layer-shell defaults the exclusive zone to 0, and per wlr-layer-shell a
-/// zone of 0 means "move me so I don't occlude surfaces that reserved space" —
-/// so a full-screen surface is shrunk to the gap *between* the panels. -1 means
-/// "leave me alone and extend me to the edges I'm anchored to".
+/// gtk-layer-shell defaults the zone to 0, which per wlr-layer-shell means "move
+/// me so I don't occlude surfaces that reserved space" — so a full-screen
+/// surface is shrunk to the gap *between* the panels. -1 means "extend me to the
+/// edges I'm anchored to".
 ///
-/// This is what makes a translucent panel show the wallpaper: without it there
-/// is no wallpaper behind a bar at all, only the compositor's empty background,
-/// and a see-through bar reveals a flat black strip. It went unnoticed while
-/// every panel was opaque.
+/// This is what makes a translucent panel show the wallpaper: without it a
+/// see-through bar reveals a flat black strip. It went unnoticed while every
+/// panel was opaque.
 void spanFullOutput(LayershellWindowController controller) {
   controller.setExclusiveZone(-1);
 }
 
 /// Floats a panel [margin] px off each screen edge it is anchored to.
 ///
-/// This is a native layer-shell margin rather than a Flutter inset because the
-/// shell has no input-region support: padding inside a full-size surface would
-/// leave the surface swallowing every click in the gap, whereas a real margin
-/// shrinks it and lets those clicks reach the desktop.
+/// A native layer-shell margin rather than a Flutter inset because the shell has
+/// no input-region support: padding inside a full-size surface would leave the
+/// surface swallowing every click in the gap, where a real margin shrinks it.
 ///
 /// The exclusive zone is deliberately untouched. Per wlr-layer-shell's
-/// `set_margin`, "the exclusive zone includes the margin" — the compositor adds
-/// the anchored edge's margin to the zone the surface already asked for, so
-/// windows stop below a floating bar without us sending anything. Reserving
-/// `height + margin` here as well would reserve it twice and leave a dead strip
-/// the size of the gap that no window would occupy.
+/// `set_margin`, "the exclusive zone includes the margin", so the compositor
+/// already adds it; reserving `height + margin` would reserve it twice and leave
+/// a dead strip no window would occupy.
 void setPanelMargin(
   LayershellWindowController controller, {
   required String anchor,
@@ -298,44 +272,36 @@ void setPanelMargin(
 /// answering the surface that was flipped — and null when none was.
 ///
 /// A bar popup is an `xdg_popup` child of the panel's layer surface, and per
-/// wlr-layer-shell's `set_keyboard_interactivity` the setting "is inherited by
-/// child surfaces set by the get_popup request" — so a panel left at
-/// [LayerShellKeyboardMode.none], which is what every panel now is, hands that
-/// down and an `EditableText` in one of its popups never sees a key event.
+/// `set_keyboard_interactivity` the setting "is inherited by child surfaces set
+/// by the get_popup request" — so a panel at [LayerShellKeyboardMode.none], which
+/// every panel now is, hands that down and an `EditableText` in one of its
+/// popups never sees a key event.
 ///
-/// This is the desktop rename's bargain one surface over
-/// (`_setDesktopKeyboard`, `main.dart`), made for the same reason: the panel is
-/// not simply left `onDemand`, because a bar that can take focus takes it on
-/// every click anywhere on it — the workspace buttons, the clock, the tray —
-/// and steals it from whatever the user was typing in. Borrowing it only while
-/// a popup with a field is open costs that one popup's opening click and
-/// nothing else.
+/// The panel is not simply left `onDemand`, because a bar that can take focus
+/// takes it on every click anywhere on it. Borrowing only while a popup with a
+/// field is open costs that popup's opening click and nothing else.
 ///
-/// Answers null — changing nothing — when the parent is already `onDemand`
-/// (a popup opened from the settings overlay or the notification panel, whose
-/// own surfaces take the keyboard) or is not a layer surface at all (a nested
-/// flyout, whose parent is the popup above it and which inherits from the
-/// panel through it either way). Only a borrow that actually flipped the
-/// surface is given back, so a `none` is never sent to a surface that asked
-/// for `onDemand` itself.
+/// Answers null — changing nothing — when the parent is already `onDemand` or is
+/// not a layer surface at all. Only a borrow that actually flipped the surface is
+/// given back, so `none` is never sent to a surface that wanted `onDemand`.
 LayershellWindowController? _borrowPopupKeyboard(BaseWindowController? parent) {
   if (parent is! LayershellWindowController) return null;
   if (parent.isDestroyed) return null;
   if (parent.keyboardMode != LayerShellKeyboardMode.none) return null;
   parent.setKeyboardMode(LayerShellKeyboardMode.onDemand);
-  // A keyboard-mode change on a mapped surface only queues a resize, so
-  // without this it would sit unsent until something else forced a frame —
-  // and the field would come up unable to type into. [setPanelMargin]'s rule.
+  // A keyboard-mode change on a mapped surface only queues a resize, so without
+  // this it would sit unsent until something else forced a frame — and the field
+  // would come up unable to type into. [setPanelMargin]'s rule.
   parent.tryForceCommit();
   return parent;
 }
 
 /// Gives back what [_borrowPopupKeyboard] took.
 ///
-/// Guarded on [LayershellWindowController.isDestroyed] rather than assumed
-/// live: a monitor unplugged while its app directory is open destroys the
-/// panel before the module gets to close its popup, and every getter on a
-/// destroyed controller throws.
+/// Guarded on [LayershellWindowController.isDestroyed] rather than assumed live:
+/// a monitor unplugged while its app directory is open destroys the panel before
+/// the module closes its popup, and every getter on a destroyed controller
+/// throws.
 void _returnPopupKeyboard(LayershellWindowController? parent) {
   if (parent == null || parent.isDestroyed) return;
   parent.setKeyboardMode(LayerShellKeyboardMode.none);
@@ -344,12 +310,10 @@ void _returnPopupKeyboard(LayershellWindowController? parent) {
 
 /// Carries the [TransientHandle] of the popup a subtree is rendered inside.
 ///
-/// This is what makes nesting work without a single call site passing a parent.
-/// [PopupHost.openPopup] wraps every popup's content in one, so a module that
-/// opens a popup from *inside* another popup's content — the app-directory
-/// category flyout, and the pin-to-dock menu inside that — resolves its parent
-/// from `context`, the same walk that already finds [WindowScope] and the
-/// panel's [WindowRegistry] from three levels deep.
+/// This is what makes nesting work without a call site passing a parent.
+/// [PopupHost.openPopup] wraps every popup's content in one, so a module opening
+/// a popup from *inside* another popup's content resolves its parent from
+/// `context` — the walk that already finds [WindowScope] and [WindowRegistry].
 class TransientScope extends InheritedWidget {
   const TransientScope({
     super.key,
@@ -362,7 +326,7 @@ class TransientScope extends InheritedWidget {
   /// The enclosing popup's handle, or null in a panel or the desktop surface.
   ///
   /// Deliberately not a `dependOnInheritedWidgetOfExactType`: this is read from
-  /// tap handlers, not from `build`, so there is nothing to rebuild.
+  /// tap handlers rather than `build`, so there is nothing to rebuild.
   static TransientHandle? maybeOf(BuildContext context) => context
       .getInheritedWidgetOfExactType<TransientScope>()
       ?.handle;
@@ -374,10 +338,10 @@ class TransientScope extends InheritedWidget {
 /// Dismisses every open transient surface when a pointer goes down on [child].
 ///
 /// Wrapped around the two surfaces that cover real screen area and are not
-/// themselves transient — a panel and the desktop/background surface — because
-/// nothing else can tell us the user clicked elsewhere: the Linux popup
-/// controller takes no `gdk_seat_grab`, so the compositor never sends
-/// `popup_done`, and no layer-shell surface reports focus loss.
+/// themselves transient — a panel and the desktop surface — because nothing else
+/// can tell us the user clicked elsewhere: the Linux popup controller takes no
+/// `gdk_seat_grab`, so the compositor never sends `popup_done`, and no
+/// layer-shell surface reports focus loss.
 ///
 /// Translucent, so a click on a panel's empty space dismisses too. It cannot
 /// catch a click on an ordinary application window; nothing available to the
@@ -401,14 +365,13 @@ class PopupDismissArea extends StatelessWidget {
 /// Whether [State.setState] may still be called from here.
 ///
 /// [State.mounted] is not that test on its own. Every module that owns a popup
-/// or a layer window closes it from its own `dispose()`, and `State.mounted`
-/// stays true for the whole of `dispose()` — the framework clears
-/// `state._element` only after it returns — while the *element* was made
-/// defunct before the call. A `setState` from there is therefore a
-/// `markNeedsBuild` on a dead element, which asserts in debug and queues a
-/// build for something unbuildable in release. [BuildContext.mounted] is the
-/// element's own liveness, which `unmount()` clears on the way in, so the pair
-/// answers "still in the tree" for both the ordinary close and the teardown one.
+/// closes it from its own `dispose()`, and `State.mounted` stays true for the
+/// whole of `dispose()` — the framework clears `state._element` only after it
+/// returns — while the *element* was made defunct before the call. A `setState`
+/// from there is a `markNeedsBuild` on a dead element, which asserts in debug and
+/// queues an unbuildable build in release. [BuildContext.mounted] is the
+/// element's own liveness, so the pair answers "still in the tree" for both the
+/// ordinary close and the teardown one.
 extension on State {
   bool get _canRebuild => mounted && context.mounted;
 }
@@ -425,24 +388,21 @@ external void _gtkWidgetHide(ffi.Pointer<ffi.NativeType> widget);
 /// Destroys a native window only once Flutter has let go of its view, and one
 /// frame after that.
 ///
-/// `gtk_widget_destroy` on a window whose Flutter view is still live is not a
-/// leak or a glitch — it aborts the process. The GTK destroy cascade disposes
-/// the embedder's per-view renderer, whose `frame_mutex` the *raster* thread
-/// holds while it composites (`fl_view_renderer_opengl_present_layers`), and
-/// `g_mutex_clear` on a held mutex is a glib `abort()`:
-/// `g_mutex_clear() called on uninitialised or locked mutex`. The same abort
-/// answers a *second* destroy, because `gtk_widget_destroy` goes through
+/// `gtk_widget_destroy` on a window whose Flutter view is still live aborts the
+/// process. The GTK destroy cascade disposes the embedder's per-view renderer,
+/// whose `frame_mutex` the *raster* thread holds while it composites, and
+/// `g_mutex_clear` on a held mutex is a glib `abort()`. The same abort answers a
+/// *second* destroy, because `gtk_widget_destroy` goes through
 /// `g_object_run_dispose`, which re-runs dispose on an already-disposed widget.
 ///
-/// Upstream does not defend against either: `PopupWindowControllerLinux.destroy`
-/// calls `gtk_widget_destroy` *before* it unregisters the view. So the wait is
-/// ours to do, and a single `addPostFrameCallback` hop is not it — that hop
-/// assumes the rebuild which drops the view happens in the frame it lands
-/// after, rather than checking. Under the dock, whose tooltips open and close a
-/// surface per hover, the assumption does not hold and the shell dies.
+/// Upstream defends against neither: `PopupWindowControllerLinux.destroy` calls
+/// `gtk_widget_destroy` *before* it unregisters the view. A single
+/// `addPostFrameCallback` hop is not enough either — it assumes the rebuild that
+/// drops the view happened in the frame it landed after. Under the dock, whose
+/// tooltips open and close a surface per hover, that assumption fails.
 ///
-/// The probe and the callbacks are injected so the loop is a plain widget test
-/// with no GTK behind it (`test/popup_teardown_test.dart`).
+/// The probe and callbacks are injected so the loop is a plain widget test
+/// (`test/popup_teardown_test.dart`).
 class WindowTeardown {
   WindowTeardown({
     required this.viewAttached,
@@ -463,10 +423,9 @@ class WindowTeardown {
 
   /// Frames to wait before destroying anyway.
   ///
-  /// A window nobody ever detaches would otherwise be leaked on every close,
-  /// which is worse than the residual race — and a view can legitimately
-  /// outlive its owner's expectations (a rebuild deferred behind a stuck
-  /// animation, a registry whose host was itself disposed mid-frame).
+  /// A window nobody ever detaches would otherwise leak on every close, which is
+  /// worse than the residual race — and a view can legitimately outlive its
+  /// owner's expectations.
   final int maxFrames;
 
   bool _started = false;
@@ -524,8 +483,8 @@ class WindowTeardown {
 
 /// Whether the framework still holds a render tree for [view].
 ///
-/// This is the framework's own view of it — the engine only drops the view when
-/// the window is destroyed, which is the thing being waited for, so
+/// The framework's own view of it: the engine only drops the view when the
+/// window is destroyed, which is the thing being waited for, so
 /// `platformDispatcher.views` would never answer no.
 bool viewIsAttached(FlutterView view) => WidgetsBinding.instance.renderViews
     .any((RenderView rv) => identical(rv.flutterView, view));
@@ -568,36 +527,31 @@ Widget _maybeAttached(String? edge, Widget child) =>
 /// How long a popup's exit animation is given before its window is torn down
 /// anyway.
 ///
-/// [PopupTransition] answers as soon as it has finished, and normally does so
-/// well inside this. The timer is for the cases where it never will: a window
-/// whose view was dropped before the transition ever built, a host disposed
-/// mid-animation, a compositor that took the surface away. A popup leaked on
-/// every close is a great deal worse than one that disappears a moment early.
+/// [PopupTransition] normally answers well inside this. The timer is for the
+/// cases where it never will: a window whose view was dropped before the
+/// transition built, a host disposed mid-animation, a compositor that took the
+/// surface away. A popup leaked on every close is worse than one that disappears
+/// a moment early.
 ///
-/// `final` rather than `const` only because two `Duration`s cannot be added in
-/// a constant expression; the token is still the one source of the exit's own
-/// length.
+/// `final` rather than `const` only because two `Duration`s cannot be added in a
+/// constant expression.
 final Duration _kPopupExitTimeout =
     ShellDurations.popupOut + const Duration(milliseconds: 250);
 
-/// A popup the host has let go of but that is still on screen, playing its
-/// exit animation.
+/// A popup the host has let go of but that is still on screen, playing its exit
+/// animation.
 ///
-/// The host drops every reference to a closing popup the instant
-/// [PopupHost.closePopup] is called — `isPopupOpen` answers false and a fresh popup may be opened in
-/// the same turn, which several call sites (`dock.dart`, `app_directory.dart`,
-/// `desktop_surface.dart`) close-then-reopen through. Everything still owed to
-/// the outgoing window lives here until [finish] pays it: dropping the
-/// [WindowEntry], destroying the native window, and calling back whatever the
-/// opener passed as `onClosed`.
+/// The host drops every reference the instant [PopupHost.closePopup] is called —
+/// `isPopupOpen` answers false and a fresh popup may open in the same turn, which
+/// `dock.dart`, `app_directory.dart` and `desktop_surface.dart` rely on.
+/// Everything still owed to the outgoing window lives here until [finish] pays
+/// it: the [WindowEntry], the native window, and the opener's `onClosed`.
 ///
-/// The coordinator handle is **not** among them — it is released
-/// synchronously, in [PopupHost.closePopup], exactly as it always was. A
-/// handle left registered through the exit is one `dismissOutside` will find
-/// and dismiss when the next popup opens, and its `onDismiss` is the host's
-/// `closePopup`: the host has since reopened, so what that dismissal would
-/// close is the *new* popup, in the same gesture that asked for it. The dock's
-/// tooltip giving way to its menu is exactly that gesture.
+/// The coordinator handle is **not** among them — it is released synchronously in
+/// [PopupHost.closePopup]. A handle left registered through the exit is one
+/// `dismissOutside` would find when the next popup opens, and its `onDismiss` is
+/// the host's `closePopup`: what that would close is the *new* popup, in the
+/// same gesture that asked for it.
 class _ClosingPopup {
   _ClosingPopup({
     required this.controller,
@@ -614,9 +568,9 @@ class _ClosingPopup {
   final VoidCallback? onClosed;
 
   /// The flag [PopupTransition] watches. Deliberately never disposed: the
-  /// transition removes its own listener from `dispose`, which runs a frame
-  /// *after* [finish] drops the entry, and a `ValueNotifier` throws when a
-  /// listener is removed from a disposed one.
+  /// transition removes its listener from `dispose`, which runs a frame *after*
+  /// [finish] drops the entry, and a `ValueNotifier` throws when a listener is
+  /// removed from a disposed one.
   final ValueNotifier<bool> closing;
 
   final void Function(_ClosingPopup) onFinished;
@@ -649,10 +603,10 @@ class _ClosingPopup {
 
 /// Mixin for [State] classes that own a single popup window.
 ///
-/// Encapsulates the controller/view lifecycle and WindowRegistry registration
-/// so each module only needs to compute its anchor geometry and call
-/// [openPopup] — and, since the exit animation, the [PopupTransition] the card
-/// is wrapped in and the [_ClosingPopup] that outlives the close.
+/// Encapsulates the controller/view lifecycle and WindowRegistry registration so
+/// each module only computes its anchor geometry and calls [openPopup] — plus
+/// the [PopupTransition] the card is wrapped in and the [_ClosingPopup] that
+/// outlives the close.
 mixin PopupHost<T extends StatefulWidget> on State<T> {
   PopupWindowController? _popupController;
   WindowRegistry? _registry;
@@ -660,11 +614,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   VoidCallback? _onClosed;
   TransientHandle? _handle;
 
-  /// The panel surface this host borrowed keyboard focus from for the open
-  /// popup, and null when it borrowed none — which is every popup but the one
-  /// or two that carry a text field. Held rather than re-derived at close time
-  /// because the closing popup's own `context` is gone by then, and because
-  /// only the surface this host actually flipped may be flipped back.
+  /// The panel surface this host borrowed keyboard focus from, and null when it
+  /// borrowed none — which is every popup but the one or two carrying a text
+  /// field. Held rather than re-derived at close time because the closing
+  /// popup's own `context` is gone by then, and because only the surface this
+  /// host actually flipped may be flipped back.
   LayershellWindowController? _keyboardLender;
 
   /// The flag the open popup's [PopupTransition] watches, handed to its
@@ -673,43 +627,39 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
 
   /// Whether the open popup's effect has an exit to play. False for
   /// [PopupEffect.none], and forced false when the compositor destroys the
-  /// window under us — there is nothing left to animate then.
+  /// window under us.
   bool _exitAnimates = false;
 
   /// Popups this host has closed that are still on screen, animating out.
   ///
   /// Normally at most one, but a host that closes and immediately reopens (the
   /// dock's tooltip giving way to its menu) can have the outgoing card still
-  /// fading while the new one arrives, and a host disposed mid-animation has
-  /// to be able to finish them all.
+  /// fading while the new one arrives, and a host disposed mid-animation has to
+  /// finish them all.
   final List<_ClosingPopup> _outgoing = <_ClosingPopup>[];
 
   /// Whether a popup is currently open.
   ///
-  /// A popup that is animating *out* is not open: the host has let go of it
-  /// and a new one may be opened over it in the same turn. Every close-then-
-  /// reopen call site in the shell depends on that being true synchronously.
+  /// A popup animating *out* is not open: the host has let go of it and a new one
+  /// may open over it in the same turn. Every close-then-reopen call site depends
+  /// on that being true synchronously.
   bool get isPopupOpen => _popupController != null;
 
-  /// Opens a popup positioned relative to the given anchor geometry.
-  ///
-  /// If a popup is already open this is a no-op — call [closePopup] first.
   /// Opens a popup anchored to the triggering widget, choosing the anchor pair
   /// from the panel's [BarScope] edge. This is the common case; use [openPopup]
-  /// directly only when custom anchor geometry is needed.
-  /// [attach] is the one thing a caller may turn off, and it governs the card's
-  /// *shape* alone. Every bar popup is anchored to the panel edge, pushed off it
-  /// by `popup_gap`, and kept from painting its shadow over the bar; one that
-  /// declines to attach simply keeps all four corners and its whole rim where it
-  /// meets the panel, instead of continuing the bar's sides. The hover tooltips
-  /// pass false — a label that appears under the pointer for a moment reads as a
-  /// floating card, not as part of the furniture.
+  /// directly only when custom anchor geometry is needed. A no-op if one is
+  /// already open — call [closePopup] first.
   ///
-  /// [effect] overrides the theme's `popup_animation` for this popup alone.
-  /// The dock is the one caller that passes it: its hover labels and its unpin
-  /// menu belong to a strip the pointer sweeps across, where a card that
-  /// animates on every button it passes is the shell twitching rather than
-  /// responding.
+  /// [attach] governs the card's *shape* alone. Every bar popup is anchored to
+  /// the panel edge, pushed off it by `popup_gap`, and kept from painting its
+  /// shadow over the bar; one that declines to attach simply keeps all four
+  /// corners and its whole rim. The hover tooltips pass false — a label that
+  /// appears under the pointer reads as a floating card, not as furniture.
+  ///
+  /// [effect] overrides the theme's `popup_animation` for this popup alone. The
+  /// dock is the one caller that passes it: its hover labels and unpin menu
+  /// belong to a strip the pointer sweeps across, where a card that animates on
+  /// every button it passes is the shell twitching rather than responding.
   void openBarPopup(
     BuildContext context, {
     required Widget child,
@@ -762,9 +712,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     final owner = ownerKey ?? this;
     // The click that opened this is the same one that just dismissed our own
     // popup from [PopupDismissArea], which runs first: a [Listener] sits above
-    // every recognizer on the hit-test path. Without this the toggle would
-    // close and immediately reopen, and no bar popup could ever be dismissed
-    // by clicking its own icon.
+    // every recognizer on the hit-test path. Without this the toggle would close
+    // and immediately reopen, and no bar popup could be dismissed by its own icon.
     if (PopupCoordinator.instance.consumeReopenGuard(owner)) return;
     _onClosed = onClosed;
     final parentController = WindowScope.of(context);
@@ -774,29 +723,28 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       _keyboardLender = _borrowPopupKeyboard(parentController);
     }
     final constraints = preferredConstraints.enforce(kMinPopupConstraints);
-    // Snapshotted at open, the same discipline [constraints] has and for the
-    // same reason: GTK3 resolves gdk_window_move_to_rect exactly once at map
-    // time (see the comment on the resize below), so neither the surface's size
-    // nor its placement can be revised afterwards. A theme edit while a popup
-    // is open therefore restyles the card — PopupCard reads the scope live —
-    // without resizing the window it sits in.
+    // Snapshotted at open, the discipline [constraints] has and for its reason:
+    // GTK3 resolves gdk_window_move_to_rect exactly once at map time, so neither
+    // the surface's size nor its placement can be revised afterwards. A theme
+    // edit while a popup is open therefore restyles the card — PopupCard reads
+    // the scope live — without resizing the window it sits in.
     final theme = ThemeScope.of(context);
-    // Attached is a shape, and the theme's gap is its switch: at any gap at all
-    // the card is a free-floating one, and a join flare would be reaching for a
-    // bar that is no longer there.
+    // Attached is a shape and the theme's gap is its switch: at any gap at all
+    // the card is free-floating, and a join flare would be reaching for a bar
+    // that is no longer there.
     final attachEdge =
         barAnchor != null && attach && theme.popupGap <= 0 ? barAnchor : null;
-    // Snapshotted with the rest of the theme, and for a reason of its own: the
-    // entrance and the exit have to be the same effect, and a theme edited
-    // while a popup is open would otherwise close it with an animation that is
-    // not the reverse of the one it opened with.
+    // Snapshotted with the rest of the theme, for a reason of its own: the
+    // entrance and the exit have to be the same effect, and a theme edited while
+    // a popup is open would otherwise close it with an animation that is not the
+    // reverse of the one it opened with.
     final resolvedEffect = effect ?? theme.popupEffect;
     final closing = _closing = ValueNotifier<bool>(false);
     _exitAnimates = resolvedEffect.animates;
     // Both terms are margin outside the card that the surface has to carry, or
     // the compositor clips what should have been painted there — the shadow's
-    // reach, and an attached card's flare, which bows out past its own box on
-    // the two sides that meet the bar.
+    // reach, and an attached card's flare, which bows out past its own box on the
+    // two sides that meet the bar.
     final surfaceInsets = popupSurfaceInsets(
       popupShadowInsets(theme, attachEdge: barAnchor),
       popupAttachInsets(theme, attachEdge: attachEdge),
@@ -809,11 +757,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
         parentAnchor: parentAnchor,
         childAnchor: childAnchor,
         // Two terms. The first cancels the margin the shadow adds, so the card
-        // lands exactly where an unshadowed popup's window would have; the
-        // second is the distance off the panel edge the theme asked for. They
-        // compose without interfering, because on the joined edge the inset has
-        // already been clamped to the gap: the first term contributes
-        // `gap - min(reach, gap)` there, so the sum is the gap exactly.
+        // lands where an unshadowed popup's window would have; the second is the
+        // distance off the panel edge the theme asked for. They compose without
+        // interfering, because on the joined edge the inset has already been
+        // clamped to the gap: the first contributes `gap - min(reach, gap)`
+        // there, so the sum is the gap exactly.
         offset: popupShadowAnchorOffset(childAnchor, surfaceInsets) +
             (barAnchor == null
                 ? Offset.zero
@@ -822,17 +770,16 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       ),
       // The *window's* constraints, not the card's: these become GTK geometry
       // hints capping the surface, which the shadow and the flare have just
-      // grown. See
-      // [popupWindowConstraints] — the [ConstrainedBox] below is what still
+      // grown. See [popupWindowConstraints] — the [ConstrainedBox] below still
       // holds the card to what the call site asked for.
       constraints: popupWindowConstraints(constraints, surfaceInsets),
       delegate: PopupDelegate(onDestroyed: () {
         if (_popupController == thisController) {
           // The compositor has already taken the surface away, so there is
-          // nothing left to animate: asking for an exit here would keep a dead
-          // window registered for the length of one. Set on the field rather
-          // than passed as an argument because `closePopup` is what modules
-          // override (`dock.dart`), and that override has to keep running.
+          // nothing left to animate: asking for an exit would keep a dead window
+          // registered for the length of one. Set on the field rather than passed
+          // as an argument because `closePopup` is what modules override
+          // (`dock.dart`), and that override has to keep running.
           _exitAnimates = false;
           closePopup();
         } else {
@@ -842,12 +789,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       }),
     );
     // The popup surface defaults to opaque black (fl_view_renderer paints the
-    // view background unless it is exactly #00000000), so make it transparent
-    // the same way LayershellWindowController does for panels.
+    // view background unless it is exactly #00000000), so make it transparent the
+    // way LayershellWindowController does for panels.
     // BaseWindowControllerLinux, not WindowControllerLinux: the latter is the
-    // *regular*-window controller, and a popup's controller only implements the
-    // base interface. Casting to the wrong one compiles and then throws on the
-    // first popup opened.
+    // *regular*-window controller, and a popup's only implements the base
+    // interface. Casting to the wrong one compiles and then throws on the first
+    // popup opened.
     final native = thisController as BaseWindowControllerLinux;
     final gtkWindow = GtkWindow.fromHandle(native.windowHandle);
     gtkWindow.setAppPaintable(true);
@@ -856,27 +803,20 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // positioned as though it were some other size.
     //
     // PopupWindowControllerLinux resolves the placement exactly once, from its
-    // own constructor, and GTK3 does not set the positioner's reactive flag —
-    // so `gdk_window_move_to_rect` is evaluated against whatever size the GTK
-    // window has at map time and is never revisited. The window is mapped from
-    // the engine's first-frame callback, but fl_view_renderer only applies the
-    // content size when it *presents* a frame, which is after that. So the
-    // popup maps at GTK's default 200x200 and shrinks to its content
-    // afterwards, having already been placed as a 200x200 window.
+    // constructor, and GTK3 does not set the positioner's reactive flag — so
+    // `gdk_window_move_to_rect` is evaluated against whatever size the window has
+    // at map time and never revisited. The window maps from the engine's
+    // first-frame callback, but fl_view_renderer only applies the content size
+    // when it *presents* a frame, which is after that. So the popup maps at GTK's
+    // default 200x200 and shrinks afterwards, having been placed as 200x200.
     //
     // That matters because [popupAnchorsForBar] returns edge-*centred* anchors:
-    // on a top or bottom bar the popup is centred horizontally on its trigger,
-    // so its x is `anchorCentre - width / 2` and a wrong width offsets it by
-    // half the error. A 128-wide system menu placed as though it were 200 wide
-    // lands 36px to the side of its button, which is far enough that the
-    // constraint adjustment then slides it somewhere else entirely.
+    // a wrong width offsets the popup by half the error, and a 128-wide menu
+    // placed as though it were 200 lands 36px to the side of its button.
     //
-    // This was invisible for as long as every call site passed
-    // `BoxConstraints.tightFor(...)`: those windows really were the size GTK
-    // had mapped them at, and the ones that were near 200x200 were simply
-    // lucky. A post-frame callback runs after the frame that laid the content
-    // out but before that frame is presented — the last moment at which the
-    // size can still reach GTK ahead of the map.
+    // This was invisible while every call site passed `BoxConstraints.tightFor`.
+    // A post-frame callback runs after the frame that laid the content out but
+    // before it is presented — the last moment the size can reach GTK.
     final contentKey = GlobalKey();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (thisController!.isDestroyed) return;
@@ -885,13 +825,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       gtkWindow.resize(size.width.ceil(), size.height.ceil());
     });
     // The root's registry, reached the way any descendant reaches it. A popup
-    // opened from inside another popup's content finds the same one, because
-    // that content is built under the root manager too.
+    // opened from inside another popup's content finds the same one, because that
+    // content is built under the root manager too.
     _registry = WindowRegistry.of(context);
     // Registered before the surface maps, so whatever this displaces is already
-    // on its way out. The parent comes from the context: null in a panel, and
-    // the enclosing popup's handle when a popup opens from inside another's
-    // content.
+    // on its way out. The parent comes from the context: null in a panel, and the
+    // enclosing popup's handle when a popup opens from inside another's content.
     final handle = _handle = PopupCoordinator.instance.open(
       owner: owner,
       parent: TransientScope.maybeOf(context),
@@ -899,28 +838,26 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       onDismiss: closePopup,
     );
     // The content is laid out directly under the popup's View, so the
-    // ConstrainedBox at the bottom of this tree is what actually gives a
-    // sized-to-content window its size: tight constraints make the content
-    // fill the popup exactly, loose ones are floored at
-    // [kMinPopupConstraints].
+    // ConstrainedBox at the bottom of this tree is what gives a sized-to-content
+    // window its size: tight constraints make the content fill the popup exactly,
+    // loose ones are floored at [kMinPopupConstraints].
     _entry = WindowEntry(
       controller: _popupController!,
       builder: (_) => TransientScope(
         handle: handle,
         // Inside the TransientScope and above everything the call site built,
         // because it is the card — three or four levels down, in a view of its
-        // own — that has to read it. Absent entirely for a floating popup, so
-        // nothing outside a bar pays an element for this.
+        // own — that reads it. Absent entirely for a floating popup, so nothing
+        // outside a bar pays an element for this.
         child: _maybeAttached(
           attachEdge,
-          // A card on its way out accepts nothing. Its surface stays mapped
-          // for the length of the exit and the Listener below sits above the
-          // animation, so without this a click on a fading popup would still
-          // run `dismissFromPointerDown` under a handle the coordinator has
-          // already forgotten — which dismisses everything *else* open,
-          // including a popup the same gesture may have just opened. The
-          // Listener subtree is passed through as `child`, so the flip costs
-          // one rebuild here and nothing at all below it.
+          // A card on its way out accepts nothing. Its surface stays mapped for
+          // the length of the exit and the Listener below sits above the
+          // animation, so without this a click on a fading popup would run
+          // `dismissFromPointerDown` under a handle the coordinator has already
+          // forgotten — dismissing everything *else* open, including a popup the
+          // same gesture may have just opened. The Listener subtree is passed
+          // through as `child`, so the flip costs one rebuild here.
           ValueListenableBuilder<bool>(
             valueListenable: closing,
             // `subtree` rather than `child`: the call site's own `child`
@@ -1014,8 +951,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     );
     final animate = _exitAnimates;
     // Given back now rather than at the end of the exit, for the coordinator
-    // handle's reason below: the card is [IgnorePointer]ed and on its way out,
-    // so nothing is being typed into it, and holding the panel's focus for the
+    // handle's reason below: the card is [IgnorePointer]ed and on its way out, so
+    // nothing is being typed into it, and holding the panel's focus for the
     // length of an animation is holding it from the window underneath.
     _returnPopupKeyboard(_keyboardLender);
     _keyboardLender = null;
@@ -1064,17 +1001,15 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
 
   @override
   void dispose() {
-    // Normally already given back by [closePopup] — this covers the host that
-    // is disposed with its popup still open, which is the desktop's
-    // "including from `dispose`, so a monitor unplugged mid-rename cannot
-    // leave a surface holding focus" written for a panel.
+    // Normally already given back by [closePopup]; this covers the host disposed
+    // with its popup still open, so a monitor unplugged mid-rename cannot leave a
+    // surface holding focus.
     _returnPopupKeyboard(_keyboardLender);
     _keyboardLender = null;
-    // Modules close their popup from their own `dispose`, which runs before
-    // this: what is left here is a card animating out on behalf of a host that
-    // no longer exists. Finish it now rather than leaving a timer and a
-    // registered window behind — the animation has nothing left to say, and
-    // the deterministic teardown is worth more than the last few frames of it.
+    // Modules close their popup from their own `dispose`, which runs before this:
+    // what is left is a card animating out on behalf of a host that no longer
+    // exists. Finish it now rather than leaving a timer and a registered window
+    // behind — a deterministic teardown is worth more than the last few frames.
     for (final record in List<_ClosingPopup>.from(_outgoing)) {
       record.finish();
     }
@@ -1082,13 +1017,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   }
 }
 
-/// Mixin for [State] classes that own a single full layer-shell window
-/// (a panel, overlay, or dialog) whose surface they configure themselves.
+/// Mixin for [State] classes that own a single full layer-shell window (a panel,
+/// overlay, or dialog) whose surface they configure themselves.
 ///
-/// The module creates the [LayershellWindowController] with its own
-/// layer/anchor parameters and hands it to [openLayerWindow]; this mixin owns
-/// the [WindowRegistry] registration + teardown so each module only decides
-/// when to open and what content to show.
+/// The module creates the [LayershellWindowController] with its own layer/anchor
+/// parameters and hands it to [openLayerWindow]; this mixin owns the
+/// [WindowRegistry] registration and teardown.
 mixin LayerShellHost<T extends StatefulWidget> on State<T> {
   LayershellWindowController? _lsController;
   WindowRegistry? _lsRegistry;
@@ -1151,7 +1085,7 @@ mixin LayerShellHost<T extends StatefulWidget> on State<T> {
 ///
 /// Popup content is built in its own window, outside the panel's [ThemeScope],
 /// so callers must wrap this in a `ThemeProvider` — which is also what keeps a
-/// tooltip that is still on screen in step with a theme change.
+/// tooltip still on screen in step with a theme change.
 class TooltipLabel extends StatelessWidget {
   const TooltipLabel({super.key, required this.text});
 
@@ -1162,8 +1096,8 @@ class TooltipLabel extends StatelessWidget {
     final theme = ThemeScope.of(context);
     return Directionality(
       textDirection: TextDirection.ltr,
-      // The background is the theme's, at the alpha the theme chose. This used
-      // to force .withAlpha(100) on top of it, which under a translucent theme
+      // The background is the theme's, at the alpha the theme chose. This used to
+      // force .withAlpha(100) on top of it, which under a translucent theme
       // compounded into the least legible surface in the shell.
       child: PopupCard(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

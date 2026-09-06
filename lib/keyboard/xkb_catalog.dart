@@ -1,12 +1,10 @@
-// The xkb layouts and variants installed on this machine, from xkeyboard-config's
-// own rules listing.
+// The xkb layouts and variants installed on this machine, from
+// xkeyboard-config's own rules listing.
 //
-// `base.lst` rather than `evdev.xml`: the two carry the same layout and variant
-// tables (on a Debian/Ubuntu box `evdev.lst` is byte-identical to `base.lst` and
-// `xorg.lst` is a symlink to it), the `.lst` is a fifth the size, and parsing it
-// needs no XML dependency — which this repo does not have. What the XML has and
-// the list does not is `<shortDescription>`, the `en`-for-`us` column; see
-// `keyboard_short_codes.dart` for what stands in for it and why.
+// `base.lst` rather than `evdev.xml`: the two carry the same tables, the `.lst`
+// is a fifth the size, and parsing it needs no XML dependency — which this repo
+// does not have. What the XML has and the list does not is `<shortDescription>`,
+// the `en`-for-`us` column; see `keyboard_short_codes.dart` for what stands in.
 
 import 'dart:convert';
 import 'dart:io';

@@ -1,47 +1,31 @@
-// The weather desktop widget: the reading, over a picture of the sky the
-// reading describes.
+// The weather desktop widget: the reading, over a picture of the sky it
+// describes.
 //
-// The second entry in `DesktopWidgetRegistry`, and it reads exactly what the
-// bar module reads — `WeatherStore`, leased. Neither surface owns the fetch and
-// neither knows the other exists; before the store, all of it lived in the bar
-// module's `State`, so this widget would have meant a second geolocation
-// lookup and a second forecast poller per monitor.
+// The second entry in `DesktopWidgetRegistry`, reading exactly what the bar
+// module reads — `WeatherStore`, leased. Neither surface owns the fetch.
 //
-// Five things about it that the media widget did not have to answer:
+// Five things about it:
 //
-// - **Nothing on this card moves.** No ticker, no Lottie, no `animate` flag to
-//   pass down — see `weather_sky.dart`'s header for the whole argument. The
-//   consequence for the *layout* is that the still frame has to be composed
-//   rather than merely populated, which is what the rest of this list is
-//   about; the consequence for tests is that a tree containing this may be
-//   `pumpAndSettle`ed like any other.
+// - **Nothing on this card moves** — see `weather_sky.dart`'s header. A tree
+//   containing this may be `pumpAndSettle`ed.
 // - **The card is the sky, so the frame gives it no padding.** Its
 //   `DesktopWidgetSpec` asks for `EdgeInsets.zero` and the content carries its
-//   own insets; `PopupCard` clips to the theme's radius, so the sky is rounded
-//   with the card.
-// - **There is no hero glyph, and that is the point.** The expanded layout used
-//   to set a 58px Meteocon beside the temperature — a drawn sun, over a sky
-//   already drawing one, four times the size and eight pixels away. Two suns on
-//   one card is the single thing that read most like a first draft. The sky is
-//   the condition's picture; the label under the reading is its name; the small
-//   tinted glyphs survive in the detail row and the forecast strip, where they
-//   are labels rather than a second subject. The compact layout keeps its icon,
-//   because at 2x1 there is no sky left to read.
+//   own insets; `PopupCard` clips to the theme's radius.
+// - **There is no hero glyph.** The expanded layout used to set a 58px Meteocon
+//   beside the temperature — a drawn sun over a sky already drawing one. The sky
+//   is the condition's picture and the label under the reading is its name; the
+//   small tinted glyphs survive in the detail row and forecast strip. The
+//   compact layout keeps its icon, because at 2x1 there is no sky to read.
 // - **The text is white on a scrim, not on the theme.** The palettes run from a
-//   near-black thunderstorm to an almost-white snowfall, and no theme
-//   foreground is legible on both. `SkyScrim` guarantees something dark under
-//   the readout, the same call the lock screen makes over a wallpaper.
-// - **Every size in it is one table times one factor, and what fits is
-//   *measured*.** This is the only widget in the shell the *user* resizes, in a
-//   grid whose cell size they also choose — see [_CardScale] — so a literal
-//   chosen against one card is wrong on every other one, and a *pixel
-//   threshold* chosen against one type size is wrong the moment the type
-//   grows. [_Sections] answers how tall each block of the card is at the size
-//   it will actually be set in, and the layout takes blocks in priority order
-//   until the next one will not fit. That is what lets the content column be
-//   built from plain `SizedBox` slack rather than from `Spacer`s: nothing is
-//   ever laid out into less room than it needs, so there is no flex left to
-//   overflow.
+//   near-black thunderstorm to an almost-white snowfall, and no theme foreground
+//   is legible on both.
+// - **Every size is one table times one factor, and what fits is *measured*.**
+//   This is the only widget the user resizes, in a grid whose cell size they
+//   also choose (see [_CardScale]), so a literal or a pixel threshold chosen
+//   against one card is wrong on every other. [_Sections] answers how tall each
+//   block is at the size it will be set in, and the layout takes blocks in
+//   priority order until the next will not fit — which is what lets the column
+//   use plain `SizedBox` slack rather than `Spacer`s.
 
 import 'dart:math' as math;
 
@@ -65,11 +49,10 @@ const double _minWidth = 150;
 const double _minHeight = 64;
 const double _expandedMinHeight = 128;
 
-/// The narrowest card a forecast strip is drawn on. The one dimension of this
-/// layout still decided by a threshold rather than by [_Sections], because a
-/// strip's problem is horizontal: three columns of a day, a glyph and a
-/// temperature under a card this narrow is not a smaller forecast, it is an
-/// unreadable one.
+/// The narrowest card a forecast strip is drawn on. The one dimension still
+/// decided by a threshold rather than by [_Sections], because a strip's problem
+/// is horizontal: three columns under a card this narrow is not a smaller
+/// forecast but an unreadable one.
 const double _forecastMinWidth = 250;
 
 /// The card every base size below was chosen against: the registry's own
@@ -128,35 +111,23 @@ const double _fitMargin = 5;
 
 /// The card's type and icon scale.
 ///
-/// Every size in this widget used to be a literal chosen against
-/// [_referenceCard], so a user who dragged the widget out to 6x4 got the same
-/// 10px day labels in four times the area — and the forecast strip in
-/// particular read as an afterthought rather than as the content it is. The
-/// sizes are now that same table multiplied through by one factor derived from
-/// the box the grid actually handed the card.
-///
-/// Three things about the factor.
+/// Every size used to be a literal chosen against [_referenceCard], so a user who
+/// dragged the widget to 6x4 got the same 10px day labels in four times the area.
+/// The sizes are now that table multiplied by one factor derived from the box the
+/// grid handed the card.
 ///
 /// It starts from the **geometric mean** of the two edge ratios rather than
-/// either one alone: a card stretched wide but left one row tall has no more
-/// room for a bigger type than it started with, and taking the wider edge
-/// would set it in a size its own height cannot carry.
+/// either alone: a card stretched wide but left one row tall has no more room for
+/// bigger type, and taking the wider edge would set it in a size its height
+/// cannot carry.
 ///
-/// It then takes that to [_scaleExponent], which is the difference between a
-/// card that shows *more* and one that is merely a photographic enlargement of
-/// the small one. The geometric mean of the edge ratios **is** the linear
-/// scale, so raising the type by it exactly is the one law under which the
-/// content occupies the same fraction of the card at every size — under which
-/// nothing new can ever fit, however far the widget is dragged out. That is
-/// why the old card's forecast strip had to be gated on a raw pixel threshold
-/// instead, and why that threshold then disagreed with the type it was sizing.
-/// Growing the type more slowly than the card is also simply what typography
-/// does: a poster is not a business card enlarged.
+/// It then takes that to [_scaleExponent], which is the difference between a card
+/// that shows *more* and a photographic enlargement of the small one: the
+/// geometric mean **is** the linear scale, so applying it exactly is the one law
+/// under which nothing new can ever fit however far the widget is dragged out.
 ///
-/// And it never goes **below 1** — the literals are a floor rather than a
-/// midpoint, and a card smaller than the reference is already being laid out
-/// at its own minimum and clipped (see `_minWidth`/`_minHeight`) rather than
-/// being asked to draw a smaller version of itself.
+/// And it never goes **below 1** — the literals are a floor, and a card smaller
+/// than the reference is already laid out at its own minimum and clipped.
 class _CardScale {
   const _CardScale(this.factor);
 
@@ -176,12 +147,10 @@ class _CardScale {
 
 /// How tall each block of the expanded card is, at the size it will be set in.
 ///
-/// The layout used to decide what to draw from pixel thresholds — "details need
-/// 250px of card, a forecast needs 190" — which are two numbers that were only
-/// ever right for one type size and one font, and which quietly disagreed with
-/// each other about the order things were supposed to be shed in. These are the
-/// same arithmetic the layout is about to perform, done once in advance, so the
-/// answer cannot drift from the thing it is answering about.
+/// The layout used to decide what to draw from pixel thresholds, which were only
+/// ever right for one type size and one font and quietly disagreed about the
+/// order things were shed in. This is the same arithmetic the layout is about to
+/// perform, done once in advance.
 class _Sections {
   const _Sections(this.scale, this.textScaler);
 
@@ -359,10 +328,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     }
 
     // What fits, in the order the card gives things up. The forecast strip goes
-    // first — it is the block that needs the most height for the least often
-    // wanted answer — then the day's high and low, and the detail row is what
-    // survives longest, because "what does it feel like out there" is the
-    // question somebody puts a weather widget on their desktop for.
+    // first — most height for the least often wanted answer — then the day's high
+    // and low; the detail row survives longest, because "what does it feel like
+    // out there" is what somebody puts a weather widget on their desktop for.
     final sections = _Sections(scale, textScaler);
     final place = store.place;
     final forecast = store.forecast;
@@ -404,10 +372,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       height - 2 * scale(_basePadding);
 
   /// How many days fit across [width]. Each column needs about 48px at
-  /// [_referenceCard] to carry a day label, a glyph and a high — and that
-  /// budget scales with the type, or a card twice the size would answer
-  /// "twice as many days" rather than "the same days, legibly". Fewer days is
-  /// better than a strip of clipped ones.
+  /// [_referenceCard], and that budget scales with the type — or a card twice the
+  /// size would answer "twice as many days" rather than "the same days,
+  /// legibly". Fewer days is better than a strip of clipped ones.
   int _forecastDays(double width, _CardScale scale, TextScaler textScaler) {
     final content = width - 2 * scale(_basePadding);
     // Through the text scaler as well: the budget is mostly the day label and
@@ -496,9 +463,8 @@ class _RetryButton extends StatelessWidget {
 
 /// The 2x1 layout: a glyph, the temperature, and what it is doing.
 ///
-/// The one layout that keeps an icon. At two cells by one the sky behind it is
-/// a strip barely taller than the text, so there is no picture to be redundant
-/// with — the glyph *is* the condition here.
+/// The one layout that keeps an icon: at two cells by one the sky behind it is a
+/// strip barely taller than the text, so the glyph *is* the condition here.
 class _CompactLayout extends StatelessWidget {
   const _CompactLayout({
     required this.store,
@@ -545,15 +511,12 @@ class _CompactLayout extends StatelessWidget {
 }
 
 /// Two rows or taller: the place along the top, the reading set large in the
-/// lower half, and — as the card grows — the day's detail and a forecast strip
-/// ruled off under it.
+/// lower half, and — as the card grows — the day's detail and a forecast strip.
 ///
-/// The composition is deliberate and it is the sky's. `kCelestialCentre` puts
-/// the sun or the moon at 0.78 of the width and 0.27 of the height, so the
-/// top-right of the card is the one part of it that is *never* text; the place
-/// name runs along the top-left beside it, and everything else is anchored to
-/// the bottom, where `SkyScrim` is darkest. The old layout centred a glyph and
-/// a temperature across the middle of the card, straight through the picture.
+/// The composition is the sky's. `kCelestialCentre` puts the sun or moon at 0.78
+/// of the width and 0.27 of the height, so the top-right is the one part that is
+/// never text; the place name runs along the top-left and everything else is
+/// anchored to the bottom, where `SkyScrim` is darkest.
 class _ExpandedLayout extends StatelessWidget {
   const _ExpandedLayout({
     required this.store,
@@ -588,12 +551,10 @@ class _ExpandedLayout extends StatelessWidget {
     final forecast = store.forecast;
 
     // Unbounded vertically: the belt to [_Sections]' braces. The fit arithmetic
-    // decides *what* to draw and gets each block's height right to a pixel or
-    // two; this is what makes that pixel or two cost a clipped row of
-    // anti-aliasing rather than a flex overflow reported every frame on a
-    // surface whose console nobody is reading. The card's own `ClipRect` is
-    // what it is clipped against, and only this layout needs it — the compact
-    // and no-reading ones centre themselves in the box and so must keep it.
+    // gets each block's height right to a pixel or two, and this makes that pixel
+    // or two cost a clipped row of anti-aliasing rather than a flex overflow
+    // reported every frame. Only this layout needs it — the compact and
+    // no-reading ones centre themselves in the box.
     return OverflowBox(
       alignment: Alignment.topLeft,
       minHeight: 0,
@@ -702,17 +663,14 @@ class _Rule extends StatelessWidget {
   }
 }
 
-/// Feels-like, humidity and wind — each one dropped rather than truncated when
-/// the reading does not carry it, or the card is not wide enough for it.
+/// Feels-like, humidity and wind — each dropped rather than truncated when the
+/// reading does not carry it, or the card is not wide enough.
 ///
-/// The order it sheds them in is deliberate, the media widget's rule: wind goes
-/// before humidity and humidity before feels-like, because feels-like is the
-/// one somebody glances at a weather widget for. And it **measures** rather
-/// than counting characters — the `TrackMarquee` discipline: the same three
-/// readings fit at one theme's font and overflow at another's, and a row that
-/// guessed is a row that reports a flex overflow every frame on a surface whose
-/// console nobody is reading. The measurement is taken at the card's own scale,
-/// or growing the type would silently start overflowing the row it sizes.
+/// The shed order is deliberate: wind before humidity before feels-like, because
+/// feels-like is the one somebody glances at a weather widget for. And it
+/// **measures** rather than counting characters — the `TrackMarquee` discipline:
+/// the same three readings fit at one theme's font and overflow at another's. The
+/// measurement is taken at the card's own scale.
 class _DetailRow extends StatelessWidget {
   const _DetailRow({
     required this.reading,
@@ -816,22 +774,16 @@ class _Detail extends StatelessWidget {
   }
 }
 
-/// How wide [text] is set at [size], in the font the card will actually set it
-/// in.
+/// How wide [text] is set at [size], in the font the card will actually use.
 ///
-/// The `TrackMarquee` discipline, and the one both rows on this card that have
-/// to decide what fits are built on: the same three readings fit under one
-/// theme's font and overflow under another's, and the same two temperatures fit
-/// in a forecast column at 11px and do not at 17. Counting characters gets both
-/// wrong, and a row that guessed is a row that reports a flex overflow every
-/// frame on a surface whose console nobody is reading.
+/// The `TrackMarquee` discipline, and what both rows that decide what fits are
+/// built on: the same readings fit under one theme's font and overflow under
+/// another's, and counting characters gets it wrong.
 ///
-/// The style comes from [DefaultTextStyle] rather than being built from a bare
-/// [TextStyle], which is what `_DetailRow` measured with and what its own
-/// comment apologised for: the shell's text root supplies the *theme's*
-/// `fontFamily`, and a measurement taken in the platform default is a
-/// measurement of a different font. It is the same lookup the [Text] widgets
-/// beside it do, so the two cannot disagree.
+/// The style comes from [DefaultTextStyle] rather than a bare [TextStyle]: the
+/// shell's text root supplies the *theme's* `fontFamily`, and a measurement taken
+/// in the platform default measures a different font. It is the same lookup the
+/// [Text] widgets beside it do, so the two cannot disagree.
 double _measureText(BuildContext context, String text, double size) {
   final style = DefaultTextStyle.of(context).style.copyWith(fontSize: size);
   final painter = TextPainter(
@@ -850,14 +802,12 @@ double _measureText(BuildContext context, String text, double size) {
 
 /// The days-ahead strip along the bottom.
 ///
-/// The one part of this card that was illegible at every size: it was set at
-/// 10px against a 30px reading, and stayed at 10px on a card four times the
-/// area. Its base is [ShellFontSizes.caption] now, and it scales with the rest
-/// — and because `_forecastDays` scales its per-column budget by the same
-/// factor, a bigger card answers with the same days set larger rather than with
-/// more days set just as small. The low beside each high appears on the same
-/// budget: a column too narrow for both keeps the high, which is the number a
-/// forecast is read for.
+/// The one part of this card that was illegible at every size: set at 10px
+/// against a 30px reading, and still 10px on a card four times the area. Its base
+/// is [ShellFontSizes.caption] now and scales with the rest — and because
+/// `_forecastDays` scales its per-column budget by the same factor, a bigger card
+/// answers with the same days set larger. A column too narrow for both keeps the
+/// high, which is the number a forecast is read for.
 class _ForecastStrip extends StatelessWidget {
   const _ForecastStrip({required this.days, required this.scale});
 
@@ -1020,11 +970,9 @@ final DesktopWidgetSpec weatherDesktopWidget = DesktopWidgetSpec(
   description: 'Conditions and forecast, over a painted sky',
   icon: weatherDesktopWidgetIcon,
   // Two cells wide is the floor for the media widget's reason: one cell is an
-  // icon, and a temperature beside a condition does not fit in the width of a
-  // launcher tile. The default is larger than the floor deliberately — 3x2 is
-  // the smallest span that carries the place, the reading, the detail row and a
-  // sky with room to be looked at, and it is the span `_referenceCard` is the
-  // size of.
+  // icon. The default is larger deliberately — 3x2 is the smallest span carrying
+  // the place, the reading, the detail row and a sky with room to be looked at,
+  // and it is the span `_referenceCard` is the size of.
   minSpan: (columns: 2, rows: 1),
   maxSpan: (columns: 6, rows: 4),
   defaultSpan: (columns: 3, rows: 2),

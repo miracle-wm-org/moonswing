@@ -221,11 +221,10 @@ void main() {
 
   test('carbon draws its popups out of the same graphite as its bar', () {
     final carbon = _shipped('carbon');
-    // The join carries this theme, and a colour step across it is the one
-    // thing that would still read as two surfaces meeting after the gap, the
-    // shadow and the rim have all been taken away. panelBackgroundDecoration
-    // paints panel_background verbatim under panel_gradient = false, so the
-    // fill either side of the join is this one value.
+    // The join carries this theme, and a colour step across it is the one thing
+    // that would still read as two surfaces meeting after the gap, the shadow and
+    // the rim have all been taken away. panelBackgroundDecoration paints
+    // panel_background verbatim under panel_gradient = false.
     expect(carbon.popupBackground, carbon.panelBackground,
         reason: 'a card that grows out of the bar is made of the bar');
     expect(carbon.panelGradient, isFalse,
@@ -244,12 +243,11 @@ void main() {
 
   test('a shipped theme rims its bar only if its join can carry the line', () {
     // panel_border_width above zero draws the bar's rim along its *inner* edge
-    // too, which is the edge an attached popup meets. A *flared* join takes
-    // that over: the card reaches one rim-width into the panel, so its fill
-    // erases the hairline across the mouth and the arcs carry the line down the
-    // card. A square butt join has nothing to carry it with and would leave the
-    // hairline drawn straight across every menu — so for those the two keys are
-    // still a pair, which is where graceful and dracula sit.
+    // too, which is the edge an attached popup meets. A *flared* join takes that
+    // over: the card reaches one rim-width into the panel and the arcs carry the
+    // line down the card. A square butt join has nothing to carry it with, so for
+    // those the two keys are still a pair — which is where graceful and dracula
+    // sit.
     for (final slug in kBuiltInThemes.keys) {
       final theme = _shipped(slug);
       if (theme.popupGap > 0 || theme.popupAttachRadius > 0) continue;
@@ -286,11 +284,10 @@ void main() {
   });
 
   test('midnight treats the type scale as part of the palette', () {
-    // font_size is the body tier and every other size in the shell is a fixed
-    // ratio to it, so this is the whole shell set one rung up rather than a
-    // larger label here and there. It is also the only shipped theme that
-    // moves the scale at all, which makes it the only one pinning that a
-    // theme *can*.
+    // font_size is the body tier and every other size is a fixed ratio to it, so
+    // this is the whole shell set one rung up rather than a larger label here and
+    // there. It is also the only shipped theme that moves the scale at all, which
+    // makes it the only one pinning that a theme *can*.
     final midnight = _shipped('midnight');
     expect(midnight.fontSize, greaterThan(ShellFontSizes.body));
     expect(midnight.textScale, greaterThan(1.0));

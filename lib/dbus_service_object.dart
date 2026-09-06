@@ -2,18 +2,16 @@ import 'package:dbus/dbus.dart';
 
 /// Declarative scaffolding for the shell's exported D-Bus objects.
 ///
-/// Every server object the shell exports (the notification daemon, the
-/// StatusNotifierWatcher, and the three ScreenCast portal objects) used to
-/// hand-roll the same four overrides: an interface guard plus a method-name
-/// switch in `handleMethodCall`, and one property table repeated in
-/// `getProperty`, `getAllProperties`, and `introspect`. [DBusServiceObject]
-/// derives all four from a single [DBusServiceInterface] declaration, so a
-/// method or property is listed exactly once and the interface guard exists
-/// by construction.
+/// Every server object the shell exports used to hand-roll the same four
+/// overrides: an interface guard plus a method-name switch in `handleMethodCall`,
+/// and one property table repeated in `getProperty`, `getAllProperties` and
+/// `introspect`. [DBusServiceObject] derives all four from a single
+/// [DBusServiceInterface] declaration, so a member is listed exactly once and the
+/// interface guard exists by construction.
 ///
-/// This file is deliberately Flutter-free (it imports `package:dbus` alone):
-/// the screencast portal imports no Flutter so `tool/screencast_spike.dart`
-/// can compile it standalone, and this file sits underneath it.
+/// Deliberately Flutter-free (it imports `package:dbus` alone): the screencast
+/// portal imports no Flutter so `tool/screencast_spike.dart` can compile it
+/// standalone, and this file sits underneath it.
 
 /// Handles one D-Bus method call on an interface the object serves.
 ///

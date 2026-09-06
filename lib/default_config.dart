@@ -6,18 +6,18 @@ import 'dart:io';
 
 import 'package:graceful_shell/theme/theme_config.dart';
 
-/// Resolves [name] against the directories the shell's shipped data files
-/// (the wallpapers) can live in, returning the first that exists.
+/// Resolves [name] against the directories the shell's shipped wallpapers can
+/// live in, returning the first that exists.
 ///
-/// The snap's own copy comes first, because it cannot write into the user's
-/// data dir; `make install` puts them in the XDG data dir instead. Returns null
-/// when neither has the file — the callers all treat a missing wallpaper as
-/// "draw the fallback", never as an error.
+/// The snap's own copy comes first, because it cannot write into the user's data
+/// dir; `make install` puts them in the XDG data dir instead. Null when neither
+/// has the file — the callers all treat a missing wallpaper as "draw the
+/// fallback".
 ///
 /// Under the snap this deliberately resolves through `/snap/<name>/current`
-/// rather than `$SNAP`, which is `/snap/<name>/<revision>`: the result is baked
-/// into the generated `config.toml` and a revisioned path would go dead on the
-/// next `snap refresh`.
+/// rather than `$SNAP`, which is revisioned: the result is baked into the
+/// generated `config.toml` and a revisioned path would go dead on the next
+/// `snap refresh`.
 String? shippedDataFile(String name) {
   final env = Platform.environment;
   final roots = <String>[];
@@ -48,11 +48,10 @@ String? shippedDataFile(String name) {
 
 /// The default `config.toml` document, written to disk on first run.
 ///
-/// Wallpapers are baked as absolute paths because config.toml is written once
-/// and then owned by the user: resolving at every read would silently move
-/// their wallpaper if the shell were later reinstalled somewhere else. Falls
-/// back to the XDG data dir when nothing is installed yet, which is where
-/// `make install` will put it.
+/// Wallpapers are baked as absolute paths because config.toml is written once and
+/// then owned by the user: resolving at every read would silently move their
+/// wallpaper if the shell were reinstalled elsewhere. Falls back to the XDG data
+/// dir when nothing is installed yet.
 ///
 /// The golden test parses this document and asserts every field it names lands
 /// unchanged in the typed config.

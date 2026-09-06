@@ -4,12 +4,12 @@ import 'package:ffi/ffi.dart';
 
 /// Raw `libpipewire-0.3` bindings — just the stream-producer surface.
 ///
-/// Threading: no `pw_thread_loop` anywhere. The stream runs on a plain
-/// `pw_loop` whose fd is watched from the GLib main loop (the Dart thread),
-/// and `pw_loop_iterate(loop, 0)` is called on wakeup — so every stream event
-/// fires on the Dart thread and `NativeCallable.isolateLocal` is safe. This
-/// requires `pw_loop_get_fd`/`enter`/`leave`/`iterate` as real exports, which
-/// PipeWire has since 1.0 (verified against 1.6.2).
+/// Threading: no `pw_thread_loop` anywhere. The stream runs on a plain `pw_loop`
+/// whose fd is watched from the GLib main loop (the Dart thread), and
+/// `pw_loop_iterate(loop, 0)` is called on wakeup — so every stream event fires on
+/// the Dart thread and `NativeCallable.isolateLocal` is safe. This needs
+/// `pw_loop_get_fd`/`enter`/`leave`/`iterate` as real exports, which PipeWire has
+/// since 1.0.
 class PwFfi {
   PwFfi._(this._lib) {
     init = _lib.lookupFunction<

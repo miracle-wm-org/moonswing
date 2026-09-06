@@ -9,14 +9,14 @@ import 'package:graceful_shell/weather/weather_store.dart';
 
 import 'weather_fakes.dart';
 
-/// A popup window is sized to its content: [PopupWindowController] takes no
-/// Size, only BoxConstraints, and the Linux backend shrink-wraps the surface
-/// around whatever Flutter lays out. So the size a popup ends up with is
-/// exactly the size its content reports under the constraints the call site
-/// passes — which is what these tests measure, with no popup window involved.
+/// A popup window is sized to its content: [PopupWindowController] takes no Size,
+/// only BoxConstraints, and the Linux backend shrink-wraps the surface around
+/// whatever Flutter lays out. So a popup's size is exactly what its content
+/// reports under the call site's constraints — which is what these measure, with
+/// no popup window involved.
 ///
-/// The cards are pumped bare, with no WindowManager, for the reason
-/// desktop_menu_test.dart states: the popup machinery belongs to the host.
+/// The cards are pumped bare, with no WindowManager: the popup machinery belongs
+/// to the host.
 Future<Size> pumpUnder(
   WidgetTester tester,
   Widget child,
@@ -51,11 +51,10 @@ WeatherStore _weather(int days) {
     ..seed(
       current: testReading(),
       forecast: testForecast(days),
-      // A short place name on purpose. The header prints the *full*
-      // description — "Springfield, Illinois, United States" — and that line is
-      // ellipsised against the card's own maximum, so a long one legitimately
-      // takes the whole 460 and would measure the constraint rather than the
-      // content these tests are about.
+      // A short place name on purpose. The header prints the *full* description
+      // and that line is ellipsised against the card's own maximum, so a long one
+      // legitimately takes the whole 460 and would measure the constraint rather
+      // than the content.
       place: const WeatherPlace(name: 'Springfield', latitude: 39.8, longitude: -89.65),
     );
   return store;
@@ -86,12 +85,10 @@ void main() {
         kSystemConstraints,
       );
 
-      // The 200x202 this replaced was hand-computed for a four-row menu; the
-      // menu is five rows now (Restart arrived with `lib/power/`, which is
-      // also where the labels and icons moved to). The bound moved with it and
-      // the guard did not: a card that had gone back to a pinned constant, or
-      // to filling its constraints, would be nowhere near a row's height of
-      // this figure.
+      // The 200x202 this replaced was hand-computed for a four-row menu; the menu
+      // is five rows now. The bound moved with it and the guard did not: a card
+      // that had gone back to a pinned constant, or to filling its constraints,
+      // would be nowhere near a row's height of this figure.
       expect(size.height, lessThan(250));
     });
 
@@ -152,11 +149,9 @@ void main() {
       );
 
       // What IntrinsicColumnWidth buys over the MainAxisAlignment.spaceBetween
-      // this replaced: the temperature cells share a left edge even though the
-      // day labels beside them differ in width.
-      //
-      // Six rows for seven days: today is spelled out in the header above, at
-      // three times the size, so the table starts at tomorrow.
+      // this replaced: the temperature cells share a left edge even though the day
+      // labels differ in width. Six rows for seven days — today is spelled out in
+      // the header above, so the table starts at tomorrow.
       final temps = find.textContaining('/');
       expect(temps, findsNWidgets(6));
       final lefts = tester

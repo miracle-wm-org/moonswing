@@ -9,10 +9,9 @@ import 'package:graceful_shell/theme/tokens.dart';
 /// section heading that sits *outside* the surface it names, and a label/value
 /// pair that stays a pair however wide the page gets.
 ///
-/// Both are geometry rather than colour, so neither shows up in a golden of the
-/// config or the theme — a later tidy-up that folded the heading back into the
-/// card's padding, or dropped [StatLine.labelWidth] as redundant, would look
-/// perfectly reasonable in review.
+/// Both are geometry rather than colour, so neither shows up in a golden — a
+/// later tidy-up that folded the heading back into the card's padding, or dropped
+/// [StatLine.labelWidth] as redundant, would look reasonable in review.
 void main() {
   const theme = ThemeConfig();
 

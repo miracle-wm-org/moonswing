@@ -46,11 +46,10 @@ DesktopItemKind inferDesktopItemKind(String target) {
 
 /// One icon pinned to the desktop grid.
 ///
-/// [target] is the identity: an absolute path in every case, including for
-/// applications. A desktop *id* (what `[modules.dock].apps` stores) is
-/// deliberately not used — the item is added through the file picker, which
-/// yields a path, and `g_desktop_app_info_new` cannot resolve a `.desktop`
-/// living outside `XDG_DATA_DIRS`.
+/// [target] is the identity: an absolute path in every case, applications
+/// included. A desktop *id* (what `[modules.dock].apps` stores) is deliberately
+/// not used — the item is added through the file picker, which yields a path, and
+/// `g_desktop_app_info_new` cannot resolve a `.desktop` outside `XDG_DATA_DIRS`.
 class DesktopItem {
   final DesktopItemKind kind;
   final String target;
@@ -140,13 +139,11 @@ class DesktopItem {
 /// A widget is *not* a [DesktopItem] with a bigger cell, and the two lists are
 /// deliberately separate. An icon is identified by the thing it points at, is
 /// exactly one cell, and is what "Organize" compacts; a widget is identified by
-/// an instance [id] (two clocks are two widgets), spans a rectangle of cells,
-/// and **organize must leave it exactly where it is** — reflowing a 2x1 media
-/// player into the icon flow would be nonsense.
+/// an instance [id] (two clocks are two widgets), spans a rectangle, and
+/// **organize must leave it exactly where it is**.
 ///
-/// [type] names an entry in `DesktopWidgetRegistry` (see
-/// `lib/desktop/widgets/desktop_widget.dart`), which owns everything about how
-/// a widget renders and how far it may be resized. This class is only what
+/// [type] names an entry in `DesktopWidgetRegistry`, which owns everything about
+/// how a widget renders and how far it may be resized. This class is only what
 /// survives a restart.
 class DesktopWidgetItem {
   const DesktopWidgetItem({
@@ -174,11 +171,10 @@ class DesktopWidgetItem {
 
   /// The widget's size **in cells**, always at least one of each.
   ///
-  /// Clamped against the registry spec at render time rather than here: a
-  /// config authored while a widget allowed 4x2 must not be silently rewritten
-  /// when a later version lowers the maximum, and the spec is not reachable
-  /// from this layer anyway (it carries a `WidgetBuilder`, and this file is one
-  /// of the ones `AppConfig.load` parses before anything paints).
+  /// Clamped against the registry spec at render time rather than here: a config
+  /// authored while a widget allowed 4x2 must not be silently rewritten when a
+  /// later version lowers the maximum, and the spec is not reachable from this
+  /// layer anyway.
   final int columnSpan;
   final int rowSpan;
 
@@ -208,10 +204,9 @@ class DesktopWidgetItem {
   /// Parses one `[[desktop.widgets]]` table, or null when it names no type.
   ///
   /// An entry with no `id` is given one derived from its type rather than being
-  /// dropped: a hand-written config is a legitimate way to place a widget, and
-  /// refusing it over a bookkeeping field the user never sees would be hostile.
-  /// Duplicate ids are resolved by [DesktopConfig.fromMap], which is the only
-  /// place that can see the whole list.
+  /// dropped: a hand-written config is a legitimate way to place a widget.
+  /// Duplicate ids are resolved by [DesktopConfig.fromMap], the only place that
+  /// can see the whole list.
   static DesktopWidgetItem? fromMap(Map<String, dynamic> map) {
     final type = map.stringOrNull('type');
     if (type == null || type.trim().isEmpty) return null;

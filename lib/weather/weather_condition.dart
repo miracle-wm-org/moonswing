@@ -1,15 +1,14 @@
 // What the sky is doing, as a value rather than an emoji.
 //
-// The WMO code table Open-Meteo publishes (`weather_code`) is the only thing
-// either surface is told about the weather, and both of them need more out of
-// it than one glyph: the bar wants an icon and a name, the desktop widget's
-// animation wants to know how much cloud to draw, what is falling out of it and
-// how hard, and whether to flash. Deriving all of that from a `switch` at each
-// call site is how the two drift apart, so it is derived once, here.
+// The WMO code table Open-Meteo publishes is the only thing either surface is
+// told about the weather, and both need more out of it than one glyph: the bar
+// wants an icon and a name, the desktop widget's picture wants to know how much
+// cloud to draw, what is falling out of it and how hard. Deriving all of that
+// from a `switch` at each call site is how the two drift apart, so it is derived
+// once, here.
 //
-// Flutter-free on purpose — `lib/media/mpris_store.dart`'s rule. The icon for a
-// condition lives in `weather_icons.dart`, which is the half that needs a
-// widget library; this half is a plain unit test.
+// Flutter-free on purpose. The icon for a condition lives in
+// `weather_icons.dart`, which is the half that needs a widget library.
 
 /// Which family of weather a WMO code belongs to.
 ///
@@ -61,9 +60,8 @@ class WeatherCondition {
   ///
   /// A *fallback*, not the reading: Open-Meteo publishes a real `cloud_cover`
   /// percentage and [WeatherReading] prefers it, because "partly cloudy" spans
-  /// everything from two wisps to a nearly closed lid and the animation is the
-  /// one consumer that can tell the difference. This is what the widget draws
-  /// when a response carries no cloud figure.
+  /// everything from two wisps to a nearly closed lid. This is what the widget
+  /// draws when a response carries no cloud figure.
   final double cloudCover;
 
   final Precipitation precipitation;

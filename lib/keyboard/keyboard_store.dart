@@ -1,14 +1,12 @@
 // The keyboard layout for the whole shell.
 //
 // `BatteryStore`'s singleton-with-leases shape, `WeatherStore.error`'s failure
-// shape, and `ThemeStore`'s "reads `ConfigStore` for its own subtree alone"
-// rule. There is one locale1 subscription for the machine however many bars,
-// monitors and settings panes are looking at it.
+// shape, and `ThemeStore`'s "reads `ConfigStore` for its own subtree alone" rule.
+// One locale1 subscription for the machine.
 //
-// The load-bearing rule in here is that [activeIndex] is *derived* from
-// locale1 and never set optimistically. That is what makes a refused write
-// self-evidently a no-op — the check stays where it was — and what makes a
-// `localectl` typed into a terminal move the badge with no shell involvement.
+// The load-bearing rule is that [activeIndex] is *derived* from locale1 and never
+// set optimistically: that is what makes a refused write self-evidently a no-op,
+// and what makes a `localectl` typed into a terminal move the badge.
 
 import 'dart:async';
 
@@ -23,10 +21,10 @@ import 'package:graceful_shell/keyboard/xkb_catalog.dart';
 
 /// How far along the store's view of locale1 is.
 ///
-/// Deliberately not a `ShellService`/`ServiceStatus`: that pair answers "should
-/// I show a spinner?", for which a decline and a success are the same answer,
-/// and it would settle `ready` on a machine where every layout change is
-/// refused. This is `NotificationDaemonStatus`'s split.
+/// Deliberately not a `ShellService`/`ServiceStatus`: that pair answers "should I
+/// show a spinner?", for which a decline and a success are the same answer, and
+/// it would settle `ready` on a machine where every layout change is refused.
+/// This is `NotificationDaemonStatus`'s split.
 enum KeyboardStatus {
   /// Nothing holds a lease; nothing has been read.
   idle,
@@ -77,14 +75,10 @@ class KeyboardStore extends ChangeNotifier {
 
   /// The config this store reads and writes its source list through, or null.
   ///
-  /// Resolved lazily, because `ConfigStore.instance` throws before
-  /// `initShared()` and a store constructed at import time must not be the
-  /// thing that trips it — and **nullable**, because a module built alone in a
-  /// widget test has no `main()` behind it. That is
-  /// `ShellServicesScope.isLoading`'s default applied one layer down: with no
-  /// shared store the list is whatever [seed] put there and nothing is
-  /// persisted, which is exactly what a test wants and is never the shell's
-  /// own state.
+  /// Resolved lazily, because `ConfigStore.instance` throws before `initShared()`
+  /// — and **nullable**, because a module built alone in a widget test has no
+  /// `main()` behind it. With no shared store the list is whatever [seed] put
+  /// there and nothing is persisted, which is exactly what a test wants.
   ConfigStore? get _config {
     if (_configResolved) return _resolvedConfig;
     _configResolved = true;
@@ -123,10 +117,9 @@ class KeyboardStore extends ChangeNotifier {
   /// Why the last write did not land, or empty.
   ///
   /// Persists until a later [activate] or [retry] succeeds — not cleared by
-  /// closing the popup, not by a timer, and not by [release]. Every failure
-  /// here is recoverable without restarting the shell (the other session can
-  /// gain an agent, the bus can come back) and the shell cannot detect the
-  /// recovery, so the retry is the user's to trigger.
+  /// closing the popup, a timer, or [release]. Every failure here is recoverable
+  /// without restarting the shell and the shell cannot detect the recovery, so
+  /// the retry is the user's to trigger.
   String _error = '';
   String get error => _error;
 
@@ -157,10 +150,9 @@ class KeyboardStore extends ChangeNotifier {
 
   /// The layout locale1 is applying when it is in no source, else null.
   ///
-  /// A real state rather than an error: somebody ran `localectl`, or the
-  /// machine shipped configured this way. Both surfaces render it — falling
-  /// back to source 0 would tell the user they are typing in a layout they are
-  /// not.
+  /// A real state rather than an error: somebody ran `localectl`, or the machine
+  /// shipped configured this way. Falling back to source 0 would tell the user
+  /// they are typing in a layout they are not.
   InputSource? get unlistedActive {
     final state = _systemState;
     if (state == null) return null;
@@ -195,8 +187,7 @@ class KeyboardStore extends ChangeNotifier {
   ///
   /// Notifies nothing synchronously — this runs inside the acquiring widget's
   /// `initState`, and a `notifyListeners` from there is a `setState` on every
-  /// other surface already holding a lease, during a build. `FortuneStore` and
-  /// `WeatherStore.refresh` are arranged the same way for the same reason.
+  /// other surface already holding a lease, during a build.
   void acquire() {
     _leases++;
     if (_leases > 1) return;
@@ -261,12 +252,11 @@ class KeyboardStore extends ChangeNotifier {
   /// Writes locale1's groups into `[[keyboard.sources]]`, once, when the key is
   /// **absent**.
   ///
-  /// This is the one place the Background section's "discovery must not write"
-  /// rule is deliberately inverted, and the reason is that there is nothing
-  /// left to re-discover: locale1 holds only the active layout, so the first
-  /// `SetX11Keyboard` this feature makes destroys the installer-configured list
-  /// forever. Present-and-empty is left alone — that is the user having removed
-  /// everything.
+  /// The one place the Background section's "discovery must not write" rule is
+  /// deliberately inverted, because there is nothing left to re-discover: locale1
+  /// holds only the active layout, so the first `SetX11Keyboard` destroys the
+  /// installer-configured list forever. Present-and-empty is left alone — that is
+  /// the user having removed everything.
   void _seedFromSystem(Locale1Keyboard state) {
     if (_seedChecked) return;
     _seedChecked = true;
@@ -348,13 +338,12 @@ class KeyboardStore extends ChangeNotifier {
   /// Makes [source] the machine's layout.
   ///
   /// Two rules the implementation carries. It **re-reads before it writes** and
-  /// sends `model` and `options` back unchanged — sending `''` for them
-  /// silently deletes a user's `compose:ralt` or `caps:escape`, which is
-  /// invisible until they reach for the key. And it **refuses to stack**: a
-  /// call can be sitting behind a polkit prompt for a minute, and two queued
-  /// writes would fight.
+  /// sends `model` and `options` back unchanged — sending `''` silently deletes a
+  /// user's `compose:ralt` or `caps:escape`, invisible until they reach for the
+  /// key. And it **refuses to stack**: a call can sit behind a polkit prompt for
+  /// a minute, and two queued writes would fight.
   ///
-  /// Nothing here moves [activeIndex]. That follows locale1's own
+  /// Nothing here moves [activeIndex]; that follows locale1's own
   /// `PropertiesChanged`, which is what makes a denial a visible no-op.
   Future<void> activate(InputSource source) async {
     if (_pending != null) return;

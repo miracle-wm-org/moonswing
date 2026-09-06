@@ -57,11 +57,10 @@ class _InputTabState extends State<InputTab> {
     });
     _sourceRemovedSub = widget.client.onSourceRemoved.listen((_) => _load());
 
-    // The server went away and came back. The meter's `pa_stream` belonged to
-    // the context that died and does not survive it, so a page left open across
-    // a `pipewire-pulse` restart would otherwise sit on a meter that has stopped
-    // reporting — which reads as a dead microphone. `_load` re-reads the list
-    // and ends in `_startMeter`, which is the whole recovery.
+    // The server went away and came back. The meter's `pa_stream` belonged to the
+    // context that died, so a page left open across a `pipewire-pulse` restart
+    // would sit on a meter that has stopped reporting — which reads as a dead
+    // microphone. `_load` re-reads the list and ends in `_startMeter`.
     _reconnectedSub = widget.client.onReconnected.listen((_) {
       _levelSub?.cancel();
       _levelSub = null;

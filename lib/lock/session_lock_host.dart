@@ -7,14 +7,14 @@ import 'package:graceful_shell/lock/lock_controller.dart';
 import 'package:graceful_shell/popup.dart';
 
 /// Owns the `ext-session-lock-v1` lifecycle on behalf of the shell root: the
-/// [SessionLock] object, one [SessionLockWindowController] per monitor,
-/// monitors hotplugged mid-lock, and the teardown ordering that keeps the
-/// compositor connection alive.
+/// [SessionLock] object, one [SessionLockWindowController] per monitor, monitors
+/// hotplugged mid-lock, and the teardown ordering that keeps the compositor
+/// connection alive.
 ///
-/// The root keeps three duties: reacting to [LockController] by calling
-/// [lock], building a `SessionLockWindow` per controller in [windows], and
-/// calling [dispose] from its own — which abandons rather than unlocks,
-/// because a shell dying while the session is locked must leave it locked.
+/// The root keeps three duties: reacting to [LockController] by calling [lock],
+/// building a `SessionLockWindow` per controller in [windows], and calling
+/// [dispose] from its own — which abandons rather than unlocks, because a shell
+/// dying while the session is locked must leave it locked.
 class SessionLockHost {
   SessionLockHost({required this.onChanged});
 
@@ -35,13 +35,12 @@ class SessionLockHost {
   /// blanked by the compositor, so a missing entry is safe, never a leak.
   Iterable<SessionLockWindowController> get windows => _windows.values;
 
-  /// Locks the session and puts a lock surface on every monitor in
-  /// [monitors] (key → `GdkMonitor`).
+  /// Locks the session and puts a lock surface on every monitor in [monitors]
+  /// (key → `GdkMonitor`).
   ///
-  /// Ordering matters and mirrors gtk-session-lock's own example: prepare the
-  /// lock, ask the compositor to lock, *then* create the surfaces. Each
-  /// [SessionLockWindowController] claims its GTK window's surface before the
-  /// window is realized.
+  /// Ordering mirrors gtk-session-lock's own example: prepare the lock, ask the
+  /// compositor to lock, *then* create the surfaces. Each controller claims its
+  /// GTK window's surface before the window is realized.
   void lock(Map<String, ffi.Pointer<ffi.NativeType>> monitors) {
     if (_lock != null || _disposed) return;
 
@@ -145,14 +144,14 @@ class SessionLockHost {
     _windows.clear();
     LockController.instance.clear();
 
-    // Detach the views this frame, then tear down the native side once that
-    // frame has rendered — destroying a window Flutter is still rendering
-    // into would use a freed FlView.
+    // Detach the views this frame, then tear down the native side once that frame
+    // has rendered — destroying a window Flutter is still rendering into would use
+    // a freed FlView.
     //
-    // The lock is released *before* the windows are destroyed: the protocol
-    // says lock surfaces should be destroyed after the unlock request, and
-    // unlockAndDestroy() syncs with the compositor, without which the server
-    // may kill the connection with a protocol error mid-teardown.
+    // The lock is released *before* the windows are destroyed: the protocol says
+    // lock surfaces should be destroyed after the unlock request, and
+    // unlockAndDestroy() syncs with the compositor, without which the server may
+    // kill the connection mid-teardown.
     onChanged();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (unlock) {
@@ -169,11 +168,10 @@ class SessionLockHost {
     });
   }
 
-  /// Drops the lock windows, but never sends an unlock on the way out: if the
-  /// shell is going away while the session is locked, the session must stay
-  /// locked. abandon() sends no Wayland request at all — after `locked` the
-  /// only legal destructor is unlock_and_destroy, which would do the opposite
-  /// of what we want; disconnecting instead leaves the session locked.
+  /// Drops the lock windows, but never sends an unlock: if the shell is going
+  /// away while the session is locked, the session must stay locked. abandon()
+  /// sends no Wayland request at all — after `locked` the only legal destructor is
+  /// unlock_and_destroy, which would do the opposite.
   void dispose() {
     _disposed = true;
     for (final controller in _windows.values) {

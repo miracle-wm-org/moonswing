@@ -5,11 +5,11 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 
-/// A bar popup's card is built once and captured in a `WindowEntry` builder, in
-/// a FlutterView that is a *sibling* of the panel's rather than a descendant, so
-/// it cannot read the panel's `BarScope`. [PopupAttachScope] is how the joined
-/// edge reaches it, and these pin what a card does with it — the only half of
-/// the attached mode observable without a compositor.
+/// A bar popup's card is built once and captured in a `WindowEntry` builder, in a
+/// FlutterView that is a *sibling* of the panel's, so it cannot read the panel's
+/// `BarScope`. [PopupAttachScope] is how the joined edge reaches it, and these pin
+/// what a card does with it — the only half of the attached mode observable
+/// without a compositor.
 
 /// A square join: the default, and the shape `graceful` and `dracula` ship.
 const _square = ThemeConfig(popupRadius: 12.0, popupBorderWidth: 1.0);
@@ -109,12 +109,12 @@ void main() {
 
   testWidgets('a rimmed bar reaches the card as a shape, flare or no flare',
       (tester) async {
-    // A panel's rim is drawn along its *inner* edge too, so a bar that carries
-    // one puts a hairline straight across the mouth of every menu it opens.
-    // That line is the bar's, not the card's, so dropping the card's own rim on
-    // the join cannot reach it — only the card's fill, painted one rim-width
-    // into the panel, can. That reach is outside the card's own box, which is
-    // what makes this a ShapeDecoration even with no flare on it.
+    // A panel's rim is drawn along its *inner* edge too, so a bar that carries one
+    // puts a hairline across the mouth of every menu it opens. That line is the
+    // bar's, not the card's, so dropping the card's own rim on the join cannot
+    // reach it — only the card's fill, painted one rim-width into the panel, can.
+    // That reach is outside the card's own box, which is what makes this a
+    // ShapeDecoration even with no flare on it.
     for (final edge in ['top', 'bottom', 'left', 'right']) {
       await tester.pumpWidget(_host(_card, attach: edge, theme: _rimmedBar));
       final shape =

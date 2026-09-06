@@ -26,9 +26,9 @@ class ProcessReader {
 
   /// Reads every process.
   ///
-  /// [skipCmdlineFor] names PIDs whose command line the caller already has.
-  /// A command line never changes for the life of a process, so re-reading it
-  /// every poll would double the syscall count for data we already know.
+  /// [skipCmdlineFor] names PIDs whose command line the caller already has. A
+  /// command line never changes for the life of a process, so re-reading it every
+  /// poll would double the syscall count for data we already know.
   List<ProcessRaw> sample({Set<int> skipCmdlineFor = const {}}) {
     final List<FileSystemEntity> entries;
     try {
@@ -77,12 +77,11 @@ class ProcessReader {
 
 /// Parses one `/proc/<pid>/stat` line.
 ///
-/// The `comm` field is the executable's name as the kernel captured it, and it
-/// is *not* sanitised: it can contain spaces and parentheses (Firefox's content
+/// The `comm` field is the executable's name as the kernel captured it, and it is
+/// *not* sanitised: it can contain spaces and parentheses (Firefox's content
 /// processes are the usual offender — `1234 (Isolated Web Co) S 1 …`). Splitting
-/// the line on whitespace is the classic bug here. The only correct anchor is
-/// the **last** `)`, because everything after it is guaranteed
-/// space-separated.
+/// the line on whitespace is the classic bug; the only correct anchor is the
+/// **last** `)`, because everything after it is guaranteed space-separated.
 ProcessRaw? parseStatLine(String line, {String? cmdline}) {
   final open = line.indexOf('(');
   final close = line.lastIndexOf(')');
@@ -117,8 +116,8 @@ ProcessRaw? parseStatLine(String line, {String? cmdline}) {
 
 /// Resolves raw samples into table rows.
 ///
-/// Pure: it takes both snapshots and the surrounding system state, and does no
-/// I/O. That is what lets the isolate return raw counters and the arithmetic be
+/// Pure: it takes both snapshots and the surrounding system state and does no
+/// I/O, which is what lets the isolate return raw counters and the arithmetic be
 /// unit-tested without a fake `/proc`.
 ///
 /// CPU% comes from tick deltas against the aggregate `cpu` line, never from

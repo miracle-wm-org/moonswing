@@ -1,10 +1,10 @@
 // One frame, out of the compositor and onto the disk.
 //
-// A screenshot is a capture session that is torn down after its first ready
-// frame, which is the whole of the difference between this and the recorder.
-// The session is *always* disposed — on the frame, on a stop, and on the
-// timeout — because an abandoned one keeps asking the compositor to copy the
-// screen into a buffer nobody reads.
+// A screenshot is a capture session torn down after its first ready frame, which
+// is the whole of the difference between this and the recorder. The session is
+// *always* disposed — on the frame, on a stop, and on the timeout — because an
+// abandoned one keeps asking the compositor to copy the screen into a buffer
+// nobody reads.
 
 import 'dart:async';
 import 'dart:io';
@@ -18,12 +18,12 @@ import 'capture_source.dart';
 import 'capture_targets.dart';
 import 'frame_image.dart';
 
-/// How long a source has to produce its first frame before the attempt is
-/// given up on.
+/// How long a source has to produce its first frame before the attempt is given
+/// up on.
 ///
-/// The compositor answers a fresh session's first capture immediately — it
-/// only *withholds* frames once it has one it has already sent and the content
-/// has not changed — so this is a stuck-source guard rather than a budget.
+/// The compositor answers a fresh session's first capture immediately — it only
+/// *withholds* frames once it has sent one and the content has not changed — so
+/// this is a stuck-source guard rather than a budget.
 const Duration kGrabTimeout = Duration(seconds: 5);
 
 /// Grabs one frame of [target] and returns it, cropped.
@@ -85,13 +85,12 @@ Future<FrameBytes> grabFrame(
 
 /// Grabs [target], encodes it, and writes it to [path].
 ///
-/// Returns the file *and* the encoded bytes, because the clipboard wants the
-/// same PNG and re-reading it off the disk to get it would be a second encode
-/// or a second read for nothing.
+/// Returns the file *and* the encoded bytes, because the clipboard wants the same
+/// PNG and re-reading it off the disk would be a second encode or a second read
+/// for nothing.
 ///
-/// Throws [CaptureException] for everything the user could act on — a source
-/// that went away, an encode the engine refused, a directory that cannot be
-/// written to.
+/// Throws [CaptureException] for everything the user could act on — a source that
+/// went away, an encode the engine refused, a directory that cannot be written to.
 Future<({File file, Uint8List png})> writeScreenshot(
   CaptureConnection connection,
   CaptureTarget target, {
@@ -117,10 +116,10 @@ Future<({File file, Uint8List png})> writeScreenshot(
 /// Puts [png] on the clipboard through `wl-copy`, answering whether it landed.
 ///
 /// Flutter's own `Clipboard` carries text and nothing else, and Wayland has no
-/// clipboard a client can write to without a seat, so an external helper is
-/// the only route. A missing `wl-copy` is reported rather than swallowed: the
-/// file has still been written, and the user who expected to paste it needs to
-/// know why they cannot.
+/// clipboard a client can write to without a seat, so an external helper is the
+/// only route. A missing `wl-copy` is reported rather than swallowed: the file has
+/// still been written, and the user who expected to paste it needs to know why
+/// they cannot.
 Future<bool> copyPngToClipboard(Uint8List png) async {
   try {
     final process = await Process.start('wl-copy', const ['--type', 'image/png']);

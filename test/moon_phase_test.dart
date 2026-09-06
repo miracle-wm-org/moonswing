@@ -1,10 +1,9 @@
 // The phase layer: the instants, the labels, and the rise and set scan.
 //
-// The phase instants are checked against published times rather than against
-// this implementation's own output, which is the only check worth having here.
-// Four of them, spread over half a century, because the error a mean-lunation
-// shortcut makes is small in the year it was calibrated for and hours out a
-// couple of decades either side.
+// The phase instants are checked against published times rather than against this
+// implementation's own output. Four of them, spread over half a century, because
+// the error a mean-lunation shortcut makes is small in the year it was calibrated
+// for and hours out a couple of decades either side.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/moon/moon_ephemeris.dart';
@@ -227,11 +226,10 @@ void main() {
     const latitude = 39.8;
     const longitude = -89.65;
 
-    /// Every crossing the scan reports has to *be* one: the altitude at it is
-    /// the rise altitude, and the quarter of an hour either side is on the
-    /// right side of that. Asserted rather than a wall-clock time, because the
-    /// scan covers the *local* day and the test runner's zone is not this
-    /// repository's to choose.
+    /// Every crossing the scan reports has to *be* one: the altitude at it is the
+    /// rise altitude, and the quarter of an hour either side is on the right side
+    /// of that. Asserted rather than a wall-clock time, because the scan covers
+    /// the *local* day and the runner's zone is not this repository's to choose.
     void expectRealCrossing(DateTime at, {required bool rising}) {
       final sample =
           moonAltitude(time: at, latitude: latitude, longitude: longitude);
@@ -306,11 +304,10 @@ void main() {
     });
 
     test('the Moon rises about fifty minutes later each day', () {
-      // The reason a calendar day sometimes has no moonrise in it at all, and
-      // the reason the widget cannot simply print "yesterday's, plus a bit".
-      // Only consecutive days that *both* carry a rise are compared: which
-      // local day the missing one falls on depends on the runner's zone, and
-      // measuring across it would measure two retardations at once.
+      // The reason a calendar day sometimes has no moonrise in it at all. Only
+      // consecutive days that *both* carry a rise are compared: which local day
+      // the missing one falls on depends on the runner's zone, and measuring
+      // across it would measure two retardations at once.
       DateTime? previous;
       final gaps = <double>[];
       for (var day = 10; day <= 16; day++) {

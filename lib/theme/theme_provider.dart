@@ -6,39 +6,30 @@ import 'package:graceful_shell/theme/theme_store.dart';
 /// Provides the live palette to a widget subtree.
 ///
 /// **This is the only thing in the shell that should construct a [ThemeScope].**
-/// The shell renders into many independent FlutterViews — one per panel per
-/// monitor, plus a window for every popup, overlay, OSD card and lock surface —
-/// and an `InheritedWidget` cannot span them, so each tree has to be given the
-/// theme separately. The obvious way to do that is to read `ThemeScope.of` in
-/// the handler that opens the window and pass the value along, and that is what
-/// every module used to do; the catch is that the value is then frozen, so an
-/// open popup never restyles.
+/// The shell renders into many independent FlutterViews and an `InheritedWidget`
+/// cannot span them, so each tree has to be given the theme separately. Every
+/// module used to do that by reading `ThemeScope.of` in the handler that opened
+/// the window and passing the value along — which freezes it, so an open popup
+/// never restyled.
 ///
 /// Listening instead of snapshotting fixes it, including inside a popup, where
-/// the content widget is built once and stashed in a `WindowEntry` builder
-/// (`lib/popup.dart`). That widget instance is never reconstructed — but the
-/// [ListenableBuilder]'s *element* is mounted in the popup's own tree and
-/// rebuilds itself when [ThemeStore] notifies.
+/// the content widget is built once and stashed in a `WindowEntry` builder: that
+/// widget instance is never reconstructed, but the [ListenableBuilder]'s
+/// *element* is mounted in the popup's own tree and rebuilds itself.
 ///
 /// The invariant worth preserving: `grep -rn 'ThemeScope(' lib/` should only
-/// ever match `lib/scopes.dart` and this file.
+/// match `lib/scopes.dart` and this file.
 ///
-/// It is also where the theme's `font_size` is applied, as the `TextScaler` on
-/// a [MediaQuery]. That is the one mechanism that reaches a `fontSize:` a
-/// widget spelled out for itself, and nearly every string in the shell spells
-/// one — a scale applied through [DefaultTextStyle] instead would move only the
-/// handful that name no size, which is a setting that appears to do nothing.
-/// It goes *here* rather than in `ShellTextRoot` because a dozen popups still
-/// carry the bare `Directionality` preamble that widget is retiring, and a font
-/// size that reached the panels but not the menus they open would be worse than
-/// none; every themed tree in the shell, popups included, is under a
-/// [ThemeProvider] by construction.
+/// It is also where the theme's `font_size` is applied, as the `TextScaler` on a
+/// [MediaQuery] — the one mechanism that reaches a `fontSize:` a widget spelled
+/// out for itself, which nearly every string in the shell does. It goes here
+/// rather than in `ShellTextRoot` because a dozen popups still carry the bare
+/// `Directionality` preamble that widget is retiring, and every themed tree in
+/// the shell is under a [ThemeProvider] by construction.
 ///
 /// The shell boots without a `WidgetsApp`, so there is normally no [MediaQuery]
-/// above this at all — hence the fallback below. The data it publishes carries
-/// the scaler and nothing else worth reading: it is deliberately *not* a
-/// metrics source (it neither measures the view nor updates when the view
-/// resizes), and nothing in the shell reads one.
+/// above this at all — hence the fallback below. What it publishes carries the
+/// scaler and nothing else: it is deliberately not a metrics source.
 class ThemeProvider extends StatelessWidget {
   const ThemeProvider({super.key, required this.child, ThemeStore? store})
       : _store = store;
@@ -59,10 +50,10 @@ class ThemeProvider extends StatelessWidget {
       builder: (context, child) {
         final theme = store.theme;
         // Absolute, never multiplied onto what an ancestor set, so the nested
-        // ThemeProviders a popup's own tree can end up with are idempotent.
-        // At the default font size this is TextScaler.linear(1.0), which
-        // compares equal to TextScaler.noScaling — so an unset key leaves
-        // every measurement in the shell exactly where it was.
+        // ThemeProviders a popup's tree can end up with are idempotent. At the
+        // default font size this is TextScaler.linear(1.0), which compares equal
+        // to TextScaler.noScaling — so an unset key leaves every measurement
+        // exactly where it was.
         final scaled = (MediaQuery.maybeOf(context) ?? const MediaQueryData())
             .copyWith(textScaler: TextScaler.linear(theme.textScale));
         return ThemeScope(

@@ -18,8 +18,7 @@ import 'package:graceful_shell/scopes.dart';
 ///
 /// Takes its callbacks as parameters rather than reaching for the popup or
 /// keyboard machinery itself, so a widget test can pump it without a
-/// `WindowRegistry`, a layer-shell controller, or GIO — the same shape
-/// `LauncherOverlay` uses.
+/// `WindowRegistry`, a layer-shell controller, or GIO.
 class DesktopLayer extends StatefulWidget {
   const DesktopLayer({
     super.key,
@@ -61,11 +60,10 @@ class DesktopLayer extends StatefulWidget {
 
   /// Asks the host to give this surface keyboard focus, or take it away.
   ///
-  /// The background surface is created `keyboardMode: none` — a text field on
-  /// it would never see a key event — and only the root owns the controller
-  /// that can change that. True exactly while a rename is being edited: a
-  /// background-layer surface that held focus permanently would let a stray
-  /// desktop click steal it from the focused application.
+  /// The background surface is created `keyboardMode: none`, and only the root
+  /// owns the controller that can change that. True exactly while a rename is
+  /// being edited: a background-layer surface holding focus permanently would let
+  /// a stray desktop click steal it from the focused application.
   final void Function(bool wanted)? onKeyboardRequested;
 
   @override
@@ -75,17 +73,16 @@ class DesktopLayer extends StatefulWidget {
 class DesktopLayerState extends State<DesktopLayer> {
   /// Resolved desktop entries for `app` items, keyed by target.
   ///
-  /// `loadAppByPath` refs what it returns, so these are resolved once per
-  /// change of the app-item set and unref'd on the way out — resolving inside
-  /// `build` would leak one `GAppInfo` per frame. Same contract as
-  /// `DockState._loadApps`.
+  /// `loadAppByPath` refs what it returns, so these are resolved once per change
+  /// of the app-item set and unref'd on the way out — resolving inside `build`
+  /// would leak one `GAppInfo` per frame. Same contract as `DockState._loadApps`.
   Map<String, AppEntry> _resolved = const {};
 
   /// Themed icon names by target, resolved alongside [_resolved].
   ///
   /// Also GIO, and also not something `build` may do: `iconNameForItem` guesses
-  /// the file's content type, which is a syscall-backed lookup, not a field
-  /// read.
+  /// the file's content type, which is a syscall-backed lookup rather than a
+  /// field read.
   Map<String, String> _iconNames = const {};
 
   /// The targets [_resolved] was built from, so an unrelated notification (a
@@ -126,16 +123,13 @@ class DesktopLayerState extends State<DesktopLayer> {
 
   /// The band's current rect, surface-local, or null when none is being drawn.
   ///
-  /// **A notifier rather than a `setState` field, and that is the whole reason
-  /// the band is smooth.** A pointer move arrives every frame at least, and a
-  /// `setState` here rebuilt the entire desktop: two grid reflows, every icon
-  /// tile, and every widget card — a weather sky and a Moon among them — to
-  /// move one translucent rect. It is now a `ValueListenableBuilder` over this,
-  /// under its own `RepaintBoundary`, so a band move relayouts and repaints
-  /// the band alone and nothing else on the surface hears about it. The
-  /// selection it drives still goes through the store, which no-ops when the
-  /// set is unchanged, so a full rebuild happens only when the band actually
-  /// crosses an icon.
+  /// **A notifier rather than a `setState` field, which is the whole reason the
+  /// band is smooth.** A pointer move arrives every frame at least, and a
+  /// `setState` here rebuilt the entire desktop — two grid reflows, every icon
+  /// tile, and every widget card — to move one translucent rect. It is now a
+  /// `ValueListenableBuilder` under its own `RepaintBoundary`. The selection it
+  /// drives still goes through the store, which no-ops on an unchanged set, so a
+  /// full rebuild happens only when the band actually crosses an icon.
   final ValueNotifier<Rect?> _band = ValueNotifier<Rect?>(null);
 
   /// The desktop as last *rendered*: the reflowed widgets, the reflowed icons,
@@ -145,11 +139,9 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// Targets whose file or folder is gone, so the tile can say so.
   ///
   /// Cached rather than re-checked in `build`: `desktopItemExists` is an
-  /// `existsSync`, so asking per icon per build meant a stat syscall per icon
-  /// per *frame* for as long as any gesture was in flight. Refreshed when the
-  /// item set changes and on any store notification between gestures — which
-  /// is no less often than an idle desktop rebuilt before, since an idle
-  /// desktop does not rebuild at all.
+  /// `existsSync`, so asking per icon per build meant a stat syscall per icon per
+  /// *frame* for as long as any gesture was in flight. Refreshed when the item set
+  /// changes and on any store notification between gestures.
   Set<String> _missing = const {};
 
   /// True while a pointer gesture is driving per-frame rebuilds, which is when
@@ -202,15 +194,12 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// A store notification, and the one place that decides whether it is this
   /// layer's business.
   ///
-  /// **Most of them are not.** `selectAll` is what the rubber band calls on
-  /// every pan update, so an icon selection is the one store mutation that
-  /// arrives at pointer rate — and it used to rebuild all of this: every icon
-  /// tile, and every widget card, whose builders measure their own text on the
-  /// way past (`fitFortuneText` walks a ladder of `TextPainter` layouts; the
-  /// weather card's `_Sections` measures every row it might draw). A tile
-  /// subscribes to its own flag through [_SelectedIcon] instead, and
-  /// [_syncLayerState] answers whether anything the layer itself renders has
-  /// moved. See its own doc for what is deliberately missing from it.
+  /// **Most of them are not.** `selectAll` is what the rubber band calls on every
+  /// pan update, so an icon selection arrives at pointer rate — and it used to
+  /// rebuild every icon tile and every widget card, whose builders measure their
+  /// own text on the way past. A tile subscribes to its own flag through
+  /// [_SelectedIcon] instead, and [_syncLayerState] answers whether anything the
+  /// layer itself renders has moved.
   void _onStoreChanged() {
     if (!mounted) return;
     _syncResolved();
@@ -225,9 +214,9 @@ class DesktopLayerState extends State<DesktopLayer> {
 
   /// The store state this layer's *own* build reads, as of its last build.
   ///
-  /// The icon selection and the hover are the two things missing from it, and
-  /// both are missing on purpose: they are what a pointer changes while it
-  /// moves, and each is now owned by the one tile that draws it.
+  /// The icon selection and the hover are missing from it on purpose: they are
+  /// what a pointer changes while it moves, and each is owned by the one tile
+  /// that draws it.
   DesktopConfig? _lastConfig;
   String? _lastDraggingTarget;
   String? _lastDraggingWidget;
@@ -236,11 +225,10 @@ class DesktopLayerState extends State<DesktopLayer> {
 
   /// Whether anything in that set has moved since the last build.
   ///
-  /// The config is compared by *identity*, which is complete and O(1) for the
-  /// same reason [_layoutFor] keys on it: [DesktopStore] replaces the whole
-  /// object on every mutation and never edits one in place. The rest are the
-  /// store's once-per-gesture flags — a drag beginning or ending, a widget
-  /// being picked, a rename opening — none of which a pointer move touches.
+  /// The config is compared by *identity*, which is complete and O(1) for
+  /// [_layoutFor]'s reason: [DesktopStore] replaces the whole object on every
+  /// mutation and never edits one in place. The rest are the store's
+  /// once-per-gesture flags, none of which a pointer move touches.
   bool _syncLayerState() {
     final store = widget.store;
     final config = store.config;
@@ -285,9 +273,9 @@ class DesktopLayerState extends State<DesktopLayer> {
 
   /// Asks for keyboard focus exactly while a rename is in progress.
   ///
-  /// Committing the rename, cancelling it, or the item disappearing all end it,
-  /// and so does [dispose] — a monitor unplugged mid-rename must not leave its
-  /// background surface holding the keyboard.
+  /// Committing, cancelling, or the item disappearing all end it, and so does
+  /// [dispose] — a monitor unplugged mid-rename must not leave its background
+  /// surface holding the keyboard.
   void _syncKeyboard() {
     final wanted = widget.store.renamingTarget != null;
     if (wanted == _keyboardRequested) return;
@@ -299,17 +287,15 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// changed — a selection change or a drag must not re-run the GIO lookups.
   ///
   /// Every GIO call here is guarded: `flutter_tester` does not link GLib, and a
-  /// throw during a widget test would take the whole grid down. Falling back to
-  /// no icon (a font glyph) is the same answer a machine with no icon theme
-  /// gets, so the guard is not test-only special-casing.
+  /// throw during a widget test would take the grid down. Falling back to a font
+  /// glyph is the same answer a machine with no icon theme gets.
   void _syncResolved() {
-    // Identity first, and it is what makes this cheap during a gesture: this
-    // runs on *every* store notification, selection changes included, and the
-    // fallback below builds a list of every target to compare — an allocation
-    // per icon per pointer move. The store replaces the whole config object on
-    // every mutation, so an unchanged instance is an unchanged item list. The
-    // target comparison stays as the second pass, for a config that was
-    // rewritten without the items moving.
+    // Identity first, which is what makes this cheap during a gesture: it runs on
+    // *every* store notification, and the fallback below builds a list of every
+    // target to compare — an allocation per icon per pointer move. The store
+    // replaces the whole config object on every mutation, so an unchanged
+    // instance is an unchanged item list. The target comparison stays as the
+    // second pass, for a config rewritten without the items moving.
     final config = widget.store.config;
     if (identical(config, _resolvedConfig)) return;
     _resolvedConfig = config;
@@ -364,25 +350,21 @@ class DesktopLayerState extends State<DesktopLayer> {
     openDesktopItem(item);
   }
 
-  /// The rendered layout for [config] at [geometry], recomputed only when one
-  /// of them actually moves.
+  /// The rendered layout for [config] at [geometry], recomputed only when one of
+  /// them actually moves.
   ///
-  /// **A rebuild of this surface is very often a rebuild that changed no
-  /// layout at all.** Every store notification rebuilds it, and the two that
-  /// arrive at pointer rate — a rubber band crossing an icon, a drag crossing a
-  /// cell — change the *selection*, not where anything is. Recomputing from
-  /// scratch each time meant a `widgetCells` set built cell by cell over every
-  /// widget on the desktop, and a `reflowIntoGrid` probing that set once per
-  /// icon, before a single tile was laid out: the cost of moving the pointer
-  /// grew with everything pinned to the background, which is exactly the
-  /// property a desktop must not have.
+  /// **A rebuild of this surface very often changed no layout at all.** Every
+  /// store notification rebuilds it, and the two that arrive at pointer rate — a
+  /// band crossing an icon, a drag crossing a cell — change the *selection*, not
+  /// where anything is. Recomputing from scratch meant a `widgetCells` set built
+  /// over every widget, and a `reflowIntoGrid` probing it once per icon, before a
+  /// single tile was laid out: the cost of moving the pointer grew with
+  /// everything pinned to the background.
   ///
   /// [DesktopStore] replaces the whole [DesktopConfig] on every mutation and
   /// never edits one in place, so its identity is a complete and O(1) answer to
-  /// "did the items or the widgets move?" — the same key [_syncResolved] uses,
-  /// and stronger than comparing the lists, which would be the per-frame walk
-  /// this exists to remove. The geometry is compared by value because a resize
-  /// mints a new one from the same config.
+  /// "did the items or widgets move?". The geometry is compared by value because
+  /// a resize mints a new one from the same config.
   _RenderedLayout _layoutFor(
     DesktopConfig config,
     DesktopGridGeometry geometry,
@@ -425,10 +407,10 @@ class DesktopLayerState extends State<DesktopLayer> {
         );
         widget.onGeometry?.call(geometry);
 
-        // Render-only: an item authored on a wider monitor is pulled into
-        // range here, and the config keeps its original cell. Widgets reflow
-        // first, because where they end up is what the icons have to avoid.
-        // Cached, because this rebuild is very often a *selection* change: see
+        // Render-only: an item authored on a wider monitor is pulled into range
+        // here, and the config keeps its original cell. Widgets reflow first,
+        // because where they end up is what the icons have to avoid. Cached,
+        // because this rebuild is very often a *selection* change: see
         // [_layoutFor].
         final layout = _layoutFor(config, geometry);
         final widgets = layout.widgets;
@@ -440,29 +422,29 @@ class DesktopLayerState extends State<DesktopLayer> {
             // Empty-space handling sits *under* the icons, so an icon's own
             // gestures win without either needing to know about the other.
             // `RenderStack` stops at the first child that accepts and the tiles
-            // are `HitTestBehavior.opaque`, so a drag that begins on an icon
-            // never reaches this detector — which is what lets the rubber band
-            // share it with the icon drag and need no coordination between them.
+            // are `HitTestBehavior.opaque`, so a drag beginning on an icon never
+            // reaches this detector — which is what lets the rubber band share it
+            // with the icon drag.
             //
             // This detector fills the Stack, so `localPosition` is already the
             // surface-local space the grid math works in.
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                // The band is anchored where the button went down, not where
-                // the pan slop was crossed: with the default `.start` the
-                // pending slop delta is folded into the reported start
-                // position, so the corner would jump away from the press.
+                // The band is anchored where the button went down, not where the
+                // pan slop was crossed: with the default `.start` the pending
+                // slop delta is folded into the reported start position, so the
+                // corner would jump away from the press.
                 dragStartBehavior: DragStartBehavior.down,
                 onTap: () => store.select(null),
                 onSecondaryTapDown: (details) => widget.onEmptyMenu?.call(
                   nearestCell(geometry, details.localPosition),
                   details.localPosition,
                 ),
-                // The band replaces the selection rather than extending it, and
-                // there is no threshold to tune: the pan recognizer withholds
-                // `onPanStart` until the touch slop is exceeded, so a plain
-                // click still resolves as `onTap` and still clears. It is also
+                // The band replaces the selection rather than extending it, with
+                // no threshold to tune: the pan recognizer withholds
+                // `onPanStart` until the touch slop is exceeded, so a plain click
+                // still resolves as `onTap` and still clears. It is also
                 // primary-button only by default, so the empty-space menu above
                 // is untouched.
                 onPanStart: (details) {
@@ -484,9 +466,7 @@ class DesktopLayerState extends State<DesktopLayer> {
                   // screen — and through its index, so the question costs what
                   // the band selects rather than what the desktop holds. The
                   // index is built once for the gesture, because nothing a band
-                  // does moves an icon. `selectAll` no-ops when the set is
-                  // unchanged, so a move that crosses no new icon notifies
-                  // nothing.
+                  // does moves an icon. `selectAll` no-ops on an unchanged set.
                   store.selectAll(layout.bandIndex.targetsIn(band));
                 },
                 onPanEnd: (_) => _endBand(),
@@ -504,10 +484,10 @@ class DesktopLayerState extends State<DesktopLayer> {
                   ),
                 ),
               ),
-            // Under the icons: the two never share a cell, so this only
-            // decides what wins if a hand-edited config puts them on top of
-            // each other — and an icon that has vanished behind a widget is
-            // less recoverable than the other way round.
+            // Under the icons: the two never share a cell, so this only decides
+            // what wins if a hand-edited config puts them on top of each other —
+            // and an icon vanished behind a widget is less recoverable than the
+            // other way round.
             for (final widget in widgets)
               _positionedWidget(context, widget, geometry, store),
             for (final item in items)
@@ -521,10 +501,9 @@ class DesktopLayerState extends State<DesktopLayer> {
                 rect: geometry.areaRect(area),
                 color: theme.accent,
               ),
-            // Over the icons, so the band is never hidden behind the thing it
-            // is selecting — and in its own repaint-bounded subtree, so a band
-            // move costs one relayout of one rect rather than a rebuild of
-            // everything under it. See [_band].
+            // Over the icons, so the band is never hidden behind what it is
+            // selecting — and in its own repaint-bounded subtree, so a band move
+            // costs one relayout of one rect. See [_band].
             Positioned.fill(
               child: RepaintBoundary(
                 child: ValueListenableBuilder<Rect?>(
@@ -594,15 +573,13 @@ class DesktopLayerState extends State<DesktopLayer> {
       width: rect.width,
       height: rect.height,
       // **Both flags a tile draws itself with are the tile's own state.** They
-      // were fields on this [State], and between them they were the whole of
-      // the rubber band's remaining cost: `MouseRegion` fires enter and exit
-      // with the button held down — `RendererBinding.dispatchEvent` re-runs the
-      // hit test for every `PointerMoveEvent` precisely so that it does — so a
-      // band dragged across the desktop rebuilt the entire layer twice per icon
-      // it passed over, and `selectAll` rebuilt it again for every icon that
-      // entered or left the box. Each of those rebuilds ran every widget card's
-      // builder, and the cards measure their own text. Owned here, a crossing
-      // costs the one tile it lights up. See [_onStoreChanged].
+      // were fields on this [State], and between them they were the whole of the
+      // rubber band's remaining cost: `MouseRegion` fires enter and exit with the
+      // button held down, so a band dragged across the desktop rebuilt the entire
+      // layer twice per icon it passed, and `selectAll` rebuilt it again for
+      // every icon entering or leaving the box — each rebuild running every
+      // widget card's builder, which measures its own text. Owned here, a
+      // crossing costs the one tile it lights up.
       child: _SelectedIcon(
         store: store,
         target: item.target,
@@ -611,22 +588,20 @@ class DesktopLayerState extends State<DesktopLayer> {
           // pointer, but the pointer stays an arrow.
           cursor: SystemMouseCursors.basic,
           // Dragging is done by hand rather than with Draggable, which requires
-          // an Overlay ancestor — machinery a layer-shell background surface has
-          // no business hosting. The ghost is just another Stack child, and the
-          // drop resolves against the same grid geometry the icons are laid out
-          // with.
-          // Selection is painted from a raw pointer-down, not from a tap.
-          // GestureDetector's onTap waits out the double-tap window, and even
-          // onTapDown is deferred until the tap recognizer wins the arena
-          // against the pan below — either way the highlight would lag the click
-          // by a visible fraction of a second. A Listener fires immediately and
-          // competes with nothing.
+          // an Overlay ancestor a layer-shell background surface has no business
+          // hosting. The ghost is another Stack child, and the drop resolves
+          // against the same grid geometry the icons are laid out with.
+          //
+          // Selection is painted from a raw pointer-down, not from a tap:
+          // `onTap` waits out the double-tap window and even `onTapDown` is
+          // deferred until the tap recognizer wins the arena against the pan
+          // below, either of which lags the click visibly. A Listener fires
+          // immediately and competes with nothing.
           //
           // Pressing an icon that is *already* selected leaves the selection
           // alone, so pressing a member of a band selection to drag the group
           // does not discard the group first. Narrowing back to one happens on
-          // the completed tap below, which only pays the double-tap delay in the
-          // multi-selection case.
+          // the completed tap below.
           builder: (context, hovered) => Listener(
             onPointerDown: (_) {
               if (!store.isSelected(item.target)) store.select(item.target);
@@ -660,13 +635,12 @@ class DesktopLayerState extends State<DesktopLayer> {
                 });
                 store.endDrag();
               },
-              // Its own layer, so lighting one tile up repaints one tile.
-              // Nothing else on this surface is a repaint boundary: the
-              // wallpaper, every other icon and every widget card are recorded
-              // into the surface's one picture, and a mark that reaches it
-              // re-records all of them — a full-output image scale and a label
-              // shadow per icon — to tint a 100px box. The calendar's hovered
-              // day cells are the same rule; so is [_band] one level up.
+              // Its own layer, so lighting one tile up repaints one tile. Nothing
+              // else here is a repaint boundary: the wallpaper, every other icon
+              // and every widget card are recorded into the surface's one
+              // picture, and a mark that reaches it re-records all of them — a
+              // full-output image scale and a label shadow per icon — to tint a
+              // 100px box.
               child: RepaintBoundary(
                 child: Opacity(
                   opacity: dragging ? 0.3 : 1.0,
@@ -698,9 +672,9 @@ class DesktopLayerState extends State<DesktopLayer> {
   /// that moves it, and the four grips that resize it.
   ///
   /// The card is dragged *itself* rather than by a ghost, unlike an icon: an
-  /// icon's ghost exists because a group of them moves together and each needs
-  /// one, while a widget moves alone and a translucent copy of a media player
-  /// beside the real one would just be two media players.
+  /// icon's ghost exists because a group moves together and each needs one, while
+  /// a widget moves alone and a translucent copy beside the real one would just
+  /// be two media players.
   Widget _positionedWidget(
     BuildContext context,
     DesktopWidgetItem item,
@@ -726,10 +700,9 @@ class DesktopLayerState extends State<DesktopLayer> {
     return Positioned.fromRect(
       key: ValueKey('widget:${item.id}'),
       rect: rect,
-      // Hover is this card's own state, [_positioned]'s rule and for its
-      // reason: it was a field on the layer, so the pointer merely *passing
-      // over* a card — which is what a rubber band does — rebuilt every other
-      // card with it, and a card's builder measures its own text.
+      // Hover is this card's own state, [_positioned]'s rule and for its reason:
+      // it was a field on the layer, so the pointer merely *passing over* a card
+      // — which is what a rubber band does — rebuilt every other card with it.
       child: HoverRegion(
         cursor: SystemMouseCursors.basic,
         builder: (context, hovered) {
@@ -747,7 +720,7 @@ class DesktopLayerState extends State<DesktopLayer> {
                   child: GestureDetector(
                     // Opaque so a drag can start anywhere on the card — the
                     // widget's own buttons are deeper in the tree and are hit
-                    // first, and a quick press on one resolves as their tap
+                    // first, so a quick press on one resolves as their tap
                     // rather than as this pan.
                     behavior: HitTestBehavior.opaque,
                     dragStartBehavior: DragStartBehavior.down,
@@ -764,8 +737,8 @@ class DesktopLayerState extends State<DesktopLayer> {
                     onPanCancel: () => _cancelWidgetDrag(store),
                     // Its own layer, [_positioned]'s rule: a card is the most
                     // expensive thing painted on this surface, and its rim
-                    // lighting up under the pointer must not re-record the
-                    // wallpaper and every other card along with it.
+                    // lighting up must not re-record the wallpaper and every
+                    // other card with it.
                     child: RepaintBoundary(
                       child: DesktopWidgetFrame(
                         item: item,
@@ -805,13 +778,13 @@ class DesktopLayerState extends State<DesktopLayer> {
     );
   }
 
-  /// Where a dragged widget would land if it were dropped now, or null when
-  /// nothing is being dragged.
+  /// Where a dragged widget would land if dropped now, or null when nothing is
+  /// being dragged.
   ///
   /// The card follows the pointer freely, so this is the only thing that says
-  /// which cells the drop resolves to. Measured from the card's own top-left
-  /// plus half a cell, so the widget lands on the cell its corner is *in*
-  /// rather than the one it is nearest by a hair.
+  /// which cells the drop resolves to. Measured from the card's own top-left plus
+  /// half a cell, so the widget lands on the cell its corner is *in* rather than
+  /// the one it is nearest by a hair.
   GridArea? _widgetDropArea(
     List<DesktopWidgetItem> rendered,
     DesktopGridGeometry geometry,
@@ -829,9 +802,8 @@ class DesktopLayerState extends State<DesktopLayer> {
   ///
   /// [rendered] must be the item as the grid **laid it out** — the output of
   /// `reflowWidgetsIntoGrid` — because that is the rect the delta was measured
-  /// against. Resolving from the authored item instead would drop a reflowed
-  /// widget somewhere the user was not pointing. This is the same
-  /// rendered-versus-authored split the icon drop has.
+  /// against. Resolving from the authored item would drop a reflowed widget
+  /// somewhere the user was not pointing.
   GridArea? _widgetDropAreaFor(
     DesktopWidgetItem rendered,
     DesktopGridGeometry geometry,
@@ -1102,9 +1074,9 @@ class DesktopLayerState extends State<DesktopLayer> {
 /// The desktop as it is rendered, memoised by [DesktopLayerState._layoutFor].
 ///
 /// Holds what a rebuild would otherwise recompute — the two reflows and the
-/// widget cells they meet through — plus the band's index, which is built
-/// **lazily** because most desktops are never rubber-banded and building it is
-/// the one part of this that sorts.
+/// widget cells they meet through — plus the band's index, built **lazily**
+/// because most desktops are never rubber-banded and building it is the one part
+/// of this that sorts.
 class _RenderedLayout {
   _RenderedLayout({
     required this.config,
@@ -1135,13 +1107,12 @@ class _RenderedLayout {
 /// The rubber band replaces the selection on every pan update, so this is the
 /// store mutation that arrives at pointer rate. Reading it from
 /// `DesktopLayer.build` meant a band crossing one icon rebuilt every icon and
-/// every widget card on the desktop; read here, it rebuilds the two tiles whose
-/// flag actually flipped. The listener runs for every notification, but all it
-/// does is one set lookup, and it calls `setState` only when the answer moved —
-/// [DesktopStore]'s own `selectAll` guard one level down, applied per tile.
+/// every widget card; read here, it rebuilds the two tiles whose flag flipped.
+/// The listener runs for every notification but does one set lookup, and calls
+/// `setState` only when the answer moved.
 ///
-/// Hover is the other half of the same rule and is [HoverRegion]'s; the two
-/// nest rather than merging, so neither has to know about the other.
+/// Hover is the other half of the same rule and is [HoverRegion]'s; the two nest
+/// rather than merging, so neither has to know about the other.
 class _SelectedIcon extends StatefulWidget {
   const _SelectedIcon({
     required this.store,
@@ -1195,14 +1166,13 @@ class _SelectedIconState extends State<_SelectedIcon> {
   Widget build(BuildContext context) => widget.builder(context, _selected);
 }
 
-/// The rubber-band selection box: a translucent wash of the shell's accent
-/// colour under a heavier outline of the same, so it reads as one transient
-/// object over any wallpaper.
+/// The rubber-band selection box: a translucent wash of the shell's accent colour
+/// under a heavier outline of the same, so it reads as one transient object over
+/// any wallpaper.
 ///
 /// A [DecoratedBox] rather than a [CustomPainter] — it is one rounded rect, and
 /// the grid's only painter is [DesktopGridLines], which `desktop_grid_test.dart`
-/// asserts is the *only* thing on the CustomPaint path. Colours arrive as
-/// parameters, the `time_series_chart.dart` convention.
+/// asserts is the *only* thing on the CustomPaint path.
 class DesktopSelectionBand extends StatelessWidget {
   const DesktopSelectionBand({
     super.key,

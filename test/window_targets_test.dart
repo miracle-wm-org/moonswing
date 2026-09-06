@@ -4,13 +4,12 @@ import 'package:miracle/miracle.dart';
 import 'package:graceful_shell/capture/capture_targets.dart';
 import 'package:graceful_shell/capture/window_targets.dart';
 
-/// The half of the window picker that comes from miracle: where every window
-/// the user can point at is, and which output it is on.
+/// The half of the window picker that comes from miracle: where every window the
+/// user can point at is, and which output it is on.
 ///
-/// A plain unit test over a hand-built `GET_TREE` reply — the walk is the one
-/// part of the feature that can be wrong in a way nothing on screen would
-/// obviously show, since a highlight in the wrong place still looks like a
-/// highlight.
+/// A plain unit test over a hand-built `GET_TREE` reply — the walk is the one part
+/// of the feature that can be wrong in a way nothing on screen would show, since
+/// a highlight in the wrong place still looks like a highlight.
 Map<String, dynamic> _rect(int x, int y, int w, int h) =>
     {'x': x, 'y': y, 'width': w, 'height': h};
 

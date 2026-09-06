@@ -22,9 +22,9 @@ import 'package:graceful_shell/theme/tokens.dart';
 
 /// Themed form controls shared by the panels inside the settings overlay.
 ///
-/// Extracted from `shell.dart` when the calendar tab needed the same section
-/// headers, rows, text fields, and icon buttons: two copies of this styling
-/// would drift apart the first time the theme changed.
+/// Extracted from `shell.dart` when the calendar tab needed the same headers,
+/// rows, fields and icon buttons: two copies of this styling would drift apart
+/// the first time the theme changed.
 
 // ---------------------------------------------------------------------------
 // Subscription seams
@@ -34,16 +34,13 @@ import 'package:graceful_shell/theme/tokens.dart';
 /// [listenable].
 ///
 /// The stores behind the settings UI notify far more often than the values a
-/// given widget renders actually move: [ConfigStore] notifies on every `set`,
-/// which is once per keystroke in any field anywhere in the pane, and
-/// `ThemeStore` notifies on every frame of a colour-picker drag. A plain
-/// [ListenableBuilder] around a page therefore rebuilds every row of it for one
-/// digit typed into one of them.
+/// given widget renders actually move: [ConfigStore] notifies once per keystroke
+/// in any field anywhere in the pane, and `ThemeStore` on every frame of a
+/// colour-picker drag. A plain [ListenableBuilder] around a page therefore
+/// rebuilds every row of it for one digit typed into one of them.
 ///
-/// This is the seam that narrows that: it holds the last selected value,
-/// re-reads it on each notify, and `setState`s only when `==` says it moved.
-/// Generalized out of `settings/shell/appearance.dart`, where it was written
-/// for the theme editor and named for it.
+/// This holds the last selected value, re-reads it on each notify, and
+/// `setState`s only when `==` says it moved.
 class StoreSelector<T> extends StatefulWidget {
   const StoreSelector({
     super.key,
@@ -102,16 +99,12 @@ class _StoreSelectorState<T> extends State<StoreSelector<T>> {
 ///
 /// [StoreSelector] specialized to the shape every settings section wants. The
 /// page-level `ListenableBuilder` this replaces rebuilt all forty-five rows of
-/// the Appearance pane — `background.dart`'s `existsSync` sweep and
-/// `panels.dart`'s three `Module.registeredKeys` allocations included — for one
-/// digit typed into one field.
+/// the Appearance pane for one digit typed into one field.
 ///
-/// Wrap the row's *control*, and wrap anything else whose text depends on the
-/// same key: `power.dart`'s hint under the picker reads the action, so it is
-/// inside the same [ConfigValue] as the picker itself. A control that owns its
-/// own `TextEditingController` and reads `initial` once still belongs in one —
-/// the selector's `==` check means a notify that did not move this key does not
-/// even `setState`.
+/// Wrap the row's *control*, and anything else whose text depends on the same
+/// key. A control that owns its own `TextEditingController` and reads `initial`
+/// once still belongs in one — the selector's `==` check means a notify that did
+/// not move this key does not even `setState`.
 class ConfigValue<T> extends StatelessWidget {
   const ConfigValue({
     super.key,
@@ -156,9 +149,9 @@ class SettingsSection extends StatelessWidget {
   final String label;
   final List<Widget> children;
 
-  /// Right-aligned action on the section's own heading row — the same slot
+  /// Right-aligned action on the section's heading row — the slot
   /// [SettingsSubLabel.trailing] gives a list inside a section, for a section
-  /// whose whole body *is* the collection (the theme picker's "New theme…").
+  /// whose whole body *is* the collection.
   final Widget? trailing;
 
   @override
@@ -177,7 +170,7 @@ class SettingsSection extends StatelessWidget {
 /// The heading row [SettingsSection] and [SliverSettingsSection] share.
 ///
 /// Extracted so a section's label cannot render one way in the box form and
-/// another in the sliver form — the drift this library exists to prevent.
+/// another in the sliver form.
 class SettingsSectionHeading extends StatelessWidget {
   const SettingsSectionHeading({super.key, required this.label, this.trailing});
 
@@ -198,23 +191,18 @@ class SettingsSectionHeading extends StatelessWidget {
   }
 }
 
-/// [SettingsSection] for a section that *is* the page, in a page whose
-/// scroller is a [CustomScrollView].
+/// [SettingsSection] for a section that *is* the page, in a page whose scroller
+/// is a [CustomScrollView].
 ///
-/// Same label, same trailing slot, same children — emitted as slivers so the
-/// list is lazy and each child gets its repaint boundary from the sliver rather
-/// than by hand. The box [SettingsSection] is still what a section *nested
-/// inside another scroller* wants (the audio tabs, the display page, the file
-/// picker), and is unchanged.
+/// Same label, trailing slot and children, emitted as slivers so the list is
+/// lazy and each child gets its repaint boundary from the sliver. The box
+/// [SettingsSection] is still what a section nested inside another scroller
+/// wants, and is unchanged.
 ///
-/// Laziness is the point, and it is worth stating what it does and does not
-/// buy. A `Column` in a `SingleChildScrollView` is laid out once, so scrolling
-/// it costs no layout either way — that half was fixed by the repaint boundary
-/// [SettingsRow] carries. What this buys is that a child off the bottom of the
-/// viewport is never *mounted*: `background.dart` puts up to a hundred and
-/// twenty `Image.file` tiles on one page, and `Image` resolves its provider on
-/// mount rather than on first paint, so every one of them decoded whether or
-/// not it was ever scrolled to.
+/// Laziness is the point: a child off the bottom of the viewport is never
+/// *mounted*. `background.dart` puts up to a hundred and twenty `Image.file`
+/// tiles on one page, and `Image` resolves its provider on mount rather than on
+/// first paint, so every one decoded whether or not it was scrolled to.
 class SliverSettingsSection extends StatelessWidget {
   const SliverSettingsSection({
     super.key,
@@ -240,18 +228,14 @@ class SliverSettingsSection extends StatelessWidget {
           child: SettingsSectionHeading(label: label, trailing: trailing),
         ),
       ),
-      // `SliverList.list`, not `.builder`: these sections' children are
-      // declarative tables whose widget *construction* is trivial. What is
-      // expensive is element inflation and layout, and `SliverChildListDelegate`
-      // is already lazy in exactly that — which is what lets every section keep
-      // its existing `List<Widget> children` shape.
+      // `SliverList.list`, not `.builder`: these children are declarative tables
+      // whose construction is trivial. What is expensive is element inflation and
+      // layout, and `SliverChildListDelegate` is already lazy in exactly that.
       //
-      // `addRepaintBoundaries` stays on (its default), which does mean a
-      // [SettingsRow] child ends up inside two boundaries — its own and the
-      // delegate's. That is one extra `OffsetLayer` per row and it is the right
-      // trade: [SettingsRow] cannot drop its boundary, because it is also used
-      // nested several levels down inside the *box* sections on the audio and
-      // display pages, where nothing else would supply one.
+      // `addRepaintBoundaries` stays on, so a [SettingsRow] child ends up inside
+      // two boundaries. That is the right trade: [SettingsRow] cannot drop its
+      // own, because it is also used nested inside the *box* sections on the
+      // audio and display pages, where nothing else would supply one.
       SliverList.list(children: children),
     ],
   );
@@ -281,12 +265,10 @@ class SettingsSectionLabel extends StatelessWidget {
 /// The heading over one list inside a section — "Pinned items", "Shown",
 /// "Left modules".
 ///
-/// [trailing] is the list's own action, right-aligned on the heading row. That
+/// [trailing] is the list's own action, right-aligned on the heading row, which
 /// is where every add button in the settings UI lives: an adder under a list
-/// walks away from the user as the list grows — off the bottom of the scroll
-/// view once it is long enough — while the heading is where the list starts
-/// and stays put, and the button lands in the same column as the rows' own
-/// icons. [SettingsStringListEditor] puts its adder here itself.
+/// walks away from the user as the list grows, while the heading stays put and
+/// the button lands in the same column as the rows' icons.
 class SettingsSubLabel extends StatelessWidget {
   const SettingsSubLabel(this.text, {super.key, this.trailing});
 
@@ -345,35 +327,25 @@ class SettingsHint extends StatelessWidget {
 
 /// A labelled form row: the label on the left, the [control] on the right.
 ///
-/// It carries a [RepaintBoundary], and that is load-bearing rather than
-/// decorative. A settings page scrolls in a `SingleChildScrollView`, whose
-/// `_RenderSingleChildViewport` *is* a repaint boundary but whose child is
-/// painted inline — so without a boundary somewhere below it, a mark landing
-/// anywhere on the page re-records the whole page's display list, and the page
-/// is never eligible for the raster cache (the engine only caches
-/// repaint-boundary layers that stay identical across consecutive frames).
-/// Every control on these pages is a [HoverRegion], which `setState`s on enter
-/// and exit, and `MouseTracker` re-runs its hit test after any frame that
-/// changed the layer tree — so a stationary pointer over a scrolling list marks
-/// one row after another as the rows slide under it.
+/// It carries a [RepaintBoundary], and that is load-bearing. A settings page
+/// scrolls in a `SingleChildScrollView`, whose viewport is a repaint boundary
+/// but whose child is painted inline — so without a boundary below it, a mark
+/// anywhere on the page re-records the whole page's display list and the page is
+/// never eligible for the raster cache. Every control here is a [HoverRegion],
+/// which `setState`s on enter and exit, and `MouseTracker` re-runs its hit test
+/// after any frame that changed the layer tree — so a stationary pointer over a
+/// scrolling list marks one row after another.
 ///
-/// The boundary goes *here*, and this is the granularity to keep. Not per
-/// [SettingsSection] child, which would boundary the `SettingsHint` paragraphs
-/// that never change and would add a handful of retained layers inside each
-/// already-boundaried `ListView` item on the audio and display pages; not per
-/// icon button, which is a retained layer for a 26px box already inside one of
-/// these. [SettingsRow] is the intersection of "repeats thirty to forty-five
-/// times a page" and "repaints on its own".
+/// The boundary goes *here*, and this is the granularity to keep: [SettingsRow]
+/// is the intersection of "repeats thirty to forty-five times a page" and
+/// "repaints on its own".
 ///
-/// The rule that leaves behind, for anything the library does not cover:
-/// **anything that hovers has a [RepaintBoundary] above its [HoverRegion],
-/// unless it is inside a [SettingsRow], which carries one for it.**
+/// The rule that leaves behind: **anything that hovers has a [RepaintBoundary]
+/// above its [HoverRegion], unless it is inside a [SettingsRow].**
 ///
 /// A boundary contains a repaint and nothing else, so the companion discipline
 /// is `calendar/clock_column.dart`'s: keep whatever a `HoverRegion.builder`
-/// returns hover-*dependent*, and hoist the rest into the enclosing `build`.
-/// An identical child widget is one the framework skips outright, which is what
-/// makes the contained rebuild a decoration rather than a paragraph.
+/// returns hover-*dependent* and hoist the rest into the enclosing `build`.
 class SettingsRow extends StatelessWidget {
   const SettingsRow({
     super.key,
@@ -385,11 +357,11 @@ class SettingsRow extends StatelessWidget {
 
   /// The row for a catalogued [SettingsField].
   ///
-  /// The label comes *from* the field rather than being written again beside
-  /// it, which is what stops the search index drifting: renaming a setting
-  /// renames the row and the result that finds it in one edit. It also carries
-  /// the field's id, which is the address the search bar's "jump to" scrolls
-  /// to — see [SettingsHighlightController].
+  /// The label comes *from* the field rather than being written again beside it,
+  /// which stops the search index drifting: renaming a setting renames the row
+  /// and the result that finds it in one edit. It also carries the field's id,
+  /// the address the search bar's "jump to" scrolls to — see
+  /// [SettingsHighlightController].
   SettingsRow.field(
     SettingsField field, {
     super.key,
@@ -412,10 +384,9 @@ class SettingsRow extends StatelessWidget {
     final searchId = this.searchId;
     return RepaintBoundary(
       child: _SettingsRowHighlight(
-        // Null at every row the catalogue does not name, and the widget is
-        // then a pass-through that builds no state and starts no ticker —
-        // `UrgencyFlash`'s rule, for a flash that fires once per search jump
-        // rather than once per notification.
+        // Null at every row the catalogue does not name, where the widget is a
+        // pass-through that builds no state and starts no ticker —
+        // `UrgencyFlash`'s rule, for a flash that fires once per search jump.
         searchId: searchId,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -447,32 +418,24 @@ class SettingsRow extends StatelessWidget {
   }
 }
 
-/// Pulses a [SettingsRow] the settings search has just jumped to, and scrolls
-/// it into view on the way.
+/// Pulses a [SettingsRow] the settings search has just jumped to, and scrolls it
+/// into view on the way.
 ///
-/// Three things this has to keep true.
-///
-/// **Nothing about it exists at rest.** With no [searchId] it is a
-/// pass-through, and even with one it holds no ticker until a jump claims it —
-/// `UrgencyFlash`'s rule, applied to a widget that repeats forty times a page.
-/// The decoration is null until the flash starts, so a row absorbs no hit and
-/// retains no layer it did not before.
+/// **Nothing about it exists at rest.** With no [searchId] it is a pass-through,
+/// and even with one it holds no ticker until a jump claims it — `UrgencyFlash`'s
+/// rule, applied to a widget that repeats forty times a page.
 ///
 /// **It reads the controller without depending on it.** The scope is an
-/// `InheritedNotifier`, so a row that resolved it with
-/// `dependOnInheritedWidgetOfExactType` would rebuild every row on the page
-/// twice per jump — once on the target landing and once on it being cleared.
-/// It listens to the controller directly instead and `setState`s only when its
-/// own flash moves, which is `_SelectedIcon`'s arrangement in
+/// `InheritedNotifier`, so a row depending on it would rebuild every row on the
+/// page twice per jump. It listens to the controller directly and `setState`s
+/// only when its own flash moves — `_SelectedIcon`'s arrangement in
 /// `desktop/desktop_grid.dart`.
 ///
 /// **The claim is exclusive and the scroll comes after it.** Several rows can
-/// carry one id — every panel in Panels & Layout renders the same "Height"
-/// field — so [SettingsHighlightController.claim] hands the jump to the first
-/// to mount, which is the topmost. The scroll is a post-frame `ensureVisible`
-/// because the row is claiming from inside its own first build, and the
-/// controller is cleared straight after it, which is what lets the category
-/// view stop holding its whole page mounted.
+/// carry one id (every panel renders the same "Height"), so
+/// [SettingsHighlightController.claim] hands the jump to the first to mount. The
+/// scroll is a post-frame `ensureVisible` because the row claims from inside its
+/// own first build.
 class _SettingsRowHighlight extends StatefulWidget {
   const _SettingsRowHighlight({required this.searchId, required this.child});
 
@@ -500,8 +463,7 @@ class _SettingsRowHighlightState extends State<_SettingsRowHighlight>
     highlight.addListener(_onHighlightChanged);
     // A row mounting *because* of a jump has one waiting for it already — the
     // category view pushes its route and holds the page mounted before this
-    // ever builds — so the pending target has to be tried here as well as on
-    // the notification.
+    // builds — so the pending target is tried here as well as on the notify.
     _onHighlightChanged();
   }
 
@@ -537,10 +499,9 @@ class _SettingsRowHighlightState extends State<_SettingsRowHighlight>
         vsync: this,
         duration: kSettingsHighlightFlash,
       );
-      // Ends itself: the controller is disposed the moment the pulse finishes,
-      // so the widget goes back to being the pass-through it is at rest rather
-      // than leaving a settled ticker and an `AnimatedBuilder` on every row
-      // the user has ever searched for.
+      // Ends itself: the controller is disposed as soon as the pulse finishes,
+      // so the widget goes back to being a pass-through rather than leaving a
+      // settled ticker and an `AnimatedBuilder` on every row ever searched for.
       flash.addStatusListener((status) {
         if (status != AnimationStatus.completed) return;
         WidgetsBinding.instance.addPostFrameCallback((_) => _endFlash());
@@ -580,15 +541,15 @@ class _SettingsRowHighlightState extends State<_SettingsRowHighlight>
     final theme = ThemeScope.of(context);
     return AnimatedBuilder(
       animation: flash,
-      // The row itself is hover-invariant under the flash, so it is captured
-      // rather than rebuilt — `HoverRegion`'s companion discipline, and what
-      // keeps this an animated decoration rather than an animated form row.
+      // The row is hover-invariant under the flash, so it is captured rather
+      // than rebuilt — `HoverRegion`'s companion discipline, and what keeps this
+      // an animated decoration rather than an animated form row.
       child: widget.child,
       builder: (context, child) {
-        // A raised cosine, resting at exactly 0 in both directions: the row has
-        // to pass through the very colour its neighbours are, or the pulse
-        // reads as this row being permanently different rather than as the one
-        // being pointed at. `UrgencyFlash`'s breath, once.
+        // A raised cosine resting at exactly 0 in both directions: the row has
+        // to pass through the very colour its neighbours are, or the pulse reads
+        // as this row being permanently different rather than as the one being
+        // pointed at. `UrgencyFlash`'s breath, once.
         final wash = (1 - math.cos(2 * math.pi * flash.value)) / 2;
         if (wash <= 0) return child!;
         return DecoratedBox(
@@ -737,11 +698,8 @@ class SettingsOptionButton extends StatelessWidget {
 }
 
 /// A stretch-to-fit action button: accent-filled when [primary], quiet
-/// otherwise. Shows a [LoadingIndicator] and refuses taps while [loading] or
-/// not [enabled].
-///
-/// Extracted from the `_ActionButton` clones in the audio and display panes
-/// (display's carried the superset: the [enabled] flag and the theme font).
+/// otherwise. Shows a [LoadingIndicator] and refuses taps while [loading] or not
+/// [enabled].
 class SettingsActionButton extends StatelessWidget {
   const SettingsActionButton({
     super.key,
@@ -760,8 +718,8 @@ class SettingsActionButton extends StatelessWidget {
   final bool enabled;
 
   /// The dense inline form used beside a list row (the bluetooth pane's
-  /// Connect/Disconnect): tighter padding and the secondary font size, sized
-  /// to its label rather than stretched under a form.
+  /// Connect/Disconnect): tighter padding, the secondary font size, and sized to
+  /// its label rather than stretched under a form.
   final bool compact;
 
   @override
@@ -811,12 +769,8 @@ class SettingsActionButton extends StatelessWidget {
 }
 
 /// A small accent-tinted pill marking a list row's state — "Connected" on the
-/// network and bluetooth device lists.
-///
-/// Extracted from the `_ConnectedBadge` clones in the network and bluetooth
-/// panes, identical but for the network one carrying the theme font (the
-/// superset). The label is a parameter because the state a row wants to
-/// announce is not always "Connected".
+/// network and bluetooth device lists. The label is a parameter because the
+/// state a row wants to announce is not always "Connected".
 class SettingsBadge extends StatelessWidget {
   const SettingsBadge(this.label, {super.key});
 
@@ -845,14 +799,12 @@ class SettingsBadge extends StatelessWidget {
 }
 
 /// A quiet refresh affordance: a rotate-arrows icon beside its [label],
-/// transparent at rest with a hover fill. The default label is "Scan"; the
-/// error states pass "Retry".
+/// transparent at rest with a hover fill. The default label is "Scan"; the error
+/// states pass "Retry".
 ///
-/// Extracted from the `_RescanButton` clones in the network and bluetooth
-/// panes, identical but for the network one carrying the theme font (the
-/// superset). Not folded into [SettingsIconButton]: this is a labelled pill
-/// with a hover-filled background, not a bare icon, and it carries no spin
-/// state — both panes rebuild into a full-body loader while scanning.
+/// Not folded into [SettingsIconButton]: this is a labelled pill with a
+/// hover-filled background rather than a bare icon, and it carries no spin state
+/// — both panes rebuild into a full-body loader while scanning.
 class SettingsRescanButton extends StatelessWidget {
   const SettingsRescanButton({
     super.key,
@@ -900,18 +852,15 @@ class SettingsRescanButton extends StatelessWidget {
   }
 }
 
-/// One row of a [SettingsDropdown]: the [value] it stands for, the [label]
-/// shown for it, an optional dim [detail] tag after the label (the display
-/// pane marks its preferred mode this way), and an optional [description] —
-/// a sentence set *under* the label.
+/// One row of a [SettingsDropdown]: the [value] it stands for, its [label], an
+/// optional dim [detail] tag after the label, and an optional [description] set
+/// *under* it.
 ///
-/// The two dim slots are not interchangeable, and conflating them is what
-/// broke the popup-animation row: [detail] is a word or two that shares the
-/// label's line and is laid out at whatever width it asks for, so a sentence
-/// put there takes the whole row, ellipsises the label to nothing and is then
-/// clipped at the card's edge. A [description] wraps, and is what makes the
-/// card size itself to the prose rather than to the trigger it drops out of —
-/// see [SettingsDropdown.cardWidth].
+/// The two dim slots are not interchangeable: [detail] is a word or two sharing
+/// the label's line at whatever width it asks for, so a sentence put there takes
+/// the whole row, ellipsises the label to nothing and is clipped at the card's
+/// edge. A [description] wraps, and is what makes the card size itself to the
+/// prose rather than to the trigger — see [SettingsDropdown.cardWidth].
 class SettingsDropdownItem<T> {
   const SettingsDropdownItem({
     required this.value,
@@ -928,8 +877,8 @@ class SettingsDropdownItem<T> {
 
 /// The card width a described dropdown takes when its caller names none.
 ///
-/// Wider than any settings row's control, which is the whole point: a row of
-/// prose cannot be read in the width of the trigger showing "Slide and fade".
+/// Wider than any settings row's control, which is the point: a row of prose
+/// cannot be read in the width of a trigger showing "Slide and fade".
 const double _kDescribedCardWidth = 340;
 
 /// How tall a described card may grow before it scrolls. Enough for the seven
@@ -948,12 +897,10 @@ const int _kDescriptionMaxLines = 3;
 /// The row extent a described dropdown needs, measured rather than guessed.
 ///
 /// The rows are a *fixed* extent — the generic's keyboard reveal is arithmetic
-/// over it, not a measurement — so the one number has to be the tallest row's,
-/// and it moves with the theme: the same sentence is two lines under one font
-/// and three under another, and `font_size` scales the whole
-/// [ShellFontSizes] ladder through a [TextScaler]. Measuring with the very
-/// styles the row renders in is the rule `TrackMarquee` and `fitFortuneText`
-/// already state.
+/// over it — so the number has to be the tallest row's, and it moves with the
+/// theme: the same sentence is two lines under one font and three under another.
+/// Measuring with the very styles the row renders in is the rule `TrackMarquee`
+/// and `fitFortuneText` already state.
 double describedDropdownRowHeight({
   required Iterable<String> descriptions,
   required double contentWidth,
@@ -989,27 +936,22 @@ double describedDropdownRowHeight({
   return label + _kDescribedRowGap + tallest + 2 * _kDescribedRowPadding;
 }
 
-/// A bordered trigger showing the selected item's label, dropping a list of
-/// the items *over* the pane rather than pushing it into the layout — the same
-/// floating card the font picker uses, through the same
-/// [AnchoredSearchDropdown]. A [selected] value no item carries shows an em
-/// dash.
+/// A bordered trigger showing the selected item's label, dropping a list of the
+/// items *over* the pane rather than pushing it into the layout, through
+/// [AnchoredSearchDropdown]. A [selected] value no item carries shows an em dash.
 ///
-/// It used to expand inline, which is what made it the odd control out: a
-/// dropdown that re-lays its own pane pushes everything under it down the
-/// moment it opens, and on the audio and display pages that is the rest of the
-/// form. The list floats in the **root** overlay for the reason
-/// [SettingsColorField] documents — the settings content pane is a nested
-/// `Navigator` whose `Overlay` would clip it — which means every host needs a
-/// root `Overlay` above it; inside the settings window `SettingsOverlay`
-/// supplies one.
+/// It used to expand inline, which pushed everything under it down the moment it
+/// opened — on the audio and display pages, the rest of the form. The list floats
+/// in the **root** overlay for the reason [SettingsColorField] documents (the
+/// content pane is a nested `Navigator` whose `Overlay` would clip it), so every
+/// host needs a root `Overlay` above it; `SettingsOverlay` supplies one.
 ///
-/// The filter field appears only past [searchFrom] items: a search box over
-/// the two outputs a machine has is chrome asking to be typed into for no
-/// gain, while the thirty modes a monitor reports genuinely want one.
+/// The filter field appears only past [searchFrom]: a search box over the two
+/// outputs a machine has is chrome asking to be typed into, while a monitor's
+/// thirty modes genuinely want one.
 ///
-/// [cardWidth] is the opt-out from all of that, for the list whose rows carry
-/// prose rather than a name — see [SettingsDropdownItem.description].
+/// [cardWidth] is the opt-out for a list whose rows carry prose — see
+/// [SettingsDropdownItem.description].
 class SettingsDropdown<T> extends StatelessWidget {
   const SettingsDropdown({
     super.key,
@@ -1029,18 +971,14 @@ class SettingsDropdown<T> extends StatelessWidget {
 
   /// Float the card at this width instead of sizing it to the trigger.
   ///
-  /// The trigger is a control at the right-hand end of a settings row and is
-  /// only as wide as the value it is showing, so a card matched to it is only
-  /// as wide as the word "Fade" — which is right for a list of names and
-  /// hopeless for one whose rows explain themselves. A card with its own width
-  /// therefore also anchors its *right* edge to the trigger's, growing
-  /// leftwards over the pane rather than rightwards off it:
-  /// [AnchoredSearchDropdown.alignRight]'s reasoning, reached from the other
-  /// direction.
+  /// The trigger is only as wide as the value it shows, so a card matched to it
+  /// is only as wide as the word "Fade" — right for a list of names and hopeless
+  /// for one whose rows explain themselves. A card with its own width therefore
+  /// anchors its *right* edge to the trigger's, growing leftwards over the pane:
+  /// [AnchoredSearchDropdown.alignRight]'s reasoning from the other direction.
   ///
-  /// Defaulted for a list whose items carry a
-  /// [SettingsDropdownItem.description], since that is the shape that needs
-  /// it; passing one explicitly is how a caller asks for a different width.
+  /// Defaulted for a list whose items carry a [SettingsDropdownItem.description];
+  /// pass one explicitly to ask for a different width.
   final double? cardWidth;
 
   String get _selectedLabel {
@@ -1064,10 +1002,10 @@ class SettingsDropdown<T> extends StatelessWidget {
                 if (item.description != null) item.description!,
             ],
             contentWidth: dropdownContentWidth(width),
-            // Merged over the ambient default the way `Text` itself merges
-            // it: the card is built under the same `DefaultTextStyle` as this
-            // trigger, and a measurement that skipped it would be taken in a
-            // style with a different line height from the one drawn.
+            // Merged over the ambient default the way `Text` merges it: the card
+            // is built under the same `DefaultTextStyle` as this trigger, and a
+            // measurement skipping it would be taken in a style with a different
+            // line height from the one drawn.
             labelStyle: DefaultTextStyle.of(
               context,
             ).style.merge(_dropdownLabelStyle(theme, selected: false)),
@@ -1081,29 +1019,27 @@ class SettingsDropdown<T> extends StatelessWidget {
     return AnchoredSearchDropdown<SettingsDropdownItem<T>>(
       // The card drops out of the trigger, so it is the trigger's width — a
       // fixed one would read as a different control on a row that stretches.
-      // Unless the caller named one, in which case it is that, anchored to the
+      // Unless the caller named one, in which case it is anchored to the
       // trigger's right edge; see [cardWidth].
       matchTriggerWidth: width == null,
       width: width ?? 240,
       alignRight: width != null,
       showSearch: items.length >= searchFrom,
       rowHeight: rowHeight,
-      // Tall enough for the whole list where the list is short, so a card
-      // that has been given room to explain itself is not also made to
-      // scroll; a longer one still stops at [_kDescribedMaxHeight].
+      // Tall enough for the whole list where the list is short, so a card given
+      // room to explain itself is not also made to scroll; a longer one still
+      // stops at [_kDescribedMaxHeight].
       maxHeight: width == null
           ? 260
           : math.min(
               _kDescribedMaxHeight,
               items.length * rowHeight + kDropdownCardPadding,
             ),
-      // Closes the open list when what it is listing moves underneath it, the
-      // guard the font field takes against a stale pick: the card is an
-      // OverlayEntry and does not rebuild on the host's setState, so its rows
-      // would go on marking whichever device *was* the default one — and, when
-      // one is plugged in or unplugged, go on offering the ones that were
-      // there when it opened. The inline list this replaced rebuilt with the
-      // pane and needed neither.
+      // Closes the open list when what it is listing moves underneath it: the
+      // card is an OverlayEntry and does not rebuild on the host's setState, so
+      // its rows would go on marking whichever device *was* the default one, and
+      // go on offering devices that have since been unplugged. The inline list
+      // this replaced rebuilt with the pane and needed neither.
       closeKey: Object.hash(selected, items.length),
       filter: (query) {
         final q = query.trim().toLowerCase();
@@ -1112,9 +1048,8 @@ class SettingsDropdown<T> extends StatelessWidget {
             .where((item) => item.label.toLowerCase().contains(q))
             .toList(growable: false);
       },
-      // Open highlighted on the current item rather than at the top of a
-      // monitor's mode list. -1 (a selection no item carries) starts at the
-      // top, which is what the generic does with it.
+      // Opens highlighted on the current item rather than at the top of a
+      // monitor's mode list. -1 (a selection no item carries) starts at the top.
       initialHighlight: (list) =>
           list.indexWhere((item) => item.value == selected),
       onSelected: (item) => onSelected(item.value),
@@ -1152,21 +1087,18 @@ class _DropdownTrigger extends StatelessWidget {
               color: open || hovered ? theme.accent : theme.divider,
             ),
           ),
-          // The trigger stretches to whatever width it is given and shrinks
-          // to its label when it is given none. Both halves are needed: a
-          // dropdown is nearly always handed a bounded width (an `Expanded`, a
-          // `ListView`'s cross axis) and has to fill it, or the card
-          // `matchTriggerWidth` sizes to the trigger reads as a different
-          // control from the row it drops out of. But a `SettingsRow` lays its
-          // `control` out as an *inflexible* child of a `Row`, which per
-          // `RenderFlex` means unbounded width — and an `Expanded` under an
-          // unbounded main axis throws from inside `performLayout`, which
-          // `RenderObject.layout` catches and reports rather than rethrows.
-          // The subtree is then left un-laid-out but still mounted, so what
-          // the user actually sees is not that error but the cascade behind
-          // it: a semantics compile asserting on a child that still needs
-          // layout, and a "Cannot hit test a render box with no size" per
-          // pointer event for the rest of the page's life.
+          // The trigger stretches to whatever width it is given and shrinks to
+          // its label when given none. Both halves are needed: a dropdown is
+          // nearly always handed a bounded width and has to fill it, or the card
+          // `matchTriggerWidth` sizes reads as a different control from the row.
+          // But a `SettingsRow` lays its `control` out as an *inflexible* child
+          // of a `Row`, which per `RenderFlex` means unbounded width — and an
+          // `Expanded` under an unbounded main axis throws from inside
+          // `performLayout`, which `RenderObject.layout` reports rather than
+          // rethrows. The subtree is then left un-laid-out but still mounted, so
+          // what the user sees is the cascade behind it: a semantics compile
+          // asserting on a child still needing layout, and a "Cannot hit test a
+          // render box with no size" per pointer event thereafter.
           child: LayoutBuilder(
             builder: (context, constraints) {
               final bounded = constraints.hasBoundedWidth;
@@ -1182,10 +1114,10 @@ class _DropdownTrigger extends StatelessWidget {
               return Row(
                 mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
                 children: [
-                  // Tight under a bounded width, so the label absorbs the
-                  // slack and the chevron is pinned to the far edge; loose
-                  // under an unbounded one, where there is no slack to absorb
-                  // and `Flexible` is the fit `RenderFlex` allows.
+                  // Tight under a bounded width, so the label absorbs the slack
+                  // and the chevron is pinned to the far edge; loose under an
+                  // unbounded one, where there is no slack and `Flexible` is the
+                  // fit `RenderFlex` allows.
                   if (bounded) Expanded(child: text) else Flexible(child: text),
                   const SizedBox(width: 8),
                   FaIcon(
@@ -1206,8 +1138,8 @@ class _DropdownTrigger extends StatelessWidget {
 }
 
 /// The label's style, and the description's. Shared with
-/// [describedDropdownRowHeight], which has to lay the text out in the very
-/// styles the row renders in or it is measuring a different paragraph.
+/// [describedDropdownRowHeight], which lays the text out in the very styles the
+/// row renders in or it is measuring a different paragraph.
 TextStyle _dropdownLabelStyle(ThemeConfig theme, {required bool selected}) =>
     TextStyle(
       fontSize: ShellFontSizes.body,
@@ -1265,9 +1197,9 @@ class _DropdownRow<T> extends StatelessWidget {
         const SizedBox(height: _kDescribedRowGap),
         Text(
           description,
-          // The same cap the row extent was measured against: a sentence
-          // longer than the card was sized for ellipsises rather than
-          // overflowing a fixed-extent row.
+          // The same cap the row extent was measured against: a sentence longer
+          // than the card was sized for ellipsises rather than overflowing a
+          // fixed-extent row.
           maxLines: _kDescriptionMaxLines,
           overflow: TextOverflow.ellipsis,
           style: _dropdownDescriptionStyle(theme),
@@ -1278,21 +1210,18 @@ class _DropdownRow<T> extends StatelessWidget {
 }
 
 /// Bordered single-line text input backed by [EditableText] (the codebase does
-/// not use Material). Seeds its controller once from [initial]; subsequent
-/// parent rebuilds do not clobber in-progress edits.
+/// not use Material). Seeds its controller once from [initial]; later parent
+/// rebuilds do not clobber in-progress edits.
 ///
 /// [leading] and [trailing] are what make this a *search* field as well as a
-/// value field — a magnifier before the text, a clear x after it — which is
-/// what the file picker's in-folder filter is built from. They live here rather
-/// than in a second hand-rolled field for the reason this whole library exists:
-/// a control the library lacks gets added to the library.
+/// value field — a magnifier before the text, a clear x after it — which is what
+/// the file picker's in-folder filter is built from.
 ///
-/// [controller] and [focusNode] are for the caller that has to *drive* the
-/// field from outside rather than merely read it — the file picker's Ctrl+F
-/// focuses and selects it, and Escape clears it. A field handed neither owns
-/// its own pair and disposes them; one handed either never disposes what it did
-/// not create. Swapping them out across a rebuild is not supported (nothing
-/// needs it), so both are resolved once.
+/// [controller] and [focusNode] are for the caller that has to *drive* the field
+/// from outside (the file picker's Ctrl+F focuses and selects; Escape clears). A
+/// field handed neither owns its own pair and disposes them; one handed either
+/// never disposes what it did not create. Swapping them across a rebuild is not
+/// supported, so both are resolved once.
 class SettingsTextField extends StatefulWidget {
   const SettingsTextField({
     super.key,
@@ -1319,14 +1248,14 @@ class SettingsTextField extends StatefulWidget {
 
   /// Placeholder shown while the field is empty.
   ///
-  /// [EditableText] has no hint of its own — the shell has no Material — so it
-  /// is painted behind the text and driven by the controller, which is why it
-  /// costs a [ValueListenableBuilder] rather than a `setState` per keystroke.
+  /// [EditableText] has no hint of its own, so it is painted behind the text and
+  /// driven by the controller — which is why it costs a
+  /// [ValueListenableBuilder] rather than a `setState` per keystroke.
   final String? hint;
 
-  /// Enter, for a field whose value is committed rather than merely edited —
-  /// the timers composer, where typing a duration and pressing return is the
-  /// whole interaction.
+  /// Enter, for a field whose value is committed rather than merely edited — the
+  /// timers composer, where typing a duration and pressing return is the whole
+  /// interaction.
   final ValueChanged<String>? onSubmitted;
 
   /// A controller the caller owns, for a field it also has to clear or select
@@ -1365,8 +1294,8 @@ class _SettingsTextFieldState extends State<SettingsTextField>
   }
 
   // Named rather than a closure so a *borrowed* focus node can be let go of
-  // again: a listener left on a node the caller outlives is a setState on a
-  // dead element.
+  // again: a listener left on a node the caller outlives is a setState on a dead
+  // element.
   void _onFocusChanged() {
     if (!mounted) return;
     setState(() => _focused = _focusNode.hasFocus);
@@ -1407,10 +1336,10 @@ class _SettingsTextFieldState extends State<SettingsTextField>
     final field = Stack(
       children: [
         if (widget.hint != null)
-          // Behind the text rather than swapped for it: an IgnorePointer
-          // keeps the tap that should focus the field from landing on the
-          // placeholder, and painting both means the field never changes
-          // height as the first character arrives.
+          // Behind the text rather than swapped for it: an IgnorePointer keeps
+          // the tap that should focus the field off the placeholder, and painting
+          // both means the field never changes height as the first character
+          // arrives.
           Positioned.fill(
             child: IgnorePointer(
               child: ValueListenableBuilder<TextEditingValue>(
@@ -1823,10 +1752,9 @@ class ColorFieldState extends State<SettingsColorField> {
     if (!mounted) return;
     if (_focusNode.hasFocus) {
       // A field being typed into and a picker floating over the same value are
-      // two editors for one colour, and the picker snapshots its HSV at open
-      // (an `OverlayEntry` does not rebuild on our `setState`), so it is the
-      // one that goes. Reached by tabbing in: a *click* on the field lands on
-      // the picker's own dismiss barrier first.
+      // two editors for one colour, and the picker snapshots its HSV at open, so
+      // it is the one that goes. Reached by tabbing in: a *click* on the field
+      // lands on the picker's own dismiss barrier first.
       _close();
     } else {
       _settle();
@@ -1953,17 +1881,17 @@ class ColorFieldState extends State<SettingsColorField> {
       children: [
         CompositedTransformTarget(
           link: _link,
-          // The swatch follows the text through the controller rather than
-          // through a `setState`, the reason `SettingsTextField`'s hint gives:
-          // a rebuild per keystroke would re-record the whole row — the field
-          // and its `EditableText` included — to repaint 22 square.
+          // The swatch follows the text through the controller rather than a
+          // `setState`, for `SettingsTextField`'s hint's reason: a rebuild per
+          // keystroke would re-record the whole row — field and `EditableText`
+          // included — to repaint 22 square.
           child: ValueListenableBuilder<TextEditingValue>(
             valueListenable: _controller,
             builder: (context, value, _) {
               // Half-typed text is not a colour, and the swatch must not blink
               // out while somebody types one: what it draws is the value the
-              // config holds. The `?` is kept for the case it was written for
-              // — a hex the *config* carries that will not parse.
+              // config holds. The `?` is kept for a hex the *config* carries
+              // that will not parse.
               final swatch =
                   parseHexColor(value.text) ?? parseHexColor(_committed);
               return HoverRegion(
@@ -2003,9 +1931,8 @@ class ColorFieldState extends State<SettingsColorField> {
           focusNode: _focusNode,
           inputFormatters: hexColorInputFormatters,
           onChanged: _onTyped,
-          // Enter is done rather than a keystroke: nothing is left to report
-          // (every parse already was), so all it does is drop focus, which is
-          // what runs [_settle].
+          // Enter is done rather than a keystroke: every parse already reported,
+          // so all it does is drop focus, which is what runs [_settle].
           onSubmitted: (_) => _focusNode.unfocus(),
         ),
       ],
@@ -2013,9 +1940,8 @@ class ColorFieldState extends State<SettingsColorField> {
 
     if (!widget.locked) return row;
     // A shipped theme is read-only, so the row is a *button* offering to
-    // duplicate it: the `IgnorePointer` is what keeps the field it wraps from
-    // being typed into now that the field would otherwise take the text, and
-    // the region around it answers the click the swatch used to.
+    // duplicate it: the `IgnorePointer` keeps the field from being typed into,
+    // and the region around it answers the click the swatch used to.
     return Opacity(
       opacity: 0.45,
       child: HoverRegion(
@@ -2770,9 +2696,9 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
     );
   }
 
-  /// The free-form adder's field, revealed under the heading by the add
-  /// button. Above the rows rather than below them, so it stays put as the
-  /// list grows under it — the whole reason the button moved up here.
+  /// The free-form adder's field, revealed under the heading by the add button.
+  /// Above the rows rather than below, so it stays put as the list grows under
+  /// it — the whole reason the button moved up here.
   Widget _buildComposer(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Row(
@@ -2810,9 +2736,8 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
                   backgroundCursorColor: theme.divider,
                   onChanged: (_) => setState(() {}),
                   // Enter commits and leaves the field open and focused: these
-                  // lists are typed in runs (a handful of tray ids, a handful
-                  // of dock apps), so closing after each one would mean a
-                  // click on the button between every two entries.
+                  // lists are typed in runs, so closing after each entry would
+                  // mean a click on the button between every two.
                   onSubmitted: (v) {
                     _add(v);
                     _addController.clear();
@@ -2860,10 +2785,9 @@ class _AddDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnchoredSearchDropdown<String>(
-      // Right-aligned rather than trigger-width: the button is now a compact
-      // action on the list's heading row, so a card sized to it would be too
-      // narrow to read a module name in, and one hanging left-to-right off it
-      // would run past the pane. It grows leftwards from the button's edge.
+      // Right-aligned rather than trigger-width: the button is a compact action
+      // on the heading row, so a card sized to it would be too narrow to read a
+      // module name in and one hanging left-to-right would run past the pane.
       alignRight: true,
       rowHeight: 30,
       maxHeight: 260,

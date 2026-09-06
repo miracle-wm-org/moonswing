@@ -7,13 +7,11 @@ import 'wl_types.dart';
 
 /// Raw `libwayland-client` bindings.
 ///
-/// This is a *second* Wayland connection, separate from the pure-Dart
-/// `package:wayland` client the rest of the shell uses: that client cannot
-/// pass file descriptors (its `writeFd`/`readFd` are stubs), and the
-/// image-copy-capture protocol requires them (`wl_shm.create_pool`).
-/// libwayland handles SCM_RIGHTS natively, so the capture path goes through
-/// it via dart:ffi instead. Precedent for a second connection:
-/// `lib/overlay/settings/display.dart` opens its own `WaylandClient`.
+/// A *second* Wayland connection, separate from the pure-Dart `package:wayland`
+/// client the rest of the shell uses: that client cannot pass file descriptors
+/// (its `writeFd`/`readFd` are stubs), and image-copy-capture requires them
+/// (`wl_shm.create_pool`). libwayland handles SCM_RIGHTS natively. Precedent for
+/// a second connection: `lib/overlay/settings/display.dart`.
 class WlFfi {
   WlFfi._(this._lib) {
     displayConnect = _lib.lookupFunction<
@@ -119,8 +117,8 @@ const int wlMarshalFlagDestroy = 1;
 ///
 /// The pump can be driven two ways: [attachToGlibLoop] (the shell — a
 /// `g_unix_fd_add` watch on the display fd wakes the standard
-/// prepare_read/read_events/dispatch_pending cycle), or manual [roundtrip]
-/// calls (the spike tool and startup code, where blocking is fine).
+/// prepare_read/read_events/dispatch_pending cycle), or manual [roundtrip] calls
+/// (the spike tool and startup code, where blocking is fine).
 class WlDisplayConnection {
   WlDisplayConnection._(this.display);
 

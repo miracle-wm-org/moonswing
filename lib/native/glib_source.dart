@@ -31,14 +31,13 @@ final _gSourceRemove = _process
 typedef _FdSourceFuncC = ffi.Int32 Function(
     ffi.Int32 fd, ffi.Uint32 condition, ffi.Pointer<ffi.Void> userData);
 
-/// Watches a file descriptor on the GLib main loop and invokes [onReady] on
-/// the Dart thread whenever it becomes readable (or errors/hangs up).
+/// Watches a file descriptor on the GLib main loop and invokes [onReady] on the
+/// Dart thread whenever it becomes readable (or errors/hangs up).
 ///
-/// The Dart UI isolate runs on the GLib main thread in the Flutter Linux
-/// embedder, so `NativeCallable.isolateLocal` is safe here — the callback is
-/// only ever invoked from GLib main-loop dispatch, which is this thread. This
-/// is the integration point that lets the screencast code drive both the
-/// capture `wl_display` and the PipeWire `pw_loop` without extra threads.
+/// The Dart UI isolate runs on the GLib main thread in the Flutter Linux embedder,
+/// so `NativeCallable.isolateLocal` is safe — the callback is only ever invoked
+/// from GLib main-loop dispatch. This is what lets the screencast code drive both
+/// the capture `wl_display` and the PipeWire `pw_loop` without extra threads.
 class GlibFdWatch {
   static const int gIoIn = 1;
   static const int gIoErr = 8;

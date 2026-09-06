@@ -62,14 +62,12 @@ void main() {
   });
 
   testWidgets('paints no backdrop filter', (tester) async {
-    // Not a style rule: a BackdropFilter reaches only what Flutter has
-    // already painted beneath it, and this scaffold is the first thing
-    // painted into its window — the scrim is its own child, and under that is
-    // a transparent layer-shell surface the compositor owns. So a filter here
-    // has an empty backdrop and changes no pixel, while costing a full-output
-    // Gaussian on every frame the overlay animates. That was the shell's one
-    // per-frame full-screen effect, and what the settings page transitions
-    // were spending their frame budget on.
+    // Not a style rule: a BackdropFilter reaches only what Flutter has already
+    // painted beneath it, and this scaffold is the first thing painted into its
+    // window — the scrim is its own child, and under that is a transparent
+    // layer-shell surface the compositor owns. So a filter here has an empty
+    // backdrop and changes no pixel, while costing a full-output Gaussian on
+    // every frame the overlay animates.
     final closing = ValueNotifier(false);
     await tester.pumpWidget(_host(closing: closing, onClosed: () {}));
     await tester.pumpAndSettle();
@@ -81,15 +79,12 @@ void main() {
   testWidgets('the opacity layer is bounded by the card, not the output', (
     tester,
   ) async {
-    // Every overlay window calls `spanFullOutput`, so an `Opacity` wrapped
-    // around this whole scaffold is bounded by the *display*:
-    // `RenderOpacity` skips its layer at exactly 1.0, so it cost nothing at
-    // rest and then allocated and blended a full-output offscreen on every
-    // one of the dozen frames in and the dozen frames out. At 4K that is
-    // thirty-odd megabytes a frame on a raster thread this shell already
-    // measures in the tens of milliseconds — the same arithmetic that
-    // deleted `ThemeConfig.blur`. The scrim is a flat fill and fades by its
-    // own alpha; only the card keeps a real layer, and it is the card's size.
+    // Every overlay window calls `spanFullOutput`, so an `Opacity` around this
+    // whole scaffold is bounded by the *display*: `RenderOpacity` skips its layer
+    // at exactly 1.0, so it cost nothing at rest and then allocated and blended a
+    // full-output offscreen on every frame in and out — thirty-odd megabytes a
+    // frame at 4K. The scrim is a flat fill and fades by its own alpha; only the
+    // card keeps a real layer, and it is the card's size.
     final closing = ValueNotifier(false);
     await tester.pumpWidget(_host(closing: closing, onClosed: () {}));
     await tester.pump(const Duration(milliseconds: 80));

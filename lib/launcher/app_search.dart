@@ -1,8 +1,7 @@
 // Ranking for the launcher's search field.
 //
 // Pure — no Flutter, no FFI — so the ordering is unit tested directly. The
-// lowercasing happens once, when the index is built, rather than on every
-// keystroke across every installed application.
+// lowercasing happens once, when the index is built.
 
 import 'package:graceful_shell/app_info.dart';
 
@@ -64,10 +63,10 @@ int _scoreApp(SearchableApp app, String query) {
 
 /// The apps matching [query], best first.
 ///
-/// An empty query lists everything in the index's own order (which
-/// [AppIndex] keeps sorted by name), so the launcher has something to show
-/// before the user types. Ties break by name, so the order never depends on
-/// how the index happened to be built.
+/// An empty query lists everything in the index's own order (which [AppIndex]
+/// keeps sorted by name), so the launcher has something to show before the user
+/// types. Ties break by name, so the order never depends on how the index
+/// happened to be built.
 List<AppEntry> rankApps(
   List<SearchableApp> apps,
   String query, {

@@ -1,12 +1,10 @@
-// The Weather group's location row: automatic, or a place the user searched
-// for by name.
+// The Weather group's location row: automatic, or a place the user searched for
+// by name.
 //
-// A control of its own rather than another `_ModuleSetting` in the declarative
-// table, because it is the one weather setting that is not a value the user can
-// type: `[modules.weather] latitude`/`longitude` are what the forecast API
-// wants and a place name is what the user knows, and the only thing that turns
-// one into the other is a geocoding request. The three keys are written
-// together for the reason `OsdAudioTracker.seed` commits a name and a level
+// A control of its own rather than another `_ModuleSetting`, because it is the
+// one weather setting that is not a value the user can type: latitude/longitude
+// are what the API wants and a place name is what the user knows, and only a
+// geocoding request turns one into the other. The three keys are written
 // together — a location is the triple, and a half-written one is a config that
 // names Berlin and fetches for the prime meridian.
 
@@ -32,9 +30,8 @@ const List<String> kWeatherLongitudePath = ['modules', 'weather', 'longitude'];
 /// One row of the picker: a place, or the automatic entry.
 ///
 /// A wrapper rather than a nullable [WeatherPlace] so "detect it from my IP
-/// address" is a thing the user selects rather than a thing they clear — the
-/// row is always at the top of the list, and picking it is how a chosen
-/// location is undone.
+/// address" is something the user selects rather than clears — the row is always
+/// at the top, and picking it is how a chosen location is undone.
 class WeatherLocationChoice {
   const WeatherLocationChoice.automatic() : place = null;
   const WeatherLocationChoice.at(WeatherPlace this.place);
@@ -65,8 +62,7 @@ class WeatherLocationField extends StatelessWidget {
   final ConfigStore store;
   final WeatherPlaceSearch search;
 
-  /// The shell's own gazetteer — the same table the world-clock picker offers,
-  /// which is the point of it being a table rather than each picker's own list.
+  /// The shell's own gazetteer — the same table the world-clock picker offers.
   ///
   /// A parameter for the reason [AnchoredSearchDropdown] documents about every
   /// list it is given: a widget test asserting what the card shows must be able
@@ -75,10 +71,9 @@ class WeatherLocationField extends StatelessWidget {
 
   /// What the trigger reads: the saved name, or the automatic label.
   ///
-  /// A saved *name* with no coordinates behind it is shown as automatic, which
-  /// is what it is: [WeatherConfig.place] refuses a half-written pair, so a
-  /// trigger reading only the name would claim a location the store is not
-  /// fetching for.
+  /// A saved *name* with no coordinates behind it is shown as automatic, which is
+  /// what it is: [WeatherConfig.place] refuses a half-written pair, so a trigger
+  /// reading only the name would claim a location the store is not fetching for.
   String get _label {
     final config = WeatherConfig(
       locationName: store.get<String>(kWeatherLocationPath) ?? '',
@@ -92,10 +87,9 @@ class WeatherLocationField extends StatelessWidget {
   /// The rows to show without asking anybody: the automatic entry and whatever
   /// the shell's own table matches.
   ///
-  /// This is the [AnchoredSearchDropdown.filter] half, which answers on the
-  /// keystroke rather than after the debounce — so the card fills in as the
-  /// user types instead of sitting on "Searching…" for a place the shell has
-  /// known about since it was compiled.
+  /// The [AnchoredSearchDropdown.filter] half, which answers on the keystroke
+  /// rather than after the debounce — so the card fills in as the user types
+  /// instead of sitting on "Searching…" for a place the shell already knows.
   List<WeatherLocationChoice> _local(String query) {
     // The automatic row is always first, whatever was typed: it is how a
     // chosen location is undone, and a user who has typed three letters of a
@@ -111,18 +105,13 @@ class WeatherLocationField extends StatelessWidget {
 
   /// The same rows with the geocoder's answers under them.
   ///
-  /// The two halves are merged rather than swapped, and in that order: the
-  /// table is the places somebody is most likely to mean and the geocoder is
-  /// everywhere else, so a request that lands must not take New Delhi off a
-  /// list it was already on. A place the geocoder repeats is dropped rather
-  /// than listed twice — the row would be identical and the coordinates within
-  /// a mile of each other.
+  /// Merged rather than swapped, and in that order: the table is the places
+  /// somebody is most likely to mean and the geocoder is everywhere else, so a
+  /// request that lands must not take New Delhi off a list it was already on. A
+  /// place the geocoder repeats is dropped rather than listed twice.
   ///
-  /// A failed lookup costs the geocoder's half alone. The table is local data
-  /// and a network that is down is no reason to stop offering it; without this
-  /// the one thing this change adds would disappear on exactly the machines
-  /// that most need something to pick from. The dropdown's own catch is what
-  /// this replaces — see [AnchoredSearchDropdown.search].
+  /// A failed lookup costs the geocoder's half alone: the table is local data, and
+  /// a network that is down is no reason to stop offering it.
   Future<List<WeatherLocationChoice>> _search(String query) async {
     final local = _local(query);
     List<WeatherPlace> remote;
@@ -203,8 +192,7 @@ class WeatherLocationField extends StatelessWidget {
 ///
 /// The conversion lives here rather than on [WorldCity] so `world_cities.dart`
 /// stays a table the weather layer merely reads — the world-clock picker takes
-/// the other half of the same row and must not drag `weather_api.dart` in
-/// behind it.
+/// the other half of the same row and must not drag `weather_api.dart` in.
 WeatherPlace _placeFor(WorldCity city) => WeatherPlace(
       name: city.name,
       latitude: city.latitude,

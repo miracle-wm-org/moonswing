@@ -12,10 +12,9 @@ enum KillSeverity { terminate, force }
 
 /// The confirmation card, shown over the process table.
 ///
-/// A scrim plus a [PopupCard] rather than a Material dialog, which the shell
-/// does not use anywhere. The one thing it does not take from the theme is its
-/// rim: the accent border marks a destructive action, so it overrides
-/// `popup_border` rather than following it.
+/// A scrim plus a [PopupCard] rather than a Material dialog, which the shell does
+/// not use anywhere. The one thing it does not take from the theme is its rim:
+/// the accent border marks a destructive action, so it overrides `popup_border`.
 class KillConfirm extends StatelessWidget {
   const KillConfirm({
     super.key,
@@ -133,9 +132,9 @@ class KillConfirm extends StatelessWidget {
 
 /// The strip that explains a kill that did not happen.
 ///
-/// [KillOutcome.signalled] needs no banner — the row simply disappears on the
-/// next poll. The others are all cases where nothing happened, and a row that
-/// just sits there unchanged reads as a bug.
+/// [KillOutcome.signalled] needs no banner — the row disappears on the next poll.
+/// The others are all cases where nothing happened, and a row that just sits
+/// there unchanged reads as a bug.
 class KillBanner extends StatelessWidget {
   const KillBanner({
     super.key,

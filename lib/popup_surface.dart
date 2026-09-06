@@ -6,28 +6,20 @@ import 'package:graceful_shell/scopes.dart';
 
 /// A popup card's corner rounding, from [ThemeConfig.popupRadius].
 ///
-/// All four corners for a card that floats — a popup sits over a transparent
-/// surface with no display corner behind it to cut into, which is why
-/// `panelCornerRadius` has a pair to spare and this normally does not.
+/// All four corners for a card that floats. [attach] is the panel edge an
+/// *attached* bar popup is joined to (the bar's own anchor string, null for a
+/// floating popup): the two corners on that edge are squared off, because there
+/// is a surface behind them that continues past the card and a rounded corner
+/// would cut a wedge out of it — `panelCornerRadius`'s rule for a flush bar.
 ///
-/// [attach] is the panel edge an *attached* bar popup is joined to: the bar's
-/// own anchor string, one of `'top'`, `'bottom'`, `'left'` or `'right'`, and
-/// null for every popup that floats. The two corners on that edge are squared
-/// off, because there is a surface behind them that continues past the card and
-/// a rounded corner would cut a wedge out of it — `panelCornerRadius`'s rule for
-/// a flush bar, one layer up.
-///
-/// [ThemeConfig.popupAttachRadius] is deliberately *not* read here. It is not a
-/// corner rounding at all but an outward flare, which no [BorderRadius] can
-/// express; see [AttachedPopupBorder], which [popupDecoration] uses in this
-/// function's place as soon as it is above zero — and also, at a flare of 0,
-/// whenever [popupAttachCollar] is, since the card then has to paint one
-/// rim-width outside its own box and a [BoxDecoration] cannot. The outline that
-/// shape builds for a collared square join is exactly what this function
-/// describes, grown on the joined side.
+/// [ThemeConfig.popupAttachRadius] is deliberately *not* read here: it is an
+/// outward flare rather than a corner rounding, which no [BorderRadius] can
+/// express. See [AttachedPopupBorder], which [popupDecoration] uses in this
+/// function's place above a flare of zero and whenever [popupAttachCollar] is
+/// non-zero.
 ///
 /// Returns [BorderRadius.zero] when all four corners come out square, which
-/// [PopupCard] uses to skip building a clip layer at all.
+/// [PopupCard] uses to skip the clip layer.
 BorderRadius popupCornerRadius(ThemeConfig theme, {String? attach}) {
   final r =
       theme.popupRadius <= 0 ? Radius.zero : Radius.circular(theme.popupRadius);
@@ -41,10 +33,9 @@ BorderRadius popupCornerRadius(ThemeConfig theme, {String? attach}) {
     'right' => BorderRadius.only(topLeft: r, bottomLeft: r),
     _ => BorderRadius.all(r),
   };
-  // Normalised the way the floating case is, and it has to be done here as
-  // well: a popup radius of 0 builds a BorderRadius whose corners are all
-  // Radius.zero but which is not the const zero, and the clip layer would come
-  // back for a card that is square on all four sides.
+  // Normalised the way the floating case is, and it has to be: a popup radius of
+  // 0 builds a BorderRadius whose corners are all Radius.zero but which is not
+  // the const zero, and the clip layer would come back for a square card.
   return radius == BorderRadius.zero ? BorderRadius.zero : radius;
 }
 
@@ -52,29 +43,24 @@ BorderRadius popupCornerRadius(ThemeConfig theme, {String? attach}) {
 /// flaring outward into the bar rather than rounding away from it.
 ///
 /// [ThemeConfig.popupAttachRadius] reads as a corner radius and is the opposite
-/// of one. A convex corner curves *away* from the surface behind it, which
-/// leaves two transparent wedges where the card meets the bar and reads as a
-/// card resting against it. The join wants the inverse: each side sweeps
-/// *outward* as it reaches the panel, so the card's edge runs into the bar's
-/// the way a branch runs into a trunk. That is a concave fillet, and no
-/// [BorderRadius] can express one — hence a [ShapeBorder], and hence
+/// of one. A convex corner curves *away* from the surface behind it, leaving
+/// transparent wedges where the card meets the bar; the join wants each side
+/// sweeping *outward* as it reaches the panel. That is a concave fillet, which
+/// no [BorderRadius] can express — hence a [ShapeBorder], and hence
 /// [popupDecoration] returning a [Decoration] rather than a [BoxDecoration].
 ///
 /// **This shape paints outside [Rect].** It reaches [attachRadius] past the card
-/// on each of the two sides that meet the join, and [collar] past it on the
-/// join itself, exactly as a [BoxShadow] paints past its box — so the popup's
-/// surface has to be grown by that much or what is drawn there is clipped off at
-/// the window edge. [popupAttachInsets] is that amount and
-/// `PopupHost.openPopup` folds it into the same padding the shadow uses.
+/// on the two sides that meet the join, and [collar] past it on the join itself,
+/// so the popup's surface has to be grown by that much or the paint is clipped
+/// at the window edge. [popupAttachInsets] is that amount.
 ///
-/// Painting outside the box is also why an attached card with **no** flare
-/// still comes here whenever [collar] is above zero: at [attachRadius] 0 the
-/// outline is exactly the square-cornered card [popupCornerRadius] describes,
-/// grown into the panel so its fill covers the bar's inner rim, which no
-/// [BoxDecoration] can be made to do.
+/// That is also why an attached card with **no** flare still comes here whenever
+/// [collar] is above zero: at [attachRadius] 0 the outline is the square-cornered
+/// card [popupCornerRadius] describes, grown into the panel so its fill covers
+/// the bar's inner rim — which no [BoxDecoration] can do.
 ///
-/// The far corners keep [radius]; the join carries no rim, for the reason
-/// [_popupBorder] gives.
+/// The far corners keep [radius]; the join carries no rim, for [_popupBorder]'s
+/// reason.
 class AttachedPopupBorder extends ShapeBorder {
   const AttachedPopupBorder({
     required this.edge,
@@ -95,26 +81,18 @@ class AttachedPopupBorder extends ShapeBorder {
   final double attachRadius;
 
   /// How far the card reaches *into* the panel past its own box:
-  /// [ThemeConfig.panelBorderWidth], and 0 for a bar that carries no rim.
+  /// [ThemeConfig.panelBorderWidth], and 0 for a bar with no rim.
   ///
-  /// This is what joins the flare to the bar's own rim rather than hanging the
-  /// card off it. A panel's border is drawn along its **inner** edge as well as
-  /// its outer one, so with no collar the bar's hairline runs straight across
-  /// the mouth of the popup and the card reads as something taped underneath a
-  /// line. Reaching one rim-width in does two things at once, both of them
-  /// consequences of the flare being *concave*: the card is at its widest
-  /// exactly at the join, so its fill covers that hairline across the whole
-  /// mouth — the notch that makes the two surfaces one — while the arcs, which
-  /// leave their tips tangent to the join line, rise to meet the rim's inner
-  /// face at the two ends and let what is left of it taper into the sweep.
+  /// This joins the flare to the bar's own rim rather than hanging the card off
+  /// it. A panel's border is drawn along its **inner** edge too, so with no
+  /// collar the bar's hairline runs across the mouth of the popup and the card
+  /// reads as something taped under a line. Reaching one rim-width in covers
+  /// that hairline with the card's own fill, while the arcs — whose tips are
+  /// tangent to the join line — pick the line up and carry it down the sides.
   ///
-  /// A square butt join ([attachRadius] of 0) takes this too, and needs it just
-  /// as badly: the hairline across the mouth is the *bar's* line, so the card
-  /// has to paint over it wherever the two meet. What changes without a flare is
-  /// only how the line resumes at either end — square against the card's sides
-  /// rather than swept into them. That is why a collared square join is still
-  /// drawn by this shape rather than by the [BoxDecoration] branch of
-  /// [popupDecoration], which has no way to paint outside its own box.
+  /// A square butt join ([attachRadius] 0) needs this just as badly: the
+  /// hairline is the *bar's* line, so the card has to paint over it. What
+  /// changes without a flare is only how the line resumes at either end.
   final double collar;
 
   /// The rim, drawn on everything but the join.
@@ -139,10 +117,9 @@ class AttachedPopupBorder extends ShapeBorder {
   /// Maps the canonical frame — join along `y = 0`, card below it — onto [rect]
   /// for this [edge].
   ///
-  /// The outline is built once, for a top join, and transformed. Two of the four
+  /// The outline is built once for a top join and transformed. Two of the four
   /// maps are reflections rather than rotations, which is harmless: a reflection
-  /// reverses the path's winding and flips each arc's handedness together, so
-  /// the filled region is the mirror image and nothing about it degenerates.
+  /// reverses the winding and flips each arc's handedness together.
   Matrix4 _frame(Rect rect) {
     final m = Matrix4.identity();
     switch (edge) {
@@ -182,14 +159,12 @@ class AttachedPopupBorder extends ShapeBorder {
   ///
   /// [radius] and [flare] are passed rather than read off the fields, because
   /// [getInnerPath] builds the same outline at a smaller radius. [open] leaves
-  /// out the segment back along the join, so [paint] has nothing to draw across
-  /// it.
+  /// out the segment back along the join, so [paint] draws nothing across it.
   ///
-  /// [collar] moves the join line off the card's own edge and into the panel;
+  /// [collar] moves the join line off the card's edge and into the panel;
   /// everything else is measured from it, so the shape is built at a depth of
-  /// `into + collar` and shifted back. A collar of 0 — every theme whose bar
-  /// carries no rim — reproduces the outline exactly as it was before the
-  /// parameter existed.
+  /// `into + collar` and shifted back. A collar of 0 reproduces the outline
+  /// exactly as it was before the parameter existed.
   static Path _canonicalPath(
     double along,
     double into, {
@@ -208,10 +183,10 @@ class AttachedPopupBorder extends ShapeBorder {
     final a = math.max(0.0, math.min(flare, depth - r));
     final path = Path();
     if (a > 0) {
-      // The flare is a quarter circle centred *outside* the card, at (-a, a),
-      // so the boundary bows toward the card's own corner instead of away from
-      // it: the card is at its widest exactly where it meets the panel. This is
-      // the whole difference between a join and a rounded corner.
+      // The flare is a quarter circle centred *outside* the card, at (-a, a), so
+      // the boundary bows toward the card's own corner instead of away from it:
+      // the card is at its widest exactly where it meets the panel. That is the
+      // whole difference between a join and a rounded corner.
       path.moveTo(-a, 0);
       path.arcToPoint(Offset(0, a),
           radius: Radius.circular(a), clockwise: true);
@@ -257,20 +232,17 @@ class AttachedPopupBorder extends ShapeBorder {
   @override
   Path getOuterPath(Rect rect, {TextDirection? textDirection}) => _path(rect);
 
-  /// The outline of what the rim encloses: this same shape on the box the rim
-  /// leaves behind.
+  /// The outline of what the rim encloses: this shape on the box the rim leaves
+  /// behind.
   ///
   /// [ShapeDecoration] never asks for it — it fills and shadows the outer path
-  /// and leaves the rim to [paint] — so this exists to satisfy the contract for
-  /// anything that clips to a shape's interior.
+  /// and leaves the rim to [paint] — so this exists only to satisfy the contract.
   ///
-  /// Deflating the rect is the approximation Flutter's own shapes make
-  /// ([RoundedRectangleBorder.getInnerPath] is a plain `RRect.deflate`), and the
-  /// deliberate imprecision is at the ears: the flare is measured from the inner
-  /// box, so it is not everywhere one rim-width in from the outer one. An arc
-  /// truly concentric with the outer ear would have to start short of its tip,
-  /// on the join line, and nothing in the shell reads this path closely enough
-  /// to be worth the arithmetic — [paint] draws the rim from the *outer* path.
+  /// Deflating the rect is the approximation Flutter's own shapes make, and the
+  /// imprecision is at the ears: the flare is measured from the inner box, so it
+  /// is not everywhere one rim-width in from the outer one. Nothing reads this
+  /// path closely enough for the arithmetic to be worth it — [paint] draws the
+  /// rim from the *outer* path.
   @override
   Path getInnerPath(Rect rect, {TextDirection? textDirection}) => _hasRim
       ? _path(
@@ -282,10 +254,10 @@ class AttachedPopupBorder extends ShapeBorder {
   @override
   void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
     if (!_hasRim) return;
-    // Stroked at twice the width and clipped to the card, so only the inner
-    // half lands: a rim drawn inside its own outline, the way `Border` draws
-    // one, without a second set of radii to keep in step with the first. The
-    // path is open, so nothing is drawn across the join.
+    // Stroked at twice the width and clipped to the card, so only the inner half
+    // lands: a rim drawn inside its own outline, the way `Border` draws one,
+    // without a second set of radii to keep in step. The path is open, so
+    // nothing is drawn across the join.
     canvas.save();
     canvas.clipPath(getOuterPath(rect, textDirection: textDirection));
     canvas.drawPath(
@@ -325,29 +297,25 @@ class AttachedPopupBorder extends ShapeBorder {
 /// Zero unless the card is attached, and zero then too unless it actually
 /// reaches somewhere: the two sides that meet the join take
 /// [ThemeConfig.popupAttachRadius], the flare, and the join itself takes
-/// [popupAttachCollar], the reach *into* the panel that lays the card's own fill
-/// over the bar's inner rim. Either may be 0 on its own — a square butt join
-/// against a rimmed bar takes the collar and no flare, a flared join against an
-/// unrimmed one takes the flare and no collar — and only a card that takes
-/// neither reaches nowhere at all, which is what keeps a theme with no panel rim
-/// and no flare byte-identical to what it drew before either existed. The far
-/// side always takes none, because nothing is drawn past it.
+/// [popupAttachCollar], the reach *into* the panel that lays the card's fill
+/// over the bar's inner rim. Either may be 0 on its own, and a card that takes
+/// neither reaches nowhere at all — which keeps a theme with no panel rim and no
+/// flare byte-identical to what it drew before. The far side always takes none.
 ///
 /// This is [popupShadowInsets]'s job for a different piece of paint, and
-/// `PopupHost.openPopup` merges the two: both are margin the popup's own surface
-/// has to carry or the compositor clips what should have been drawn there.
-/// [popupSurfaceInsets] takes the per-side larger, which on the joined side is
-/// the collar outright — the shadow's own inset there has already been clamped
-/// to [ThemeConfig.popupGap], and attaching *is* that gap being 0.
+/// `PopupHost.openPopup` merges the two through [popupSurfaceInsets], which
+/// takes the per-side larger — on the joined side, the collar outright, since
+/// the shadow's inset there is already clamped to [ThemeConfig.popupGap] and
+/// attaching *is* that gap being 0.
 EdgeInsets popupAttachInsets(ThemeConfig theme, {String? attachEdge}) {
   if (attachEdge == null) return EdgeInsets.zero;
   final a = math.max(0.0, theme.popupAttachRadius);
   final c = popupAttachCollar(theme, attachEdge: attachEdge);
   if (a == 0 && c == 0) return EdgeInsets.zero;
-  // The two sides that meet the join take the flare; the join itself takes the
+  // The two sides meeting the join take the flare; the join itself takes the
   // collar, and the far side takes nothing. `attachEdge` is the *bar's* anchor,
-  // so the joined side of the popup is the one facing it: a top bar's menu is
-  // joined along its own top, a left bar's along its own left.
+  // so the joined side of the popup faces it: a top bar's menu is joined along
+  // its own top, a left bar's along its own left.
   return switch (attachEdge) {
     'top' => EdgeInsets.only(left: a, right: a, top: c),
     'bottom' => EdgeInsets.only(left: a, right: a, bottom: c),
@@ -357,35 +325,25 @@ EdgeInsets popupAttachInsets(ThemeConfig theme, {String? attachEdge}) {
   };
 }
 
-/// How far an attached card reaches *into* the panel, so that its join runs
-/// into the bar's own rim instead of hanging off it.
+/// How far an attached card reaches *into* the panel, so its join runs into the
+/// bar's own rim instead of hanging off it.
 ///
-/// [ThemeConfig.panelBorderWidth], and 0 whenever there is nothing to join to:
-/// a card that floats (no [attachEdge] — which already means
-/// [ThemeConfig.popupGap] is 0, since that is what attaching *is*), or a bar
-/// with no rim. See [AttachedPopupBorder.collar] for what the reach buys.
+/// [ThemeConfig.panelBorderWidth], and 0 whenever there is nothing to join to: a
+/// card that floats, or a bar with no rim. See [AttachedPopupBorder.collar].
 ///
-/// **A square butt join needs this exactly as much as a flared one does.** A
-/// panel's rim is drawn along its *inner* edge as well as its outer one, so with
-/// no collar the bar's hairline runs straight across the mouth of every menu it
-/// opens — which is the one thing attaching exists to hide, and it is the bar's
-/// line rather than the card's, so dropping the popup's own rim on the join
-/// (which [_popupBorder] and [AttachedPopupBorder] both do) cannot reach it.
-/// The reach is the only thing that can: the card's own fill, painted one
-/// rim-width into the panel, takes that hairline out across the whole mouth.
-/// What the flare adds on top is *how* the line resumes at either end — swept
-/// into the card's sides rather than meeting them square — which is a
-/// difference in the shape of the join and not in whether there is a seam
-/// across it.
+/// **A square butt join needs this exactly as much as a flared one.** A panel's
+/// rim is drawn along its *inner* edge too, so with no collar the bar's hairline
+/// runs across the mouth of every menu it opens — the one thing attaching exists
+/// to hide. It is the bar's line rather than the card's, so dropping the popup's
+/// own rim on the join cannot reach it; only the card's fill painted one
+/// rim-width into the panel can. The flare merely changes *how* the line resumes
+/// at either end.
 ///
-/// The panel's and the popup's rims are read as two independent keys here — the
-/// collar is [ThemeConfig.panelBorderWidth] and the card's rim is stroked at
-/// [ThemeConfig.popupBorderWidth] — because nothing makes a theme spell them
-/// the same. Equal widths (which is what a theme that wants one continuous
-/// outline writes, and what `carbon` ships) lay the card's stroke exactly over
-/// the band the bar's rim occupies, so the two read as one line turning the
-/// corner; unequal ones still meet, with a step in the line's thickness there
-/// rather than a break in it.
+/// The panel's and the popup's rims are read as two independent keys, because
+/// nothing makes a theme spell them the same. Equal widths (what `carbon` ships)
+/// lay the card's stroke exactly over the band the bar's rim occupies, so the two
+/// read as one line turning the corner; unequal ones still meet, with a step in
+/// thickness rather than a break.
 double popupAttachCollar(ThemeConfig theme, {String? attachEdge}) {
   if (attachEdge == null) return 0.0;
   return math.max(0.0, theme.panelBorderWidth);
@@ -394,13 +352,11 @@ double popupAttachCollar(ThemeConfig theme, {String? attachEdge}) {
 /// The margin a popup's surface carries, per side: whichever of the shadow's
 /// reach and the flare's is larger.
 ///
-/// The larger rather than the sum. Both measure the same thing — how far past
-/// the card something paints — and the flare is a solid part of the card's own
-/// silhouette, so the shadow around *it* is the shadow the card already casts
-/// rather than a second one to make room for. Summing would push every attached
-/// popup's window out by a margin nothing draws in, and the shell has no
-/// input-region support, so that margin would swallow clicks meant for the
-/// desktop.
+/// The larger rather than the sum. Both measure how far past the card something
+/// paints, and the flare is a solid part of the card's own silhouette, so the
+/// shadow around it is one the card already casts. Summing would push every
+/// attached popup's window out by a margin nothing draws in — and with no
+/// input-region support, that margin swallows clicks meant for the desktop.
 EdgeInsets popupSurfaceInsets(EdgeInsets shadow, EdgeInsets attach) {
   if (attach == EdgeInsets.zero) return shadow;
   return EdgeInsets.fromLTRB(
@@ -413,33 +369,25 @@ EdgeInsets popupSurfaceInsets(EdgeInsets shadow, EdgeInsets attach) {
 
 /// The card's rim, or null when [ThemeConfig.popupBorderWidth] is 0.
 ///
-/// Null rather than a zero-width [Border] on purpose, the same nuance
+/// Null rather than a zero-width [Border] on purpose, the nuance
 /// `panel_background.dart` documents: a `Border` in the decoration carries a
 /// non-zero [BoxDecoration.padding], which a [Container] would silently add to
 /// its child's own padding.
 ///
 /// An attached popup drops the side on the join — see [popupCornerRadius] for
-/// what [attach] is. A hairline across the seam is the one thing that gives away
-/// that the card is a second surface rather than the bar continuing, which is
-/// what attaching exists to hide.
+/// what [attach] is. A hairline across the seam is what gives away that the card
+/// is a second surface rather than the bar continuing.
 ///
-/// A non-uniform [Border] under a non-zero `borderRadius` is legal here
-/// *because the visible sides still share one colour*: `BoxBorder.paint` takes a
-/// `paintNonUniformBorder` path — a `drawDRRect` whose inset is 0 on the side
-/// left at [BorderStyle.none] — before it reaches the uniformity assert. That
-/// path refuses hairline widths, which cannot arise: no border is built at all
-/// at or below a width of 0.
+/// A non-uniform [Border] under a non-zero `borderRadius` is legal here *because
+/// the visible sides share one colour*: `BoxBorder.paint` takes a
+/// `paintNonUniformBorder` path before it reaches the uniformity assert. That
+/// path refuses hairline widths, which cannot arise here.
 ///
-/// Two consequences the callers inherit. [Border.dimensions], and through it
-/// [BoxDecoration.padding], loses [ThemeConfig.popupBorderWidth] on the joined
-/// side — which is right, since there is no rim there to hold content off. And
-/// the [PopupCard.border] override still replaces all four sides: a rim that
-/// carries meaning rather than chrome is not the theme's to strip.
-/// The rim as a single side, or [BorderSide.none] at a width of 0.
-///
-/// [AttachedPopupBorder] takes one of these rather than a [Border], because the
-/// shape decides for itself which edge goes without — reading it off a
-/// [_popupBorder] would mean reading the very side that had just been dropped.
+/// Two consequences for callers. [Border.dimensions], and through it
+/// [BoxDecoration.padding], loses the width on the joined side — right, since
+/// there is no rim there to hold content off. And the [PopupCard.border] override
+/// still replaces all four sides: a rim that carries meaning rather than chrome
+/// is not the theme's to strip.
 BorderSide _popupSide(ThemeConfig theme) => theme.popupBorderWidth > 0
     ? BorderSide(color: theme.popupBorder, width: theme.popupBorderWidth)
     : BorderSide.none;
@@ -456,13 +404,11 @@ Border? _popupBorder(ThemeConfig theme, String? attach) {
   };
 }
 
-/// The card's shadow, or null when the theme asks for none.
+/// The rim as a single side, or [BorderSide.none] at a width of 0.
 ///
-/// Null in two cases, and both matter: a fully transparent [ThemeConfig.popupShadowColor]
-/// is the feature's off switch, and a shadow with no blur, no spread and no
-/// offset has nothing to draw that the card does not already cover. Either way
-/// a `BoxShadow` would still cost a layer, and — because [popupShadowInsets] is
-/// derived from this same predicate — would still grow every popup's window.
+/// [AttachedPopupBorder] takes one of these rather than a [Border], because the
+/// shape decides for itself which edge goes without — reading it off a
+/// [_popupBorder] would mean reading the very side just dropped.
 BoxShadow? popupShadow(ThemeConfig theme) {
   if (theme.popupShadowColor.a <= 0) return null;
   final offset = theme.popupShadowOffset;
@@ -481,30 +427,23 @@ BoxShadow? popupShadow(ThemeConfig theme) {
 
 /// How far [popupShadow] bleeds past the card on each side.
 ///
-/// This is the amount a popup's own compositor surface has to grow by, because
-/// a [BoxShadow] paints *outside* its box and the surface clips at its edge —
-/// see `PopupHost.openPopup`. The per-side arithmetic is CSS's: the shadow's
-/// rect is the card grown by the spread and displaced by the offset, and the
-/// blur reaches one blur-radius past that. A side the offset pulls the shadow
-/// away from can go to zero but never negative, which is what keeps a strongly
-/// offset shadow from cropping the card itself.
+/// The amount a popup's compositor surface has to grow by, because a [BoxShadow]
+/// paints *outside* its box and the surface clips at its edge — see
+/// `PopupHost.openPopup`. The per-side arithmetic is CSS's: the shadow's rect is
+/// the card grown by the spread and displaced by the offset, and the blur reaches
+/// one blur-radius past that. A side the offset pulls the shadow away from can go
+/// to zero but never negative, which keeps a strongly offset shadow from cropping
+/// the card itself.
 ///
 /// [BoxShadow.blurRadius] rather than its sigma: [Shadow.convertRadiusToSigma]
-/// maps the two the way CSS does, so the visible falloff dies within one radius.
+/// maps the two the way CSS does, so the falloff dies within one radius.
 ///
 /// [attachEdge] is the panel edge a *bar* popup is anchored to, and clamps that
-/// one side to [ThemeConfig.popupGap]. A bar popup never paints its shadow over
-/// the bar: the surface reaches from the card to the panel edge and no further,
-/// so the compositor's own clip cuts the shadow exactly at the join — which is
-/// what makes a zero gap read as one continuous surface rather than as a card
-/// with a dark band under the bar it is glued to.
-///
-/// Clamped rather than zeroed, so one rule covers the range. At a gap of 0 the
-/// side goes to 0; at a gap under the shadow's reach the shadow fills the gap
-/// and stops there rather than crawling under the bar; at a gap of the reach or
-/// more this is a no-op, so a floating theme keeps byte-for-byte the geometry it
-/// had before attaching existed. Null — every popup that is not a bar popup —
-/// is the same no-op.
+/// side to [ThemeConfig.popupGap], so the surface reaches from the card to the
+/// panel edge and no further and the compositor's clip cuts the shadow at the
+/// join. Clamped rather than zeroed so one rule covers the range: at a gap of 0
+/// the side goes to 0; at a smaller gap the shadow fills it and stops; at the
+/// reach or more this is a no-op. Null is the same no-op.
 EdgeInsets popupShadowInsets(ThemeConfig theme, {String? attachEdge}) {
   final shadow = popupShadow(theme);
   if (shadow == null) return EdgeInsets.zero;
@@ -529,22 +468,18 @@ EdgeInsets popupShadowInsets(ThemeConfig theme, {String? attachEdge}) {
 
 /// The surface every popup, menu, flyout and OSD card paints.
 ///
-/// [theme] is required for the same reason `panelBackgroundDecoration`'s is: a
-/// defaulted palette here would silently paint the built-in colours over
-/// whatever theme is actually active.
+/// [theme] is required for `panelBackgroundDecoration`'s reason: a defaulted
+/// palette would silently paint the built-in colours over the active theme.
 ///
-/// [border] *replaces* the theme's rim rather than adding to it. It exists for
-/// the one card whose border carries meaning rather than chrome — the kill
-/// confirmation's accent rim, which marks a destructive action.
+/// [border] *replaces* the theme's rim rather than adding to it, for the one card
+/// whose border carries meaning — the kill confirmation's accent rim.
 ///
-/// [opaque] overrides the fill's alpha and nothing else — see
-/// [OpaquePopupScope], which is what decides it for [PopupCard].
+/// [opaque] overrides the fill's alpha and nothing else — see [OpaquePopupScope].
 ///
-/// [attach] names the panel edge an attached bar popup is joined to — see
-/// [popupCornerRadius], and [PopupAttachScope], which is what decides it for
-/// [PopupCard]. It reshapes the corners and drops the rim on that edge; the
-/// shadow needs no attention here, because [popupShadowInsets] has already made
-/// the surface flush and a surface clips at its own edge.
+/// [attach] names the panel edge an attached bar popup is joined to (see
+/// [popupCornerRadius] and [PopupAttachScope]). It reshapes the corners and drops
+/// the rim on that edge; the shadow needs no attention, because
+/// [popupShadowInsets] has already made the surface flush.
 Decoration popupDecoration({
   required ThemeConfig theme,
   Border? border,
@@ -556,15 +491,13 @@ Decoration popupDecoration({
   final rim = border ?? _popupBorder(theme, attach);
   final collar = popupAttachCollar(theme, attachEdge: attach);
   if (attach != null && (theme.popupAttachRadius > 0 || collar > 0)) {
-    // Two things a BoxDecoration cannot draw, and either one is enough to need
-    // this shape. The flare is not a corner radius, and the collar paints
-    // *outside* the card's own box — one rim-width into the panel, so the fill
-    // takes the bar's inner hairline out across the mouth. Everything else
-    // about it is the same: the same fill, the same shadow, the same rim
-    // colour and width — an explicit `border` contributes its side, since the
-    // shape decides for itself that the join carries none. With no flare the
-    // outline it builds is exactly the square-cornered card
-    // [popupCornerRadius] describes, grown by the collar on the joined side.
+    // Two things a BoxDecoration cannot draw, either of which needs this shape:
+    // the flare is not a corner radius, and the collar paints *outside* the
+    // card's box. Everything else is the same — same fill, shadow, rim colour and
+    // width; an explicit `border` contributes its side, since the shape decides
+    // for itself that the join carries none. With no flare the outline is exactly
+    // the square-cornered card [popupCornerRadius] describes, grown by the collar
+    // on the joined side.
     return ShapeDecoration(
       color: opaque ? opaquePopupFill(theme) : theme.popupBackground,
       shape: AttachedPopupBorder(
@@ -599,11 +532,10 @@ Decoration popupDecoration({
 
 /// Whether [decoration] has an outline worth clipping children to.
 ///
-/// A square [BoxDecoration] has none, and the layer is skipped entirely for it —
-/// the same conditional `main.dart` applies to the panel, so a square card costs
-/// exactly the layers it always did. An attached card is a [ShapeDecoration] and
-/// always has one: its flare is the part of the silhouette a child would most
-/// visibly spill out of.
+/// A square [BoxDecoration] has none and the layer is skipped for it, so a square
+/// card costs exactly the layers it always did. An attached card is a
+/// [ShapeDecoration] and always has one: its flare is the part of the silhouette
+/// a child would most visibly spill out of.
 bool decorationClips(Decoration decoration) => switch (decoration) {
       BoxDecoration(:final borderRadius) => borderRadius != null,
       ShapeDecoration() => true,
@@ -614,16 +546,14 @@ bool decorationClips(Decoration decoration) => switch (decoration) {
 ///
 /// Reads the palette from the enclosing [ThemeScope] rather than taking a
 /// [ThemeConfig] parameter, which is load-bearing: popup content is built once
-/// and captured in a `WindowEntry` builder (see `popup.dart`), so a snapshotted
-/// theme would freeze an open popup at the palette it opened with. The element
-/// is still mounted in that view's tree, so reading from context restyles it in
-/// place. See `theme/theme_provider.dart`.
+/// and captured in a `WindowEntry` builder, so a snapshotted theme would freeze
+/// an open popup at the palette it opened with. The element is still mounted in
+/// that view's tree, so reading from context restyles it in place.
 ///
-/// A [Container], not the [DecoratedBox] the panel uses, and deliberately so:
-/// `Container` adds the decoration's own padding — for a bordered box, its rim
-/// thickness — to [padding], which is what keeps content from sliding under the
-/// rim. The panel avoids `Container` because there the inset would silently
-/// change what its own padding keys mean.
+/// A [Container], not the [DecoratedBox] the panel uses: `Container` adds the
+/// decoration's own padding — for a bordered box, its rim thickness — to
+/// [padding], which keeps content from sliding under the rim. The panel avoids
+/// `Container` because there the inset would change what its padding keys mean.
 class PopupCard extends StatelessWidget {
   const PopupCard({
     super.key,
@@ -643,20 +573,16 @@ class PopupCard extends StatelessWidget {
   ///
   /// On by default: a `borderRadius` rounds the painted background without
   /// clipping anything, and most cards hold a list, a tab strip or a full-width
-  /// hover highlight that paints to their own edge. The layer is skipped
-  /// entirely at a radius of 0 — the same conditional `main.dart` applies to the
-  /// panel, so a square card costs exactly the layers it always did.
+  /// hover highlight that paints to their own edge. The layer is skipped entirely
+  /// at a radius of 0.
   ///
   /// [Container]'s own `clipBehavior` rather than a wrapping [ClipRRect]: the
-  /// clip it builds sits inside its [DecoratedBox] and outside its [Padding],
-  /// derived from this same decoration, so the rim paints over the clipped
-  /// child. [Clip.antiAlias] rather than `antiAliasWithSaveLayer` — no save
-  /// layer.
+  /// clip it builds sits inside its [DecoratedBox] and outside its [Padding], so
+  /// the rim paints over the clipped child. [Clip.antiAlias], so no save layer.
   ///
   /// It is also why the theme's shadow survives: that clip wraps the *child*
-  /// subtree, not the background [DecoratedBox], so a [popupShadow] still
-  /// paints outside the card. A hand-rolled [ClipRRect] around the whole card
-  /// would cut it off.
+  /// subtree, not the background [DecoratedBox]. A hand-rolled [ClipRRect] around
+  /// the whole card would cut it off.
   final bool clip;
 
   @override
@@ -681,27 +607,21 @@ class PopupCard extends StatelessWidget {
 /// Marks a subtree whose popups paint **opaque**, whatever alpha the theme's
 /// `popup_background` carries.
 ///
-/// The rule `overlayPanelFill` (`overlay/overlay.dart`) states for the settings
-/// panel itself, extended to everything that floats over it. A theme's
-/// `popup_background` alpha — `glassy` ships it at `0xB0` — is right for a
-/// three-row menu sitting over the desktop and wrong for a card the user is
-/// reading *over the settings panel*: a dropdown list, a colour picker, a
-/// confirmation, a file picker. Those stack over dense small text and form
-/// rows, so a translucent card shows the page it is covering straight through
-/// itself and neither layer stays readable. The hue stays the theme's and only
-/// the alpha is overridden, so a theme still colours its popups — it just
-/// cannot make the ones inside the settings page see-through.
+/// The rule `overlayPanelFill` states for the settings panel, extended to
+/// everything that floats over it. A theme's `popup_background` alpha is right
+/// for a three-row menu over the desktop and wrong for a card read *over the
+/// settings panel* — a dropdown, a colour picker, a confirmation, a file picker
+/// — which stack over dense text and form rows. Only the alpha is overridden, so
+/// a theme still colours its popups.
 ///
 /// An [InheritedWidget] rather than a flag threaded through every call site,
-/// because these cards are built in three different places — inline in the
-/// pane, in the window's root [Overlay] (`showRootModal`, and every
-/// `AnchoredSearchDropdown`), and in the panel itself — and a flag would have
-/// to be passed down each of those paths by hand. `SettingsOverlay` wraps its
-/// `Overlay` in one of these, which is above all three.
+/// because these cards are built in three places — inline in the pane, in the
+/// window's root [Overlay], and in the panel itself. `SettingsOverlay` wraps its
+/// `Overlay` in one, which is above all three.
 ///
-/// It cannot span FlutterViews, so a popup the settings page opens as its *own*
-/// layer-shell window (the root-owned file picker and app chooser, which the
-/// desktop surface uses) is outside it and keeps the theme's alpha.
+/// It cannot span FlutterViews, so a popup opened as its *own* layer-shell window
+/// (the root-owned file picker and app chooser) is outside it and keeps the
+/// theme's alpha.
 class OpaquePopupScope extends InheritedWidget {
   const OpaquePopupScope({super.key, required super.child});
 
@@ -712,8 +632,8 @@ class OpaquePopupScope extends InheritedWidget {
 
   /// [ThemeConfig.popupBackground] as a popup in [context] must paint it.
   ///
-  /// The one call every hand-rolled popup surface in the settings UI makes in
-  /// place of reading `theme.popupBackground` directly; [PopupCard] and
+  /// The call every hand-rolled popup surface in the settings UI makes in place
+  /// of reading `theme.popupBackground` directly; [PopupCard] and
   /// [popupDecoration] make it for the cards built on those.
   static Color fill(BuildContext context, ThemeConfig theme) =>
       of(context) ? opaquePopupFill(theme) : theme.popupBackground;
@@ -733,23 +653,19 @@ Color opaquePopupFill(ThemeConfig theme) =>
 
 /// Marks a popup's content as **attached** to a panel edge, and says which one.
 ///
-/// [OpaquePopupScope]'s pattern with a value: a marker injected at the root of a
-/// popup's own view tree, read by [PopupCard] and by anything that builds a
-/// [popupDecoration] by hand. [edge] is the panel's anchor string — `'top'`,
-/// `'bottom'`, `'left'` or `'right'` — which for an edge-anchored popup is also
-/// the popup's own side that touches the bar.
+/// [OpaquePopupScope]'s pattern with a value. [edge] is the panel's anchor string
+/// — `'top'`, `'bottom'`, `'left'` or `'right'` — which for an edge-anchored
+/// popup is also the popup's own side touching the bar.
 ///
-/// An inherited widget rather than a parameter threaded through the call sites,
-/// for the reason `PopupCard` gives about the theme: a popup's content is built
-/// once and captured in a `WindowEntry` builder, in a FlutterView that is a
-/// *sibling* of the panel's rather than a descendant, so a card three levels
-/// down cannot read the panel's `BarScope` and each of the twelve modules that
-/// open bar popups would otherwise have to pass the edge down by hand.
+/// An inherited widget rather than a parameter, for the reason [PopupCard] gives
+/// about the theme: a popup's content is built once in a FlutterView that is a
+/// *sibling* of the panel's, so a card three levels down cannot read the panel's
+/// `BarScope` and each of the twelve modules opening bar popups would have to
+/// pass the edge down by hand.
 ///
-/// Presence *is* the attached state: `PopupHost.openPopup` installs one only
-/// when the popup is a bar popup, the caller asked to attach, and
-/// [ThemeConfig.popupGap] is 0. A floating popup has no scope above it and gets
-/// the four-corner card it always did.
+/// Presence *is* the attached state: `PopupHost.openPopup` installs one only when
+/// the popup is a bar popup, the caller asked to attach, and
+/// [ThemeConfig.popupGap] is 0.
 class PopupAttachScope extends InheritedWidget {
   const PopupAttachScope({
     super.key,
@@ -765,10 +681,10 @@ class PopupAttachScope extends InheritedWidget {
   static String? of(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<PopupAttachScope>()?.edge;
 
-  // Snapshotted at open and never revised, the discipline the popup's
-  // constraints and shadow insets already follow: GTK3 resolves the placement
-  // once at map time, so an attached popup cannot become a floating one without
-  // being reopened.
+  // Snapshotted at open and never revised, the discipline the popup's constraints
+  // and shadow insets already follow: GTK3 resolves the placement once at map
+  // time, so an attached popup cannot become a floating one without being
+  // reopened.
   @override
   bool updateShouldNotify(PopupAttachScope oldWidget) => false;
 }

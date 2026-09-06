@@ -1,46 +1,31 @@
 // A glyph per row of the WMO table.
 //
-// The other half of `weather_condition.dart`, split off because this one needs
-// a widget library and that one is a plain unit test.
+// The other half of `weather_condition.dart`, split off because this one needs a
+// widget library and that one is a plain unit test.
 //
-// Meteocons — `weather_icons_animated`, the Bas Milius set — rather than
-// Material Symbols, which is what these were before and which replaced the
-// emoji the bar started with. What the change buys is granularity: the set
-// carries the WMO table's own and then some, so a *shower* is a break in the
-// cloud with rain falling through it and Meteocons draws it that way
-// (`partly-cloudy-day-rain`), where Material Symbols had one `rainy` and a
-// heavier version of it — "Showers" and "Rain" were the same picture with
-// different words under them.
+// Meteocons — `weather_icons_animated`, the Bas Milius set — rather than Material
+// Symbols. What the change buys is granularity: a *shower* is a break in the
+// cloud with rain falling through it and Meteocons draws it that way, where
+// Material Symbols had one `rainy` and a heavier version of it.
 //
 // Three things a change here has to keep true:
 //
-// - **Nothing here animates, and the pack's Lottie format is not reachable
-//   from this file.** The desktop widget's hero glyph used to be one: a
-//   `Ticker` running for as long as a wallpaper widget was on screen, next to
-//   a sky that was running another. Both are gone — see `weather_sky.dart`'s
-//   header — and with them the `lottie` dependency this file carried for one
-//   `FrameRate` constant. A still SVG is what every surface in the shell draws
-//   now, which is also what makes any of them safe to `pumpAndSettle`.
-// - **A tinted icon comes from an *outlined* family, never from the fill one.**
+// - **Nothing here animates, and the pack's Lottie format is not reachable from
+//   this file.** The desktop widget's hero glyph used to be one, running a
+//   `Ticker` for as long as a wallpaper widget was on screen. A still SVG is what
+//   every surface draws now, which is what makes them safe to `pumpAndSettle`.
+// - **A tinted icon comes from an *outlined* family, never the fill one.**
 //   `BlendMode.srcIn` over a full-colour Meteocon flattens it to a silhouette,
-//   and the silhouette of `partly-cloudy-day` is a single blob where the sun
-//   and the cloud used to be. The outlined families survive being painted one
-//   colour, which is what the bar needs — a bar icon no theme can recolour is
-//   exactly what these replaced an emoji to avoid. Of the two it is **line**
-//   rather than `monochrome`, and the difference is not visual: `srcIn`
-//   flattens both to the same outline. 196 of the 236 monochrome files carry a
-//   `<style>` block that no element in them references, and `flutter_svg`
-//   logs `unhandled element <style/>` for every one it parses — a line of
-//   noise per icon, in a shell whose log is where its real failures are read.
-// - **A slug this build does not know costs the icon, not the panel.**
-//   `conditionForCode`'s rule one layer up, applied to the pack: a version that
-//   renames a slug must degrade to `not-available`, not throw out of a
-//   `build`. That is why every name here goes through [_glyph] and never
-//   through `WeatherIcons.named`, which throws.
+//   and the silhouette of `partly-cloudy-day` is one blob. Of the two outlined
+//   families it is **line** rather than `monochrome`, and the difference is not
+//   visual: 196 of the 236 monochrome files carry a `<style>` block nothing
+//   references, and `flutter_svg` logs `unhandled element <style/>` for each.
+// - **A slug this build does not know costs the icon, not the panel.** Every name
+//   goes through [_glyph], which degrades to `not-available`, and never through
+//   `WeatherIcons.named`, which throws — out of a `build`.
 //
-// Night has its own glyphs for the conditions where the sky is visible through
-// the cloud, and only those: it is the sun or the moon in the icon that
-// differs, and a raincloud at midnight is the same raincloud.
+// Night has its own glyphs only for the conditions where the sky is visible
+// through the cloud: a raincloud at midnight is the same raincloud.
 
 import 'package:flutter/widgets.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -143,33 +128,23 @@ const IconData kLocationIcon = Symbols.location_on;
 
 /// A weather glyph, at the one size and family the shell draws them at.
 ///
-/// Two renderings behind one widget, chosen by what the call site asks for
-/// rather than by a flag it has to remember:
+/// Two renderings behind one widget, chosen by what the call site asks for rather
+/// than by a flag it has to remember:
 ///
-/// - a [color] means the outlined **line** family painted that colour — the
-///   bar, the popup's small metrics, the detail row and forecast strip over
-///   the sky;
+/// - a [color] means the outlined **line** family painted that colour — the bar,
+///   the popup's small metrics, the detail row and forecast strip;
 /// - no colour is the **fill** family in its own, drawn as a still SVG.
 ///
-/// Neither of them moves. The desktop widget's hero used to be a Lottie, and
-/// what that bought — a glyph gently animating on a wallpaper card nobody is
-/// looking at — cost a `Ticker` for the life of the widget. See
-/// `weather_sky.dart`'s header for the same decision on the picture behind it.
+/// Neither moves.
 ///
-/// [size] is the box, and Meteocons draw inside a 512-unit viewBox with
-/// generous padding — `clear-day` is 384 across — so a glyph asked for at 16
-/// reads at about 12. The call sites that came from Material Symbols were
-/// therefore all grown by roughly a quarter when they moved here; a new one
-/// should be picked by eye against its neighbours rather than copied off a
-/// Material Symbols size.
+/// [size] is the box, and Meteocons draw inside a padded 512-unit viewBox —
+/// `clear-day` is 384 across — so a glyph asked for at 16 reads at about 12. The
+/// call sites that came from Material Symbols were all grown by roughly a quarter;
+/// a new one should be picked by eye against its neighbours.
 ///
 /// There is no `shadows`, which the Material Symbols wrapper took: a [Shadow]
 /// hangs off a *glyph*, and an SVG picture is not one. What the desktop widget
-/// was using it for is already guaranteed by `SkyScrim` — something dark under
-/// the readout whatever the sky is doing — and the text beside these still
-/// carries `kSkyTextShadows` itself. Painting the artwork twice to fake one
-/// would double the raster cost of every icon on a card that already has a
-/// scrim under it.
+/// used it for is already guaranteed by `SkyScrim`.
 class WeatherIcon extends StatelessWidget {
   const WeatherIcon(this.icon, {super.key, required this.size, this.color});
 

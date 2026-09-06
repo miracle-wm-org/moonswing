@@ -15,11 +15,9 @@ import 'weather_fakes.dart';
 
 /// A store with a reading already in it.
 ///
-/// The client is given the *same* snapshot, not left on its defaults: every
-/// one of these widgets takes a lease in `initState`, so the fetch that starts
-/// there lands during the first `pump` and overwrites whatever was seeded. A
-/// fake that answered differently would make each test measure the fake rather
-/// than the seed, and only sometimes.
+/// The client is given the *same* snapshot rather than left on its defaults:
+/// every one of these widgets takes a lease in `initState`, so the fetch that
+/// starts there lands during the first `pump` and overwrites whatever was seeded.
 WeatherStore _seeded({
   int weatherCode = 0,
   bool isDay = true,
@@ -277,10 +275,9 @@ void main() {
     testWidgets('the type is set at the card\'s own size, not at one fixed '
         'size', (tester) async {
       // Every size on this card was a literal chosen against a 3x2 widget, so a
-      // user who dragged it out to 6x4 got the same 10px day labels in four
-      // times the area. `_CardScale` is what fixed it, and this is the
-      // property — measured on the condition label, which is the one line
-      // every expanded card carries at every size.
+      // user who dragged it out to 6x4 got the same 10px day labels in four times
+      // the area. `_CardScale` fixed it, and this is the property — measured on
+      // the condition label, the one line every expanded card carries.
       final store = _seeded();
 
       Future<double> conditionSize(Size size) async {

@@ -16,24 +16,20 @@ class PolkitConfig {
   /// Whether to register as this session's authentication agent at all.
   ///
   /// On by default, because with **no** agent registered polkitd cannot ask
-  /// anybody anything: every `auth_admin` action on the machine comes back
-  /// `AccessDenied` with no prompt, which is what a user reads as the setting
-  /// being broken rather than as being unauthorized.
+  /// anybody anything: every `auth_admin` action comes back `AccessDenied` with
+  /// no prompt, which a user reads as the setting being broken.
   ///
-  /// Off is for a session that already runs one — `polkit-gnome`,
-  /// `lxpolkit`, `mate-polkit` — where the shell would otherwise be the one
-  /// that loses the race and silently never prompts. Note the shell already
-  /// yields gracefully when it finds an agent registered ahead of it, so this
-  /// is for the opposite ordering: turning the shell's agent off so a *later*
-  /// one wins.
+  /// Off is for a session that already runs one — `polkit-gnome`, `lxpolkit` —
+  /// where the shell would otherwise lose the race and silently never prompt. The
+  /// shell already yields when it finds an agent registered ahead of it, so this
+  /// is for the opposite ordering: turning it off so a *later* one wins.
   final bool enabled;
 
   /// How many times PAM may refuse before the dialog stops asking.
   ///
-  /// Three by default, which is what every polkit agent has settled on.
-  /// Clamped rather than trusted: zero attempts is a dialog that cannot be
-  /// answered, and a large number is a password oracle left on the lock
-  /// screen's own PAM stack.
+  /// Three by default, which is what every polkit agent has settled on. Clamped
+  /// rather than trusted: zero attempts is a dialog that cannot be answered, and
+  /// a large number is a password oracle left on the screen.
   final int maxAttempts;
 
   factory PolkitConfig.fromMap(Map<String, dynamic>? map) {

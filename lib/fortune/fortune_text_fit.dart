@@ -1,16 +1,14 @@
 // How big to set a fortune, given the box the grid left for it.
 //
 // This card is the one place in the shell where the *content* decides the type
-// size rather than the other way round: a fortune is anything from four words
-// to a twelve-line anecdote, and the same card has to hold both. Picking by
-// character count is the tempting version and it is wrong for the reason
+// size: a fortune is anything from four words to a twelve-line anecdote, and the
+// same card has to hold both. Picking by character count is wrong for the reason
 // `TrackMarquee` states — the same 90 characters fit at 14px under one theme's
 // font and overflow at 13 under another's — so this measures, with the very
 // [TextStyle] the card is about to render in.
 //
-// Flutter-free apart from `dart:ui`'s text layout, which is what makes it a
-// plain unit test: `TextPainter` needs a binding but no widget tree, no canvas
-// and no fonts beyond the test runner's own.
+// Flutter-free apart from `dart:ui`'s text layout, which makes it a plain unit
+// test: `TextPainter` needs a binding but no widget tree and no canvas.
 
 import 'dart:math' as math;
 
@@ -18,11 +16,10 @@ import 'package:flutter/widgets.dart';
 
 /// The sizes tried, largest first.
 ///
-/// A ladder rather than a continuous solve: a binary search over fractional
-/// point sizes lands on values like 13.7, and a card that resized by a pixel
-/// would re-set its whole fortune in a size imperceptibly different from the
-/// last one. Ten rungs from "a short fortune on a big card" down to the floor
-/// below which this stops being something anybody reads from across a desk.
+/// A ladder rather than a continuous solve: a binary search over fractional point
+/// sizes lands on values like 13.7, and a card resized by a pixel would re-set its
+/// whole fortune imperceptibly differently. Ten rungs from "a short fortune on a
+/// big card" down to the floor below which nobody reads it from across a desk.
 const List<double> kFortuneTextSizes = [
   22, 20, 18, 16, 15, 14, 13, 12, 11, 10,
 ];

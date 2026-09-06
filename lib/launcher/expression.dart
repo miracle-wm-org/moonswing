@@ -34,8 +34,8 @@ final RealEvaluator _evaluator = RealEvaluator();
 /// Whether [query] looks enough like arithmetic to be worth parsing.
 ///
 /// Deliberately strict. The parser is happy to read a bare identifier as a
-/// variable and `e` as Euler's number, so without this an app search for `e`
-/// or `pi` would sprout a calculator row.
+/// variable and `e` as Euler's number, so without this an app search for `e` or
+/// `pi` would sprout a calculator row.
 bool looksLikeExpression(String query) {
   final trimmed = query.trim();
   if (trimmed.isEmpty) return false;
@@ -50,11 +50,11 @@ bool looksLikeExpression(String query) {
   return _arithmeticOnly.hasMatch(stripped);
 }
 
-/// Evaluates [query] as a mathematical expression, or returns null when it is
-/// not one (or cannot be computed).
+/// Evaluates [query] as a mathematical expression, or returns null when it is not
+/// one (or cannot be computed).
 ///
-/// Never throws: a half-typed expression is the normal case here, since this
-/// runs on every keystroke.
+/// Never throws: a half-typed expression is the normal case, since this runs on
+/// every keystroke.
 String? evaluateExpression(String query) {
   if (!looksLikeExpression(query)) return null;
   try {
@@ -69,14 +69,13 @@ String? evaluateExpression(String query) {
 
 /// Renders an evaluated result the way a calculator would.
 ///
-/// `1/0` and `0/0` come back as infinity and NaN rather than throwing, so they
-/// are filtered here: there is no useful thing to show the user for either.
+/// `1/0` and `0/0` come back as infinity and NaN rather than throwing, so they are
+/// filtered here: there is no useful thing to show for either.
 ///
-/// [precision] is the significant-figure count the fractional form is trimmed
-/// to; the unit converter passes a shorter one, because a conversion factor is
-/// a measurement and twelve figures of it claim an accuracy the question never
-/// had. It does not reach a value that is *exactly* an integer, which prints in
-/// full either way — `1 mi` is 1,609,344 mm and not 1.60934e6.
+/// [precision] is the significant-figure count the fractional form is trimmed to;
+/// the unit converter passes a shorter one, because a conversion factor is a
+/// measurement. It does not reach a value that is *exactly* an integer, which
+/// prints in full either way — `1 mi` is 1,609,344 mm and not 1.60934e6.
 String? formatResult(num value, {int precision = 12}) {
   final asDouble = value.toDouble();
   if (!asDouble.isFinite) return null;

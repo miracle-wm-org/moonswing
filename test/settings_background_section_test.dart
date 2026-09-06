@@ -13,11 +13,11 @@ import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/wallpaper_catalog.dart';
 
 /// The two sources of the wallpaper list, and the rule that separates them: a
-/// wallpaper the machine ships is always offered and can never be deleted,
-/// while one the user added can be.
+/// wallpaper the machine ships is always offered and can never be deleted, while
+/// one the user added can be.
 ///
-/// The catalogue is injected and pointed at a temp tree, so this never walks
-/// the real `/usr/share`.
+/// The catalogue is injected and pointed at a temp tree, so this never walks the
+/// real `/usr/share`.
 void main() {
   /// A 1x1 transparent PNG, so the tiles decode instead of falling through to
   /// the error placeholder.
@@ -91,18 +91,15 @@ void main() {
                     child: SizedBox(
                       width: 520,
                       height: 1700,
-                      // A `CustomScrollView`, because the section is a sliver
-                      // — `_ShellCategoryView` in shell.dart builds it the
-                      // same way. No `ListenableBuilder` around it either, for
-                      // the reason stated there: the section subscribes to the
-                      // entry list itself, so an edit reaches the grid without
-                      // one.
+                      // A `CustomScrollView`, because the section is a sliver —
+                      // `_ShellCategoryView` builds it the same way. No
+                      // `ListenableBuilder` around it either: the section
+                      // subscribes to the entry list itself.
                       //
-                      // `cacheExtent` matches the page's, and the viewport
-                      // above is deliberately taller than the content: the
-                      // grids are lazy now, so a tile scrolled out of range
-                      // would not merely be clipped, it would be unmounted and
-                      // `find.byKey` would miss it.
+                      // `cacheExtent` matches the page's, and the viewport above
+                      // is deliberately taller than the content: the grids are
+                      // lazy, so a tile scrolled out of range would be unmounted
+                      // and `find.byKey` would miss it.
                       child: CustomScrollView(
                         scrollCacheExtent: const ScrollCacheExtent.pixels(600),
                         slivers: [

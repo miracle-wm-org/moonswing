@@ -21,11 +21,10 @@ class BatteryConfig {
 
 /// The battery reading for the whole shell.
 ///
-/// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
-/// `SystemStatsStore`'s lease rule: the store reads `/sys/class/power_supply`
-/// and holds the udev subscription only while at least one widget holds a
-/// lease. A two-monitor setup used to run one timer and one udev watch per
-/// bar; now they share one of each.
+/// The singleton-`ChangeNotifier` shape with `SystemStatsStore`'s lease rule: the
+/// store reads `/sys/class/power_supply` and holds the udev subscription only
+/// while at least one widget holds a lease. A two-monitor setup used to run one
+/// timer and one udev watch per bar.
 class BatteryStore extends ChangeNotifier {
   BatteryStore._();
 

@@ -1,9 +1,8 @@
 // The verbs of the desktop grid: opening an item, listing what else could open
 // it, and deciding what it is called and which icon it wears.
 //
-// Flutter-free on purpose, like the non-UI half of `lib/screencast/`, so the
-// GIO lifetimes are reviewable in one place without any widget noise around
-// them.
+// Flutter-free on purpose, so the GIO lifetimes are reviewable in one place
+// without any widget noise around them.
 
 import 'dart:ffi' as ffi;
 import 'dart:io';
@@ -26,12 +25,11 @@ String desktopBasename(String path) {
   return trimmed.substring(slash + 1);
 }
 
-/// What an item is called when the user has not renamed it: the desktop
-/// entry's own name for an application, the basename otherwise.
+/// What an item is called when the user has not renamed it: the desktop entry's
+/// own name for an application, the basename otherwise.
 ///
-/// [resolved] is the already-loaded entry for an app item, so callers that
-/// keep one around (as the grid does, on the `DockState._loadApps` pattern)
-/// do not pay for a second GIO lookup here.
+/// [resolved] is the already-loaded entry for an app item, so callers that keep
+/// one around do not pay for a second GIO lookup here.
 String labelForItem(DesktopItem item, {AppEntry? resolved}) {
   final override = item.label;
   if (override != null && override.trim().isNotEmpty) return override.trim();
@@ -65,8 +63,8 @@ String iconNameForItem(DesktopItem item, {AppEntry? resolved}) {
 /// Whether [item] still points at something that exists.
 ///
 /// A pinned item whose target has been deleted is shown dimmed rather than
-/// removed: silently dropping an icon because a network mount was offline
-/// would lose the user's arrangement.
+/// removed: silently dropping an icon because a network mount was offline would
+/// lose the user's arrangement.
 bool desktopItemExists(DesktopItem item) {
   if (item.kind == DesktopItemKind.folder) {
     return Directory(item.target).existsSync();
@@ -77,9 +75,9 @@ bool desktopItemExists(DesktopItem item) {
 /// Opens [item] the way a double-click should.
 ///
 /// An application is launched; a file or folder goes to its default handler,
-/// which for a directory is the user's file manager. Returns false when the
-/// target is gone or GIO refused, so the caller can leave the icon selected
-/// rather than pretending something happened.
+/// which for a directory is the file manager. Returns false when the target is
+/// gone or GIO refused, so the caller can leave the icon selected rather than
+/// pretending something happened.
 bool openDesktopItem(DesktopItem item) {
   if (item.kind == DesktopItemKind.app) {
     final entry = loadAppByPath(item.target);

@@ -8,16 +8,14 @@ import 'package:graceful_shell/config.dart';
 
 /// Read/mutate/write layer for graceful-shell's own `config.toml`.
 ///
-/// [config.toml] is the single source of truth. This store loads a mutable
-/// deep copy of the parsed document, exposes nested key-path access, and writes
-/// changes back atomically (temp file + rename) with a short debounce so that
-/// dragging a slider or typing in a field does not thrash the disk.
+/// Loads a mutable deep copy of the parsed document, exposes nested key-path
+/// access, and writes changes back atomically (temp file + rename) with a short
+/// debounce so that dragging a slider does not thrash the disk.
 ///
-/// This is the single in-memory source of truth for the whole process: the
-/// running shell watches it as a [Listenable] and rebuilds live (see
-/// [appConfig]), while the settings UI mutates it. A restart is only needed for
-/// changes that recreate native layer-shell windows (panel geometry, panel set,
-/// background-layer presence).
+/// The single in-memory source of truth for the process: the running shell
+/// watches it as a [Listenable] and rebuilds live, while the settings UI mutates
+/// it. A restart is only needed for changes that recreate native layer-shell
+/// windows (panel geometry, panel set, background-layer presence).
 class ConfigStore extends ChangeNotifier {
   ConfigStore._(this._path, this._root) {
     _startupRestartSignature = _restartSignature();
@@ -138,11 +136,10 @@ class ConfigStore extends ChangeNotifier {
     }
   }
 
-  /// True when a restart-only field has changed since the store loaded. These
-  /// are values that parametrize native layer-shell windows and cannot apply
-  /// live: panel `anchor`/`height`/`layer`, the set of panels, and whether the
-  /// background surface exists at all (a wallpaper entry, or the desktop grid
-  /// being enabled). Everything else updates live.
+  /// True when a restart-only field has changed since the store loaded: values
+  /// that parametrize native layer-shell windows and cannot apply live — panel
+  /// `anchor`/`height`/`layer`, the set of panels, and whether the background
+  /// surface exists at all. Everything else updates live.
   bool get needsRestart => _restartSignature() != _startupRestartSignature;
 
   String _restartSignature() {
@@ -162,18 +159,18 @@ class ConfigStore extends ChangeNotifier {
     }
     // What is restart-only is whether the background *surface* exists, not what
     // fed that decision. Signing the decision rather than its two inputs means
-    // enabling the desktop grid on a config that already has a wallpaper does
-    // not demand a restart — the surface is already there. Grid geometry and
-    // the item list are live and deliberately absent from the signature.
+    // enabling the desktop grid on a config that already has a wallpaper does not
+    // demand a restart. Grid geometry and the item list are live and deliberately
+    // absent from the signature.
     final background = _root['background'];
     final entries = background is Map ? background['entries'] : null;
     final hasWallpaper = entries is List && entries.isNotEmpty;
     // The grid is on by default, so an absent `[desktop]` section — or a
-    // wrongly-typed `enabled`, which `boolOr` also answers with the default —
-    // is an *enabled* grid. Mirroring `DesktopConfig.fromMap` here is what
-    // keeps this signature agreeing with the surface `main()` actually built
-    // from the typed config; reading `== true` off the raw map would sign a
-    // fresh config as surface-less and raise the banner on the next edit.
+    // wrongly-typed `enabled`, which `boolOr` also answers with the default — is
+    // an *enabled* grid. Mirroring `DesktopConfig.fromMap` here keeps this
+    // signature agreeing with the surface `main()` actually built; reading
+    // `== true` off the raw map would sign a fresh config as surface-less and
+    // raise the banner on the next edit.
     final desktop = _root['desktop'];
     final rawDesktopEnabled = desktop is Map ? desktop['enabled'] : null;
     final desktopEnabled =
@@ -227,13 +224,12 @@ class ConfigStore extends ChangeNotifier {
   }
 
   /// The same atomic write, done synchronously — the shape `ThemeStore._write`
-  /// already uses, and the only shape [dispose] can use.
+  /// uses, and the only shape [dispose] can use.
   ///
   /// `dispose` cannot await, so calling `save()` there left a write in flight
-  /// *after* the store was gone: in the shell that is a write racing process
-  /// exit, and in a test it is a `.tmp` file landing in a temp directory the
-  /// harness has already started deleting, which surfaces as an unrelated
-  /// `Directory not empty` failure in whichever test happens to lose the race.
+  /// *after* the store was gone: in the shell that races process exit, and in a
+  /// test it is a `.tmp` file landing in a temp directory the harness has already
+  /// started deleting.
   void _saveSync() {
     _saveDebounce?.cancel();
     _saveDebounce = null;

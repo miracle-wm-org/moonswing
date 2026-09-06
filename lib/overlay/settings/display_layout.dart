@@ -1,14 +1,10 @@
-// Pure geometry for the display arrangement diagram
-// (`_DisplayDiagram` in `display.dart`).
+// Pure geometry for the display arrangement diagram (`_DisplayDiagram` in
+// `display.dart`).
 //
 // Everything here is a function of its arguments: no BuildContext, no Wayland
-// objects, no disk. That is deliberate and it is what
-// `test/display_layout_test.dart` points at — the drag interaction in
-// `display.dart` is hard to test, so as much of the behaviour as possible is
-// pushed down here where it is not. Same discipline as
-// `lib/desktop/desktop_layout.dart`: the only import is
-// `package:flutter/painting.dart`, for `Size`/`Offset` and nothing that needs a
-// BuildContext or an engine.
+// objects, no disk — so `test/display_layout_test.dart` can point at it, where
+// the drag interaction in `display.dart` is hard to test. Same discipline as
+// `lib/desktop/desktop_layout.dart`.
 //
 // All coordinates here are *logical* (compositor) pixels — what
 // wlr-output-management's `position` event reports and what `set_position`
@@ -31,12 +27,11 @@ typedef DiagramFit = ({double scale, Offset origin});
 /// from the other, so a snap never produces less than this.
 const int kMinEdgeOverlap = 64;
 
-/// The logical size a head occupies, given its mode, its output scale and its
+/// The logical size a head occupies, given its mode, output scale and
 /// `wl_output` transform.
 ///
-/// Positions are logical, so a 2x HiDPI head occupies half its mode in the
-/// arrangement; and transforms 1/3/5/7 are the 90/270-degree cases (including
-/// the flipped variants), which swap width and height.
+/// Positions are logical, so a 2x HiDPI head occupies half its mode; and
+/// transforms 1/3/5/7 are the 90/270-degree cases, which swap width and height.
 Size logicalSizeOf(int modeW, int modeH, double outputScale, int transform) {
   final s = (outputScale.isFinite && outputScale > 0) ? outputScale : 1.0;
   final w = modeW / s;
@@ -100,13 +95,12 @@ Rect diagramRect(DisplayBox box, DiagramFit fit) => Rect.fromLTWH(
 ///
 /// Four candidate placements are generated per box in [others] — one per edge —
 /// each with the perpendicular axis clamped so the two share at least
-/// [kMinEdgeOverlap] (or the whole of the shorter side, when that is less).
-/// Candidates that would overlap *area* with any other box are dropped;
-/// touching edges are not an overlap. The winner is the candidate nearest the
-/// requested position, so the rect follows the cursor between snaps.
+/// [kMinEdgeOverlap], or the whole of the shorter side when that is less.
+/// Candidates that would overlap *area* are dropped; touching edges are not an
+/// overlap. The winner is the candidate nearest the requested position, so the
+/// rect follows the cursor between snaps.
 ///
-/// With no [others] the requested position is returned unchanged — a single
-/// display has nothing to abut.
+/// With no [others] the requested position is returned unchanged.
 ({int x, int y}) snapPosition({
   required DisplayBox moving,
   required List<DisplayBox> others,
@@ -166,11 +160,10 @@ bool areConnected(DisplayBox a, DisplayBox b) {
 /// Pulls any display that is not reachable from the rest back onto the
 /// arrangement.
 ///
-/// Live snapping keeps the *dragged* display attached, but it cannot keep the
-/// others attached to each other: dragging the middle of an `A-B-C` chain away
-/// strands `C`. A BFS from the first box finds the main component; every box
-/// outside it is re-placed with [snapPosition] against the component, nearest
-/// first, and joins it.
+/// Live snapping keeps the *dragged* display attached but cannot keep the others
+/// attached to each other: dragging the middle of an `A-B-C` chain away strands
+/// `C`. A BFS from the first box finds the main component; every box outside it
+/// is re-placed with [snapPosition] against the component, nearest first.
 List<DisplayBox> relinkDisconnected(List<DisplayBox> boxes) {
   if (boxes.length < 2) return List.of(boxes);
 

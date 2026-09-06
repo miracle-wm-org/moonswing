@@ -1,9 +1,8 @@
-// The application launcher: a centred search card over a blurred backdrop,
-// living in its own full-screen layer-shell window.
+// The application launcher: a centred search card over a blurred backdrop, in its
+// own full-screen layer-shell window.
 //
-// Everything it acts on is injected — the app list and the two launch
-// callbacks — so widget tests can drive it without touching GIO or actually
-// spawning applications.
+// Everything it acts on is injected — the app list and the two launch callbacks —
+// so widget tests drive it without touching GIO or spawning applications.
 
 
 import 'package:flutter/services.dart';
@@ -34,9 +33,8 @@ const double kLauncherRowHeight = 44;
 
 /// The launcher card and its backdrop.
 ///
-/// Follows [SettingsOverlay]'s close handshake: the owner flips
-/// [closingNotifier], this plays its exit animation, then calls [onClosed] so
-/// the native window can be destroyed.
+/// Follows [SettingsOverlay]'s close handshake: the owner flips [closingNotifier],
+/// this plays its exit animation, then calls [onClosed].
 class LauncherOverlay extends StatefulWidget {
   const LauncherOverlay({
     super.key,
@@ -439,15 +437,13 @@ class _MathResultRow extends StatelessWidget {
   }
 }
 
-/// The conversion row, shown above the app results when the query is a
-/// quantity — `1kg`, `72f`, `5 km to mi`.
+/// The conversion row, shown above the app results when the query is a quantity —
+/// `1kg`, `72f`, `5 km to mi`.
 ///
-/// One shape for both forms the converter answers in: a query that names its
-/// target unit produces a single value, and a bare one produces up to
-/// [kUnitPeerLimit] of them. A `Wrap` rather than a `Row`, because that is the
-/// difference between a fourth peer that moves to a second line and one that
-/// overflows the card — and the card is a fixed width by design, so which of
-/// those happens is decided by the theme's font rather than by this widget.
+/// One shape for both forms the converter answers in: a query naming its target
+/// unit produces a single value, a bare one up to [kUnitPeerLimit]. A `Wrap`
+/// rather than a `Row`, because that is the difference between a fourth peer that
+/// moves to a second line and one that overflows the card.
 class _UnitResultRow extends StatelessWidget {
   const _UnitResultRow({required this.theme, required this.conversion});
 

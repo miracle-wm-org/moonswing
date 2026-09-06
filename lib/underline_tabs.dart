@@ -6,12 +6,10 @@ import 'package:graceful_shell/scopes.dart';
 
 /// One tab in an underline tab strip.
 ///
-/// The overlay's top tabs, the system monitor's sub-tabs, the audio page's
-/// tab bar and the panels editor each hand-rolled this exact treatment — the
-/// 2px accent underline sitting on the header's bottom border (so the
-/// selected tab reads as continuous with the content below it), and the
-/// selected → hovered → rest foreground ladder. Sizes vary per strip; the
-/// treatment must not.
+/// The overlay's top tabs, the system monitor's sub-tabs, the audio page's tab
+/// bar and the panels editor each hand-rolled this exact treatment — the 2px
+/// accent underline sitting on the header's bottom border, and the selected →
+/// hovered → rest foreground ladder. Sizes vary per strip; the treatment must not.
 class UnderlineTab extends StatelessWidget {
   const UnderlineTab({
     super.key,

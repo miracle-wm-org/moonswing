@@ -21,11 +21,10 @@ import 'package:graceful_shell/theme/tokens.dart';
 
 /// Cells across the grid.
 ///
-/// A *count* rather than a width, which is what makes every keyboard move in
-/// this file plain arithmetic (`emojiGridMove`) and therefore a unit test with
-/// no canvas behind it. A grid that reflowed to its width would put Down on a
-/// different emoji per monitor, and would need a layout pass before the key
-/// handler could answer.
+/// A *count* rather than a width, which makes every keyboard move in this file
+/// plain arithmetic (`emojiGridMove`) and therefore a unit test with no canvas
+/// behind it. A grid that reflowed to its width would put Down on a different
+/// emoji per monitor.
 const int kEmojiColumns = 10;
 
 /// One cell, square. The glyph inside is smaller ([kEmojiGlyphSize]) — this is
@@ -72,32 +71,23 @@ const List<String> kEmojiFontFamilies = <String>[
   'Noto Emoji',
 ];
 
-/// The grid's glyph, and **the single largest cost the picker used to
-/// carry.**
+/// The grid's glyph, and **the single largest cost the picker used to carry.**
 ///
-/// `ShellTextRoot` seeds every window with `TextStyle(fontFamily:
-/// theme.fontFamily)` — a UI font with no emoji coverage — and this style
-/// named no family of its own, so the engine missed on the primary and had to
-/// resolve a fallback typeface **per codepoint**, which on Linux is a
-/// fontconfig charset query, run inside `RenderParagraph.layout` on the UI
-/// thread. Six hundred and seventeen distinct characters, with every row
-/// scrolled into view bringing ten more that had never been asked for — which
-/// is why this overlay was slow where a settings pane drawing as many
-/// paragraphs in the theme's own font is not. Naming a colour-emoji family
-/// means the primary hits and no fallback runs.
+/// `ShellTextRoot` seeds every window with the theme's `fontFamily` — a UI font
+/// with no emoji coverage — and this style named none of its own, so the engine
+/// missed on the primary and resolved a fallback typeface **per codepoint**,
+/// which on Linux is a fontconfig charset query run inside
+/// `RenderParagraph.layout` on the UI thread. Naming a colour-emoji family means
+/// the primary hits and no fallback runs.
 ///
 /// It also settles a picture the theme could otherwise change: the handful of
-/// codepoints a UI font *does* cover — ⚙, ★, ✓, ✉ — were drawn as monochrome
-/// text glyphs beside neighbours drawn in colour.
+/// codepoints a UI font *does* cover (⚙, ★, ✓, ✉) were drawn as monochrome
+/// glyphs beside neighbours drawn in colour.
 ///
-/// It **inherits**, and naming the family is what makes that safe rather than
-/// pointless: `TextStyle.merge` takes the family and the fallback list from
-/// the style being merged *in* wherever they are set, so these win over the
-/// theme's while everything else the ambient `DefaultTextStyle` decides still
-/// reaches the glyph. `inherit: false` would win the family the same way and
-/// throw the rest out with it — including any foreground a window's text root
-/// comes to set, which is invisible on a colour font but is the whole picture
-/// on a machine whose only emoji font is monochrome.
+/// It **inherits**, and naming the family is what makes that safe: `TextStyle.merge`
+/// takes the family and fallback list from the style merged *in*, so these win
+/// over the theme's while everything else the ambient `DefaultTextStyle` decides
+/// still reaches the glyph. `inherit: false` would throw the rest out with it.
 const TextStyle kEmojiGridGlyphStyle = TextStyle(
   fontSize: kEmojiGlyphSize,
   fontFamily: 'Noto Color Emoji',
@@ -111,20 +101,16 @@ const TextStyle kEmojiFooterGlyphStyle = TextStyle(
   fontFamilyFallback: kEmojiFontFamilies,
 );
 
-/// Where a keyboard move lands, given [count] results laid out
-/// [kEmojiColumns] wide.
+/// Where a keyboard move lands, given [count] results laid out [kEmojiColumns]
+/// wide.
 ///
-/// Pure and public so `test/emoji_picker_test.dart` can pin the rules that
-/// are easy to get wrong and invisible in a screenshot. A **horizontal** move
-/// clamps, so Right at the end of a row steps to the start of the next
-/// exactly as reading does. A **vertical** one that would leave the grid
-/// lands in the nearest row it can, *in the same column* — which is what
-/// makes one rule serve both Up/Down and PageUp/PageDown: on the first row
-/// Up is already in that column and so holds (never wrapping round to the
-/// end), while PageUp from the middle travels to the top rather than holding
-/// with it. The one place the column is given up is a ragged last row that
-/// has no cell in it, where the last cell is the only sensible landing —
-/// arriving nowhere reads as the key being broken.
+/// Pure and public so `test/emoji_picker_test.dart` can pin rules that are easy
+/// to get wrong and invisible in a screenshot. A **horizontal** move clamps, so
+/// Right at the end of a row steps to the start of the next. A **vertical** one
+/// that would leave the grid lands in the nearest row it can, *in the same
+/// column* — one rule serving both Up/Down and PageUp/PageDown. The column is
+/// given up only for a ragged last row with no cell in it, where the last cell
+/// is the landing: arriving nowhere reads as the key being broken.
 int emojiGridMove(int selected, int count, {int columns = 0, int rows = 0}) {
   if (count <= 0) return 0;
   final clamped = selected.clamp(0, count - 1);
@@ -144,9 +130,8 @@ int emojiGridMove(int selected, int count, {int columns = 0, int rows = 0}) {
 
 /// The emoji picker card and its backdrop.
 ///
-/// Follows the [FadeOverlayScaffold] close handshake every full-screen overlay
-/// uses: the owner flips [closingNotifier], this plays its exit animation,
-/// then calls [onClosed] so the native window can be destroyed.
+/// Follows the [FadeOverlayScaffold] close handshake: the owner flips
+/// [closingNotifier], this plays its exit animation, then calls [onClosed].
 class EmojiPickerOverlay extends StatefulWidget {
   const EmojiPickerOverlay({
     super.key,
@@ -180,33 +165,25 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
   /// Which cell Enter would copy, as a notifier rather than a field.
   ///
   /// **This is what keeps a pointer moving over the grid from rebuilding the
-  /// card**, and it is the `_SelectedIcon` rule the desktop grid states for
-  /// its own tiles. The selection follows the pointer (hovering a cell picks
-  /// it), and a `MouseRegion` fires enter and exit as the *content* moves
-  /// under a stationary cursor as well as the other way round — Flutter
-  /// re-runs the hit test after any frame that changed the annotations — so a
-  /// scroll with the pointer over the grid moves the selection on every
-  /// frame. Held in `State` and written with `setState`, each of those frames
-  /// rebuilt the whole card: the [OverlaySearchField] and its [EditableText],
-  /// the grid's delegate, and with it every one of the seventy-odd cells on
-  /// screen. Through a notifier the same move rebuilds the two cells whose
-  /// flag actually flipped, plus the footer that names the selection.
+  /// card** — the `_SelectedIcon` rule the desktop grid states. The selection
+  /// follows the pointer, and a `MouseRegion` fires enter and exit as the
+  /// *content* moves under a stationary cursor, so a scroll over the grid moves
+  /// the selection every frame. Written with `setState`, each of those frames
+  /// rebuilt the [OverlaySearchField], its [EditableText] and all seventy-odd
+  /// cells; through a notifier it rebuilds the two cells whose flag flipped.
   final _selection = ValueNotifier<int>(0);
 
-  /// What the grid draws, as a notifier for [_selection]'s reason one value
-  /// over: typing genuinely changes what the grid holds, but it does not
-  /// change the search field, and a `setState` on this state rebuilt
-  /// [OverlaySearchField] and its [EditableText] on every character along
-  /// with the card's own chrome.
+  /// What the grid draws, as a notifier for [_selection]'s reason: typing changes
+  /// what the grid holds but not the search field, and a `setState` here rebuilt
+  /// [OverlaySearchField] and its [EditableText] on every character.
   final _results = ValueNotifier<List<Emoji>>(const []);
 
   /// The folded table, or null while the fold has not been forced.
   ///
-  /// Null is the default state on open, not an error: [searchableEmoji] is a
-  /// lazy top-level `final`, so *touching* it is what folds six hundred rows
-  /// — and doing that in [initState] put the whole fold inside the frame that
-  /// has to paint. The picker opens on the empty query, which is the table in
-  /// its own order, so the first screenful needs no fold at all. See
+  /// Null is the default state on open: [searchableEmoji] is a lazy top-level
+  /// `final`, so *touching* it folds six hundred rows — and doing that in
+  /// [initState] put the whole fold inside the frame that has to paint. The
+  /// picker opens on the empty query, which is the table in its own order. See
   /// [_tableNow].
   List<SearchableEmoji>? _table;
 
@@ -217,9 +194,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
 
   /// The table, folding it if that has not happened yet.
   ///
-  /// Every path that actually needs the folded rows goes through here, so the
-  /// fold lands on the first frame that ranks — which was going to do the work
-  /// anyway — rather than on the first frame that paints.
+  /// Every path that needs the folded rows goes through here, so the fold lands
+  /// on the first frame that ranks rather than the first that paints.
   List<SearchableEmoji> get _tableNow =>
       _table ??= widget.emoji ?? searchableEmoji;
 
@@ -232,11 +208,10 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
       _ranking = rankEmojiFrom(widget.emoji!, '');
       _results.value = _ranking!.results;
     } else {
-      // The empty query answers the table in its own order, and that order is
-      // [kEmoji]'s — so the grid has everything it needs before a single row
-      // has been lowercased. The fold then happens on the frame *after* the
-      // one that had to paint, or on the first keystroke if that comes first
-      // (see [_tableNow]), whichever the user gets to.
+      // The empty query answers the table in its own order, so the grid has
+      // everything it needs before a single row has been lowercased. The fold
+      // happens on the frame after the one that had to paint, or on the first
+      // keystroke if that comes first (see [_tableNow]).
       _results.value = kEmoji;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _table ??= searchableEmoji;
@@ -279,11 +254,10 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
 
   /// Enter, and a click: copy the selection and go.
   ///
-  /// Closes *without* the exit animation, the launcher's call and for a
-  /// sharper version of its reason: the point of this window is to put
-  /// something on the clipboard and get out of the way of the field the user
-  /// is about to paste into, and every frame it spends fading is a frame that
-  /// surface does not have the keyboard back.
+  /// Closes *without* the exit animation, the launcher's call: this window exists
+  /// to put something on the clipboard and get out of the way of the field the
+  /// user is about to paste into, and every fading frame is one that surface does
+  /// not have the keyboard back.
   void _copySelected() {
     final selected = _selection.value;
     final results = _results.value;
@@ -355,11 +329,10 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
         // should not need two.
         _requestClose();
         return KeyEventResult.handled;
-      // Enter is the copy key, and Space is deliberately *not* one: a key
-      // this handler takes never reaches the field at all (the Linux embedder
-      // forwards a key to the input method only when the framework did not
-      // take it), so binding Space here would cost every query its spaces and
-      // leave "grinning face with sweat" typeable only as one word.
+      // Enter is the copy key, and Space deliberately is not: a key this handler
+      // takes never reaches the field at all (the Linux embedder forwards a key
+      // to the input method only when the framework did not take it), so binding
+      // Space would cost every query its spaces.
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.numpadEnter:
         _copySelected();
@@ -453,16 +426,12 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
                 child: SizedBox(
                   height: kEmojiGridHeight,
                   // Scrolling marks the viewport needing paint, and that mark
-                  // travels up to the nearest boundary — which, without this
-                  // one, is the window itself. Every scrolled frame was
-                  // therefore re-recording the search field, the footer and
-                  // the full-output scrim along with the grid. The cells
-                  // carry their own boundaries already (the sliver delegate
-                  // adds them), so this is the other half: the mark stops
-                  // here on the way *out* as well as at each cell on the way
-                  // in. It also sits *above* the results builder, so the
-                  // element that stops the mark is one a keystroke does not
-                  // replace.
+                  // travels to the nearest boundary — which, without this one, is
+                  // the window itself, so every scrolled frame re-recorded the
+                  // search field, the footer and the full-output scrim. The cells
+                  // carry their own boundaries; this is the other half. It sits
+                  // *above* the results builder, so the element that stops the
+                  // mark is one a keystroke does not replace.
                   child: RepaintBoundary(
                     child: ValueListenableBuilder<List<Emoji>>(
                       valueListenable: _results,
@@ -514,22 +483,18 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
         crossAxisCount: kEmojiColumns,
         mainAxisExtent: kEmojiCellSize,
       ),
-      // `GridView.builder` is a sliver and is already lazy — it builds the
-      // cells the viewport asks for and no others. What it was over-building
-      // is the *cache extent*, which defaults to 250 logical pixels: at a row
-      // height of 46 that is five and a half rows either side of a seven-row
-      // viewport, so the first frame laid out about a hundred and eighty
-      // paragraphs to show seventy, and a fling paid the same ratio the whole
-      // way down. Two rows is enough to stay ahead of a scroll.
+      // `GridView.builder` is already lazy. What it was over-building is the
+      // *cache extent*, which defaults to 250 logical pixels: at a row height of
+      // 46 that is five and a half rows either side of a seven-row viewport, so
+      // the first frame laid out about a hundred and eighty paragraphs to show
+      // seventy. Two rows is enough to stay ahead of a scroll.
       cacheExtent: kEmojiCellSize * 2,
       itemCount: results.length,
-      // Two wrappers per cell that this grid has no use for, and a fling
-      // builds cells by the hundred. Nothing in a cell has state worth
-      // keeping alive off screen — the selection lives on this state, not in
-      // the cell — and `kExcludeSemantics` drops every one of the shell's
-      // windows out of the semantics tree anyway, so an index for a node that
-      // is never built is pure cost. The repaint boundaries stay: they are
-      // what a scroll reuses rather than re-records.
+      // Two wrappers per cell this grid has no use for, and a fling builds cells
+      // by the hundred. Nothing in a cell has state worth keeping alive off
+      // screen, and `kExcludeSemantics` drops every window out of the semantics
+      // tree anyway. The repaint boundaries stay: they are what a scroll reuses
+      // rather than re-records.
       addAutomaticKeepAlives: false,
       addSemanticIndexes: false,
       itemBuilder: (context, i) => _EmojiCell(
@@ -546,20 +511,16 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
 
 /// One cell: the glyph, and the ring that says it is the one Enter will copy.
 ///
-/// Stateful, and subscribed to the picker's selection itself, so that moving
-/// the ring costs the two cells it moved between rather than the grid: every
-/// cell's listener runs, and the two whose own flag flipped rebuild. That is
-/// `_SelectedIcon`'s shape in the desktop grid, and it is here for the same
-/// reason — the selection follows the pointer, so it moves on every frame of
-/// a scroll that happens to be under the cursor.
+/// Stateful and subscribed to the picker's selection itself, so moving the ring
+/// costs the two cells it moved between rather than the grid — `_SelectedIcon`'s
+/// shape in the desktop grid, and here for the same reason: the selection follows
+/// the pointer, so it moves on every frame of a scroll under the cursor.
 ///
-/// It does **not** go through `HoverRegion`, which is the shell's primitive
-/// for exactly this shape and the wrong tool here: a cell draws no hover
-/// state of its own (entering it *is* selecting it, and the ring is what
-/// says so), so the `bool _hovered` that primitive exists to own would be a
-/// second rebuild per cell, on enter and again on exit, for a value nothing
-/// paints. The `GestureDetector` still carries an explicit `behavior:`, which
-/// is what that primitive's rule actually requires.
+/// It does **not** go through `HoverRegion`, the shell's primitive for this
+/// shape and the wrong tool here: a cell draws no hover state of its own
+/// (entering it *is* selecting it), so the `bool _hovered` that primitive owns
+/// would be a second rebuild per cell for a value nothing paints. The
+/// `GestureDetector` still carries an explicit `behavior:`.
 class _EmojiCell extends StatefulWidget {
   const _EmojiCell({
     required this.theme,

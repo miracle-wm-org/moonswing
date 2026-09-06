@@ -1,16 +1,13 @@
 // The `fortune` command, and what comes back out of it.
 //
-// Follows the [DiskReader]/[FontCatalog] shape (`lib/system/disk_reader.dart`,
-// `lib/theme/font_catalog.dart`): the runner is injectable so tests never fork,
-// and the parse is a pure function over the process's stdout so the wrapping
-// rules below are a plain unit test with no `fortune` installed anywhere near
-// the test runner.
+// Follows the [DiskReader]/[FontCatalog] shape: the runner is injectable so tests
+// never fork, and the parse is a pure function over stdout so the wrapping rules
+// are a plain unit test with no `fortune` installed anywhere near the runner.
 //
-// Unlike those two a failure here is *reported* rather than swallowed. An empty
-// font list degrades to a free-typed field and an empty disk list simply shows
-// no disks, but a fortune widget with no fortune in it is a blank card — and
-// the overwhelmingly likely reason is that the package is not installed, which
-// is something the user can fix in one command if the card says so.
+// Unlike those two a failure here is *reported* rather than swallowed. A fortune
+// widget with no fortune in it is a blank card, and the likely reason is that the
+// package is not installed — which the user can fix in one command if the card
+// says so.
 
 import 'dart:io';
 
@@ -41,12 +38,11 @@ class FortuneReader {
 
   /// Where to look for the binary, in order.
   ///
-  /// `PATH` first, and then the Debian/Ubuntu location explicitly: `fortune-mod`
-  /// installs to `/usr/games`, which is on the login shell's `PATH` through
-  /// `/etc/profile` but is **not** inherited by a graphical session started from
-  /// a display manager — so on the distributions where `fortune` is most likely
-  /// to be installed, `Process.run('fortune')` is also most likely to answer
-  /// ENOENT. The fallback is what keeps that from reading as "not installed".
+  /// `PATH` first, then the Debian/Ubuntu location explicitly: `fortune-mod`
+  /// installs to `/usr/games`, which is on a login shell's `PATH` through
+  /// `/etc/profile` but is **not** inherited by a graphical session started from a
+  /// display manager — so on the distributions where `fortune` is most likely to
+  /// be installed, `Process.run('fortune')` is also most likely to answer ENOENT.
   static const List<String> executableCandidates = [
     'fortune',
     '/usr/games/fortune',
@@ -55,12 +51,11 @@ class FortuneReader {
 
   /// Ask for a short one.
   ///
-  /// A desktop widget is a card of a few square inches and the cookie files
-  /// carry entries that run to forty lines; `-s` keeps to the ones under the
-  /// database's own short limit, which is roughly what this card can set at a
-  /// readable size. A build that refuses the flag (or a database with no short
-  /// entries in it) is retried without it rather than reported — a long fortune
-  /// the card has to shrink to fit still beats no fortune.
+  /// A desktop widget is a card of a few square inches and the cookie files carry
+  /// entries running to forty lines; `-s` keeps to the ones under the database's
+  /// own short limit. A build that refuses the flag, or a database with no short
+  /// entries, is retried without it rather than reported — a long fortune the card
+  /// has to shrink to fit still beats no fortune.
   static const List<String> shortArgs = ['-s'];
 
   /// One fortune, normalized. Throws [FortuneUnavailable] and nothing else.
@@ -100,10 +95,9 @@ class FortuneReader {
 
   /// [result] as text, or null when this candidate has nothing to give.
   ///
-  /// The retry without `-s` lives here rather than in the loop so a candidate
-  /// that exists is fully exhausted before the next path is tried — the second
-  /// candidate is the *same program* at another path, and asking it the same
-  /// question twice would be a fork for nothing.
+  /// The retry without `-s` lives here rather than in the loop so a candidate that
+  /// exists is fully exhausted before the next path is tried — the second
+  /// candidate is the *same program* at another path.
   Future<String?> _resolve(String executable, ProcessResult result) async {
     final direct = _textOf(result);
     if (direct != null) return direct;

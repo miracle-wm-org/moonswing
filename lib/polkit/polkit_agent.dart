@@ -1,17 +1,13 @@
 // The shell as a polkit authentication agent.
 //
-// polkitd never prompts anybody itself: when an application asks for a
-// privileged operation and the action's policy says `auth_admin` or
-// `auth_self`, polkitd looks for an agent registered for the caller's session
-// and calls `BeginAuthentication` on it. With no agent registered there is no
-// prompt and no privilege — every such call comes straight back as
-// `AccessDenied`, which is what `lib/keyboard/locale1_client.dart` documents
-// having to word for the user today. Registering one is what turns that into
-// a question.
+// polkitd never prompts anybody itself: when an application asks for a privileged
+// operation whose policy says `auth_admin` or `auth_self`, polkitd looks for an
+// agent registered for the caller's session and calls `BeginAuthentication` on
+// it. With no agent there is no prompt and no privilege — every such call comes
+// straight back as `AccessDenied`.
 //
-// Flutter-free (`package:dbus` and this package's own Flutter-free layers), so
-// the whole wire surface can be reasoned about — and tested — without an
-// engine. The dialog reaches it through [PolkitAuthController].
+// Flutter-free, so the whole wire surface can be reasoned about and tested
+// without an engine. The dialog reaches it through [PolkitAuthController].
 
 import 'dart:async';
 import 'dart:io';
@@ -55,10 +51,10 @@ const String kPolkitFailedError = 'org.freedesktop.PolicyKit1.Error.Failed';
 
 /// How a request reaches a surface that can ask the user.
 ///
-/// The shell passes `PolkitAuthController.instance`; a headless harness passes
-/// a stand-in. Required rather than defaulted, for
-/// [startScreencastService]'s reason: an agent that could answer without a
-/// visible prompt is an agent that approves privilege escalation silently.
+/// The shell passes `PolkitAuthController.instance`; a headless harness passes a
+/// stand-in. Required rather than defaulted, for [startScreencastService]'s
+/// reason: an agent that could answer without a visible prompt is an agent that
+/// approves privilege escalation silently.
 typedef PolkitAuthPresenter = Future<PolkitAuthOutcome?> Function(
   PolkitAuthSession session,
 );
@@ -71,19 +67,18 @@ PolkitAgentService? get polkitAgentService => _service;
 /// Registers the shell as the authentication agent for this login session.
 ///
 /// Two graceful declines, both of which log and return normally so
-/// `ShellServices` settles `ready` (see its contract):
+/// `ShellServices` settles `ready`:
 ///
 /// * **Another agent is already registered for this session.** polkitd allows
-///   exactly one, and a desktop where the user is already running
-///   `polkit-gnome` or `lxpolkit` is one where prompts already work. Yielding
-///   is right; fighting for the registration would leave whichever agent lost
-///   a race silently unable to prompt.
+///   exactly one, and a desktop already running `polkit-gnome` is one where
+///   prompts already work. Fighting for the registration would leave whichever
+///   agent lost the race silently unable to prompt.
 /// * **`[polkit] enabled = false`.** Handled by `main.dart`, which skips the
-///   service outright rather than calling this.
+///   service outright.
 ///
-/// Everything else throws, so the status is truthful rather than "ready with
-/// no prompts": an unreachable system bus, a polkitd that is not running, an
-/// export failure, or a session id that cannot be resolved.
+/// Everything else throws, so the status is truthful rather than "ready with no
+/// prompts": an unreachable system bus, no polkitd, an export failure, or a
+/// session id that cannot be resolved.
 Future<void> startPolkitAgentService({
   required PolkitAuthPresenter presenter,
   int maxAttempts = kPolkitMaxAttempts,

@@ -34,10 +34,10 @@ class NetworkConfig {
 
 /// The connection status for the whole shell.
 ///
-/// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
-/// `SystemStatsStore`'s lease rule: the NetworkManager queries run only while
-/// at least one widget holds a lease, so a two-monitor setup shares one poller
-/// instead of running one round of D-Bus calls per bar.
+/// The singleton-`ChangeNotifier` shape with `SystemStatsStore`'s lease rule: the
+/// NetworkManager queries run only while at least one widget holds a lease, so a
+/// two-monitor setup shares one poller instead of one round of D-Bus calls per
+/// bar.
 class NetworkStatusStore extends ChangeNotifier {
   NetworkStatusStore._();
 

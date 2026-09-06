@@ -1,45 +1,32 @@
 // Tux, drawn: the vector the widget renders, and the widget that renders it.
 //
-// **The shell ships no image assets, and this does not change that.** The art
-// is an SVG *string constant*, embedded the way `theme/builtin_themes.dart`
-// embeds the shipped palettes as TOML text — there is no `assets:` section in
-// `pubspec.yaml`, nothing for the Makefile to install and nothing for the snap
-// to stage, and it works identically under `flutter run`, `make install` and
-// the snap, none of which resolve paths relative to the bundle. It is a string
-// rather than a `CustomPainter` (which `moon_render.dart` and `lamp_scene.dart`
-// are) for the reason the request asked for: an SVG is an artwork somebody can
-// open, edit and replace with a different penguin, where a painter is a
-// function only Dart can read.
+// **The shell ships no image assets, and this does not change that.** The art is
+// an SVG *string constant*, embedded the way `theme/builtin_themes.dart` embeds
+// the shipped palettes as TOML — no `assets:` section, nothing for the Makefile
+// to install and nothing for the snap to stage, and it works identically under
+// `flutter run`, `make install` and the snap. It is a string rather than a
+// `CustomPainter` because an SVG is artwork somebody can open, edit and replace
+// with a different penguin, where a painter is a function only Dart can read.
 //
 // Five things a change here has to keep true:
 //
 // - **It scales, and nothing in it is sized in pixels.** Every coordinate is in
-//   the `viewBox`'s own units and [TuxArt] fits the whole drawing into whatever
-//   box the grid gives it, so the 1x1 card and a 6x4 one draw the same picture
-//   at different sizes rather than a small one cropped or a large one blurred.
-//   No `width`/`height` attributes on the root — those would fix a size and
-//   make `BoxFit` argue with it.
-// - **It is flat, and it is legible small.** 1x1 on the default grid is 96
-//   logical pixels, and the whole point of the request is that he works there:
-//   so the drawing is solid fills with no gradients, no blurs and no strokes
-//   thinner than the shape they outline, because every one of those is the
-//   first thing to disappear at that size. The parts that identify him — the
-//   white front, the orange beak, the two eyes looking slightly inward — are
-//   the largest shapes on the canvas for the same reason.
-// - **The flippers are a shade lighter than the body.** Pure black on black is
-//   a silhouette with no penguin in it; the raised one especially has to read
-//   as an arm rather than as a nick out of the outline. This is why the body is
-//   a warm near-black rather than `#000`.
-// - **He is waving, and the wave is why he is off-centre.** The `viewBox` is
-//   wider than he is and his body sits left of its middle, so the raised
-//   flipper has somewhere to go. Re-centring the body without narrowing the
-//   `viewBox` puts the wave outside the drawing and clips it.
+//   the `viewBox`'s own units and [TuxArt] fits the drawing into whatever box the
+//   grid gives it. No `width`/`height` on the root — those would argue with
+//   `BoxFit`.
+// - **It is flat, and it is legible small.** 1x1 on the default grid is 96 logical
+//   pixels: solid fills, no gradients, no blurs, no strokes thinner than the shape
+//   they outline. The parts that identify him — the white front, the orange beak,
+//   the two eyes looking slightly inward — are the largest shapes on the canvas.
+// - **The flippers are a shade lighter than the body.** Pure black on black is a
+//   silhouette with no penguin in it, and the raised one has to read as an arm.
+//   This is why the body is a warm near-black rather than `#000`.
+// - **He is waving, and the wave is why he is off-centre.** The `viewBox` is wider
+//   than he is and his body sits left of its middle, so the raised flipper has
+//   somewhere to go.
 // - **No `<style>`, no CSS, no SMIL.** `flutter_svg` logs `unhandled element
-//   <style/>` for every one it parses (which is what `weather_icons.dart` picks
-//   the `line` family over `monochrome` to avoid) and drops SMIL animation
-//   silently. Nothing here animates in any case — this is a desktop widget, and
-//   the rule the lunar and fortune cards state applies with more force to a
-//   picture that never changes at all.
+//   <style/>` for every one it parses and drops SMIL silently. Nothing here
+//   animates in any case.
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';

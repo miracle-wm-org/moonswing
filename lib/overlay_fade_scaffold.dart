@@ -4,15 +4,13 @@ import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
-/// The scale-and-fade scaffold every full-screen overlay plays: scrim, a
-/// centred card that scales in, and the closing-notifier handshake.
+/// The scale-and-fade scaffold every full-screen overlay plays: scrim, a centred
+/// card that scales in, and the closing-notifier handshake.
 ///
-/// The handshake is the load-bearing part (see the dismissal section of
-/// CLAUDE.md): nothing tears the window down directly. The root flips
-/// [closing]; this scaffold plays the reverse animation and only then calls
-/// [onClosed], which is what unregisters and destroys the native window. The
-/// settings, launcher and screencast overlays each used to hand-roll the
-/// whole quartet — controller, curves, listener, dispose pairing.
+/// The handshake is the load-bearing part: nothing tears the window down
+/// directly. The root flips [closing]; this scaffold plays the reverse animation
+/// and only then calls [onClosed], which unregisters and destroys the native
+/// window.
 class FadeOverlayScaffold extends StatefulWidget {
   const FadeOverlayScaffold({
     super.key,
@@ -92,28 +90,21 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
   Widget build(BuildContext context) {
     final scrim = ThemeScope.of(context).scrim;
 
-    // No BackdropFilter here, deliberately — see the note on
-    // [ThemeConfig.blur]. A filter reaches only what Flutter has already
-    // painted beneath it, and this scaffold *is* the first thing painted into
-    // its window: the scrim below is this widget's own child, and under that
-    // is a transparent layer-shell surface whose contents belong to the
-    // compositor. So the backdrop is empty, the filter resolves to nothing,
-    // and every frame the overlay animates paid for a full-output Gaussian
-    // that changed no pixel — which is what the settings page transitions
-    // were spending their frame budget on.
+    // No BackdropFilter here, deliberately. A filter reaches only what Flutter
+    // has already painted beneath it, and this scaffold *is* the first thing
+    // painted into its window: the scrim is this widget's own child, and under
+    // that is a transparent layer-shell surface whose contents belong to the
+    // compositor. So the backdrop is empty, the filter resolves to nothing, and
+    // every animated frame paid for a full-output Gaussian that changed no pixel.
     //
     // **And no `Opacity` across the whole of it either, for the same
     // arithmetic.** Every overlay window calls `spanFullOutput`, so an opacity
     // layer here is bounded by the output: `RenderOpacity` skips the layer at
     // exactly 1.0, so it cost nothing at rest and then allocated and blended a
-    // full-output offscreen on every one of the dozen frames in and the dozen
-    // frames out. At 4K that is thirty-odd megabytes a frame, on a raster
-    // thread this shell already measures in the tens of milliseconds. The
-    // scrim is a flat fill, so it fades by its own alpha instead and needs no
-    // layer at all; only the card keeps a real one, because a card is a stack
-    // of overlapping pieces and fading them one at a time shows it through
-    // itself — and that layer is now bounded by the card rather than by the
-    // display.
+    // full-output offscreen on every frame in and out — thirty-odd megabytes a
+    // frame at 4K. The scrim is a flat fill and fades by its own alpha instead;
+    // only the card keeps a real layer, because a card is a stack of overlapping
+    // pieces and fading them one at a time shows it through itself.
     Widget backdrop = Stack(
       // Non-directional, so this does not depend on an ambient
       // `Directionality` for a stack whose one unpositioned child is centred.

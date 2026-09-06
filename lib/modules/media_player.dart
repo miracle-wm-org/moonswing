@@ -23,11 +23,10 @@ class MediaPlayerConfig {
 
 /// The bar's now-playing strip: transport buttons and the track title.
 ///
-/// All the MPRIS bookkeeping this used to carry — the session-bus connection,
-/// the per-player `PropertiesChanged` subscriptions, the active-player rule —
-/// now lives in [MprisStore], which the desktop's media widget reads as well.
-/// One connection for the machine, leased; two bars on two monitors used to
-/// mean two of everything.
+/// All the MPRIS bookkeeping this used to carry — the session-bus connection, the
+/// per-player `PropertiesChanged` subscriptions, the active-player rule — lives
+/// in [MprisStore] now, which the desktop's media widget reads as well. One
+/// connection for the machine, leased.
 class MediaPlayer extends StatefulWidget {
   // Not const: the default store is the process-wide singleton, which a const
   // constructor cannot reach.

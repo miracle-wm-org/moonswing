@@ -16,8 +16,7 @@ import 'package:graceful_shell/scopes.dart';
 /// The Desktop category: grid geometry plus the list of pinned items.
 ///
 /// Everything here is edited through [DesktopStore] rather than written to
-/// [ConfigStore] directly, so the running grid and the file cannot drift — the
-/// store owns both the in-memory list and the write.
+/// [ConfigStore] directly, so the running grid and the file cannot drift.
 class DesktopSection extends StatefulWidget {
   const DesktopSection({super.key, required this.store});
 
@@ -42,9 +41,8 @@ class _DesktopSectionState extends State<DesktopSection> {
   /// Picks an application from a searchable list of what is installed, rather
   /// than making the user find a `.desktop` file on disk.
   ///
-  /// The rows hold `GAppInfo` pointers owned by [AppIndex], whose refresh
-  /// unrefs the previous ones, so the index is pinned while the chooser is up —
-  /// the contract `_openLauncher` follows.
+  /// The rows hold `GAppInfo` pointers owned by [AppIndex], whose refresh unrefs
+  /// the previous ones, so the index is pinned while the chooser is up.
   Future<void> _addApplication() async {
     AppIndex.instance.acquire();
     try {

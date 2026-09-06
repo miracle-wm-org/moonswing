@@ -2,9 +2,8 @@
 //
 // Beside the store rather than in `modules/weather.dart` for the reason
 // `lib/system/system_monitor_config.dart` sits beside its sampler: two surfaces
-// read these settings now, and neither of them is the bar module. The module
-// file re-exports it, so `settings/shell/modules.dart` and anything else that
-// imports it from there is unaffected.
+// read these settings, and neither is the bar module. The module file re-exports
+// it, so importers are unaffected.
 
 import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/weather/weather_api.dart';
@@ -23,12 +22,10 @@ class WeatherConfig {
 
   /// How often the forecast is re-fetched, in minutes.
   ///
-  /// Half an hour, which is about how often the reading itself moves: the
-  /// current temperature is Open-Meteo's own hourly figure interpolated, so a
-  /// ten-minute poll — what this used to be — asked their free API for the same
-  /// numbers three times over. The one thing a longer interval costs is how
-  /// stale the card can be at its worst, and half an hour of that is invisible
-  /// against a reading whose source updates hourly.
+  /// Half an hour, which is about how often the reading itself moves: the current
+  /// temperature is Open-Meteo's own hourly figure interpolated, so a ten-minute
+  /// poll — what this used to be — asked their free API for the same numbers
+  /// three times over.
   final int refreshMinutes;
 
   /// What the user calls the place they picked. Empty means "wherever this

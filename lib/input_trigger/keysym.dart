@@ -42,9 +42,9 @@ class ShortcutSpec {
 
 /// Modifier bits, keyed by the names accepted in a shortcut string.
 ///
-/// Only the *generic* bits are offered: the protocol fires a trigger when
-/// exactly the registered modifier set is held, so registering `ctrl_left`
-/// would mean the shortcut stops working on the right-hand Control key.
+/// Only the *generic* bits are offered: the protocol fires a trigger when exactly
+/// the registered modifier set is held, so registering `ctrl_left` would mean the
+/// shortcut stops working on the right-hand Control key.
 const Map<String, int> _modifierNames = {
   'ctrl': 0x100,
   'control': 0x100,
@@ -79,14 +79,13 @@ const Map<String, int> _namedKeysyms = {
   'print': 0xff61,
   'pause': 0xff13,
   'menu': 0xff67,
-  // The machine's own power button. It is an ordinary key as far as the
-  // compositor is concerned — evdev `KEY_POWER` (116), which every standard
-  // xkb layout maps to `XF86PowerOff` — which is what lets the shell bind it
-  // like any other shortcut. What is *not* ordinary is that systemd-logind
-  // watches the same device directly and powers the machine off on a press,
-  // so binding this without also taking logind's `handle-power-key` inhibitor
-  // (see `lib/power/`) draws a menu onto a machine that is already going
-  // down. `sleep` is the same key's neighbour on the keyboards that have one.
+  // The machine's own power button. To the compositor it is an ordinary key —
+  // evdev `KEY_POWER` (116), which every standard xkb layout maps to
+  // `XF86PowerOff` — which is what lets the shell bind it like any other
+  // shortcut. What is *not* ordinary is that systemd-logind watches the same
+  // device and powers the machine off on a press, so binding this without also
+  // taking logind's `handle-power-key` inhibitor draws a menu onto a machine
+  // that is already going down.
   'poweroff': 0x1008ff2a,
   'power': 0x1008ff2a,
   'sleep': 0x1008ff2f,
@@ -110,12 +109,11 @@ const Map<String, int> _punctuationKeysyms = {
 };
 
 /// What the US layout produces when Shift is held with a digit or punctuation
-/// key. Mir matches on the *resolved* keysym (see [ShortcutSpec] callers and
-/// `input_trigger_protocol.dart`), so `"ctrl+shift+1"` has to register `!`.
+/// key. Mir matches on the *resolved* keysym, so `"ctrl+shift+1"` registers `!`.
 ///
 /// Explicitly US-only: on other layouts Shift+2 is not `@`, and there is no way
 /// to know the user's layout from here. `CONFIG.md` documents the `0x…` and
-/// `code:` escape hatches for anyone this is wrong for.
+/// `code:` escape hatches.
 const Map<int, int> _usShifted = {
   0x0031: 0x0021, // 1 -> !
   0x0032: 0x0040, // 2 -> @
@@ -160,12 +158,12 @@ int? _keysymForToken(String token) {
   return null;
 }
 
-/// Parses a shortcut string such as `"ctrl+shift+s"`, `"ctrl+space"`, or
-/// `"super+d"` into the pair the compositor is asked to register.
+/// Parses a shortcut string such as `"ctrl+shift+s"` or `"super+d"` into the pair
+/// the compositor is asked to register.
 ///
 /// Returns null when the shortcut is disabled (`""` or `"none"`) or cannot be
 /// understood; callers decide whether that means "fall back to the default" or
-/// "register nothing", and the two are deliberately not distinguished here.
+/// "register nothing".
 ///
 /// Accepted forms for the key:
 ///  * a single letter or digit, a named key (`space`, `f5`, `pageup`, …), or a
@@ -173,9 +171,8 @@ int? _keysymForToken(String token) {
 ///  * `0x41` — a raw keysym, for layouts this table does not cover;
 ///  * `code:57` — a raw evdev keycode, which is layout-independent.
 ///
-/// Shift must be spelled out: `"ctrl+S"` is read as `"ctrl+s"`, not as
-/// `"ctrl+shift+s"`. When shift *is* present the keysym is shift-resolved
-/// (`s` becomes `S`), because that is what Mir matches on.
+/// Shift must be spelled out: `"ctrl+S"` reads as `"ctrl+s"`. When shift *is*
+/// present the keysym is shift-resolved, because that is what Mir matches on.
 ShortcutSpec? parseShortcut(String value) {
   final trimmed = value.trim().toLowerCase();
   if (trimmed.isEmpty || trimmed == 'none') return null;

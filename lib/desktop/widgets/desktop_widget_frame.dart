@@ -1,10 +1,9 @@
-// The chrome around a desktop widget: the card it paints on, the selection
-// rim, and the corner grips it is resized by.
+// The chrome around a desktop widget: the card it paints on, the selection rim,
+// and the corner grips it is resized by.
 //
 // Separate from `desktop_grid.dart` for the reason `desktop_icon.dart` is: the
 // grid owns pointers and persistence, these own pixels. The grid positions a
-// [DesktopWidgetResizeGrip] at each corner and feeds it the drag; the grip only
-// knows how to look like one.
+// [DesktopWidgetResizeGrip] at each corner and feeds it the drag.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -55,8 +54,7 @@ enum DesktopWidgetCorner {
 ///
 /// Renders through [PopupCard], so a widget inherits the theme's popup
 /// background, rim, radius and shadow — one surface language for everything the
-/// shell floats over the desktop, and a theme that opens up its popups opens up
-/// its widgets with them.
+/// shell floats over the desktop.
 class DesktopWidgetFrame extends StatelessWidget {
   const DesktopWidgetFrame({
     super.key,
@@ -118,8 +116,8 @@ class DesktopWidgetFrame extends StatelessWidget {
 /// A widget type this build does not know.
 ///
 /// Shown rather than dropped: the entry stays in the config, so a user who
-/// downgraded — or who hand-wrote a type with a typo — still has something to
-/// right-click and remove, and an upgrade brings the real widget straight back.
+/// downgraded still has something to right-click and remove, and an upgrade
+/// brings the real widget straight back.
 class _UnknownWidget extends StatelessWidget {
   const _UnknownWidget({required this.type, required this.theme});
 
@@ -158,8 +156,8 @@ class _UnknownWidget extends StatelessWidget {
 /// One corner grip.
 ///
 /// Drawn only while the widget is hovered or being resized: a desktop widget
-/// spends nearly all its life being *looked at*, and four permanent handles
-/// would be four permanent pieces of chrome on the wallpaper.
+/// spends nearly all its life being *looked at*, and four permanent handles would
+/// be four permanent pieces of chrome on the wallpaper.
 class DesktopWidgetResizeGrip extends StatelessWidget {
   const DesktopWidgetResizeGrip({
     super.key,
@@ -212,9 +210,9 @@ class DesktopWidgetResizeGrip extends StatelessWidget {
 
 /// The outline shown where a widget will land while it is being resized.
 ///
-/// The resize itself is committed on release, so this is the only thing that
-/// says what the release will do — the grid lines say which cells exist, and
-/// this says which of them the widget is about to take.
+/// The resize is committed on release, so this is the only thing that says what
+/// the release will do — the grid lines say which cells exist, and this says
+/// which of them the widget is about to take.
 class DesktopWidgetPreview extends StatelessWidget {
   const DesktopWidgetPreview({
     super.key,

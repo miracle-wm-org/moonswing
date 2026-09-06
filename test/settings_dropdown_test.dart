@@ -241,10 +241,9 @@ void main() {
   testWidgets('the trigger opens from every corner of its box',
       (tester) async {
     // The house rule `test/tap_target_test.dart` pins for the shared controls,
-    // asserted here because this one cannot go in that table: it needs an
-    // Overlay to open into, and once open there is more than one HoverRegion
-    // on screen. Each corner is taken on its own and dismissed after, since
-    // four taps in a row would just toggle the list open and shut.
+    // asserted here because this one cannot go in that table: it needs an Overlay
+    // to open into, and once open there is more than one HoverRegion on screen.
+    // Each corner is taken on its own and dismissed after.
     await pumpDropdown(tester, items: _items(3), selected: 'v0');
     final box = tester.getRect(find.byKey(_hostKey));
     final away = tester
@@ -284,12 +283,11 @@ void main() {
 
   testWidgets('an unbounded slot shrink-wraps rather than throwing',
       (tester) async {
-    // What a `SettingsRow` gives its control: an inflexible child of a Row,
-    // which `RenderFlex` lays out with an unbounded main axis. An `Expanded`
-    // inside that throws from `performLayout` — an error `RenderObject.layout`
-    // catches, leaving the subtree mounted but never laid out, which is what
-    // the settings pane saw as a semantics assertion and a "Cannot hit test a
-    // render box with no size" per pointer event.
+    // What a `SettingsRow` gives its control: an inflexible child of a Row, which
+    // `RenderFlex` lays out with an unbounded main axis. An `Expanded` inside that
+    // throws from `performLayout` — an error `RenderObject.layout` catches,
+    // leaving the subtree mounted but never laid out, which the settings pane saw
+    // as a semantics assertion and a hit-test failure per pointer event.
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,

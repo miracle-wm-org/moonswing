@@ -8,21 +8,18 @@ import 'screencast_log.dart';
 
 /// The xdg-desktop-portal ScreenCast *backend* (`impl` side): xdg-desktop-portal
 /// itself is the only D-Bus peer, forwarding app requests here and handling
-/// `OpenPipeWireRemote` on its own — this backend only chooses sources and
-/// returns PipeWire node ids.
+/// `OpenPipeWireRemote` on its own — this backend only chooses sources and returns
+/// PipeWire node ids.
 ///
 /// Object model per the portal backend contract:
 /// - [ScreenCastPortalBackend] at `/org/freedesktop/portal/desktop`.
-/// - A [PortalSession] exported at each `session_handle` path the frontend
-///   supplies (Close method, Closed signal).
-/// - A [PortalRequest] exported at the `handle` path for the duration of
-///   `Start`, so the frontend can cancel a pick that's still on screen.
+/// - A [PortalSession] exported at each `session_handle` path (Close, Closed).
+/// - A [PortalRequest] exported at the `handle` path for the duration of `Start`,
+///   so the frontend can cancel a pick that is still on screen.
 ///
-/// Like `StatusNotifierWatcher` (`lib/status_notifier_service.dart`), each
-/// object declares its bus surface through `DBusServiceObject`
-/// (`lib/dbus_service_object.dart`) — methods, properties and introspection
-/// from one table — and the backend adds `nameOwnerChanged` peer-death
-/// tracking.
+/// Like `StatusNotifierWatcher`, each object declares its bus surface through
+/// `DBusServiceObject` — methods, properties and introspection from one table —
+/// and the backend adds `nameOwnerChanged` peer-death tracking.
 
 const String screenCastInterface = 'org.freedesktop.impl.portal.ScreenCast';
 const String sessionInterface = 'org.freedesktop.impl.portal.Session';

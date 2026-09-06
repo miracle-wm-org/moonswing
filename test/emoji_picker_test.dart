@@ -310,14 +310,11 @@ void main() {
     testWidgets('hovering a cell moves the ring without rebuilding the card', (
       tester,
     ) async {
-      // The selection follows the pointer, and a `MouseRegion` fires enter
-      // and exit as the *content* moves under a stationary cursor as well as
-      // the other way round — so a scroll with the pointer over the grid
-      // moves the selection on every frame. Held in `State` and written with
-      // `setState`, each of those frames rebuilt the whole card: the search
-      // field with its `EditableText`, the grid's delegate, and every cell on
-      // screen. Widget identity is what tells a rebuilt subtree from a
-      // repainted one — the desktop grid's `pointer cost` rule.
+      // The selection follows the pointer, and a `MouseRegion` fires enter and
+      // exit as the *content* moves under a stationary cursor — so a scroll with
+      // the pointer over the grid moves the selection on every frame. Written
+      // with `setState`, each of those frames rebuilt the whole card. Widget
+      // identity is what tells a rebuilt subtree from a repainted one.
       await pumpPicker(tester);
       final gridBefore = tester.widget<GridView>(find.byType(GridView));
       final fieldBefore = tester.widget<EditableText>(
@@ -368,13 +365,11 @@ void main() {
     });
 
     testWidgets('typing rebuilds the grid and not the field', (tester) async {
-      // Both sides of the rule at once. A query genuinely changes what the
-      // grid holds, so that half must not be optimised away with the hovers —
-      // and it does not change the search field, so rebuilding
-      // `OverlaySearchField` and its `EditableText` on every character was
-      // work for a widget whose content had not moved. That is what holding
-      // the results in a notifier buys, and it is the half that would
-      // regress silently.
+      // Both sides of the rule at once. A query genuinely changes what the grid
+      // holds, so that half must not be optimised away with the hovers — and it
+      // does not change the search field, so rebuilding `OverlaySearchField` and
+      // its `EditableText` on every character was work for a widget whose content
+      // had not moved.
       await pumpPicker(tester);
       final gridBefore = tester.widget<GridView>(find.byType(GridView));
       final fieldBefore = tester.widget<EditableText>(
@@ -399,12 +394,10 @@ void main() {
     });
 
     testWidgets('the grid builds little more than it shows', (tester) async {
-      // `GridView.builder` is a sliver and is already lazy; what it was
-      // over-building is the cache extent, which defaults to 250 logical
-      // pixels — five and a half rows either side of a seven-row viewport, so
-      // the first frame laid out about a hundred and eighty cells to show
-      // seventy, each one a paragraph. This pins the extent that replaced it
-      // by counting what a full grid actually builds.
+      // `GridView.builder` is already lazy; what it was over-building is the cache
+      // extent, which defaults to 250 logical pixels — five and a half rows either
+      // side of a seven-row viewport, so the first frame laid out about a hundred
+      // and eighty cells to show seventy. This pins the extent that replaced it.
       final wide = [
         for (var i = 0; i < 400; i++)
           SearchableEmoji(

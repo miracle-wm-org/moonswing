@@ -25,12 +25,11 @@ class WorkspacesConfig {
     this.urgentFlashSeconds = 5.0,
   });
 
-  /// Whether each workspace button carries the icons of the applications open
-  /// on it. On by default.
+  /// Whether each workspace button carries the icons of the applications open on
+  /// it. On by default.
   ///
-  /// The buttons then size to their contents, so a workspace holding three
-  /// windows is wider than an empty one — see `_WorkspaceButton`, whose square
-  /// 16px box became a *minimum* for this.
+  /// The buttons then size to their contents, so `_WorkspaceButton`'s square 16px
+  /// box is a *minimum* rather than a fixed size.
   final bool showAppIcons;
 
   /// Rendered icon width/height, in logical pixels.
@@ -40,25 +39,21 @@ class WorkspacesConfig {
   /// Without a cap a workspace with a dozen windows takes the whole bar.
   final int maxIcons;
 
-  /// Whether a workspace carrying something urgent breathes in the theme's
-  /// accent until it is looked at. On by default.
+  /// Whether a workspace carrying something urgent breathes in the theme's accent
+  /// until it is looked at. On by default.
   ///
-  /// Costs no I/O of its own: miracle reports urgency on the `GET_WORKSPACES`
-  /// entry the button is already built from, and announces a change as a
-  /// `workspace` event the row is already subscribed to — so this is a flag
-  /// read off a reply that had to be fetched anyway. See
-  /// [shouldFlashWorkspace].
+  /// Costs no I/O: miracle reports urgency on the `GET_WORKSPACES` entry the
+  /// button is already built from, and announces a change as a `workspace` event
+  /// the row is already subscribed to. See [shouldFlashWorkspace].
   final bool flashUrgent;
 
-  /// How long one full breath of that flash takes, in seconds — out of the
-  /// resting colour, up to the accent, and back.
+  /// How long one full breath of that flash takes, in seconds.
   ///
-  /// Deliberately slow. This is a bar dot reporting something that has
-  /// *already* happened and will keep being true until the user goes and looks
-  /// at it, so it may be on screen for minutes; anything quick enough to read
-  /// as a blink is a strobe in the corner of the eye for the whole of that
-  /// time. Clamped rather than free, because a period near zero is that
-  /// strobe and one past half a minute never visibly moves.
+  /// Deliberately slow: this is a bar dot reporting something that has *already*
+  /// happened and stays true until the user goes and looks, so it may be on
+  /// screen for minutes, and anything quick enough to read as a blink is a strobe
+  /// in the corner of the eye. Clamped, because a period near zero is that strobe
+  /// and one past half a minute never visibly moves.
   final double urgentFlashSeconds;
 
   factory WorkspacesConfig.fromMap(Map<String, dynamic>? map) {
@@ -106,12 +101,12 @@ class WorkspaceApps {
 /// The `app_id` of [node], or null when it is a split container rather than a
 /// window.
 ///
-/// XWayland toplevels carry no `app_id` at all; `window_properties` is where
-/// their WM class arrives, and it is the same string `StartupWMClass=` names.
+/// XWayland toplevels carry no `app_id`; `window_properties` is where their WM
+/// class arrives, the same string `StartupWMClass=` names.
 ///
 /// Deliberately not `ContainerNode.isWindow`, which the library defines as
-/// `window != null` — that is the *X11* window id, so under a Wayland
-/// compositor it is null for very nearly everything on screen.
+/// `window != null` — that is the *X11* window id, so under Wayland it is null
+/// for very nearly everything on screen.
 String? containerAppId(ContainerNode node) =>
     _nonEmpty(node.appId) ??
     _nonEmpty(node.windowProperties.className) ??
@@ -170,18 +165,15 @@ List<String> appIdsForWorkspace(
 
 /// Whether the button for [workspace] should breathe in the theme's accent.
 ///
-/// `miracle.dart` 2.1 made `WorkspaceResult.urgent` real — it was documented
-/// as "legacy, and always `false`" before — so this is a flag on the
-/// `GET_WORKSPACES` entry the button is already built from, and the flash
-/// costs no round-trip of its own. Urgency propagates up miracle's tree, so
-/// the workspace's own flag already answers for every window on it, floating
-/// ones and ones nested in split containers included.
+/// `miracle.dart` 2.1 made `WorkspaceResult.urgent` real, so this is a flag on
+/// the `GET_WORKSPACES` entry the button is already built from and the flash
+/// costs no round-trip. Urgency propagates up miracle's tree, so the workspace's
+/// own flag answers for every window on it.
 ///
-/// **Never the focused workspace**, which is one guard doing two jobs that
-/// happen to agree: the user is already looking at it, and it is the one place
-/// the flag can go stale — miracle clears urgency when the window is focused,
-/// and the `GET_WORKSPACES` that would say so is still in flight on the frame
-/// the switch lands.
+/// **Never the focused workspace**, one guard doing two jobs that agree: the user
+/// is already looking at it, and it is the one place the flag can go stale —
+/// miracle clears urgency on focus, and the `GET_WORKSPACES` that would say so is
+/// still in flight on the frame the switch lands.
 bool shouldFlashWorkspace(WorkspacesConfig config, WorkspaceResult workspace) =>
     config.flashUrgent && workspace.urgent && !workspace.focused;
 
@@ -192,9 +184,8 @@ bool shouldFlashWorkspace(WorkspacesConfig config, WorkspaceResult workspace) =>
 /// What [WorkspaceAppsStore] needs from a Miracle connection, behind a seam a
 /// test can satisfy without a socket.
 ///
-/// [token] is the identity the store compares on, because a
-/// [MiracleConnection] is single-use and every reconnect hands the bars a
-/// different instance.
+/// [token] is the identity the store compares on, because a [MiracleConnection]
+/// is single-use and every reconnect hands the bars a different instance.
 @immutable
 class WorkspaceTreeSource {
   const WorkspaceTreeSource({
@@ -218,13 +209,11 @@ class WorkspaceTreeSource {
 
 /// Whether [event] can have changed which applications are on which workspace.
 ///
-/// The filter is the point of the event-driven design rather than an
-/// optimisation on top of it: `window` fires on every focus change, so an
-/// unfiltered listener would re-read the whole window tree on each alt-tab —
-/// and, since miracle.dart 2.1, on every urgency hint raised or cleared
-/// anywhere on the machine, which is announced on both facilities at once and
-/// moves no window. Both switches are exhaustive so that a change miracle.dart
-/// grows later forces a decision here rather than being silently ignored.
+/// The filter is the point of the event-driven design rather than an optimisation
+/// on top: `window` fires on every focus change, so an unfiltered listener would
+/// re-read the whole tree on each alt-tab — and, since miracle.dart 2.1, on every
+/// urgency hint raised or cleared anywhere, which moves no window. Both switches
+/// are exhaustive, so a change miracle.dart grows later forces a decision here.
 @visibleForTesting
 bool wakesWorkspaceApps(Event event) => switch (event) {
       WorkspaceEvent(:final change) => switch (change) {
@@ -238,11 +227,10 @@ bool wakesWorkspaceApps(Event event) => switch (event) {
           WorkspaceChange.reload =>
             true,
           // miracle.dart 2.1's other new arm, and the `focused` exclusion's
-          // twin: miracle sends this alongside the window event below so that
-          // a bar watching workspaces sees urgency without walking the tree —
-          // which is exactly what the row does, off `GET_WORKSPACES`. Waking
-          // here would be a whole `GET_TREE` per notification, for icons that
-          // cannot have moved.
+          // twin: miracle sends this alongside the window event so a bar watching
+          // workspaces sees urgency without walking the tree — which is what the
+          // row does, off `GET_WORKSPACES`. Waking here would be a whole
+          // `GET_TREE` per notification, for icons that cannot have moved.
           WorkspaceChange.urgent => false,
           WorkspaceChange.unknown => true,
         },
@@ -274,33 +262,27 @@ bool wakesWorkspaceApps(Event event) => switch (event) {
       _ => false,
     };
 
-/// The window tree, reduced to "which applications are on which workspace",
-/// for every bar on the machine.
+/// The window tree reduced to "which applications are on which workspace", for
+/// every bar on the machine.
 ///
-/// Same singleton-`ChangeNotifier` shape as `OsdStore`/`TrayStore`, with
-/// `SystemStatsStore`'s lease rule: the `GET_TREE` round-trip runs only while
-/// at least one workspace row is on screen *and* has its icons switched on, so
-/// a two-monitor setup shares one reader and a shell with the feature off pays
-/// nothing at all.
+/// The singleton-`ChangeNotifier` shape, with `SystemStatsStore`'s lease rule:
+/// the `GET_TREE` round-trip runs only while at least one workspace row is on
+/// screen *and* has its icons switched on.
 ///
-/// **It is driven by events, and never by a timer.** miracle.dart 2.0 decodes
-/// `window` and `output` events (before it, every event type but `workspace`
-/// threw an `UnsupportedError` from inside the socket's own data handler, which
-/// tore down the stream — so this store polled instead, and `MiracleManager`
-/// could not subscribe to `output` at all). [wakesWorkspaceApps] is the filter.
+/// **It is driven by events, never by a timer.** miracle.dart 2.0 decodes
+/// `window` and `output` events; before it, every type but `workspace` threw from
+/// inside the socket's own data handler, which is why this store polled.
+/// [wakesWorkspaceApps] is the filter.
 ///
 /// Three things a change here has to keep true:
 ///
-/// - **A fetch that arrives mid-flight is coalesced, not dropped.** With no
-///   timer behind this, a discarded refetch leaves the row stale until the next
-///   unrelated event — and opening three windows in a burst is three events
-///   over one round-trip.
-/// - **A read that finds nothing new must not notify.** Every panel on every
-///   monitor listens, so re-laying every bar to redraw identical icons is the
-///   cost this would otherwise impose. [_publish] compares a signature.
-/// - **A tree that will not parse costs the icons, never the row.** That is an
-///   adornment failing, and the workspace buttons must still render and still
-///   switch.
+/// - **A fetch that arrives mid-flight is coalesced, not dropped.** With no timer
+///   behind this, a discarded refetch leaves the row stale until the next
+///   unrelated event.
+/// - **A read that finds nothing new must not notify**, or every bar on every
+///   monitor re-lays to redraw identical icons. [_publish] compares a signature.
+/// - **A tree that will not parse costs the icons, never the row.** The workspace
+///   buttons must still render and still switch.
 class WorkspaceAppsStore extends ChangeNotifier {
   WorkspaceAppsStore._();
 

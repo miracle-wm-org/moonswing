@@ -1,13 +1,12 @@
 /// Shared field readers for hand-editable TOML tables.
 ///
-/// The invariant every config class in the shell follows: **a wrongly-typed
-/// value costs that one key, never the whole table.** A throw out of any
-/// `fromMap` is caught by `AppConfig.load`, which answers by discarding the
-/// user's *entire* config — so nothing here ever throws. Values are
-/// type-tested and coerced (`height = 32.0` in TOML is a double, but the
-/// field wants an int), NaN and the infinities fall back rather than clamp
-/// (infinity survives `clamp()`, and `double.nan.toInt()` throws), and
-/// anything else yields the caller's fallback.
+/// The invariant every config class in the shell follows: **a wrongly-typed value
+/// costs that one key, never the whole table.** A throw out of any `fromMap` is
+/// caught by `AppConfig.load`, which answers by discarding the user's *entire*
+/// config — so nothing here ever throws. Values are type-tested and coerced
+/// (`height = 32.0` in TOML is a double, but the field wants an int), NaN and the
+/// infinities fall back rather than clamp, and anything else yields the caller's
+/// fallback.
 library;
 
 extension TomlReader on Map<String, dynamic> {
@@ -50,11 +49,10 @@ extension TomlReader on Map<String, dynamic> {
   /// A double, or null when the key is absent, not a number, not finite, or
   /// outside [min]/[max].
   ///
-  /// Out of range is *absent* rather than clamped, unlike [doubleOr]: the
-  /// callers of this are optional coordinates and the like, where a value the
-  /// schema cannot accept is a typo rather than an over-enthusiastic setting,
-  /// and clamping it would silently substitute a plausible-looking answer for
-  /// the one the user meant.
+  /// Out of range is *absent* rather than clamped, unlike [doubleOr]: the callers
+  /// of this are optional coordinates and the like, where a value the schema
+  /// cannot accept is a typo rather than an over-enthusiastic setting, and
+  /// clamping would silently substitute a plausible answer for the one meant.
   double? doubleOrNull(String key, {double? min, double? max}) {
     final raw = this[key];
     if (raw is! num || !raw.isFinite) return null;

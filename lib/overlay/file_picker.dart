@@ -2,22 +2,18 @@
 //
 // The OS-native picker (`file_selector`) opens a separate top-level window,
 // which the compositor stacks *behind* the layer-shell panels — unusable. This
-// component instead renders a themed modal into the settings overlay's root
-// [Overlay] (the same mechanism the color picker uses in
-// `overlay/settings/shell.dart`), so it always appears on top of the panel.
+// renders a themed modal into the settings overlay's root [Overlay] instead, so
+// it always appears on top of the panel.
 //
-// It is deliberately general: [showFilePicker] takes a list of
-// [FilePickerFilter]s and a multi-select flag, so any settings surface can reuse
-// it, not just the wallpaper flow.
+// Deliberately general: [showFilePicker] takes a list of [FilePickerFilter]s and
+// a multi-select flag, so any settings surface can reuse it.
 //
-// Two things about how it is *read* rather than what it does. The right pane
-// has two forms — tiles, which is what a wallpaper is picked in, and a
-// line-by-line list, which is what a name is read in — chosen by a toggle in
-// the pane's own toolbar, because neither is right for both jobs. And that
-// toolbar's search field filters the folder being browsed and nothing else:
-// the tree is how you change folder, so a filter that reached across the
-// filesystem would be a second, slower way to navigate rather than a way to
-// find something here. Ctrl+F focuses it from anywhere in the dialog.
+// Two things about how it is *read*. The right pane has two forms — tiles for
+// picking a wallpaper, a line-by-line list for reading a name — because neither
+// is right for both jobs. And the toolbar's search filters the folder being
+// browsed and nothing else: the tree is how you change folder, so a filter
+// reaching across the filesystem would be a slower way to navigate. Ctrl+F
+// focuses it from anywhere in the dialog.
 
 import 'dart:async';
 import 'dart:io';
@@ -86,8 +82,7 @@ class FilePickerFilter {
 /// `null` if the user cancelled (Escape, the scrim, or Cancel).
 ///
 /// The modal is inserted into the root [Overlay] so a nested [Navigator]'s
-/// clipped overlay can't cut it off — see the color picker in
-/// `overlay/settings/shell.dart` for the same pattern.
+/// clipped overlay cannot cut it off.
 Future<List<String>?> showFilePicker(
   BuildContext context, {
   required List<FilePickerFilter> filters,
@@ -233,9 +228,8 @@ FaIconData iconForFile(String path) {
 
 /// How the right-hand pane draws what is in the current folder.
 ///
-/// Two forms rather than one because the two jobs this picker does want
-/// different things: a wallpaper is chosen by looking at it, and a config file
-/// is chosen by reading its name, its size and when it last changed. Tiles show
+/// Two forms because the two jobs want different things: a wallpaper is chosen by
+/// looking at it, a config file by reading its name, size and date. Tiles show
 /// four names in the width a list shows one; the list shows twenty rows in the
 /// height tiles show six.
 enum FilePickerViewMode {
@@ -249,9 +243,9 @@ enum FilePickerViewMode {
 /// One row of a directory listing, with the [FileStat] fields the list form
 /// prints already read.
 ///
-/// Statted once per directory read rather than once per build: the pane
-/// rebuilds on every keystroke in the search field, and a `statSync` per
-/// visible row per keystroke is a syscall storm for two columns of grey text.
+/// Statted once per directory read rather than once per build: the pane rebuilds
+/// on every keystroke, and a `statSync` per visible row per keystroke is a
+/// syscall storm for two columns of grey text.
 @immutable
 class PickerEntry {
   const PickerEntry({
@@ -277,8 +271,7 @@ class PickerEntry {
 }
 
 /// Lists [path] as [PickerEntry]s, directories first, each group sorted
-/// case-insensitively by name — [readDir] plus [sortEntries] plus one stat per
-/// entry.
+/// case-insensitively by name.
 ///
 /// Symlinks are skipped, which is [readDir]'s `followLinks: false` showing
 /// through: the pane has only ever rendered files and directories.
@@ -316,10 +309,8 @@ PickerEntry _statEntry(FileSystemEntity entity) {
 /// Whether [name] matches the search [query].
 ///
 /// Every whitespace-separated token has to appear somewhere in the name, in any
-/// order and without regard to case — so `sun 4k` finds `4K-sunset-02.png`,
-/// which a single substring match would not. An empty query matches everything,
-/// which is what makes "no search" and "a search that matches all of it" the
-/// same code path.
+/// order and case-insensitively — so `sun 4k` finds `4K-sunset-02.png`, which a
+/// single substring match would not. An empty query matches everything.
 bool matchesSearch(String name, String query) {
   final tokens =
       query.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
@@ -359,10 +350,9 @@ String formatEntrySize(PickerEntry entry) {
 /// otherwise.
 ///
 /// ISO rather than `26 Aug` because this is a column of dates read against each
-/// other — sortable order and a fixed width are worth more here than a month
-/// somebody says out loud — and because it needs no month table, which is the
-/// one thing `lib/moon/moon_format.dart` owns and has no business lending to a
-/// file picker.
+/// other, where sortable order and a fixed width are worth more — and because it
+/// needs no month table, which `lib/moon/moon_format.dart` owns and has no
+/// business lending to a file picker.
 String formatEntryModified(DateTime when, {required DateTime now}) {
   if (when.year == now.year &&
       when.month == now.month &&
@@ -393,11 +383,10 @@ const double _kListRowHeight = 38;
 
 /// The form the picker last opened in, for the life of the process.
 ///
-/// Not config and not persisted: this is chrome state like the OSD's, and
-/// `config.toml` has no business carrying which half of a modal's toolbar was
-/// pressed last. It is remembered at all because adding three wallpapers is
-/// three opens of this dialog, and re-pressing the toggle on every one of them
-/// is the kind of small friction a modal is judged by.
+/// Not config and not persisted: this is chrome state like the OSD's. It is
+/// remembered at all because adding three wallpapers is three opens of this
+/// dialog, and re-pressing the toggle on each is the friction a modal is judged
+/// by.
 FilePickerViewMode _stickyViewMode = FilePickerViewMode.tiles;
 
 const double _kTileWidth = 148;
@@ -449,13 +438,13 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
   final _searchController = TextEditingController();
   final _searchFocus = FocusNode(debugLabel: 'file-picker-search');
 
-  /// The search text, as a notifier rather than as `setState` state.
+  /// The search text, as a notifier rather than `setState` state.
   ///
-  /// Every keystroke has to re-filter the file pane and nothing else, and the
-  /// tree pane is the expensive half of this dialog: each expanded node lists
-  /// its own children ([subDirs]) on build, so a `setState` per character would
-  /// walk the open branch of the filesystem tree once per keypress. Only the
-  /// pane body, the footer's counts and the field's own clear button listen.
+  /// Every keystroke re-filters the file pane and nothing else, and the tree pane
+  /// is the expensive half: each expanded node lists its own children on build,
+  /// so a `setState` per character would walk the open branch of the filesystem
+  /// once per keypress. Only the pane body, the footer's counts and the field's
+  /// clear button listen.
   final _query = ValueNotifier<String>('');
 
   /// Roots shown at the top of the tree: the user's home and the filesystem
@@ -565,12 +554,11 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
   /// Ctrl+F starts a search and Escape ends one; only an Escape with nothing to
   /// end closes the dialog.
   ///
-  /// Two-stage rather than one because a search is a state the user is *in*:
-  /// pressing Escape to get out of a filtered folder and having the whole
-  /// picker vanish is the same surprise as a browser closing its tab on
-  /// Escape. Both arrive here from anywhere in the card, including from inside
-  /// the search field — key events walk up from the focused node, and this
-  /// [Focus] is an ancestor of every one of them.
+  /// Two-stage because a search is a state the user is *in*: pressing Escape to
+  /// leave a filtered folder and having the whole picker vanish is the same
+  /// surprise as a browser closing its tab. Both arrive here from anywhere in the
+  /// card, since key events walk up from the focused node and this [Focus] is an
+  /// ancestor of every one.
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -1015,10 +1003,9 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
 /// A full-screen file picker for a window of its own.
 ///
 /// [showFilePicker] inserts into the nearest root [Overlay], which the desktop
-/// surface has none of — and could not usefully have, since it is on the
-/// background layer and anything drawn there sits under every application
-/// window. The root creates an overlay-layer window and renders this into it;
-/// `FilePickerController` is the seam that asks for one.
+/// surface has none of — and could not usefully have, being on the background
+/// layer under every application window. The root creates an overlay-layer window
+/// and renders this into it; `FilePickerController` is the seam.
 class FilePickerWindow extends StatelessWidget {
   const FilePickerWindow({
     super.key,
@@ -1064,11 +1051,10 @@ class FilePickerWindow extends StatelessWidget {
 
 /// The tiles-or-list switch, in the file pane's own toolbar.
 ///
-/// Two icons in one bordered box rather than two loose buttons, so the pair
-/// reads as one control with a state — which is what it is. Deliberately not
-/// [SettingsSegmented]: that spells its options as words, and "Tiles"/"List"
-/// beside a search field is two labels' worth of chrome for a thing whose
-/// glyphs say it.
+/// Two icons in one bordered box rather than two loose buttons, so the pair reads
+/// as one control with a state. Deliberately not [SettingsSegmented], which
+/// spells its options as words: "Tiles"/"List" beside a search field is two
+/// labels' worth of chrome for a thing whose glyphs say it.
 class _ViewModeToggle extends StatelessWidget {
   const _ViewModeToggle({required this.mode, required this.onChanged});
 
@@ -1137,13 +1123,11 @@ class _ViewModeToggle extends StatelessWidget {
 /// A single row in the directory tree, plus (when expanded) its child rows.
 ///
 /// The tree's expansion/selection state lives in [_FilePickerDialogState]; this
-/// node reads it and rebuilds when the dialog does. Children are listed lazily —
-/// only when the node is expanded.
+/// node reads it and rebuilds when the dialog does. Children are listed lazily.
 ///
-/// The node is stateless and the hover highlight lives in [_TreeRow], so
-/// hovering a row rebuilds *only that row* — it never re-runs this node's build,
-/// which would otherwise re-list the directory ([subDirs]) and rebuild the whole
-/// child subtree on every pointer move, and flicker.
+/// The node is stateless and the hover highlight lives in [_TreeRow], so hovering
+/// a row rebuilds *only that row* — otherwise every pointer move would re-list
+/// the directory and rebuild the whole child subtree.
 class _TreeNode extends StatelessWidget {
   const _TreeNode({
     super.key,
@@ -1455,12 +1439,11 @@ class _FileTile extends StatelessWidget {
   }
 }
 
-/// A file entry in the right pane's list form: one line, with the name given
-/// the room and the size and date set quietly beside it.
+/// A file entry in the right pane's list form: one line, with the name given the
+/// room and the size and date set quietly beside it.
 ///
 /// Two lines' worth of information in one line's height is the point of this
-/// form — the tile can show a picture, and this can show what the picture is
-/// called, how big it is and when it last changed without any of them wrapping.
+/// form.
 class _FileRow extends StatelessWidget {
   const _FileRow({
     required this.entry,

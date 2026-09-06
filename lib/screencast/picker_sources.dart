@@ -6,10 +6,10 @@ import 'preview.dart';
 
 /// Builds the picker's tiles from the live capture connection.
 ///
-/// Preview sessions are throttled to [previewFps] and are *not* handed over
-/// when the user confirms — the portal builds fresh streaming sessions
-/// instead, so a session's lifetime never spans the pick. Concurrent sessions
-/// on one source are fine (verified against miracle-wm).
+/// Preview sessions are throttled to [previewFps] and are *not* handed over when
+/// the user confirms — the portal builds fresh streaming sessions instead, so a
+/// session's lifetime never spans the pick. Concurrent sessions on one source are
+/// fine (verified against miracle-wm).
 ({List<PickerSource> monitors, List<PickerSource> windows}) buildPickerSources(
   CaptureConnection connection,
   PickRequest request, {

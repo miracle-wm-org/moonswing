@@ -2,14 +2,12 @@
 // behind a click.
 //
 // All the weather bookkeeping this used to carry — the IP geolocation, the
-// forecast request, the parse, the refresh timer, the unit — now lives in
-// `lib/weather/`, which the desktop widget reads as well. One fetcher for the
-// machine, leased; two bars on two monitors used to mean two of everything, and
-// the desktop widget would have made it three.
+// forecast request, the parse, the refresh timer, the unit — lives in
+// `lib/weather/` now, which the desktop widget reads as well. One fetcher for the
+// machine, leased.
 //
-// What is left here is the bar's own rendering, and the config re-export that
-// keeps `settings/shell/modules.dart` and anything else importing
-// `WeatherConfig` from this file working.
+// What is left here is the bar's own rendering, plus the config re-export that
+// keeps anything importing `WeatherConfig` from this file working.
 
 import 'package:flutter/widgets.dart';
 
@@ -115,11 +113,10 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
     final reading = store.current;
     if (reading == null) {
       // A failure is a visible state, not a blank space — the rule the
-      // notification daemon's broken dot documents. The shell cannot tell a
-      // machine with no network from an API having a quiet day, and an empty
-      // bar is indistinguishable from a module the user never enabled. Clicking
-      // it retries, because every failure here is recoverable without
-      // restarting the shell and the shell cannot notice it recovering.
+      // notification daemon's broken dot documents. An empty bar is
+      // indistinguishable from a module the user never enabled. Clicking it
+      // retries, because every failure here is recoverable without restarting the
+      // shell and the shell cannot notice it recovering.
       return _WeatherUnavailable(
         message: store.error.isEmpty ? 'No weather reading' : store.error,
         onRetry: store.refresh,
@@ -214,11 +211,9 @@ class WeatherForecastPopup extends StatelessWidget {
         final forecast = store.forecast;
 
         // [ShellTextRoot], not a bare [DefaultTextStyle]: popup content is laid
-        // out directly under its own FlutterView, so nothing above it supplies
-        // a [Directionality] and every Text and Row in this card throws
-        // without one. Dropping it — which is what turned this popup into an
-        // empty card — costs the whole card rather than one row, because the
-        // failure is in the subtree's own layout.
+        // out directly under its own FlutterView, so nothing above it supplies a
+        // [Directionality] and every Text and Row in this card throws without
+        // one. Dropping it costs the whole card rather than one row.
         return ShellTextRoot(
           style: TextStyle(
             color: theme.popupForeground,
@@ -398,11 +393,9 @@ class _Metric extends StatelessWidget {
 }
 
 /// A `Table` rather than a column of `Row`s, because the popup is sized to its
-/// content and `MainAxisAlignment.spaceBetween` — what these rows used to use to
-/// line their columns up — means nothing without a bounded width.
-/// `IntrinsicColumnWidth` sizes each column to its widest cell and keeps them
-/// aligned across every row, and with no flex column the table shrink-wraps, so
-/// the card ends up as wide as its widest day.
+/// content and `MainAxisAlignment.spaceBetween` means nothing without a bounded
+/// width. `IntrinsicColumnWidth` sizes each column to its widest cell and keeps
+/// them aligned across every row, and with no flex column the table shrink-wraps.
 class _ForecastTable extends StatelessWidget {
   const _ForecastTable({required this.days, required this.theme});
 
