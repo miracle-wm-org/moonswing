@@ -10,26 +10,21 @@ The purpose of this project is to:
 3. Experiment with new Wayland protocols, portals, and everything else
 4. Have fun and build something fun
 
-**Use this project at your own risk!** This project will never have real
-releases and may be entirely unstable. The nightly snap will be the only
-supported packaging from my end. The config format is subject to change
+**Use this project at your own risk!** This project may be entirely unstable.
+The snap will be the only supported packaging from my end. The config format is subject to change
 at any time.
 
 ![Graceful Shell demo](demo.png)
 
 ## Install
 
-One command installs the latest nightly snap (amd64):
+To get the latest nightly snap (amd64):
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh | sh
 ```
 
-It downloads the newest `graceful-shell_*.snap` from the [nightly release](https://github.com/miracle-wm-org/graceful-shell/releases/tag/nightly)
-and installs it with `--classic` (the shell needs full access to the Wayland
-compositor) and `--dangerous` (the file is downloaded, not store-signed). It
-asks for `sudo` because `snap install` needs root. Then run:
-
+Then, in your environment of choice (miracle-wm, Miriway, Sway, etc.), run:
 ```sh
 graceful-shell
 ```
@@ -38,12 +33,6 @@ Re-run the same command to update, and to remove:
 
 ```sh
 sudo snap remove graceful-shell
-```
-
-Prefer to do it by hand? Download the `.snap` from that release page and:
-
-```sh
-sudo snap install ./graceful-shell_*.snap --classic --dangerous
 ```
 
 FYI! The snap cannot install the PAM service file for you.
