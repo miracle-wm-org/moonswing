@@ -3,16 +3,13 @@ import 'dart:math' as math;
 
 import 'package:ffi/ffi.dart';
 
-/// C struct layouts from `wayland-util.h`, used both for the interface
-/// metadata we hand libwayland (see `wl_interfaces.dart`) and for reading the
-/// core interface structs libwayland itself exports as data symbols.
+/// C struct layouts from `wayland-util.h`, used both for the interface metadata
+/// we hand libwayland and for reading the core interface structs libwayland
+/// itself exports as data symbols.
 ///
 /// ```c
-/// struct wl_message {
-///   const char *name;
-///   const char *signature;
-///   const struct wl_interface **types;
-/// };
+/// struct wl_message { const char *name; const char *signature;
+///                     const struct wl_interface **types; };
 /// ```
 final class WlMessage extends ffi.Struct {
   external ffi.Pointer<Utf8> name;
@@ -22,12 +19,9 @@ final class WlMessage extends ffi.Struct {
 
 /// ```c
 /// struct wl_interface {
-///   const char *name;
-///   int version;
-///   int method_count;
-///   const struct wl_message *methods;
-///   int event_count;
-///   const struct wl_message *events;
+///   const char *name; int version;
+///   int method_count; const struct wl_message *methods;
+///   int event_count;  const struct wl_message *events;
 /// };
 /// ```
 final class WlInterface extends ffi.Struct {
@@ -55,10 +49,10 @@ final class WlArray extends ffi.Struct {
 
 /// A `union wl_argument` array for `wl_proxy_marshal_array_flags`.
 ///
-/// Each argument is one 8-byte union slot. Integers (`i`/`u`/`h`) occupy the
-/// low 32 bits (little-endian, so writing the whole Int64 is equivalent),
-/// objects and strings are pointer addresses, and `new_id` slots are left 0 —
-/// the marshaller fills them from the interface/version parameters.
+/// Each argument is one 8-byte union slot. Integers (`i`/`u`/`h`) occupy the low
+/// 32 bits (little-endian, so writing the whole Int64 is equivalent), objects and
+/// strings are pointer addresses, and `new_id` slots are left 0 — the marshaller
+/// fills them from the interface/version parameters.
 class WlArgs {
   WlArgs(int count) : _ptr = calloc<ffi.Int64>(math.max(count, 1));
 

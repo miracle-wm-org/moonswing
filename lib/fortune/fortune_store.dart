@@ -1,22 +1,18 @@
-// The fortune, for the whole shell: one fork, however many surfaces are
-// drawing it.
+// The fortune, for the whole shell: one fork, however many surfaces draw it.
 //
-// `WeatherStore`'s singleton-`ChangeNotifier`-with-leases shape, minus the
-// timer. Two differences follow from what a fortune *is*:
+// `WeatherStore`'s singleton-`ChangeNotifier`-with-leases shape, minus the timer.
+// Two differences follow from what a fortune *is*:
 //
 // - **Nothing polls.** A fortune is not a reading of anything — it does not go
-//   stale, and one that replaced itself on a cadence would be a card that
-//   silently threw away the line the user was in the middle of reading. It is
-//   fetched once, when the first surface asks for it, and thereafter only when
-//   somebody presses the button.
-// - **The lease still matters, and for the usual reason.** The desktop surface
-//   is one FlutterView per monitor, so without a store this would be one fork
-//   of `fortune` per display showing a different fortune on each — and a
-//   two-monitor user pressing refresh on one card would watch the other one
-//   not move. Every surface renders the same text because there is one of it.
+//   stale, and one that replaced itself on a cadence would silently throw away
+//   the line the user was in the middle of reading. It is fetched once, when the
+//   first surface asks, and thereafter only when somebody presses the button.
+// - **The lease still matters.** The desktop surface is one FlutterView per
+//   monitor, so without a store this would be one fork per display showing a
+//   different fortune on each — and a two-monitor user pressing refresh on one
+//   card would watch the other not move.
 //
-// Flutter-free apart from `ChangeNotifier`, like the other stores: no widgets
-// and no `BuildContext`, so the whole of this is a plain unit test.
+// Flutter-free apart from `ChangeNotifier`, so the whole of this is a unit test.
 
 import 'dart:async';
 
@@ -52,10 +48,9 @@ class FortuneStore extends ChangeNotifier {
 
   /// Whether a fetch is in flight *and there is nothing to show yet*.
   ///
-  /// A refresh over an existing fortune deliberately does not report as
-  /// loading: replacing the card's whole contents with a spinner for the
-  /// handful of milliseconds a fork takes is a flash, not feedback. The button
-  /// animates itself instead — see `FortuneRefreshButton`.
+  /// A refresh over an existing fortune deliberately does not report as loading:
+  /// replacing the card's contents with a spinner for the handful of milliseconds
+  /// a fork takes is a flash, not feedback.
   bool get loading => _loading && !hasFortune;
 
   String _error = '';
@@ -96,15 +91,13 @@ class FortuneStore extends ChangeNotifier {
 
   // --- the work ------------------------------------------------------------
 
-  /// Fetch a new fortune. What the refresh button calls, and what the first
-  /// lease calls.
+  /// Fetch a new fortune. What the refresh button calls, and what the first lease
+  /// calls.
   ///
-  /// Nothing is notified at the *start* of a fetch, which is what makes this
-  /// safe to call from [acquire] — that runs inside the acquiring widget's
-  /// `initState`, and a synchronous `notifyListeners` from there is a
-  /// `setState` on every *other* surface already holding a lease, during a
-  /// build. `WeatherStore.refresh` is arranged the same way and for the same
-  /// reason.
+  /// Nothing is notified at the *start* of a fetch, which is what makes this safe
+  /// to call from [acquire] — that runs inside the acquiring widget's `initState`,
+  /// and a synchronous `notifyListeners` from there is a `setState` on every other
+  /// surface already holding a lease, during a build.
   Future<void> refresh() async {
     if (_inFlight) return;
     _inFlight = true;

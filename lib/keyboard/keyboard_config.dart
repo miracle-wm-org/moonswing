@@ -1,14 +1,13 @@
 // The `[keyboard]` section: the user's ordered list of input sources.
 //
 // Beside its feature the way `power/power_config.dart` sits beside the power
-// menu, and re-exported from `config.dart` so importers need not care where it
-// moved to.
+// menu, and re-exported from `config.dart`.
 //
-// This is deliberately *not* a field of `AppConfig`. Nothing above `runWidget`
-// needs it and no `main()` wiring pushes it anywhere — which is the reason
-// `[power]` is there — so putting it in would force `KeyboardStore` either to
-// read `ConfigStore.appConfig`, which re-runs `Module.loadAll` on every
-// keystroke in the settings UI, or to parse the same table twice.
+// Deliberately *not* a field of `AppConfig`. Nothing above `runWidget` needs it
+// and no `main()` wiring pushes it anywhere, so putting it in would force
+// `KeyboardStore` either to read `ConfigStore.appConfig`, which re-runs
+// `Module.loadAll` on every keystroke in the settings UI, or to parse the same
+// table twice.
 
 import 'package:flutter/foundation.dart';
 
@@ -16,9 +15,9 @@ import 'package:graceful_shell/config_reader.dart';
 
 /// One xkb layout, optionally narrowed to a variant.
 ///
-/// The identity of a source is the *pair*: `de` and `de+nodeadkeys` are two
-/// rows in the user's list, and a variant code is not unique on its own —
-/// `nativo` exists under both `pt` and `br`.
+/// The identity of a source is the *pair*: `de` and `de+nodeadkeys` are two rows
+/// in the user's list, and a variant code is not unique on its own — `nativo`
+/// exists under both `pt` and `br`.
 @immutable
 class InputSource {
   const InputSource(this.layout, {this.variant = ''});
@@ -79,10 +78,10 @@ class KeyboardConfig {
 
   /// The `[[keyboard.sources]]` tables, as sources.
   ///
-  /// A table with no `layout` is **dropped** rather than defaulted — there is
-  /// no honest default for "which keyboard" — and an exact duplicate is
-  /// collapsed, the `[[desktop.widgets]]` id-uniquing precedent: two identical
-  /// sources would activate together and remove together.
+  /// A table with no `layout` is **dropped** rather than defaulted — there is no
+  /// honest default for "which keyboard" — and an exact duplicate is collapsed,
+  /// the `[[desktop.widgets]]` id-uniquing precedent: two identical sources would
+  /// activate together and remove together.
   static List<InputSource> parseSources(List<Map<String, dynamic>> tables) {
     final seen = <InputSource>{};
     final sources = <InputSource>[];

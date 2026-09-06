@@ -12,9 +12,8 @@ import 'package:graceful_shell/scopes.dart';
 /// chrome.
 ///
 /// Takes its resolved [AppEntry] as a parameter rather than looking one up.
-/// `loadAppByPath` **refs** what it returns, so resolving per-build would leak
-/// a `GAppInfo` every frame — the grid resolves once and disposes on change,
-/// exactly as `DockState._loadApps` does.
+/// `loadAppByPath` **refs** what it returns, so resolving per-build would leak a
+/// `GAppInfo` every frame — the grid resolves once and disposes on change.
 class DesktopIconTile extends StatelessWidget {
   const DesktopIconTile({
     super.key,
@@ -113,14 +112,13 @@ class DesktopIconTile extends StatelessWidget {
   }
 }
 
-/// The in-place rename editor: the item's icon with its label replaced by a
-/// text field.
+/// The in-place rename editor: the item's icon with its label replaced by a text
+/// field.
 ///
-/// Enter commits, Escape cancels, and so does losing focus — clicking away is
-/// the third way out and must not leave a half-typed name on screen. The field
-/// only receives keys because the host has flipped the background surface's
-/// layer-shell keyboard mode to `onDemand` for the duration; see
-/// `DesktopLayerState._syncKeyboard`.
+/// Enter commits, Escape cancels, and so does losing focus — clicking away is the
+/// third way out and must not leave a half-typed name on screen. The field only
+/// receives keys because the host has flipped the background surface's keyboard
+/// mode to `onDemand` for the duration.
 class DesktopRenameField extends StatefulWidget {
   const DesktopRenameField({
     super.key,

@@ -4,21 +4,18 @@
 // derived from anything, and its provenance has to be obvious.
 //
 // `base.lst` has no such column. GNOME's `en` for `us` comes from `evdev.xml`'s
-// `<shortDescription>` element, which needs an XML parser this repo has no
-// dependency for (see `xkb_catalog.dart`). So the table below is curated, and
-// the fallback is the layout code itself: an unlisted layout shows `ara` rather
-// than a guessed language, which is worse-looking than GNOME and is never
-// false. If the wording ever matters more than the dependency, [shortCodeFor]
-// is the single function to swap.
+// `<shortDescription>`, which needs an XML parser this repo has no dependency
+// for. So the table below is curated, and the fallback is the layout code itself:
+// an unlisted layout shows `ara` rather than a guessed language, which is
+// worse-looking than GNOME and never false.
 
 import 'package:graceful_shell/keyboard/keyboard_config.dart';
 
-/// Layout codes whose ISO-3166 country differs from the ISO-639 language a
-/// reader expects to see on the badge.
+/// Layout codes whose ISO-3166 country differs from the ISO-639 language a reader
+/// expects to see on the badge.
 ///
-/// Only the ones that differ are listed — `de`, `fr`, `es`, `it`, `ru`, `pl`,
-/// `fi`, `hu`, `tr`, `pt` and most of the rest already *are* their language and
-/// fall through to the identity case.
+/// Only the ones that differ are listed — `de`, `fr`, `es`, `it`, `ru` and most
+/// of the rest already *are* their language and fall through to the identity case.
 const Map<String, String> kLayoutShortCodes = {
   'us': 'en',
   'gb': 'en',
@@ -82,11 +79,10 @@ String shortCodeFor(String layout) {
 
 /// The badge text for each of [sources], positionally.
 ///
-/// Two sources can share a code — `us` and `gb` are both `en` — and a bar
-/// showing `en` twice says nothing about which one is live. gnome-shell's
-/// `InputSourceManager` answers this the same way: the first source keeping a
-/// given code keeps it bare, and each later collision takes a 1-based ordinal
-/// (`en`, `en2`, `en3`).
+/// Two sources can share a code — `us` and `gb` are both `en` — and a bar showing
+/// `en` twice says nothing about which is live. gnome-shell answers this the same
+/// way: the first source keeping a code keeps it bare, and each later collision
+/// takes a 1-based ordinal (`en`, `en2`, `en3`).
 List<String> assignShortCodes(List<InputSource> sources) {
   final counts = <String, int>{};
   final codes = <String>[];
