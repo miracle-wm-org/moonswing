@@ -1,36 +1,28 @@
 // The fortune desktop widget: a line out of `fortune(6)`, over a lamp in the
 // dark, with a button that asks for another one.
 //
-// The fourth entry in `DesktopWidgetRegistry`, and built the way the weather
-// and lunar widgets are: a lease on a store nobody owns, a picture painted to
-// the rim of a card with no padding, and white text on it rather than the
-// theme's — the scene runs from a near-black sky to the glare beside the flame,
-// and no theme foreground is legible across both.
+// The fourth entry in `DesktopWidgetRegistry`, built the way the weather and
+// lunar widgets are: a lease on a store nobody owns, a picture painted to the rim
+// of a card with no padding, and white text on it rather than the theme's — the
+// scene runs from a near-black sky to the glare beside the flame.
 //
 // Three things that are its own:
 //
-// - **It is the first widget whose content the user asks for.** The weather and
-//   the Moon refresh themselves because the thing they report on moves; a
-//   fortune does not, so nothing here polls and the only thing that ever
-//   replaces the text is somebody pressing for it. That makes the button the
-//   feature rather than an affordance beside it, which is why there are two of
-//   them: the explicit one in the corner, and the lamp itself.
-// - **The type size is measured, not chosen.** A fortune is four words or
-//   twelve lines and the card is the same size either way — see
-//   `fitFortuneText`.
-// - **A missing `fortune` is a visible state.** The overwhelmingly likely
-//   reason this card is empty is that the package is not installed, which the
-//   user can fix in one command; the card says so rather than sitting blank.
-//   `NotificationDaemonStatus`'s rule, and `WeatherStore.error`'s.
+// - **It is the first widget whose content the user asks for.** A fortune does
+//   not move, so nothing here polls and the only thing that replaces the text is
+//   somebody pressing for it. That makes the button the feature rather than an
+//   affordance beside it, which is why there are two: the explicit one in the
+//   corner, and the lamp itself.
+// - **The type size is measured, not chosen** — see `fitFortuneText`.
+// - **A missing `fortune` is a visible state.** The likely reason the card is
+//   empty is that the package is not installed, which the user can fix in one
+//   command, so the card says so rather than sitting blank.
 //
 // And one thing it shares with the lunar widget rather than the weather one:
-// **nothing on this card animates.** No ticker, no transition on a new fortune,
-// no spinning glyph — the picture is a still frame of a plume and the text is
-// replaced outright. A wallpaper decoration on a machine that may be doing
-// nothing else has no business repainting, and the only thing left that moves
-// is the hover tint every control in the shell has (`DesktopWidgetFrame`'s own
-// selection rim included). The card is therefore `pumpAndSettle`-able, which
-// the weather widget is not.
+// **nothing on this card animates.** The picture is a still frame and the text is
+// replaced outright; the only thing that moves is the hover tint every control in
+// the shell has. So the card is `pumpAndSettle`-able, which the weather widget is
+// not.
 
 import 'dart:math' as math;
 
@@ -73,14 +65,13 @@ const double _basePadding = 14;
 /// clamped away.
 const double _maxScale = 2.0;
 
-/// The card's chrome scale — the button, the paddings, and the rungs of the
-/// text ladder.
+/// The card's chrome scale — the button, the paddings, and the rungs of the text
+/// ladder.
 ///
-/// The weather widget's `_CardScale`, for its reasons: the **geometric mean**
-/// of the two edge ratios, because a card stretched wide but left one row tall
-/// has no more room for bigger type than it started with; and never below 1,
-/// because the literals are a floor rather than a midpoint and a card under the
-/// reference is already being laid out at its own minimum and clipped.
+/// The weather widget's `_CardScale`, for its reasons: the **geometric mean** of
+/// the two edge ratios, because a card stretched wide but left one row tall has
+/// no more room for bigger type; and never below 1, because the literals are a
+/// floor and a card under the reference is already clipped at its own minimum.
 class _CardScale {
   const _CardScale(this.factor);
 
@@ -222,18 +213,14 @@ const double _buttonBox = 26;
 
 /// The button that asks for another fortune.
 ///
-/// Public because it is the feature: a test that pins "pressing this refreshes"
-/// should not have to find it by walking the card's private types.
+/// Public because it is the feature: a test pinning "pressing this refreshes"
+/// should not have to walk the card's private types.
 ///
-/// A named [SkyIconButton] rather than its own implementation — that control
-/// was generalized out of this one when a second card wanted the same
-/// button, and a second copy of it here is what the settings library's
-/// "generalize, do not clone" rule exists to prevent. What was said about it
-/// still holds and is said there: no spin on tap and no loader while the store
-/// fetches (a fork of `fortune` returns in single-digit milliseconds, so
-/// anything driven by the in-flight flag is a frame of flicker, and this card
-/// does not animate), and it is a *tap* rather than a pan, so the card stays
-/// draggable from under it.
+/// A named [SkyIconButton] rather than its own implementation — that control was
+/// generalized out of this one when a second card wanted it. No spin on tap and
+/// no loader while the store fetches (a fork of `fortune` returns in single-digit
+/// milliseconds, so anything driven by the in-flight flag is a frame of flicker),
+/// and it is a *tap* rather than a pan, so the card stays draggable from under it.
 class FortuneRefreshButton extends StatelessWidget {
   const FortuneRefreshButton({
     super.key,

@@ -1,11 +1,10 @@
 /// The UI over [TimersStore]: the row-and-controls the calendar page and the
 /// clock module's popup both render, the composer that starts a new entry, and
-/// the readout that sits next to the clock in the bar.
+/// the readout beside the clock in the bar.
 ///
 /// Every widget here takes its [TimersStore] as a parameter, defaulting to the
-/// singleton only when it is actually read. That is the `ClockSource` seam the
-/// calendar's clock column uses, and it is what lets these be widget-tested
-/// against a hand-stepped store with no ticker behind it.
+/// singleton only when it is actually read — the `ClockSource` seam, and what
+/// lets these be widget-tested against a hand-stepped store with no ticker.
 library;
 
 import 'package:flutter/widgets.dart';
@@ -29,17 +28,16 @@ const double kTimerRowHeight = 48;
 /// What the composer's field starts with.
 ///
 /// The primary button is therefore live the moment the pane is drawn: "give me
-/// five minutes" is the overwhelmingly common case, and typing it out was the
-/// entire cost of it. Starting a timer puts the field back to this rather than
-/// emptying it, so the next one is one click away too.
+/// five minutes" is the common case, and typing it out was the entire cost of it.
+/// Starting a timer puts the field back to this rather than emptying it.
 const String kDefaultTimerDuration = '5:00';
 
 /// Width of the bar popup's card.
 ///
 /// Pinned, for the reason `modules/sound_control.dart` documents: this popup
-/// rebuilds while it is open (every readout, four times a second) and Flutter's
-/// Linux popup resolves its placement once at map time, so a content-width card
-/// would walk away from the bar as the digits changed.
+/// rebuilds while open (every readout, four times a second) and Flutter's Linux
+/// popup resolves its placement once at map time, so a content-width card would
+/// walk away from the bar as the digits changed.
 const double kTimersPopupWidth = 264;
 
 FaIconData timerKindIcon(ShellTimerKind kind) =>
@@ -165,11 +163,9 @@ class TimerRow extends StatelessWidget {
 /// The duration field and the two Start buttons.
 ///
 /// Two rows rather than one: the composer sits in the calendar's clock column,
-/// which is narrower than a labelled field and two buttons side by side. The
-/// field is labelled where it used to be a bare box — it is the one control on
-/// this page a user has to be told what to put in — and its placeholder spells
-/// out the three forms it takes, which is what the field is asking when it has
-/// been cleared.
+/// narrower than a labelled field and two buttons side by side. The field is
+/// labelled because it is the one control on this page a user has to be told what
+/// to put in, and its placeholder spells out the three forms it takes.
 class TimerComposer extends StatefulWidget {
   const TimerComposer({super.key, required this.store});
 
@@ -268,22 +264,20 @@ class _TimerComposerState extends State<TimerComposer> {
 /// The calendar page's timers section: the composer over the list of what is
 /// running.
 ///
-/// It sits under the world clocks in the calendar's clock column and is given
-/// half of what is left below them, so the creator is on screen without a
-/// scroll and the running entries grow into the same space. It adds no
-/// horizontal padding of its own — the column it sits in supplies that, and a
-/// second inset would step the section in from the clocks above it.
+/// It sits under the world clocks and is given half of what is left below them,
+/// so the creator is on screen without a scroll and the entries grow into the
+/// same space. It adds no horizontal padding of its own — the column supplies
+/// that, and a second inset would step the section in from the clocks above.
 class TimersPane extends StatelessWidget {
   const TimersPane({super.key, required this.active, this.store});
 
   /// Whether the calendar is the tab the user is looking at.
   ///
-  /// Required, not defaulted, for the reason `CalendarTab.active` is: the
-  /// overlay body is an `IndexedStack` that keeps every tab alive once built,
-  /// and the store notifies four times a second while anything is running — so
-  /// a pane that subscribed unconditionally would re-lay its rows behind
-  /// whatever tab the user moved on to. Inactive, it builds one static
-  /// snapshot and listens to nothing.
+  /// Required, not defaulted, for `CalendarTab.active`'s reason: the overlay body
+  /// is an `IndexedStack` that keeps every tab alive, and the store notifies four
+  /// times a second while anything runs — so a pane that subscribed
+  /// unconditionally would re-lay its rows behind whatever tab the user moved on
+  /// to. Inactive, it builds one static snapshot and listens to nothing.
   final bool active;
 
   /// Defaults to the singleton, and only when it is read — a widget test passes
@@ -331,14 +325,11 @@ class TimersPane extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Expanded(
-          // The composer is the list's first item rather than a fixed header
-          // over it. This section is half of a column whose other half is the
-          // world clocks, and the last clamp in `overlayPanelSize` is against
-          // the output's own height — so on a short display that half can be
-          // shorter than the composer is tall. As a header that overflows; as
-          // an item it scrolls, and the rows keep their fixed extent either
-          // way rather than being a Column that overflows on the entry after
-          // the one that fits.
+          // The composer is the list's first item rather than a fixed header over
+          // it. This section is half of a column whose height follows the
+          // output's, so on a short display that half can be shorter than the
+          // composer is tall: as a header that overflows, as an item it scrolls,
+          // and the rows keep their fixed extent either way.
           child: ListView.builder(
             padding: EdgeInsets.zero,
             itemCount: entries.length + 1,
@@ -382,10 +373,9 @@ class TimersPane extends StatelessWidget {
 /// What the clock module's popup renders: every entry and all of its controls.
 ///
 /// The card is built once and captured in a `WindowEntry` builder, so it reads
-/// the theme from its own [ThemeScope] (supplied by the `ThemeProvider` the
-/// module wraps it in) and the entries from the store — both live, which is
-/// what keeps an open popup in step with a timer stopped from the calendar page
-/// and with a theme changed underneath it.
+/// the theme from its own [ThemeScope] and the entries from the store — both
+/// live, which keeps an open popup in step with a timer stopped from the calendar
+/// page and with a theme changed underneath it.
 class TimersPopupContent extends StatelessWidget {
   const TimersPopupContent({super.key, this.store});
 
@@ -443,14 +433,14 @@ class TimersPopupContent extends StatelessWidget {
 
 /// What the clock module puts beside the time.
 ///
-/// One entry renders as its live readout; several render as one icon and a
-/// count, because two countdowns and a stopwatch spelled out in a panel is a
-/// bar module that resizes the whole panel every second. Either way the tap
-/// opens the popup, which is where the controls are — so the bar can pause and
-/// stop a timer without the overlay ever being opened.
+/// One entry renders as its live readout; several render as one icon and a count,
+/// because two countdowns and a stopwatch spelled out is a bar module that
+/// resizes the whole panel every second. Either way the tap opens the popup,
+/// which is where the controls are — so the bar can pause and stop a timer
+/// without the overlay ever being opened.
 ///
-/// The leading separator is part of this widget rather than of the clock's Row
-/// so that "clock, rule, timer" appears and disappears as one thing.
+/// The leading separator is part of this widget rather than of the clock's Row so
+/// that "clock, rule, timer" appears and disappears as one thing.
 class TimerBarIndicator extends StatelessWidget {
   const TimerBarIndicator({
     super.key,
