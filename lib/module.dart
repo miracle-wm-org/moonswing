@@ -22,17 +22,14 @@ abstract class Module {
 
   /// Fires once per [loadAll] in which some module's options actually moved.
   ///
-  /// Module options are pushed *imperatively* — [loadAll] mutates each
-  /// module's config in place and [builder] closes over it — so nothing about
-  /// a module widget's inputs tells Flutter they changed. For as long as the
-  /// shell root rebuilt every view on every `ConfigStore` notify, that did not
-  /// matter: the panels were rebuilt anyway and each `builder` was re-read.
-  /// Now that they are not, this is what says so, and without it toggling a
-  /// `[modules.*]` option in the settings UI would silently do nothing until
-  /// the next restart.
+  /// Module options are pushed *imperatively* — [loadAll] mutates each module's
+  /// config in place and [builder] closes over it — so nothing about a module
+  /// widget's inputs tells Flutter they changed. This is what says so; without it,
+  /// toggling a `[modules.*]` option in the settings UI would silently do nothing
+  /// until the next restart.
   ///
-  /// Panels listen per module (`_PanelMainState._buildModule`), so a
-  /// `[modules.clock]` edit rebuilds the clock and nothing else.
+  /// Panels listen per module, so a `[modules.clock]` edit rebuilds the clock and
+  /// nothing else.
   static Listenable get configChanges => _configChanges;
 
   /// Calls [loadConfig] on every registered module using [modulesMap], and
@@ -57,9 +54,8 @@ abstract class Module {
   /// Builds the standard module: a config parsed by [fromMap], handed to
   /// [builder]'s widget.
   ///
-  /// Fourteen `Module` subclasses were this exact class modulo three
-  /// identifiers; a new module is one call to this (plus `Module.register`
-  /// in `main()`), not a subclass.
+  /// Fourteen `Module` subclasses were this exact class modulo three identifiers;
+  /// a new module is one call to this plus `Module.register` in `main()`.
   static Module simple<C>({
     required String configKey,
     required C Function(Map<String, dynamic>? map) fromMap,
@@ -84,13 +80,11 @@ abstract class Module {
   /// modules.
   String get configKey;
 
-  /// Loads the configuration for the given module.
-  ///
-  /// The [map] will be the data provided at [configKey].
+  /// Loads the configuration for the given module, from the data at [configKey].
   ///
   /// Returns whether the options actually moved. [loadAll] runs on every
-  /// `ConfigStore` notify — which is every keystroke anywhere in the settings
-  /// UI — and only a true answer wakes [configChanges].
+  /// `ConfigStore` notify — every keystroke anywhere in the settings UI — and only
+  /// a true answer wakes [configChanges].
   bool loadConfig(Map<String, dynamic>? map);
 }
 
@@ -111,16 +105,14 @@ class _SimpleModule<C> extends Module {
 
   late C _config = _fromMap(null);
 
-  /// The raw `[modules.<key>]` table [_config] was last built from,
-  /// stringified — the `ConfigStore._restartSignature` / `DesktopStore`
-  /// idiom, and used here for the same reason: the config classes these
-  /// `fromMap`s return are a dozen unrelated types with no value equality
-  /// between them, but the table they came from is always comparable. A false
-  /// positive costs one rebuild; a false negative is impossible for the
-  /// scalars and string lists these tables hold.
+  /// The raw `[modules.<key>]` table [_config] was last built from, stringified —
+  /// the `ConfigStore._restartSignature` idiom, for its reason: these `fromMap`s
+  /// return a dozen unrelated types with no value equality between them, but the
+  /// table they came from is always comparable. A false positive costs one
+  /// rebuild; a false negative is impossible for the scalars and string lists
+  /// these tables hold.
   ///
-  /// Null until the first [loadConfig], so that one always counts as a change
-  /// even when the module has no table at all.
+  /// Null until the first [loadConfig], so that one always counts as a change.
   String? _signature;
 
   @override

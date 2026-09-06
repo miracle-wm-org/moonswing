@@ -3,10 +3,10 @@ import 'package:flutter/gestures.dart';
 
 /// What a transient surface does to the others, and what they may do to it.
 ///
-/// Two independent booleans rather than an enum, because the screen-share
-/// consent prompt needs one of each: it must displace whatever is on screen,
-/// and it must never be displaced — dismissing it is a *denial*, not a
-/// deferral, so nothing may resolve it on the user's behalf.
+/// Two independent booleans rather than an enum, because the screen-share consent
+/// prompt needs one of each: it must displace whatever is on screen and never be
+/// displaced — dismissing it is a *denial*, so nothing may resolve it on the
+/// user's behalf.
 class TransientPolicy {
   const TransientPolicy({this.dismissesOthers = true, this.dismissable = true});
 
@@ -32,9 +32,9 @@ class TransientPolicy {
 /// A registration in the [PopupCoordinator]: one open transient surface.
 ///
 /// [parent] is what makes nesting work. A handle's *chain* is itself plus its
-/// transitive parents, and nothing in a chain ever dismisses anything else in
-/// that chain — so the app-directory popup survives its category flyout, and
-/// both survive the pin-to-dock menu inside the flyout.
+/// transitive parents, and nothing in a chain ever dismisses anything else in it
+/// — so the app-directory popup survives its category flyout, and both survive
+/// the pin-to-dock menu inside the flyout.
 class TransientHandle {
   TransientHandle({
     required this.owner,
@@ -66,13 +66,10 @@ class TransientHandle {
 /// closes them.
 ///
 /// The shell renders into many independent FlutterViews and no widget tree can
-/// see another's popups: they share the root's [WindowRegistry], but a popup is
-/// a sibling view of the panel that opened it, not a descendant of it. Nothing
-/// else dismisses them either: the Linux popup controller takes no
-/// `gdk_seat_grab`, so the compositor never sends `popup_done` on a click
-/// outside, and there is no focus-lost callback anywhere in the stack.
-///
-/// Same singleton-[ChangeNotifier] shape as `OsdStore`/`LauncherController`.
+/// see another's popups: they share the root's [WindowRegistry], but a popup is a
+/// sibling view of the panel that opened it. Nothing else dismisses them either —
+/// the Linux popup controller takes no `gdk_seat_grab`, so the compositor never
+/// sends `popup_done`, and there is no focus-lost callback anywhere in the stack.
 class PopupCoordinator extends ChangeNotifier {
   PopupCoordinator._();
 
@@ -173,14 +170,14 @@ class PopupCoordinator extends ChangeNotifier {
   /// Dismisses everything outside [within] in response to a raw pointer-down,
   /// arming the reopen guard for whatever a primary click just closed.
   ///
-  /// [Listener] sits above every [GestureRecognizer] on the hit-test path —
-  /// `GestureBinding` is the last entry — so this runs *before* the bar button
-  /// under the pointer sees `onTapDown`. Without the guard, clicking the icon
-  /// whose popup is open would close it here and immediately reopen it there.
+  /// [Listener] sits above every [GestureRecognizer] on the hit-test path, so this
+  /// runs *before* the bar button under the pointer sees `onTapDown`. Without the
+  /// guard, clicking the icon whose popup is open would close it here and
+  /// immediately reopen it there.
   ///
-  /// Only a primary click arms the guard, because every popup toggle in the
-  /// shell is a primary tap and every context menu is a secondary one — a
-  /// right-click that dismisses a popup must still be free to open its menu.
+  /// Only a primary click arms the guard: every popup toggle in the shell is a
+  /// primary tap and every context menu is a secondary one, and a right-click that
+  /// dismisses a popup must still be free to open its menu.
   void dismissFromPointerDown(
     PointerDownEvent event, {
     TransientHandle? within,

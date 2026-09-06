@@ -16,14 +16,13 @@ enum ServiceStatus {
   failed,
 }
 
-/// The shell's global start-up tasks: the things `main()` used to `await`
-/// between the process starting and the first frame reaching the screen.
+/// The shell's global start-up tasks: the things `main()` used to `await` between
+/// the process starting and the first frame reaching the screen.
 ///
-/// Every one of them is either I/O the shell cannot make faster (a D-Bus name
-/// request, a socket connect, a Wayland round-trip) or a walk over the whole
-/// system (the application index). None of them is needed to *paint* — panel
-/// geometry comes out of `config.toml` and the palette out of `ThemeStore`, and
-/// both are resolved before this list is even started.
+/// Every one is either I/O the shell cannot make faster (a D-Bus name request, a
+/// socket connect, a Wayland round-trip) or a walk over the whole system. None is
+/// needed to *paint*: panel geometry comes out of `config.toml` and the palette
+/// out of `ThemeStore`, both resolved before this list is started.
 enum ShellService {
   /// The Wayland client, the compositor's `wl_output` set, and the global
   /// shortcut registrations that ride the same registry.
@@ -59,15 +58,14 @@ enum ShellService {
 /// The one place that knows how far along the shell's start-up is.
 ///
 /// `main()` hands each task here instead of awaiting it, so the first frame is
-/// gated on nothing but reading `config.toml`. Widgets that need a task's
-/// result read its [ServiceStatus] through [ShellServicesScope] and show a
-/// loader while it is [ServiceStatus.loading], rather than rendering an empty
-/// state that is indistinguishable from "you have none of these".
+/// gated on nothing but reading `config.toml`. Widgets that need a task's result
+/// read its [ServiceStatus] through [ShellServicesScope] and show a loader while
+/// it is [ServiceStatus.loading], rather than an empty state indistinguishable
+/// from "you have none of these".
 ///
-/// Same `ChangeNotifier` shape as the shell's stores, but deliberately *not* a
-/// singleton: it is constructed in `main()` and passed down like the
-/// `MiracleManager`, so a widget test can build one carrying whatever statuses
-/// the case under test needs.
+/// The `ChangeNotifier` shape of the shell's stores, but deliberately *not* a
+/// singleton: it is constructed in `main()` and passed down, so a widget test can
+/// build one carrying whatever statuses the case needs.
 class ShellServices extends ChangeNotifier {
   ShellServices();
 
@@ -106,28 +104,24 @@ class ShellServices extends ChangeNotifier {
   ///
   /// The contract with the `start*Service` functions:
   ///
-  /// * **Genuine failure throws.** The session bus unreachable, a name request
-  ///   that errored, an FFI load failure for something the service cannot run
-  ///   without — the task lets it propagate. This method is the catch-all: it
-  ///   records [ServiceStatus.failed] with the reason and logs it, so nothing
-  ///   escapes to the zone handler and the shell carries on without whatever
-  ///   the service provided.
-  /// * **A graceful decline is not a failure.** Another daemon already owning
-  ///   the notification or tray name is the shell *yielding* to it, and a
-  ///   feature switched off in `config.toml` has nothing to do; the task logs
-  ///   and returns normally, settling [ServiceStatus.ready] — "declined" and
-  ///   "finished" are the same answer to "should I show a spinner?".
+  /// * **Genuine failure throws** — an unreachable bus, a name request that
+  ///   errored, an FFI load failure. This method is the catch-all: it records
+  ///   [ServiceStatus.failed] with the reason and logs it, so nothing escapes to
+  ///   the zone handler and the shell carries on without the service.
+  /// * **A graceful decline is not a failure.** Another daemon owning the
+  ///   notification or tray name is the shell *yielding* to it, and a feature
+  ///   switched off has nothing to do; the task logs and returns normally,
+  ///   settling [ServiceStatus.ready] — "declined" and "finished" are the same
+  ///   answer to "should I show a spinner?".
   ///
   /// A service that swallows its own genuine failures makes
   /// [ServiceStatus.failed] unreachable and its loader resolve to "ready" with
-  /// the feature dead — which is the lie this contract exists to prevent.
+  /// the feature dead, which is the lie this contract exists to prevent.
   ///
-  /// The task is started on its own event-loop turn rather than immediately or
-  /// on a microtask. A task that does its work synchronously before its first
-  /// `await` — the application index is thousands of FFI round-trips with no
-  /// suspension point in them — would otherwise hold the isolate through every
-  /// other task registered beside it, and the engine would never get a frame in
-  /// edgewise. One turn each lets the cheap ones get their I/O in flight first.
+  /// The task is started on its own event-loop turn: one that works synchronously
+  /// before its first `await` — the application index is thousands of FFI
+  /// round-trips with no suspension point — would otherwise hold the isolate
+  /// through every other task registered beside it.
   void run(ShellService service, Future<void> Function() task) {
     if (_started.contains(service)) return;
     _started.add(service);
@@ -158,12 +152,11 @@ class ShellServices extends ChangeNotifier {
 
 /// Provides [ShellServices] to a window's widget subtree.
 ///
-/// An [InheritedNotifier], so a widget that reads a status through it rebuilds
-/// when that status settles without holding a listener of its own.
+/// An [InheritedNotifier], so a widget reading a status through it rebuilds when
+/// that status settles without holding a listener of its own.
 ///
 /// Like [ThemeScope] this is installed once per window: an `InheritedWidget`
-/// cannot span FlutterViews, and the shell renders into one view per panel per
-/// monitor plus a window for every popup and overlay.
+/// cannot span FlutterViews.
 class ShellServicesScope extends InheritedNotifier<ShellServices> {
   const ShellServicesScope({
     super.key,

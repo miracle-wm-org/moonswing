@@ -5,15 +5,14 @@ import 'package:miracle/miracle.dart';
 
 /// Owns the shell's single [MiracleConnection] and its lifecycle.
 ///
-/// The shell may start before Miracle WM is up (or with no socket in the
-/// environment at all), so the connection is allowed to be absent and
+/// The shell may start before Miracle WM is up, or with no socket in the
+/// environment at all, so the connection is allowed to be absent and
 /// re-established later. Every panel on every monitor listens to this one
 /// notifier, so a retry from any bar restores workspaces on all of them.
 ///
-/// A dead connection is dropped rather than disconnected: nothing here needs
-/// `disconnect()`, and dropping it is what makes the identity comparison in
-/// each consumer ([WorkspacesState], [WorkspaceAppsStore]) a reliable "this is
-/// a different connection now".
+/// A dead connection is dropped rather than disconnected, which is what makes the
+/// identity comparison in each consumer a reliable "this is a different
+/// connection now".
 class MiracleManager extends ChangeNotifier {
   MiracleConnection? _connection;
   bool _connecting = false;
@@ -47,13 +46,11 @@ class MiracleManager extends ChangeNotifier {
             _onSocketLost(connection, _describe(error)),
         onSocketDone: () => _onSocketLost(connection, 'the socket closed'),
       );
-      // All three of these feed the workspace row. `window` is what replaced
-      // its window-tree poll, and `output` is what replaced the `wl_output`
-      // proxy the shell used to keep for it: miracle re-homes a removed
-      // output's workspaces onto another one and emits no workspace event
-      // saying so, but it does emit this. Before miracle.dart 2.0 neither
-      // could be decoded — `Event.fromJson` threw from inside the socket's
-      // data handler — which is why this was `workspace` alone.
+      // All three feed the workspace row. `window` replaced its window-tree poll,
+      // and `output` replaced the `wl_output` proxy the shell used to keep for it:
+      // miracle re-homes a removed output's workspaces onto another one and emits
+      // no workspace event saying so, but it does emit this. Before miracle.dart
+      // 2.0 neither could be decoded.
       await connection.subscribe([
         SubscriptionType.workspace,
         SubscriptionType.window,
@@ -71,14 +68,13 @@ class MiracleManager extends ChangeNotifier {
     }
   }
 
-  /// Drops [connection] when its socket dies, so the bars fall back to the
-  /// retry affordance instead of silently showing a stale, empty workspace row.
+  /// Drops [connection] when its socket dies, so the bars fall back to the retry
+  /// affordance instead of silently showing a stale, empty workspace row.
   ///
   /// The socket both errors and closes on some failures, so this may fire twice
   /// for one drop; the identity check makes the second call a no-op, keeping the
-  /// first (more specific) [reason].
-  ///
-  /// Also ignores callbacks from a connection we have already replaced.
+  /// first and more specific [reason]. Callbacks from an already-replaced
+  /// connection are ignored too.
   void _onSocketLost(MiracleConnection connection, String reason) {
     if (!identical(_connection, connection)) return;
     _connection = null;
@@ -89,11 +85,10 @@ class MiracleManager extends ChangeNotifier {
 
   /// Renders a connect failure as one human-readable line.
   ///
-  /// `MiracleConnection.connect` throws a [MiracleConnectionException] when
-  /// none of `MIRACLESOCK`/`SWAYSOCK`/`I3SOCK` names a socket, and a
-  /// [SocketException] — whose `toString()` carries an address and errno tail
-  /// no user needs — when the socket won't open. Both of those reach the user
-  /// in the retry button's tooltip, so both are unwrapped to their message.
+  /// `MiracleConnection.connect` throws a [MiracleConnectionException] when none
+  /// of `MIRACLESOCK`/`SWAYSOCK`/`I3SOCK` names a socket, and a [SocketException]
+  /// — whose `toString()` carries an address and errno tail no user needs — when
+  /// the socket will not open. Both reach the user in the retry button's tooltip.
   String _describe(Object error) {
     if (error is SocketException) {
       final os = error.osError;
