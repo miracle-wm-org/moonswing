@@ -20,11 +20,11 @@ typedef _ParamChangedC = ffi.Void Function(
 /// One PipeWire video-source stream, fed by a [CaptureSession].
 ///
 /// Lifecycle: [start] connects the stream with an `EnumFormat` param; the
-/// negotiated `param_changed(Format)` is answered with a `Buffers` param;
-/// once the stream reaches PAUSED with a valid node id, [nodeId] completes —
-/// that id is what the portal's `Start` response carries. Frames are pushed
-/// with [pushFrame]: dequeue a pw buffer (drop the frame when the consumer
-/// has none free), pointer-to-pointer memcpy, queue.
+/// negotiated `param_changed(Format)` is answered with a `Buffers` param; once the
+/// stream reaches PAUSED with a valid node id, [nodeId] completes — that id is
+/// what the portal's `Start` response carries. Frames are pushed with [pushFrame]:
+/// dequeue a pw buffer (drop the frame when the consumer has none free),
+/// pointer-to-pointer memcpy, queue.
 class PipewireVideoStream {
   PipewireVideoStream({
     required this.width,
@@ -89,13 +89,12 @@ class PipewireVideoStream {
   bool _disposed = false;
   bool _nodeIdGuarded = false;
 
-  /// Completes with the PipeWire node id once the stream is up, or with an
-  /// error if the stream fails first.
+  /// Completes with the PipeWire node id once the stream is up, or with an error
+  /// if the stream fails first.
   ///
-  /// A stream torn down before it came up completes this with an error even
-  /// when nobody is waiting any more (the caller already gave up and disposed
-  /// it), so a listener is registered up front to keep that from surfacing as
-  /// an unhandled async error and killing the isolate.
+  /// A stream torn down before it came up completes this with an error even when
+  /// nobody is waiting any more, so a listener is registered up front to keep that
+  /// from surfacing as an unhandled async error and killing the isolate.
   Future<int> get nodeId => _nodeIdCompleter.future;
 
   int? _nodeId;
@@ -187,11 +186,10 @@ class PipewireVideoStream {
   }
 
   void _installListener() {
-    // struct pw_stream_events v2: u32 version (+pad), then 11 function
-    // pointers: destroy, state_changed, control_info, io_changed,
-    // param_changed, add_buffer, remove_buffer, process, drained, command,
-    // trigger_done. Only state_changed (slot 1) and param_changed (slot 4)
-    // are wired.
+    // struct pw_stream_events v2: u32 version (+pad), then 11 function pointers:
+    // destroy, state_changed, control_info, io_changed, param_changed, add_buffer,
+    // remove_buffer, process, drained, command, trigger_done. Only state_changed
+    // (slot 1) and param_changed (slot 4) are wired.
     _events = calloc<ffi.Uint8>(8 + 11 * 8).cast();
     _events.cast<ffi.Uint32>().value = pwVersionStreamEvents;
     _stateCallable =

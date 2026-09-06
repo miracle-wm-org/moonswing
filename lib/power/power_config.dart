@@ -4,11 +4,10 @@ import 'package:graceful_shell/config_reader.dart';
 
 /// What the shell does when the machine's physical power button is pressed.
 ///
-/// [none] is the only value that hands the key *back*: with it the shell
-/// registers no trigger and takes no logind inhibitor, so the button does
-/// whatever `logind.conf`'s `HandlePowerKey` says — which is what a user who
-/// wants the firmware/systemd behaviour asks for. Every other value means the
-/// shell answers the press itself.
+/// [none] is the only value that hands the key *back*: with it the shell registers
+/// no trigger and takes no logind inhibitor, so the button does whatever
+/// `logind.conf`'s `HandlePowerKey` says. Every other value means the shell
+/// answers the press itself.
 enum PowerKeyAction {
   /// Show the power menu — the dialog with Lock / Log Out / Sleep / Restart /
   /// Shut Down. The default: a physical button that powers the machine off
@@ -64,14 +63,12 @@ enum PowerKeyAction {
 
 /// `[power]` — what the physical power button does.
 ///
-/// Two settings, and the second one exists because the shell is not the only
-/// thing watching that button: systemd-logind opens the ACPI power-button
-/// device itself and powers the machine off on a press, whatever the
-/// compositor delivers to whom. So intercepting the key is two halves —
-/// receiving it (a global trigger, `[shortcuts] power_button`) and stopping
-/// logind acting on it first (an inhibitor lock, [inhibitLogind]) — and a
-/// build that did only the first would show the power menu on a machine that
-/// was already shutting down.
+/// Two settings, and the second exists because the shell is not the only thing
+/// watching that button: systemd-logind opens the ACPI power-button device itself
+/// and powers the machine off on a press, whatever the compositor delivers to
+/// whom. So intercepting the key is two halves — receiving it (a global trigger)
+/// and stopping logind acting on it first ([inhibitLogind]) — and a build that did
+/// only the first would show the power menu on a machine already shutting down.
 @immutable
 class PowerConfig {
   const PowerConfig({
@@ -82,12 +79,11 @@ class PowerConfig {
   /// What a press does.
   final PowerKeyAction keyAction;
 
-  /// Whether to take logind's `handle-power-key` inhibitor lock while the
-  /// shell is handling the key.
+  /// Whether to take logind's `handle-power-key` inhibitor lock while the shell
+  /// is handling the key.
   ///
   /// The escape hatch for a machine whose `logind.conf` already says
-  /// `HandlePowerKey=ignore`: the lock is then redundant, and a user who would
-  /// rather not have the shell holding one can say so. Off means logind's own
+  /// `HandlePowerKey=ignore`, where the lock is redundant. Off means logind's own
   /// handling stands, so unless it is already `ignore` the shell's menu and
   /// logind's shutdown race.
   final bool inhibitLogind;

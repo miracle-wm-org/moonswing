@@ -9,10 +9,9 @@ import 'package:graceful_shell/system/proc_reader.dart';
 /// A one-shot snapshot of the machine's static identity: hardware, software, and
 /// the desktop environment it is running under.
 ///
-/// Unlike [SystemStatsStore], nothing here changes over a session (uptime and
-/// boot time are captured once, when the page is first opened), so there is no
-/// store, no polling, and no lease. Every field is display-ready and null when
-/// its source was missing or unparseable — the UI renders null as an em dash.
+/// Unlike [SystemStatsStore], nothing here changes over a session, so there is no
+/// store, no polling and no lease. Every field is display-ready and null when its
+/// source was missing or unparseable — the UI renders null as an em dash.
 @immutable
 class SystemInfo {
   const SystemInfo({
@@ -49,21 +48,19 @@ class SystemInfo {
   final String? bootTime;
 
   /// What the machine can be typed on, pointed with, spoken into and seen
-  /// through, in [InputDeviceKind] order. Empty rather than null when nothing
-  /// was reported — a machine with no input devices at all is not a
-  /// distinguishable state from a `/proc` this build could not read, and the UI
-  /// renders both the same way.
+  /// through, in [InputDeviceKind] order. Empty rather than null when nothing was
+  /// reported: a machine with no input devices is not distinguishable from a
+  /// `/proc` this build could not read, and the UI renders both the same way.
   final List<InputDevice> inputDevices;
 }
 
 /// Gathers a [SystemInfo] from `/proc`, `/etc`, the environment, and a couple of
 /// best-effort shell-outs.
 ///
-/// The roots, environment, and process runner are all constructor parameters —
-/// the same shape [ProcReader] and [DiskReader] use — so tests point them at a
-/// temp directory and a fake map and never touch the real machine. Every read is
-/// best-effort: a missing file or a failed command leaves that field null rather
-/// than throwing.
+/// The roots, environment and process runner are constructor parameters — the
+/// shape [ProcReader] and [DiskReader] use — so tests point them at a temp
+/// directory and never touch the real machine. Every read is best-effort: a
+/// missing file or a failed command leaves that field null rather than throwing.
 class SystemInfoReader {
   SystemInfoReader({
     this.procRoot = '/proc',

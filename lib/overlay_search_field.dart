@@ -1,11 +1,10 @@
 // The search input the shell's full-screen overlays type into.
 //
-// Extracted from the launcher's own private copy when the emoji picker wanted
-// the same control: the settings library's rule ("a control the library lacks
-// gets *added to the library*") applied one layer out, because the mouse
-// wiring below is thirty lines of `RenderEditable` handling that a second
-// hand-rolled copy would have got subtly wrong — which is exactly the drift
-// `overlay/settings/controls.dart` exists to stop.
+// Extracted from the launcher's own private copy when the emoji picker wanted the
+// same control: the settings library's "a control the library lacks gets added to
+// the library" rule applied one layer out, because the mouse wiring below is
+// thirty lines of `RenderEditable` handling a second hand-rolled copy would have
+// got subtly wrong.
 library;
 
 import 'package:flutter/gestures.dart'
@@ -21,21 +20,20 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
-/// A raw [EditableText] (there is no Material `TextField` in this tree) with
-/// an autofocus and a hint drawn behind it.
+/// A raw [EditableText] (there is no Material `TextField` in this tree) with an
+/// autofocus and a hint drawn behind it.
 ///
 /// Mouse selection is wired up the way `TextField` does it, because a bare
-/// [EditableText] cannot do it: [RenderEditable] carries its own plain tap
-/// recogniser (enough to place the caret, nothing more), and it sits deeper in
-/// the hit-test path than any detector wrapped around it, so it wins the arena
-/// and a hand-rolled one never fires. Handing it `rendererIgnoresPointer`
+/// [EditableText] cannot: [RenderEditable] carries its own plain tap recogniser
+/// and sits deeper in the hit-test path than any detector wrapped around it, so it
+/// wins the arena and a hand-rolled one never fires. `rendererIgnoresPointer`
 /// switches that off and lets [TextSelectionGestureDetector] — which counts
-/// consecutive taps rather than racing a double-tap recogniser, so single
-/// clicks stay instant — own click, double-click, triple-click and drag.
+/// consecutive taps rather than racing a double-tap recogniser, so single clicks
+/// stay instant — own click, double-click, triple-click and drag.
 ///
 /// The owner supplies the controller and focus node and disposes them: every
-/// overlay that uses this reads the query in its own key handler, and a field
-/// that owned them would be a field the handler could not see.
+/// overlay reads the query in its own key handler, and a field that owned them
+/// would be a field the handler could not see.
 class OverlaySearchField extends StatefulWidget {
   const OverlaySearchField({
     super.key,
@@ -170,11 +168,11 @@ class _OverlaySearchFieldState extends State<OverlaySearchField> {
                       ),
                       cursorColor: theme.accent,
                       backgroundCursorColor: theme.divider,
-                      // Selected text is drawn on the accent, which reads as
-                      // an inverted block against the field's dark control
-                      // surface. Flutter paints the highlight *behind* the
-                      // glyphs and offers no way to recolour them, so the
-                      // contrast has to come from the highlight alone.
+                      // Selected text is drawn on the accent, which reads as an
+                      // inverted block against the field's dark control surface.
+                      // Flutter paints the highlight *behind* the glyphs and
+                      // offers no way to recolour them, so the contrast has to
+                      // come from the highlight alone.
                       selectionColor: theme.accent,
                       onChanged: widget.onChanged,
                     ),

@@ -7,13 +7,10 @@ import 'package:graceful_shell/system/models.dart';
 /// UI isolate at the poll cadence. The expensive per-process walk lives in
 /// [ProcessReader] and runs off-isolate.
 ///
-/// The roots are constructor parameters — the same shape [BrightnessMonitor]
-/// uses — so tests point them at a temp directory and never touch the real
-/// `/proc`.
-///
-/// Every method returns null or an empty value when a file is missing or
-/// unparseable. A shell must not crash a panel because it landed on a kernel
-/// that does not expose a thermal zone.
+/// The roots are constructor parameters — [BrightnessMonitor]'s shape — so tests
+/// point them at a temp directory. Every method returns null or an empty value
+/// when a file is missing or unparseable: a shell must not crash a panel because
+/// it landed on a kernel that does not expose a thermal zone.
 class ProcReader {
   ProcReader({this.procRoot = '/proc', this.sysRoot = '/sys'});
 
@@ -261,9 +258,9 @@ List<CoreUsage> computeCoreUsage(CpuSample prev, CpuSample curr) {
 
 /// Throughput between two `/proc/net/dev` readings.
 ///
-/// Counters are 64-bit on modern kernels but can still reset (an interface is
-/// torn down and recreated), which shows up as a negative delta; report zero
-/// rather than a negative rate.
+/// Counters are 64-bit on modern kernels but can still reset when an interface is
+/// torn down and recreated, which shows up as a negative delta; report zero rather
+/// than a negative rate.
 NetRate computeNetRate(NetSample prev, NetSample curr, Duration interval) {
   final seconds = interval.inMicroseconds / Duration.microsecondsPerSecond;
   if (seconds <= 0) return NetRate.zero;
