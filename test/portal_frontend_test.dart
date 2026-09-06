@@ -8,12 +8,11 @@ import 'package:graceful_shell/screencast/screencast_log.dart';
 /// The repair in `lib/screencast/portal_frontend.dart`: xdg-desktop-portal reads
 /// this backend's `AvailableSourceTypes` once, as its own frontend starts, and
 /// publishes 0 for the rest of its life if the shell had not yet claimed the bus
-/// name. Sharing still works — the frontend does not validate `SelectSources`
-/// against the property — so the only visible symptom is a client that *asks*
+/// name. Sharing still works, so the only visible symptom is a client that *asks*
 /// first (OBS) registering no capture source at all.
 ///
-/// What is pinned here is the policy, not the D-Bus call: when a restart is
-/// spent, when it is not, and that nothing here can throw at its caller.
+/// What is pinned here is the policy, not the D-Bus call: when a restart is spent,
+/// when it is not, and that nothing here can throw at its caller.
 
 void main() {
   late List<String> log;

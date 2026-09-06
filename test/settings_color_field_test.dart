@@ -9,13 +9,13 @@ import 'package:graceful_shell/scopes.dart';
 /// root Overlay for the picker to float into.
 ///
 /// [respell] stands in for the trip a value takes through the theme store and
-/// back — the settings pane never feeds the field's own string back, it feeds
+/// back — the pane never feeds the field's own string back, it feeds
 /// `ThemeConfig.formatColor` of the parsed colour. That round trip is what used
 /// to close the picker on the first drag.
 ///
-/// Returns the notifier driving `initial`. An Overlay reads `initialEntries`
-/// only on its first build, so a test that changes the colour has to push it
-/// through here rather than through a second `pumpWidget`.
+/// Returns the notifier driving `initial`. An Overlay reads `initialEntries` only
+/// on its first build, so a test that changes the colour has to push it through
+/// here rather than through a second `pumpWidget`.
 Future<ValueNotifier<String>> pumpField(
   WidgetTester tester, {
   required String initial,

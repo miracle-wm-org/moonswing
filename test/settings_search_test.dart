@@ -2,7 +2,7 @@
 // carries a picked result to the row.
 //
 // The catalogue's invariants are the load-bearing half. It is a hand-written
-// table of destinations, and the two ways a table like that rots are a renamed
+// table of destinations, and the two ways such a table rots are a renamed
 // category leaving a result pointing nowhere and two entries sharing an id —
 // neither of which the compiler can see, and both of which these tests can.
 
