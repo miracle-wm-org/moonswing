@@ -15,16 +15,13 @@ const double kTimeZoneRowHeight = 34;
 
 /// The "+" that adds a world clock, and the searchable list it opens.
 ///
-/// [zones] is supplied by the caller rather than read from the database here,
-/// so widget tests pass a handful of names and never load the IANA tables.
+/// [zones] is supplied by the caller rather than read from the database here, so
+/// widget tests pass a handful of names and never load the IANA tables.
 ///
 /// A thin wrapper over [AnchoredSearchDropdown], which owns the root-overlay
-/// float, the filter field, and the keyboard navigation; only the trigger,
-/// the [rankTimeZones] ranking, and the city/region row live here. It does
-/// not need the root-owned overlay *window* that `showAppChooser` uses: the
-/// calendar tab already sits inside `SettingsOverlay`'s own `Overlay`, with
-/// `DefaultTextEditingShortcuts` above it, which is what makes an
-/// [EditableText] in an inserted entry work at all.
+/// float, the filter field and the keyboard navigation. It needs no root-owned
+/// overlay *window*: the calendar tab already sits inside `SettingsOverlay`'s own
+/// `Overlay`, with `DefaultTextEditingShortcuts` above it.
 class TimeZonePickerButton extends StatelessWidget {
   const TimeZonePickerButton({
     super.key,
@@ -36,13 +33,12 @@ class TimeZonePickerButton extends StatelessWidget {
   final List<TimeZoneName> zones;
 
   /// Zone names already on the list. Those rows are shown with a check and
-  /// selecting one still fires — a zone vanishing from the picker would read
-  /// as a missing zone, not as one already added.
+  /// selecting one still fires — a zone vanishing from the picker would read as a
+  /// missing zone rather than as one already added.
   ///
-  /// Keyed on the *zone*, so adding New Delhi marks Mumbai and Kolkata as
-  /// added too. That is what they are: a world clock is stored under its zone
-  /// and the three of them are one clock showing one time, so a second row for
-  /// the same offset would be a duplicate the list has no way to tell apart.
+  /// Keyed on the *zone*, so adding New Delhi marks Mumbai and Kolkata as added
+  /// too. That is what they are: a world clock is stored under its zone, and the
+  /// three of them are one clock showing one time.
   final Set<String> existing;
 
   /// The whole row rather than its zone: a city the database does not name

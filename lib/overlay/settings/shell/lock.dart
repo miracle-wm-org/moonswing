@@ -10,9 +10,9 @@ import 'package:graceful_shell/scopes.dart';
 
 /// The lock screen's wallpaper and chrome.
 ///
-/// Unlike the desktop background this is a single wallpaper — a lock screen
-/// has no reason to rotate through several — but it accepts video as well as
-/// stills, rendered by the same `MediaBackground`.
+/// Unlike the desktop background this is a single wallpaper — a lock screen has
+/// no reason to rotate — but it accepts video as well as stills, rendered by the
+/// same `MediaBackground`.
 class LockSection extends StatefulWidget {
   const LockSection({super.key, required this.store});
 
@@ -42,10 +42,10 @@ class _LockSectionState extends State<LockSection> {
 
   /// The last wallpaper path this section stat'd, and what it answered.
   ///
-  /// `existsSync` is a syscall and `build` is not the place for one — this ran
-  /// on every keystroke anywhere in the settings UI for as long as the pane sat
-  /// under a page-level `ListenableBuilder`. The [ConfigValue] below narrows
-  /// *when* the builder runs; this makes a run that is not a path change free.
+  /// `existsSync` is a syscall and `build` is not the place for one — this ran on
+  /// every keystroke anywhere in the settings UI for as long as the pane sat under
+  /// a page-level `ListenableBuilder`. The [ConfigValue] below narrows *when* the
+  /// builder runs; this makes a run that is not a path change free.
   String? _statPath;
   bool _statMissing = false;
 

@@ -3,36 +3,29 @@ import 'package:graceful_shell/config.dart';
 
 /// The background drawn behind a panel's modules.
 ///
-/// The bar's colour is [ThemeConfig.panelBackground] and its alpha is honoured
-/// as written, so a translucent theme can see through the surface that sits
-/// directly on the desktop. Before this the panel was painted from
-/// `workspaceBackground` at a hardcoded 93%, which made it the one thing in the
-/// shell no theme could open up.
+/// The bar's colour is [ThemeConfig.panelBackground] and its alpha is honoured as
+/// written, so a translucent theme can see through the surface that sits directly
+/// on the desktop.
 ///
 /// With [ThemeConfig.panelGradient] the bar fades from `accent` through
-/// `surfacePressed` to that colour, "aligned" to the panel's own edge — the
-/// bright end sits against that edge:
-///   top    -> left-aligned    bottom -> right-aligned
-///   left   -> top-aligned     right  -> bottom-aligned
+/// `surfacePressed` to that colour, with the bright end against the panel's own
+/// edge: top → left-aligned, bottom → right, left → top, right → bottom.
 ///
-/// Every stop takes its alpha from `panelBackground`, not from its own colour.
-/// The bar therefore has exactly one opacity: an author sets how see-through it
-/// is in one place, and a stop cannot be more opaque than the rest of the bar
-/// and read as a band across it.
+/// Every stop takes its alpha from `panelBackground`, not from its own colour, so
+/// the bar has exactly one opacity and no stop can read as a band across it.
 ///
-/// Both shapes carry the bar's rim ([ThemeConfig.panelBorderWidth]) and its
-/// corner rounding ([panelCornerRadius]); a theme that sets neither gets the
-/// same decoration it always did.
+/// Both shapes carry the bar's rim and its corner rounding
+/// ([panelCornerRadius]); a theme that sets neither gets the decoration it
+/// always did.
 ///
 /// The bar's corner rounding, from [ThemeConfig.panelRadius].
 ///
-/// A floating bar ([ThemeConfig.panelMargin] > 0) rounds all four corners. A
-/// flush one rounds only the two facing the screen's interior: rounding the
-/// pair that sits against the screen edge would cut wallpaper wedges out of the
-/// display's own corners and make the bar read as a misaligned card.
+/// A floating bar rounds all four corners. A flush one rounds only the two facing
+/// the screen's interior: rounding the pair against the screen edge would cut
+/// wallpaper wedges out of the display's own corners.
 ///
-/// Returns [BorderRadius.zero] for a radius of 0, which callers use to skip
-/// building a clip layer at all.
+/// Returns [BorderRadius.zero] for a radius of 0, which callers use to skip the
+/// clip layer.
 BorderRadius panelCornerRadius({
   String anchor = 'top',
   required ThemeConfig theme,
@@ -56,10 +49,9 @@ BorderRadius panelCornerRadius({
 
 /// The bar's rim, or null when [ThemeConfig.panelBorderWidth] is 0.
 ///
-/// Width is the off switch rather than alpha, and null rather than a
-/// zero-width [Border] on purpose: a `Border` in the decoration carries a
-/// non-zero [BoxDecoration.padding], which a [Container] would silently apply
-/// to the bar's content.
+/// Width is the off switch rather than alpha, and null rather than a zero-width
+/// [Border] on purpose: a `Border` in the decoration carries a non-zero
+/// [BoxDecoration.padding], which a [Container] would apply to the bar's content.
 Border? _panelBorder(ThemeConfig theme) => theme.panelBorderWidth > 0
     ? Border.all(color: theme.panelBorder, width: theme.panelBorderWidth)
     : null;

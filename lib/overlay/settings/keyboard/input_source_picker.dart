@@ -1,8 +1,8 @@
 // "Add Input Source" — the picker behind the Keyboard page's add button.
 //
 // Beside its page the way `settings/shell/weather_location.dart` sits beside
-// `settings/shell.dart`, and for the same reason: it carries its own ranking
-// and its own degradation, and is not a value editor.
+// `settings/shell.dart`: it carries its own ranking and its own degradation, and
+// is not a value editor.
 
 import 'package:flutter/widgets.dart';
 
@@ -60,10 +60,9 @@ class _InputSourcePickerState extends State<InputSourcePicker> {
   @override
   Widget build(BuildContext context) {
     // Degrades rather than locks out — `SettingsFontField`'s rule. With no
-    // `xkb-data` on the machine (a container, a stripped image) the catalogue
-    // is empty, and `[keyboard]` must never become a key the UI can no longer
-    // set. The trade is that nothing validates what is typed here; see
-    // CONFIG.md.
+    // `xkb-data` on the machine the catalogue is empty, and `[keyboard]` must
+    // never become a key the UI can no longer set. The trade is that nothing
+    // validates what is typed here; see CONFIG.md.
     if (widget.catalog.entries.isEmpty) return _buildFreeForm(context);
 
     return AnchoredSearchDropdown<XkbEntry>(

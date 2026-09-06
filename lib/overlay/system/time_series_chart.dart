@@ -24,9 +24,8 @@ class ChartSeries {
 ///
 /// [capacity] — not `values.length` — is what maps the x axis. A history buffer
 /// that is still filling therefore draws a line growing in from the left at a
-/// constant time scale, rather than a full-width line that rescales
-/// horizontally every time a sample arrives, which reads as the data lurching
-/// about.
+/// constant time scale, rather than a full-width line that rescales horizontally
+/// on every sample, which reads as the data lurching about.
 class TimeSeriesChart extends StatelessWidget {
   const TimeSeriesChart({
     super.key,
