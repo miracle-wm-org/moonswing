@@ -261,28 +261,23 @@ int _scoreEmoji(
 /// The emoji matching [query], best first.
 ///
 /// An empty query answers the table in its own order, grouped by category, so
-/// what the picker shows before the user types is browsable rather than
-/// arbitrary.
+/// what the picker shows before the user types is browsable rather than arbitrary.
 ///
 /// The **trim** is what makes a multi-word query typeable: with Space free to
 /// reach the field, "face " is a state every two-word query passes through, and a
 /// trailing space no field is folded with would empty the grid between the words.
-/// Interior spaces are kept, because they are the query.
 ///
-/// **Ties break by table order**, the one place this departs from `rankApps`.
-/// Here the table is written head-first by how likely a row is to be wanted
-/// (`world_cities.dart`'s rule), and 😂 leads 😹 for "lol" only because of it;
-/// sorting by name answers with the cat. The index is carried explicitly because
+/// **Ties break by table order**, the one place this departs from `rankApps`:
+/// the table is written head-first by how likely a row is to be wanted, and 😂
+/// leads 😹 for "lol" only because of it. The index is carried explicitly because
 /// `List.sort` is not stable.
 ///
-/// There is no limit: the table is a few hundred entries and the grid scrolls.
+/// There is no limit, and **the category is scored once per group rather than
+/// once per row** — its terms are shared, and it is the widest of the three
+/// dimensions.
 ///
-/// **The category is scored once per group, not once per row** — its terms are
-/// shared and there are nine of them against six hundred rows, and it is the
-/// widest of the three dimensions.
-///
-/// This is the whole-table entry point. A picker typing a character at a time
-/// goes through [rankEmojiFrom] instead.
+/// The whole-table entry point; a picker typing a character at a time goes
+/// through [rankEmojiFrom].
 List<Emoji> rankEmoji(List<SearchableEmoji> emoji, String query) =>
     rankEmojiFrom(emoji, query).results;
 

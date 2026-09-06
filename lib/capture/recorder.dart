@@ -3,30 +3,27 @@
 //
 // The clock is the whole design. `ext-image-copy-capture` is *event driven* — the
 // compositor holds each copy until the content changes — and a video file is the
-// opposite: a sequence of frames at a fixed rate, because ffmpeg's rawvideo
-// demuxer has nowhere to put a timestamp. Handing it only the frames the
-// compositor produced would render a minute of somebody reading a document as a
-// fraction of a second of video.
+// opposite, because ffmpeg's rawvideo demuxer has nowhere to put a timestamp.
+// Handing it only the frames the compositor produced would render a minute of
+// somebody reading a document as a fraction of a second.
 //
 // So the recorder keeps the newest frame in a canvas and writes it
 // [RecorderConfig.fps] times a second whether or not anything moved, working out
 // *how many* writes it owes from the wall clock rather than counting its own
-// ticks — a timer that fires late would otherwise shorten the recording by
-// exactly however late it was.
+// ticks — a late timer would otherwise shorten the recording by however late.
 //
 // Three more rules:
 //
 // - **The geometry is pinned at the first frame.** The demuxer is told the frame
 //   size once, so a window resized mid-recording is clipped into the canvas it
-//   started in. Both dimensions are rounded *down* to even, because `yuv420p`
-//   cannot represent an odd one and an area drag very often is.
+//   started in. Both dimensions round *down* to even, because `yuv420p` cannot
+//   represent an odd one and an area drag very often is.
 // - **Writes are copied, pooled, and bounded.** `IOSink.add` does not copy, so
-//   handing it the canvas would let the next frame tear the one being written;
-//   and an encoder slower than real time would grow the sink's queue without
-//   limit. No more than [_maxInFlight] are outstanding, which turns overload into
-//   dropped frames rather than into memory.
+//   handing it the canvas would let the next frame tear the one being written,
+//   and a slow encoder would grow the sink's queue without limit. Bounding to
+//   [_maxInFlight] turns overload into dropped frames rather than into memory.
 // - **A missing ffmpeg is a message, not a silence.** It names the package, never
-//   a package manager — the rule `lib/fortune/` states about `fortune-mod`.
+//   a package manager.
 
 import 'dart:async';
 import 'dart:convert';

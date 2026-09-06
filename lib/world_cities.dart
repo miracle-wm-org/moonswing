@@ -2,15 +2,11 @@
 //
 // Both pickers had a list already and neither was one a user recognises. The
 // world clock's came from the IANA database, whose names are *zones* rather than
-// places — one representative settlement per offset history — so India is
-// `Asia/Kolkata` and New Delhi, Mumbai and Chennai are simply not in it, as San
-// Francisco and Boston are not in `America/Los_Angeles` and `America/New_York`.
+// places, so New Delhi, Mumbai, San Francisco and Boston are simply not in it.
 // The weather's came from a geocoding request, which knows every one of them and
 // answers none until the network does.
 //
-// So the table is here, once, and each picker adds it to what it had: the clock
-// offers these beside the IANA zones (storing the zone, and the city's name as
-// the row's label), and the weather offers them ahead of the geocoder.
+// So the table is here once, and each picker adds it to what it had.
 //
 // Flutter-free and I/O-free, so it is a plain unit test and `weather_api`'s own
 // Flutter-free property survives importing it.
@@ -21,12 +17,11 @@
 //   want different halves of the same row. `test/world_cities_test.dart` checks
 //   every zone against the live IANA database, which is the only thing standing
 //   between a typo here and a city that silently never appears.
-// - **A wrong row costs that row.** The clock picker drops a city whose zone the
+// - **A wrong row costs that row**: the clock picker drops a city whose zone the
 //   database does not know rather than throwing.
 // - **[aliases] is what makes a renamed city findable.** Bombay, Madras, Saigon,
-//   Peking and Rangoon are what a good many people still type, and a picker that
-//   answers "no matches" to a name printed on every map before 1996 reads as a
-//   broken search rather than as a rename.
+//   Peking and Rangoon are what a good many people still type, and answering "no
+//   matches" to a name printed on every map before 1996 reads as a broken search.
 
 /// One place: what it is called, where it is, and which zone it keeps time in.
 ///
