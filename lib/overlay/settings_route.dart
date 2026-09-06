@@ -4,8 +4,8 @@ import 'package:graceful_shell/request_controller.dart';
 
 /// Which page of the settings overlay to land on.
 ///
-/// The overlay's own tab and category are private state seeded in `initState`,
-/// so a route is a *starting point*, not a live address — reopening the overlay
+/// The overlay's own tab and category are private state seeded in `initState`, so
+/// a route is a *starting point*, not a live address — reopening the overlay
 /// somewhere else builds a new one.
 @immutable
 class SettingsRoute {
@@ -36,9 +36,9 @@ class SettingsRoute {
 
   /// Where the keyboard layout popup's "Keyboard settings…" footer goes.
   ///
-  /// A top-level category rather than a Shell one: the first five sidebar
-  /// entries are the machine's hardware and Shell is this shell's own
-  /// configuration, and an input source is the former.
+  /// A top-level category rather than a Shell one: the first five sidebar entries
+  /// are the machine's hardware and Shell is this shell's own configuration, and
+  /// an input source is the former.
   static const SettingsRoute keyboard = SettingsRoute(category: 'keyboard');
 
   @override

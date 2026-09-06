@@ -1,18 +1,15 @@
 /// The one animation a popup plays, in both directions.
 ///
-/// [PopupTransition] replaced `PopupBounceIn`, which fifteen popup content
-/// widgets wrapped themselves in by hand. Three things changed with it, and
-/// each is the reason for a rule below:
+/// [PopupTransition] replaced `PopupBounceIn`, which fifteen popup content widgets
+/// wrapped themselves in by hand. Three things changed with it:
 ///
-///  * **The effect is the theme's**, not the widget's — `popup_animation`, one
-///    of [PopupEffect]'s rows.
-///  * **It plays out as well as in.** The exit is the entrance *reversed* on
-///    the same controller, so an effect cannot describe an opening it has no
-///    closing for, and the two can never drift apart. Whoever owns the window
-///    flips [closing] and waits for [onClosed] before destroying it.
+///  * **The effect is the theme's**, not the widget's — `popup_animation`.
+///  * **It plays out as well as in.** The exit is the entrance *reversed* on the
+///    same controller, so an effect cannot describe an opening it has no closing
+///    for. Whoever owns the window flips [closing] and waits for [onClosed].
 ///  * **`PopupHost` wraps the card itself.** A call site that spelled the
-///    animation by hand was a call site that could forget it, and — far worse
-///    once there is an exit — could forget to route its close through it.
+///    animation by hand could forget it, and — worse, once there is an exit —
+///    could route its close around it.
 library;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
@@ -24,14 +21,12 @@ import 'package:graceful_shell/theme/tokens.dart';
 
 /// How far a sliding popup travels, in logical pixels.
 ///
-/// Deliberately small. The card is translated *inside* a window sized to its
-/// own content plus the shadow's reach, and the shell has no way to grow a
-/// mapped surface — GTK3 resolves `gdk_window_move_to_rect` once at map time
-/// (see `PopupHost.openPopup`). So a long travel would be clipped at the
-/// surface edge on the frames it needed most. The fade is what makes the
-/// residue unobservable rather than merely small: opacity and travel move
-/// together, so the outer half of the journey — the half nearest the clip — is
-/// drawn at half opacity or less.
+/// Deliberately small. The card is translated *inside* a window sized to its own
+/// content plus the shadow's reach, and GTK3 resolves `gdk_window_move_to_rect`
+/// once at map time — so a long travel would be clipped at the surface edge on
+/// the frames it needed most. The fade makes the residue unobservable rather than
+/// merely small: opacity and travel move together, so the half of the journey
+/// nearest the clip is drawn at half opacity or less.
 const double kPopupSlideDistance = 10.0;
 
 /// The scale a [PopupEffect.scale] card starts from.
@@ -49,11 +44,10 @@ const double _kSpinRadians = 0.14; // ~8°.
 /// Plays [effect] over [child] on mount, and the same effect backwards when
 /// [closing] turns true.
 ///
-/// [edge] is the panel anchor the popup is attached to (`'top'`, `'bottom'`,
-/// `'left'`, `'right'`) and is what makes the directional effects directional.
-/// A popup with no bar behind it — a context menu at the pointer — passes null
-/// and is treated as though it hung below its anchor, which is where the
-/// compositor puts it.
+/// [edge] is the panel anchor the popup is attached to and is what makes the
+/// directional effects directional. A popup with no bar behind it — a context
+/// menu at the pointer — passes null and is treated as hanging below its anchor,
+/// which is where the compositor puts it.
 ///
 /// [effect] null means "whatever the theme says", read from the enclosing
 /// [ThemeScope]. `PopupHost` passes it explicitly instead, because it wraps the
@@ -170,9 +164,8 @@ class _PopupTransitionState extends State<PopupTransition>
 
   /// Which way the card travels or hinges: away from the bar it belongs to.
   ///
-  /// A popup below a top bar comes down out of it, one above a bottom bar
-  /// rises out of it, and so on. Null — a menu at the pointer — reads as the
-  /// top case, because that is where the compositor hangs it.
+  /// A popup below a top bar comes down out of it, one above a bottom bar rises
+  /// out of it. Null — a menu at the pointer — reads as the top case.
   Offset get _direction {
     switch (widget.edge) {
       case 'bottom':

@@ -5,17 +5,14 @@ import 'package:graceful_shell/theme/tokens.dart';
 /// A named block of content: its heading, and the elevated surface the content
 /// sits on.
 ///
-/// **The heading is outside the surface, not inside it.** It used to be an
-/// 11px half-transparent uppercase line in the card's own padding, which read
-/// as a caption belonging to the first row rather than as the name of the
-/// whole block — at that size and contrast the three System Info sections were
-/// harder to tell apart than the pairs inside them. Set above the surface at
-/// [ShellFontSizes.heading] and full contrast, the page is scannable by its
-/// headings and the card is left holding only data.
+/// **The heading is outside the surface, not inside it.** It used to be an 11px
+/// half-transparent uppercase line in the card's own padding, which read as a
+/// caption belonging to the first row rather than as the name of the block. Set
+/// above the surface at [ShellFontSizes.heading] and full contrast, the page is
+/// scannable by its headings and the card holds only data.
 ///
 /// `controlSurface` on `popupBackground` is the one-step elevation the panel
-/// already uses for its controls, so the cards read as part of the same surface
-/// hierarchy rather than as a new one.
+/// already uses for its controls.
 class SystemCard extends StatelessWidget {
   const SystemCard({
     super.key,
@@ -37,12 +34,10 @@ class SystemCard extends StatelessWidget {
   /// content.
   ///
   /// Required by the side-by-side pairs on the overview, which sit in an
-  /// [IntrinsicHeight] row so both surfaces end level. With the heading now
-  /// outside the surface, a content-sized card in that row would draw its
-  /// background only as far as its own rows reach and leave the rest of the
-  /// stretched column bare. Only ever pass this where the height is bounded:
-  /// under an unbounded one (a plain [ListView] child) a flexible column child
-  /// is an error.
+  /// [IntrinsicHeight] row so both surfaces end level: with the heading outside
+  /// the surface, a content-sized card there would draw its background only as
+  /// far as its own rows reach. Only ever pass this where the height is bounded —
+  /// under an unbounded one a flexible column child is an error.
   final bool stretch;
 
   @override
@@ -74,11 +69,10 @@ class SystemCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Row(
-                // The headline figure sits on the heading's own baseline, and
-                // the subtitle goes under both. Aligning the figure against
-                // the heading *block* instead would drop it to the subtitle's
-                // line on the two cards that have one, and leave it level with
-                // the heading on the ones that do not.
+                // The headline figure sits on the heading's own baseline, and the
+                // subtitle goes under both. Aligning the figure against the
+                // heading *block* would drop it to the subtitle's line on the two
+                // cards that have one.
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
@@ -155,14 +149,13 @@ class StatLine extends StatelessWidget {
 
   /// Width of the label column, which puts the value directly beside it.
   ///
-  /// Null keeps the spread layout — label left, value hard right — which is
-  /// what the narrow cards on the overview want, because at that width the
-  /// two are adjacent anyway and a right-aligned column of figures is easier
-  /// to compare down. On a full-width page it is the wrong shape: System Info
-  /// is up to 1600 logical pixels across, so a spread pair puts a hand's
-  /// breadth of empty card between a label and the value it names. Setting
-  /// this keeps the pair together and lets a long value (a processor model)
-  /// wrap into the space to the right instead of overflowing the row.
+  /// Null keeps the spread layout — label left, value hard right — which is what
+  /// the narrow overview cards want, because at that width the two are adjacent
+  /// anyway and a right-aligned column of figures is easier to compare down. On a
+  /// full-width page it is the wrong shape: System Info is up to 1600 logical
+  /// pixels across, so a spread pair puts a hand's breadth of empty card between
+  /// a label and its value. Setting this also lets a long value wrap to the right
+  /// instead of overflowing the row.
   final double? labelWidth;
 
   @override

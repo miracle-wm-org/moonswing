@@ -1,17 +1,15 @@
 /// Which animation a popup plays as it opens — and, reversed, as it closes.
 ///
-/// The shell used to have exactly one: a 500 ms elastic scale that every popup
-/// content widget wrapped itself in by hand, with no counterpart on the way
-/// out, so a card that sprang into view simply blinked out of existence again.
-/// This is that decision named, made a theme key (`popup_animation`), and given
-/// the one property that makes an exit animation possible at all: **every
-/// effect is played forward to open and reversed to close**, so the way out is
-/// the way in backwards and no effect needs a second definition to describe it.
+/// The shell used to have exactly one: a 500 ms elastic scale every popup content
+/// widget wrapped itself in by hand, with no counterpart on the way out, so a
+/// card that sprang into view simply blinked out of existence. This is that
+/// decision named, made a theme key (`popup_animation`), and given the property
+/// that makes an exit possible at all: **every effect is played forward to open
+/// and reversed to close**, so no effect needs a second definition.
 ///
 /// Pure — no Flutter, no `dart:ui` — so the table and its parsing are a plain
-/// unit test. `lib/popup_transition.dart` is what turns a member of this enum
-/// into curves and transforms; the settings UI reads [label] and [description]
-/// straight off these rows.
+/// unit test. `lib/popup_transition.dart` turns a member into curves and
+/// transforms; the settings UI reads [label] and [description] off these rows.
 library;
 
 /// One popup entrance, and by reversal one exit.
@@ -66,16 +64,16 @@ enum PopupEffect {
 
   /// Whether anything is drawn between the two end states.
   ///
-  /// The one thing `PopupHost` needs to know without building a widget: an
-  /// effect that animates has to be given time to play out before the window is
+  /// The one thing `PopupHost` needs to know without building a widget: an effect
+  /// that animates has to be given time to play out before the window is
   /// destroyed, and one that does not must never cost a frame of delay.
   bool get animates => this != PopupEffect.none;
 
   /// The effect [slug] names, or null if this build has no such effect.
   ///
   /// Null rather than a throw or a silent default: the caller is
-  /// `ThemeConfig.fromMap`, whose whole discipline is that a bad value costs
-  /// its own key and nothing else, and it is the one that holds the fallback.
+  /// `ThemeConfig.fromMap`, whose whole discipline is that a bad value costs its
+  /// own key and nothing else, and it is the one that holds the fallback.
   static PopupEffect? fromSlug(String? slug) {
     if (slug == null) return null;
     for (final effect in PopupEffect.values) {
