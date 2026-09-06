@@ -101,13 +101,10 @@ import 'package:wayland/wayland.dart';
 /// Whether every root-owned window drops out of the semantics tree.
 ///
 /// **This switches accessibility off, and it is a stopgap.** The semantics pass
-/// measured as the largest consumer of the shell's UI thread (37% of it), because
-/// it is charged per view per frame and the shell has around seven views. The
-/// Linux embedder turns semantics on whether or not an assistive client is
-/// attached and offers no way to refuse, so the only lever is an empty tree.
-///
-/// Set `GRACEFUL_SHELL_SEMANTICS=1` to put it back. Fixing this properly means
-/// making the tree cheap rather than empty.
+/// measured as 37% of the shell's UI thread: it is charged per view per frame,
+/// the shell has around seven views, and the Linux embedder offers no way to
+/// refuse it — so the only lever is an empty tree. Set
+/// `GRACEFUL_SHELL_SEMANTICS=1` to put it back; the real fix is a cheap tree.
 final bool kExcludeSemantics = () {
   final on = Platform.environment['GRACEFUL_SHELL_SEMANTICS'];
   return on == null || on.isEmpty || on == '0';
@@ -143,11 +140,8 @@ void main() async {
   DesktopWidgetRegistry.register(fortuneDesktopWidget);
   DesktopWidgetRegistry.register(tuxDesktopWidget);
 
-  // AppConfig.load() writes the default config on first run and applies the
-  // module subtables; the shared ConfigStore then reads the same file.
-  //
-  // These are the only awaits before the first frame, and have to be: every
-  // native window's geometry comes out of them. Everything else starts in
+  // The only awaits before the first frame, and they have to be: every native
+  // window's geometry comes out of them. Everything else starts in
   // [_startShellServices], after the shell has painted.
   final appConfig = await AppConfig.load();
   final store = await ConfigStore.initShared();
@@ -211,12 +205,12 @@ void main() async {
   });
 }
 
-/// Hands every global start-up task to [services], which runs them off the
-/// first frame and publishes how far along each one is.
+/// Hands every global start-up task to [services], which runs them off the first
+/// frame and publishes how far along each is.
 ///
-/// Order is the order tasks get their first event-loop turn: the I/O-bound ones
-/// first so their round-trips are in flight, and the application index — the
-/// one that works synchronously — last.
+/// Order is the order tasks get their first event-loop turn: I/O-bound ones
+/// first so their round-trips are in flight, the application index last because
+/// it works synchronously.
 void _startShellServices({
   required ShellServices services,
   required AppConfig appConfig,
@@ -418,13 +412,11 @@ typedef _RootWindow = ({
 });
 
 class _GracefulShellRootState extends State<GracefulShellRoot> {
-  /// The [WindowRegistry] the root's [WindowManager] publishes, once something
-  /// below it has handed it back (see [_RegistryBinder]).
+  /// The [WindowRegistry] the root's [WindowManager] publishes, once a window
+  /// below has handed it back (see [_RegistryBinder]).
   ///
-  /// The manager creates the registry itself, so the root cannot hold it before
-  /// a window has been built. That gap is only real while the registry is empty,
-  /// so [_syncWindows] answers a null registry by bumping [_managerGeneration]
-  /// to remount the manager — losing nothing, because there was nothing to lose.
+  /// Null only while the registry is empty, so [_syncWindows] answers that by
+  /// bumping [_managerGeneration] to remount the manager — losing nothing.
   WindowRegistry? _registry;
 
   /// Keys the root [WindowManager], so a bump gives it a fresh state that reads
@@ -432,13 +424,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// [_registry] is still null.
   int _managerGeneration = 0;
 
-  /// The root's own registry entries, keyed on the controller, in registration
-  /// order.
+  /// The root's own registry entries, keyed on the controller.
   ///
-  /// Not the whole registry: every popup and runtime layer-shell window a module
-  /// opens registers into the same one. [_syncWindows] therefore diffs this map
-  /// and registers/unregisters the difference alone — replacing the registry's
-  /// contents wholesale would take every module's window down with it.
+  /// Not the whole registry: modules register their popups into the same one.
+  /// [_syncWindows] therefore diffs this map and registers/unregisters the
+  /// difference alone.
   final Map<BaseWindowController, WindowEntry> _rootEntries = {};
 
   /// Surfaces keyed by a stable monitor identity ([_monitorKey]), added and
@@ -458,22 +448,16 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   final Map<String, LayershellWindowController> _osd = {};
 
   /// The floating notification badges, keyed like [_osd] and living as long:
-  /// only while there is something to report, because the shell has no
-  /// input-region support and a mapped corner surface would swallow clicks.
-  ///
-  /// One per monitor, the OSD's rule rather than the launcher's — a user looking
-  /// at the other display would never see it. Tapping any opens the one panel,
-  /// on the monitor whose badge was tapped.
+  /// only while there is something to report, or the surface would swallow
+  /// clicks. One per monitor; tapping any opens the one panel, on that monitor.
   final Map<String, LayershellWindowController> _badges = {};
 
   /// Eight of the nine root-owned overlays — the full-screen ones; the
-  /// notification panel below is the exception. Each [_OverlayWindow] carries
-  /// the controller, its [PopupCoordinator] registration and the closing
-  /// notifier — the bookkeeping every overlay used to hand-roll separately.
+  /// notification panel is the exception. Each [_OverlayWindow] carries the
+  /// controller, its [PopupCoordinator] registration and the closing notifier.
   ///
-  /// The two pickers exist only while a request is outstanding, and are modal:
-  /// a consent prompt must displace whatever is up and be displaced by nothing,
-  /// because dismissing one is a denial only its controller may resolve.
+  /// The two pickers are modal: dismissing a consent prompt is a denial, and
+  /// only its controller may resolve it.
   final _OverlayWindow _settings = _OverlayWindow();
   final _OverlayWindow _launcher = _OverlayWindow(acquiresAppIndex: true);
   final _OverlayWindow _appChooser = _OverlayWindow(acquiresAppIndex: true);
@@ -510,12 +494,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   PolkitAuthSession? _polkitSession;
 
   /// The notification panel — the seventh root-owned overlay, and the first that
-  /// is not full-screen. The bell and the badge share no widget ancestry, so
-  /// neither could reach the other's window and both ask the root instead. See
-  /// [NotificationPanelController].
-  ///
-  /// `late final` because it brings its own window — a column down one output
-  /// edge, not a backdrop — so [_createNotificationWindow] is `this`'s to supply.
+  /// is not full-screen. The bell and the badge share no widget ancestry, so both
+  /// ask the root instead. `late final` because it brings its own window, a
+  /// column down one output edge.
   late final _OverlayWindow _notifications = _OverlayWindow(
     create: _createNotificationWindow,
   );
@@ -544,10 +525,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// The screenshot / recording selection surfaces, keyed like [_surfaces].
   ///
-  /// One per monitor rather than one window, unlike the nine [_OverlayWindow]s:
-  /// a layer-shell surface covers one output and the user has to be able to drag
-  /// on any display. Like the OSD's, they exist only while something is being
-  /// selected, or they would swallow every click on the machine.
+  /// One per monitor rather than one window: a layer-shell surface covers one
+  /// output. Like the OSD's they exist only while something is being selected.
   final Map<String, LayershellWindowController> _selector = {};
 
   /// What the open selection surfaces are asking, the environment they are
@@ -584,14 +563,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// remove sides cannot drift apart.
   late final List<(Listenable, VoidCallback)> _subscriptions;
 
-  /// The current config the widget tree renders from, kept in sync with
-  /// [GracefulShellRoot.store] by [_onConfigChanged] so theme, panel layout,
-  /// module options and background update live. Window geometry still comes from
-  /// [widget.appConfig], the startup snapshot.
+  /// The config the widget tree renders from, kept in sync by [_onConfigChanged].
+  /// Window geometry still comes from [widget.appConfig], the startup snapshot.
   ///
-  /// A notifier published through [LiveConfigProvider] rather than a plain
-  /// field: `ConfigStore` notifies on every keystroke in the settings UI, and
-  /// answering each with `setState` rebuilt every view the root owns.
+  /// A notifier published through [LiveConfigProvider] rather than a plain field:
+  /// `ConfigStore` notifies on every keystroke in the settings UI, and answering
+  /// each with `setState` rebuilt every view the root owns.
   late final ValueNotifier<AppConfig> _liveConfig;
 
   /// The panel margin currently committed to the native surfaces.
@@ -701,13 +678,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       }
 
       // No `keyboardMode`, deliberately: layer_shell defaults it to
-      // [LayerShellKeyboardMode.none], which is what a bar wants. A panel that
-      // takes focus takes it on every click on it and pulls it off whatever the
-      // user was typing in. The package defaulted to `onDemand` until
-      // mattkae/layer_shell.dart#5, and this was the one surface not passing a
-      // mode explicitly, which is why the bar was the only thief.
-      //
-      // The cost is that a popup inherits `none` — see [_borrowPopupKeyboard].
+      // [LayerShellKeyboardMode.none], which is what a bar wants — a panel that
+      // takes focus takes it on every click and pulls it off whatever the user
+      // was typing in. The cost is that a popup inherits `none`; see
+      // [_borrowPopupKeyboard].
       final controller = LayershellWindowController(
         width: width,
         height: height,
@@ -734,14 +708,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// keeps the surface — and the region that swallows clicks — card-sized.
   LayershellWindowController _createOsd(MonitorInfo monitor) {
     // The surface is the card plus the theme's shadow: the card's Row has an
-    // Expanded, so it fills the window edge to edge and a shadow would be
-    // clipped. These windows are created per request, so reading the store here
-    // follows a theme change with no listener of its own.
-    //
-    // Deliberately the no-`attachEdge` call — the OSD is bottom-centred on its
-    // own surface with nothing to be flush against — and `osd.dart` hands the
-    // same margin back to the shadow with the same call. Nothing links the two
-    // at compile time, so they move together or the card is drawn off-centre.
+    // Expanded, so a shadow would be clipped. Deliberately the no-`attachEdge`
+    // call — the OSD is bottom-centred with nothing to be flush against — and
+    // `osd.dart` hands the same margin back with the same call, with nothing
+    // linking the two at compile time.
     final shadow = popupShadowInsets(ThemeStore.instance.theme);
     final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
@@ -751,12 +721,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       height: (kOsdWindowSize.height + shadow.vertical).round(),
       monitor: monitor.gdkMonitor,
     );
-    // A direct read: this has no BuildContext and commits to a native layer
-    // surface rather than rendering, so it cannot go through [LiveConfigScope].
-    //
-    // The bottom margin gives back what the surface grew by on that edge, or the
-    // shadow would lift the card off the configured gap. Floored at 0 so a deep
-    // shadow cannot push the card off-screen.
+    // A direct read: this commits to a native layer surface rather than
+    // rendering, so it cannot go through [LiveConfigScope]. The bottom margin
+    // gives back what the surface grew by, floored at 0 so a deep shadow cannot
+    // push the card off-screen.
     final margin = (_liveConfig.value.osd.margin - shadow.bottom).round();
     controller.setMargin(LayerShellEdge.bottom, margin < 0 ? 0 : margin);
     return controller;
@@ -785,14 +753,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _destroyAfterFrame(removed);
   }
 
-  /// Builds the floating badge's window for [monitor]: a small card pinned to
-  /// the output's top-right corner.
+  /// Builds the floating badge's window for [monitor]: a card pinned to the
+  /// output's top-right corner.
   ///
-  /// Deliberately **no** [spanFullOutput]. At gtk-layer-shell's default
-  /// exclusive zone of 0 the surface means "move me so I don't occlude anything
-  /// that reserved space", so the compositor has already placed it clear of the
-  /// bars, margins included. Adding [panelInsetsFor] would count every bar
-  /// twice; a zone of -1 would switch the placement off altogether.
+  /// Deliberately **no** [spanFullOutput]. At the default exclusive zone of 0 the
+  /// compositor has already placed the surface clear of the bars, margins
+  /// included; [panelInsetsFor] would count every bar twice.
   LayershellWindowController _createBadge(MonitorInfo monitor) {
     final controller = LayershellWindowController(
       layer: LayerShellLayer.overlay,
@@ -811,12 +777,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   }
 
   /// Creates the badge windows when there is something to report and destroys
-  /// them when there is not — [_onOsdChanged]'s shape and early return, since
-  /// this runs on every arrival, dismissal and expiry. The badge reads the count
-  /// off the store itself, so a second notification repaints one surface.
-  ///
-  /// The panel counts as "reported": it is a column down the same edge, so
-  /// leaving the badge up would put it under the thing it exists to open.
+  /// them when there is not — [_onOsdChanged]'s shape and early return. The panel
+  /// counts as "reported": it is a column down the same edge, so leaving the
+  /// badge up would put it under the thing it exists to open.
   void _syncNotificationBadges() {
     if (!mounted) return;
     final wanted =
@@ -837,14 +800,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _destroyAfterFrame(removed);
   }
 
-  /// The notification panel's own window: full-height against the output's
-  /// right edge, a quarter of its width.
+  /// The notification panel's own window: full-height against the output's right
+  /// edge, a quarter of its width.
   ///
-  /// [spanFullOutput] here and not on the badge: this surface is meant to cover
-  /// the bars, and a zone of 0 would shrink it into the gap between them, so the
-  /// slide-in would stop short of the screen edges. `onDemand` keyboard is what
-  /// lets the panel's Escape binding fire — not `exclusive`, which would hold
-  /// the keyboard off whatever the user was typing in.
+  /// [spanFullOutput] here and not on the badge, because this surface is meant to
+  /// cover the bars. `onDemand` keyboard is what lets its Escape binding fire —
+  /// not `exclusive`, which would hold the keyboard off the focused window.
   LayershellWindowController _createNotificationWindow(
     ffi.Pointer<ffi.NativeType>? monitor,
   ) {
@@ -931,12 +892,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// Opens the launcher as a full-screen overlay-layer window.
   ///
-  /// Unlike [_openSettings] this passes no monitor: with no `wl_output` the
-  /// compositor picks, and miracle places shell surfaces on its focused output,
-  /// so the launcher appears where the user is looking.
-  ///
-  /// `onDemand` keyboard mode is enough for the field to be typeable at once,
-  /// because miracle focuses every layer-shell window it maps.
+  /// Unlike [_openSettings] this passes no monitor: miracle places shell surfaces
+  /// on its focused output, so the launcher appears where the user is looking.
+  /// `onDemand` keyboard makes the field typeable at once.
   void _openLauncher() {
     _launcher.open();
     _refreshWindows();
@@ -945,13 +903,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// The machine's physical power button was pressed.
   ///
   /// What that means is `[power] key_action`, read from the *live* config: the
-  /// binding latches at registration and cannot change without a restart, but
-  /// the action is a Settings dropdown and has to take effect on the next press.
-  /// Hence [PowerKeyAction.none] still being checked here.
-  ///
-  /// A configured verb runs unconfirmed, because choosing one *is* the
-  /// confirmation. The default is the menu, which toggles like the settings and
-  /// launcher shortcuts.
+  /// binding latches at registration, but the action is a Settings dropdown and
+  /// has to take effect on the next press. A configured verb runs unconfirmed,
+  /// because choosing one *is* the confirmation; the default menu toggles.
   void _onPowerKeyPressed() {
     if (!mounted) return;
     final action = _liveConfig.value.power.keyAction;
@@ -989,8 +943,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// An application asked to share the screen (or the pick was answered).
   ///
   /// The portal backend is blocked inside `Start` awaiting
-  /// [ScreencastPickerController]; this opens the consent surface on a request
-  /// and tears it down once one is answered — including when the *portal*
+  /// [ScreencastPickerController]. Includes the case where the *portal*
   /// cancelled (`Request.Close`) rather than the user.
   void _onScreencastPickChanged() {
     if (!mounted) return;
@@ -1010,9 +963,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// A capture module asked the user to choose what to capture.
   ///
   /// Unlike every other root-owned surface this cannot be raised inside the
-  /// notification that asked for it, because its window rectangles come from a
-  /// `GET_TREE` round trip. [_selectionOpening] covers that gap: without it a
-  /// second notify would stack a second set of full-screen surfaces on the first.
+  /// notification that asked for it, because its rectangles come from a
+  /// `GET_TREE` round trip. [_selectionOpening] covers that gap.
   void _onCaptureSelectionChanged() {
     if (!mounted) return;
     final request = CaptureSelectionController.instance.pending;
@@ -1060,10 +1012,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// The windowing environment, or an empty one.
   ///
-  /// One read for the machine, handed to every surface — see [CaptureScene]. A
-  /// tree that will not arrive or parse costs the *window* mode its rectangles
-  /// and nothing else: an area is measured in the surface's own space and a
-  /// whole screen needs only the connector.
+  /// One read for the machine — see [CaptureScene]. A tree that will not arrive
+  /// or parse costs the *window* mode its rectangles and nothing else.
   Future<CaptureScene> _readCaptureScene() async {
     final connection = widget.miracle.connection;
     if (connection == null) return CaptureScene.empty;
@@ -1108,12 +1058,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   }
 
   /// Called by every selection surface once it has stopped painting; the first
-  /// takes them all down and the rest find nothing to do.
+  /// takes them all down.
   ///
   /// The controller is answered here rather than at the click, so
-  /// `runCaptureFlow` starts its settle from the teardown — the wait it spends
-  /// is between the surfaces going and the shutter, not between the click and
-  /// the shutter, most of which the teardown would still be inside.
+  /// `runCaptureFlow` starts its settle from the teardown rather than the click.
   void _onSelectionClosed() {
     if (!mounted || _selector.isEmpty) return;
     final removed = _selector.values.toList();
@@ -1132,12 +1080,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// polkitd asked the user to prove who they are (or the prompt was answered).
   ///
   /// The agent is blocked inside `BeginAuthentication` awaiting
-  /// [PolkitAuthController]; this raises the dialog on a session and takes it
-  /// down once one is answered — including when *polkitd* withdrew the request.
-  ///
-  /// A superseding request has already been resolved as declined by the
-  /// controller, so all that is left here is bringing its window down;
-  /// [_onPolkitPromptClosed] re-checks `pending` and opens the next.
+  /// [PolkitAuthController] — including when *polkitd* withdrew the request. A
+  /// superseding request has already been declined by the controller, so all that
+  /// is left here is bringing its window down.
   void _onPolkitAuthChanged() {
     if (!mounted) return;
     final session = PolkitAuthController.instance.pending;
@@ -1239,10 +1184,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// Puts a picked emoji on the clipboard, and says so when it could not.
   ///
-  /// The copy is fired and not awaited, because the picker closes on the same
-  /// keystroke. Only a failure is reported, through the notification store
-  /// rather than in the card that is already gone: `lib/capture/`'s rule that a
-  /// missing external tool is a message rather than a silence.
+  /// Fired and not awaited, because the picker closes on the same keystroke. Only
+  /// a failure is reported, through the notification store rather than a card
+  /// that is already gone.
   void _onEmojiCopied(String char) {
     unawaited(
       copyTextToClipboard(char).then((result) {
@@ -1297,12 +1241,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
   }
 
-  /// Something asked for the settings overlay at a particular page — today the
-  /// desktop's "Change background…".
+  /// Something asked for the settings overlay at a particular page.
   ///
-  /// Unlike [_onSettingsTriggered] this never toggles: the request names a
-  /// destination. An overlay already on screen is closed and reopened, because
-  /// it seeds its tab in `initState`.
+  /// Unlike [_onSettingsTriggered] this never toggles. An overlay already on
+  /// screen is closed and reopened, because it seeds its tab in `initState`.
   void _onSettingsRouteRequested() {
     if (!mounted) return;
     final route = SettingsController.instance.pending;
@@ -1319,11 +1261,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   }
 
   /// "Add application…" / "Add file or folder…" from the desktop's empty-space
-  /// menu.
-  ///
-  /// The picker is asked for through [FilePickerController] because the desktop
-  /// cannot host one; the chosen paths are pinned at [cell], or as near as the
-  /// grid allows.
+  /// menu. The picker is asked for through [FilePickerController] because the
+  /// desktop cannot host one; the chosen paths are pinned at [cell].
   Future<void> _onDesktopAddRequested({
     required bool applications,
     required GridCell cell,
@@ -1382,14 +1321,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// Flips one background surface between `none` and `onDemand` keyboard
   /// interactivity, for the duration of an in-place rename.
   ///
-  /// The surface is created `none`, so a text field on it would never see a key
-  /// event. It is not left `onDemand`: a full-output background surface that can
-  /// take focus would let a stray desktop click steal it from the focused
-  /// application.
-  ///
-  /// Cached in a set on the [_panelMargin] precedent, and force-committed for
-  /// [setPanelMargin]'s reason — a change made after the surface is mapped
-  /// causes no repaint of its own and would sit queued.
+  /// Not left `onDemand`: a full-output surface that can take focus would let a
+  /// stray desktop click steal it from the focused application. Cached in a set
+  /// on the [_panelMargin] precedent, and force-committed for [setPanelMargin]'s
+  /// reason.
   void _setDesktopKeyboard(String monitorKey, bool wanted) {
     if (_desktopKeyboard.contains(monitorKey) == wanted) return;
     final controller = _surfaces[monitorKey]?.background;
@@ -1437,11 +1372,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// Reconciles the registry with the windows the root wants open, and rebuilds
   /// so their content follows whatever state changed.
   ///
-  /// This is what every `setState(() {})` in this class used to be. The halves
-  /// have to stay in this order and in one call: the reconciliation adds and
-  /// drops the *views*, and a caller following it with [_destroyAfterFrame]
-  /// relies on the dropped view having been detached first — destroying a native
-  /// window Flutter still renders into aborts the process (`WindowTeardown`).
+  /// The halves stay in this order and in one call: a caller following it with
+  /// [_destroyAfterFrame] relies on the dropped view having been detached first,
+  /// since destroying a window Flutter still renders into aborts the process.
   void _refreshWindows() {
     if (!mounted) return;
     _syncWindows();
@@ -1451,10 +1384,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// Brings the root's own entries in the [WindowRegistry] in line with
   /// [_desiredWindows], touching nothing else in it.
   ///
-  /// Windows are matched on their controller, so a surface that is still wanted
-  /// keeps the entry — and the builder — it had, and the registry notifies only
-  /// on a real create or destroy. That is why the builders in [_desiredWindows]
-  /// read the root's fields rather than capturing them.
+  /// Windows are matched on their controller, so a surface still wanted keeps its
+  /// entry and builder — which is why those builders read the root's fields
+  /// rather than capturing them.
   void _syncWindows() {
     final desired = _desiredWindows();
     final wanted = <BaseWindowController>{
@@ -1483,12 +1415,11 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
   }
 
-  /// Takes the registry the root's [WindowManager] published, from the first
-  /// window of the shell to build.
+  /// Takes the registry the root's [WindowManager] published.
   ///
   /// Assigning a field is all this does: it is called from a descendant's
-  /// `didChangeDependencies`, inside the build phase where marking anything
-  /// dirty would be an error, and the root has nothing to redraw anyway.
+  /// `didChangeDependencies`, inside the build phase where marking anything dirty
+  /// would be an error.
   void _bindRegistry(WindowRegistry registry) {
     if (identical(_registry, registry)) return;
     _registry = registry;
@@ -1497,11 +1428,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   }
 
   /// Destroys native windows only once Flutter has let go of their views —
-  /// destroying while it still renders into one aborts the process inside the
-  /// embedder's dispose (see [WindowTeardown]).
-  ///
-  /// The overlays have played their fade-out through [FadeOverlayScaffold]'s
-  /// closing handshake by now, so the up-front unmap costs nothing visually.
+  /// destroying while it still renders into one aborts the process (see
+  /// [WindowTeardown]). The overlays have played their fade-out by now, so the
+  /// up-front unmap costs nothing visually.
   void _destroyAfterFrame(List<LayershellWindowController> controllers) {
     for (final controller in controllers) {
       destroyWindowWhenDetached(controller);
@@ -1606,9 +1535,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// Whether two enumerations describe the same monitor the same way.
   ///
-  /// [MonitorInfo] carries no `==`, and the fields that matter are the ones
-  /// [resolveOutput] and the lock host read: the identity strings, the position
-  /// it is matched on, and the `GdkMonitor` the native windows were given.
+  /// [MonitorInfo] carries no `==`; the fields that matter are the ones
+  /// [resolveOutput] and the lock host read.
   bool _sameMonitor(MonitorInfo a, MonitorInfo b) =>
       a.connector == b.connector &&
       a.manufacturer == b.manufacturer &&
@@ -1641,12 +1569,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// Re-floats the bars when the active theme's margin changes.
   ///
-  /// Panel geometry is otherwise frozen at startup, but this has to follow the
-  /// theme live: a bar that rounded its corners without lifting off the screen
-  /// edge until the next restart would just look broken.
-  ///
-  /// No [setState] — nothing in the tree reads [_panelMargin], and the radius
-  /// and rim reach the panels through [ThemeProvider] on this same store.
+  /// Panel geometry is otherwise frozen at startup, but a bar that rounded its
+  /// corners without lifting off the screen edge until the next restart would
+  /// look broken. No [setState] — nothing in the tree reads [_panelMargin].
   void _onThemeChanged() {
     if (!mounted) return;
     final next = ThemeStore.instance.theme.panelMargin;
@@ -1734,10 +1659,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// The ambient providers every window in the shell gets.
   ///
-  /// An `InheritedWidget` cannot span FlutterViews and the shell renders into
-  /// one view per panel per monitor plus one per popup, overlay, OSD card and
-  /// lock surface — so these are installed once per window rather than once for
-  /// the tree. [ThemeProvider] stays the only thing constructing a [ThemeScope].
+  /// An `InheritedWidget` cannot span FlutterViews and the shell renders into one
+  /// per panel per monitor plus one per popup, overlay, OSD card and lock
+  /// surface. [ThemeProvider] stays the only thing constructing a [ThemeScope].
   Widget _windowChrome(Widget child) => _RegistryBinder(
     // Every root-owned window's content goes through here, which makes this the
     // first place under the [WindowManager] that builds — and so the one place
@@ -1766,27 +1690,21 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   @override
   Widget build(BuildContext context) {
-    // Flutter's own [WindowManager] renders the shell, from the single
-    // [WindowRegistry] it publishes to everything below it.
+    // Flutter's own [WindowManager] renders the shell from the single
+    // [WindowRegistry] it publishes.
     //
-    // Two things put windows in that registry and neither may tread on the
-    // other: the root, through [_syncWindows]; and every module that opens a
-    // popup or runtime layer-shell window from inside the tree (`PopupHost`,
-    // `LayerShellHost`). That is why the root's set is *reconciled* rather than
-    // rebuilt: a declarative list of views returned from `build` would take
-    // every module's window down with it on each rebuild.
+    // Two things put windows in that registry: the root, through [_syncWindows],
+    // and every module that opens a popup from inside the tree. That is why the
+    // root's set is *reconciled* rather than rebuilt — a declarative list of
+    // views returned from `build` would take every module's window down with it.
+    // [initialWindows] is what a remount re-registers; see [_registry].
     //
-    // [initialWindows] carries what the root owns *now* rather than at start-up,
-    // because it is also what a remount re-registers — see [_registry].
-    //
-    // One property this gave up knowingly: the manager renders its registry as
-    // *unkeyed* `Window`s, so `updateChildren` matches positionally and dropping
-    // a window from the middle shifts every later one down a slot. Each
-    // `RawView` is globally keyed on its own `FlutterView`, so that reparents
-    // rather than rebuilds, but a close still cascades through the windows after
-    // it. Hence the registration order below: the per-monitor surfaces first,
-    // the overlays that open and close all day after them, and the modules' own
-    // popups appended last by whoever opened them.
+    // The manager renders its registry as *unkeyed* `Window`s, so dropping one
+    // from the middle shifts every later one down a slot — reparenting rather
+    // than rebuilding, since each `RawView` is globally keyed on its own
+    // `FlutterView`, but still cascading. Hence the registration order below:
+    // per-monitor surfaces first, the overlays that open and close all day after
+    // them, and the modules' own popups last.
     return WindowManager(
       key: ValueKey(_managerGeneration),
       initialWindows: _rootEntries.values.toList(growable: false),
@@ -1795,12 +1713,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
 
   /// Every native window the root itself owns, paired with its content.
   ///
-  /// The controller is a window's identity — [_syncWindows] keys the registry
-  /// entries on it — so a window that survives a reconciliation keeps the
-  /// [WindowEntry], and with it the builder, it was created with. So: capture
-  /// only what is fixed for that window's life (controller, monitor, panel
-  /// name), and read anything that can still move out of the root's fields
-  /// *inside* the builder.
+  /// The controller is a window's identity, so a window that survives a
+  /// reconciliation keeps the [WindowEntry] and builder it was created with.
+  /// Capture only what is fixed for that window's life, and read anything that
+  /// can still move out of the root's fields *inside* the builder.
   List<_RootWindow> _desiredWindows() {
     // Iterate the *startup* panels — those own the layer-shell controllers —
     // but render each with the live config merged onto its fixed geometry.
@@ -1814,12 +1730,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
           (
             controller: background,
             // The window chrome is what lets the desktop grid open popups: the
-            // SDK's `Window` supplies the View and WindowScope and the registry
-            // comes from the root, but popup content is built outside the
-            // parent's ThemeScope.
-            //
-            // Deliberately no DisplayScope: the grid takes its geometry from a
-            // LayoutBuilder and never needs the output.
+            // SDK's `Window` supplies the View and WindowScope, but popup content
+            // is built outside the parent's ThemeScope. Deliberately no
+            // DisplayScope: the grid takes its geometry from a LayoutBuilder.
             builder: (_) => _windowChrome(
               // A click on the desktop dismisses whatever a *panel* has open:
               // the two surfaces share a registry but still no widget tree, so
@@ -1830,13 +1743,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                   builder: (context) {
                     final live = LiveConfigScope.of(context);
                     // Background surface existence is startup-only; while it
-                    // exists, follow live edits (fit / entry paths) but keep the
-                    // startup wallpaper if the user clears every entry.
+                    // exists, follow live edits but keep the startup wallpaper if
+                    // the user clears every entry.
                     //
                     // Null means "surface, but nothing to paint" — the grid-only
-                    // case. That must render as *nothing*, not as
-                    // BackgroundWindow's opaque empty fill, or a user with icons
-                    // and no wallpaper gets a black desktop.
+                    // case, which must render as *nothing* rather than as
+                    // BackgroundWindow's opaque empty fill.
                     final liveBg = live.background;
                     final startupBg = widget.appConfig.background;
                     final BackgroundConfig? bgConfig = !_hasBackgroundSurface
@@ -1941,15 +1853,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 return _windowChrome(
                   CaptureSelectorOverlay(
                     request: selection,
-                    // The connector, not the wl_output: this is what both the
-                    // capture stack and miracle's tree key an output on, and
+                    // The connector, not the wl_output: this is what the capture
+                    // stack and miracle's tree key an output on, and
                     // `DisplayScope` would answer null for exactly the first
-                    // frames a selection surface is drawn for.
-                    //
-                    // The corner goes with it: GDK reports no connector at all
-                    // without an `xdg-output` manager, so on those machines the
-                    // string above is empty and this is the only identity the
-                    // pick carries back to a display.
+                    // frames a selection surface is drawn for. The corner goes
+                    // with it, because GDK reports no connector at all without an
+                    // `xdg-output` manager.
                     connector: surfaces.monitor.connector,
                     origin: CapturePoint(
                       surfaces.monitor.position.dx.round(),
@@ -2311,15 +2220,10 @@ class _PanelMainState extends State<PanelMain> {
 
 /// One root-owned full-screen overlay window.
 ///
-/// Owns the four things every such overlay needs: the
-/// [LayershellWindowController], the [PopupCoordinator] registration (keyed by
-/// a sentinel [owner], since one State owns them all and the coordinator
-/// identifies a surface by owner), the [closing] notifier driving the fade-out,
-/// and the AppIndex bracket for windows whose rows hold `GAppInfo` pointers.
-///
-/// The deltas are constructor arguments, not subclasses: [policy],
-/// [acquiresAppIndex], and [open]'s `monitor` (the settings overlay pins to the
-/// first monitor; the rest let the compositor use its focused output).
+/// Owns the four things every such overlay needs: the controller, the
+/// [PopupCoordinator] registration (keyed by a sentinel [owner], since one State
+/// owns them all), the [closing] notifier driving the fade-out, and the AppIndex
+/// bracket. The deltas are constructor arguments rather than subclasses.
 class _OverlayWindow {
   _OverlayWindow({
     this.policy = TransientPolicy.menu,
@@ -2331,10 +2235,9 @@ class _OverlayWindow {
 
   /// Builds the native window for the monitor [open] was asked for.
   ///
-  /// Null is the full-screen backdrop eight of these nine want. The notification
-  /// panel — a column down one output edge — supplies its own rather than
-  /// growing this into a geometry builder: what [_OverlayWindow] owns is the
-  /// bookkeeping, none of which cares what shape the surface is.
+  /// Null is the full-screen backdrop eight of these nine want; the notification
+  /// panel supplies its own. What [_OverlayWindow] owns is the bookkeeping, which
+  /// does not care what shape the surface is.
   final LayershellWindowController Function(
     ffi.Pointer<ffi.NativeType>? monitor,
   )?
@@ -2359,11 +2262,9 @@ class _OverlayWindow {
   /// Creates the native window and registers with the coordinator.
   ///
   /// Without a [create] the window is overlay-layer, all-edges, keyboard
-  /// `onDemand`, and [spanFullOutput]ed — or the backdrop stops short of the
-  /// bars and dismiss-on-backdrop has dead strips. [onDismiss] is what the
-  /// coordinator calls to ask for a graceful close; the default flips [closing]
-  /// and lets the content animate out. Pass a direct close for content with no
-  /// exit animation.
+  /// `onDemand` and [spanFullOutput]ed, or the backdrop stops short of the bars.
+  /// [onDismiss] asks for a graceful close; the default flips [closing] and lets
+  /// the content animate out.
   void open({ffi.Pointer<ffi.NativeType>? monitor, VoidCallback? onDismiss}) {
     if (isOpen) return;
     closing.value = false;
@@ -2402,11 +2303,10 @@ class _OverlayWindow {
 
 /// Hands [onRegistry] the [WindowRegistry] the root's [WindowManager] publishes.
 ///
-/// The manager renders nothing but the windows in its registry and has no
-/// `child` slot, so the only context below it belongs to a window's own content
-/// — this rides along on every one through `_windowChrome`. Depending on the
-/// scope rather than reading it once is what makes a remounted manager report
-/// its new registry rather than leaving the root writing into a dead one.
+/// The manager has no `child` slot, so the only context below it belongs to a
+/// window's own content — this rides along on every one through `_windowChrome`.
+/// Depending on the scope rather than reading it once is what makes a remounted
+/// manager report its new registry.
 class _RegistryBinder extends StatefulWidget {
   const _RegistryBinder({required this.onRegistry, required this.child});
 
@@ -2447,15 +2347,13 @@ LayershellWindowController _fullScreenOverlay(
   return controller;
 }
 
-/// Feeds a root-owned overlay the application index, live, so the root need not
-/// rebuild every view when the index lands.
+/// Feeds a root-owned overlay the application index live, so the root need not
+/// rebuild every view when it lands.
 ///
-/// Two sources answering different halves. The list comes from [AppIndex], which
-/// notifies on install and removal. "Is it built yet" comes from the
-/// [ShellServicesScope] `_windowChrome` installs — and that dependency also
-/// delivers the very first list, because [AppIndex.start] fills `searchable`
-/// without notifying. A builder listening only to the index would sit on its
-/// loader forever, which is why both reads happen on this one element.
+/// Two sources: [AppIndex] notifies on install and removal, and the
+/// [ShellServicesScope] answers "is it built yet" — and delivers the very first
+/// list, because [AppIndex.start] fills `searchable` without notifying. Both
+/// reads have to happen on this one element or the loader never comes down.
 class _AppIndexBuilder extends StatelessWidget {
   const _AppIndexBuilder({required this.builder});
 

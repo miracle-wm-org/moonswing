@@ -114,15 +114,13 @@ class PaModule {
 // Isolate messages
 //
 // Requests cross the SendPort as one generic envelope: an id, a kind, and a
-// positional args list of sendable primitives. The isolate answers with a
-// [_Reply] carrying the same id and an optional payload (null for
-// fire-and-await-done requests). Adding a request is one [_ReqKind] member,
-// one [_PaIsolate._handleMsg] case unpacking the args into the handler, and a
-// one-line public method on [PulseClient].
+// positional args list. The isolate answers with a [_Reply] carrying the same
+// id. Adding a request is one [_ReqKind] member, one [_PaIsolate._handleMsg]
+// case, and a one-line public method on [PulseClient].
 //
 // Everything the isolate pushes *unrequested* — the ready handshake, device
-// change notifications, level-meter frames — keeps its own event class below:
-// those carry no requesting id, so they are events, not replies.
+// changes, level-meter frames — keeps its own event class: those carry no
+// requesting id, so they are events rather than replies.
 // ---------------------------------------------------------------------------
 
 enum _ReqKind {
@@ -169,8 +167,7 @@ class _ReadyEvent {
   const _ReadyEvent(this.loopAddress);
 
   /// Address of the isolate's `pa_mainloop`, so the main isolate can break the
-  /// poll when it posts a request. See [PulseClient._post] for what that is
-  /// and is not worth.
+  /// poll when it posts a request. See [PulseClient._post].
   final int loopAddress;
 }
 
@@ -201,12 +198,10 @@ class _SourceRemovedEvent {
 
 /// The default sink and/or source moved.
 ///
-/// PulseAudio reports a default-device change on the **server** facility and
-/// nowhere else: neither the device being left nor the one being adopted emits
-/// a sink/source event of its own. So for any consumer that resolved a device
-/// name once and filters events against it — which is every consumer here —
-/// this is the only notice it will ever get that the name it is holding has
-/// stopped being the default one.
+/// PulseAudio reports this on the **server** facility and nowhere else: neither
+/// the device being left nor the one being adopted emits an event of its own. So
+/// for any consumer that resolved a device name once and filters events against
+/// it — which is every consumer here — this is the only notice it gets.
 class _ServerChangedEvent {
   const _ServerChangedEvent(this.info);
   final PaServerInfo info;
@@ -214,17 +209,14 @@ class _ServerChangedEvent {
 
 /// The isolate's context has connected again after the server went away.
 ///
-/// This is its own event rather than a [_ServerChangedEvent] because every
-/// consumer filters that stream on the default device having *moved* —
-/// `OsdAudioTracker.defaultsMoved`, `SoundControlState`'s name compare — and a
-/// `pipewire-pulse` restart normally brings the same device name back. Reusing
-/// it would therefore be a silent no-op that leaves a stale reading on screen
-/// for the rest of the session, and loosening those filters would cost the
-/// redundant-reseed guard they exist for.
+/// Its own event rather than a [_ServerChangedEvent] because every consumer
+/// filters that stream on the default device having *moved*, and a
+/// `pipewire-pulse` restart normally brings the same device name back — so
+/// reusing it would be a silent no-op leaving a stale reading on screen.
 ///
-/// Nothing read before this survives it: the sink and source indices are the
-/// new server's, and the level meter's `pa_stream` belonged to the context that
-/// died. A consumer answers it by re-running the seeding it does at start-up.
+/// Nothing read before this survives it: the sink and source indices are the new
+/// server's, and the level meter's `pa_stream` belonged to the context that died.
+/// A consumer answers by re-running its start-up seeding.
 class _ConnectedEvent {
   const _ConnectedEvent();
 }
@@ -249,10 +241,9 @@ class _PaIsolate {
   final Pointer<pa_mainloop> loop;
   final Pointer<pa_mainloop_api> api;
 
-  // Not final: a context cannot be reconnected, only replaced, so [_reconnect]
-  // frees this one and puts the new one here. The mainloop and its api above
-  // outlive every context — `PulseClient._loop` holds the loop's address for
-  // `pa_mainloop_wakeup`, so it must never move.
+  // Not final: a context cannot be reconnected, only replaced. The mainloop and
+  // its api outlive every context — `PulseClient._loop` holds the loop's address
+  // for `pa_mainloop_wakeup`, so it must never move.
   Pointer<pa_context> ctx;
 
   // Pending PA operations → completion callbacks
@@ -264,9 +255,9 @@ class _PaIsolate {
   // Channel count cache for sink inputs (index → channels)
   final sinkInputChannels = <int, int>{};
 
-  // Channel count caches for sinks and sources (name → channels), filled as
-  // their infos arrive. A volume set must be as wide as the device: writing 2
-  // channels to a mono or surround device sets the wrong width.
+  // Channel count caches (name → channels), filled as infos arrive. A volume set
+  // must be as wide as the device: writing 2 channels to a mono or surround
+  // device sets the wrong width.
   final sinkChannels = <String, int>{};
   final sourceChannels = <String, int>{};
 
@@ -302,19 +293,13 @@ class _PaIsolate {
 
   /// Creates a context on [api], arms its state callback and connects it.
   ///
-  /// Both the first connect and every [_reconnect] go through here, so the
-  /// three calls cannot drift apart — a rebuilt context with no state callback
-  /// is one whose next failure is never noticed. `pa_context_new` copies the
-  /// name, so the buffer is freed straight back.
-  ///
-  /// The callback is armed **before** the connect, which is the opposite of
-  /// what this used to do: `pa_context_connect` sets the new state from inside
-  /// itself and invokes the callback synchronously, so arming it afterwards
-  /// loses a connect that failed on the spot — a machine whose audio server is
-  /// not running when the shell starts — and the retry is then never scheduled.
-  /// The consequence is that [_onCtxState] can run before `entry` has assigned
-  /// `_inst`, which is safe only because the branch that touches it is READY,
-  /// and READY cannot arrive before the mainloop has been dispatched.
+  /// Both the first connect and every [_reconnect] go through here, so the calls
+  /// cannot drift apart. The callback is armed **before** the connect:
+  /// `pa_context_connect` sets the new state from inside itself and invokes the
+  /// callback synchronously, so arming it afterwards loses a connect that failed
+  /// on the spot and the retry is never scheduled. [_onCtxState] can therefore
+  /// run before `entry` has assigned `_inst`, which is safe only because the
+  /// branch that touches it is READY.
   static Pointer<pa_context> _newContext(Pointer<pa_mainloop_api> api) {
     final pName = 'PulseClient'.toNativeUtf8();
     final ctx = _pa.pa_context_new(api, pName.cast());
@@ -341,37 +326,32 @@ class _PaIsolate {
   static const int _idleSliceUs = 50 * 1000;
 
   /// How long one [_loop] turn may keep *working* before handing the isolate
-  /// back to the Dart event loop, so a burst of events (a level meter, a volume
-  /// key held down) cannot starve [_handleMsg].
+  /// back to the Dart event loop, so a burst of events cannot starve
+  /// [_handleMsg].
   static const int _activityBudgetUs = 10 * 1000;
 
-  /// How long a cycle that follows real work may block. Long enough for a
-  /// request/reply round trip to the server to land in the same turn, short
-  /// enough that the tail after a burst is not felt.
+  /// How long a cycle following real work may block: enough for a round trip to
+  /// land in the same turn, short enough that the tail after a burst is not felt.
   static const int _drainWaitUs = 2 * 1000;
 
-  /// Set once the mainloop reports quit or a hard error. Past that point the
-  /// driver must never call `pa_mainloop_prepare` again: it asserts on its own
-  /// state and `abort()`s the process instead of returning an error.
+  /// Set once the mainloop reports quit or a hard error. Past that the driver
+  /// must never call `pa_mainloop_prepare` again: it asserts on its own state and
+  /// `abort()`s instead of returning an error.
   static bool _dead = false;
 
-  /// Set when the context reports FAILED or TERMINATED; cleared by
-  /// [_reconnect]. Deliberately *not* [_dead], which means the mainloop itself
-  /// is unusable and is the one state nothing recovers from — a context dying
-  /// under a `systemctl --user restart pipewire-pulse` leaves the mainloop
-  /// perfectly healthy.
+  /// Set when the context reports FAILED or TERMINATED; cleared by [_reconnect].
+  /// Deliberately *not* [_dead], which means the mainloop itself is unusable —
+  /// a context dying under a `pipewire-pulse` restart leaves it healthy.
   static bool _lostContext = false;
 
-  /// Set from [_reconnect] and cleared on the next READY, where it is what
-  /// separates a reconnection (which every consumer has to re-seed from) from
-  /// the first connection (which they seed from anyway).
+  /// Set from [_reconnect] and cleared on the next READY, where it separates a
+  /// reconnection (which consumers must re-seed from) from the first connection.
   static bool _reconnecting = false;
 
-  /// How long to wait before the next connect attempt, doubling per failure,
-  /// and the clock it is measured against. A server restart is two or three
-  /// seconds of nothing listening on the socket, so the first attempt has to be
-  /// prompt and the tail has to back off rather than reconnect-storm a machine
-  /// whose audio stack is simply not coming back.
+  /// How long to wait before the next connect attempt, doubling per failure, and
+  /// the clock it is measured against. A server restart is two or three seconds
+  /// of nothing listening, so the first attempt has to be prompt and the tail has
+  /// to back off rather than storm a machine whose audio stack is not returning.
   static int _reconnectDelayMs = 0;
   static final Stopwatch _sinceContextLost = Stopwatch();
 
@@ -404,17 +384,15 @@ class _PaIsolate {
 
     final old = inst.ctx;
     // Detached first: `pa_context_disconnect` can deliver TERMINATED
-    // synchronously, and a state callback firing for the context being torn
-    // down here would arm a second reconnect on the way out.
+    // synchronously, and a state callback for the context being torn down would
+    // arm a second reconnect on the way out.
     _pa.pa_context_set_state_callback(old, nullptr, nullptr);
 
-    // Every request in flight is owed an answer. `ops` holds the completions
-    // the main isolate's `firstWhere`s are waiting on, and the operations
-    // themselves belong to the context about to be freed — so each completion
-    // runs (sending whatever accumulated, which for an unanswered query is the
-    // empty list its call site pre-seeded) before the context goes. Dropping
-    // them instead leaves one future pending per in-flight request for the life
-    // of the process, which is [_reapOps]'s cancelled-operation rule.
+    // Every request in flight is owed an answer: `ops` holds the completions the
+    // main isolate's `firstWhere`s are waiting on, and the operations belong to
+    // the context about to be freed. Dropping them leaves one future pending per
+    // in-flight request for the life of the process — [_reapOps]'s
+    // cancelled-operation rule.
     for (final op in inst.ops.keys.toList()) {
       inst.ops.remove(op)!();
       _pa.pa_operation_unref(op);
@@ -424,10 +402,10 @@ class _PaIsolate {
     inst.sourceChannels.clear();
     inst.sinkInputChannels.clear();
 
-    // The stream belonged to the context and does not survive it. It is only
-    // unreffed, never disconnected: `pa_stream_disconnect` wants a stream in
-    // READY, which this one has not been since the server went away. Its one
-    // consumer restarts the meter off `onReconnected`.
+    // The stream belonged to the context and does not survive it. Only unreffed,
+    // never disconnected: `pa_stream_disconnect` wants a stream in READY, which
+    // this has not been since the server went away. Its consumer restarts the
+    // meter off `onReconnected`.
     if (inst.levelStream.address != 0) {
       _pa.pa_stream_unref(inst.levelStream);
       inst.levelStream = nullptr;
@@ -449,10 +427,9 @@ class _PaIsolate {
   /// One full turn of the libpulse state machine.
   ///
   /// `pa_mainloop_prepare` asserts `state == STATE_PASSIVE` and `abort()`s
-  /// otherwise, and only `pa_mainloop_dispatch` puts the loop back into that
-  /// state — so once `prepare` has succeeded, `dispatch` is not optional, even
-  /// when `poll` failed. The one value that may skip it is `-2`, "quit
-  /// requested", which parks the loop in STATE_QUIT for good.
+  /// otherwise, and only `pa_mainloop_dispatch` restores that state — so once
+  /// `prepare` has succeeded, `dispatch` is not optional even when `poll` failed.
+  /// The one value that may skip it is `-2`, "quit requested".
   static int _cycle(_PaIsolate inst, int timeoutUs) {
     if (_pa.pa_mainloop_prepare(inst.loop, timeoutUs) < 0) return _cycleDead;
     // -2 is the one poll result that parks the loop in STATE_QUIT; every other
@@ -462,34 +439,27 @@ class _PaIsolate {
     final dispatched = _pa.pa_mainloop_dispatch(inst.loop);
     if (dispatched < 0 || polled < 0) return _cycleDead;
     if (dispatched > 0) return _cycleWorked;
-    // `polled > 0` with nothing dispatched is the wakeup pipe. It sits in the
+    // `polled > 0` with nothing dispatched is the wakeup pipe: it sits in the
     // pollfd set but has no `pa_io_event`, so it can never be counted as a
-    // dispatched source — which means this is the *only* place a wakeup is
-    // visible. `_post` wrote it, so a request is already sitting in this
-    // isolate's message queue and the event loop is where to be next.
+    // dispatched source and this is the only place a wakeup is visible. `_post`
+    // wrote it, so a request is already in this isolate's message queue.
     if (polled > 0) return _cycleWoken;
     // Nothing at all: a bare timeout, or a `ppoll` the Dart VM's thread
-    // interrupter cut short. libpulse maps EINTR onto "returned, nothing was
-    // ready" and does not retry, so retrying is this driver's job.
+    // interrupter cut short. libpulse maps EINTR onto "returned, nothing ready"
+    // and does not retry, so retrying is this driver's job.
     return _cycleIdle;
   }
 
   /// Registers [op]'s completion, or runs it now if libpulse refused the call.
   ///
   /// Every `pa_context_*` request answers null once the context is no longer
-  /// `PA_CONTEXT_IS_GOOD` — which is what a `pipewire-pulse` restart makes it —
-  /// and `pa_operation_get_state(NULL)` is an assert inside libpulse, so a null
-  /// key in [ops] does not merely lose the request: it takes the whole shell
-  /// down with SIGABRT on the next [_reapOps]. That is the crash a server
-  /// restart used to produce, and it is why `_onSubscribe` and
-  /// `_startLevelMeter` already test the same return.
+  /// `PA_CONTEXT_IS_GOOD`, and `pa_operation_get_state(NULL)` is an assert inside
+  /// libpulse — so a null key in [ops] takes the whole shell down with SIGABRT on
+  /// the next [_reapOps].
   ///
-  /// Answering on the spot is [_reapOps]'s `PA_OPERATION_CANCELLED` contract
-  /// applied one step earlier: [done] sends whatever accumulated — for a
-  /// refused request, the empty list its call site pre-seeded — so the
-  /// `firstWhere` the main isolate is awaiting still completes rather than
-  /// hanging for the life of the process, and whatever that call site
-  /// allocated is still freed.
+  /// Answering on the spot is [_reapOps]'s `PA_OPERATION_CANCELLED` contract one
+  /// step earlier: [done] sends whatever accumulated, so the awaiting
+  /// `firstWhere` still completes and whatever the call site allocated is freed.
   static void _register(Pointer<pa_operation> op, void Function() done) {
     if (op.address == 0) {
       pulseLog('request refused (context not ready); answering empty');
@@ -503,9 +473,8 @@ class _PaIsolate {
   ///
   /// A `PA_OPERATION_CANCELLED` operation is answered too, not dropped: the
   /// registered callback is what completes the `firstWhere` the main isolate is
-  /// awaiting, and silently forgetting it leaves that future pending for the
-  /// life of the process — and, when this reaping lived inside its own `while
-  /// (ops.isNotEmpty)` branch, wedged the isolate's event loop with it.
+  /// awaiting, and forgetting it leaves that future pending for the life of the
+  /// process.
   static void _reapOps(_PaIsolate inst) {
     if (inst.ops.isEmpty) return;
     for (final op in inst.ops.keys.toList()) {
@@ -525,18 +494,12 @@ class _PaIsolate {
   /// The rule is expressed on the pair (poll result, dispatched count):
   ///
   /// * dispatched > 0 — real work. **Keep cycling.** Delivering one external
-  ///   volume change takes several cycles back to back (read the subscription
-  ///   event, flush the `get_sink_info_by_index` its callback issued, read that
-  ///   reply); returning to the Dart event loop in between is what used to
-  ///   strand it, and is why a change made *through* this client — which had a
-  ///   `pa_operation` in flight and so ran a different, continuous driver —
-  ///   was the only kind that ever reached the OSD.
-  /// * poll > 0, dispatched == 0 — the wakeup pipe. **Yield now**, a request is
-  ///   queued.
-  /// * both zero — idle, or EINTR. **Retry in place** for the rest of the
-  ///   slice. This is the anti-spin case: re-arming through `Timer.run` on
-  ///   every signal-interrupted poll turned an idle 20 Hz loop into an ~820 Hz
-  ///   spin, 7 of the shell's 9% idle CPU.
+  ///   volume change takes several cycles back to back, and returning to the
+  ///   Dart event loop in between is what used to strand it.
+  /// * poll > 0, dispatched == 0 — the wakeup pipe. **Yield now.**
+  /// * both zero — idle, or EINTR. **Retry in place.** This is the anti-spin
+  ///   case: re-arming through `Timer.run` on every signal-interrupted poll
+  ///   turned an idle 20 Hz loop into an ~820 Hz spin.
   static void _loop() {
     final inst = _inst;
     if (inst == null || _dead) return;
@@ -586,9 +549,9 @@ class _PaIsolate {
   // Message dispatch
   // ---------------------------------------------------------------------------
 
-  /// Unpacks a [_Request] envelope into its handler. This table is the one
-  /// place the positional args list is interpreted, so each case is where a
-  /// kind's arg order and types are defined.
+  /// Unpacks a [_Request] envelope into its handler. The one place the
+  /// positional args list is interpreted, so each case defines a kind's arg
+  /// order and types.
   static void _handleMsg(dynamic msg) {
     if (msg is! _Request) return;
     final id = msg.id;
@@ -661,17 +624,16 @@ class _PaIsolate {
         _reconnecting = false;
         pulseLog('reconnected');
         // After the subscription is re-armed, never before: a consumer that
-        // re-seeded on this event and then missed the events that followed
-        // would be exactly as stale as one that never heard it.
+        // re-seeded here and then missed the events that followed would be
+        // exactly as stale as one that never heard it.
         _inst!.port.send(const _ConnectedEvent());
       }
       return;
     }
-    // FAILED is the server going away — `pipewire-pulse` restarting under us,
-    // or a socket that was never there — and TERMINATED is it closing the
-    // connection cleanly. Both are recoverable and neither is acted on here:
-    // libpulse forbids freeing a context from inside its own state callback, so
-    // this only records, and [_reconnect] runs on the next [_loop] turn.
+    // FAILED is the server going away and TERMINATED is it closing cleanly. Both
+    // are recoverable and neither is acted on here: libpulse forbids freeing a
+    // context from inside its own state callback, so this only records and
+    // [_reconnect] runs on the next [_loop] turn.
     if (state == pa_context_state.PA_CONTEXT_FAILED ||
         state == pa_context_state.PA_CONTEXT_TERMINATED) {
       _noteContextLost();
@@ -694,9 +656,8 @@ class _PaIsolate {
     switch (facility) {
       case PA_SUBSCRIPTION_EVENT_SERVER:
         // The default sink or source may have moved. The event carries no
-        // payload, so re-read the server info; like the sink/source fetches
-        // below this one is not routed through `ops` — the info callback
-        // pushes the event itself.
+        // payload, so re-read the server info; like the fetches below this is not
+        // routed through `ops` — the info callback pushes the event itself.
         op = _pa.pa_context_get_server_info(
             c, Pointer.fromFunction(_onServerInfoChanged), nullptr);
       case PA_SUBSCRIPTION_EVENT_SINK:
@@ -727,9 +688,9 @@ class _PaIsolate {
     final op = _pa.pa_context_get_server_info(
         _inst!.ctx, Pointer.fromFunction(_onServerInfo), pId.cast());
     _register(op, () {
-      // Unlike every other list query this one does not pre-seed `accum`, so a
-      // cancelled operation reaches here with nothing to send. Answer anyway —
-      // the main isolate is awaiting this id and would otherwise wait forever.
+      // Unlike every other list query this does not pre-seed `accum`, so a
+      // cancelled operation reaches here with nothing to send. Answer anyway, or
+      // the main isolate awaits this id forever.
       _inst!.port.send(_Reply(
           id,
           _inst!.accum.remove(id) ??
@@ -740,9 +701,9 @@ class _PaIsolate {
 
   static void _onServerInfo(
       Pointer<pa_context> c, Pointer<pa_server_info> info, Pointer<Void> ud) {
-    // A failed query calls back with a null info, which is the case
-    // `_getServerInfo`'s completion already answers for — leave `accum` empty
-    // and let it send the empty default rather than dereferencing this.
+    // A failed query calls back with a null info, which `_getServerInfo`'s
+    // completion already answers for — leave `accum` empty rather than
+    // dereferencing this.
     if (info.address == 0) return;
     final id = ud.cast<Int>().value;
     _inst!.accum[id] = _serverInfoFromNative(info);
@@ -759,10 +720,10 @@ class _PaIsolate {
     _inst!.port.send(_ServerChangedEvent(resolved));
   }
 
-  /// A server with no default device at all reports it as a null pointer, not
-  /// as an empty string — which is exactly the state a server event arrives in
-  /// when the last sink has just been unplugged. Dereferencing it here would
-  /// take down the isolate, and with it every volume reading in the shell.
+  /// A server with no default device reports it as a null pointer rather than an
+  /// empty string — the state a server event arrives in when the last sink has
+  /// just been unplugged. Dereferencing it would take down the isolate, and with
+  /// it every volume reading in the shell.
   static PaServerInfo _serverInfoFromNative(Pointer<pa_server_info> info) {
     final s = info.ref;
     return PaServerInfo(
@@ -771,9 +732,9 @@ class _PaIsolate {
     );
   }
 
-  // Typed on `NativeType` rather than on the field's own pointer type: which
-  // of `Pointer<Char>` / `Pointer<Int8>` ffigen emitted for `const char *`
-  // is a detail of the generated bindings, and nothing here needs to know.
+  // Typed on `NativeType` rather than the field's own pointer type: which of
+  // `Pointer<Char>` / `Pointer<Int8>` ffigen emitted for `const char *` is a
+  // detail of the generated bindings.
   static String _stringOrEmpty(Pointer<NativeType> p) =>
       p.address == 0 ? '' : p.cast<Utf8>().toDartString();
 
@@ -1336,18 +1297,15 @@ class PulseClient {
 
   // --- request posting ---
 
-  /// The PA isolate spends its time blocked inside `pa_mainloop_poll`, so a
-  /// message posted to it is not seen until that poll returns. Waking the
-  /// mainloop right after the send is what keeps the poll slice long (cheap at
-  /// idle) without making requests wait for it.
+  /// The PA isolate blocks inside `pa_mainloop_poll`, so a message posted to it
+  /// is not seen until that poll returns. Waking the mainloop after the send
+  /// keeps the poll slice long (cheap at idle) without making requests wait.
   ///
-  /// Two things bound how much this buys. `pa_mainloop_wakeup` writes a byte to
-  /// a pipe that has no `pa_io_event`, so the wake is invisible to
-  /// `pa_mainloop_dispatch` and only the driver's own (poll > 0, dispatched ==
-  /// 0) rule notices it — see `_PaIsolate._cycle`. And `pa_mainloop_prepare`
-  /// drains that pipe unconditionally before every poll, so a byte written
-  /// while the isolate is between turns is swallowed; that request simply waits
-  /// for the message queue, which the driver reaches at the end of each turn.
+  /// Two limits. `pa_mainloop_wakeup` writes to a pipe with no `pa_io_event`, so
+  /// the wake is invisible to `pa_mainloop_dispatch` and only the driver's
+  /// (poll > 0, dispatched == 0) rule notices it. And `pa_mainloop_prepare`
+  /// drains that pipe before every poll, so a byte written between turns is
+  /// swallowed and the request simply waits for the message queue.
   Pointer<pa_mainloop>? _loop;
   late final PulseAudioBindings? _wakeBindings = () {
     try {
@@ -1401,14 +1359,13 @@ class PulseClient {
       .cast<_ServerChangedEvent>()
       .map((m) => m.info);
 
-  /// Fires when the isolate's connection to the server has been rebuilt after
-  /// it went away — a `pipewire-pulse` restart, say — and never on the first
-  /// connection, which every consumer seeds from anyway.
+  /// Fires when the isolate's connection has been rebuilt after the server went
+  /// away, and never on the first connection.
   ///
   /// Everything read before it is stale: the sink and source indices belong to
   /// the server that died, and so did the level meter's stream. A consumer
-  /// answers this by re-running its own start-up seeding. See [_ConnectedEvent]
-  /// for why this is not folded into [onServerChanged].
+  /// answers by re-running its own start-up seeding. See [_ConnectedEvent] for
+  /// why this is not folded into [onServerChanged].
   Stream<void> get onReconnected =>
       _broadcast.where((m) => m is _ConnectedEvent).map((_) {});
 

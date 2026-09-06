@@ -1,9 +1,9 @@
 // Pure geometry for the desktop icon grid.
 //
 // Everything here is a function of its arguments: no BuildContext, no disk, no
-// GIO. That is deliberate and it is what `test/desktop_layout_test.dart` points
-// at — the interaction code in `desktop_grid.dart` is hard to test, so as much
-// of the behaviour as possible is pushed down here where it is not.
+// GIO — so as much behaviour as possible sits here, where
+// `test/desktop_layout_test.dart` can reach it, rather than in the interaction
+// code in `desktop_grid.dart`.
 
 import 'dart:math' as math;
 import 'dart:ui';
@@ -61,9 +61,8 @@ class DesktopGridGeometry {
 
   /// The pixel rect a whole [GridArea] covers.
   ///
-  /// The spanned gutters are *inside* the rect: a 2x1 widget is two cells wide
-  /// plus the one gap between them, so a widget reads as one surface rather
-  /// than as two tiles that happen to touch.
+  /// The spanned gutters are *inside* the rect, so a 2x1 widget reads as one
+  /// surface rather than two tiles that happen to touch.
   Rect areaRect(GridArea area) => Rect.fromLTWH(
         origin.dx + area.column * columnPitch,
         origin.dy + area.row * rowPitch,
@@ -99,15 +98,13 @@ class DesktopGridGeometry {
   int get hashCode => Object.hash(columns, rows, cellSize, spacing, origin);
 }
 
-/// The area of a full-output surface that is not covered by a panel.
+/// The area of a full-output surface not covered by a panel.
 ///
-/// The background surface calls `spanFullOutput` (exclusive zone −1), so it
-/// reaches *under* the bars — an icon placed there would simply be hidden. Each
-/// panel contributes its thickness plus the theme's [panelMargin] to the edge
-/// its anchor names, because per wlr-layer-shell the exclusive zone includes the
-/// margin (see `setPanelMargin` in `lib/popup.dart`).
-///
-/// Two panels anchored to the same edge stack, so their insets add.
+/// The background surface calls `spanFullOutput`, so it reaches *under* the bars
+/// and an icon placed there would be hidden. Each panel contributes its thickness
+/// plus the theme's [panelMargin] to the edge its anchor names, because per
+/// wlr-layer-shell the exclusive zone includes the margin. Two panels on the same
+/// edge stack, so their insets add.
 EdgeInsets panelInsetsFor(Map<String, PanelConfig> panels, int panelMargin) {
   var top = 0.0;
   var bottom = 0.0;
@@ -204,9 +201,9 @@ GridCell? firstFreeCell(DesktopGridGeometry g, Set<GridCell> occupied) {
 
 /// The free cell closest to [preferred], or null when the grid is full.
 ///
-/// Distance is measured in cells, and ties break column-major so the result is
-/// deterministic — an "add here" that jumped around between identical calls
-/// would be maddening.
+/// Distance is in cells, and ties break column-major so the result is
+/// deterministic — an "add here" that jumped between identical calls would be
+/// maddening.
 GridCell? nearestFreeCell(
   DesktopGridGeometry g,
   Set<GridCell> occupied,
@@ -242,10 +239,8 @@ Set<GridCell> occupiedCells(List<DesktopItem> items, {String? ignoreTarget}) {
 
 /// Moves [target] to [cell], **swapping** with whatever is already there.
 ///
-/// Returns the input list unchanged (the identical instance) when there is
-/// nothing to do — an unknown target, or a move to the cell it already
-/// occupies. Callers use that to skip a config write, so a drag that ends where
-/// it started costs nothing.
+/// Returns the identical list when there is nothing to do, so a drag that ends
+/// where it started costs no config write.
 List<DesktopItem> moveItemTo(
   List<DesktopItem> items,
   String target,
@@ -281,22 +276,19 @@ List<DesktopItem> moveItemTo(
   return next;
 }
 
-/// The targets whose cell overlaps [rect], which is in the same surface-local
-/// pixel space as [DesktopGridGeometry.cellRect].
+/// The targets whose cell overlaps [rect], in the same surface-local pixel space
+/// as [DesktopGridGeometry.cellRect].
 ///
 /// [items] must be the list the grid is *rendering* — the output of
-/// [reflowIntoGrid] — so a selection band picks what the user can see rather
-/// than what the config authored.
+/// [reflowIntoGrid] — so a band picks what the user can see rather than what the
+/// config authored.
 ///
-/// Overlap is [Rect.overlaps], which is strict: a band whose edge exactly
-/// touches a cell does not select it, and a band that has not moved (a zero-area
-/// rect) selects nothing. That last one is what lets a plain click on bare
-/// desktop still clear the selection.
+/// Overlap is [Rect.overlaps], which is strict: a band whose edge exactly touches
+/// a cell does not select it, and a zero-area rect selects nothing — which is
+/// what lets a plain click on bare desktop clear the selection.
 ///
-/// This is the **one-shot** form: it builds a [DesktopBandIndex] and throws it
-/// away, which is right for a single question and wrong for the rubber band,
-/// whose `onPanUpdate` asks one per pointer move. That caller keeps the index —
-/// see [DesktopBandIndex].
+/// The **one-shot** form: it builds a [DesktopBandIndex] and throws it away. The
+/// rubber band, which asks one per pointer move, keeps the index instead.
 Set<String> targetsInRect(
   List<DesktopItem> items,
   DesktopGridGeometry g,
@@ -310,34 +302,21 @@ typedef _Seat = ({int row, String target});
 
 /// A spatial index over the rendered icons, built once and asked many times.
 ///
-/// **The band's hit test must not cost what the desktop holds.** It used to be
-/// a scan of every icon, run from `onPanUpdate` — which arrives at least once
-/// per frame for as long as the button is down — so the price of asking "what
-/// is under this rect?" was paid at pointer rate and grew with everything the
-/// user had pinned, widgets included: each widget takes cells away from the
-/// icon flow, so `reflowIntoGrid` seats more icons elsewhere and the scan
-/// behind the band lengthens with the reflow. The grid is what makes an index
-/// trivial — an icon's cell *is* its address — so the columns and rows a band
-/// spans are arithmetic on the rect alone, and only the icons actually seated
-/// in that block are ever looked at. A query costs what it *selects*, not what
-/// is on the desktop.
+/// **The band's hit test must not cost what the desktop holds.** It used to scan
+/// every icon from `onPanUpdate` — at least once per frame while the button is
+/// down — so the price grew with everything pinned, widgets included. The grid
+/// makes an index trivial, since an icon's cell *is* its address: the columns and
+/// rows a band spans are arithmetic on the rect, and only the icons seated in
+/// that block are looked at. A query costs what it *selects*.
 ///
 /// Build it from the list the grid is rendering, for [targetsInRect]'s reason,
-/// and rebuild it when that list or the geometry changes — `DesktopLayerState`
-/// keys it on the identity of the `DesktopConfig` behind them, which is the
-/// same key its cached reflow uses, so a band drag that changes nothing but the
-/// selection rebuilds neither.
+/// and rebuild it when that list or the geometry changes.
 ///
-/// Two things a change here has to keep true. **The range is a superset and
-/// [Rect.overlaps] is still what decides**: the divisions that invert a pixel
-/// back to a column are widened to the enclosing integer rather than reasoned
-/// about at the boundary, so the strict-touch semantics above are the exact
-/// same predicate they always were and cannot drift with the arithmetic. And
-/// **an off-grid cell is indexed like any other** — the buckets are keyed on
-/// the raw column, not on a grid position — because [reflowIntoGrid] leaves a
-/// stray where it was authored when the grid is full, and the band still has to
-/// answer correctly about it (which is to say: not select something drawn two
-/// screens to the right).
+/// Two things to keep. **The range is a superset and [Rect.overlaps] still
+/// decides**, so the strict-touch semantics cannot drift with the arithmetic. And
+/// **an off-grid cell is indexed like any other** — the buckets are keyed on the
+/// raw column — because [reflowIntoGrid] leaves a stray where it was authored
+/// when the grid is full, and the band still has to answer correctly about it.
 class DesktopBandIndex {
   DesktopBandIndex(List<DesktopItem> items, this.geometry) {
     var minColumn = 0;
@@ -381,8 +360,7 @@ class DesktopBandIndex {
   ///
   /// Public because the complexity *is* the point of this class and a stopwatch
   /// is a flaky way to pin it: `test/desktop_layout_test.dart` asserts on this
-  /// instead, that a band dragged over a desktop of ten thousand icons examines
-  /// the handful it actually crosses. Nothing in `lib/` reads it.
+  /// instead. Nothing in `lib/` reads it.
   @visibleForTesting
   int seatsExamined = 0;
 
@@ -396,11 +374,10 @@ class DesktopBandIndex {
 
     final columnPitch = geometry.columnPitch;
     final rowPitch = geometry.rowPitch;
-    // A pitch of zero has no inverse, and a non-finite rect floors to nothing:
-    // both answer the slow way rather than dividing by zero or throwing out of
-    // a pointer handler. Neither is reachable from a parsed config (`cell_width`
-    // has a floor of 32) — this is the guard that keeps a hand-built geometry
-    // from being a crash.
+    // A pitch of zero has no inverse and a non-finite rect floors to nothing:
+    // both answer the slow way rather than dividing by zero or throwing out of a
+    // pointer handler. Neither is reachable from a parsed config — this guards a
+    // hand-built geometry.
     if (columnPitch <= 0 || rowPitch <= 0 || !rect.isFinite) return _scan(rect);
 
     final origin = geometry.origin;
@@ -473,21 +450,17 @@ class DesktopBandIndex {
 
 /// Translates every item in [targets] by ([dColumn], [dRow]).
 ///
-/// The delta is clamped so the whole group stays inside [g]: a group dragged
-/// past an edge slides along it rather than losing its shape or losing members
-/// off the grid.
+/// The delta is clamped so the whole group stays inside [g]: a group dragged past
+/// an edge slides along it rather than losing its shape or its members.
 ///
-/// Non-selected items standing in the group's destination cells are displaced,
-/// preferring the cells the group **vacated** — which is what makes a one-item
-/// group behave exactly like [moveItemTo]'s swap — and falling back to
-/// [nearestFreeCell] otherwise. A displaced item with nowhere to go is left
-/// where it is rather than silently stacked.
+/// Non-selected items in the group's destination cells are displaced, preferring
+/// the cells the group **vacated** — which makes a one-item group behave exactly
+/// like [moveItemTo]'s swap — and falling back to [nearestFreeCell]. A displaced
+/// item with nowhere to go is left where it is rather than stacked.
 ///
-/// Returns the identical list when there is nothing to do, so a group drag that
-/// ends where it started costs no config write. Note this resolves against
-/// whatever list it is given while the caller measured the delta against the
-/// rendered one; they differ only for items [reflowIntoGrid] pulled in, which is
-/// the same split [moveItemTo] already has.
+/// Returns the identical list when there is nothing to do. Note this resolves
+/// against whatever list it is given while the caller measured the delta against
+/// the rendered one; they differ only for items [reflowIntoGrid] pulled in.
 List<DesktopItem> moveItemsBy(
   List<DesktopItem> items,
   Set<String> targets,
@@ -614,11 +587,10 @@ List<DesktopItem> placeItem(
   return [...items, item.copyWith(column: free.column, row: free.row)];
 }
 
-/// Re-seats every item into sequential column-major cells, preserving current
-/// reading order (column-major by cell, then document order as the tie-break).
+/// Re-seats every item into sequential column-major cells, preserving reading
+/// order.
 ///
-/// Idempotent: organizing an already-organized grid is a no-op, which is what
-/// lets the caller compare and skip the write.
+/// Idempotent, which is what lets the caller compare and skip the write.
 List<DesktopItem> organizeItems(
   List<DesktopItem> items,
   DesktopGridGeometry g, {
@@ -664,9 +636,9 @@ List<DesktopItem> organizeItems(
 /// rendering only.
 ///
 /// A grid arranged on a 4K monitor has cells a 1080p monitor does not, and the
-/// same item list is rendered on both. The result is **never persisted**: the
-/// authored cell survives in the config, so plugging the big monitor back in
-/// restores the layout exactly.
+/// same item list is rendered on both. **Never persisted**: the authored cell
+/// survives in the config, so plugging the big monitor back in restores the
+/// layout exactly.
 List<DesktopItem> reflowIntoGrid(
   List<DesktopItem> items,
   DesktopGridGeometry g, {
@@ -677,10 +649,9 @@ List<DesktopItem> reflowIntoGrid(
   for (final item in items) {
     final cell = (column: item.column, row: item.row);
     // A cell a widget covers is "out of range" for the same reason a cell past
-    // the last column is: the icon would be there but the user could neither
-    // see nor click it. This is what a widget reflowed onto a smaller monitor
-    // does to the icons it lands on, and it is render-only — the config still
-    // has the icon where its owner put it.
+    // the last column is: the icon would be there but the user could neither see
+    // nor click it. Render-only — the config still has the icon where its owner
+    // put it.
     if (g.contains(cell) && !blocked.contains(cell)) {
       inRange.add(item);
     } else {
@@ -709,10 +680,9 @@ List<DesktopItem> reflowIntoGrid(
 // Widgets
 //
 // A widget occupies a rectangle of cells rather than one, is identified by its
-// instance id rather than by a path, and — unlike an icon — is never moved by
+// instance id rather than a path, and — unlike an icon — is never moved by
 // [organizeItems]. Everything below is the span-aware twin of the single-cell
-// helpers above; the two meet through [widgetCells], which is what an icon
-// helper takes as its `blocked` set.
+// helpers above; the two meet through [widgetCells].
 // -----------------------------------------------------------------------------
 
 /// The area [widget] occupies.
@@ -753,8 +723,8 @@ bool areaFree(GridArea area, Set<GridCell> occupied) {
   return true;
 }
 
-/// [area] clamped so it fits inside [g]: the span first (a 3x2 widget cannot
-/// fit a 2x2 grid), then the origin.
+/// [area] clamped so it fits inside [g]: the span first (a 3x2 widget cannot fit
+/// a 2x2 grid), then the origin.
 ///
 /// Total, like [nearestCell]: every area has an answer, because the alternative
 /// on a small monitor is a widget that renders nowhere.
@@ -769,12 +739,11 @@ GridArea clampAreaInto(GridArea area, DesktopGridGeometry g) {
   );
 }
 
-/// The placement of [area]'s size nearest [area]'s own origin that overlaps
-/// nothing in [occupied], or null when the grid has no room for it at all.
+/// The placement of [area]'s size nearest its own origin that overlaps nothing in
+/// [occupied], or null when the grid has no room at all.
 ///
-/// [nearestFreeCell]'s contract, one dimension up: distance is measured in
-/// cells between origins and ties break column-major, so "add a widget here"
-/// is deterministic.
+/// [nearestFreeCell]'s contract one dimension up: distance in cells between
+/// origins, ties column-major.
 GridArea? nearestFreeArea(
   GridArea area,
   DesktopGridGeometry g,
@@ -805,12 +774,12 @@ GridArea? nearestFreeArea(
   return best;
 }
 
-/// Adds [widget] at its own area when that is free, else at the nearest free
-/// one. Returns the list unchanged when the id is taken or nothing fits.
+/// Adds [widget] at its own area when that is free, else at the nearest free one.
+/// Returns the list unchanged when the id is taken or nothing fits.
 ///
 /// Only *other widgets* block a placement, never icons: an icon in the way is
-/// displaced by the caller ([displaceItemsFrom]), because a desktop with icons
-/// in every visible cell would otherwise refuse to take a widget at all.
+/// displaced by the caller ([displaceItemsFrom]), or a desktop with icons in
+/// every visible cell would refuse to take a widget at all.
 List<DesktopWidgetItem> placeWidget(
   List<DesktopWidgetItem> widgets,
   DesktopWidgetItem widget,
@@ -832,9 +801,9 @@ List<DesktopWidgetItem> placeWidget(
 
 /// Moves the widget [id] so its top-left lands on [cell], keeping its span.
 ///
-/// The move is clamped into the grid and **refused** when it would overlap
-/// another widget — [moveItemTo]'s rule rather than its swap: two widgets are
-/// two different sizes, so there is no exchange of places to make.
+/// Clamped into the grid and **refused** when it would overlap another widget —
+/// [moveItemTo]'s rule rather than its swap: two widgets are two different sizes,
+/// so there is no exchange of places to make.
 List<DesktopWidgetItem> moveWidgetTo(
   List<DesktopWidgetItem> widgets,
   String id,
