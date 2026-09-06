@@ -1,26 +1,20 @@
-// The round icon action that sits in the corner of a picture-backed desktop
-// card.
+// The round icon action that sits in the corner of a picture-backed desktop card.
 //
 // Generalized out of the fortune widget's refresh button when a second card
-// wanted the same control, which is the rule `overlay/settings/controls.
-// dart` states for the settings library: **a control the library lacks gets
-// added to the library, generalized from the best copy** — the four hand-rolled
-// icon buttons that drifted apart before it was written are what that rule is
-// made of.
+// wanted the same control — the settings library's rule that a control the
+// library lacks gets *added to the library*.
 //
 // Three things it keeps from the copy it came from:
 //
 // - **Barely there at rest.** These cards spend nearly all their life being
-//   looked at rather than used, and a solid button in the corner of a picture
-// is   chrome on the wallpaper.
+//   looked at rather than used, and a solid button in the corner of a picture is
+//   chrome on the wallpaper.
 // - **It takes its colours from the picture, not the theme.** A card whose
-//   backdrop runs from a near-black sky to the glare beside a flame has no
-// theme   foreground legible across both — the call `weather_widget.dart`,
-//   `moon_widget.dart` and the lock screen all make.
-// - **It is a *tap*, never a pan.** A desktop widget is dragged from anywhere
-// on   its card, and the two recognizers resolve against each other: a press
-// that   moves is the drag, one that does not is this. A pan-driven control on
-// one of   these cards would have to take the drag somewhere else first.
+//   backdrop runs from a near-black sky to the glare beside a flame has no theme
+//   foreground legible across both.
+// - **It is a *tap*, never a pan.** A desktop widget is dragged from anywhere on
+//   its card, and the two recognizers resolve against each other: a press that
+//   moves is the drag, one that does not is this.
 
 import 'package:flutter/widgets.dart';
 

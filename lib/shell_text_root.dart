@@ -4,17 +4,16 @@ import 'package:graceful_shell/scopes.dart';
 
 /// The text environment a shell window needs at its root.
 ///
-/// The shell boots without a `WidgetsApp`, so nothing supplies a
-/// [Directionality] — thirteen windows and popups used to open with the same
-/// two-widget preamble. This also seeds a [DefaultTextStyle] carrying the
-/// theme's font family, so a `TextStyle` that names no `fontFamily` inherits
-/// the theme's instead of the engine default; whole settings pages used to
-/// drift off-theme one forgotten `fontFamily:` at a time.
+/// The shell boots without a `WidgetsApp`, so nothing supplies a [Directionality]
+/// — thirteen windows and popups used to open with the same two-widget preamble.
+/// This also seeds a [DefaultTextStyle] carrying the theme's font family, so a
+/// `TextStyle` naming no `fontFamily` inherits the theme's rather than the engine
+/// default; whole settings pages used to drift off-theme one forgotten
+/// `fontFamily:` at a time.
 ///
 /// The theme's *size* is not seeded here: it is the `TextScaler` on the
-/// [MediaQuery] `ThemeProvider` publishes, which is the only mechanism that
-/// also moves the `fontSize:` a widget spelled out for itself. See
-/// `lib/theme/theme_provider.dart`.
+/// [MediaQuery] `ThemeProvider` publishes, the only mechanism that also moves a
+/// `fontSize:` a widget spelled out for itself.
 ///
 /// Sits *inside* `ThemeProvider` (it reads [ThemeScope]), which is why
 /// `_windowChrome` in `main.dart` is where it goes.

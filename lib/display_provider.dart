@@ -90,18 +90,15 @@ WaylandOutput? resolveOutput(
 /// Provides the live [WaylandOutput] for one panel's monitor.
 ///
 /// **This is the only thing in the shell that should construct a
-/// [DisplayScope]** — the [ThemeProvider] rule, for the same reason. An
-/// `InheritedWidget` cannot span FlutterViews, so every panel window has to be
-/// given its output separately; doing that by resolving it in the root's own
-/// `build` meant the root had to rebuild *every* view — every panel on every
-/// monitor, the backgrounds, the OSD, the overlays — whenever any output
-/// changed or finished reporting its properties.
+/// [DisplayScope]** — the [ThemeProvider] rule, for its reason. An
+/// `InheritedWidget` cannot span FlutterViews, so every panel window is given its
+/// output separately; resolving it in the root's own `build` instead meant the
+/// root rebuilt *every* view it owns whenever any output changed.
 ///
-/// Only [OutputTracker] is listened to. The other half of the answer — whether
-/// enumeration has finished — comes from the [ShellServicesScope] the window
-/// chrome already installs, read from this builder's own context. That is
-/// deliberate: a `Listenable.merge` of the two would have to be built in
-/// `build`, and `_MergingListenable` defines no `==`, so [ListenableBuilder]
+/// Only [OutputTracker] is listened to. Whether enumeration has finished comes
+/// from the [ShellServicesScope] the window chrome installs, read from this
+/// builder's own context — a `Listenable.merge` of the two would have to be built
+/// in `build`, and `_MergingListenable` defines no `==`, so [ListenableBuilder]
 /// would tear down and re-add its listener on every rebuild.
 class DisplayProvider extends StatelessWidget {
   const DisplayProvider({

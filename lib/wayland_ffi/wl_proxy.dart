@@ -96,13 +96,12 @@ ffi.Pointer<ffi.Pointer<ffi.Void>> buildVtable(
   return vt;
 }
 
-/// The event trampolines below wrap a Dart closure in a `NativeCallable`
-/// matching one concrete libwayland dispatch signature
-/// (`void fn(void *data, wl_proxy *proxy, <event args>)`). All of them are
-/// `isolateLocal`: dispatch only ever happens from this thread, either inside
-/// `wl_display_roundtrip` (startup) or from the GLib fd watch. The callables
-/// are parked in [_keepAliveCallables] for the process lifetime, matching the
-/// static listener structs generated C code uses.
+/// The event trampolines below wrap a Dart closure in a `NativeCallable` matching
+/// one concrete libwayland dispatch signature. All of them are `isolateLocal`:
+/// dispatch only ever happens from this thread, either inside
+/// `wl_display_roundtrip` (startup) or from the GLib fd watch. The callables are
+/// parked in [_keepAliveCallables] for the process lifetime, matching the static
+/// listener structs generated C code uses.
 final List<Object> _keepAliveCallables = [];
 
 typedef _C0 = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>);

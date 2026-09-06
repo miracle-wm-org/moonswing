@@ -1,14 +1,12 @@
-// The seam between a bar module (which is three levels inside a panel's widget
-// tree and cannot create a window) and `_GracefulShellRootState` (which owns
-// every window the shell has).
+// The seam between a bar module (three levels inside a panel's widget tree, and
+// unable to create a window) and `_GracefulShellRootState`, which owns every
+// window the shell has.
 //
-// [RequestController]'s three rules are the ones that matter here, and the
-// first is the reason this is that shape rather than a [SignalController]:
-// **no listener means an immediate decline**, so a headless run or a widget
-// test never awaits a selection surface that will not appear. The other two
-// come free and are both right for this: a second selection supersedes the
-// first as cancelled (two full-screen selection surfaces have no defined focus
-// order), and teardown answers whoever was awaiting.
+// [RequestController]'s first rule is the reason this is that shape rather than a
+// [SignalController]: **no listener means an immediate decline**, so a headless
+// run or a widget test never awaits a selection surface that will not appear. The
+// other two come free and are both right here — a second selection supersedes the
+// first as cancelled, and teardown answers whoever was awaiting.
 
 import 'package:flutter/foundation.dart';
 
@@ -20,10 +18,10 @@ export 'capture_targets.dart';
 
 /// Whether the selection is for a still capture or a recording.
 ///
-/// It reaches the selection surface only to word its instructions and colour
-/// its rim — nothing about *picking* differs between the two — but that is
-/// worth carrying: a full-screen surface that has taken over the pointer
-/// should say which of the two the user is about to do.
+/// It reaches the selection surface only to word its instructions and colour its
+/// rim — nothing about *picking* differs — but that is worth carrying: a
+/// full-screen surface that has taken the pointer should say which of the two the
+/// user is about to do.
 enum CaptureKind {
   screenshot('Screenshot'),
   video('Recording');
