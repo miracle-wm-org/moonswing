@@ -1,11 +1,11 @@
 // The MPRIS client: what is playing, on which player, and the four transport
 // controls.
 //
-// Flutter-free apart from [ChangeNotifier] — no widgets, no BuildContext — so
-// the bar module and the desktop widget can both consume it and neither owns
-// it. It was the bar module: every field below lived in `MediaPlayerState`,
-// which meant a second consumer would have meant a second D-Bus connection,
-// a second `listNames()` walk and a second subscription per player.
+// Flutter-free apart from [ChangeNotifier], so the bar module and the desktop
+// widget can both consume it and neither owns it. It was the bar module: every
+// field below lived in `MediaPlayerState`, which meant a second consumer would
+// have meant a second D-Bus connection, a second `listNames()` walk and a second
+// subscription per player.
 
 import 'dart:async';
 import 'dart:io';
@@ -104,11 +104,10 @@ class MprisPlayer {
 
 /// What is playing on this machine, and the controls for it.
 ///
-/// The singleton-[ChangeNotifier]-with-leases shape of `BatteryStore` and
-/// `SystemStatsStore`: the D-Bus connection and every per-player subscription
-/// exist only while somebody holds a lease, and a *detail* lease adds the
-/// one-second `Position` poll that a progress bar needs and a bar module does
-/// not. Before this there was one connection per bar module per monitor.
+/// The singleton-[ChangeNotifier]-with-leases shape: the D-Bus connection and
+/// every per-player subscription exist only while somebody holds a lease, and a
+/// *detail* lease adds the one-second `Position` poll a progress bar needs and a
+/// bar module does not. Before this there was one connection per bar per monitor.
 class MprisStore extends ChangeNotifier {
   MprisStore._();
 

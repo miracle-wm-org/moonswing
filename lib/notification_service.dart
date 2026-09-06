@@ -54,13 +54,11 @@ class NotificationItem {
 /// Whether the shell actually owns `org.freedesktop.Notifications`.
 ///
 /// Deliberately separate from the `ShellService.notifications` `ServiceStatus`.
-/// That one answers "should I show a spinner?", and for it a decline and a
-/// success are the same answer — the start-up task is over either way. This one
-/// answers "are notifications working?", where they are emphatically not: the
-/// name went to somebody else, so every notification on this machine is being
-/// delivered somewhere the shell cannot see, and no amount of waiting changes
-/// that. The UI needs both, which is why neither can be spelled in terms of the
-/// other.
+/// That one answers "should I show a spinner?", for which a decline and a success
+/// are the same answer. This one answers "are notifications working?", where they
+/// are emphatically not: the name went to somebody else, so every notification on
+/// this machine is delivered somewhere the shell cannot see. The UI needs both,
+/// which is why neither can be spelled in terms of the other.
 enum NotificationDaemonStatus {
   /// The name request has not been answered yet.
   starting,
@@ -152,8 +150,7 @@ class NotificationStore extends ChangeNotifier {
   ///
   /// Failures are swallowed rather than rethrown: [daemonStarter] has already
   /// recorded the reason by the time it throws, and the rethrow exists for
-  /// `ShellServices.run`, which is long gone by the time a user clicks Retry —
-  /// letting it escape here would only reach the zone handler.
+  /// `ShellServices.run`, which is long gone by the time a user clicks Retry.
   Future<void> retryDaemon() async {
     if (_daemonRetrying) return;
     if (_daemonStatus == NotificationDaemonStatus.running) return;
@@ -334,30 +331,23 @@ class NotificationServer extends DBusServiceObject {
   }
 }
 
-/// Registers this shell as the FreeDesktop notification daemon on the session
-/// D-Bus.
+/// Registers this shell as the FreeDesktop notification daemon on the session bus.
 ///
 /// Another daemon already owning `org.freedesktop.Notifications` is a graceful
-/// decline — the shell yields to it, logs, and returns, and keeps working
-/// without notifications. Anything else — the bus unreachable, the object
-/// export or the name request itself erroring — throws, and
-/// `ShellServices.run` records the service as failed.
+/// decline — the shell yields, logs, returns and keeps working without
+/// notifications. Anything else — an unreachable bus, an export or name request
+/// that errored — throws, and `ShellServices.run` records the service as failed.
 ///
 /// Both outcomes are *also* recorded on [NotificationStore] as a
-/// [NotificationDaemonStatus], and that is not a duplicate of what
-/// `ShellServices` holds. The decline settles `ShellService.notifications` at
-/// `ServiceStatus.ready` — correctly, because nothing is still pending and a
-/// spinner would never come down — but "nothing left to wait for" and
-/// "notifications work" are different claims, and only the second one is what
-/// the bell is telling the user. Without the store's copy the shell renders an
-/// idle bell and an empty panel while every notification on the machine goes
-/// to a daemon it cannot see, which is indistinguishable from a quiet day.
+/// [NotificationDaemonStatus], which is not a duplicate: the decline settles
+/// `ShellService.notifications` at `ServiceStatus.ready`, correctly, but "nothing
+/// left to wait for" and "notifications work" are different claims and only the
+/// second is what the bell tells the user.
 ///
 /// This function is also the retry: [NotificationStore.retryDaemon] re-runs it.
-/// Every failing path closes its own client before returning or throwing, so a
-/// second attempt starts from a clean connection and a run that has already
-/// won the name is never re-entered (the store refuses a retry while
-/// [NotificationDaemonStatus.running]).
+/// Every failing path closes its own client first, so a second attempt starts
+/// from a clean connection, and a run that has already won the name is never
+/// re-entered.
 Future<void> startNotificationService() async {
   final store = NotificationStore.instance;
   final client = DBusClient.session();

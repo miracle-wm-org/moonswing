@@ -30,13 +30,12 @@ class SystemState extends State<System>
     super.dispose();
   }
 
-  /// Runs [action], with a confirmation for the four that end the session or
-  /// the uptime.
+  /// Runs [action], with a confirmation for the four that end the session or the
+  /// uptime.
   ///
-  /// This is the half the power *menu* deliberately does not have: that
-  /// surface opens because the machine's power button was pressed, so
-  /// answering it is already a second deliberate act. A bar icon is one small
-  /// target in a row of them, and a mis-click here would land on Shut Down.
+  /// The half the power *menu* deliberately does not have: that surface opens
+  /// because the power button was pressed, so answering it is already a second
+  /// deliberate act. A bar icon is one small target in a row of them.
   void _runAction(PowerAction action) {
     if (!action.needsConfirmation) {
       closePopup();
@@ -116,13 +115,12 @@ class SystemState extends State<System>
   }
 }
 
-/// The bar's power menu: one row per [PowerAction], in the order
-/// [kPowerMenuActions] gives them.
+/// The bar's power menu: one row per [PowerAction], in [kPowerMenuActions]'
+/// order.
 ///
-/// The rows used to be four hand-written buttons carrying their own labels,
-/// icons and closures, which is why this menu had no Restart — there was
-/// nowhere for a fifth verb to be defined once. It and the power menu the
-/// physical power button opens are now the same list of verbs drawn two ways.
+/// The rows used to be four hand-written buttons carrying their own labels, icons
+/// and closures, which is why this menu had no Restart. It and the power menu the
+/// physical button opens are now the same list of verbs drawn two ways.
 class SystemPopupContent extends StatelessWidget {
   const SystemPopupContent({
     super.key,
@@ -147,13 +145,11 @@ class SystemPopupContent extends StatelessWidget {
         child: PopupCard(
           padding: const EdgeInsets.all(8),
           // The popup is sized to content, so the menu is only as wide as its
-          // widest label. [_SystemButton] is a default Row holding an
-          // [Expanded] label, though, so left to itself each button would fill
-          // whatever maximum the constraints allow and the popup would just be
-          // that maximum wide. IntrinsicWidth measures the widest button and
-          // `stretch` gives every button that width, which both keeps the
-          // Expanded bounded and keeps the hover highlights flush with each
-          // other. Four children makes the extra layout pass free.
+          // widest label. [_SystemButton] is a Row holding an [Expanded] label,
+          // though, so left to itself each button would fill whatever maximum the
+          // constraints allow. IntrinsicWidth measures the widest button and
+          // `stretch` gives every button that width, which keeps the Expanded
+          // bounded and the hover highlights flush with each other.
           child: IntrinsicWidth(
             child: Column(
               mainAxisSize: MainAxisSize.min,

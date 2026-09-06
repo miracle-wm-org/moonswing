@@ -137,11 +137,10 @@ class _PanelsSectionState extends State<PanelsSection> {
 
   @override
   Widget build(BuildContext context) {
-    // The section's *structure* moves only when a panel is added or removed,
-    // so it is selected on the name list and nothing else — the geometry rows
-    // below subscribe per key. Under the page-level `ListenableBuilder` this
-    // replaces, every keystroke anywhere in the settings UI re-walked
-    // `store.panelNames` and re-allocated `Module.registeredKeys` three times.
+    // The section's *structure* moves only when a panel is added or removed, so
+    // it is selected on the name list and nothing else — the geometry rows below
+    // subscribe per key. Under the page-level `ListenableBuilder` this replaces,
+    // every keystroke anywhere in the settings UI re-walked `store.panelNames`.
     return StoreSelector<String>(
       listenable: store,
       selector: () => store.panelNames.join('\u0000'),
@@ -337,14 +336,13 @@ class _PanelsSectionState extends State<PanelsSection> {
           for (final slot in const ['left', 'center', 'right'])
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              // The editor renders the slot's heading itself, so its "Add
-              // module" button sits on that heading's right rather than under
-              // a list the third slot had already pushed off the pane.
+              // The editor renders the slot's heading itself, so its "Add module"
+              // button sits on that heading's right rather than under a list the
+              // third slot had already pushed off the pane.
               //
-              // Selected on the joined list rather than the list itself:
-              // `getList` mints a fresh `List<String>` per call and `List` has
-              // no value equality, so a bare selector would report a change on
-              // every notify.
+              // Selected on the joined list rather than the list itself: `getList`
+              // mints a fresh `List<String>` per call and `List` has no value
+              // equality, so a bare selector would report a change on every notify.
               child: StoreSelector<String>(
                 listenable: store,
                 selector: () =>
@@ -429,10 +427,10 @@ const double _kPanelTabCloseSize = 18;
 
 /// The x on a panel tab.
 ///
-/// Its own recognizer nested inside the tab's: the gesture arena resolves to
-/// the deepest competitor, so a click here removes the panel rather than also
-/// selecting the tab. Not a [SettingsIconButton] — that control is 26 square,
-/// sized for a form row, and would out-measure the tab's own text.
+/// Its own recognizer nested inside the tab's: the gesture arena resolves to the
+/// deepest competitor, so a click here removes the panel rather than also
+/// selecting the tab. Not a [SettingsIconButton] — that control is 26 square and
+/// would out-measure the tab's own text.
 class _PanelTabClose extends StatelessWidget {
   const _PanelTabClose({required this.onTap});
 

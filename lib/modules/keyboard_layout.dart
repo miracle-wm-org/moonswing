@@ -2,7 +2,7 @@
 // change it.
 //
 // `sound_control.dart`'s `PopupHost` half over `battery.dart`'s lease half. All
-// of the mechanism is in `lib/keyboard/`; this file draws it.
+// the mechanism is in `lib/keyboard/`; this file draws it.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -33,10 +33,9 @@ class KeyboardLayoutConfig {
 
   /// Hide the badge when there is only one input source to choose from.
   ///
-  /// GNOME's behaviour, and the default. A setting rather than a hard-coded
-  /// rule because a user who wants to see the layout on a single-source machine
-  /// has nowhere else to look. It never hides a badge that has something to
-  /// *report* — see [_KeyboardLayoutState.build].
+  /// GNOME's behaviour, and the default. A setting rather than a hard-coded rule
+  /// because a user who wants to see the layout on a single-source machine has
+  /// nowhere else to look. It never hides a badge that has something to *report*.
   final bool hideWhenSingle;
 
   /// Draw the badge as `EN` rather than `en`.
@@ -122,10 +121,9 @@ class _KeyboardLayoutState extends State<KeyboardLayout>
         final broken = _store.error.isNotEmpty;
         final unlisted = _store.unlistedActive != null;
         // Hidden only when there is genuinely nothing to say. A module with a
-        // failure to report may not hide itself — `WeatherStore.error`'s rule,
-        // that an empty bar module is indistinguishable from one the user never
-        // enabled — and a machine sitting in a layout the user never configured
-        // is exactly what they need to see.
+        // failure to report may not hide itself — `WeatherStore.error`'s rule —
+        // and a machine sitting in a layout the user never configured is exactly
+        // what they need to see.
         if (_store.sources.length < 2 &&
             widget.config.hideWhenSingle &&
             !broken &&

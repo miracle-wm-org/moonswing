@@ -1,14 +1,13 @@
 // The strings the lunar surfaces print, as pure functions.
 //
-// `lib/timers/timer_format.dart` beside `timer_store.dart`, for the same
-// reason: a readout is the half of a feature that is trivially wrong and
-// trivially testable, and putting it in the widget is what makes it neither.
+// `lib/timers/timer_format.dart` beside `timer_store.dart`, for the same reason:
+// a readout is the half of a feature that is trivially wrong and trivially
+// testable, and putting it in the widget makes it neither.
 //
-// Deliberately not `overlay/calendar/time_zones.dart`'s `formatClockTime`,
-// which is four lines of the same arithmetic: that file is the one place in the
-// shell allowed to import `package:timezone`, and `lib/moon/` is a plain unit
-// test with no database behind it. Nothing here formats a *zone* — every
-// instant the Moon layer prints is already in the machine's local time.
+// Deliberately not `overlay/calendar/time_zones.dart`'s `formatClockTime`: that
+// file is the one place allowed to import `package:timezone`, and `lib/moon/` is
+// a plain unit test. Nothing here formats a *zone* — every instant the Moon layer
+// prints is already in local time.
 
 /// Three-letter month names. Spelled out rather than taken from `intl`, the
 /// `overlay/calendar/month.dart` and `weather_api.dart` call: twelve labels are
@@ -40,8 +39,7 @@ String formatMoonDate(DateTime date, {DateTime? reference}) {
 ///
 /// Calendar days rather than 24-hour blocks: a full moon at 23:00 tomorrow is
 /// "tomorrow", not "in 1 day", and one at 01:00 tomorrow is not "in 8 hours" to
-/// anybody planning an evening around it. Both halves matter — under a day the
-/// hours are what somebody wants, over it the date is.
+/// anybody planning an evening around it.
 String formatMoonCountdown(DateTime target, DateTime now) {
   final difference = target.difference(now);
   if (difference.isNegative) return 'now';
@@ -60,9 +58,9 @@ String formatMoonCountdown(DateTime target, DateTime now) {
 
 /// Whole calendar days from [from] to [to], both taken as local dates.
 ///
-/// Through UTC midnights, the `overlay/calendar/month.dart` `dayDelta`
-/// discipline: differencing two local `DateTime`s measures elapsed *time*, and
-/// `inDays` truncates the 23-hour day the clocks change on to zero.
+/// Through UTC midnights, the `dayDelta` discipline: differencing two local
+/// `DateTime`s measures elapsed *time*, and `inDays` truncates the 23-hour day
+/// the clocks change on to zero.
 int _calendarDaysBetween(DateTime from, DateTime to) {
   final a = DateTime.utc(from.year, from.month, from.day);
   final b = DateTime.utc(to.year, to.month, to.day);
