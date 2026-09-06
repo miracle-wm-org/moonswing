@@ -24,14 +24,13 @@ const double kAppChooserRowHeight = 44;
 
 /// A searchable list of installed applications, each with its own icon.
 ///
-/// This is what "Add application…" opens instead of a file picker: asking
-/// someone to find `firefox.desktop` under `/usr/share/applications` is asking
-/// them to know where their distribution puts things.
+/// What "Add application…" opens instead of a file picker: asking someone to find
+/// `firefox.desktop` under `/usr/share/applications` is asking them to know where
+/// their distribution puts things.
 ///
 /// Takes its app list and callbacks as parameters, so widget tests never touch
-/// GIO — the same shape `LauncherOverlay` uses. The chosen [AppEntry]'s
-/// `filename` is what the desktop grid pins; an entry with none is not
-/// offered, because there would be nothing to store.
+/// GIO. The chosen [AppEntry]'s `filename` is what the desktop grid pins; an
+/// entry with none is not offered, because there would be nothing to store.
 class AppChooserCard extends StatefulWidget {
   const AppChooserCard({
     super.key,
@@ -370,9 +369,9 @@ class _SearchFieldState extends State<_SearchField> {
 
 /// The full-screen chooser: a dismiss-on-backdrop scrim behind the card.
 ///
-/// Backdrop dismissal is not optional. The shell has no input-region support,
-/// so this surface swallows every click on the monitor — without it a
-/// mouse-only user would have no way out.
+/// Backdrop dismissal is not optional. The shell has no input-region support, so
+/// this surface swallows every click on the monitor — without it a mouse-only
+/// user would have no way out.
 class AppChooserOverlay extends StatelessWidget {
   const AppChooserOverlay({
     super.key,
@@ -432,8 +431,7 @@ class AppChooserOverlay extends StatelessWidget {
 ///
 /// For hosts that already have an Overlay — the settings pane. The desktop does
 /// not: it is on the background layer, where a modal would be drawn under every
-/// application window, so the root gives it a window of its own instead. Same
-/// split as `showFilePicker` vs `FilePickerController`.
+/// application window, so the root gives it a window of its own instead.
 Future<AppEntry?> showAppChooser(
   BuildContext context, {
   required List<SearchableApp> apps,

@@ -3,15 +3,13 @@ import 'dart:io';
 /// The font families installed on this machine, via fontconfig's `fc-list`.
 ///
 /// Shelling out costs a fork and fontconfig's first run can rebuild its cache,
-/// which is why this is loaded lazily by the one widget that needs it — the
-/// theme editor's font picker — rather than from `main()`. The alternative,
-/// binding `libfontconfig` through `dart:ffi`, buys nothing here: the set is
-/// read once per settings visit and never while anything is animating.
+/// which is why this is loaded lazily by the one widget that needs it — the theme
+/// editor's font picker — rather than from `main()`. Binding `libfontconfig`
+/// through `dart:ffi` buys nothing: the set is read once per settings visit.
 ///
-/// Follows the [DiskReader] shape (`lib/system/disk_reader.dart`): the runner is
-/// injectable so tests never fork, and every failure resolves to an empty list.
-/// A machine with no fontconfig is not an error — the caller falls back to a
-/// free-typed field, which is what the shell had before this existed.
+/// Follows the [DiskReader] shape: the runner is injectable so tests never fork,
+/// and every failure resolves to an empty list. A machine with no fontconfig is
+/// not an error — the caller falls back to a free-typed field.
 class FontCatalog {
   FontCatalog({
     Future<ProcessResult> Function(String, List<String>)? runner,
@@ -51,8 +49,7 @@ class FontCatalog {
 ///
 /// There is one line per font *file*, so a family with four weights appears four
 /// times. Comparison is case-insensitive in both the dedupe and the sort: the
-/// same family reached through two files can differ only in case, and a
-/// case-sensitive sort would scatter lowercase names below every uppercase one.
+/// same family reached through two files can differ only in case.
 List<String> parseFcListFamilies(String stdout) {
   final seen = <String>{};
   final families = <String>[];
