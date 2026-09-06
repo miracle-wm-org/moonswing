@@ -6,10 +6,9 @@ import 'package:graceful_shell/system/file_read.dart';
 /// What a device is, as far as a person reading the System Info page is
 /// concerned.
 ///
-/// Declaration order is display order: the things somebody types and points
-/// with first, the things they are recorded by last. [other] is the honest
-/// answer for a node this table cannot place — see [InputDeviceReader.read],
-/// which is where the decision to drop those is made rather than here.
+/// Declaration order is display order: the things somebody types and points with
+/// first, the things they are recorded by last. [other] is the honest answer for
+/// a node this table cannot place.
 enum InputDeviceKind {
   keyboard('Keyboard'),
   mouse('Mouse'),
@@ -31,10 +30,8 @@ enum InputDeviceKind {
 /// One device the machine can be driven or recorded by.
 ///
 /// Value equality is what lets the reader de-duplicate: a keyboard very often
-/// appears in `/proc/bus/input/devices` two or three times (the key matrix, a
-/// consumer-control interface, a vendor HID node), and a card listing the same
-/// keyboard three times is reporting on the kernel's bookkeeping rather than on
-/// the user's desk.
+/// appears in `/proc/bus/input/devices` two or three times, and a card listing
+/// the same keyboard three times is reporting on the kernel's bookkeeping.
 @immutable
 class InputDevice {
   const InputDevice({required this.kind, required this.name});
@@ -79,12 +76,10 @@ bool _bit(BigInt mask, int index) => (mask >> index).isOdd;
 /// Reads one of the `B:` bitmask lines out of `/proc/bus/input/devices`.
 ///
 /// The kernel prints these as space-separated hex words, **most significant
-/// first**, one word per `unsigned long` — so a word carries 64 bits on the
-/// 64-bit kernels this shell runs on whatever its printed width, and the value
-/// is rebuilt by shifting a full word per field rather than by its digit count.
-/// A word that will not parse costs the whole mask (the device then classifies
-/// as [InputDeviceKind.other] and is dropped), because a partially rebuilt mask
-/// has every remaining bit in the wrong place, which is worse than no answer.
+/// first**, one word per `unsigned long` — so a word carries 64 bits whatever its
+/// printed width, and the value is rebuilt by shifting a full word per field
+/// rather than by digit count. A word that will not parse costs the whole mask,
+/// because a partially rebuilt one has every remaining bit in the wrong place.
 BigInt parseInputBitmask(String field) {
   var value = BigInt.zero;
   for (final word in field.trim().split(RegExp(r'\s+'))) {
@@ -96,20 +91,18 @@ BigInt parseInputBitmask(String field) {
   return value;
 }
 
-/// Decides what an evdev node is, from what it can *emit* rather than from what
-/// it is called.
+/// Decides what an evdev node is, from what it can *emit* rather than what it is
+/// called.
 ///
-/// Names are the tempting input and they are the wrong one: `HDA Intel PCH Mic`
-/// is a jack-detection switch and not a microphone, `Video Bus` is a set of
-/// brightness keys, and half the keyboards on sale describe themselves as a
-/// receiver. The capability bits are what the kernel and libinput themselves
-/// key on, so they are what this reads.
+/// Names are the tempting input and the wrong one: `HDA Intel PCH Mic` is a
+/// jack-detection switch, `Video Bus` is a set of brightness keys, and half the
+/// keyboards on sale describe themselves as a receiver. The capability bits are
+/// what the kernel and libinput key on.
 ///
-/// The order of the tests is load-bearing, because the sets overlap: a pen
-/// tablet reports `BTN_TOOL_FINGER` as well as `BTN_TOOL_PEN`, a touchpad
-/// reports `BTN_TOUCH` as well as `BTN_TOOL_FINGER`, and a gamepad reports
-/// absolute axes like both of them. Each test therefore comes before the one
-/// whose set contains it.
+/// The order of the tests is load-bearing, because the sets overlap: a pen tablet
+/// reports `BTN_TOOL_FINGER` as well as `BTN_TOOL_PEN`, a touchpad reports
+/// `BTN_TOUCH` as well as `BTN_TOOL_FINGER`, and a gamepad reports absolute axes
+/// like both. Each test comes before the one whose set contains it.
 InputDeviceKind classifyEvdevDevice({
   required List<String> handlers,
   required BigInt evBits,
@@ -156,13 +149,13 @@ InputDeviceKind classifyEvdevDevice({
   return InputDeviceKind.other;
 }
 
-/// Parses `/proc/bus/input/devices` — the kernel's own list of evdev nodes —
-/// into one [InputDevice] per node, classified but not yet filtered.
+/// Parses `/proc/bus/input/devices` into one [InputDevice] per node, classified
+/// but not yet filtered.
 ///
 /// Blocks are separated by a blank line and only four of a block's lines are
 /// read; an unrecognised one is skipped rather than refused, because this file
 /// grows fields between kernel releases. A block with no `N: Name=` produces
-/// nothing at all: there would be nothing to draw.
+/// nothing: there would be nothing to draw.
 List<InputDevice> parseProcInputDevices(String contents) {
   final devices = <InputDevice>[];
 
@@ -276,12 +269,11 @@ Map<int, String> parseAlsaCardNames(String contents) {
 /// Parses `/proc/asound/pcm` into one [InputDeviceKind.microphone] per
 /// capture-capable PCM.
 ///
-/// ALSA rather than PulseAudio, for two reasons. This page reports the
-/// *machine*, and a sound server's source list is the machine seen through
-/// whatever is running — a monitor source is not a microphone, and a server
-/// that is not running is not an absence of microphones. And the page reads
-/// once, holds no lease and starts no service, which a `PulseClient` (an
-/// isolate and a live subscription) would end.
+/// ALSA rather than PulseAudio, for two reasons. This page reports the *machine*,
+/// and a sound server's source list is the machine seen through whatever is
+/// running — a monitor source is not a microphone, and a server that is not
+/// running is not an absence of microphones. And the page reads once and starts
+/// no service, which a `PulseClient` would end.
 List<InputDevice> parseAlsaCaptureDevices(
   String contents,
   Map<int, String> cardNames,
@@ -335,9 +327,8 @@ String _joinAudioName(String? cardName, String pcmName) {
 /// through, from `/proc` and `/sys`.
 ///
 /// The roots are constructor parameters — [ProcReader]'s shape — so tests point
-/// them at a temp directory and never read the real machine. Every read is
-/// best-effort and synchronous: these are four small files and one directory
-/// listing, and the page that reads them does so once.
+/// them at a temp directory. Every read is best-effort and synchronous: four
+/// small files and one directory listing, read once.
 class InputDeviceReader {
   InputDeviceReader({this.procRoot = '/proc', this.sysRoot = '/sys'});
 
@@ -348,16 +339,13 @@ class InputDeviceReader {
   ///
   /// [InputDeviceKind.other] is dropped rather than listed. Nearly all of that
   /// set is kernel bookkeeping the user has no device for — the power and sleep
-  /// buttons, the lid switch, the `Video Bus`, the PC speaker, and one
-  /// jack-detection node per audio jack on the board — and a list two thirds of
-  /// which is bookkeeping is not a list of somebody's input devices. The cost
-  /// is that a genuinely exotic device the classifier cannot place goes
-  /// unlisted, which is the right way round: a missing row is a gap, a dozen
-  /// phantom rows are a page nobody reads.
+  /// buttons, the lid switch, the PC speaker, one jack-detection node per audio
+  /// jack — and a list two thirds of which is bookkeeping is not a list of
+  /// somebody's input devices. The cost is that an exotic device the classifier
+  /// cannot place goes unlisted, which is the right way round.
   ///
-  /// The result is de-duplicated (a keyboard publishes two or three evdev nodes)
-  /// and ordered by kind, keeping discovery order within a kind so the two
-  /// keyboards on a desk stay in the order the kernel enumerated them.
+  /// De-duplicated and ordered by kind, keeping discovery order within a kind so
+  /// two keyboards stay in the order the kernel enumerated them.
   List<InputDevice> read() {
     final devices = <InputDevice>[
       ...parseProcInputDevices(
@@ -383,11 +371,10 @@ class InputDeviceReader {
 
   /// The V4L2 capture nodes, from `/sys/class/video4linux/*/name`.
   ///
-  /// A camera publishes more than one node — a metadata node beside the video
-  /// one — and they carry the same `name`, so de-duplicating on the name is
-  /// what turns two nodes back into one webcam. The listing is sorted, because
-  /// a directory read is in no particular order and the card should not
-  /// reshuffle itself between visits.
+  /// A camera publishes more than one node — a metadata node beside the video one
+  /// — carrying the same `name`, so de-duplicating on the name turns two nodes
+  /// back into one webcam. The listing is sorted, because a directory read is in
+  /// no particular order and the card should not reshuffle between visits.
   List<InputDevice> _cameras() {
     var entries = const <FileSystemEntity>[];
     try {

@@ -1,30 +1,26 @@
-// The selection surface: a full-output layer-shell window, one per monitor,
-// that the user drags a rectangle on or points at a window through.
+// The selection surface: a full-output layer-shell window, one per monitor, that
+// the user drags a rectangle on or points at a window through.
 //
-// Everything it needs is a parameter — the output it is on, the snapshot of
-// the windowing environment, and the two callbacks — so the whole surface is a
-// widget test with no compositor and no Wayland behind it.
+// Everything it needs is a parameter — the output, the snapshot of the windowing
+// environment, and the two callbacks — so the whole surface is a widget test with
+// no compositor behind it.
 //
 // Three things a change here has to keep true:
 //
-// - **There is no entrance and no exit animation, and that is deliberate.**
-//   Every other overlay in the shell fades; this one is a *tool*, and a fade-in
-//   is a fraction of a second in which the drag the user has already started
-//   goes to a surface that is not yet listening. The exit matters more: a
-//   screenshot is taken the instant this comes down, so a fade-out would put
-//   a half-transparent copy of this very surface into the picture. The
-//   `closing` handshake is still honoured — the root's `_OverlayWindow`
-//   protocol needs it — it simply resolves on the next frame.
+// - **There is no entrance and no exit animation.** Every other overlay fades;
+//   this one is a *tool*, and a fade-in is a fraction of a second in which a drag
+//   the user has already started goes to a surface that is not listening. The
+//   exit matters more: a screenshot is taken the instant this comes down, so a
+//   fade-out would put a half-transparent copy of this surface into the picture.
+//   The `closing` handshake is still honoured; it simply resolves next frame.
 // - **Only the surface's own size decides an area's geometry.** A layer-shell
 //   surface anchored to all four edges *is* the output, so its constraints are
-//   the output's logical size, which is exactly the space [AreaCapture.crop]
-//   is expressed in. Nothing about an area selection needs miracle, which is
-//   what lets a screenshot work on a shell whose IPC socket is down.
-// - **Window rectangles come from miracle and are mapped, not assumed.**
-//   miracle reports one global logical space; this surface is laid out in its
-//   own output-local one. They are usually the same scale and the mapping is
-//   still done properly, because "usually" is how a fractional-scaled second
-//   monitor comes to draw every highlight in the wrong place.
+//   the space [AreaCapture.crop] is expressed in — which is what lets a
+//   screenshot work on a shell whose IPC socket is down.
+// - **Window rectangles come from miracle and are mapped, not assumed.** miracle
+//   reports one global logical space; this surface is laid out in its own
+//   output-local one. They are usually the same scale, and "usually" is how a
+//   fractional-scaled second monitor draws every highlight in the wrong place.
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -41,10 +37,9 @@ import 'window_targets.dart';
 /// The smallest drag that counts as an area rather than a mis-click.
 ///
 /// A click with no drag is a no-op rather than a cancellation: the surface has
-/// taken over the whole output, and losing the tool to a twitch of the hand
-/// while reaching for the corner of a window is worse than one ignored click.
-/// The ways out are Escape and the right mouse button, both of which say so on
-/// the banner.
+/// taken over the whole output, and losing the tool to a twitch of the hand is
+/// worse than one ignored click. The ways out are Escape and the right mouse
+/// button, both of which say so on the banner.
 const int kMinSelectionSize = 8;
 
 class CaptureSelectorOverlay extends StatefulWidget {
@@ -71,10 +66,8 @@ class CaptureSelectorOverlay extends StatefulWidget {
   /// Where this surface's output has its top-left corner in the compositor's
   /// global logical space, when the shell knows it.
   ///
-  /// Optional rather than required because it answers nothing on its own: it
-  /// is the second pass behind [connector] at both ends of this surface — the
-  /// miracle output whose windows are drawn on it, and the capture output the
-  /// shutter is finally taken from (`capture_source.dart`).
+  /// Optional rather than required because it answers nothing on its own: it is
+  /// the second pass behind [connector] at both ends of this surface.
   final CapturePoint? origin;
 
   /// The windowing environment as it was when the selection started.
@@ -125,15 +118,13 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
   }
 
   /// No exit animation to play, so the handshake resolves on the next frame —
-  /// after this surface has had one more chance to stop painting, and before
-  /// the shutter.
+  /// after this surface has had one more chance to stop painting, and before the
+  /// shutter.
   ///
   /// The [SchedulerBinding.scheduleFrame] is load-bearing and is
-  /// `WindowTeardown`'s rule over again: `addPostFrameCallback` *requests* no
-  /// frame, and nothing on this surface animates — the closing notifier does
-  /// not even rebuild it — so with nothing else on the machine drawing, the
-  /// callback would simply never run and the selection surfaces would stay on
-  /// screen for ever.
+  /// `WindowTeardown`'s rule again: `addPostFrameCallback` *requests* no frame,
+  /// and nothing here animates, so with nothing else drawing the callback would
+  /// never run and the surfaces would stay up for ever.
   void _onClosing() {
     if (!widget.closingNotifier.value) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -480,9 +471,9 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
 /// The mapping between miracle's one global logical space and this surface's
 /// output-local one.
 ///
-/// [ScreenOutput] null — miracle not connected, or an output it does not know
-/// — gives the identity mapping over an empty window list, which is what makes
-/// area and screen selection work with the IPC socket down.
+/// [ScreenOutput] null — miracle not connected, or an output it does not know —
+/// gives the identity mapping over an empty window list, which is what makes area
+/// and screen selection work with the IPC socket down.
 class _OutputMapping {
   const _OutputMapping({
     required this.originX,
@@ -535,8 +526,7 @@ class _OutputMapping {
 ///
 /// Four rectangles rather than a `saveLayer` with `BlendMode.clear`: this
 /// repaints on every pointer move of a drag, and a full-output offscreen layer
-/// per motion event is the one thing a surface covering the whole screen must
-/// not do.
+/// per motion event is the one thing a full-screen surface must not do.
 class _SelectionPainter extends CustomPainter {
   const _SelectionPainter({
     required this.highlight,
@@ -578,10 +568,9 @@ class _SelectionPainter extends CustomPainter {
 /// The banner and the readout are the same chip at two sizes.
 ///
 /// Its content is [Flexible] and wraps, which is not decoration: the banner's
-/// line is a sentence and a surface is as wide as whatever display it is on —
-/// a rotated panel is 1080 logical pixels across and a small laptop less than
-/// that. Left rigid it overflows, which on this surface means the instruction
-/// for the tool the user is holding is the thing that is clipped.
+/// line is a sentence and a surface is as wide as whatever display it is on. Left
+/// rigid it overflows, which here means the instruction for the tool the user is
+/// holding is the thing that is clipped.
 class _Pill extends StatelessWidget {
   const _Pill({
     required this.theme,
