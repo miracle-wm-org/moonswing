@@ -942,6 +942,726 @@ abstract final class SettingsCatalog {
     ),
   ];
 
+  // -------------------------------------------------------------------------
+  // Window Manager (miracle-wm's own configuration)
+  // -------------------------------------------------------------------------
+  //
+  // These name rows in a *different* file from every entry above: miracle's
+  // configuration is the compositor's, read and written through
+  // `libmiracle-wm-c` rather than through `ConfigStore`. They are catalogued
+  // here all the same, because the index is the settings overlay's index and a
+  // user searching for "gaps" or "action key" is not thinking about which
+  // process owns the file.
+
+  static final miracleTerminal = miracleField(
+    'miracle.terminal',
+    'Terminal',
+    section: 'General',
+    description:
+        'The terminal emulator the compositor\'s own terminal binding '
+        'launches. Left empty, miracle picks the first one it can find.',
+    tags: const [
+      'console', 'shell', 'kitty', 'alacritty', 'gnome-terminal',
+      'command',
+    ],
+  );
+
+  static final miracleActionKey = miracleField(
+    'miracle.primary_modifier',
+    'Action Key',
+    section: 'General',
+    description:
+        'The modifier every one of miracle\'s built-in bindings is built '
+        'on — the Super key unless you change it.',
+    tags: const [
+      'modifier', 'super', 'meta', 'windows', 'logo', 'alt', 'mod',
+      'shortcut', 'keybind',
+    ],
+  );
+
+  static final miracleMoveModifier = miracleField(
+    'miracle.move_modifier',
+    'Move modifier',
+    section: 'General',
+    description:
+        'The modifier held down to move a window with the pointer.',
+    tags: const ['modifier', 'drag', 'window', 'pointer', 'mouse'],
+  );
+
+  static final miraclePrimaryButton = miracleField(
+    'miracle.primary_button',
+    'Primary mouse button',
+    section: 'General',
+    description:
+        'Which physical button miracle\'s pointer bindings count as the '
+        'primary one. Set by plugins rather than by the configuration '
+        'file, so it is not written when you save.',
+    tags: const ['mouse', 'button', 'click', 'left', 'right', 'pointer'],
+  );
+
+  static final miracleBackAndForth = miracleField(
+    'miracle.workspace_back_and_forth',
+    'Switch back and forth',
+    section: 'General',
+    description:
+        'Selecting the workspace you are already on returns you to the '
+        'previous one.',
+    tags: const ['workspace', 'toggle', 'previous', 'switch', 'desktop'],
+  );
+
+  static final miracleResizeJump = miracleField(
+    'miracle.resize_jump',
+    'Resize step',
+    section: 'General',
+    description:
+        'How many pixels one press of a resize binding moves a window '
+        'edge by.',
+    tags: const ['resize', 'pixels', 'step', 'jump', 'keyboard', 'window'],
+  );
+
+  static final miracleBackgroundColor = miracleField(
+    'miracle.background_color',
+    'Background colour',
+    section: 'General',
+    description:
+        'The colour the compositor clears the screen to, behind every '
+        'window and behind the wallpaper. Always opaque.',
+    tags: const [
+      'colour', 'color', 'clear', 'desktop', 'wallpaper',
+      'backdrop',
+    ],
+  );
+
+  static final miracleInnerGapsX = miracleField(
+    'miracle.inner_gaps_x',
+    'Inner gap, horizontal',
+    section: 'Gaps & Borders',
+    description:
+        'The horizontal space left between two windows sitting side by '
+        'side.',
+    tags: const ['gap', 'spacing', 'tiling', 'padding', 'window', 'margin'],
+  );
+
+  static final miracleInnerGapsY = miracleField(
+    'miracle.inner_gaps_y',
+    'Inner gap, vertical',
+    section: 'Gaps & Borders',
+    description:
+        'The vertical space left between two windows stacked one above '
+        'the other.',
+    tags: const ['gap', 'spacing', 'tiling', 'padding', 'window', 'margin'],
+  );
+
+  static final miracleOuterGapsX = miracleField(
+    'miracle.outer_gaps_x',
+    'Outer gap, horizontal',
+    section: 'Gaps & Borders',
+    description:
+        'The space left between the tiled windows and the left and '
+        'right screen edges.',
+    tags: const ['gap', 'spacing', 'tiling', 'edge', 'screen', 'margin'],
+  );
+
+  static final miracleOuterGapsY = miracleField(
+    'miracle.outer_gaps_y',
+    'Outer gap, vertical',
+    section: 'Gaps & Borders',
+    description:
+        'The space left between the tiled windows and the top and '
+        'bottom screen edges.',
+    tags: const ['gap', 'spacing', 'tiling', 'edge', 'screen', 'margin'],
+  );
+
+  static final miracleBorderSize = miracleField(
+    'miracle.border.size',
+    'Border thickness',
+    section: 'Gaps & Borders',
+    description:
+        'How thick a line miracle draws around each window. Zero draws '
+        'none.',
+    tags: const ['border', 'outline', 'width', 'frame', 'window'],
+  );
+
+  static final miracleBorderRadius = miracleField(
+    'miracle.border.radius',
+    'Border corner radius',
+    section: 'Gaps & Borders',
+    description:
+        'How far the corners of a window\'s border are rounded.',
+    tags: const ['border', 'rounded', 'corners', 'radius', 'window'],
+  );
+
+  static final miracleBorderFocusColor = miracleField(
+    'miracle.border.focus_color',
+    'Focused border colour',
+    section: 'Gaps & Borders',
+    description:
+        'The colour of the border around the window that currently has '
+        'focus.',
+    tags: const ['border', 'colour', 'color', 'active', 'focus', 'highlight'],
+  );
+
+  static final miracleBorderColor = miracleField(
+    'miracle.border.color',
+    'Unfocused border colour',
+    section: 'Gaps & Borders',
+    description:
+        'The colour of the border around every window that does not '
+        'have focus.',
+    tags: const ['border', 'colour', 'color', 'inactive', 'unfocused'],
+  );
+
+  static final miracleAnimationsEnabled = miracleField(
+    'miracle.animations_enabled',
+    'Animations',
+    section: 'Animations',
+    description:
+        'Whether miracle animates anything at all. Off means every '
+        'window appears, moves and disappears instantly.',
+    tags: const [
+      'animation', 'motion', 'effects', 'transition', 'reduce',
+      'performance',
+    ],
+  );
+
+  static final miracleAnimatedEvents = miracleField(
+    '',
+    'Animated events',
+    section: 'Animations',
+    description:
+        'The animation each window and workspace event plays: how long '
+        'it runs, and which movements and fades are combined into it.',
+    tags: const [
+      'animation', 'easing', 'curve', 'slide', 'fade', 'grow',
+      'shrink', 'duration', 'event',
+    ],
+  );
+
+  static final miracleMouseHandedness = miracleField(
+    'miracle.mouse.handedness',
+    'Handedness',
+    section: 'Mouse',
+    description:
+        'Whether the mouse is set up for a right hand or a left one.',
+    tags: const ['left', 'right', 'hand', 'buttons', 'swap', 'southpaw'],
+  );
+
+  static final miracleMouseAcceleration = miracleField(
+    'miracle.mouse.acceleration',
+    'Pointer acceleration',
+    section: 'Mouse',
+    description:
+        'How pointer movement is filtered: flat, or adaptive to how '
+        'fast you move.',
+    tags: const [
+      'acceleration', 'profile', 'pointer', 'speed', 'flat',
+      'adaptive',
+    ],
+  );
+
+  static final miracleMouseAccelerationBias = miracleField(
+    'miracle.mouse.acceleration_bias',
+    'Acceleration bias',
+    section: 'Mouse',
+    description:
+        'How strongly pointer movement is accelerated, from -1 '
+        '(slowest) through 0 to 1.',
+    tags: const ['acceleration', 'sensitivity', 'speed', 'pointer', 'bias'],
+  );
+
+  static final miracleMouseVscroll = miracleField(
+    'miracle.mouse.vscroll_speed',
+    'Vertical scroll speed',
+    section: 'Mouse',
+    description:
+        'A multiplier on how far one notch of the wheel scrolls up or '
+        'down.',
+    tags: const ['scroll', 'wheel', 'speed', 'vertical', 'multiplier'],
+  );
+
+  static final miracleMouseHscroll = miracleField(
+    'miracle.mouse.hscroll_speed',
+    'Horizontal scroll speed',
+    section: 'Mouse',
+    description:
+        'A multiplier on how far one notch of horizontal scrolling '
+        'moves.',
+    tags: const ['scroll', 'wheel', 'speed', 'horizontal', 'multiplier'],
+  );
+
+  static final miracleCursorScale = miracleField(
+    'miracle.cursor.scale',
+    'Cursor size',
+    section: 'Mouse',
+    description:
+        'How large the pointer is drawn, as a multiple of its natural '
+        'size.',
+    tags: const ['cursor', 'pointer', 'size', 'scale', 'bigger', 'larger'],
+  );
+
+  static final miracleCursorFocusMode = miracleField(
+    'miracle.cursor.focus_mode',
+    'Focus follows',
+    section: 'Mouse',
+    description:
+        'Whether moving the pointer over a window focuses it, or '
+        'whether you have to click.',
+    tags: const ['focus', 'hover', 'click', 'sloppy', 'follows', 'mouse'],
+  );
+
+  static final miracleDragAndDrop = miracleField(
+    'miracle.drag_and_drop.enabled',
+    'Drag windows',
+    section: 'Mouse',
+    description:
+        'Whether a window can be picked up and moved with the pointer '
+        'at all.',
+    tags: const ['drag', 'drop', 'move', 'window', 'pointer', 'mouse'],
+  );
+
+  static final miracleDragModifiers = miracleField(
+    'miracle.drag_and_drop.modifiers',
+    'Drag modifiers',
+    section: 'Mouse',
+    description:
+        'The modifiers that must be held down before a drag starts.',
+    tags: const ['drag', 'modifier', 'super', 'alt', 'ctrl', 'shift', 'move'],
+  );
+
+  static final miracleTouchpadDisableTyping = miracleField(
+    'miracle.touchpad.disable_while_typing',
+    'Disable while typing',
+    section: 'Touchpad',
+    description:
+        'Ignores the touchpad for a moment after each keystroke, so a '
+        'palm cannot move the pointer mid-sentence.',
+    tags: const ['palm', 'rejection', 'typing', 'keyboard', 'accidental'],
+  );
+
+  static final miracleTouchpadDisableMouse = miracleField(
+    'miracle.touchpad.disable_with_external_mouse',
+    'Disable with a mouse plugged in',
+    section: 'Touchpad',
+    description:
+        'Turns the touchpad off entirely whenever an external mouse is '
+        'connected.',
+    tags: const ['external', 'mouse', 'usb', 'disable', 'laptop'],
+  );
+
+  static final miracleTouchpadTapToClick = miracleField(
+    'miracle.touchpad.tap_to_click',
+    'Tap to click',
+    section: 'Touchpad',
+    description:
+        'A tap on the touchpad counts as a click, without pressing it '
+        'down.',
+    tags: const ['tap', 'click', 'touch', 'gesture'],
+  );
+
+  static final miracleTouchpadMiddleEmulation = miracleField(
+    'miracle.touchpad.middle_mouse_button_emulation',
+    'Middle-click emulation',
+    section: 'Touchpad',
+    description:
+        'Pressing the left and right buttons together counts as a '
+        'middle click.',
+    tags: const ['middle', 'button', 'emulation', 'paste', 'three'],
+  );
+
+  static final miracleTouchpadClickMode = miracleField(
+    'miracle.touchpad.click_mode',
+    'Click mode',
+    section: 'Touchpad',
+    description:
+        'How the touchpad decides which button a press is: by which '
+        'area you pressed, or by how many fingers were down.',
+    tags: const ['click', 'button', 'area', 'finger', 'count', 'right click'],
+  );
+
+  static final miracleTouchpadScrollMode = miracleField(
+    'miracle.touchpad.scroll_mode',
+    'Scroll mode',
+    section: 'Touchpad',
+    description:
+        'How the touchpad scrolls: two fingers, along an edge, or while '
+        'a button is held.',
+    tags: const ['scroll', 'two finger', 'edge', 'button', 'gesture'],
+  );
+
+  static final miracleTouchpadAccelerationBias = miracleField(
+    'miracle.touchpad.acceleration_bias',
+    'Acceleration bias',
+    section: 'Touchpad',
+    description:
+        'How strongly touchpad movement is accelerated, from -1 '
+        '(slowest) through 0 to 1.',
+    tags: const ['acceleration', 'sensitivity', 'speed', 'pointer', 'bias'],
+  );
+
+  static final miracleTouchpadVscroll = miracleField(
+    'miracle.touchpad.vscroll_speed',
+    'Vertical scroll speed',
+    section: 'Touchpad',
+    description:
+        'A multiplier on how far a vertical scroll gesture moves the '
+        'page.',
+    tags: const ['scroll', 'speed', 'vertical', 'multiplier', 'gesture'],
+  );
+
+  static final miracleTouchpadHscroll = miracleField(
+    'miracle.touchpad.hscroll_speed',
+    'Horizontal scroll speed',
+    section: 'Touchpad',
+    description:
+        'A multiplier on how far a horizontal scroll gesture moves the '
+        'page.',
+    tags: const ['scroll', 'speed', 'horizontal', 'multiplier', 'gesture'],
+  );
+
+  static final miracleKeymapEnabled = miracleField(
+    'miracle.keymap.enabled',
+    'Set the keyboard layout',
+    section: 'Keyboard',
+    description:
+        'Whether miracle applies a layout of its own. Off leaves the '
+        'system default in place.',
+    tags: const ['keymap', 'layout', 'xkb', 'language', 'default'],
+  );
+
+  static final miracleKeymapLanguage = miracleField(
+    'miracle.keymap.language',
+    'Layout',
+    section: 'Keyboard',
+    description:
+        'The XKB layout code miracle applies, e.g. `us`, `de`, `fr`.',
+    tags: const [
+      'keymap', 'xkb', 'language', 'country', 'us', 'de', 'fr',
+      'layout',
+    ],
+  );
+
+  static final miracleKeymapVariant = miracleField(
+    'miracle.keymap.variant',
+    'Variant',
+    section: 'Keyboard',
+    description:
+        'The XKB variant of the layout, e.g. `dvorak` or `colemak`. '
+        'Empty for the layout\'s default.',
+    tags: const ['keymap', 'xkb', 'variant', 'dvorak', 'colemak', 'intl'],
+  );
+
+  static final miracleKeymapOptions = miracleField(
+    'miracle.keymap.options',
+    'XKB options',
+    section: 'Keyboard',
+    description:
+        'Extra XKB options applied on top of the layout, e.g. '
+        '`caps:swapescape` or `compose:ralt`.',
+    tags: const [
+      'xkb', 'option', 'caps', 'escape', 'compose', 'terminate',
+      'swap',
+    ],
+  );
+
+  static final miracleKeyRepeatDelay = miracleField(
+    'miracle.key_repeat_delay',
+    'Repeat delay',
+    section: 'Keyboard',
+    description:
+        'How long a key must be held before it starts repeating, in '
+        'milliseconds.',
+    tags: const ['repeat', 'delay', 'hold', 'keyboard', 'milliseconds'],
+  );
+
+  static final miracleKeyRepeatRate = miracleField(
+    'miracle.key_repeat_rate',
+    'Repeat rate',
+    section: 'Keyboard',
+    description:
+        'How many times a second a held key repeats.',
+    tags: const ['repeat', 'rate', 'speed', 'keyboard', 'characters'],
+  );
+
+  static final miracleMagnifierEnabled = miracleField(
+    'miracle.magnifier.enabled',
+    'Magnifier',
+    section: 'Accessibility',
+    description:
+        'Whether the screen magnifier can be turned on.',
+    tags: const [
+      'zoom', 'magnify', 'accessibility', 'vision', 'low vision',
+      'loupe',
+    ],
+  );
+
+  static final miracleMagnifierScale = miracleField(
+    'miracle.magnifier.scale',
+    'Magnification',
+    section: 'Accessibility',
+    description:
+        'How far the magnifier zooms in.',
+    tags: const ['zoom', 'magnify', 'scale', 'accessibility'],
+  );
+
+  static final miracleMagnifierScaleIncrement = miracleField(
+    'miracle.magnifier.scale_increment',
+    'Magnification step',
+    section: 'Accessibility',
+    description:
+        'How much one press of a zoom binding changes the magnification '
+        'by.',
+    tags: const ['zoom', 'magnify', 'step', 'increment', 'keybind'],
+  );
+
+  static final miracleMagnifierWidth = miracleField(
+    'miracle.magnifier.width',
+    'Magnifier width',
+    section: 'Accessibility',
+    description:
+        'The magnifier window\'s width, in pixels.',
+    tags: const ['zoom', 'magnify', 'size', 'width', 'pixels'],
+  );
+
+  static final miracleMagnifierHeight = miracleField(
+    'miracle.magnifier.height',
+    'Magnifier height',
+    section: 'Accessibility',
+    description:
+        'The magnifier window\'s height, in pixels.',
+    tags: const ['zoom', 'magnify', 'size', 'height', 'pixels'],
+  );
+
+  static final miracleMagnifierSizeIncrement = miracleField(
+    'miracle.magnifier.size_increment',
+    'Magnifier size step',
+    section: 'Accessibility',
+    description:
+        'How many pixels one press of a resize binding changes the '
+        'magnifier by.',
+    tags: const ['zoom', 'magnify', 'size', 'step', 'increment'],
+  );
+
+  static final miracleHoverClickEnabled = miracleField(
+    'miracle.hover_click.enabled',
+    'Hover click',
+    section: 'Accessibility',
+    description:
+        'Clicks by resting the pointer still, for anybody who cannot '
+        'press a button.',
+    tags: const ['dwell', 'hover', 'click', 'accessibility', 'rest', 'motor'],
+  );
+
+  static final miracleHoverClickDuration = miracleField(
+    'miracle.hover_click.hover_duration',
+    'Hover time',
+    section: 'Accessibility',
+    description:
+        'How long the pointer must rest before the click is dispatched, '
+        'in milliseconds.',
+    tags: const ['dwell', 'hover', 'delay', 'duration', 'milliseconds'],
+  );
+
+  static final miracleHoverClickCancel = miracleField(
+    'miracle.hover_click.cancel_displacement_threshold',
+    'Cancel distance',
+    section: 'Accessibility',
+    description:
+        'How far the pointer may drift, in pixels, before a pending '
+        'hover click is cancelled.',
+    tags: const ['dwell', 'hover', 'cancel', 'drift', 'pixels', 'threshold'],
+  );
+
+  static final miracleHoverClickReclick = miracleField(
+    'miracle.hover_click.reclick_displacement_threshold',
+    'Re-click distance',
+    section: 'Accessibility',
+    description:
+        'How far the pointer must move, in pixels, before it will '
+        'hover-click again.',
+    tags: const [
+      'dwell', 'hover', 'repeat', 'distance', 'pixels',
+      'threshold',
+    ],
+  );
+
+  static final miracleSecondaryClickEnabled = miracleField(
+    'miracle.simulated_secondary_click.enabled',
+    'Hold to right-click',
+    section: 'Accessibility',
+    description:
+        'Holding the primary button down counts as a right click.',
+    tags: const [
+      'right click', 'secondary', 'hold', 'long press',
+      'accessibility',
+    ],
+  );
+
+  static final miracleSecondaryClickHold = miracleField(
+    'miracle.simulated_secondary_click.hold_duration',
+    'Hold time',
+    section: 'Accessibility',
+    description:
+        'How long the button must be held before the right click fires, '
+        'in milliseconds.',
+    tags: const [
+      'right click', 'secondary', 'hold', 'duration',
+      'milliseconds',
+    ],
+  );
+
+  static final miracleSecondaryClickThreshold = miracleField(
+    'miracle.simulated_secondary_click.displacement_threshold',
+    'Hold cancel distance',
+    section: 'Accessibility',
+    description:
+        'How far the pointer may drift, in pixels, before the pending '
+        'right click is cancelled.',
+    tags: const [
+      'right click', 'secondary', 'drift', 'cancel', 'pixels',
+      'threshold',
+    ],
+  );
+
+  static final miracleSlowKeysEnabled = miracleField(
+    'miracle.slow_keys.enabled',
+    'Slow keys',
+    section: 'Accessibility',
+    description:
+        'Ignores a key unless it is held down long enough, so a brushed '
+        'key does nothing.',
+    tags: const [
+      'slow', 'keys', 'accessibility', 'tremor', 'accidental',
+      'hold',
+    ],
+  );
+
+  static final miracleSlowKeysDuration = miracleField(
+    'miracle.slow_keys.hold_duration',
+    'Slow keys hold time',
+    section: 'Accessibility',
+    description:
+        'How long a key must be held before it registers, in '
+        'milliseconds.',
+    tags: const ['slow', 'keys', 'hold', 'duration', 'milliseconds'],
+  );
+
+  static final miracleStickyKeysEnabled = miracleField(
+    'miracle.sticky_keys.enabled',
+    'Sticky keys',
+    section: 'Accessibility',
+    description:
+        'Latches a modifier when it is pressed, so a shortcut can be '
+        'typed one key at a time.',
+    tags: const ['sticky', 'modifier', 'latch', 'accessibility', 'one handed'],
+  );
+
+  static final miracleStickyKeysDisable = miracleField(
+    'miracle.sticky_keys.disable_on_two_keys',
+    'Release on two keys',
+    section: 'Accessibility',
+    description:
+        'Pressing two modifiers together turns sticky keys off until '
+        'every key is released.',
+    tags: const ['sticky', 'modifier', 'disable', 'two', 'together'],
+  );
+
+  static final miracleOutputFilterShader = miracleField(
+    'miracle.output_filter.shader_path',
+    'Output shader',
+    section: 'Accessibility',
+    description:
+        'A shader run over the whole screen — a colour-blindness '
+        'filter, a night tint. Empty for none.',
+    tags: const [
+      'shader', 'filter', 'colour', 'color', 'blind', 'invert',
+      'grayscale', 'night',
+    ],
+  );
+
+  static final miracleCustomBindings = miracleField(
+    '',
+    'Custom key bindings',
+    section: 'Key Bindings',
+    description:
+        'Your own shortcuts: a key, the modifiers held with it, and the '
+        'shell command it runs.',
+    tags: const [
+      'keybind', 'shortcut', 'hotkey', 'command', 'bind', 'exec',
+      'launch',
+    ],
+  );
+
+  static final miracleBuiltInOverrides = miracleField(
+    '',
+    'Built-in command overrides',
+    section: 'Key Bindings',
+    description:
+        'Rebindings of miracle\'s own commands — closing a window, '
+        'switching workspace, reloading the configuration.',
+    tags: const [
+      'keybind', 'shortcut', 'hotkey', 'override', 'rebind',
+      'default', 'workspace',
+    ],
+  );
+
+  static final miracleStartupApps = miracleField(
+    '',
+    'Startup applications',
+    section: 'Startup',
+    description:
+        'The programs miracle launches once the compositor is ready, '
+        'and what it does if one of them exits.',
+    tags: const [
+      'autostart', 'launch', 'startup', 'boot', 'login', 'restart',
+      'systemd',
+    ],
+  );
+
+  static final miracleEnvironmentVariables = miracleField(
+    '',
+    'Environment variables',
+    section: 'Startup',
+    description:
+        'The variables miracle sets for every application it launches.',
+    tags: const [
+      'environment', 'variable', 'env', 'export', 'toolkit',
+      'scale',
+    ],
+  );
+
+  static final miracleWorkspaces = miracleField(
+    '',
+    'Workspaces',
+    section: 'Workspaces',
+    description:
+        'Per-workspace settings, matched to a workspace by its number '
+        'or by its name.',
+    tags: const ['workspace', 'desktop', 'name', 'number', 'label'],
+  );
+
+  static final miracleIncludes = miracleField(
+    '',
+    'Included files',
+    section: 'Includes & Plugins',
+    description:
+        'Other configuration files merged into this one, so a '
+        'configuration can be split up.',
+    tags: const ['include', 'import', 'merge', 'file', 'split', 'fragment'],
+  );
+
+  static final miraclePlugins = miracleField(
+    '',
+    'Plugins',
+    section: 'Includes & Plugins',
+    description:
+        'The shared objects miracle loads at startup to extend the '
+        'compositor.',
+    tags: const [
+      'plugin', 'extension', 'shared object', 'so', 'load',
+      'addon',
+    ],
+  );
+
   static SettingsField _module(
     String id,
     String label,
@@ -1006,6 +1726,82 @@ abstract final class SettingsCatalog {
     powerInhibitLogind,
     calendarWeekStart,
     ..._hardware,
+    ...miracleFields,
+  ];
+
+  /// Every Window Manager row, in the order the pane renders them.
+  ///
+  /// Split out for the same reason [moduleFields] is: it is the one block of
+  /// the index that belongs to another program's configuration file, and
+  /// `test/settings_search_test.dart` checks its ids and its categories against
+  /// that pane rather than against the Shell one.
+  static final List<SettingsField> miracleFields = [
+    miracleTerminal,
+    miracleActionKey,
+    miracleMoveModifier,
+    miraclePrimaryButton,
+    miracleBackAndForth,
+    miracleResizeJump,
+    miracleBackgroundColor,
+    miracleInnerGapsX,
+    miracleInnerGapsY,
+    miracleOuterGapsX,
+    miracleOuterGapsY,
+    miracleBorderSize,
+    miracleBorderRadius,
+    miracleBorderFocusColor,
+    miracleBorderColor,
+    miracleAnimationsEnabled,
+    miracleAnimatedEvents,
+    miracleMouseHandedness,
+    miracleMouseAcceleration,
+    miracleMouseAccelerationBias,
+    miracleMouseVscroll,
+    miracleMouseHscroll,
+    miracleCursorScale,
+    miracleCursorFocusMode,
+    miracleDragAndDrop,
+    miracleDragModifiers,
+    miracleTouchpadDisableTyping,
+    miracleTouchpadDisableMouse,
+    miracleTouchpadTapToClick,
+    miracleTouchpadMiddleEmulation,
+    miracleTouchpadClickMode,
+    miracleTouchpadScrollMode,
+    miracleTouchpadAccelerationBias,
+    miracleTouchpadVscroll,
+    miracleTouchpadHscroll,
+    miracleKeymapEnabled,
+    miracleKeymapLanguage,
+    miracleKeymapVariant,
+    miracleKeymapOptions,
+    miracleKeyRepeatDelay,
+    miracleKeyRepeatRate,
+    miracleMagnifierEnabled,
+    miracleMagnifierScale,
+    miracleMagnifierScaleIncrement,
+    miracleMagnifierWidth,
+    miracleMagnifierHeight,
+    miracleMagnifierSizeIncrement,
+    miracleHoverClickEnabled,
+    miracleHoverClickDuration,
+    miracleHoverClickCancel,
+    miracleHoverClickReclick,
+    miracleSecondaryClickEnabled,
+    miracleSecondaryClickHold,
+    miracleSecondaryClickThreshold,
+    miracleSlowKeysEnabled,
+    miracleSlowKeysDuration,
+    miracleStickyKeysEnabled,
+    miracleStickyKeysDisable,
+    miracleOutputFilterShader,
+    miracleCustomBindings,
+    miracleBuiltInOverrides,
+    miracleStartupApps,
+    miracleEnvironmentVariables,
+    miracleWorkspaces,
+    miracleIncludes,
+    miraclePlugins,
   ];
 
   /// Every `[modules.*]` row, in the order `modules.dart` renders them.

@@ -8,6 +8,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:graceful_shell/overlay/settings/miracle.dart';
 import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
 import 'package:graceful_shell/overlay/settings/settings_search.dart';
@@ -20,6 +21,7 @@ const _sidebarCategories = {
   'display',
   'audio',
   'keyboard',
+  'miracle',
   'shell',
 };
 
@@ -35,6 +37,23 @@ const _shellCategories = {
   'Lock Screen',
   'Power Button',
   'Calendar',
+};
+
+/// The Window Manager categories, as `miracle.dart` titles them. Spelled here
+/// for the same reason the Shell ones are: what is being pinned is that the two
+/// agree, and `isMiracleCategory` below is what actually reads them.
+const _miracleCategories = {
+  'General',
+  'Gaps & Borders',
+  'Animations',
+  'Key Bindings',
+  'Mouse',
+  'Touchpad',
+  'Keyboard',
+  'Accessibility',
+  'Workspaces',
+  'Startup',
+  'Includes & Plugins',
 };
 
 SearchableSetting _searchable(
@@ -98,14 +117,57 @@ void main() {
           reason: '${field.label} points at sidebar "${field.route.category}"',
         );
         final shellCategory = field.route.shellCategory;
-        if (shellCategory == null) continue;
-        expect(field.route.category, 'shell');
+        if (shellCategory != null) {
+          expect(field.route.category, 'shell');
+          expect(
+            _shellCategories,
+            contains(shellCategory),
+            reason: '${field.label} points at Shell category "$shellCategory"',
+          );
+        }
+        final miracleCategory = field.route.miracleCategory;
+        if (miracleCategory == null) continue;
+        expect(field.route.category, 'miracle');
         expect(
-          _shellCategories,
-          contains(shellCategory),
-          reason: '${field.label} points at Shell category "$shellCategory"',
+          _miracleCategories,
+          contains(miracleCategory),
+          reason:
+              '${field.label} points at Window Manager category '
+              '"$miracleCategory"',
         );
       }
+    });
+
+    // The pane's own list, read from the pane rather than spelled twice — the
+    // half of the check the constant set above cannot make.
+    test('the Window Manager categories are the ones the pane offers', () {
+      expect(miracleCategoryTitles.toSet(), _miracleCategories);
+      for (final title in _miracleCategories) {
+        expect(isMiracleCategory(title), isTrue, reason: title);
+      }
+      expect(isMiracleCategory('Nonexistent'), isFalse);
+    });
+
+    // `settings/miracle/` addresses each row by the setting it edits, and the
+    // ids are what the search jumps to. A row under another pane's prefix
+    // would flash on a page that does not contain it.
+    test('a Window Manager row id names a miracle setting', () {
+      for (final field in SettingsCatalog.miracleFields) {
+        expect(field.route.category, 'miracle');
+        expect(field.route.shellCategory, isNull);
+        expect(field.route.miracleCategory, isNotNull);
+        if (field.id.isEmpty) continue;
+        expect(field.id, startsWith('miracle.'));
+      }
+      expect(
+        rankSettings(SettingsCatalog.searchable, 'action key')
+            .map((f) => f.label),
+        contains('Action Key'),
+      );
+      expect(
+        rankSettings(SettingsCatalog.searchable, 'gaps').map((f) => f.label),
+        contains('Inner gap, horizontal'),
+      );
     });
 
     // The `_pane` entries are the hardware panes, which are lists of whatever
@@ -129,9 +191,19 @@ void main() {
           'Displays and resolution',
           'Sound output and input',
           'Keyboard layout',
+          // The Window Manager pane's collections: a list of key bindings or
+          // of startup applications is not a row anything can scroll to.
+          'Animated events',
+          'Custom key bindings',
+          'Built-in command overrides',
+          'Startup applications',
+          'Environment variables',
+          'Workspaces',
+          'Included files',
+          'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(9));
+      expect(unhighlightable, hasLength(17));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

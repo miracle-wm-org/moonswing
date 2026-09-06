@@ -13,6 +13,7 @@ import 'package:graceful_shell/overlay/settings/audio.dart';
 import 'package:graceful_shell/overlay/settings/bluetooth.dart';
 import 'package:graceful_shell/overlay/settings/display.dart';
 import 'package:graceful_shell/overlay/settings/keyboard.dart';
+import 'package:graceful_shell/overlay/settings/miracle.dart';
 import 'package:graceful_shell/overlay/settings/network.dart';
 import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
 import 'package:graceful_shell/overlay/settings/settings_search.dart';
@@ -204,7 +205,9 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
     // Published *before* the rebuild, so a Shell pane being built for the
     // first time — the user was on Audio, say — can seed its initial route
     // from the pending target instead of landing on the category list.
-    if (field.highlights || field.route.shellCategory != null) {
+    if (field.highlights ||
+        field.route.shellCategory != null ||
+        field.route.miracleCategory != null) {
       _highlight.jumpTo(field);
     }
     _panelEntry.markNeedsBuild();
@@ -431,6 +434,10 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         return const AudioSettingsPage();
       case 'keyboard':
         return const KeyboardSettingsPage();
+      case 'miracle':
+        return MiracleSettingsPage(
+          initialCategory: widget.route?.miracleCategory,
+        );
       case 'shell':
         return ShellSettingsPage(initialCategory: widget.route?.shellCategory);
       default:
@@ -490,6 +497,12 @@ class _SettingsSidebar extends StatelessWidget {
               label: 'Keyboard',
               selected: selectedCategory == 'keyboard',
               onTap: () => onCategorySelected('keyboard'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.wandMagicSparkles,
+              label: 'Window Manager',
+              selected: selectedCategory == 'miracle',
+              onTap: () => onCategorySelected('miracle'),
             ),
             _SidebarItem(
               icon: FontAwesomeIcons.gear,
