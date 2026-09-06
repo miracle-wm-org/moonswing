@@ -213,12 +213,10 @@ void main() {
 
   group('the folded index', () {
     test('every emoji in a group shares one category term list', () {
-      // [rankEmoji] scores the category **once per group** rather than once
-      // per row, which is most of the work of a keystroke — and it is only
-      // correct because the terms are the one shared list. Folding them per
-      // emoji (which is what the constructor used to do, compiling the word
-      // splitter afresh six hundred times inside the first frame of the
-      // picker's window) would also make that memo a lie.
+      // [rankEmoji] scores the category **once per group** rather than once per
+      // row, which is most of the work of a keystroke — and it is only correct
+      // because the terms are the one shared list. Folding them per emoji would
+      // also make that memo a lie.
       final seen = <EmojiCategory, List<String>>{};
       for (final emoji in searchableEmoji) {
         final terms = seen[emoji.category];
@@ -246,13 +244,11 @@ void main() {
   });
 
   group('narrowing', () {
-    // A longer query can only ever match fewer rows: a field matches iff the
-    // query is a subsequence of it (every literal tier implies a substring,
-    // and a substring is a subsequence), and a prefix of a subsequence is a
-    // subsequence. So rescoring only the previous survivors must answer
-    // *exactly* what a full scan answers — not nearly. These walk the shipped
-    // table to say so, the way the last rewrite of the scorer was diffed
-    // against the one it replaced.
+    // A longer query can only ever match fewer rows: a field matches iff the query
+    // is a subsequence of it (every literal tier implies a substring, and a
+    // substring is a subsequence), and a prefix of a subsequence is a subsequence.
+    // So rescoring only the previous survivors must answer *exactly* what a full
+    // scan answers — not nearly. These walk the shipped table to say so.
 
     List<String> chars(List<Emoji> results) => [
       for (final e in results) e.char,
@@ -334,11 +330,9 @@ void main() {
     });
 
     test('survivors carry their place in the table, not in the results', () {
-      // The sort's tie-break is the table index; a candidate's place in a
-      // narrowed list is not the place the ordering means. If the index were
-      // re-derived from the narrowed list, ties would reorder on the second
-      // keystroke — which is what the first test above would catch, and this
-      // is the direct statement of why.
+      // The sort's tie-break is the table index; a candidate's place in a narrowed
+      // list is not the place the ordering means. If the index were re-derived
+      // from the narrowed list, ties would reorder on the second keystroke.
       final ranking = rankEmojiFrom(searchableEmoji, 'fa');
       for (final (index, candidate) in ranking.survivors) {
         expect(identical(searchableEmoji[index], candidate), isTrue);

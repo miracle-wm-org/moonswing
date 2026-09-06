@@ -141,11 +141,11 @@ void main() {
 
       testWidgets('a non-uniform rim under an asymmetric radius still paints',
           (tester) async {
-        // BoxBorder.paint asserts that a borderRadius needs a uniform border,
-        // but takes a paintNonUniformBorder path first when the *visible* sides
-        // share one colour. That path is what the square-join card rests on,
-        // and it refuses hairlines — which cannot arise, since no border is
-        // built at all below a width of 0.
+        // BoxBorder.paint asserts that a borderRadius needs a uniform border, but
+        // takes a paintNonUniformBorder path first when the *visible* sides share
+        // one colour. That path is what the square-join card rests on, and it
+        // refuses hairlines — which cannot arise, since no border is built below
+        // a width of 0.
         for (final edge in ['top', 'bottom', 'left', 'right']) {
           await pumpCard(
             tester,
@@ -162,11 +162,10 @@ void main() {
     });
 
     group('the flared join', () {
-      // popup_attach_radius reads as a corner radius and is the opposite of
-      // one: each side sweeps *outward* as it reaches the panel, so the card
-      // runs into the bar rather than resting against it. That cannot be a
-      // BorderRadius, so this is the one card in the shell whose decoration is
-      // a ShapeDecoration.
+      // popup_attach_radius reads as a corner radius and is the opposite of one:
+      // each side sweeps *outward* as it reaches the panel, so the card runs into
+      // the bar rather than resting against it. That cannot be a BorderRadius,
+      // hence the one ShapeDecoration in the shell.
       const flared = ThemeConfig(popupRadius: 12.0, popupAttachRadius: 10.0);
       const card = Rect.fromLTWH(100, 50, 200, 120);
 
@@ -280,11 +279,10 @@ void main() {
       });
 
       test('the flare bows outward, into the panel', () {
-        // Right at the join the outline reaches a full attachRadius past the
-        // card on both sides; a fraction of the way in it has already pulled
-        // back to the card's own edge. Both halves matter: the first is what
-        // makes the card meet the bar wider than it is, the second is what
-        // keeps it from being a trapezoid.
+        // Right at the join the outline reaches a full attachRadius past the card
+        // on both sides; a fraction of the way in it has already pulled back to
+        // the card's own edge. The first is what makes the card meet the bar
+        // wider than it is, the second is what keeps it from being a trapezoid.
         final top = outlineFor('top');
         expect(top.contains(const Offset(100 - 5, 50 + 0.2)), isTrue,
             reason: 'left ear at the join line');
@@ -364,12 +362,11 @@ void main() {
       });
 
       test('the collar reaches the flare back onto the bar\'s own rim', () {
-        // A panel's rim is drawn along its *inner* edge too, so with the join
-        // on the card's own boundary the bar's hairline runs straight across
-        // the mouth of every menu and the card reads as something taped under
-        // a line. The collar moves the join one rim-width into the panel: the
-        // flare is concave, so the card is at its widest exactly there and its
-        // own fill takes that hairline out across the whole mouth.
+        // A panel's rim is drawn along its *inner* edge too, so with the join on
+        // the card's own boundary the bar's hairline runs across the mouth of
+        // every menu. The collar moves the join one rim-width into the panel: the
+        // flare is concave, so the card is at its widest exactly there and its own
+        // fill takes that hairline out.
         const border = AttachedPopupBorder(
             edge: 'top', radius: 12.0, attachRadius: 10.0, collar: 2.0);
         final path = border.getOuterPath(card);
@@ -551,11 +548,10 @@ void main() {
       });
 
       test('the surface takes the larger of the two, never the sum', () {
-        // Both measure the same thing — how far past the card something paints
-        // — and the flare is part of the card's own silhouette, so the shadow
-        // around it is the shadow the card already casts. Summing would push
-        // every attached window out by a margin nothing draws in, and with no
-        // input-region support that margin swallows clicks.
+        // Both measure the same thing — how far past the card something paints —
+        // and the flare is part of the card's own silhouette, so the shadow around
+        // it is one the card already casts. Summing would push every attached
+        // window out by a margin nothing draws in, which then swallows clicks.
         const shadow = EdgeInsets.only(left: 16, right: 16, top: 0, bottom: 22);
         const flare = EdgeInsets.symmetric(horizontal: 10);
         expect(popupSurfaceInsets(shadow, flare), shadow);
@@ -626,11 +622,10 @@ void main() {
     });
 
     testWidgets('a rim fits inside a pinned width', (tester) async {
-      // The sound popup pins minWidth == maxWidth == 240 and popup.dart
-      // measures the laid-out content to hand GTK a size before the window
-      // maps. The rim has to eat inward: if it grew the card instead, the
-      // measured width would change and the edge-centred anchor placement
-      // would put the popup half the error away from its button.
+      // The sound popup pins minWidth == maxWidth == 240 and popup.dart measures
+      // the laid-out content to hand GTK a size before the window maps. The rim
+      // has to eat inward: growing the card instead would change the measured
+      // width and put the popup half the error away from its button.
       await pumpCard(
         tester,
         const ThemeConfig(popupBorderWidth: 1.0),

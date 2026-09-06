@@ -8,23 +8,20 @@ import 'package:graceful_shell/scopes.dart';
 
 import 'paint_counter.dart';
 
-/// What the settings panes must keep true about painting, in the two shapes
-/// they come in: a lazy sliver category (the Shell pages, built by
-/// `_ShellCategoryView` in `overlay/settings/shell.dart`) and a box section
-/// inside a `ListView` (the audio, display, network and bluetooth pages).
+/// What the settings panes must keep true about painting, in the two shapes they
+/// come in: a lazy sliver category (the Shell pages) and a box section inside a
+/// `ListView` (the audio, display, network and bluetooth pages).
 ///
 /// The shapes are spelled out here rather than driven through
-/// `ShellSettingsPage`, which reaches for the `ConfigStore` singleton that no
-/// widget test initialises. What is under test is the structure — the
-/// boundaries and the laziness — and every real page is one of these two.
+/// `ShellSettingsPage`, which reaches for the `ConfigStore` singleton no widget
+/// test initialises. What is under test is the structure, and every real page is
+/// one of these two.
 ///
-/// **Where the counter goes is the whole test.** In both shapes there is
-/// already a repaint boundary above the section: a viewport is one, and
-/// `ListView` gives its own direct child one as well. So a counter placed
-/// *above* the scroller cannot see a mark raised inside it, and would pass on
-/// any implementation whatsoever. Both counters below are therefore **siblings
-/// of the rows**, inside the section, which is where the containment being
-/// asserted actually has to hold.
+/// **Where the counter goes is the whole test.** In both shapes there is already
+/// a repaint boundary above the section, so a counter placed *above* the scroller
+/// cannot see a mark raised inside it and would pass on any implementation
+/// whatsoever. Both counters below are **siblings of the rows**, inside the
+/// section, which is where the containment has to hold.
 void main() {
   final counterKey = GlobalKey();
 
@@ -47,9 +44,8 @@ void main() {
   ///
   /// A [SettingsIconButton] rather than a [SettingsToggle]: the toggle is an
   /// `AnimatedContainer`, so at the frame a hover lands its decoration has not
-  /// moved yet and "nothing repainted" would be true for the wrong reason.
-  /// This one recolours its glyph on the spot, which is what lets the hover
-  /// test assert the hover *worked* before asserting it was contained.
+  /// moved yet and "nothing repainted" would be true for the wrong reason. This
+  /// one recolours its glyph on the spot.
   Widget row(int i) => SettingsRow(
     label: 'Row $i',
     control: SettingsIconButton(icon: FontAwesomeIcons.trash, onTap: () {}),
@@ -126,13 +122,11 @@ void main() {
     tester,
   ) async {
     await pumpCategory(tester);
-    // Forty rows at roughly 37px each is about 1500px of content against a
-    // 400px viewport and a 600px cache extent, so a good half of them must
-    // never have been mounted. That is what `background.dart` needs: its tiles
-    // are `Image.file`, and `Image` resolves its provider on *mount*, so an
-    // eager list decoded the whole wallpaper catalogue on a visit to the page
-    // whether or not the user scrolled to any of it. Loose on the count and
-    // strict on the property — this is laziness, not a golden.
+    // Forty rows at roughly 37px each is about 1500px of content against a 400px
+    // viewport and a 600px cache extent, so a good half must never have been
+    // mounted. That is what `background.dart` needs: its tiles are `Image.file`,
+    // and `Image` resolves its provider on *mount*. Loose on the count and strict
+    // on the property — this is laziness, not a golden.
     final built = tester.widgetList(find.byType(SettingsRow)).length;
     expect(built, lessThan(40));
     expect(built, greaterThan(0));
@@ -149,12 +143,10 @@ void main() {
     controller.jumpTo(60);
     await tester.pump();
 
-    // The viewport repaints — its own layer is what moves — but each sliver
-    // child is a boundary of its own, so its layer is reused at a new offset
-    // and `paint()` is never called on the subtree. Before, the whole page's
-    // display list was re-recorded on every scroll frame, and the GTK
-    // embedder, which implements no partial repaint, rastered the whole output
-    // again behind it.
+    // The viewport repaints — its own layer is what moves — but each sliver child
+    // is a boundary of its own, so its layer is reused at a new offset and
+    // `paint()` is never called on the subtree. Before, the whole page's display
+    // list was re-recorded on every scroll frame.
     expect(counter().paints, before);
   });
 
@@ -199,11 +191,10 @@ void main() {
     );
     await tester.pump();
 
-    // A repaint boundary contains a repaint; it does not contain a rebuild.
-    // The companion discipline is to keep whatever a `HoverRegion.builder`
-    // returns hover-*dependent* and hoist the rest into the enclosing `build`,
-    // so the work the boundary contains is a decoration and not a paragraph.
-    // Identity is the only thing that tells a rebuilt widget from a reused one.
+    // A repaint boundary contains a repaint; it does not contain a rebuild. The
+    // companion discipline is to keep whatever a `HoverRegion.builder` returns
+    // hover-*dependent* and hoist the rest into the enclosing `build`. Identity is
+    // the only thing that tells a rebuilt widget from a reused one.
     expect(identical(label(), before), isTrue);
   });
 }

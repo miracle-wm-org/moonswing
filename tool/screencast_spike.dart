@@ -1,15 +1,14 @@
-// Standalone smoke test for the screencast capture stack. Run inside a
-// Wayland session with the ext-image-copy-capture protocols (miracle-wm):
+// Standalone smoke test for the screencast capture stack. Run inside a Wayland
+// session with the ext-image-copy-capture protocols (miracle-wm):
 //
 //   dart compile exe tool/screencast_spike.dart -o /tmp/spike
 //   WAYLAND_DISPLAY=wayland-99 /tmp/spike            # registry + outputs
 //   WAYLAND_DISPLAY=wayland-99 /tmp/spike --capture  # + stream 3 frames/output
 //
-// Compiled `dart` has no Flutter engine, which is why the whole
-// lib/screencast + lib/wayland_ffi stack is Flutter-free. Blocking roundtrips
-// stand in for the GLib pump. Note the compositor only completes a copy when
-// the content changes — wiggle something on screen if --capture stalls.
-// WAYLAND_DEBUG=1 shows the wire traffic.
+// Compiled `dart` has no Flutter engine, which is why the whole lib/screencast +
+// lib/wayland_ffi stack is Flutter-free. Blocking roundtrips stand in for the
+// GLib pump. The compositor only completes a copy when the content changes —
+// wiggle something on screen if --capture stalls. WAYLAND_DEBUG=1 shows the wire.
 
 import 'dart:async';
 import 'dart:ffi'; // for the Pointer.asTypedList extension
@@ -72,11 +71,10 @@ Future<void> main(List<String> argv) async {
   exit(0);
 }
 
-/// Runs the real ScreenCast portal backend headlessly: same D-Bus objects,
-/// same capture/PipeWire engine, but consent is auto-granted by
-/// [_AutoPicker] instead of the layer-shell overlay (which needs a Flutter
-/// engine). This is how the portal contract is verified against a real
-/// xdg-desktop-portal frontend and a real application.
+/// Runs the real ScreenCast portal backend headlessly: same D-Bus objects, same
+/// capture/PipeWire engine, but consent is auto-granted by [_AutoPicker] instead
+/// of the layer-shell overlay. This is how the portal contract is verified
+/// against a real xdg-desktop-portal frontend and a real application.
 Future<void> _runPortal(List<String> argv) async {
   final windowsFirst = argv.contains('--prefer-window');
   final slowPick = argv.contains('--slow-pick');
@@ -104,12 +102,12 @@ Future<void> _runPortal(List<String> argv) async {
   await Completer<void>().future; // run until killed
 }
 
-/// Grants every request, choosing the first available source of the
-/// requested kind. Stands in for the picker overlay in headless runs.
+/// Grants every request, choosing the first available source of the requested
+/// kind. Stands in for the picker overlay in headless runs.
 ///
-/// [thinkTime] leaves the pick outstanding for a while, which is what makes
-/// the `Request.Close` cancellation path observable — with an instant answer
-/// the Request object is already gone by the time a client can close it.
+/// [thinkTime] leaves the pick outstanding for a while, which is what makes the
+/// `Request.Close` cancellation path observable — with an instant answer the
+/// Request object is gone before a client can close it.
 class _AutoPicker implements SourcePicker {
   _AutoPicker({this.windowsFirst = false, this.thinkTime = Duration.zero});
 

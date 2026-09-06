@@ -2,9 +2,8 @@
 //
 // Both halves are pinned here because neither is reachable in its real home: a
 // settings pane lives inside a layer-shell window no widget test can pump, so
-// `SettingsSearchBar` and `SettingsRow.field` have to be pumped the way the
-// overlay builds them — under a `ThemeScope`, a `SettingsHighlightScope`, and,
-// for the field's key handling, the `DefaultTextEditingShortcuts` the overlay
+// these have to be pumped the way the overlay builds them — under a `ThemeScope`,
+// a `SettingsHighlightScope`, and the `DefaultTextEditingShortcuts` the overlay
 // supplies in place of the `WidgetsApp` this shell does not have.
 
 import 'package:flutter/services.dart';
@@ -251,10 +250,9 @@ void main() {
     /// **while a jump is landing**.
     ///
     /// Eagerly, which is the point: the pane's own `SliverList` never builds a
-    /// child far past the viewport, so a row forty settings down has no element
-    /// to claim the jump or to scroll to — which is exactly why
-    /// `_ShellCategoryView` widens its `scrollCacheExtent` to hold the whole
-    /// page mounted for the frame the target lands in. A `Column` in a
+    /// child far past the viewport, so a row forty settings down has no element to
+    /// claim the jump — which is why `_ShellCategoryView` widens its
+    /// `scrollCacheExtent` for the frame the target lands in. A `Column` in a
     /// `SingleChildScrollView` is that state, stated in a test.
     Future<void> pumpRows(
       WidgetTester tester,
@@ -301,11 +299,10 @@ void main() {
       expect(onScreen(tester, target.label), isFalse);
 
       highlight.jumpTo(target);
-      // One frame carries the whole exchange: the notify reaches the row,
-      // which claims the target during its rebuild, and the post-frame
-      // callback at the end of that same frame scrolls to it and clears it.
-      // A cleared target is therefore the observable form of "a row took
-      // this" — `claimed` is true only inside the frame.
+      // One frame carries the whole exchange: the notify reaches the row, which
+      // claims the target during its rebuild, and the post-frame callback at the
+      // end of that same frame scrolls to it and clears it. A cleared target is
+      // therefore the observable form of "a row took this".
       await tester.pump();
       expect(highlight.target, isNull);
 
