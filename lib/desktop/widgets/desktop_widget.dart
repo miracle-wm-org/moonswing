@@ -1,10 +1,9 @@
 // The desktop widget registry: what kinds of widget exist, how big each may be,
 // and what each one draws.
 //
-// This is `lib/module.dart` for the desktop what `Module` is for the bar, and
-// deliberately the same shape — a registry keyed by a config string, populated
-// from `main()` before any config is read, looked up at render time. The two
-// are separate registries because a bar module and a desktop widget answer
+// What `Module` is for the bar, deliberately in the same shape — a registry keyed
+// by a config string, populated from `main()` before any config is read, looked
+// up at render time. The two are separate registries because they answer
 // different questions: a module is a strip of a panel sized by its content, a
 // widget is a rectangle of grid cells the user resizes.
 
@@ -16,9 +15,9 @@ import 'package:graceful_shell/desktop/desktop_layout.dart';
 
 /// What a widget's [DesktopWidgetSpec.builder] is handed.
 ///
-/// A class rather than three positional parameters so a widget that later needs
-/// its stored options, or a way to write them back, gains them here without
-/// every existing builder changing shape.
+/// A class rather than three positional parameters, so a widget that later needs
+/// its stored options gains them here without every existing builder changing
+/// shape.
 class DesktopWidgetContext {
   const DesktopWidgetContext({
     required this.item,
@@ -45,9 +44,9 @@ class DesktopWidgetContext {
 
 /// Everything the desktop grid knows about one kind of widget.
 ///
-/// The size limits are the spec's, not the item's: a widget type decides what
-/// it can usefully render in, and a config authored before those limits changed
-/// is clamped at render time rather than rewritten (see [spanFor]).
+/// The size limits are the spec's, not the item's: a widget type decides what it
+/// can usefully render in, and a config authored before those limits changed is
+/// clamped at render time rather than rewritten (see [spanFor]).
 class DesktopWidgetSpec {
   const DesktopWidgetSpec({
     required this.type,
@@ -80,9 +79,8 @@ class DesktopWidgetSpec {
   /// The inset between the card's rim and the widget's content.
   ///
   /// The default is the card padding every widget had before this existed. A
-  /// widget that paints its own surface — the weather widget's sky — asks for
-  /// zero and fills the card to its rim; [PopupCard] already clips to the
-  /// theme's corner radius, so painting to the edge is rounded for free.
+  /// widget that paints its own surface asks for zero and fills the card to its
+  /// rim; [PopupCard] already clips to the theme's corner radius.
   final EdgeInsets padding;
 
   final GridSpan? _defaultSpan;
@@ -98,11 +96,10 @@ class DesktopWidgetSpec {
 
 /// The process-wide registry, populated from `main()`.
 ///
-/// [Module]'s registry is a `Map` on the class for exactly this reason: the
-/// widget types are compiled in, the config only names them, and a name the
-/// build does not know has to degrade rather than throw — see
-/// `DesktopWidgetFrame`, which renders an unknown type as a placeholder instead
-/// of dropping the entry from the user's config.
+/// [Module]'s registry is a `Map` on the class for exactly this reason: the widget
+/// types are compiled in, the config only names them, and a name the build does
+/// not know has to degrade rather than throw — see `DesktopWidgetFrame`, which
+/// renders an unknown type as a placeholder rather than dropping the entry.
 abstract final class DesktopWidgetRegistry {
   static final Map<String, DesktopWidgetSpec> _specs = {};
 
@@ -124,8 +121,8 @@ abstract final class DesktopWidgetRegistry {
 /// [item]'s span, clamped to what [spec] allows.
 ///
 /// A null [spec] (an unknown type) is left exactly as authored: the placeholder
-/// has to occupy the cells the config says it does, or removing it would leave
-/// a hole somewhere else.
+/// has to occupy the cells the config says it does, or removing it would leave a
+/// hole somewhere else.
 GridSpan spanFor(DesktopWidgetSpec? spec, DesktopWidgetItem item) {
   if (spec == null) return (columns: item.columnSpan, rows: item.rowSpan);
   return (

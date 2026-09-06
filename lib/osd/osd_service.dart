@@ -8,17 +8,13 @@ import 'package:graceful_shell/pulse_client.dart';
 /// Feeds [OsdStore] from the things the indicator reports on: the default
 /// PulseAudio sink and source, and the display backlight.
 ///
-/// The shell only *observes* here — whatever already applies the change
-/// (compositor keybindings, the shell's own volume slider) keeps doing so.
+/// The shell only *observes* here — whatever already applies the change keeps
+/// doing so.
 ///
-/// The indicator being off in `config.toml` is a graceful decline: log and
-/// return, nothing to wait for. A PulseAudio client that cannot come up
-/// throws, and `ShellServices.run` records the service as failed — the enum
-/// value is `audio`, and audio is the one capability this service cannot be
-/// said to have started without. A missing backlight stays soft on purpose:
-/// an empty `/sys/class/backlight` is the normal state of every desktop
-/// machine, not a failure, and [BrightnessMonitor.start] is built to go
-/// silent there.
+/// The indicator being off in `config.toml` is a graceful decline. A PulseAudio
+/// client that cannot come up throws, and `ShellServices.run` records the service
+/// as failed. A missing backlight stays soft on purpose: an empty
+/// `/sys/class/backlight` is the normal state of every desktop machine.
 Future<void> startOsdService(OsdConfig config) async {
   if (!config.enabled) {
     debugPrint('OSD disabled in config; indicator not started');
@@ -59,9 +55,8 @@ Future<void> _startAudio() async {
 
   // Re-seeding is three awaited queries, and the events that trigger one can
   // arrive faster than it completes — unplugging a dock moves the default sink
-  // and the default source in quick succession. Without this the older
-  // refresh's answer could land last and reinstate the device that has already
-  // been left.
+  // and source in quick succession. Without this the older refresh's answer could
+  // land last and reinstate the device that has already been left.
   var generation = 0;
 
   // Re-resolve the default devices and re-seed. This is the start-up seeding,
@@ -80,11 +75,11 @@ Future<void> _startAudio() async {
     }
   }
 
-  // Subscribe before the first query, never after. These handlers are the
-  // only thing that ever raises the volume indicator, and a query that throws
-  // or never answers would otherwise cost the shell its subscription for the
-  // rest of the session. Until the first `refreshDefaults` lands the tracker
-  // holds no device name, and the events are simply dropped.
+  // Subscribe before the first query, never after. These handlers are the only
+  // thing that raises the volume indicator, and a query that throws or never
+  // answers would otherwise cost the shell its subscription for the session.
+  // Until the first `refreshDefaults` lands the tracker holds no device name and
+  // the events are simply dropped.
   client.onSinkChanged.listen((sink) {
     if (!tracker.observeSink(sink)) return;
     OsdStore.instance.show(OsdKind.volume, sink.volume, muted: sink.mute);
@@ -97,12 +92,11 @@ Future<void> _startAudio() async {
   });
 
   // A default device moving is reported on PulseAudio's *server* facility and
-  // nowhere else: neither the device being left nor the one being adopted
-  // emits an event of its own. Without this the tracker goes on matching every
-  // event against the name it resolved at start-up, so the card stops
-  // appearing for the whole session the moment the user picks another output —
-  // and the device they are actually listening to is the one it has stopped
-  // reporting on.
+  // nowhere else: neither the device being left nor the one being adopted emits
+  // an event of its own. Without this the tracker goes on matching every event
+  // against the name it resolved at start-up, so the card stops appearing the
+  // moment the user picks another output — and the device they are actually
+  // listening to is the one it has stopped reporting on.
   client.onServerChanged.listen((info) {
     if (!tracker.defaultsMoved(info)) return;
     refreshDefaults();
@@ -111,15 +105,13 @@ Future<void> _startAudio() async {
   client.onSinkRemoved.listen((_) => refreshDefaults());
   client.onSourceRemoved.listen((_) => refreshDefaults());
 
-  // The server itself went away and came back — `pipewire-pulse` restarting,
-  // say. Unlike a default device moving, that is *not* reported by
-  // `onServerChanged` in any way this tracker can act on: the restart usually
-  // brings the same device names back, so `defaultsMoved` answers false and
-  // the tracker would go on measuring events against level baselines taken
-  // from the server that died — which flashes a card for a change nobody made,
-  // or silently drops one that was. The seeding is unconditional here for that
-  // reason, and `refreshDefaults`' own generation counter handles it landing on
-  // top of one already in flight.
+  // The server itself went away and came back. Unlike a default device moving,
+  // that is *not* something `onServerChanged` can report here: the restart
+  // usually brings the same device names back, so `defaultsMoved` answers false
+  // and the tracker would go on measuring events against baselines taken from the
+  // server that died — flashing a card for a change nobody made, or silently
+  // dropping one that was. Hence the unconditional seeding; `refreshDefaults`'
+  // generation counter handles it landing on one already in flight.
   client.onReconnected.listen((_) => refreshDefaults());
 
   await refreshDefaults();

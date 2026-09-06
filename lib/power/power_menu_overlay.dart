@@ -1,5 +1,5 @@
-// The power menu the physical power button opens: a row of large targets over
-// a full-screen layer-shell backdrop, one per [PowerAction].
+// The power menu the physical power button opens: a row of large targets over a
+// full-screen layer-shell backdrop, one per [PowerAction].
 //
 // The actions are injected (`onAction`), so a widget test drives the whole
 // surface without suspending the machine it runs on.
@@ -22,12 +22,10 @@ const double kPowerTileSize = 112;
 
 /// The full-screen power menu.
 ///
-/// Unlike the bar's power popup this asks for no confirmation. The two are
-/// reached differently and that is the whole difference: the popup is one
-/// small target among a row of bar icons, where a mis-click lands on a verb
-/// nobody aimed at, while this menu *is* the confirmation: it appears
-/// because the power button was pressed, and answering "shut down" to a
-/// dialog that opened for exactly that reason is a second deliberate act.
+/// Unlike the bar's power popup this asks for no confirmation, and the two are
+/// reached differently: the popup is one small target among a row of bar icons,
+/// where a mis-click lands on a verb nobody aimed at, while this menu *is* the
+/// confirmation — it appears because the power button was pressed.
 class PowerMenuOverlay extends StatefulWidget {
   const PowerMenuOverlay({
     super.key,
@@ -49,11 +47,10 @@ class PowerMenuOverlay extends StatefulWidget {
 
   final List<PowerAction> actions;
 
-  /// What Enter answers with before the user has moved. Shut Down, because
-  /// this dialog is what a power-button press opens and powering off is what
-  /// that press asked for — so the fast path is press, glance, Enter. The two
-  /// ways out are Escape and a click outside, and the card says so under the
-  /// tiles rather than spending a sixth tile on Cancel.
+  /// What Enter answers with before the user has moved. Shut Down, because this
+  /// dialog is what a power-button press opens, so the fast path is press,
+  /// glance, Enter. The two ways out are Escape and a click outside, which the
+  /// card says under the tiles rather than spending a sixth tile on Cancel.
   final PowerAction initialAction;
 
   @override
@@ -167,11 +164,10 @@ class _PowerMenuOverlayState extends State<PowerMenuOverlay> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // A [Wrap] rather than a [Row]: five tiles are 600px
-                      // across and the surface is one output wide, which on a
-                      // small or rotated display is not enough — and a row
-                      // that overflows reports it every frame on a surface
-                      // whose console nobody is reading.
+                      // A [Wrap] rather than a [Row]: five tiles are 600px across
+                      // and the surface is one output wide, which on a small or
+                      // rotated display is not enough — and a row that overflows
+                      // reports it every frame.
                       Wrap(
                         spacing: 10,
                         runSpacing: 10,
@@ -238,11 +234,11 @@ class _PowerTile extends StatelessWidget {
           duration: ShellDurations.fast,
           width: kPowerTileSize,
           height: kPowerTileSize,
-          // Selection and hover are one state on purpose: entering a tile
-          // moves the selection to it, so a rim that marked "the keyboard is
-          // here" separately from the fill would only ever mark the tile the
-          // fill already marks. The unselected rim is what keeps the tiles
-          // legible under a theme whose `surface_hover` is nearly clear.
+          // Selection and hover are one state on purpose: entering a tile moves
+          // the selection to it, so a rim marking "the keyboard is here"
+          // separately from the fill would only mark the tile the fill already
+          // marks. The unselected rim keeps the tiles legible under a theme whose
+          // `surface_hover` is nearly clear.
           decoration: BoxDecoration(
             color: highlighted ? theme.accent : theme.surfaceHover,
             borderRadius: BorderRadius.circular(ShellRadii.card),

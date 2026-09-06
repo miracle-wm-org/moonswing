@@ -1,9 +1,9 @@
 // The media player desktop widget: what is playing, with the controls for it.
 //
-// The first widget in `DesktopWidgetRegistry`, and the shape the next one
-// should copy — a `DesktopWidgetSpec` at the bottom of the file, a body that
-// takes its store as a parameter, and layout that switches on the *span* the
-// user has resized it to rather than on pixel widths.
+// The first widget in `DesktopWidgetRegistry`, and the shape the next one should
+// copy — a `DesktopWidgetSpec` at the bottom of the file, a body that takes its
+// store as a parameter, and layout that switches on the *span* the user has
+// resized it to rather than on pixel widths.
 
 import 'dart:io';
 import 'dart:math' as math;
@@ -85,11 +85,10 @@ class _MediaPlayerWidgetState extends State<MediaPlayerWidget> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // A cell can be configured down to 32px, which makes a 2x1 card
-        // smaller than this content can be drawn in. Laying it out at its own
-        // minimum and clipping is the honest answer: the alternative is
-        // Flutter reporting a flex overflow on every frame, on a surface the
-        // user cannot see the console for.
+        // A cell can be configured down to 32px, which makes a 2x1 card smaller
+        // than this content can be drawn in. Laying it out at its own minimum and
+        // clipping is the honest answer: the alternative is a flex overflow
+        // reported every frame on a surface whose console nobody reads.
         final width = math.max(constraints.maxWidth, _minWidth);
         final height = math.max(constraints.maxHeight, _minHeight);
 
@@ -195,10 +194,9 @@ class _CompactLayout extends StatelessWidget {
             AlbumArt(player: player, size: art, theme: theme),
             const SizedBox(width: 8),
             // Flexible rather than a width computed from the transport's own
-            // size: the buttons a player offers vary (a stream has no
-            // previous track), and arithmetic that has to be kept in step with
-            // another widget's layout is arithmetic that will drift out of it
-            // and overflow.
+            // size: the buttons a player offers vary (a stream has no previous
+            // track), and arithmetic kept in step with another widget's layout is
+            // arithmetic that will drift out of it and overflow.
             Expanded(
               child: LayoutBuilder(
                 // The marquee measures against a number, so it needs the width
@@ -436,8 +434,8 @@ class _Transport extends StatelessWidget {
 /// The album art, or the spinning disc that stands in for it.
 ///
 /// The disc turns only while playing and the art breathes only while playing:
-/// both are the same signal the [PlayingBars] carry, and a still one is how the
-/// widget says "paused" without a word of text.
+/// both are the signal [PlayingBars] carry, and a still one is how the widget
+/// says "paused" without a word of text.
 class AlbumArt extends StatefulWidget {
   const AlbumArt({
     super.key,
@@ -627,10 +625,10 @@ class DiscPainter extends CustomPainter {
 
 /// Elapsed time, a track-position bar, and the remaining time.
 ///
-/// Owns its own tick: [MprisStore] only re-reads `Position` once a second, but
-/// the store *interpolates* between reads, so a four-times-a-second repaint is
-/// what turns that into a bar that moves smoothly. `lib/timers/`'s rule
-/// applies — the tick exists only while something is playing.
+/// Owns its own tick: [MprisStore] re-reads `Position` once a second but
+/// *interpolates* between reads, so a four-times-a-second repaint turns that
+/// into a bar that moves smoothly. `lib/timers/`'s rule applies — the tick exists
+/// only while something is playing.
 class MediaProgressBar extends StatefulWidget {
   const MediaProgressBar({
     super.key,
@@ -779,10 +777,10 @@ final DesktopWidgetSpec mediaPlayerDesktopWidget = DesktopWidgetSpec(
   description: 'What is playing, with transport controls',
   icon: FontAwesomeIcons.music,
   // Two cells wide is the floor because one cell is an *icon*: art plus a title
-  // plus a button does not fit in the width of a launcher tile. The default is
-  // larger than the floor deliberately — a widget somebody has just added
-  // should show what it can do, and 3x2 is the smallest span that carries the
-  // album, the progress bar and a full-size transport row.
+  // plus a button does not fit in a launcher tile's width. The default is larger
+  // deliberately — a widget somebody has just added should show what it can do,
+  // and 3x2 is the smallest span carrying the album, the progress bar and a
+  // full-size transport row.
   minSpan: (columns: 2, rows: 1),
   maxSpan: (columns: 6, rows: 4),
   defaultSpan: (columns: 3, rows: 2),

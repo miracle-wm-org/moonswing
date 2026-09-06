@@ -358,7 +358,7 @@ class ZwlrOutputConfigurationHeadV1 extends WaylandObject {
 ///
 /// Compared against the head's current values to tell a genuine external
 /// reconfiguration apart from the echo — or the silence — that follows our own
-/// apply. See `_DisplaySettingsPageState._reconcileEdits`.
+/// apply.
 class _HeadState {
   const _HeadState({
     required this.enabled,
@@ -525,9 +525,8 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     if (manager == null || manager.serial == null) return;
     // Here rather than in `build`: this mutates `_edits` and `_lastHead` and
     // allocates a `_HeadState` per head, and `build` runs for reasons that have
-    // nothing to do with the compositor — a hover, a dropdown opening, a
-    // keystroke in the scale field. It runs before the setState, so the build
-    // that setState schedules already sees the folded-in state.
+    // nothing to do with the compositor. It runs before the setState, so the
+    // build that setState schedules already sees the folded-in state.
     _reconcileEdits();
     setState(() => _loaded = true);
   }
@@ -535,14 +534,12 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
   /// Fold the compositor's view of the heads into `_edits`, which is what the
   /// diagram and the cards render from.
   ///
-  /// An entry is (re)seeded only when the head itself moved since we last
-  /// looked. What a *successful* apply put on screen is already in `_edits`, and
-  /// a compositor that answers it by echoing nothing — or by echoing the
-  /// positions it held before the apply — must not be allowed to drag the
-  /// diagram back to the arrangement the user just left. Re-seeding
-  /// unconditionally is the bug this method exists to prevent; a `putIfAbsent`
-  /// that never re-seeds is the one before it, which is why an external change
-  /// (hotplug, another tool) still lands here.
+  /// An entry is (re)seeded only when the head itself moved since we last looked.
+  /// What a *successful* apply put on screen is already in `_edits`, and a
+  /// compositor that answers by echoing nothing — or the positions it held before
+  /// the apply — must not drag the diagram back to the arrangement the user just
+  /// left. A `putIfAbsent` that never re-seeds is the bug before that one, which
+  /// is why an external change still lands here.
   void _reconcileEdits() {
     final manager = _manager;
     if (manager == null) return;
@@ -577,10 +574,9 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         // `_edits` is what the compositor now holds — keep it. Clearing it and
         // re-reading the heads is what used to put the old arrangement back.
         //
-        // The reconcile is explicit because `_dirty` is what gates it, and this
-        // is the one place that clears the flag: a head that moved while the
-        // user was mid-edit was skipped, and there is no further compositor
-        // event coming to fold it in.
+        // The reconcile is explicit because `_dirty` gates it and this is the one
+        // place that clears the flag: a head that moved while the user was
+        // mid-edit was skipped, and no further compositor event is coming.
         _dirty = false;
         _reconcileEdits();
         setState(() {
@@ -928,12 +924,11 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
       height: rect.height,
       child: GestureDetector(
         // Opaque, not `deferToChild`: the rect's `margin: all(2)` is inset
-        // painting, and the `MouseRegion` inside advertises a grab cursor over
-        // it — so the outer 2px of every display was cursored for a drag that
-        // could not start there. It closes the 4px gutter between two abutting
-        // displays, which means a press exactly on a shared edge resolves to
-        // whichever rect is later in `boxes`; that is the rule an *overlapping*
-        // pair already followed mid-drag.
+        // painting and the `MouseRegion` inside advertises a grab cursor over it,
+        // so the outer 2px of every display was cursored for a drag that could not
+        // start there. It closes the 4px gutter between two abutting displays,
+        // which means a press exactly on a shared edge resolves to whichever rect
+        // is later in `boxes` — the rule an *overlapping* pair already followed.
         behavior: HitTestBehavior.opaque,
         dragStartBehavior: DragStartBehavior.down,
         onPanStart: (_) {
