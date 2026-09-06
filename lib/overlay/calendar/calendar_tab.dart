@@ -16,19 +16,16 @@ import 'package:graceful_shell/timers/timer_store.dart';
 import 'package:graceful_shell/timers/timer_widgets.dart';
 
 /// The Calendar tab of the overlay: a month grid the user can page through,
-/// beside a column holding the local time, the world clocks the user has
-/// added, and the timers and stopwatches under them.
+/// beside a column holding the local time, the world clocks and the timers.
 ///
-/// The timers section is `lib/timers/`'s rather than this tab's: it is given
-/// the [active] flag and the store seam and nothing else, because what it
-/// starts outlives the overlay and is rendered in the bar.
+/// The timers section is `lib/timers/`'s rather than this tab's: it is given the
+/// [active] flag and the store seam and nothing else, because what it starts
+/// outlives the overlay and is rendered in the bar.
 ///
 /// There is no account integration — the grid is local date arithmetic only, so
 /// the tab needs no network, no credentials and no start-up service. The world
-/// clocks are read from and written straight back to [ConfigStore]: unlike the
-/// desktop grid there is one consumer in one window, adding and removing *are*
-/// the persisted events, and a store would need start-up wiring this tab has
-/// deliberately never had.
+/// clocks are read from and written straight back to [ConfigStore]: one consumer
+/// in one window, and adding and removing *are* the persisted events.
 class CalendarTab extends StatefulWidget {
   const CalendarTab({
     super.key,
@@ -108,10 +105,10 @@ class _CalendarTabState extends State<CalendarTab> {
 
   /// Writes a whole new list.
   ///
-  /// [ConfigStore] has no append API, and mutating the list `get` returned
-  /// would neither notify nor schedule a save. The notification is synchronous,
-  /// so the [ListenableBuilder] below puts the new row on screen this frame and
-  /// the atomic write follows on the store's own debounce.
+  /// [ConfigStore] has no append API, and mutating the list `get` returned would
+  /// neither notify nor schedule a save. The notification is synchronous, so the
+  /// [ListenableBuilder] below puts the new row on screen this frame and the
+  /// atomic write follows on the store's own debounce.
   void _writeWorldClocks(List<WorldClock> next) {
     final sink = widget.onWorldClocksChanged;
     if (sink != null) {
@@ -375,22 +372,17 @@ class _TodayButton extends StatelessWidget {
 
 /// One day of the grid.
 ///
-/// **The hover highlight is contained twice over, and both halves are what
-/// make it keep up with the pointer.** Forty-two of these sit in one panel,
-/// every one of them hovers, and a `RenderObject` that is marked needing paint
-/// dirties everything up to the nearest repaint boundary — of which this
-/// surface had none. So crossing the grid re-recorded the whole overlay
-/// picture per pointer move — the month, the dial's painter, both lists, the
-/// tab strip — and, the GTK embedder implementing no partial repaint, rastered
-/// the whole output again to tint one 40px box. The highlight trailed the
-/// cursor by however long that took.
+/// **The hover highlight is contained twice over, and both halves are what make
+/// it keep up with the pointer.** Forty-two of these sit in one panel, every one
+/// hovers, and a `RenderObject` marked needing paint dirties everything up to the
+/// nearest repaint boundary — of which this surface had none. So crossing the
+/// grid re-recorded the whole overlay picture per pointer move and, the GTK
+/// embedder implementing no partial repaint, rastered the whole output again to
+/// tint one 40px box.
 ///
-/// The [RepaintBoundary] is what stops the mark propagating: a hover now
-/// re-records this cell's layer and nothing else hears about it. And the label
-/// is built *outside* the hover builder and handed in as a child, so the
-/// rebuild the boundary contains is a decoration and not a paragraph — nothing
-/// about the number depends on the pointer, and an identical child widget is
-/// one the framework skips outright.
+/// The [RepaintBoundary] stops the mark propagating. And the label is built
+/// *outside* the hover builder and handed in as a child, so the rebuild the
+/// boundary contains is a decoration and not a paragraph.
 class _DayCell extends StatelessWidget {
   const _DayCell({
     required this.day,

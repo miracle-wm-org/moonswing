@@ -12,25 +12,21 @@ const double kNotificationBadgeDiameter = 48;
 
 /// The gap between the badge's surface and the edges it is anchored to.
 ///
-/// Deliberately *only* a gap. The badge does not inset itself past the bars:
-/// its layer surface keeps gtk-layer-shell's default exclusive zone of 0,
-/// which per wlr-layer-shell means "move me so I don't occlude surfaces that
-/// reserved space" — so the compositor has already placed it below a top bar
-/// and left of a right-hand one, margins on those bars included (the zone
-/// includes the margin, which is `setPanelMargin`'s rule seen from the other
-/// side). Adding `panelInsetsFor` on top would count every bar twice and hang
-/// the badge a bar's height out into the middle of the screen. This is also
-/// why the badge must never call `spanFullOutput`: a zone of -1 is what asks
-/// the compositor to stop doing that.
+/// Deliberately *only* a gap. The badge does not inset itself past the bars: its
+/// layer surface keeps gtk-layer-shell's default exclusive zone of 0, which means
+/// "move me so I don't occlude surfaces that reserved space" — so the compositor
+/// has already placed it clear of the bars, their margins included. Adding
+/// `panelInsetsFor` would count every bar twice and hang the badge a bar's height
+/// out into the middle of the screen. It is also why the badge must never call
+/// `spanFullOutput`: a zone of -1 asks the compositor to stop doing that.
 const double kNotificationBadgeGap = 14;
 
 /// Room for the button's shadow, on every side.
 ///
-/// The surface is bigger than the button because a `BoxShadow` paints
-/// *outside* its box and this window clips at its edge — `popupShadowInsets`'
-/// problem, one layer down. Kept as tight as that allows: the shell has no
-/// input-region support, so every pixel of this surface is a pixel of the
-/// output that swallows clicks.
+/// The surface is bigger than the button because a `BoxShadow` paints *outside*
+/// its box and this window clips at its edge — `popupShadowInsets`' problem one
+/// layer down. Kept as tight as that allows: with no input-region support, every
+/// pixel of this surface is a pixel of the output that swallows clicks.
 const double kNotificationBadgeShadowInset = 12;
 
 /// The extra room the count bubble needs on the two sides it hangs over.
@@ -68,26 +64,21 @@ String notificationBadgeLabel(int count) => count > 99 ? '99+' : '$count';
 
 /// The floating "you have notifications" button.
 ///
-/// One per monitor, in a small root-owned overlay window that exists only
-/// while there is something to report — the OSD's rule, and for the OSD's
-/// reason: a permanently mapped surface would sit in the corner of every
-/// output eating clicks, and the shell cannot ask the compositor to let them
-/// through.
+/// One per monitor, in a small root-owned overlay window that exists only while
+/// there is something to report — the OSD's rule and its reason: a permanently
+/// mapped surface would sit in the corner of every output eating clicks.
 ///
 /// Three things a change here has to keep true:
 ///
-/// - **It is the same count the bell shows, from the same store, and it opens
-///   the same panel.** The badge exists because the bell may not: a user with
-///   no `notifications` module in any panel would otherwise have a shell that
-///   silently swallows every notification on the machine. It is not a second
-///   inbox.
-/// - **Nothing on it animates at rest.** The entrance plays once and a bump
-///   plays when the count goes up; both settle, so a surface that may be on
-///   screen for hours costs nothing per frame after that. `pumpAndSettle`
-///   works on it, which is what `test/notification_badge_test.dart` relies on.
-/// - **The button is the whole box.** [HoverRegion] emits the opaque detector,
-///   so the 48px circle is the hover box and the tap box alike rather than the
-///   20px glyph inside it.
+/// - **It is the same count the bell shows, from the same store, and it opens the
+///   same panel.** The badge exists because the bell may not: a user with no
+///   `notifications` module in any panel would otherwise have a shell that
+///   silently swallows every notification. It is not a second inbox.
+/// - **Nothing on it animates at rest.** The entrance plays once and a bump plays
+///   when the count goes up; both settle, so a surface that may be on screen for
+///   hours costs nothing per frame after that.
+/// - **The button is the whole box.** [HoverRegion] emits the opaque detector, so
+///   the 48px circle is the hover box and the tap box alike.
 class NotificationBadge extends StatefulWidget {
   const NotificationBadge({super.key, required this.onTap});
 
@@ -247,9 +238,9 @@ class _BadgeButton extends StatelessWidget {
 
 /// The count bubble, drawn over the button's rim.
 ///
-/// Ringed in the button's own fill so it reads as punched out of it rather
-/// than as a blob resting on top — `_BrokenDot`'s trick on the bell, which is
-/// what keeps a small filled shape legible over any theme.
+/// Ringed in the button's own fill so it reads as punched out of it rather than
+/// as a blob resting on top — `_BrokenDot`'s trick on the bell, which is what
+/// keeps a small filled shape legible over any theme.
 class _BadgeCount extends StatelessWidget {
   const _BadgeCount({required this.theme, required this.count});
 
