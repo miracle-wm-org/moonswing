@@ -1,12 +1,8 @@
 /// The non-themeable design tokens — the layer below `ThemeConfig`.
 ///
-/// A theme decides *colours and shape* (`panel_radius`, `popup_radius`,
-/// `surface_hover`, the font); these constants decide the sizes and timings
-/// that read as "the shell" regardless of theme. Before this file every one
-/// of them was an inline literal: six different animation durations, a
-/// three-tier radius scale nobody had named, 254 font-size literals, and two
-/// different error reds. New UI takes its values from here; a literal that
-/// matches a token is a token.
+/// A theme decides colours and shape; these constants decide the sizes and
+/// timings that read as "the shell" whatever the theme. A literal that matches
+/// a token is a token.
 library;
 
 import 'dart:ui';
@@ -30,20 +26,13 @@ abstract final class ShellDurations {
 
   /// A popup card's entrance (`popup_animation`).
   ///
-  /// Quick, because a popup is a *response* to a click that has already
-  /// happened: the card the user is reaching for has to be readable by the
-  /// time the pointer gets there. The 500 ms elastic this replaced was long
-  /// enough that a menu opened and dismissed in one motion never finished
-  /// arriving.
+  /// Quick: the card has to be readable by the time the pointer reaches it.
   static const Duration popupIn = Duration(milliseconds: 140);
 
   /// A popup card's exit — the entrance, reversed and shorter.
   ///
   /// An entrance is paced to be followed; a dismissal is the user saying they
-  /// are done, and every frame of it is a frame the window they asked to be
-  /// rid of is still on screen. See `lib/popup_transition.dart`, whose exit is
-  /// the same animation run backwards, and `lib/notification_badge.dart`,
-  /// which states the same asymmetry for its panel.
+  /// are done. See `lib/popup_transition.dart` and `lib/notification_badge.dart`.
   static const Duration popupOut = Duration(milliseconds: 110);
 }
 
@@ -76,23 +65,19 @@ abstract final class ShellFontSizes {
   /// Control labels and popup text.
   static const double label = 14;
 
-  /// The text somebody is *typing*: the overlay search inputs (the launcher's
-  /// and the emoji picker's, both through `OverlaySearchField`). A rung above
-  /// [label] because a query is the one string on those cards the user is
-  /// composing rather than reading, and a rung below [title] because the card
-  /// still has headings of its own.
+  /// The text somebody is *typing*: the overlay search inputs, via
+  /// `OverlaySearchField`. Above [label] because a query is composed rather
+  /// than read, below [title] because the card still has headings.
   static const double field = 15;
 
   /// Section titles and emphasis.
   static const double title = 16;
 
-  /// A section *heading* — the name of a block of content, set outside and
-  /// above the surface it names rather than inside it.
+  /// A section heading — set outside and above the surface it names.
   static const double heading = 20;
 }
 
-/// The one error red. (`0xFFE05252` was a second one that crept in; keep it
-/// singular.)
+/// The one error red; keep it singular.
 const Color kErrorColor = Color(0xFFE06C75);
 
 /// Text/iconography drawn on top of `theme.accent` fills.
@@ -100,10 +85,9 @@ const Color kOnAccent = Color(0xFFFFFFFF);
 
 /// Pointer-target sizes.
 ///
-/// Hover and tap are one box (see `HoverRegion`), so these name *that box* and
-/// never the glyph inside it. A `FaIcon` is a bare `RichText` with no `SizedBox`
-/// around it, so an icon with no box of its own *is* its own target — 11-14px,
-/// which is a control the pointer has to be aimed at rather than pointed at.
+/// Hover and tap are one box (see `HoverRegion`), so these name *that box*,
+/// never the glyph inside it. A `FaIcon` is a bare `RichText` with no box of
+/// its own, so an unboxed icon is an 11-14px target.
 abstract final class ShellSizes {
   /// The floor for anything clickable that is not deliberately dense.
   static const double minTapTarget = 24;
@@ -112,9 +96,7 @@ abstract final class ShellSizes {
   /// action anywhere in the shell.
   static const double iconButton = 26;
 
-  /// The dense box, for a row that already carries two lines of text — the
-  /// world clocks' remove x, the panel tabs' close x. Below [minTapTarget] on
-  /// purpose and only where the row's height forces it; still six times the
-  /// area of the 11px glyph it holds.
+  /// The dense box, for a row already carrying two lines of text. Below
+  /// [minTapTarget] only where the row's height forces it.
   static const double iconButtonDense = 18;
 }
