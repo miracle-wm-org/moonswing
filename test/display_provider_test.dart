@@ -9,13 +9,12 @@ import 'package:graceful_shell/display_provider.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/shell_services.dart';
 
-/// The regression test for the rule the panels' workspace lists depend on: a
-/// bar learns which physical display it is on *after* it has painted, and it
-/// must never be handed the wrong one in the meantime.
+/// The regression test for the rule the panels' workspace lists depend on: a bar
+/// learns which physical display it is on *after* it has painted, and it must
+/// never be handed the wrong one in the meantime.
 ///
-/// The content is deliberately held in a `const` child, the way
-/// `theme_provider_test.dart` does — so the only thing that can update it is
-/// the [DisplayScope] above it changing, not an ancestor rebuilding it.
+/// The content is deliberately held in a `const` child, so the only thing that
+/// can update it is the [DisplayScope] above it changing.
 void main() {
   late WaylandClient client;
   late OutputTracker outputs;
@@ -168,11 +167,11 @@ void main() {
   });
 
   testWidgets('a repositioned display keeps its own output', (tester) async {
-    // The regression this whole matcher exists for. `MonitorInfo` is a snapshot
-    // taken when the panel's surface was created, so after the user swaps the
-    // two displays around its position is stale — while the outputs report
-    // their new geometry immediately. Matching on position alone left *both*
-    // panels unmatched, and both then took the same `outputs.first`.
+    // The regression this matcher exists for. `MonitorInfo` is a snapshot taken
+    // when the panel's surface was created, so after the user swaps the displays
+    // around its position is stale — while the outputs report their new geometry
+    // immediately. Matching on position alone left *both* panels unmatched, and
+    // both then took the same `outputs.first`.
     services.skip(ShellService.displays);
     final left = output(name: 'DP-1', make: 'Acme', model: 'X1');
     final right = output(name: 'DP-2', make: 'Acme', model: 'X1', x: 1920);

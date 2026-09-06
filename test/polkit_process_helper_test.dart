@@ -1,11 +1,11 @@
 // The one layer of the polkit feature that forks something.
 //
 // Everything above this is driven through [PolkitHelperRunner], which spawns
-// nothing — which is exactly why the pipe handling here is worth its own
-// tests: the hazards are all about the *order* two descriptors and a process
-// exit are delivered in, and no fake can reproduce that. The helper is stood
-// in for by a shell script speaking the same line protocol, so these run on a
-// machine with no polkit installed.
+// nothing — which is why the pipe handling here is worth its own tests: the
+// hazards are all about the *order* two descriptors and a process exit are
+// delivered in, and no fake can reproduce that. The helper is stood in for by a
+// shell script speaking the same line protocol, so these run on a machine with
+// no polkit installed.
 
 import 'dart:async';
 import 'dart:io';
@@ -50,12 +50,11 @@ void main() {
     expect(info, ['argv=ada', 'stdin=cookie-1']);
   });
 
-  // The regression this file was written for. The exit pipe and stdout are
-  // two descriptors and nothing orders them, so completing the run on the
-  // exit would throw away a `SUCCESS` still sitting in the stdout buffer —
-  // an authenticated user reported as a wrong password, on a race that only
-  // ever loses on somebody else's machine. Repeated, because winning it once
-  // proves nothing.
+  // The regression this file was written for. The exit pipe and stdout are two
+  // descriptors and nothing orders them, so completing the run on the exit would
+  // throw away a `SUCCESS` still sitting in the stdout buffer — an authenticated
+  // user reported as a wrong password, on a race that only loses on somebody
+  // else's machine. Repeated, because winning it once proves nothing.
   test('a SUCCESS written just before exit is never lost', () async {
     final path = _helper('quick', 'read -r c\necho SUCCESS');
     for (var i = 0; i < 25; i++) {
