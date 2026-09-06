@@ -6,19 +6,13 @@ import 'package:graceful_shell/request_controller.dart';
 /// `_GracefulShellRootState`, which owns every window.
 ///
 /// Two things ask for it and neither can create the window: the bell module,
-/// which lives deep inside a panel's widget tree, and the floating badge,
-/// which is a root-owned surface of its own with no widget ancestry in common
-/// with the bell at all. The panel used to be the bell's — a `LayerShellHost`
-/// window registered into the panel it sat in — and that is exactly what a
-/// second trigger cannot reach.
+/// deep inside a panel's widget tree, and the floating badge, a root-owned
+/// surface with no widget ancestry in common with the bell at all. The panel
+/// used to be the bell's, which is exactly what a second trigger cannot reach.
 ///
-/// Making the root the owner is also what makes there be *one* panel. Two
-/// hosts each opening their own copy would have put two full-height surfaces
-/// on the same output edge, which the `PopupCoordinator` would then have had
-/// to referee frame by frame; the launcher, the settings overlay and the two
-/// pickers are root-owned for the same reason.
-///
-/// (Why not `InputTriggerStore`: see [SignalController].)
+/// Making the root the owner is also what makes there be *one* panel: two hosts
+/// each opening their own copy would put two full-height surfaces on the same
+/// output edge.
 class NotificationPanelController extends SignalController {
   NotificationPanelController._();
 
@@ -33,12 +27,10 @@ class NotificationPanelController extends SignalController {
 
   /// Whether the root currently has the panel up.
   ///
-  /// A `ValueListenable` of its own rather than state on this notifier, and
-  /// that separation is load-bearing: the root *listens* to this controller
-  /// for the toggle signal, so publishing the open state through the same
-  /// `notifyListeners` would have the root's own write come straight back in
-  /// as a second toggle. The triggers watch this to draw themselves pressed;
-  /// the root watches the controller to be told to act.
+  /// A `ValueListenable` of its own rather than state on this notifier, and that
+  /// separation is load-bearing: the root *listens* to this controller for the
+  /// toggle, so publishing the open state through the same `notifyListeners`
+  /// would have the root's own write come back in as a second toggle.
   ValueListenable<bool> get isOpen => _open;
 
   /// Root-only. Called when the panel's window is created and again once its

@@ -60,15 +60,15 @@ final class _PamConv extends ffi.Struct {
 
 /// Verifies the user's login password with PAM.
 ///
-/// Everything happens through `dart:ffi` rather than native runner code, and
-/// the whole blocking `pam_start` → `pam_authenticate` → `pam_end` sequence
-/// runs inside [Isolate.run] so the lock screen keeps painting while a slow
-/// PAM stack (`pam_unix` deliberately delays failures by seconds) does its
-/// work. The conversation callback is `isolateLocal` because PAM invokes it
-/// synchronously, on the very thread that called `pam_authenticate`.
+/// Everything happens through `dart:ffi` rather than native runner code, and the
+/// whole blocking `pam_start` → `pam_authenticate` → `pam_end` sequence runs
+/// inside [Isolate.run] so the lock screen keeps painting while a slow PAM stack
+/// (`pam_unix` deliberately delays failures by seconds) works. The conversation
+/// callback is `isolateLocal` because PAM invokes it synchronously, on the very
+/// thread that called `pam_authenticate`.
 ///
-/// This works without the shell being root because `pam_unix` shells out to
-/// the setuid-root `unix_chkpwd` helper to read the shadow database.
+/// This works without the shell being root because `pam_unix` shells out to the
+/// setuid-root `unix_chkpwd` helper to read the shadow database.
 class PamAuthenticator {
   const PamAuthenticator._();
 
@@ -76,8 +76,7 @@ class PamAuthenticator {
   ///
   /// We ship `/etc/pam.d/graceful-shell`; `login` is the universally present
   /// fallback for installs that could not write to `/etc` (its `auth` stack
-  /// includes `common-auth`, which is all we exercise — we never open a
-  /// session).
+  /// includes `common-auth`, which is all we exercise — we never open a session).
   static const List<String> _serviceCandidates = <String>[
     'graceful-shell',
     'login',

@@ -1,34 +1,26 @@
 // Where the Moon and the Sun are, as arithmetic.
 //
 // The bottom layer of `lib/moon/`: no Flutter, no I/O, no clock of its own —
-// every function here is a pure function of a `DateTime` and, where the
-// observer matters, a pair of coordinates. That is what makes the whole of the
-// lunar feature a plain unit test rather than something only a live sky can
-// exercise, the same split `lib/weather/weather_condition.dart` makes against
-// `weather_api.dart` and `lib/overlay/calendar/month.dart` makes against
-// `time_zones.dart`.
+// every function is a pure function of a `DateTime` and, where the observer
+// matters, a pair of coordinates. That is what makes the whole lunar feature a
+// plain unit test rather than something only a live sky can exercise.
 //
 // The series are Meeus, *Astronomical Algorithms* (2nd ed.): chapter 47 for the
-// Moon's position (tables 47.A and 47.B, complete), chapter 25 for the Sun's,
-// chapter 22 for the obliquity and chapter 12 for sidereal time. Truncating
-// 47.A/B further was tempting and is a false economy: the tables *are* the
-// accuracy, they cost a few hundred multiply-adds once a minute, and the
-// widget that reads them shows a moonrise time to the minute.
+// Moon's position (tables 47.A and 47.B, complete), 25 for the Sun's, 22 for the
+// obliquity and 12 for sidereal time. Truncating 47.A/B further is a false
+// economy: the tables *are* the accuracy, they cost a few hundred multiply-adds
+// once a minute, and the widget shows a moonrise time to the minute.
 //
-// Three deliberate omissions, each worth about as much as the last digit the
-// widget prints:
+// Three deliberate omissions, each worth about as much as the last digit printed:
 //
 // - **UTC is used where the algorithms want TD.** ΔT is ~70 seconds this
-//   century; the Moon moves about half an arcminute in that, which is under a
-//   minute of moonrise time and invisible in an illuminated fraction.
-// - **Geometric positions, not apparent ones.** No nutation, no aberration, no
-//   light-time — together a few arcseconds.
-// - **The observer is at sea level on a spherical Earth.** Refraction is the
-//   standard mean value baked into the rise/set altitude.
+//   century, which is under a minute of moonrise time.
+// - **Geometric positions, not apparent ones** — no nutation, aberration or
+//   light-time, together a few arcseconds.
+// - **The observer is at sea level on a spherical Earth**, with the standard
+//   mean refraction baked into the rise/set altitude.
 //
-// Checked against Meeus's own worked examples in `test/moon_ephemeris_test.dart`
-// — example 47.a reproduces to every printed digit, and example 48.a's phase
-// angle to four thousandths of a degree.
+// Checked against Meeus's own worked examples in `test/moon_ephemeris_test.dart`.
 
 import 'dart:math' as math;
 
@@ -392,14 +384,13 @@ Equatorial equatorialFromEcliptic({
   );
 }
 
-/// How high the Moon is above [latitude]/[longitude]'s horizon at [time], and
-/// the altitude its centre has to reach to count as risen.
+/// How high the Moon is above [latitude]/[longitude]'s horizon at [time], and the
+/// altitude its centre has to reach to count as risen.
 ///
 /// [horizonDegrees] is the standard rise/set altitude for the Moon:
-/// `0.7275 × parallax − 34′`, which is the upper limb clearing a refracted
-/// horizon. It is a hair *above* zero rather than below — the Moon is close
-/// enough that its parallax (about a degree) outweighs the refraction every
-/// other body's rise time subtracts.
+/// `0.7275 × parallax − 34′`, the upper limb clearing a refracted horizon. It is
+/// a hair *above* zero rather than below — the Moon is close enough that its
+/// parallax outweighs the refraction every other body's rise time subtracts.
 ({double altitudeDegrees, double horizonDegrees}) moonAltitude({
   required DateTime time,
   required double latitude,

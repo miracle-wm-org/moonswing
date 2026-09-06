@@ -41,33 +41,28 @@ class OutputTracker extends ChangeNotifier {
 /// not (yet) know which one it is.
 ///
 /// The connector name is tried first and is the answer in every ordinary case:
-/// GDK's connector and `wl_output.name` are the same string (`DP-1`), it is
-/// what everything downstream keys on — `modules/workspaces.dart` filters
-/// `WorkspaceResult.output` against it — and, unlike geometry, it survives a
-/// display being repositioned. That matters because [MonitorInfo] is a
-/// *snapshot*: the position in it is whatever GDK reported when the panel's
-/// surface was created, while an output's `x`/`y` are updated in place on every
-/// `wl_output.geometry`. Matching on the pair meant that after a reposition
-/// *no* panel matched and every one of them took the fallback below — the same
-/// object for all of them, so every bar showed one monitor's workspaces.
+/// GDK's connector and `wl_output.name` are the same string, it is what
+/// everything downstream keys on, and unlike geometry it survives a display being
+/// repositioned. That matters because [MonitorInfo] is a *snapshot*: the position
+/// in it is whatever GDK reported when the surface was created, while an output's
+/// `x`/`y` are updated on every `wl_output.geometry`. Matching on the pair meant
+/// that after a reposition *no* panel matched and every one took the fallback —
+/// the same object for all of them, so every bar showed one monitor's workspaces.
 ///
 /// The make/model/position tuple stays as the second pass, for a GDK build that
 /// reports no connector at all.
 ///
-/// [enumerating] is whether [ShellService.displays] is still loading, and it
-/// gates the *fallback only*. An exact match is trustworthy at any point; the
-/// fallback is not, because an output is tracked as soon as its global is
-/// advertised but carries no name or geometry until its `done` — so
-/// mid-enumeration `outputs.first` is simply whichever one arrived first, and
-/// handing a bar the wrong display would show it another monitor's workspaces.
-/// Until then it gets none, and the modules that need one show a loader.
+/// [enumerating] is whether [ShellService.displays] is still loading, and it gates
+/// the *fallback only*. An exact match is trustworthy at any point; the fallback
+/// is not, because an output is tracked as soon as its global is advertised but
+/// carries no name until its `done` — so mid-enumeration `outputs.first` is simply
+/// whichever arrived first.
 ///
-/// The fallback itself covers a monitor that GDK and Wayland describe
-/// differently, and is taken **only when there is exactly one output** — with
-/// one display there is nothing to be wrong about. With several, guessing hands
-/// every unmatched panel the same output, which is the failure this function
-/// exists to avoid; "not known yet" is the honest answer and the modules that
-/// need one already render it.
+/// The fallback covers a monitor GDK and Wayland describe differently, and is
+/// taken **only when there is exactly one output**: with several, guessing hands
+/// every unmatched panel the same output, which is the failure this exists to
+/// avoid. "Not known yet" is the honest answer, and the modules that need one
+/// already render it.
 WaylandOutput? resolveOutput(
   MonitorInfo monitor,
   List<WaylandOutput> outputs, {
