@@ -18,28 +18,21 @@ import 'package:graceful_shell/theme/tokens.dart';
 
 /// How wide the panel is on an output [screenWidth] logical pixels across.
 ///
-/// A fraction of the screen, clamped at both ends, rather than the bare
-/// `width / 5` this was. The panel is a column of prose — an app name, a
-/// summary, a body, and a row of action buttons — and a fifth of a 1366px
-/// laptop is 273px, which wraps a two-word summary onto two lines and leaves
-/// the actions stacked one per row. The floor is what a card needs to be
-/// readable at the sizes this panel now sets its text in; the ceiling is there
-/// because a fifth of an ultrawide is a panel that covers what the user was
-/// reading.
+/// A fraction of the screen clamped at both ends, rather than the bare
+/// `width / 5` this was: a fifth of a 1366px laptop is 273px, which wraps a
+/// two-word summary and stacks the action buttons one per row, while a fifth of
+/// an ultrawide covers what the user was reading.
 ///
-/// Pure, so `test/notification_panel_test.dart` can pin both ends — the real
-/// caller reads the output's size out of GDK.
+/// Pure, so `test/notification_panel_test.dart` can pin both ends.
 int notificationPanelWidth(double screenWidth) =>
     (screenWidth / 4).round().clamp(360, 560);
 
 /// Bell icon widget that lives in the bar. Lights up and shakes when
 /// notifications arrive, and asks for the notification panel on click.
 ///
-/// It no longer *owns* that panel. The floating badge asks for the same one
-/// from a root-owned surface of its own, and two hosts cannot share a
-/// `LayerShellHost` window — so both go through
-/// [NotificationPanelController] and the root opens it. What is left here is
-/// the bell, its unread count, and the broken-daemon dot with its hover label.
+/// It no longer *owns* that panel: the floating badge asks for the same one from
+/// a root-owned surface of its own, and two hosts cannot share a
+/// `LayerShellHost` window — so both go through [NotificationPanelController].
 class Notifications extends StatefulWidget {
   const Notifications({super.key});
 
@@ -228,10 +221,9 @@ class _NotificationsState extends State<Notifications>
 
 /// The exclamation dot on the bell: "notifications are broken right now".
 ///
-/// A ring in the bar's own colour rather than a bare circle, so the dot reads
-/// as punched out of the bell rather than as part of the glyph — the same trick
-/// an unread badge plays, and it is what keeps 10 logical pixels legible over
-/// an icon at any theme.
+/// A ring in the bar's own colour rather than a bare circle, so the dot reads as
+/// punched out of the bell rather than as part of the glyph — the trick an unread
+/// badge plays, and what keeps 10 logical pixels legible at any theme.
 class _BrokenDot extends StatelessWidget {
   const _BrokenDot({required this.theme});
 
@@ -267,27 +259,22 @@ const Duration kNotificationPanelEnter = Duration(milliseconds: 300);
 
 /// How long it takes to leave — deliberately a little over half that.
 ///
-/// The way out is not the way in played backwards. An entrance is the shell
-/// presenting a surface the user has not read yet, so it is paced to be
-/// followed; a dismissal is the user saying they are done with it, and every
-/// millisecond after that is the shell arguing. `overlayFade` is the token the
-/// rest of the shell's overlays leave on.
+/// The way out is not the way in played backwards: an entrance presents a surface
+/// the user has not read yet and is paced to be followed, while a dismissal is
+/// the user saying they are done.
 const Duration kNotificationPanelExit = ShellDurations.overlayFade;
 
 /// Full-height Layer Shell panel anchored to the right side of the screen.
 ///
-/// Slides in from the right on creation; leaves by a *different* animation
-/// (see [_NotificationPanelState]) before being destroyed.
+/// Slides in from the right on creation; leaves by a *different* animation (see
+/// [_NotificationPanelState]) before being destroyed.
 ///
-/// Owned by `_GracefulShellRootState`, not by the bell module — see
-/// [NotificationPanelController] for why. Both things that ask for it (the
-/// bell, and the floating badge) ask the root, which is what makes there be
-/// exactly one of these.
+/// Owned by `_GracefulShellRootState` rather than the bell module — both things
+/// that ask for it (the bell and the floating badge) ask the root, which is what
+/// makes there be exactly one.
 ///
-/// Public, unlike the rest of the panel's parts, because in its one real home
-/// it is a layer-shell window no widget test can pump — the animation
-/// handshake and the Escape binding are behaviour worth pinning, so
-/// `test/notification_panel_test.dart` builds it directly.
+/// Public, unlike the rest of the panel's parts, because in its one real home it
+/// is a layer-shell window no widget test can pump.
 class NotificationPanel extends StatefulWidget {
   const NotificationPanel({
     super.key,
@@ -309,19 +296,16 @@ class NotificationPanel extends StatefulWidget {
 /// The two animations, and why they are two.
 ///
 /// The entrance is the `SlideTransition` it always was — never a centre-pivoted
-/// scale, for the reason [build] states. The exit is its own controller rather
-/// than that one reversed — the one surface in the shell that departs from
-/// `PopupTransition`'s rule — which is what lets it be shorter *and* be a
-/// different animation: a beat of wind-up, then the panel takes off to the
-/// right, shrinking towards and fading into the edge it is anchored to.
+/// scale, for [build]'s reason. The exit is its own controller rather than that
+/// one reversed, which is what lets it be shorter *and* a different animation: a
+/// beat of wind-up, then the panel takes off to the right, shrinking towards and
+/// fading into the edge it is anchored to.
 ///
 /// Every part of that exit is pinned to `Alignment.centerRight` or moves the
-/// panel further *off* the screen, and that is the constraint the fun has to
-/// live inside. This surface is exactly as wide as the panel and butted
-/// against the output's right edge, so anything that moves the content left —
-/// an overshoot, an anticipation dip, a centre-pivoted scale — opens a
-/// transparent strip along the screen edge that reads as the panel having
-/// detached from it. Scaling towards the right edge keeps it glued there.
+/// panel further *off* the screen. This surface is butted against the output's
+/// right edge, so anything moving the content left — an overshoot, an
+/// anticipation dip, a centre-pivoted scale — opens a transparent strip along the
+/// screen edge that reads as the panel having detached from it.
 class _NotificationPanelState extends State<NotificationPanel>
     with TickerProviderStateMixin {
   late final AnimationController _enterController;
@@ -431,12 +415,10 @@ class _NotificationPanelState extends State<NotificationPanel>
       onKeyEvent: _onKeyEvent,
       child: Directionality(
         textDirection: TextDirection.ltr,
-        // The panel's own text root, one tier up from the shell's body size.
-        // This surface is read at arm's length down the side of a display the
-        // user is working on, not scanned like a bar module, and every size
-        // below is a ratio to this one — `ShellFontSizes` is the scale a theme
-        // multiplies through, so raising the root raises the whole card with
-        // it and a theme's own `font_size` still moves all of it together.
+        // The panel's own text root, one tier up from the shell's body size: this
+        // surface is read at arm's length rather than scanned like a bar module,
+        // and every size below is a ratio to this one, so a theme's `font_size`
+        // still moves all of it together.
         child: DefaultTextStyle(
           style: TextStyle(
             fontFamily: theme.fontFamily,
@@ -445,14 +427,12 @@ class _NotificationPanelState extends State<NotificationPanel>
           ),
           child: SlideTransition(
             position: _enterSlide,
-            // The slide is the whole entrance: never a centre-pivoted scale
-            // (`PopupEffect.scale`, and the elastic bounce that preceded it),
+            // The slide is the whole entrance: never a centre-pivoted scale,
             // which on a full-height edge-anchored surface pulls the panel away
-            // from the screen edge it is anchored to and shows a gap that
-            // closes as it settles — that reads as a floating card, which this
-            // deliberately is not. The exit's
-            // scale is the same widget with the pivot moved to the edge, which
-            // is the whole difference between a flourish and that gap.
+            // from the edge it is anchored to and shows a gap that closes as it
+            // settles. The exit's scale is the same widget with the pivot moved
+            // to the edge, which is the whole difference between a flourish and
+            // that gap.
             child: SlideTransition(
               position: _exitSlide,
               child: ScaleTransition(
@@ -460,19 +440,16 @@ class _NotificationPanelState extends State<NotificationPanel>
                 alignment: Alignment.centerRight,
                 child: FadeTransition(
                   opacity: _exitFade,
-                  // Deliberately not a PopupCard. This is a full-height
-                  // surface anchored to the screen's right edge, not a
-                  // floating card: rounding it would cut wallpaper wedges out
-                  // of the display's own corners — the case
-                  // panelCornerRadius refuses for a flush bar — and a rim
-                  // would draw a line down the screen edge.
+                  // Deliberately not a PopupCard. This is a full-height surface
+                  // anchored to the screen's right edge, not a floating card:
+                  // rounding it would cut wallpaper wedges out of the display's
+                  // corners and a rim would draw a line down the screen edge.
                   //
-                  // Opaque whatever the theme says, which is the settings
-                  // overlay's `overlayPanelFill` rule: this is a column of
-                  // prose read over whatever application window happens to be
-                  // behind it, and a translucent fill puts that window's own
-                  // text straight through it. A translucent palette still
-                  // tints the panel — only the alpha is overridden.
+                  // Opaque whatever the theme says, the settings overlay's
+                  // `overlayPanelFill` rule: this is a column of prose read over
+                  // whatever window is behind it, and a translucent fill puts that
+                  // window's text straight through it. Only the alpha is
+                  // overridden, so a palette still tints the panel.
                   child: Container(
                     color: theme.popupBackground.withValues(alpha: 1.0),
                     child: Column(
@@ -505,12 +482,10 @@ class _NotificationPanelState extends State<NotificationPanel>
 
   /// The header: what this panel is, how much is in it, and the two ways out.
   ///
-  /// Set at [ShellFontSizes.heading] with a count under it, which is the
-  /// "obvious" half of legibility rather than the "large" half: a bold 15px
-  /// word over a list of unlabelled cards said what the surface was called and
-  /// nothing about what was in it. "Clear all" is a bordered button rather
-  /// than a tinted word, because it destroys every item on the list and a
-  /// control that does that should not be the same weight as a caption.
+  /// Set at [ShellFontSizes.heading] with a count under it: a bold 15px word over
+  /// a list of unlabelled cards said what the surface was called and nothing
+  /// about what was in it. "Clear all" is a bordered button rather than a tinted
+  /// word, because it destroys every item on the list.
   Widget _buildHeader(ThemeConfig theme, int count) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 16, 14),
@@ -583,10 +558,9 @@ class _NotificationPanelState extends State<NotificationPanel>
 
   /// The empty state, which is also the panel's instructions.
   ///
-  /// A greyed glyph over a greyed line was the whole of it, which reads as the
-  /// panel having failed rather than as there being nothing to show. The
-  /// second line is what makes it a statement: notifications *will* appear
-  /// here, and this is where to come back to.
+  /// A greyed glyph over a greyed line reads as the panel having failed rather
+  /// than as there being nothing to show. The second line is what makes it a
+  /// statement: notifications *will* appear here.
   Widget _buildEmpty(ThemeConfig theme) {
     return Center(
       child: Padding(
@@ -644,18 +618,14 @@ class _NotificationPanelState extends State<NotificationPanel>
 ///
 /// Shown whenever the shell does not own `org.freedesktop.Notifications` —
 /// another daemon claimed it first, or the request errored. Both are recoverable
-/// without restarting the shell (the other daemon can be stopped, the bus can
-/// come back), which is what the Retry button is for; the shell cannot detect
-/// either happening, so the user has to say when.
+/// without restarting the shell, which is what Retry is for; the shell cannot
+/// detect either happening, so the user has to say when.
 ///
-/// Rebuilt by `_NotificationPanelState`'s store listener, so both the reason
-/// text and the in-flight state of the button follow the store with no
-/// listener of its own.
+/// Rebuilt by `_NotificationPanelState`'s store listener, so both the reason text
+/// and the button's in-flight state follow the store with no listener of its own.
 ///
-/// Public, like [NotificationPanel] itself and unlike the rest of the panel's
-/// parts, because in its one real home it is inside a layer-shell window no
-/// widget test can pump — this is the piece with behaviour worth pinning, so
-/// `test/notification_daemon_test.dart` builds it directly.
+/// Public, like [NotificationPanel] itself, because in its one real home it is
+/// inside a layer-shell window no widget test can pump.
 class NotificationDaemonBanner extends StatelessWidget {
   const NotificationDaemonBanner({super.key, required this.theme});
 
@@ -716,8 +686,7 @@ class NotificationDaemonBanner extends StatelessWidget {
 ///
 /// While an attempt is in flight it becomes a loader rather than a disabled
 /// button: `retryDaemon` refuses a second attempt anyway, and a control that
-/// still looks pressable but does nothing reads as the retry having failed
-/// instantly.
+/// still looks pressable but does nothing reads as the retry having failed.
 class _RetryButton extends StatelessWidget {
   const _RetryButton({required this.theme});
 

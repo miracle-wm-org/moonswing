@@ -1,52 +1,35 @@
 // The Moon, drawn.
 //
-// **Why a painter and not a photograph.** The obvious answer to "show what the
-// Moon looks like tonight" is one of NASA's public-domain LRO renders, and it
-// is the wrong one here twice over. The shell ships no image assets at all —
-// `pubspec.yaml` declares no `assets:` section, the themes are embedded as
-// constants for exactly this reason (`theme/builtin_themes.dart` says why), and
-// the wallpapers the Makefile installs are found by path at runtime rather than
-// bundled. Adding the first binary asset would mean the Flutter bundle, the
-// Makefile, and the snap all growing a case for it. And a photograph is one
-// phase: covering a lunation means thirty of them, or one full-disc image with
-// a shadow drawn over it — at which point the shadow is this file anyway, and
-// the illuminated fraction it is drawn from is not a photograph.
+// **Why a painter and not a photograph.** The shell ships no image assets at all
+// — no `assets:` section, themes embedded as constants, wallpapers found by path
+// — so the first binary asset would mean the Flutter bundle, the Makefile and
+// the snap all growing a case for it. And a photograph is one phase: a lunation
+// needs thirty of them, or one full disc with a shadow drawn over it, at which
+// point the shadow is this file anyway.
 //
-// So: a vector Moon, with the nearside maria and the half-dozen craters anyone
-// would recognise laid out roughly where they are, lit by the same illuminated
-// fraction the readout prints.
+// So: a vector Moon, with the nearside maria and the recognisable craters laid
+// out roughly where they are, lit by the same illuminated fraction the readout
+// prints.
 //
 // Five things a change here has to keep true:
 //
 // - **The terminator is computed, never approximated by two circles.** The
-//   boundary between light and dark is the projection of a great circle, which
-//   is an *ellipse* with a semi-axis of `r × (1 − 2f)` — signed, so the same
-//   expression gives a crescent below half lit and a gibbous above it, and
-//   passes through a straight line at the quarters. Two overlapping discs, the
-//   usual shortcut, cannot draw a gibbous Moon at all.
-// - **The dark side is drawn, not left out.** Earthshine — sunlight off the
-//   Earth's oceans and cloud — genuinely lights the new Moon's disc enough to
-//   see the maria on it, which is what "the old Moon in the new Moon's arms"
-//   describes. A crescent floating on nothing reads as a clipping bug.
+//   light/dark boundary is the projection of a great circle — an *ellipse* with
+//   semi-axis `r × (1 − 2f)`, signed, so one expression covers crescent,
+//   quarter and gibbous. Two overlapping discs cannot draw a gibbous Moon.
+// - **The dark side is drawn, not left out.** Earthshine genuinely lights the
+//   new Moon's disc, which is what "the old Moon in the new Moon's arms"
+//   describes; a crescent floating on nothing reads as a clipping bug.
 // - **The southern hemisphere sees the whole disc rotated half a turn**, not
-//   mirrored. Rotating the canvas is what makes that one line rather than a
-//   sign on every feature, and it is why the features are held in unit-disc
-//   coordinates.
-// - **Nothing here animates.** There is no ticker, which is deliberate and
-//   worth keeping: the picture changes over hours and this painter can be on a
-//   desktop for weeks. `WeatherSky` has since made the same call for the same
-//   reason, so this is no longer the only desktop widget a test can
-//   `pumpAndSettle` — but `TrackMarquee` still carries the trap.
+//   mirrored — which is why the features are held in unit-disc coordinates.
+// - **Nothing here animates.** The picture changes over hours and this painter
+//   can be on a desktop for weeks.
 // - **A repaint is dear, so it is bought at the resolution the picture has.**
-//   This is the most expensive painter in the shell — two clipped passes over
-//   the whole disc, and nearly every draw in them carries a `MaskFilter`, which
-//   is a full offscreen blur *each*. Two rules follow, and both are about draw
-//   counts rather than about pixels. A ray system is one stroked path of nine
-//   subpaths, never nine strokes ([_paintRays]); and the illumination reaching
-//   a painter is snapped to [kDrawnIlluminationStep] first, so a reading that
-//   moves every minute does not order a repaint the terminator could not have
-//   shown. Anything added here that blurs per feature rather than per group,
-//   or that hands a painter a continuous number, gives both back.
+//   This is the most expensive painter in the shell: two clipped passes over the
+//   whole disc, nearly every draw carrying a `MaskFilter`, which is a full
+//   offscreen blur *each*. So a ray system is one stroked path of nine subpaths
+//   rather than nine strokes ([_paintRays]), and the illumination reaching a
+//   painter is snapped to [kDrawnIlluminationStep] first.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;
@@ -92,9 +75,8 @@ class _Crater {
 /// relative to the others.
 ///
 /// The strengths are not decoration — Crisium and Serenitatis really are darker
-/// than Frigoris and the western edge of Procellarum, and drawing every sea at
-/// one opacity is most of what makes a painted Moon look like a pattern rather
-/// than a face.
+/// than Frigoris, and drawing every sea at one opacity is most of what makes a
+/// painted Moon look like a pattern rather than a face.
 class _Mare {
   const _Mare(this.blobs, {this.strength = 1.0});
 
@@ -104,11 +86,9 @@ class _Mare {
 
 /// The nearside seas, roughly where they are.
 ///
-/// Not a map projection: the point of them is that the pattern on the disc is
-/// the one people have been looking at all their lives, and at 80 pixels across
-/// that is a matter of the big shapes being in the right corners. Coordinates
-/// are the view from the northern hemisphere — east (Crisium) to the right —
-/// which is what [MoonPainter] rotates for a southern observer.
+/// Not a map projection: at 80 pixels across what matters is that the big shapes
+/// are in the right corners. Coordinates are the northern-hemisphere view — east
+/// (Crisium) to the right — which [MoonPainter] rotates for a southern observer.
 const List<_Mare> _maria = [
   // Oceanus Procellarum — the vast one down the western limb, and the palest.
   _Mare(
@@ -206,21 +186,16 @@ const _MoonPalette _earthlit = _MoonPalette(
 
 /// The step the *picture* is drawn at, as a fraction of the disc.
 ///
-/// The reading behind it is continuous and moves every minute, and every one of
-/// those minutes used to be a full repaint of the most expensive painter in the
-/// shell — two clipped passes over ten blurred seas, two ray systems and
-/// sixteen craters, on every monitor, for ever. A thousandth of the disc moves
-/// the terminator by `0.002 × r`: a twentieth of a pixel on the largest Moon
-/// the grid can give this widget, and under a hundredth on the smallest. So it
-/// is not a visible approximation, it is a repaint the picture could not have
-/// shown — and quantising it takes the disc from a repaint a minute to one
-/// every quarter of an hour or so, since the lit fraction moves by about
-/// 7e-5 a minute at its fastest.
+/// The reading behind it moves every minute, and every one of those minutes used
+/// to be a full repaint of the most expensive painter in the shell, on every
+/// monitor, for ever. A thousandth of the disc moves the terminator by `0.002 ×
+/// r` — a twentieth of a pixel on the largest Moon the grid allows — so this is
+/// not a visible approximation but a repaint the picture could not have shown.
+/// It takes the disc from a repaint a minute to one every quarter hour or so.
 ///
-/// Deliberately *not* the printed percentage. Agreeing with the readout to the
-/// whole percent sounds tidier and is worse twice over: the step becomes almost
-/// a pixel, which is a jump somebody can see, and it rounds the last sliver of
-/// a crescent away to a new Moon that is drawn as nothing at all.
+/// Deliberately *not* the printed percentage: agreeing to the whole percent
+/// makes the step almost a pixel, and rounds the last sliver of a crescent away
+/// to a new Moon drawn as nothing at all.
 const double kDrawnIlluminationStep = 0.001;
 
 /// [illumination] snapped to [kDrawnIlluminationStep].
@@ -234,10 +209,9 @@ double drawnIllumination(double illumination) =>
 
 /// The Moon at one phase, filling whatever square it is given.
 ///
-/// [illumination] is the lit fraction, 0..1; [waxing] says which limb it is on;
-/// [southernView] rotates the disc half a turn for an observer below the
-/// equator. Nothing else — everything this needs is what the readout beside it
-/// already shows.
+/// [illumination] is the lit fraction; [waxing] says which limb it is on;
+/// [southernView] rotates the disc half a turn. Nothing else — everything this
+/// needs is what the readout beside it already shows.
 class MoonDisc extends StatelessWidget {
   const MoonDisc({
     super.key,
@@ -468,11 +442,9 @@ class MoonPainter extends CustomPainter {
     const bearings = [0.2, 0.9, 1.5, 2.2, 2.9, 3.6, 4.3, 5.1, 5.8];
     // One path of nine subpaths, stroked once, rather than nine strokes: a
     // `MaskFilter` is a full offscreen blur per *draw*, and this loop ran twice
-    // per crater per repaint — thirty-six blurred draws for two ray systems,
-    // which was the single most expensive thing in the disc. The only place a
-    // batched stroke composites differently from nine separate ones is where
-    // two rays overlap, which is inside `crater.r` of the centre, under the
-    // crater the loop below then draws on top of it.
+    // per crater per repaint — thirty-six blurred draws, the most expensive thing
+    // in the disc. The only place a batched stroke composites differently is
+    // where two rays overlap, which is under the crater drawn on top of it.
     final path = Path();
     for (var i = 0; i < bearings.length; i++) {
       // Alternating lengths, so the system does not read as a compass rose.
@@ -501,10 +473,10 @@ class MoonPainter extends CustomPainter {
 
   /// A blurred band along the terminator.
   ///
-  /// The real one is soft — it is a sunrise line thrown across mountains, not a
-  /// cut — and a hard edge is the single thing that makes a drawn Moon look
-  /// drawn. Skipped near the ends of the cycle, where the band would be wider
-  /// than the crescent it is meant to soften.
+  /// The real one is soft — a sunrise line thrown across mountains, not a cut —
+  /// and a hard edge is the single thing that makes a drawn Moon look drawn.
+  /// Skipped near the ends of the cycle, where the band would be wider than the
+  /// crescent it softens.
   void _paintTerminatorSoftening(
     Canvas canvas,
     Offset centre,
@@ -547,15 +519,13 @@ class MoonPainter extends CustomPainter {
 
 /// The lit region of a disc of [radius] at [centre].
 ///
-/// Public and pure so the geometry is a unit test: at half lit the path's
-/// bounding box is exactly half the disc, a crescent is narrower than that and
-/// a gibbous wider, and nothing is ever wider than the disc itself
-/// (`test/moon_render_test.dart`).
+/// Public and pure so the geometry is a unit test: at half lit the bounding box
+/// is exactly half the disc, a crescent is narrower and a gibbous wider, and
+/// nothing is ever wider than the disc.
 ///
-/// The outline is sampled rather than assembled from `arcTo`: the terminator is
-/// half an ellipse whose x semi-axis passes through zero and changes sign at
-/// the quarters, and every arc-based formulation of that needs a special case
-/// on each side of it.
+/// The outline is sampled rather than assembled from `arcTo`: the terminator's x
+/// semi-axis passes through zero and changes sign at the quarters, and every
+/// arc-based formulation needs a special case on each side of it.
 Path moonLitPath({
   required Offset centre,
   required double radius,
@@ -605,11 +575,9 @@ class _Star {
 
 /// The backdrop's stars, laid out once.
 ///
-/// A *seeded* generator, and a lazily-built top-level list rather than
-/// something the painter rolls per frame: the same field has to come out on
-/// every monitor and survive a restart, which is `SkyField`'s rule in
-/// `weather_sky.dart` — a star field that reshuffled itself on every repaint
-/// would be the most distracting thing on the desktop.
+/// A *seeded* generator and a lazily-built top-level list rather than something
+/// the painter rolls per frame: the same field has to come out on every monitor
+/// and survive a restart, which is `SkyField`'s rule.
 final List<_Star> _starField = _buildStarField();
 
 List<_Star> _buildStarField() {
@@ -628,10 +596,10 @@ List<_Star> _buildStarField() {
 /// The night the Moon is drawn on: a gradient and a scatter of stars, dimmed by
 /// how much of the Moon is lit.
 ///
-/// The dimming is not decoration — it is the same fact the widget's own
-/// "stargazing" line states. A full Moon really does wash the faint stars out
-/// of the sky, and a card that showed the same brilliant field behind a full
-/// Moon as behind a new one would be contradicting the text under it.
+/// The dimming is the same fact the widget's "stargazing" line states. A full
+/// Moon really does wash the faint stars out, and a card showing the same
+/// brilliant field behind a full Moon as behind a new one would contradict the
+/// text under it.
 class MoonNightSky extends StatelessWidget {
   const MoonNightSky({super.key, this.illumination = 0});
 

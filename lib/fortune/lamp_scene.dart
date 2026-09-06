@@ -1,33 +1,23 @@
-// The picture the fortune is written on: an oil lamp in the dark, and the smoke
-// coming out of it.
+// The picture the fortune is written on: an oil lamp in the dark, and its smoke.
 //
 // `weather_sky.dart`'s arrangement for the *data*, and `moon_render.dart`'s for
 // the motion — which is to say none at all:
 //
 // - **The layout is data, computed once.** [LampField] holds every puff, ember
-//   and star as plain numbers built from a *seeded* [math.Random], so "how many
-//   puffs" and "the same lamp on every monitor" are plain unit tests with no
-//   canvas behind them. The seed is fixed for the sky's reason: a plume that
-//   reshuffled itself on every rebuild would be the most distracting thing on
-//   the desktop.
-// - **Nothing here moves, and that is the point.** There is no [Ticker], no
-//   per-frame repaint and no elapsed-time input from a clock: the scene is one
-//   frame of a plume, drawn at [kLampStillMoment] and left there. The lunar
-//   widget states the reasoning and it applies here with more force, because
-//   this card has no excuse of reporting on something that changes: a
-//   decoration on a wallpaper, on a machine that may be doing nothing else,
-//   has no business repainting for as long as the desktop is switched on.
-//   [SmokePuff] and friends are therefore *positions along* a climb rather than
-//   a speed through one, and [LampPainter] is a pure function of them.
-// - **So this card is `pumpAndSettle`-able**, which the weather widget's sky is
-//   not. A test may pump it like any other still widget.
+//   and star as plain numbers built from a *seeded* [math.Random], so the counts
+//   are plain unit tests and the same lamp comes out on every monitor.
+// - **Nothing here moves.** No [Ticker], no per-frame repaint and no elapsed
+//   time from a clock: the scene is one frame of a plume, drawn at
+//   [kLampStillMoment] and left there. A decoration on a wallpaper has no
+//   business repainting for as long as the desktop is switched on. [SmokePuff]
+//   and friends are therefore *positions along* a climb rather than a speed
+//   through one, and [LampPainter] is a pure function of them.
+// - **So this card is `pumpAndSettle`-able.**
 //
-// The lamp itself is *painted*, not photographed — the shell ships no image
-// assets at all (no `assets:` section, themes embedded as constants), so a
-// picture of a lamp would be the first, in the Flutter bundle and the Makefile
-// and the snap alike. Drawing it also buys the two things this card needs from
-// it: the flame flickers, and the smoke leaves from exactly where the spout is
-// however large the grid made the widget.
+// The lamp is *painted*, not photographed — the shell ships no image assets, so
+// a picture of a lamp would be the first. Drawing it also buys the two things
+// the card needs: the flame flickers, and the smoke leaves from exactly where
+// the spout is at every size the grid allows.
 
 import 'dart:math' as math;
 
@@ -35,10 +25,9 @@ import 'package:flutter/widgets.dart';
 
 /// The night the lamp sits in.
 ///
-/// Deliberately *not* from [ThemeConfig], for the reason [SkyPalette] states:
-/// this is a picture, and a genie's lamp lit in the user's accent colour stops
-/// being one. The card's text sits on [LampScrim] above it for exactly that
-/// reason.
+/// Deliberately *not* from [ThemeConfig], for [SkyPalette]'s reason: this is a
+/// picture, and a genie's lamp lit in the user's accent colour stops being one.
+/// The card's text sits on [LampScrim] above it.
 const Color kLampSkyTop = Color(0xFF150E28);
 const Color kLampSkyMiddle = Color(0xFF261640);
 const Color kLampSkyHorizon = Color(0xFF3B2047);
@@ -168,10 +157,9 @@ class LampField {
 
   /// How many puffs are in the air at once.
   ///
-  /// Each one is a blurred circle, so this is the card's per-frame cost and the
-  /// number is chosen against that rather than against how a plume looks in
-  /// still frames: fourteen overlapping puffs already read as continuous smoke,
-  /// and the ones past that are paying full price to be invisible underneath.
+  /// Each is a blurred circle, so this is the card's per-frame cost: fourteen
+  /// overlapping puffs already read as continuous smoke, and the ones past that
+  /// pay full price to be invisible underneath.
   static const int puffCount = 14;
 
   static const int emberCount = 9;
@@ -230,10 +218,10 @@ class LampField {
 
 /// Where the lamp sits inside the card, and where its spout points.
 ///
-/// Pure geometry, separated from the painting for `desktop_layout.dart`'s
-/// reason: the widget needs the spout's position to decide how much of the card
-/// the text may have, and the tap target for "rub the lamp" is this rect. Both
-/// would otherwise be numbers copied out of the painter and left to drift.
+/// Pure geometry, separated from the painting: the widget needs the spout's
+/// position to decide how much of the card the text may have, and the "rub the
+/// lamp" tap target is this rect. Both would otherwise be numbers copied out of
+/// the painter and left to drift.
 @immutable
 class LampGeometry {
   const LampGeometry(this.rect);
@@ -280,27 +268,22 @@ class LampGeometry {
         height: rect.height * 0.62,
       );
 
-  /// The box the fortune is set in: above the lamp where there is room for it,
-  /// and beside the lamp where there is not.
+  /// The box the fortune is set in: above the lamp where there is room, beside it
+  /// where there is not.
   ///
   /// Above is the default because it is the **wider** of the two, and width is
-  /// what a paragraph wants: the same fortune set in a 250px measure and in a
-  /// 145px one is four comfortable lines against nine narrow ones, and the
-  /// narrow column is what the card looks like when it has gone wrong. Picking
-  /// by area instead — the obvious rule — chooses the ribbon on nearly every
-  /// card, because a full-height column beside the lamp is always the larger
-  /// rectangle and never the better one.
+  /// what a paragraph wants: the same fortune is four comfortable lines in a
+  /// 250px measure and nine narrow ones in a 145px one. Picking by area instead
+  /// chooses the ribbon on nearly every card, because a full-height column beside
+  /// the lamp is always the larger rectangle and never the better one.
   ///
-  /// Beside is therefore the *fallback*, for the shape that leaves nothing
-  /// above the lamp at all: a one-row widget, or a six-column one left one row
-  /// tall. It is chosen on a height threshold rather than a span, because the
-  /// two shapes cross over at a different place for every cell size the user
-  /// can configure — a 3x2 widget is 312x204 on the default grid and 132x84 on
-  /// a 32px one, and the same rule has to be right for both.
+  /// Beside is the *fallback*, for the shape that leaves nothing above the lamp
+  /// at all. It is chosen on a height threshold rather than a span, because the
+  /// two shapes cross over at a different place for every cell size the user can
+  /// configure.
   ///
   /// [reserve] is the refresh button's corner, taken off the *above* candidate
-  /// only — in the beside layout that corner is over the lamp's own smoke,
-  /// where there is no text to collide with.
+  /// only — in the beside layout that corner is over the lamp's own smoke.
   Rect textArea(
     Size card, {
     required double padding,
@@ -352,21 +335,18 @@ class LampGeometry {
 /// The instant of the plume the card is drawn at, in seconds since the lamp was
 /// lit.
 ///
-/// The scene does not move, so this is not a starting point — it is the whole
-/// picture, and it was chosen by looking at the alternatives rather than by
-/// arithmetic. At the moment a lamp is lit the smoke is a stub above the spout;
-/// at an arbitrary later one the puffs can happen to leave a gap partway up.
-/// This one has the plume continuous from the flame to the top of the card,
-/// with puffs at every stage of their climb, which is the frame that reads as
-/// smoke rather than as a smudge.
+/// The scene does not move, so this is the whole picture rather than a starting
+/// point, and it was chosen by looking at the alternatives: at the moment of
+/// lighting the smoke is a stub above the spout, and at an arbitrary later one
+/// the puffs can leave a gap partway up. This one has the plume continuous from
+/// the flame to the top of the card.
 const double kLampStillMoment = 11.0;
 
 /// Paints a [LampField] at one instant.
 ///
-/// Public so a test can drive it directly, at any instant, with no widget tree
-/// behind it. [time] is a plain number rather than a listenable: nothing on
-/// this card animates, so there is no repaint stream for the painter to
-/// subscribe to.
+/// Public so a test can drive it directly at any instant. [time] is a plain
+/// number rather than a listenable: nothing on this card animates, so there is
+/// no repaint stream to subscribe to.
 class LampPainter extends CustomPainter {
   const LampPainter({
     required this.field,
@@ -658,10 +638,8 @@ class LampPainter extends CustomPainter {
 
 /// The scene, sized to whatever it is given.
 ///
-/// A [StatelessWidget] with no ticker behind it: the picture is the same every
-/// frame, so the only things that repaint it are a rebuild and the lamp's own
-/// hover glow. That is what makes the card `pumpAndSettle`-able and what keeps
-/// an idle desktop idle.
+/// A [StatelessWidget] with no ticker: the picture is the same every frame, so
+/// the only things that repaint it are a rebuild and the lamp's hover glow.
 class LampScene extends StatelessWidget {
   const LampScene({
     super.key,
