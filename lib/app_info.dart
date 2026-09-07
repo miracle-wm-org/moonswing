@@ -5,13 +5,18 @@
 // implementation. Also provides [AppIconImage], so pinned icons and directory
 // icons look identical.
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:ffi/ffi.dart' show Utf8;
 import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
+
+import 'app_scope.dart';
+import 'native/ffi_util.dart' show gSignalConnectData;
 
 // ---------------------------------------------------------------------------
 // GIO / GLib FFI bindings
@@ -148,6 +153,37 @@ external ffi.Pointer<ffi.NativeType> _gdkDisplayGetAppLaunchContext(
 @ffi.Native<ffi.Pointer<ffi.NativeType> Function()>(
     symbol: 'gdk_display_get_default')
 external ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefault();
+
+/// A plain `GAppLaunchContext*` — the fallback for a display GDK cannot give
+/// one for. It carries no startup-notification token, but it still emits
+/// `::launched`, which is where [_onLaunched] picks the launched pid up.
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function()>(
+    symbol: 'g_app_launch_context_new')
+external ffi.Pointer<ffi.NativeType> _gAppLaunchContextNew();
+
+/// `g_variant_lookup_value(dictionary, key, expected_type)` — the value for
+/// [key] in an `a{sv}`, or NULL when the key is absent or is not of the
+/// expected type. Returns a **new reference**: unref what comes back.
+///
+/// `expectedType` is a `GVariantType*`, which is a type *string*:
+/// `G_VARIANT_TYPE_INT32` is the macro for `(const GVariantType *) "i"`, so an
+/// ordinary NUL-terminated buffer is exactly what it wants.
+@ffi.Native<
+    ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.Uint8>, ffi.Pointer<ffi.Uint8>)>(
+    symbol: 'g_variant_lookup_value')
+external ffi.Pointer<ffi.NativeType> _gVariantLookupValue(
+    ffi.Pointer<ffi.NativeType> dictionary,
+    ffi.Pointer<ffi.Uint8> key,
+    ffi.Pointer<ffi.Uint8> expectedType);
+
+@ffi.Native<ffi.Int32 Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'g_variant_get_int32')
+external int _gVariantGetInt32(ffi.Pointer<ffi.NativeType> value);
+
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'g_variant_unref')
+external void _gVariantUnref(ffi.Pointer<ffi.NativeType> value);
 
 // --- Opening arbitrary paths (the desktop icon grid) -----------------------
 
@@ -473,17 +509,120 @@ void disposeAppEntries(Iterable<AppEntry> entries) {
   }
 }
 
-/// A `GdkAppLaunchContext*` for the default display, or NULL if there isn't one.
-/// The caller owns it and must unref it.
+// ---------------------------------------------------------------------------
+// Launching
+// ---------------------------------------------------------------------------
+
+/// The `GAppLaunchContext::launched` handler: `void (*)(GAppLaunchContext *,
+/// GAppInfo *, GVariant *platform_data, gpointer)`.
+typedef _LaunchedCallbackC = ffi.Void Function(
+    ffi.Pointer<ffi.NativeType> context,
+    ffi.Pointer<ffi.NativeType> appInfo,
+    ffi.Pointer<ffi.NativeType> platformData,
+    ffi.Pointer<ffi.NativeType> userData);
+
+/// One callable for the process, kept alive for as long as it runs — every
+/// context [_launchContext] hands out connects this same function.
 ///
-/// Worth the extra call: without a launch context the launched application has no
-/// startup-notification token, and a shell surface closing in the same frame can
-/// win the focus race against it.
+/// GIO emits `::launched` synchronously, from inside the `g_app_info_launch*`
+/// call this file makes, so it always lands on the Dart thread that made it:
+/// `isolateLocal` is correct here for the same reason it is in `GlibFdWatch`.
+final ffi.NativeCallable<_LaunchedCallbackC> _launchedCallback =
+    ffi.NativeCallable<_LaunchedCallbackC>.isolateLocal(_onLaunched);
+
+/// Adopts the pid GIO reports into a systemd scope of its own — see
+/// `lib/app_scope.dart` for why a launched application must not stay in the
+/// shell's cgroup.
+///
+/// `platform_data` is an `a{sv}` carrying `pid` for every launch GIO *spawns*.
+/// A `DBusActivatable=true` entry is started by the bus instead and reports no
+/// pid: there is nothing to adopt, because such an app was never in this
+/// process's cgroup to begin with.
+void _onLaunched(
+  ffi.Pointer<ffi.NativeType> context,
+  ffi.Pointer<ffi.NativeType> appInfo,
+  ffi.Pointer<ffi.NativeType> platformData,
+  ffi.Pointer<ffi.NativeType> userData,
+) {
+  try {
+    final pid = _pidFromPlatformData(platformData);
+    if (pid <= 0) return;
+    String read(
+        ffi.Pointer<ffi.Uint8> Function(ffi.Pointer<ffi.NativeType>) getter) {
+      if (appInfo == ffi.nullptr) return '';
+      final value = getter(appInfo);
+      return value == ffi.nullptr ? '' : _nativeToString(value);
+    }
+
+    // Fire-and-forget: the application is already running, and the adoption is
+    // an improvement to its cgroup, never a precondition of the launch.
+    unawaited(appScopes.adopt(
+      pid: pid,
+      appId: read(_gAppInfoGetId),
+      appName: read(_gAppInfoGetName),
+    ));
+  } catch (_) {
+    // A launch must not be taken down by the bookkeeping that follows it.
+  }
+}
+
+/// The `pid` out of a `::launched` `platform_data` dictionary, or 0.
+int _pidFromPlatformData(ffi.Pointer<ffi.NativeType> platformData) {
+  if (platformData == ffi.nullptr) return 0;
+  final key = _stringToNative('pid');
+  final type = _stringToNative('i');
+  try {
+    final value = _gVariantLookupValue(platformData, key, type);
+    if (value == ffi.nullptr) return 0;
+    try {
+      return _gVariantGetInt32(value);
+    } finally {
+      _gVariantUnref(value);
+    }
+  } catch (_) {
+    return 0;
+  } finally {
+    _gFree(key.cast());
+    _gFree(type.cast());
+  }
+}
+
+/// A `GAppLaunchContext*` to launch through, or NULL if GLib is not there at
+/// all. The caller owns it and must unref it.
+///
+/// Worth the extra call twice over. A `GdkAppLaunchContext` gives the launched
+/// application a startup-notification token, so a shell surface closing in the
+/// same frame does not win the focus race against it; and *any* context emits
+/// `::launched`, which is the one hook that reports the pid of every
+/// application this shell spawns — `g_app_info_launch`,
+/// `g_app_info_launch_uris`, `g_app_info_launch_default_for_uri` and
+/// `g_desktop_app_info_launch_action` alike. Hence the plain-context fallback:
+/// without a display there is no token to lose, but there is still a process to
+/// hand to systemd.
 ffi.Pointer<ffi.NativeType> _launchContext() {
   try {
     final display = _gdkDisplayGetDefault();
-    if (display == ffi.nullptr) return ffi.nullptr;
-    return _gdkDisplayGetAppLaunchContext(display);
+    final context = display == ffi.nullptr
+        ? _gAppLaunchContextNew()
+        : _gdkDisplayGetAppLaunchContext(display);
+    if (context == ffi.nullptr) return ffi.nullptr;
+    final signal = _stringToNative('launched');
+    try {
+      // `g_signal_connect_data` parses the name as it connects and does not
+      // retain it. The connection dies with the context, which every caller
+      // unrefs once its launch returns.
+      gSignalConnectData(
+        context.cast(),
+        signal.cast<Utf8>(),
+        _launchedCallback.nativeFunction.cast(),
+        ffi.nullptr,
+        ffi.nullptr,
+        0,
+      );
+    } finally {
+      _gFree(signal.cast());
+    }
+    return context;
   } catch (_) {
     return ffi.nullptr;
   }
