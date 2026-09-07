@@ -232,7 +232,7 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `miracle_config/` | The compositor's own configuration: the store behind `overlay/settings/miracle/`, the evdev key table, enum labels |
 | `theme/` | `ThemeConfig`, `ThemeStore`, `ThemeProvider`, built-in themes, tokens, fonts |
 | `launcher/`, `emoji/` | The two search overlays: index, pure ranking, controller, card |
-| `weather/`, `moon/`, `media/`, `fortune/`, `tux/` | Data layers behind a bar module and/or desktop widget: store + pure model + painters |
+| `weather/`, `moon/`, `media/`, `fortune/`, `tux/`, `clock/` | Data layers behind a bar module and/or desktop widget: store + pure model + painters |
 | `system/` | UI-free `/proc`,`/sys` sampling; `overlay/system/` is its tab |
 | `timers/` | Countdowns and stopwatches: pure format, store, shared widgets |
 | `osd/` | The volume/brightness card, its store and its sources |

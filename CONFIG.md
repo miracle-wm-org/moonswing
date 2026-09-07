@@ -848,13 +848,16 @@ Items on a cell that does not exist on a smaller monitor are drawn in the neares
 
 Alongside the icons, the grid holds **widgets** — cards that take a rectangle of cells rather than a single one, and that you resize by dragging a corner. Right-click bare desktop and choose **Add widget…** to place one; right-click a widget for **Remove**. Widgets are dragged from anywhere on the card, and their own buttons still work: a press that moves is a drag, one that does not is a click.
 
-Three types ship:
+Six types ship:
 
 | `type` | Name | What it draws |
 | ------ | ---- | ------------- |
 | `media_player` | Media player | What is playing over MPRIS: art, title, transport, and a progress bar as the card grows |
 | `weather` | Weather | The current conditions and a forecast strip, over a sky animated to match |
 | `moon_phase` | Moon phase | Tonight's Moon drawn at its actual phase, with the times it rises and sets and what the phase means for tides, night light and eclipses |
+| `fortune` | Fortune | A line from `fortune(6)` over a lamp, with a button that asks for another |
+| `tux` | Tux | A penguin with something nice to say each day |
+| `analog_clock` | Analog clock | The time on a dial, with an hour hand and a minute hand and no second hand |
 
 ```toml
 [[desktop.widgets]]
@@ -887,6 +890,20 @@ The phase, the illuminated fraction and the age of the Moon are the same everywh
 - **Which way up the disc is drawn.** South of the equator the Moon is seen rotated half a turn, so a waxing crescent is lit on the left.
 
 With no weather location set, the shell uses the same one-off IP lookup the weather does; if that is unavailable too, the card drops those two lines and keeps everything else.
+
+### The analog clock widget
+
+No configuration, and **no second hand** — deliberately. A hand that sweeps
+seconds is a repaint every second, on every monitor, for as long as the card is
+on screen; this one wakes when the minute changes and is idle in between, so a
+clock on the desktop costs nothing to leave there. The hour hand still moves
+continuously between the numerals, so half past six looks like half past six.
+
+The face buys its detail from the size you give it: at one cell it draws the
+twelve hour marks, at two it adds the sixty minute marks, and larger still it
+sets the hour numerals inside them. It is drawn in your theme — the dial takes
+`control_surface`, the marks and hands `foreground`, and the pivot `accent` —
+so it changes with everything else when you change themes.
 
 ## Lock Screen
 
