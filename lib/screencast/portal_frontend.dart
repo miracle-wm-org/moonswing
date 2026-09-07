@@ -27,6 +27,7 @@
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
+import 'package:graceful_shell/host_process.dart';
 
 import 'screencast_log.dart';
 
@@ -80,7 +81,7 @@ Future<int?> readFrontendSourceTypes(DBusClient client) async {
 Future<bool> restartPortalFrontend({
   Future<ProcessResult> Function(String, List<String>)? runner,
 }) async {
-  final run = runner ?? Process.run;
+  final run = runner ?? runHostProcess;
   try {
     final result =
         await run('systemctl', ['--user', 'try-restart', portalFrontendUnit]);

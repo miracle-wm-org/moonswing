@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:graceful_shell/host_process.dart';
 
 /// Starts the clipboard helper. Injectable so tests drive the whole copy path
 /// without forking anything — `FortuneReader`'s and `PolkitHelperRunner`'s
@@ -53,7 +54,7 @@ enum ClipboardResult {
 /// pastes a smiley as four bytes of mojibake.
 Future<ClipboardResult> copyTextToClipboard(
   String text, {
-  ClipboardRunner runner = Process.start,
+  ClipboardRunner runner = startHostProcess,
 }) async {
   try {
     final process = await runner(kClipboardCommand, const [

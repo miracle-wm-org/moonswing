@@ -43,6 +43,13 @@ apps:
       # than falling back, and on a host with no BLAS installed (Ubuntu 26.04
       # ships none) that is "libblas.so.3: cannot open shared object file"
       # before a single frame.
+      #
+      # This variable is inherited by everything the shell forks, and the tools
+      # it forks (ffmpeg, wl-copy, systemctl) are the *host's* — a staged
+      # soname on their search path is a symbol error inside somebody else's
+      # process. lib/host_process.dart takes the staged entries back off for
+      # them; a library added here needs nothing there, but a spawn added to
+      # the shell must go through it.
       LD_LIBRARY_PATH: $SNAP/usr/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu/blas:$SNAP/usr/lib/x86_64-linux-gnu/lapack:$SNAP/usr/lib/x86_64-linux-gnu/pulseaudio:$SNAP/lib:$LD_LIBRARY_PATH
 
 parts:

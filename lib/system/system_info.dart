@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:graceful_shell/host_process.dart';
 import 'package:graceful_shell/system/file_read.dart';
 import 'package:graceful_shell/system/format.dart';
 import 'package:graceful_shell/system/input_devices.dart';
@@ -74,7 +75,7 @@ class SystemInfoReader {
        _proc = proc ?? ProcReader(procRoot: procRoot),
        _inputs =
            inputs ?? InputDeviceReader(procRoot: procRoot, sysRoot: sysRoot),
-       _run = runner ?? Process.run;
+       _run = runner ?? runHostProcess;
 
   final String procRoot;
   final String etcRoot;

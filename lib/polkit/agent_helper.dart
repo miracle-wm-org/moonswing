@@ -15,6 +15,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:graceful_shell/host_process.dart';
+
 import 'polkit_log.dart';
 
 /// One line from the helper.
@@ -238,7 +240,7 @@ class ProcessPolkitHelperRunner implements PolkitHelperRunner {
       // Exactly one argument, which is what every helper since the CVE-2015-3255
       // fix accepts: `argc != 2` is refused outright, with the cookie read from
       // stdin instead.
-      process = await Process.start(path, <String>[username]);
+      process = await startHostProcess(path, <String>[username]);
     } catch (error) {
       throw PolkitHelperUnavailable('could not start $path: $error');
     }

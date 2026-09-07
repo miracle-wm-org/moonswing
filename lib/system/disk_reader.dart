@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:graceful_shell/host_process.dart';
 import 'package:graceful_shell/system/models.dart';
 
 /// Filesystem usage, via `df`.
@@ -11,7 +12,7 @@ import 'package:graceful_shell/system/models.dart';
 class DiskReader {
   DiskReader({
     Future<ProcessResult> Function(String, List<String>)? runner,
-  }) : _run = runner ?? Process.run;
+  }) : _run = runner ?? runHostProcess;
 
   final Future<ProcessResult> Function(String, List<String>) _run;
 
