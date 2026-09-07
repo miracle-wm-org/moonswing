@@ -9,6 +9,7 @@ import 'package:flutter/widgets.dart';
 // this, and there is nowhere else to reach it from.
 import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 import 'package:graceful_shell/app_info.dart';
+import 'package:graceful_shell/app_scope.dart';
 import 'package:graceful_shell/capture/selection_controller.dart';
 import 'package:graceful_shell/capture/selector_overlay.dart';
 import 'package:graceful_shell/capture/window_targets.dart';
@@ -168,6 +169,7 @@ void main() async {
 
   screencastLog = (message) => debugPrint('screencast: $message');
   polkitLog = (message) => debugPrint('polkit: $message');
+  appScopeLog = (message) => debugPrint('app-scope: $message');
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
   // usable either way — the workspaces module offers a retry when it is absent.
