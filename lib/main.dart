@@ -87,6 +87,7 @@ import 'package:graceful_shell/desktop/app_chooser.dart';
 import 'package:graceful_shell/desktop/desktop_actions.dart';
 import 'package:graceful_shell/desktop/desktop_layout.dart';
 import 'package:graceful_shell/desktop/desktop_store.dart';
+import 'package:graceful_shell/desktop/widgets/analog_clock_widget.dart';
 import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
 import 'package:graceful_shell/desktop/widgets/media_player_widget.dart';
 import 'package:graceful_shell/desktop/widgets/fortune_widget.dart';
@@ -144,6 +145,7 @@ void main() async {
   DesktopWidgetRegistry.register(moonDesktopWidget);
   DesktopWidgetRegistry.register(fortuneDesktopWidget);
   DesktopWidgetRegistry.register(tuxDesktopWidget);
+  DesktopWidgetRegistry.register(analogClockDesktopWidget);
 
   // The only awaits before the first frame, and they have to be: every native
   // window's geometry comes out of them. Everything else starts in
