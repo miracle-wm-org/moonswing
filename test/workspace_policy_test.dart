@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/modules/workspace_apps.dart';
 import 'package:graceful_shell/modules/workspaces.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:miracle/miracle.dart';
@@ -139,8 +140,12 @@ void main() {
         onToggle: () => taps++,
       )));
 
-      expect(tester.getSize(find.byType(WorkspacePolicyToggle)),
-          const Size(16, 16));
+      // Read as two numbers rather than compared to a `Size` literal:
+      // `package:miracle` exports a `Size` of its own — an int-valued rect
+      // size off the IPC — which is the one this file's imports resolve.
+      final box = tester.getSize(find.byType(WorkspacePolicyToggle));
+      expect(box.width, 16);
+      expect(box.height, 16);
       await tapEveryCorner(tester, find.byType(WorkspacePolicyToggle));
       expect(taps, 4);
     });
@@ -211,6 +216,6 @@ WorkspaceResult _result({
       'focused': focused,
       'urgent': false,
       'output': output,
-      if (policy != null) 'policy': policy,
+      'policy': ?policy,
       'rect': {'x': 0, 'y': 0, 'width': 1920, 'height': 1080},
     });
