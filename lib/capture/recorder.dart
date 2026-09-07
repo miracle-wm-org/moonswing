@@ -30,6 +30,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:graceful_shell/host_process.dart';
 import 'package:graceful_shell/screencast/capture_connection.dart';
 import 'package:graceful_shell/screencast/capture_session.dart';
 import 'package:graceful_shell/screencast/screencast_log.dart';
@@ -289,7 +290,7 @@ class ScreenRecorder {
     );
     Process process;
     try {
-      process = await Process.start('ffmpeg', args);
+      process = await startHostProcess('ffmpeg', args);
     } on ProcessException {
       throw const CaptureException(
           'Recording needs ffmpeg, which is not installed.');

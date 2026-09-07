@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:graceful_shell/host_process.dart';
+
 /// The font families installed on this machine, via fontconfig's `fc-list`.
 ///
 /// Shelling out costs a fork and fontconfig's first run can rebuild its cache,
@@ -13,7 +15,7 @@ import 'dart:io';
 class FontCatalog {
   FontCatalog({
     Future<ProcessResult> Function(String, List<String>)? runner,
-  }) : _run = runner ?? Process.run;
+  }) : _run = runner ?? runHostProcess;
 
   static final FontCatalog instance = FontCatalog();
 

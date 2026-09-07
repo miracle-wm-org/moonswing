@@ -10,6 +10,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:graceful_shell/host_process.dart';
 import 'package:graceful_shell/screencast/capture_connection.dart';
 import 'package:graceful_shell/screencast/capture_session.dart';
 import 'package:graceful_shell/screencast/screencast_log.dart';
@@ -122,7 +123,8 @@ Future<({File file, Uint8List png})> writeScreenshot(
 /// they cannot.
 Future<bool> copyPngToClipboard(Uint8List png) async {
   try {
-    final process = await Process.start('wl-copy', const ['--type', 'image/png']);
+    final process =
+        await startHostProcess('wl-copy', const ['--type', 'image/png']);
     process.stdin.add(png);
     await process.stdin.flush();
     await process.stdin.close();

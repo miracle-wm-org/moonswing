@@ -11,6 +11,8 @@
 
 import 'dart:io';
 
+import 'package:graceful_shell/host_process.dart';
+
 /// A fortune that could not be fetched, with a line the card can show.
 ///
 /// [missing] separates "this machine has no `fortune`" — actionable, and by far
@@ -32,7 +34,7 @@ class FortuneUnavailable implements Exception {
 class FortuneReader {
   FortuneReader({
     Future<ProcessResult> Function(String, List<String>)? runner,
-  }) : _run = runner ?? Process.run;
+  }) : _run = runner ?? runHostProcess;
 
   final Future<ProcessResult> Function(String, List<String>) _run;
 

@@ -1,9 +1,9 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:graceful_shell/host_process.dart';
 import 'package:graceful_shell/pulse_client.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
@@ -135,7 +135,7 @@ class _OutputTabState extends State<OutputTab> {
     if (_testingAudio) return;
     setState(() => _testingAudio = true);
     try {
-      await Process.run(
+      await runHostProcess(
           'speaker-test', ['-t', 'sine', '-f', '440', '-l', '1', '-c', '2']);
     } catch (_) {}
     if (mounted) setState(() => _testingAudio = false);

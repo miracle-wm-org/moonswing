@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
+import 'package:graceful_shell/host_process.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -53,7 +54,8 @@ class _AdvancedTabState extends State<AdvancedTab> {
   Future<void> _loadSettings() async {
     setState(() => _loadingSettings = true);
     try {
-      final result = await Process.run('pw-metadata', ['-n', 'settings', '0']);
+      final result =
+          await runHostProcess('pw-metadata', ['-n', 'settings', '0']);
       if (!mounted) return;
       final output = result.stdout as String;
       final rateMatch = RegExp(r"key:'clock\.(?:force-)?rate'\s+value:'(\d+)'")
@@ -78,7 +80,7 @@ class _AdvancedTabState extends State<AdvancedTab> {
   Future<void> _setSampleRate(int rate) async {
     setState(() => _sampleRate = rate);
     try {
-      await Process.run(
+      await runHostProcess(
           'pw-metadata', ['-n', 'settings', '0', 'clock.force-rate', '$rate']);
     } catch (_) {}
   }
@@ -86,14 +88,14 @@ class _AdvancedTabState extends State<AdvancedTab> {
   Future<void> _setQuantum(int q) async {
     setState(() => _quantum = q);
     try {
-      await Process.run(
+      await runHostProcess(
           'pw-metadata', ['-n', 'settings', '0', 'clock.force-quantum', '$q']);
     } catch (_) {}
   }
 
   void _startLogTail() async {
     try {
-      _journalProcess = await Process.start('journalctl', [
+      _journalProcess = await startHostProcess('journalctl', [
         '--user',
         '-u',
         'pipewire',
@@ -138,7 +140,7 @@ class _AdvancedTabState extends State<AdvancedTab> {
       _restartError = null;
     });
     try {
-      final result = await Process.run('systemctl',
+      final result = await runHostProcess('systemctl',
           ['--user', 'restart', 'pipewire', 'pipewire-pulse', 'wireplumber']);
       if (result.exitCode != 0) throw Exception(result.stderr);
       await _loadSettings();
