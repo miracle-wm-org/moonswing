@@ -1,3 +1,6 @@
+// `widgets.dart` re-exports foundation with a `show` list that carries
+// ValueNotifier but not ValueListenable, which is what a dock slot takes.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:graceful_shell/app_info.dart';
@@ -433,7 +436,6 @@ class _DockDivider extends StatelessWidget {
 
 class _DockButton extends StatefulWidget {
   const _DockButton({
-    super.key,
     required this.appId,
     required this.appName,
     required this.onPressed,
