@@ -970,6 +970,23 @@ zone = "Asia/Tokyo"
 label = "HQ"
 ```
 
+## Notifications
+
+The `[notifications]` section holds the state of the notification bell's **silence** switch. The shell writes this key itself — right-click the bell, or use the switch at the top of the notification panel — so it is documented because the file is yours to edit, not because you have to.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `silenced` | boolean | `false` | Whether notifications are silenced. |
+
+Silencing is about interruption, never about delivery. The shell keeps acting as the notification daemon and every notification still arrives and stacks up in the panel; what stops is the shell asking for your attention — the bell no longer shakes, and the floating badge that plants itself in the corner of every monitor does not appear. The bell wears a crossed-out glyph while the switch is on, so the state is never invisible.
+
+It is a file key rather than state that dies with the process on purpose: a shell that quietly started interrupting you again after a restart would be the one failure a "do not disturb" switch may not have.
+
+```toml
+[notifications]
+silenced = false
+```
+
 ## On-Screen Indicator
 
 The `[osd]` section configures the indicator that appears when the volume, microphone volume, or screen brightness changes — an icon for what changed plus a bar for its current level, floating above the bottom edge of every monitor. It fades out once the changes stop.
