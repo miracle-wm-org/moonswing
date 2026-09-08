@@ -29,3 +29,23 @@ Default desktop wallpaper.
 
 Installed to `$PREFIX/share/graceful-shell/wallpaper.jpg` by `make install` and
 referenced by the default `[background]` section of `config.toml`.
+
+## `graceful-mark.svg`, `graceful-agility.svg`
+
+The project mark (favicon, site logo) and the banner at the top of `README.md` and of the
+website: a hooded runner mid-vault, over two windows and a shell panel.
+
+- **Credit:** original work for this repository.
+- **License:** GPL-3.0, the same as the shell — these are part of it, not aggregated with it.
+- **Source:** hand-written SVG. Both are drawn from the same figure, so the favicon and the
+  banner are the same character.
+
+The palette and the hood are a nod to the *graceful outfit* from Old School RuneScape, the
+agility set this project takes its name from — the resemblance ends at pink cloth and a
+pointed hood. **No RuneScape asset is used, or could be:** the wiki's images are Jagex's own
+game art, published under a non-commercial licence that neither a GPL-3.0 repository nor a
+public website can honour. Everything here is drawn from scratch.
+
+Neither file is installed by `make install`; they are repository and website artwork only.
+`website/scripts/sync.mjs` copies them into the site and rasterises the favicon fallback and
+the social card from them.

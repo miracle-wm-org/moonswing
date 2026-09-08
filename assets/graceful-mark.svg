@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Graceful Shell">
+  <defs>
+    <linearGradient id="gm-disc" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d1329"/>
+      <stop offset="1" stop-color="#1b0711"/>
+    </linearGradient>
+    <linearGradient id="gm-cloth" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8fbc"/>
+      <stop offset="1" stop-color="#d8477f"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="32" cy="32" r="31" fill="url(#gm-disc)"/>
+  <circle cx="32" cy="32" r="30" fill="none" stroke="#e9639a" stroke-opacity=".3" stroke-width="2"/>
+
+  <!-- the vault: a leap arc trailing the runner -->
+  <path d="M7 51 C11 37 19 28 30 24" fill="none" stroke="#ff9ec6" stroke-opacity=".28"
+        stroke-width="2.4" stroke-linecap="round"/>
+
+  <!-- trailing cape -->
+  <path d="M36 25 C25 27 15 34 9 48 C20 40 29 37 37 36 Z" fill="#ab2a61"/>
+
+  <g stroke="url(#gm-cloth)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M36 25 L27 28 L20 25"/>            <!-- back arm, trailing -->
+    <path d="M27 37 L16 42 L11 34"/>            <!-- back leg, folded -->
+    <path d="M38 23 L27 37"/>                   <!-- torso -->
+    <path d="M27 37 L37 40 L43 50"/>            <!-- front leg, reaching -->
+    <path d="M37 24 L46 21 L52 26"/>            <!-- front arm -->
+  </g>
+
+  <!-- hood: pointed cowl, tip trailing back -->
+  <path d="M46 12 C41 7 33 9 31 16 C29 21 31 26 35 26 L39 23 C36 18 40 13 46 12 Z" fill="#8c1e4c"/>
+  <circle cx="40" cy="17" r="5.4" fill="url(#gm-cloth)"/>
+  <path d="M46 12 C41 11 37 14 36 18 C35 22 37 25 40 25 L41 21 C39 17 41 13 46 12 Z" fill="#e2679c"/>
+</svg>

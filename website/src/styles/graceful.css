@@ -1,0 +1,57 @@
+/* The site's palette is the artwork's: pink cloth over plum. Starlight builds
+   every surface from this ramp, so nothing below restyles a component. */
+
+:root {
+  --sl-color-accent-low: #3d1226;
+  --sl-color-accent: #c8356e;
+  --sl-color-accent-high: #f7b3cd;
+
+  --sl-color-white: #fff5f9;
+  --sl-color-gray-1: #f3dde7;
+  --sl-color-gray-2: #d6bac7;
+  --sl-color-gray-3: #a8859a;
+  --sl-color-gray-4: #6f5364;
+  --sl-color-gray-5: #47303c;
+  --sl-color-gray-6: #33202b;
+  --sl-color-black: #1b0711;
+
+  --sl-color-bg-nav: color-mix(in srgb, var(--sl-color-black) 88%, transparent);
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #ffdae7;
+  --sl-color-accent: #b4235c;
+  --sl-color-accent-high: #5c1130;
+
+  --sl-color-white: #1b0711;
+  --sl-color-gray-1: #2b1420;
+  --sl-color-gray-2: #46303b;
+  --sl-color-gray-3: #6f5764;
+  --sl-color-gray-4: #9c8391;
+  --sl-color-gray-5: #cfb8c4;
+  --sl-color-gray-6: #eddfe5;
+  --sl-color-gray-7: #f7edf1;
+  --sl-color-black: #fffafc;
+}
+
+/* The splash page's hero: the artwork is wide and dark, so it wants to bleed
+   rather than sit in a card. */
+.hero > img,
+.hero .hero-html img {
+  width: 100%;
+  max-width: 42rem;
+  border-radius: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--sl-color-accent) 30%, transparent);
+  box-shadow: 0 1.5rem 3rem -1.5rem color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
+}
+
+/* Site title next to a round mark reads better with the mark a little larger
+   than Starlight's default and not cropped square. */
+.site-title img {
+  border-radius: 50%;
+}
+
+/* CONFIG.md leans on wide TOML samples; let them scroll rather than wrap. */
+.sl-markdown-content pre {
+  overflow-x: auto;
+}

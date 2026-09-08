@@ -1,0 +1,12 @@
+# Astro
+dist/
+.astro/
+node_modules/
+
+# Written by `npm run sync` from the repository's own docs and artwork.
+# Generated, never edited by hand — see README.md in this directory.
+src/content/docs/configuration/
+public/favicon.svg
+public/favicon.png
+public/og.png
+src/assets/

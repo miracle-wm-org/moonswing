@@ -1,0 +1,94 @@
+---
+title: Graceful Shell
+description: A Flutter desktop shell for Wayland — panels, wallpaper, desktop icons, overlays, notifications, tray, screen sharing and a lock screen.
+template: splash
+editUrl: false
+hero:
+  tagline: A largely AI-coded, very unserious, just-for-funzies desktop environment for Linux, built entirely in Flutter.
+  image:
+    alt: A hooded runner vaulting between two windows, under a shell panel
+    file: ../../assets/graceful-agility.svg
+  actions:
+    - text: Install the nightly snap
+      link: start/install/
+      icon: right-arrow
+    - text: Build from source
+      link: start/build/
+      variant: minimal
+      icon: code-branch
+    - text: View on GitHub
+      link: https://github.com/miracle-wm-org/graceful-shell
+      variant: minimal
+      icon: external
+---
+
+import { Card, CardGrid, LinkCard, Aside } from '@astrojs/starlight/components';
+
+{/* Links here are relative on purpose. Starlight prefixes `base` onto links
+    written in markdown, but not onto a component prop or a frontmatter hero
+    action — and this page is served at the base, so a relative href resolves
+    correctly whatever `base` is set to. */}
+
+<Aside type="caution" title="Use this at your own risk">
+  This project may be entirely unstable. The snap is the only supported packaging,
+  and the config format is subject to change at any time.
+</Aside>
+
+## What it is
+
+Graceful Shell draws a whole desktop session out of one Flutter process: `wlr-layer-shell`
+panels, a wallpaper and desktop-icon surface, full-screen overlays, popups, an on-screen
+display and a lock screen. It is also the session's notification daemon, its
+StatusNotifierItem tray host, its `xdg-desktop-portal` ScreenCast backend, its polkit
+authentication agent and its session locker.
+
+It exists to:
+
+1. Stress test Flutter
+2. Explore the bounds of building new desktops for Wayland
+3. Experiment with new Wayland protocols, portals, and everything else
+4. Have fun and build something fun
+
+<CardGrid stagger>
+  <Card title="Panels that are yours" icon="laptop">
+    Any number of panels, on any edge, each with its own height, layer and left/centre/right
+    module layout. Every strip on the bar is a module with its own `[modules.*]` table.
+  </Card>
+  <Card title="Themes are files" icon="seti:css">
+    A theme is a flat TOML table under `~/.config/graceful-shell/themes/`. Six ship with the
+    shell; edit one and it forks into your own.
+  </Card>
+  <Card title="A real desktop surface" icon="seti:image">
+    Wallpaper, a desktop-icon grid, and resizable desktop widgets — clock, moon phase and
+    friends — sharing the same cells.
+  </Card>
+  <Card title="Session plumbing included" icon="setting">
+    Notifications, tray, media controls, screen sharing, polkit prompts, idle locking and
+    an on-screen indicator, all from the same process.
+  </Card>
+</CardGrid>
+
+## Start here
+
+<CardGrid>
+  <LinkCard
+    title="Install the nightly snap"
+    href="start/install/"
+    description="One command, amd64, classic confinement."
+  />
+  <LinkCard
+    title="Build from source"
+    href="start/build/"
+    description="Flutter on master, a handful of dev packages, make install."
+  />
+  <LinkCard
+    title="Configuration reference"
+    href="configuration/"
+    description="Every key of config.toml, section by section."
+  />
+  <LinkCard
+    title="The wiki"
+    href="wiki/architecture/"
+    description="How the shell is put together, and why it is put together that way."
+  />
+</CardGrid>

@@ -35,6 +35,12 @@ gdbus call --session --dest org.freedesktop.portal.Desktop \
 dart run tool/pulse_spike.dart      # PulseAudio driver; GRACEFUL_PULSE_LOG=1 for logging
 ```
 
+```sh
+# The website and wiki. `dev` and `build` regenerate the pages taken from CONFIG.md first.
+cd website && npm install && npm run dev   # http://localhost:4321/graceful-shell/
+npm run build && npm run preview
+```
+
 **Rendering backend (`linux/runner/my_application.cc`).** Impeller's GLES backend is the engine's Linux default and is switched **off in the runner**, not on the command line. It must stay a compiled-in default — `--no-enable-impeller` reaches the engine as an env var and so cannot help the snap or a `make install` build. `GRACEFUL_SHELL_IMPELLER=1` is the way back; re-measure with it after an engine bump, since this is expected to be temporary.
 
 Build deps: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`. Runtime, for lock only: `libgtk-session-lock0`, `libpam` — both `dlopen`ed, so the shell builds without them.
@@ -48,6 +54,22 @@ A **classic** snap, built nightly from `main`. Classic confinement puts the host
 - **Portal registration is split in two halves, neither droppable.** `portals.conf(5)` directory precedence beats file specificity, so the root hooks write a machine default under `/usr/share` and `snap/local/graceful-shell-wrapper` writes the per-user copy that alone can out-rank an existing preference. Both write `miracle-wm-portals.conf` *and* `mir-portals.conf` (`XDG_CURRENT_DESKTOP` is `miracle-wm:mir`). Hooks are marker-guarded (`# graceful-shell-snap-managed`; anything without it is never rewritten or deleted) and never fatal (a non-zero `install` hook aborts `snap install`, and `/usr` may be read-only).
 - **The wrapper `try-restart`s xdg-desktop-portal once per revision**, gated on a `SNAP_REVISION` stamp: the frontend reads `.portal` files only at start-up. `try-restart` so a session with no systemd user instance is not forced to start one, and the frontend only, never the backends. It never overwrites a conf it did not write.
 - **The Flutter revision is pinned**; cloning `master` at HEAD once broke the release artifact overnight. `.github/workflows/flutter-master.yml` is the early warning, and the pin is bumped to a revision it has proven green.
+
+## The website (`website/`)
+
+Astro + Starlight, published to GitHub Pages by `.github/workflows/website.yml`. `npm run dev`
+in `website/` serves it at `/graceful-shell/` — the `base`, so **links written as component
+props or hero actions need relative hrefs**; only markdown links get `base` prefixed for them.
+
+**Nothing about the shell is documented twice.** `scripts/sync.mjs` runs before `dev` and
+`build` and generates the configuration pages by splitting `CONFIG.md` on its `## ` headings,
+plus the favicon, hero and social card from `assets/*.svg`. All of it is gitignored, and which
+section lands on which page is the `PAGES` table in that script — a `## ` section no page claims
+**fails the build**, so a new config section cannot quietly vanish from the site. Edit
+`CONFIG.md`, never `src/content/docs/configuration/`.
+
+The rest — the landing page, `start/`, `wiki/` — is hand-written, and is where the feature-level
+rationale in this file is retold for someone who does not have the repository open.
 
 ## Architecture
 
