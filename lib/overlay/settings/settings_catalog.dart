@@ -232,6 +232,15 @@ abstract final class SettingsCatalog {
     tags: const ['menu', 'motion', 'transition', 'slide', 'fade', 'grow'],
   );
 
+  static final popupAnimationDuration = shellField(
+    'theme.popup_animation_duration',
+    'Popup animation duration',
+    section: 'Appearance',
+    description:
+        'How long that animation runs, in milliseconds. The exit is shorter.',
+    tags: const ['menu', 'motion', 'transition', 'speed', 'timing', 'ms'],
+  );
+
   /// The palette, in the order the Appearance pane draws it.
   static final List<ThemeColorSetting> themeColors = [
     ThemeColorSetting(
@@ -1716,6 +1725,7 @@ abstract final class SettingsCatalog {
     popupShadowOffsetX,
     popupShadowOffsetY,
     popupAnimation,
+    popupAnimationDuration,
     for (final colour in themeColors) colour.field,
     ...moduleFields,
     panelHeight,

@@ -45,6 +45,7 @@ void main() {
       'popup_shadow_spread',
       'popup_shadow_offset_x',
       'popup_shadow_offset_y',
+      'popup_animation_duration',
     };
     for (final entry in kBuiltInThemes.entries) {
       final map = TomlDocument.parse(entry.value).toMap();

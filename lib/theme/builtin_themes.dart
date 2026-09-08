@@ -88,7 +88,9 @@ popup_shadow_offset_y = 6.0
 
 # How a popup arrives, and — reversed — how it leaves. The card is attached to
 # the bar here, so it slides the short distance out of it and back in again.
+# The duration is the entrance in milliseconds; the exit is four fifths of it.
 popup_animation      = "slide"
+popup_animation_duration = 140
 ''';
 
 const String _forest = '''
@@ -171,6 +173,7 @@ popup_shadow_offset_y = 8.0
 # A floating card has no join to travel out of, so it grows into place from its
 # own centre instead — the softer arrival this theme's rounder corners want.
 popup_animation      = "scale"
+popup_animation_duration = 140
 ''';
 
 const String _dracula = '''
@@ -226,6 +229,7 @@ popup_shadow_offset_y = 6.0
 
 # Attached to the bar, so it slides out of it, as graceful does.
 popup_animation      = "slide"
+popup_animation_duration = 140
 ''';
 
 const String _glassy = '''
@@ -306,6 +310,7 @@ popup_shadow_offset_y = 10.0
 # out of: the card simply fades up, which is also the arrival that shows least
 # of the seam a translucent fill draws over a moving wallpaper.
 popup_animation      = "fade"
+popup_animation_duration = 140
 ''';
 
 const String _midnight = '''
@@ -405,6 +410,7 @@ popup_shadow_offset_y = 0.0
 # that no direction of travel can contradict — which is why this theme need not
 # take glassy's way out and simply fade.
 popup_animation      = "slide"
+popup_animation_duration = 140
 ''';
 
 const String _carbon = '''
@@ -543,4 +549,5 @@ popup_shadow_offset_y = 0.0
 # travel out of that join rather than an arrival beside it — the same slide the
 # other two attached themes play, and the one that reads as the bar opening.
 popup_animation      = "slide"
+popup_animation_duration = 140
 ''';

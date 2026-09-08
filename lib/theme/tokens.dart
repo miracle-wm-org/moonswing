@@ -24,16 +24,27 @@ abstract final class ShellDurations {
   /// The settings overlay's entrance, deliberately statelier.
   static const Duration overlayEntrance = Duration(milliseconds: 240);
 
-  /// A popup card's entrance (`popup_animation`).
+  /// A popup card's entrance (`popup_animation`), when the theme spells no
+  /// `popup_animation_duration`.
   ///
   /// Quick: the card has to be readable by the time the pointer reaches it.
+  /// This is the *default* rather than the timing — a theme moves it, and
+  /// `ThemeConfig.popupInDuration` is what actually plays.
   static const Duration popupIn = Duration(milliseconds: 140);
 
-  /// A popup card's exit — the entrance, reversed and shorter.
+  /// How much of its entrance an exit is given, whatever the entrance lasts.
   ///
   /// An entrance is paced to be followed; a dismissal is the user saying they
-  /// are done. See `lib/popup_transition.dart` and `lib/notification_badge.dart`.
-  static const Duration popupOut = Duration(milliseconds: 110);
+  /// are done. A fraction rather than a second duration so a theme that
+  /// lengthens the entrance lengthens the exit with it, and the two cannot
+  /// drift into an exit longer than the entrance it reverses.
+  static const double popupExitFraction = 0.8;
+
+  /// A popup card's exit — the entrance, reversed and shorter: [popupIn] times
+  /// [popupExitFraction], which cannot be written as a constant expression.
+  ///
+  /// The default, as [popupIn] is. See `lib/popup_transition.dart`.
+  static const Duration popupOut = Duration(milliseconds: 112);
 }
 
 /// Corner radii. The scale observed across the shell, named.

@@ -277,6 +277,53 @@ void main() {
     });
   });
 
+  group('popup_animation_duration', () {
+    test('defaults to the pace every popup already played', () {
+      // The key's whole guarantee, as with font_size: a theme written before it
+      // existed animates exactly as it did.
+      const theme = ThemeConfig();
+      expect(theme.popupInDuration, ShellDurations.popupIn);
+      expect(theme.popupOutDuration, ShellDurations.popupOut);
+    });
+
+    test('the exit is shorter than the entrance, at any length', () {
+      for (final ms in const [40, 140, 600, 2000]) {
+        final theme = ThemeConfig.fromMap({'popup_animation_duration': ms});
+        expect(theme.popupInDuration.inMilliseconds, ms);
+        expect(theme.popupOutDuration, lessThan(theme.popupInDuration),
+            reason: 'at ${ms}ms');
+      }
+    });
+
+    test('a TOML float coerces and a garbled value costs the key alone', () {
+      expect(
+          ThemeConfig.fromMap({'popup_animation_duration': 240.0})
+              .popupAnimationDuration,
+          240);
+      final theme = ThemeConfig.fromMap({
+        'popup_animation_duration': 'quick',
+        'popup_radius': 12.0,
+      });
+      expect(theme.popupAnimationDuration,
+          const ThemeConfig().popupAnimationDuration);
+      expect(theme.popupRadius, 12.0);
+    });
+
+    test('the clamps hold at both ends', () {
+      // 0 is a real value — the effect played instantly — so the floor is not
+      // an off switch; `popup_animation = "none"` is. The ceiling is a menu the
+      // user would be waiting out.
+      expect(
+          ThemeConfig.fromMap({'popup_animation_duration': -50})
+              .popupAnimationDuration,
+          0);
+      expect(
+          ThemeConfig.fromMap({'popup_animation_duration': 99999})
+              .popupAnimationDuration,
+          2000);
+    });
+  });
+
   group('the popup shadow', () {
     test('its defaults are the lift the shipped themes draw', () {
       const theme = ThemeConfig();

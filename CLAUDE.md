@@ -82,7 +82,7 @@ Nothing in the stack says a popup should go away: the Linux popup controller tak
 - A **closing popup outlives the host that closed it**: `closePopup` drops every reference synchronously (so close-then-open in one gesture works) and moves the handle, entry, window and `onClosed` to a record that finishes on the animation **or a timer**, and outright on `dispose`.
 - Two clicks it cannot catch by construction: one on an ordinary application window (no grab), and bare desktop with no background surface. A full-screen invisible barrier is not the answer — no input-region support means it would swallow every click on the monitor.
 
-`PopupTransition` plays one controller forward to open and backward to close, so an effect cannot describe an opening it has no closing for. The effect is the theme's (`popup_animation`), snapshotted at open; `PopupEffect.none` wraps nothing and creates no controller.
+`PopupTransition` plays one controller forward to open and backward to close, so an effect cannot describe an opening it has no closing for. The effect is the theme's (`popup_animation`) and so is its pace (`popup_animation_duration`, one number that the exit takes four fifths of), both snapshotted at open; `PopupEffect.none` wraps nothing and creates no controller.
 
 ### Scopes (`lib/scopes.dart`)
 

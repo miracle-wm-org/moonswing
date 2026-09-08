@@ -524,19 +524,22 @@ void _hideWindowOf(BaseWindowController controller) {
 Widget _maybeAttached(String? edge, Widget child) =>
     edge == null ? child : PopupAttachScope(edge: edge, child: child);
 
-/// How long a popup's exit animation is given before its window is torn down
-/// anyway.
+/// How long past its own animation a popup's exit is given before the window is
+/// torn down anyway.
 ///
 /// [PopupTransition] normally answers well inside this. The timer is for the
 /// cases where it never will: a window whose view was dropped before the
 /// transition built, a host disposed mid-animation, a compositor that took the
 /// surface away. A popup leaked on every close is worse than one that disappears
 /// a moment early.
+const Duration _kPopupExitGrace = Duration(milliseconds: 250);
+
+/// The deadline for an exit lasting [exit].
 ///
-/// `final` rather than `const` only because two `Duration`s cannot be added in a
-/// constant expression.
-final Duration _kPopupExitTimeout =
-    ShellDurations.popupOut + const Duration(milliseconds: 250);
+/// Measured off the exit the theme actually plays rather than fixed, or a theme
+/// with a long `popup_animation_duration` would have every popup cut off partway
+/// out by the very timer that exists for the popups that never animate at all.
+Duration _popupExitTimeout(Duration exit) => exit + _kPopupExitGrace;
 
 /// A popup the host has let go of but that is still on screen, playing its exit
 /// animation.
@@ -559,6 +562,7 @@ class _ClosingPopup {
     required this.entry,
     required this.onClosed,
     required this.closing,
+    required this.timeout,
     required this.onFinished,
   });
 
@@ -573,15 +577,19 @@ class _ClosingPopup {
   /// removed from a disposed one.
   final ValueNotifier<bool> closing;
 
+  /// How long [beginExit] waits before finishing the close itself. Snapshotted
+  /// from the theme at open, with the effect — see [_popupExitTimeout].
+  final Duration timeout;
+
   final void Function(_ClosingPopup) onFinished;
 
   Timer? _fallback;
   bool _done = false;
 
   /// Asks the card to animate out; [finish] runs when it reports back, or when
-  /// [_kPopupExitTimeout] runs out, whichever is first.
+  /// [timeout] runs out, whichever is first.
   void beginExit() {
-    _fallback = Timer(_kPopupExitTimeout, finish);
+    _fallback = Timer(timeout, finish);
     closing.value = true;
   }
 
@@ -629,6 +637,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   /// [PopupEffect.none], and forced false when the compositor destroys the
   /// window under us.
   bool _exitAnimates = false;
+
+  /// The deadline the open popup's [_ClosingPopup] will be given, snapshotted
+  /// with the effect at open for the same reason: a theme edited while a popup
+  /// is open must not shorten the exit of a card already playing one.
+  Duration _exitTimeout = _popupExitTimeout(ShellDurations.popupOut);
 
   /// Popups this host has closed that are still on screen, animating out.
   ///
@@ -739,8 +752,10 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // a popup is open would otherwise close it with an animation that is not the
     // reverse of the one it opened with.
     final resolvedEffect = effect ?? theme.popupEffect;
+    final resolvedDuration = theme.popupInDuration;
     final closing = _closing = ValueNotifier<bool>(false);
     _exitAnimates = resolvedEffect.animates;
+    _exitTimeout = _popupExitTimeout(theme.popupOutDuration);
     // Both terms are margin outside the card that the surface has to carry, or
     // the compositor clips what should have been painted there — the shadow's
     // reach, and an attached card's flare, which bows out past its own box on the
@@ -906,6 +921,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
                 // at.
                 child: PopupTransition(
                   effect: resolvedEffect,
+                  duration: resolvedDuration,
                   edge: barAnchor,
                   closing: closing,
                   onClosed: () => _finishOutgoing(thisController!),
@@ -947,6 +963,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       entry: _entry!,
       onClosed: _onClosed,
       closing: _closing!,
+      timeout: _exitTimeout,
       onFinished: _dropOutgoing,
     );
     final animate = _exitAnimates;
@@ -965,6 +982,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     _onClosed = null;
     _closing = null;
     _exitAnimates = false;
+    _exitTimeout = _popupExitTimeout(ShellDurations.popupOut);
     _outgoing.add(record);
     // Before the teardown, so a host that rebuilds on `isPopupOpen` has already
     // dropped its pressed state by the time `onClosed` runs.

@@ -49,14 +49,15 @@ const double _kSpinRadians = 0.14; // ~8°.
 /// menu at the pointer — passes null and is treated as hanging below its anchor,
 /// which is where the compositor puts it.
 ///
-/// [effect] null means "whatever the theme says", read from the enclosing
-/// [ThemeScope]. `PopupHost` passes it explicitly instead, because it wraps the
-/// card from *outside* the `ThemeProvider` the call site built.
+/// [effect] and [duration] null mean "whatever the theme says", read from the
+/// enclosing [ThemeScope]. `PopupHost` passes both explicitly instead, because
+/// it wraps the card from *outside* the `ThemeProvider` the call site built.
 class PopupTransition extends StatefulWidget {
   const PopupTransition({
     super.key,
     required this.child,
     this.effect,
+    this.duration,
     this.edge,
     this.closing,
     this.onClosed,
@@ -66,6 +67,11 @@ class PopupTransition extends StatefulWidget {
 
   /// The effect to play, or null to read `popup_animation` off the theme.
   final PopupEffect? effect;
+
+  /// How long the entrance runs, or null to read `popup_animation_duration` off
+  /// the theme. The exit is this shortened by
+  /// [ShellDurations.popupExitFraction], never a duration of its own.
+  final Duration? duration;
 
   /// The panel edge the popup is anchored to, for the directional effects.
   final String? edge;
@@ -105,19 +111,20 @@ class _PopupTransitionState extends State<PopupTransition>
     // resolved before the first frame is built or the card would flash at full
     // size on the way to being drawn at none of it.
     if (_effect != null) return;
-    final effect = widget.effect ??
-        ThemeScope.maybeOf(context)?.popupEffect ??
-        PopupEffect.slide;
+    final theme = ThemeScope.maybeOf(context);
+    final effect = widget.effect ?? theme?.popupEffect ?? PopupEffect.slide;
     _effect = effect;
     if (effect.animates) {
+      final duration =
+          widget.duration ?? theme?.popupInDuration ?? ShellDurations.popupIn;
       _ctrl = AnimationController(
         vsync: this,
-        duration: ShellDurations.popupIn,
+        duration: duration,
         // Shorter on the way out, and only on the way out: an entrance is
         // paced to be followed, a dismissal is the user saying they are done.
         // The *shape* is still the entrance reversed, which is the promise
         // this widget makes.
-        reverseDuration: ShellDurations.popupOut,
+        reverseDuration: duration * ShellDurations.popupExitFraction,
       )..forward();
     }
     // A close requested before this ever built — a popup displaced in the same
