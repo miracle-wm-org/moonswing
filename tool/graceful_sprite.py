@@ -42,20 +42,22 @@ def sprite():
             if ch != ' ':
                 g[r + dy][c + i] = ch
 
-    # cape, hanging behind the shoulders and flaring past the hem. Two pixels
-    # clear of the arms, or it reads as piping rather than cloth.
-    put(13, 6, "ovvvvvvvvvvvvvvvvvvo")
-    put(14, 6, "ovvvvvvvvvvvvvvvvvvo")
-    put(15, 6, "ovvvvvvvvvvvvvvvvvvo")
-    put(16, 6, "ovvvvvvvvvvvvvvvvvvo")
-    put(17, 6, "ovvvvvvvvvvvvvvvvvvo")
-    put(18, 6, "ovvvvvvvvvvvvvvvvvvo")
-    put(19, 5, "ovvvvvvvvvvvvvvvvvvvvo")
-    put(20, 5, "ovvvvvvvvvvvvvvvvvvvvo")
-    put(21, 5, "ovvvvvvvvvvvvvvvvvvvvo")
-    put(22, 5, "ovvvvvvvvvvvvvvvvvvvvo")
-    put(23, 6, "ovvvvvvvvvvvvvvvvvvo")
-    put(24, 7, "ovvvvvvvvvvvvvvvvo")
+    # cape, hanging behind: a single pixel down the body, where the arms and
+    # gloves cover it, and three where it clears them past the hips. That
+    # widening is the whole read — an even strip beside the body is piping.
+    put(12, 8, "ovvvvvvvvvvvvvvo")
+    put(13, 8, "ovvvvvvvvvvvvvvo")
+    put(14, 8, "ovvvvvvvvvvvvvvo")
+    put(15, 8, "ovvvvvvvvvvvvvvo")
+    put(16, 8, "ovvvvvvvvvvvvvvo")
+    put(17, 8, "ovvvvvvvvvvvvvvo")
+    put(18, 8, "ovvvvvvvvvvvvvvo")
+    put(19, 8, "ovvvvvvvvvvvvvvo")
+    put(20, 7, "ovvvvvvvvvvvvvvvvo")
+    put(21, 7, "ovvvvvvvvvvvvvvvvo")
+    put(22, 7, "ovvvvvvvvvvvvvvvvo")
+    put(23, 8, "ovvvvvvvvvvvvvvo")
+    put(24, 9, "ovvvvvvvvvvvvo")
     # arms: one pixel of bare skin down each side, into a small round glove.
     # Undrawn on the outside — an arm this thin, outlined, is mostly outline —
     # so the cape sits straight against the skin, and the only line beside it
@@ -96,6 +98,13 @@ def sprite():
     put(26, 16, "okkko")
     put(27, 10, "okkkko")
     put(27, 16, "okkkko")
+    # The two things that make a cape read from the front: it comes over the
+    # shoulders as one band with the strips down the sides, and it hangs
+    # behind, showing in the gap between the legs.
+    put(12, 9, "vvvvvvvvvvvvvv")
+    put(23, 15, "vv")
+    put(24, 15, "vv")
+    put(25, 15, "vv")
     # hood: a rounded crown, and the opening shows the face —
     # skin, two eyes, and the bone wrap over the mouth below them
     put(4, 13, "occcco")
