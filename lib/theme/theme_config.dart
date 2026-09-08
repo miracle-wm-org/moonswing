@@ -153,10 +153,11 @@ class ThemeConfig {
   /// Width, not alpha, is the off switch: at 0 no `Border` is built at all.
   ///
   /// The rim is drawn round the whole bar, its **inner** edge included — the edge
-  /// an attached popup meets. Any attached card ([popupGap] 0) therefore reaches
-  /// this far back into the panel so its own fill takes that hairline out across
-  /// the mouth; see `popupAttachCollar`. [popupAttachRadius] decides only how the
-  /// line resumes at either end.
+  /// an attached popup meets, and on a flush bar the only side of it anybody can
+  /// see. A bar popup is placed *below* that edge and can never paint over it,
+  /// so at [popupGap] 0 the **panel** leaves the line out across the mouth of
+  /// whatever menu is open and draws the rest of it itself; see `panel_rim.dart`.
+  /// [popupAttachRadius] decides only how the line resumes at either end.
   final double panelBorderWidth;
 
   /// A popup card's corner rounding.
@@ -192,10 +193,13 @@ class ThemeConfig {
   /// card whose decoration is a `ShapeDecoration`. It paints *outside* the card's
   /// box, so the surface is grown by `popupAttachInsets`.
   ///
-  /// It does *not* decide whether a bar may carry a rim: every attached card
-  /// reaches [panelBorderWidth] back into the panel (`popupAttachCollar`) and
-  /// takes the bar's inner hairline out with its own fill. A flare only decides
-  /// how the line resumes at either end.
+  /// What the flare does *not* decide is whether a bar may carry a rim: the
+  /// panel leaves [panelBorderWidth] out across the mouth of every attached
+  /// menu, flare or no flare (`panel_rim.dart`). What a flare adds is how the
+  /// line resumes at either end — its two arcs, tangent to the join at their
+  /// tips, picking the line up and carrying it down the card's sides, where a
+  /// square join meets them at a right angle instead. It does widen the break,
+  /// because the flare is how wide the join actually is.
   ///
   /// Read only at [popupGap] 0. The default of 0 is a square butt join.
   final double popupAttachRadius;
