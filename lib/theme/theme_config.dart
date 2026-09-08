@@ -12,6 +12,15 @@ import 'package:graceful_shell/theme/tokens.dart';
 /// failure path falls back to. Matches `lib/theme/builtin_themes.dart`.
 const String kDefaultThemeName = 'graceful';
 
+/// The shipped `popup_animation_duration`, in milliseconds.
+///
+/// [ShellDurations.popupIn] read as a number, so a theme spelling no duration
+/// plays exactly what every popup played before the key existed — the same
+/// guarantee `font_size` makes against [ShellFontSizes.body]. A const `int`
+/// rather than the token itself because `Duration.inMilliseconds` is a getter,
+/// and a field default has to be a constant expression.
+const int _kDefaultPopupDurationMs = 140;
+
 /// How a theme key parses and encodes.
 ///
 /// [color] goes through [ThemeConfig.formatColor] and its inverse; [number] is a
@@ -238,6 +247,29 @@ class ThemeConfig {
   /// frame it is closed.
   final PopupEffect popupEffect;
 
+  /// How long that animation lasts on the way in, in milliseconds.
+  ///
+  /// Pace is part of an entrance the same way its shape is: the same slide read
+  /// at 60ms and at 400ms is a different theme. Ignored entirely under
+  /// [PopupEffect.none], which builds no controller at all.
+  ///
+  /// The ceiling is well short of anything usable as a menu — a popup the user
+  /// has to wait out is a broken bar, and a theme file is hand-edited — while
+  /// the floor is 0, which is the animation played instantly rather than a
+  /// controller that never completes.
+  final int popupAnimationDuration;
+
+  /// [popupAnimationDuration] as the entrance [Duration] a controller takes.
+  Duration get popupInDuration =>
+      Duration(milliseconds: popupAnimationDuration);
+
+  /// The exit: the entrance reversed and shortened by
+  /// [ShellDurations.popupExitFraction], which is where that trade is
+  /// explained.
+  Duration get popupOutDuration => Duration(
+      milliseconds:
+          (popupAnimationDuration * ShellDurations.popupExitFraction).round());
+
   /// [popupShadowOffsetX] and [popupShadowOffsetY] as one offset.
   ///
   /// The two are separate fields because a [_ThemeKey] maps one TOML scalar to one
@@ -309,6 +341,7 @@ class ThemeConfig {
     this.popupShadowOffsetX = 0.0,
     this.popupShadowOffsetY = 6.0,
     this.popupEffect = PopupEffect.slide,
+    this.popupAnimationDuration = _kDefaultPopupDurationMs,
     this.scrim = const Color(0x882C2C2C),
     this.fontFamily = 'Ubuntu Sans',
     this.fontSize = ShellFontSizes.body,
@@ -378,6 +411,9 @@ class ThemeConfig {
         (t) => t.popupShadowOffsetY,
         min: -64.0, max: 64.0),
     _ThemeKey('popup_animation', _ThemeKeyKind.effect, (t) => t.popupEffect),
+    _ThemeKey('popup_animation_duration', _ThemeKeyKind.integer,
+        (t) => t.popupAnimationDuration,
+        min: 0.0, max: 2000.0),
     _ThemeKey('scrim', _ThemeKeyKind.color, (t) => t.scrim),
   ];
 
@@ -442,6 +478,7 @@ class ThemeConfig {
       popupShadowOffsetX: v('popup_shadow_offset_x'),
       popupShadowOffsetY: v('popup_shadow_offset_y'),
       popupEffect: v('popup_animation'),
+      popupAnimationDuration: v('popup_animation_duration'),
       scrim: v('scrim'),
     );
   }

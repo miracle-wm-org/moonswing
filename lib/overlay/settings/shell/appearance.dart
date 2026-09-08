@@ -411,29 +411,20 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     onSelected: (v) => _themes.edit('popup_animation', v.slug),
                   ),
                 ),
-                const SettingsHint(
-                  'Popup, menu, flyout and on-screen-indicator cards. A popup '
-                  'opened from the bar is anchored to the bar\'s inner edge and '
-                  'centred on the button that opened it. The gap is how far off '
-                  'that edge it sits, and a gap of zero attaches it: the card '
-                  'goes flush against the bar, the two corners touching it '
-                  'are squared off, and the rim and shadow on that edge are '
-                  'dropped, so the popup reads as growing out of the bar. The '
-                  'join flare sweeps those two corners outward *into* the bar — '
-                  'the inverse of a rounded corner, so the card is widest '
-                  'exactly where it meets the bar rather than pulling away from '
-                  'it. It is unread at any other gap. The rim is what gives a translucent card an edge '
-                  'over a busy wallpaper, and draws only at a width above zero. '
-                  'The shadow enlarges the popup\'s own window to make room for '
-                  'itself, and the popup is repositioned by the same amount so '
-                  'the card stays where it always sat; a fully transparent '
-                  'shadow colour turns it off. The animation is how the card '
-                  'arrives — and, played backwards, how it leaves, so the way '
-                  'out is always the way in reversed. Slide and Grow travel '
-                  'out of the bar the popup belongs to, so a bottom bar\'s '
-                  'menus rise where a top bar\'s drop; None is a real off '
-                  'switch, and is what the dock uses whatever this says, '
-                  'because its labels come and go under a moving pointer.',
+                SettingsRow.field(
+                  SettingsCatalog.popupAnimationDuration,
+                  control: SettingsNumberField(
+                    key: ValueKey('popup_animation_duration-$active'),
+                    value: current['popup_animation_duration'] as num? ?? 140,
+                    isInt: true,
+                    // The same ceiling `ThemeConfig` clamps the key to: past a
+                    // couple of seconds a menu is something the user waits out
+                    // rather than opens.
+                    onChanged: (v) => _themes.edit(
+                      'popup_animation_duration',
+                      v.toInt().clamp(0, 2000),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const SettingsHint(

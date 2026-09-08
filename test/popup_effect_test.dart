@@ -145,6 +145,20 @@ void main() {
       expect(closed, isTrue);
     });
 
+    testWidgets('the theme paces the animation', (tester) async {
+      // `popup_animation_duration`, the one number behind both directions: a
+      // theme that lengthens the entrance lengthens the exit with it.
+      const slow = ThemeConfig(popupAnimationDuration: 600);
+      await tester.pumpWidget(_host(effect: PopupEffect.fade, theme: slow));
+
+      // Still mid-fade well past the default 140ms entrance, which is what says
+      // the theme's number is the one being played.
+      await tester.pump(ShellDurations.popupIn * 2);
+      expect(_opacity(tester), lessThan(1.0));
+      await tester.pumpAndSettle();
+      expect(_opacity(tester), 1.0);
+    });
+
     testWidgets('a second dismissal mid-exit does not restart it',
         (tester) async {
       final closing = ValueNotifier<bool>(false);
