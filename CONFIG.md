@@ -262,10 +262,11 @@ The launcher lists the same applications any menu would: those `g_app_info_shoul
 ### Notifications
 
 A bell that shakes and shows a count when a notification arrives, and opens the
-notification panel on click — a full-height surface that slides in from the
-right edge over everything else on screen, listing what has arrived with each
-notification's actions and a **Clear all**. The shell is the desktop's
-notification daemon, so this is where notifications from every application land.
+notification panel on click — a full-height surface that sweeps in from the right
+edge over everything else on screen, and back out the same way when dismissed,
+listing what has arrived with each notification's actions and a **Clear all**.
+The shell is the desktop's notification daemon, so this is where notifications
+from every application land.
 
 No configurable settings.
 
