@@ -1,7 +1,19 @@
-# Graceful
+<p align="center">
+  <img src="assets/graceful-banner.svg" alt="A hooded character in the graceful outfit, standing between two windows under a shell panel" width="720">
+</p>
 
-A largely AI-coded, very unserious, just for funzies desktop
-environment for Linux, built entirely in Flutter.
+<h1 align="center">Graceful</h1>
+
+<p align="center">
+  A largely AI-coded, very unserious, just for funzies desktop<br>
+  environment for Linux, built entirely in Flutter.
+</p>
+
+<p align="center">
+  <a href="https://miracle-wm-org.github.io/graceful-shell/"><b>Website &amp; wiki</b></a> &middot;
+  <a href="https://miracle-wm-org.github.io/graceful-shell/start/install/">Install</a> &middot;
+  <a href="https://miracle-wm-org.github.io/graceful-shell/configuration/">Configuration</a>
+</p>
 
 The purpose of this project is to:
 
@@ -109,3 +121,22 @@ sudo make uninstall-pam   # if you installed the PAM service file
 ```sh
 flutter run
 ```
+
+## Documentation
+
+The full configuration reference is in [`CONFIG.md`](CONFIG.md), and the same content — plus
+install, build and wiki pages — is published at
+<https://miracle-wm-org.github.io/graceful-shell/>.
+
+The site lives in [`website/`](website/) and is built with
+[Astro](https://astro.build) and [Starlight](https://starlight.astro.build). To run it
+locally:
+
+```sh
+cd website
+npm install
+npm run dev          # http://localhost:4321/graceful-shell/
+```
+
+Its configuration pages are generated from `CONFIG.md` and its artwork from `assets/`, so
+neither is maintained twice. See [`website/README.md`](website/README.md).

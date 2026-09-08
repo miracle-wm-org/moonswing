@@ -1,0 +1,21 @@
+{
+  "name": "graceful-shell-website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Website and wiki for Graceful Shell",
+  "scripts": {
+    "sync": "node scripts/sync.mjs",
+    "dev": "npm run sync && astro dev",
+    "start": "npm run dev",
+    "build": "npm run sync && astro build",
+    "preview": "astro preview",
+    "check": "npm run sync && astro check",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.42.0",
+    "astro": "^7.3.1",
+    "sharp": "^0.35.4"
+  }
+}

@@ -29,3 +29,30 @@ Default desktop wallpaper.
 
 Installed to `$PREFIX/share/graceful-shell/wallpaper.jpg` by `make install` and
 referenced by the default `[background]` section of `config.toml`.
+
+## `graceful-mark.svg`, `graceful-banner.svg`
+
+The project mark (favicon, site logo) and the banner at the top of `README.md` and of the
+website: pixel art of a hooded character in the outfit, head-on, standing between two
+windows under a shell panel.
+
+- **Credit:** original work for this repository.
+- **License:** GPL-3.0, the same as the shell — these are part of it, not aggregated with it.
+- **Source:** `tool/graceful_sprite.py`, which writes both files from one 32×32 sprite, so the
+  favicon and the banner are literally the same character. **Edit the script, not the SVGs** —
+  a grid of `<rect>`s is not hand-editable. The banner draws that sprite at 10×, an integer
+  scale, so every pixel stays square.
+
+The palette is the *graceful outfit* from Old School RuneScape, the agility set this project
+takes its name from: bone cloth, charcoal gloves and boots, the jade sash and chest diamond,
+the red diamond, and the face looking out of the hood. Read off an equipped-outfit render
+and listed as `PALETTE` in that script; the cape is a shade darker than the reference, or it
+and the trailing leg merge into one pale mass at favicon sizes.
+
+**No RuneScape asset is used, or could be:** the wiki's images are Jagex's own game art,
+published under a non-commercial licence that neither a GPL-3.0 repository nor a public
+website can honour. Every pixel here is placed by hand.
+
+Neither file is installed by `make install`; they are repository and website artwork only.
+`website/scripts/sync.mjs` copies them into the site and rasterises the favicon fallback and
+the social card from them.
