@@ -30,16 +30,17 @@ Default desktop wallpaper.
 Installed to `$PREFIX/share/graceful-shell/wallpaper.jpg` by `make install` and
 referenced by the default `[background]` section of `config.toml`.
 
-## `graceful-mark.svg`, `graceful-agility.svg`
+## `graceful-mark.svg`, `graceful-banner.svg`
 
 The project mark (favicon, site logo) and the banner at the top of `README.md` and of the
-website: pixel art of a hooded character mid-vault, over two windows and a shell panel.
+website: pixel art of a hooded character in the outfit, head-on, standing between two
+windows under a shell panel.
 
 - **Credit:** original work for this repository.
 - **License:** GPL-3.0, the same as the shell — these are part of it, not aggregated with it.
 - **Source:** `tool/graceful_sprite.py`, which writes both files from one 32×32 sprite, so the
   favicon and the banner are literally the same character. **Edit the script, not the SVGs** —
-  a grid of `<rect>`s is not hand-editable. The banner draws that sprite at 8×, an integer
+  a grid of `<rect>`s is not hand-editable. The banner draws that sprite at 10×, an integer
   scale, so every pixel stays square.
 
 The palette is the *graceful outfit* from Old School RuneScape, the agility set this project

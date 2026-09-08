@@ -232,11 +232,11 @@ async function generateArtwork() {
   await mkdir(assetDir, { recursive: true });
 
   const mark = join(repo, 'assets/graceful-mark.svg');
-  const hero = join(repo, 'assets/graceful-agility.svg');
+  const hero = join(repo, 'assets/graceful-banner.svg');
 
   await copyFile(mark, join(publicDir, 'favicon.svg'));
   // The hero goes through Astro's asset pipeline, which only reaches src/.
-  await copyFile(hero, join(assetDir, 'graceful-agility.svg'));
+  await copyFile(hero, join(assetDir, 'graceful-banner.svg'));
 
   // A raster fallback for browsers with no SVG favicon support, and a social
   // card, which no platform will render from SVG. Both are pixel art, so both

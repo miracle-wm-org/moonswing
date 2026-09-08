@@ -37,7 +37,7 @@ two places:
 |---|---|
 | `src/content/docs/configuration/*.md` | `../CONFIG.md`, split into pages |
 | `public/favicon.svg`, `public/favicon.png` | `../assets/graceful-mark.svg` |
-| `src/assets/graceful-agility.svg`, `public/og.png` | `../assets/graceful-agility.svg` |
+| `src/assets/graceful-banner.svg`, `public/og.png` | `../assets/graceful-banner.svg` |
 
 All of it is gitignored. **Do not edit those files** — edit `CONFIG.md` or the SVGs in
 `assets/` at the root of the repository, and re-run `npm run sync`.

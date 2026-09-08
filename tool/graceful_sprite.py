@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Draws the project's artwork: assets/graceful-mark.svg and graceful-agility.svg.
+"""Draws the project's artwork: assets/graceful-mark.svg and graceful-banner.svg.
 
-Both are pixel art of one 32x32 sprite — a character mid-vault in the graceful
-outfit — so the favicon and the banner are literally the same character. The
+Both are pixel art of one 32x32 sprite — a character in the graceful outfit,
+head-on — so the favicon and the banner are literally the same character. The
 sprite is authored here rather than in the SVGs, because a grid of <rect>s is
 not something anyone can edit by hand; change `sprite()` or `PALETTE` and
 re-run:
@@ -42,55 +42,63 @@ def sprite():
             if ch != ' ':
                 g[r + dy][c + i] = ch
 
-    # cape, trailing back from the shoulders
-    put(12, 10, "oovvv")
-    put(13, 8, "oovvvvvv")
-    put(14, 6, "oovvvvvvv")
-    put(15, 5, "ovvvvvvv")
-    put(16, 4, "ovvvvvvv")
-    put(17, 4, "ovvvvvv")
-    put(18, 5, "ovvvvv")
-    put(19, 6, "ovvv")
-    # back arm: a bone pauldron, bare skin, a charcoal glove
-    put(13, 11, "osssco")
-    put(14, 8, "ossso")
-    put(15, 7, "okko")
-    # back leg, driving off
-    put(19, 11, "occcco")
-    put(20, 9, "occcco")
-    put(21, 7, "occcco")
-    put(22, 6, "occco")
-    put(23, 4, "okkko")
-    put(24, 4, "okkko")
+    # cape, hanging behind the shoulders and flaring below the gloves
+    put(13, 9, "ovvvvvvvvvvvvo")
+    put(14, 9, "ovvvvvvvvvvvvo")
+    put(15, 9, "ovvvvvvvvvvvvo")
+    put(16, 9, "ovvvvvvvvvvvvo")
+    put(17, 8, "ovvvvvvvvvvvvvvo")
+    put(18, 8, "ovvvvvvvvvvvvvvo")
+    put(19, 8, "ovvvvvvvvvvvvvvo")
+    put(20, 7, "ovvvvvvvvvvvvvvvvo")
+    put(21, 7, "ovvvvvvvvvvvvvvvvo")
+    put(22, 7, "ovvvvvvvvvvvvvvvvo")
+    put(23, 8, "ovvvvvvvvvvvvvvo")
+    put(24, 9, "ovvvvvvvvvvvvo")
+    # arms: bone pauldrons over bare skin, into charcoal gloves
+    put(14, 7, "osso")
+    put(15, 7, "osso")
+    put(16, 7, "osso")
+    put(17, 7, "okko")
+    put(18, 7, "okko")
+    put(14, 21, "osso")
+    put(15, 21, "osso")
+    put(16, 21, "osso")
+    put(17, 21, "okko")
+    put(18, 21, "okko")
     # torso: the charcoal markings, the jade and red diamonds, the jade sash
-    put(12, 12, "oovccccco")
-    put(13, 13, "ovckkcco")
-    put(14, 13, "ovcgccwo")
-    put(15, 13, "ovccrcwo")
-    put(16, 14, "ovcccwo")
-    put(17, 14, "oggggwo")
-    put(18, 13, "ovcrccco")
-    # hood: a long back, the charcoal eye band across the front
-    put(4, 15, "ooooo")
-    put(5, 12, "ooowcccco")
-    put(6, 10, "oovwccccco")
-    put(7, 10, "ovvwcckkko")
-    put(8, 11, "ovvcckkkko")
-    put(9, 13, "ovccccco")
-    put(10, 15, "occcco")
-    put(11, 14, "oovoccco")
-    # front arm, reaching
-    put(11, 21, "ooooo")
-    put(12, 20, "ocssso")
-    put(13, 23, "okko")
-    # front leg: the red panel runs down it, into a charcoal boot
-    put(19, 17, "occccco")
-    put(20, 19, "ocrcco")
-    put(21, 20, "ocrco")
-    put(22, 20, "occco")
-    put(23, 21, "occco")
-    put(24, 21, "okko")
-    put(25, 21, "okkkko")
+    put(12, 9, "occcccccccccco")
+    put(13, 10, "occccccccccо".replace("о", "o"))
+    put(14, 11, "occcggccco")
+    put(15, 11, "ockcccckco")
+    put(16, 11, "occcrrccco")
+    put(17, 11, "ockcccckco")
+    put(18, 11, "oggggggggo")
+    put(19, 11, "occcccccco")
+    # the tabard, with the red panel down its centre
+    put(20, 11, "occcrrccco")
+    put(21, 11, "occcrrccco")
+    put(22, 11, "occcrrccco")
+    # legs, into charcoal boots
+    put(23, 11, "occco")
+    put(24, 11, "occco")
+    put(25, 11, "occco")
+    put(26, 11, "okkko")
+    put(23, 16, "occco")
+    put(24, 16, "occco")
+    put(25, 16, "occco")
+    put(26, 16, "okkko")
+    put(27, 10, "okkkko")
+    put(27, 16, "okkkko")
+    # hood: the peak, and the charcoal band across the eyes
+    put(4, 14, "occco")
+    put(5, 13, "occccco")
+    put(6, 12, "occcccco")
+    put(7, 12, "occcccco")
+    put(8, 12, "ockkkkco")
+    put(9, 12, "occcccco")
+    put(10, 12, "occcccco")
+    put(11, 13, "occcco")
     return [''.join(row) for row in g]
 
 
@@ -135,7 +143,7 @@ def banner(rows):
     """The sprite at 6x, vaulting the gap between two windows under a panel."""
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420"
      shape-rendering="auto" role="img"
-     aria-label="A hooded runner in the graceful outfit vaulting between two desktop windows, under a shell panel">
+     aria-label="A hooded character in the graceful outfit, standing between two desktop windows under a shell panel">
 {legend(rows)}
   <defs>
     <linearGradient id="ga-sky" x1="0" y1="0" x2="1" y2="1">
@@ -176,41 +184,43 @@ def banner(rows):
   </g>
   <rect x="0" y="26" width="960" height="1" fill="#4fa79b" fill-opacity=".22"/>
 
-  <!-- the obstacles: two windows with a gap between them -->
+  <!-- two windows, flanking, sharing the character's baseline -->
   <g>
-    <rect x="70" y="248" width="290" height="140" rx="14" fill="url(#ga-win)"
+    <rect x="40" y="200" width="280" height="180" rx="14" fill="url(#ga-win)"
           stroke="#4fa79b" stroke-opacity=".28" stroke-width="1.5"/>
-    <rect x="70" y="248" width="290" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
-    <rect x="70" y="264" width="290" height="14" fill="#4fa79b" fill-opacity=".12"/>
+    <rect x="40" y="200" width="280" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
+    <rect x="40" y="216" width="280" height="14" fill="#4fa79b" fill-opacity=".12"/>
     <g fill="#7fc7bd" fill-opacity=".5">
-      <circle cx="92" cy="263" r="4"/><circle cx="108" cy="263" r="4"/><circle cx="124" cy="263" r="4"/>
+      <circle cx="62" cy="215" r="4"/><circle cx="78" cy="215" r="4"/><circle cx="94" cy="215" r="4"/>
     </g>
     <g fill="#dfe6e4" fill-opacity=".13">
-      <rect x="94" y="304" width="180" height="9" rx="4.5"/>
-      <rect x="94" y="326" width="230" height="9" rx="4.5"/>
-      <rect x="94" y="348" width="140" height="9" rx="4.5"/>
+      <rect x="64" y="256" width="180" height="9" rx="4.5"/>
+      <rect x="64" y="278" width="222" height="9" rx="4.5"/>
+      <rect x="64" y="300" width="140" height="9" rx="4.5"/>
+      <rect x="64" y="322" width="196" height="9" rx="4.5"/>
     </g>
   </g>
   <g>
-    <rect x="600" y="292" width="290" height="106" rx="14" fill="url(#ga-win)"
+    <rect x="640" y="236" width="280" height="144" rx="14" fill="url(#ga-win)"
           stroke="#4fa79b" stroke-opacity=".28" stroke-width="1.5"/>
-    <rect x="600" y="292" width="290" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
-    <rect x="600" y="308" width="290" height="14" fill="#4fa79b" fill-opacity=".12"/>
+    <rect x="640" y="236" width="280" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
+    <rect x="640" y="252" width="280" height="14" fill="#4fa79b" fill-opacity=".12"/>
     <g fill="#7fc7bd" fill-opacity=".5">
-      <circle cx="622" cy="307" r="4"/><circle cx="638" cy="307" r="4"/><circle cx="654" cy="307" r="4"/>
+      <circle cx="662" cy="251" r="4"/><circle cx="678" cy="251" r="4"/><circle cx="694" cy="251" r="4"/>
     </g>
     <g fill="#dfe6e4" fill-opacity=".13">
-      <rect x="624" y="348" width="200" height="9" rx="4.5"/>
-      <rect x="624" y="370" width="150" height="9" rx="4.5"/>
+      <rect x="664" y="292" width="200" height="9" rx="4.5"/>
+      <rect x="664" y="314" width="150" height="9" rx="4.5"/>
+      <rect x="664" y="336" width="184" height="9" rx="4.5"/>
     </g>
   </g>
 
-  <!-- the leap -->
-  <path d="M352 250 C430 20 570 20 640 286" fill="none" stroke="#ece8d8" stroke-opacity=".32"
-        stroke-width="4" stroke-linecap="round" stroke-dasharray="2 14"/>
+  <!-- the ground the three of them stand on -->
+  <ellipse cx="480" cy="380" rx="180" ry="16" fill="#4fa79b" fill-opacity=".13"/>
+  <rect x="0" y="380" width="960" height="1" fill="#4fa79b" fill-opacity=".16"/>
 
-  <!-- the sprite, at 8x so every pixel stays square -->
-  <g transform="translate(356 60) scale(8)" shape-rendering="crispEdges">
+  <!-- the sprite, at 10x so every pixel stays square -->
+  <g transform="translate(320 100) scale(10)" shape-rendering="crispEdges">
 {rects(rows, '    ')}
   </g>
 </svg>
@@ -221,7 +231,7 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     rows = sprite()
     for name, svg in (('graceful-mark.svg', mark(rows)),
-                      ('graceful-agility.svg', banner(rows))):
+                      ('graceful-banner.svg', banner(rows))):
         path = os.path.join(root, 'assets', name)
         with open(path, 'w') as f:
             f.write(svg)
