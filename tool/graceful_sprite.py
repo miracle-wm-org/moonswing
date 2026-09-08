@@ -18,14 +18,18 @@ import os
 N = 32  # the sprite grid is 32x32
 
 PALETTE = {
-    'o': '#2b0a18',  # outline, near-black maroon
-    'd': '#7a2049',  # cloth in shadow: cape, gloves, boots
-    'm': '#b53370',  # cloth, the graceful pink
-    'l': '#e072a4',  # cloth highlight
-    't': '#f2b9d2',  # pale trim: the hood rim and the top's hem
-    's': '#c98f63',  # skin
+    'o': '#22221f',  # outline
+    'k': '#3f3f3d',  # charcoal: the eye band, the chest markings, gloves, boots
+    'v': '#8e8a74',  # bone cloth in shadow: the cape, the back of the hood
+                     # (darker than the reference, or the cape and the back
+                     # leg merge into one pale mass at favicon sizes)
+    'c': '#d8d3bd',  # bone cloth, the body of the outfit
+    'w': '#ece8d8',  # bone cloth highlight
+    'g': '#4fa79b',  # jade: the chest diamond and the waist sash
+    'r': '#b03a2b',  # the red diamond, and the panel down the leg
+    's': '#c18f66',  # skin, the only part of the wearer left uncovered
 }
-DISC = '#331228'  # the badge behind the sprite; light enough that 'o' reads on it
+DISC = '#23262b'  # slate, dark enough for the bone cloth to carry the silhouette
 
 
 def sprite():
@@ -39,54 +43,54 @@ def sprite():
                 g[r + dy][c + i] = ch
 
     # cape, trailing back from the shoulders
-    put(12, 10, "ooddd")
-    put(13, 8, "oodddddd")
-    put(14, 6, "ooddddddd")
-    put(15, 5, "oddddddd")
-    put(16, 4, "oddddddd")
-    put(17, 4, "odddddd")
-    put(18, 5, "oddddd")
-    put(19, 6, "oddd")
-    # back arm, gloved
-    put(13, 10, "ommmmo")
-    put(14, 8, "ommmmo")
-    put(15, 7, "oddo")
+    put(12, 10, "oovvv")
+    put(13, 8, "oovvvvvv")
+    put(14, 6, "oovvvvvvv")
+    put(15, 5, "ovvvvvvv")
+    put(16, 4, "ovvvvvvv")
+    put(17, 4, "ovvvvvv")
+    put(18, 5, "ovvvvv")
+    put(19, 6, "ovvv")
+    # back arm: a bone pauldron, bare skin, a charcoal glove
+    put(13, 11, "osssco")
+    put(14, 8, "ossso")
+    put(15, 7, "okko")
     # back leg, driving off
-    put(19, 11, "ommmmo")
-    put(20, 9, "ommmmo")
-    put(21, 7, "ommmmo")
-    put(22, 6, "ommmo")
-    put(23, 4, "odddo")
-    put(24, 4, "odddo")
-    # torso, with the top's hem at the waist
-    put(12, 12, "oddmmmmmo")
-    put(13, 13, "odmmmmmo")
-    put(14, 13, "odmmmmlo")
-    put(15, 13, "odmmmmlo")
-    put(16, 14, "odmmmlo")
-    put(17, 14, "ottttlo")
-    put(18, 13, "odmmmmmo")
-    # hood and head
+    put(19, 11, "occcco")
+    put(20, 9, "occcco")
+    put(21, 7, "occcco")
+    put(22, 6, "occco")
+    put(23, 4, "okkko")
+    put(24, 4, "okkko")
+    # torso: the charcoal markings, the jade and red diamonds, the jade sash
+    put(12, 12, "oovccccco")
+    put(13, 13, "ovckkcco")
+    put(14, 13, "ovcgccwo")
+    put(15, 13, "ovccrcwo")
+    put(16, 14, "ovcccwo")
+    put(17, 14, "oggggwo")
+    put(18, 13, "ovcrccco")
+    # hood: a long back, the charcoal eye band across the front
     put(4, 15, "ooooo")
-    put(5, 12, "ooolmmmmo")
-    put(6, 10, "ooddlmmmmo")
-    put(7, 10, "odddlmmmtsso")
-    put(8, 11, "oddmmmmtssso")
-    put(9, 13, "odmmmmtsso")
-    put(10, 15, "ommmtso")
-    put(11, 14, "oodommmo")
+    put(5, 12, "ooowcccco")
+    put(6, 10, "oovwccccco")
+    put(7, 10, "ovvwcckkko")
+    put(8, 11, "ovvcckkkko")
+    put(9, 13, "ovccccco")
+    put(10, 15, "occcco")
+    put(11, 14, "oovoccco")
     # front arm, reaching
     put(11, 21, "ooooo")
-    put(12, 20, "ommmmmo")
-    put(13, 23, "odddo")
-    # front leg, reaching for the landing
-    put(19, 17, "ommmmmo")
-    put(20, 19, "ommmmo")
-    put(21, 20, "ommmo")
-    put(22, 20, "ommmo")
-    put(23, 21, "ommmo")
-    put(24, 21, "oddo")
-    put(25, 21, "odddddo")
+    put(12, 20, "ocssso")
+    put(13, 23, "okko")
+    # front leg: the red panel runs down it, into a charcoal boot
+    put(19, 17, "occccco")
+    put(20, 19, "ocrcco")
+    put(21, 20, "ocrco")
+    put(22, 20, "occco")
+    put(23, 21, "occco")
+    put(24, 21, "okko")
+    put(25, 21, "okkkko")
     return [''.join(row) for row in g]
 
 
@@ -135,17 +139,17 @@ def banner(rows):
 {legend(rows)}
   <defs>
     <linearGradient id="ga-sky" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2a0e1d"/>
-      <stop offset="55%" stop-color="#1a0812"/>
-      <stop offset="1" stop-color="#100510"/>
+      <stop offset="0" stop-color="#232831"/>
+      <stop offset="55%" stop-color="#1a1e25"/>
+      <stop offset="1" stop-color="#121519"/>
     </linearGradient>
     <linearGradient id="ga-win" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3b1729" stop-opacity=".95"/>
-      <stop offset="1" stop-color="#240c1a" stop-opacity=".95"/>
+      <stop offset="0" stop-color="#2c333c" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#1b2027" stop-opacity=".95"/>
     </linearGradient>
     <radialGradient id="ga-glow" cx="50%" cy="45%" r="55%">
-      <stop offset="0" stop-color="#ff6fa8" stop-opacity=".22"/>
-      <stop offset="1" stop-color="#ff6fa8" stop-opacity="0"/>
+      <stop offset="0" stop-color="#4fa79b" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#4fa79b" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
@@ -153,15 +157,15 @@ def banner(rows):
   <rect width="960" height="420" fill="url(#ga-glow)"/>
 
   <!-- faint starfield -->
-  <g fill="#ffd9e8" fill-opacity=".18">
+  <g fill="#dfe6e4" fill-opacity=".18">
     <circle cx="96" cy="72" r="1.6"/><circle cx="212" cy="46" r="1.1"/><circle cx="330" cy="96" r="1.4"/>
     <circle cx="628" cy="58" r="1.2"/><circle cx="742" cy="104" r="1.7"/><circle cx="884" cy="64" r="1.3"/>
     <circle cx="452" cy="40" r="1"/><circle cx="806" cy="176" r="1.2"/><circle cx="150" cy="168" r="1.1"/>
   </g>
 
   <!-- the shell's own panel, across the top -->
-  <rect x="0" y="0" width="960" height="26" fill="#1c0812" fill-opacity=".92"/>
-  <g fill="#e9639a" fill-opacity=".55">
+  <rect x="0" y="0" width="960" height="26" fill="#171b21" fill-opacity=".92"/>
+  <g fill="#4fa79b" fill-opacity=".55">
     <rect x="24" y="10" width="26" height="6" rx="3"/>
     <rect x="58" y="10" width="12" height="6" rx="3" fill-opacity=".3"/>
     <rect x="78" y="10" width="12" height="6" rx="3" fill-opacity=".3"/>
@@ -170,18 +174,18 @@ def banner(rows):
     <rect x="832" y="10" width="18" height="6" rx="3"/>
     <rect x="858" y="10" width="42" height="6" rx="3"/>
   </g>
-  <rect x="0" y="26" width="960" height="1" fill="#e9639a" fill-opacity=".22"/>
+  <rect x="0" y="26" width="960" height="1" fill="#4fa79b" fill-opacity=".22"/>
 
   <!-- the obstacles: two windows with a gap between them -->
   <g>
     <rect x="70" y="248" width="290" height="140" rx="14" fill="url(#ga-win)"
-          stroke="#e9639a" stroke-opacity=".28" stroke-width="1.5"/>
-    <rect x="70" y="248" width="290" height="30" rx="14" fill="#e9639a" fill-opacity=".12"/>
-    <rect x="70" y="264" width="290" height="14" fill="#e9639a" fill-opacity=".12"/>
-    <g fill="#ff9ec6" fill-opacity=".5">
+          stroke="#4fa79b" stroke-opacity=".28" stroke-width="1.5"/>
+    <rect x="70" y="248" width="290" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
+    <rect x="70" y="264" width="290" height="14" fill="#4fa79b" fill-opacity=".12"/>
+    <g fill="#7fc7bd" fill-opacity=".5">
       <circle cx="92" cy="263" r="4"/><circle cx="108" cy="263" r="4"/><circle cx="124" cy="263" r="4"/>
     </g>
-    <g fill="#ffd9e8" fill-opacity=".13">
+    <g fill="#dfe6e4" fill-opacity=".13">
       <rect x="94" y="304" width="180" height="9" rx="4.5"/>
       <rect x="94" y="326" width="230" height="9" rx="4.5"/>
       <rect x="94" y="348" width="140" height="9" rx="4.5"/>
@@ -189,20 +193,20 @@ def banner(rows):
   </g>
   <g>
     <rect x="600" y="292" width="290" height="106" rx="14" fill="url(#ga-win)"
-          stroke="#e9639a" stroke-opacity=".28" stroke-width="1.5"/>
-    <rect x="600" y="292" width="290" height="30" rx="14" fill="#e9639a" fill-opacity=".12"/>
-    <rect x="600" y="308" width="290" height="14" fill="#e9639a" fill-opacity=".12"/>
-    <g fill="#ff9ec6" fill-opacity=".5">
+          stroke="#4fa79b" stroke-opacity=".28" stroke-width="1.5"/>
+    <rect x="600" y="292" width="290" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
+    <rect x="600" y="308" width="290" height="14" fill="#4fa79b" fill-opacity=".12"/>
+    <g fill="#7fc7bd" fill-opacity=".5">
       <circle cx="622" cy="307" r="4"/><circle cx="638" cy="307" r="4"/><circle cx="654" cy="307" r="4"/>
     </g>
-    <g fill="#ffd9e8" fill-opacity=".13">
+    <g fill="#dfe6e4" fill-opacity=".13">
       <rect x="624" y="348" width="200" height="9" rx="4.5"/>
       <rect x="624" y="370" width="150" height="9" rx="4.5"/>
     </g>
   </g>
 
   <!-- the leap -->
-  <path d="M352 250 C430 20 570 20 640 286" fill="none" stroke="#ff9ec6" stroke-opacity=".3"
+  <path d="M352 250 C430 20 570 20 640 286" fill="none" stroke="#ece8d8" stroke-opacity=".32"
         stroke-width="4" stroke-linecap="round" stroke-dasharray="2 14"/>
 
   <!-- the sprite, at 8x so every pixel stays square -->

@@ -42,8 +42,12 @@ website: pixel art of a hooded character mid-vault, over two windows and a shell
   a grid of `<rect>`s is not hand-editable. The banner draws that sprite at 8×, an integer
   scale, so every pixel stays square.
 
-The palette is the default (pink) *graceful outfit* from Old School RuneScape, the agility set
-this project takes its name from — matched by eye, and listed as `PALETTE` in that script.
+The palette is the *graceful outfit* from Old School RuneScape, the agility set this project
+takes its name from: bone cloth, charcoal gloves and boots, the jade sash and chest diamond,
+the red diamond, and the charcoal band across the eyes. Read off an equipped-outfit render
+and listed as `PALETTE` in that script; the cape is a shade darker than the reference, or it
+and the trailing leg merge into one pale mass at favicon sizes.
+
 **No RuneScape asset is used, or could be:** the wiki's images are Jagex's own game art,
 published under a non-commercial licence that neither a GPL-3.0 repository nor a public
 website can honour. Every pixel here is placed by hand.

@@ -37,7 +37,7 @@ export default defineConfig({
         // `npm run sync`.
         { tag: 'meta', attrs: { property: 'og:image', content: `${site}${base}/og.png` } },
         { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
-        { tag: 'meta', attrs: { name: 'theme-color', content: '#1b0711' } },
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#1a1e25' } },
       ],
       social: [{ icon: 'github', label: 'GitHub', href: repo }],
       editLink: { baseUrl: `${repo}/edit/main/website/` },
