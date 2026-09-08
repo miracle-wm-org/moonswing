@@ -1,3 +1,4 @@
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -113,8 +114,17 @@ void main() {
     });
   });
 
-  group('NotificationPanel exit geometry', () {
-    testWidgets('never pulls away from the edge it is anchored to',
+  group('NotificationPanel animation geometry', () {
+    // The one FadeTransition in the panel is the animation's own, and its box
+    // is the whole surface — so its global rect is the panel as painted,
+    // ancestor transforms included.
+    Finder panelSurface() {
+      final panel = find.byType(FadeTransition);
+      expect(panel, findsOneWidget);
+      return panel;
+    }
+
+    testWidgets('the exit never pulls away from the edge it is anchored to',
         (tester) async {
       final closing = ValueNotifier(false);
       addTearDown(closing.dispose);
@@ -122,12 +132,7 @@ void main() {
       await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
       await tester.pumpAndSettle();
 
-      // The one FadeTransition in an idle panel is the exit's own, and its
-      // box is the whole surface — so its global rect is the panel as
-      // painted, ancestor transforms included.
-      final panel = find.byType(FadeTransition);
-      expect(panel, findsOneWidget);
-
+      final panel = panelSurface();
       final surfaceRight = tester.getRect(panel).right;
 
       closing.value = true;
@@ -137,14 +142,100 @@ void main() {
           elapsed += const Duration(milliseconds: 8)) {
         // Every part of the exit either scales towards the right edge or moves
         // the panel further off it. Anything that moved it left would open a
-        // transparent strip along the screen edge — the reason the entrance
-        // refuses a centre-pivoted scale.
+        // transparent strip along the screen edge.
         expect(
           tester.getRect(panel).right,
           greaterThanOrEqualTo(surfaceRight - 0.01),
           reason: 'panel detached from the screen edge at $elapsed',
         );
         await tester.pump(const Duration(milliseconds: 8));
+      }
+    });
+
+    testWidgets('the entrance never pulls away from it either', (tester) async {
+      final closing = ValueNotifier(false);
+      addTearDown(closing.dispose);
+
+      await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
+      final panel = panelSurface();
+      await tester.pump();
+
+      // The entrance is the exit backwards, so it inherits the exit's one
+      // rule: a centre-pivoted scale or a dip to the left here would open a
+      // gap along the screen edge that closes as the panel settles.
+      final seen = <Duration, double>{};
+      for (var elapsed = Duration.zero;
+          elapsed < kNotificationPanelEnter + const Duration(milliseconds: 32);
+          elapsed += const Duration(milliseconds: 8)) {
+        seen[elapsed] = tester.getRect(panel).right;
+        await tester.pump(const Duration(milliseconds: 8));
+      }
+
+      await tester.pumpAndSettle();
+      final surfaceRight = tester.getRect(panel).right;
+      seen.forEach((elapsed, right) {
+        expect(
+          right,
+          greaterThanOrEqualTo(surfaceRight - 0.01),
+          reason: 'panel detached from the screen edge at $elapsed',
+        );
+      });
+
+      // The entrance plays once: nothing about it is still ticking at rest.
+      expect(SchedulerBinding.instance.transientCallbackCount, 0);
+    });
+
+    testWidgets('the entrance is the exit played backwards', (tester) async {
+      // A quarter, half and three quarters of the way in, the panel is where
+      // the exit has it at the mirrored point of its own — shorter — run. One
+      // animation played both ways is what makes this hold; two that merely
+      // resembled each other would drift.
+      const progress = <double>[0.25, 0.5, 0.75];
+
+      // Keyed apart, or the second `pumpWidget` would update the first panel's
+      // State in place and leave it listening to a disposed notifier.
+      Future<Map<double, Rect>> run(String phase, bool leaving) async {
+        final closing = ValueNotifier(false);
+        addTearDown(closing.dispose);
+        await tester.pumpWidget(KeyedSubtree(
+          key: ValueKey(phase),
+          child: _panel(closing: closing, onClosed: () {}),
+        ));
+        final panel = panelSurface();
+
+        if (leaving) {
+          await tester.pumpAndSettle();
+          closing.value = true;
+        }
+        // The frame the ticker starts on: it elapses nothing, so the pumps
+        // below are measured from here.
+        await tester.pump();
+
+        final rects = <double, Rect>{};
+        var elapsed = Duration.zero;
+        // A quarter of the way in is three quarters of the way out, so the
+        // leaving half walks the same points in the opposite order.
+        for (final p in leaving ? progress.reversed : progress) {
+          final at = leaving
+              ? kNotificationPanelExit * (1 - p)
+              : kNotificationPanelEnter * p;
+          await tester.pump(at - elapsed);
+          elapsed = at;
+          rects[p] = tester.getRect(panel);
+        }
+        await tester.pumpAndSettle();
+        return rects;
+      }
+
+      final arriving = await run('entering', false);
+      final departing = await run('leaving', true);
+
+      for (final p in progress) {
+        expect(
+          arriving[p]!,
+          _rectCloseTo(departing[p]!),
+          reason: 'the panel is elsewhere at $p of the way in',
+        );
       }
     });
   });
@@ -217,4 +308,26 @@ void main() {
       expect(find.text('Clear all'), findsNothing);
     });
   });
+}
+
+/// The two halves are the same animation, not the same arithmetic: a rect a
+/// hundredth of a pixel out is the same frame.
+Matcher _rectCloseTo(Rect expected) => _RectCloseTo(expected);
+
+class _RectCloseTo extends Matcher {
+  const _RectCloseTo(this.expected);
+
+  final Rect expected;
+
+  @override
+  bool matches(Object? item, Map<dynamic, dynamic> matchState) =>
+      item is Rect &&
+      (item.left - expected.left).abs() < 0.01 &&
+      (item.top - expected.top).abs() < 0.01 &&
+      (item.right - expected.right).abs() < 0.01 &&
+      (item.bottom - expected.bottom).abs() < 0.01;
+
+  @override
+  Description describe(Description description) =>
+      description.add('within 0.01 of $expected');
 }
