@@ -27,11 +27,11 @@ export default defineConfig({
         // link tag and covers what is left.
         {
           tag: 'link',
-          attrs: { rel: 'icon', href: `${base}/favicon.png`, type: 'image/png', sizes: '180x180' },
+          attrs: { rel: 'icon', href: `${base}/favicon.png`, type: 'image/png', sizes: '192x192' },
         },
         {
           tag: 'link',
-          attrs: { rel: 'apple-touch-icon', href: `${base}/favicon.png`, sizes: '180x180' },
+          attrs: { rel: 'apple-touch-icon', href: `${base}/favicon.png`, sizes: '192x192' },
         },
         // No platform renders an SVG social card, so this one is rasterised by
         // `npm run sync`.

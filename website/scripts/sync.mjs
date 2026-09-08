@@ -239,10 +239,16 @@ async function generateArtwork() {
   await copyFile(hero, join(assetDir, 'graceful-agility.svg'));
 
   // A raster fallback for browsers with no SVG favicon support, and a social
-  // card, which no platform will render from SVG.
-  await sharp(mark, { density: 600 }).resize(180, 180).png().toFile(join(publicDir, 'favicon.png'));
+  // card, which no platform will render from SVG. Both are pixel art, so both
+  // are integer multiples of the source — 192 is 6x the 32px sprite, 1920x840
+  // is 2x the banner — and both resample nearest-neighbour. Anything else
+  // resamples the sprite into mush.
+  await sharp(mark, { density: 1200 })
+    .resize(192, 192, { kernel: 'nearest' })
+    .png()
+    .toFile(join(publicDir, 'favicon.png'));
   await sharp(hero, { density: 300 })
-    .resize(1200, 630, { fit: 'cover', position: 'centre' })
+    .resize(1920, 840, { kernel: 'nearest' })
     .png()
     .toFile(join(publicDir, 'og.png'));
 }
