@@ -53,6 +53,13 @@ class _DockApp {
 /// width, which holds because they all render at `icon_size`.
 const double kDockSpacing = 4;
 
+/// The offset handed to every dock button that is *not* being dragged.
+///
+/// Shared, and it never notifies. A slot listens for its translation whether or
+/// not a drag is in flight, because a slot whose shape changed when the drag
+/// began would take the drag down with it — see [DockState._buildButton].
+final ValueListenable<double> kNoDragOffset = ValueNotifier<double>(0);
+
 /// Which slot a button whose left edge sits at [left] should drop into, given
 /// [count] slots each [step] apart. Slot `i` starts at `i * step`.
 int dockDropIndex(double left, double step, int count) {
@@ -133,6 +140,14 @@ class DockState extends State<Dock> {
   /// Current pointer x in the apps row's local space.
   double _pointerX = 0;
 
+  /// The dragged button's offset from its slot, in logical pixels, published on
+  /// its own notifier rather than through `setState`. A pointer move only ever
+  /// moves one button, and a panel has no repaint boundary of its own, so
+  /// rebuilding the row per move would re-resolve every icon and re-record the
+  /// whole bar. Reordering still goes through `setState`, but that happens once
+  /// per slot crossing rather than once per pointer event.
+  final ValueNotifier<double> _dragOffsetX = ValueNotifier<double>(0);
+
   bool get _dragging => _dragIndex != null;
 
   @override
@@ -171,12 +186,19 @@ class DockState extends State<Dock> {
     final previous = _apps;
     setState(() {
       _apps = apps;
+      // Any gesture in flight indexes into the list being replaced, and the
+      // buttons it was tracking are about to be torn down, so no end or cancel
+      // is coming. Drop it here or the dock is left in a drag that can never be
+      // released — which would go on eating clicks (see [_onDragEnd]).
+      _dragIndex = null;
+      _pressGlobalX = null;
     });
     disposeAppEntries(previous.map((a) => a.entry));
   }
 
   @override
   void dispose() {
+    _dragOffsetX.dispose();
     disposeAppEntries(_apps.map((a) => a.entry));
     super.dispose();
   }
@@ -196,9 +218,15 @@ class DockState extends State<Dock> {
     _pressGlobalX = globalX;
   }
 
-  /// Returns the dragged button's offset from its slot, in logical pixels.
-  double _dragOffset(int index) =>
-      (_pointerX - _grabDx) - index * _slotStep;
+  /// Republishes [_dragOffsetX]. Called for every pointer move, and again after
+  /// a reorder — the slot the offset is measured against has moved under the
+  /// button, so the two changes have to land together or the icon would jump a
+  /// whole slot at each crossing.
+  void _publishDragOffset() {
+    final index = _dragIndex;
+    _dragOffsetX.value =
+        index == null ? 0 : (_pointerX - _grabDx) - index * _slotStep;
+  }
 
   void _onDragUpdate(_DockApp app, double globalX) {
     if (_apps.length < 2) return;
@@ -220,24 +248,24 @@ class DockState extends State<Dock> {
       final itemWidth = (box.size.width - kDockSpacing * (n - 1)) / n;
       _slotStep = itemWidth + kDockSpacing;
       _grabDx = local - index * _slotStep;
-      setState(() {
-        _pointerX = local;
-        _dragIndex = index;
-      });
+      _pointerX = local;
+      setState(() => _dragIndex = index);
+      _publishDragOffset();
       return;
     }
 
     final local = _localX(globalX);
     if (local == null) return;
+    _pointerX = local;
     final from = _dragIndex!;
     final to = dockDropIndex(local - _grabDx, _slotStep, _apps.length);
-    setState(() {
-      _pointerX = local;
-      if (to != from) {
+    if (to != from) {
+      setState(() {
         _apps = moveDockItem(_apps, from, to);
         _dragIndex = to;
-      }
-    });
+      });
+    }
+    _publishDragOffset();
   }
 
   /// Ends the gesture. Returns true when it was a drag (so the caller must not
@@ -246,6 +274,7 @@ class DockState extends State<Dock> {
     _pressGlobalX = null;
     if (!_dragging) return false;
     setState(() => _dragIndex = null);
+    _publishDragOffset();
     _persistOrder();
     return true;
   }
@@ -254,6 +283,7 @@ class DockState extends State<Dock> {
     _pressGlobalX = null;
     if (!_dragging) return;
     setState(() => _dragIndex = null);
+    _publishDragOffset();
     _persistOrder();
   }
 
@@ -297,11 +327,37 @@ class DockState extends State<Dock> {
 
   Widget _buildButton(_DockApp app, int index, int size, Color foreground) {
     final dragging = index == _dragIndex;
-    // Keyed by identity: the list is reordered mid-gesture, and without a key
-    // each button's state (hover, pressed, open tooltip) would stay behind at
-    // its old position and reattach to a different app.
-    final Widget button = _DockButton(
+    // Two rules, and the drag depends on both.
+    //
+    // Keyed by identity, because the list is reordered mid-gesture: without a
+    // key each button's state (hover, pressed, open tooltip) would stay behind
+    // at its old position and reattach to a different app.
+    //
+    // And the key sits on the *outermost* widget of the slot, whose type never
+    // depends on `dragging`. A [Row] matches its children by (runtimeType,
+    // key), so wrapping the dragged button in a translation the resting ones do
+    // not have makes that slot a different, unkeyed widget the instant the drag
+    // begins — Flutter deactivates the button's element and inflates a fresh
+    // one, disposing the very pan recognizer driving the drag. Its pointer
+    // route is dropped without an end or a cancel, so the gesture dies at its
+    // first pixel with the dock still stuck in the dragging state; the next
+    // press then resumes that stale drag, and its first reorder swaps the
+    // wrapper around again and kills it too. Hence: same shape at rest and in
+    // flight, and only [DockSlot.offset] tells them apart.
+    return DockSlot(
       key: ObjectKey(app),
+      offset: dragging ? _dragOffsetX : kNoDragOffset,
+      child: _buildButtonContent(app, dragging, size, foreground),
+    );
+  }
+
+  Widget _buildButtonContent(
+    _DockApp app,
+    bool dragging,
+    int size,
+    Color foreground,
+  ) {
+    return _DockButton(
       appId: app.appId,
       appName: app.entry.name,
       dragging: dragging,
@@ -317,13 +373,43 @@ class DockState extends State<Dock> {
         foreground: foreground,
       ),
     );
-    if (!dragging) return button;
-    // The dragged button follows the pointer by painting outside its slot;
-    // nothing here clips, and its siblings have already shifted into the order
-    // the drop will persist.
-    return Transform.translate(
-      offset: Offset(_dragOffset(index), 0),
-      child: button,
+  }
+}
+
+/// One dock button's slot: a fixed-shape wrapper that translates its child by
+/// [offset].
+///
+/// The dragged button follows the pointer by painting outside its slot — nothing
+/// here clips, and its siblings have already shifted into the order the drop
+/// will persist. Whether a slot is the dragged one is carried entirely by which
+/// listenable it is given, never by its shape; [DockState._buildButton] explains
+/// why that matters.
+///
+/// The two repaint boundaries are the pair the shell's repaint discipline calls
+/// for around an animating layer: the inner one gives the translation a
+/// composited layer to move rather than a picture to re-record, and the outer
+/// one keeps the dirtied [Transform] from re-recording the whole panel around
+/// it — a panel has no repaint boundary of its own. They earn their keep at rest
+/// too, where they contain each button's hover tint.
+class DockSlot extends StatelessWidget {
+  const DockSlot({super.key, required this.offset, required this.child});
+
+  /// This slot's horizontal translation. [kNoDragOffset] for a resting button.
+  final ValueListenable<double> offset;
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ValueListenableBuilder<double>(
+        valueListenable: offset,
+        builder: (context, dx, child) =>
+            Transform.translate(offset: Offset(dx, 0), child: child),
+        // Handed through unrebuilt: a pointer move re-runs one [Transform] and
+        // touches nothing else in the dock.
+        child: RepaintBoundary(child: child),
+      ),
     );
   }
 }
