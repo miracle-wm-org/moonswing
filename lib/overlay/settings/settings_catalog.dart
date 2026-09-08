@@ -241,6 +241,53 @@ abstract final class SettingsCatalog {
     tags: const ['menu', 'motion', 'transition', 'speed', 'timing', 'ms'],
   );
 
+  static final overlayAnimation = shellField(
+    'theme.overlay_animation',
+    'Overlay animation',
+    section: 'Appearance',
+    description:
+        'How a full-screen overlay arrives — and, played backwards, how it '
+        'leaves.',
+    tags: const [
+      'settings', 'launcher', 'motion', 'transition', 'fade', 'scale', 'rise',
+      'flip', 'zoom',
+    ],
+  );
+
+  static final overlayAnimationCurve = shellField(
+    'theme.overlay_animation_curve',
+    'Overlay animation curve',
+    section: 'Appearance',
+    description:
+        'The easing that animation is paced on, from linear to elastic.',
+    tags: const [
+      'settings', 'launcher', 'motion', 'easing', 'curve', 'bounce',
+      'overshoot', 'elastic',
+    ],
+  );
+
+  static final overlayAnimationDuration = shellField(
+    'theme.overlay_animation_duration',
+    'Overlay animation duration',
+    section: 'Appearance',
+    description: 'How long that animation runs, in milliseconds.',
+    tags: const [
+      'settings', 'launcher', 'motion', 'speed', 'timing', 'ms',
+    ],
+  );
+
+  static final overlayAnimationExitRatio = shellField(
+    'theme.overlay_animation_exit_ratio',
+    'Overlay exit ratio',
+    section: 'Appearance',
+    description:
+        'What fraction of the entrance the exit takes. Below 1 leaves faster '
+        'than it arrived.',
+    tags: const [
+      'settings', 'launcher', 'motion', 'timing', 'exit', 'close', 'dismiss',
+    ],
+  );
+
   /// The palette, in the order the Appearance pane draws it.
   static final List<ThemeColorSetting> themeColors = [
     ThemeColorSetting(

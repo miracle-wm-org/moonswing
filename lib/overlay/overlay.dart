@@ -163,8 +163,15 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         return FadeOverlayScaffold(
           closing: widget.closingNotifier,
           onClosed: widget.onClosed,
-          duration: ShellDurations.overlayEntrance,
-          beginScale: 0.92,
+          // Statelier than the rest, as it has always been, but as a
+          // proportion of the theme's pace rather than a duration of its own:
+          // this is the one overlay that is a workspace rather than a card the
+          // pointer is chasing, and `overlay_animation_duration` still moves it
+          // with everything else. [ShellDurations.overlayEntrance] over
+          // [ShellDurations.overlayFade] is the ratio that keeps the shipped
+          // themes playing exactly what they played before.
+          durationScale: ShellDurations.overlayEntrance.inMilliseconds /
+              ShellDurations.overlayFade.inMilliseconds,
           // No backdrop-tap dismiss, deliberately: the settings panel is a
           // workspace, and a stray click on the scrim losing an in-progress
           // edit would be worse than needing Escape or the close button.

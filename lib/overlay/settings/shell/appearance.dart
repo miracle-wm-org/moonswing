@@ -8,6 +8,7 @@ import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/font_catalog.dart';
+import 'package:graceful_shell/theme/overlay_effect.dart';
 import 'package:graceful_shell/theme/popup_effect.dart';
 import 'package:graceful_shell/theme/theme_store.dart';
 
@@ -423,6 +424,89 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     onChanged: (v) => _themes.edit(
                       'popup_animation_duration',
                       v.toInt().clamp(0, 2000),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const SettingsHint(
+                  'Below is the same choice for the full-screen overlays — the '
+                  'settings panel, the launcher, the emoji picker, the power '
+                  'menu and the prompts. The effect and the curve multiply out: '
+                  'a rise on an elastic and a flip on a linear are both '
+                  'sentences these two rows can say. The exit is whichever you '
+                  'pick, played backwards, for the fraction of the entrance the '
+                  'ratio names.',
+                ),
+                const SizedBox(height: 8),
+                SettingsRow.field(
+                  SettingsCatalog.overlayAnimation,
+                  control: SettingsDropdown<OverlayEffect>(
+                    key: ValueKey('overlay_animation-$active'),
+                    // `description` rather than `detail`, for the reason the
+                    // popup row above spells out: a sentence in the tag slot is
+                    // laid out unflexed beside the label and takes the whole row.
+                    items: [
+                      for (final effect in OverlayEffect.values)
+                        SettingsDropdownItem<OverlayEffect>(
+                          value: effect,
+                          label: effect.label,
+                          description: effect.description,
+                        ),
+                    ],
+                    selected:
+                        OverlayEffect.fromSlug(
+                          current['overlay_animation'] as String?,
+                        ) ??
+                        OverlayEffect.scale,
+                    onSelected: (v) =>
+                        _themes.edit('overlay_animation', v.slug),
+                  ),
+                ),
+                SettingsRow.field(
+                  SettingsCatalog.overlayAnimationCurve,
+                  control: SettingsDropdown<OverlayCurve>(
+                    key: ValueKey('overlay_animation_curve-$active'),
+                    items: [
+                      for (final curve in OverlayCurve.values)
+                        SettingsDropdownItem<OverlayCurve>(
+                          value: curve,
+                          label: curve.label,
+                          description: curve.description,
+                        ),
+                    ],
+                    selected:
+                        OverlayCurve.fromSlug(
+                          current['overlay_animation_curve'] as String?,
+                        ) ??
+                        OverlayCurve.easeOut,
+                    onSelected: (v) =>
+                        _themes.edit('overlay_animation_curve', v.slug),
+                  ),
+                ),
+                SettingsRow.field(
+                  SettingsCatalog.overlayAnimationDuration,
+                  control: SettingsNumberField(
+                    key: ValueKey('overlay_animation_duration-$active'),
+                    value: current['overlay_animation_duration'] as num? ?? 160,
+                    isInt: true,
+                    // The ceiling ThemeConfig clamps the key to, and a wider one
+                    // than a popup's: an overlay is a surface the user asked
+                    // for, not one they are already reaching past.
+                    onChanged: (v) => _themes.edit(
+                      'overlay_animation_duration',
+                      v.toInt().clamp(0, 4000),
+                    ),
+                  ),
+                ),
+                SettingsRow.field(
+                  SettingsCatalog.overlayAnimationExitRatio,
+                  control: SettingsNumberField(
+                    key: ValueKey('overlay_animation_exit_ratio-$active'),
+                    value: current['overlay_animation_exit_ratio'] as num? ?? 1,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                      'overlay_animation_exit_ratio',
+                      v.toDouble().clamp(0.0, 2.0),
                     ),
                   ),
                 ),

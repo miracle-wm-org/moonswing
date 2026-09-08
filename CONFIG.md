@@ -564,6 +564,12 @@ popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
 
 popup_animation      = "slide"
+popup_animation_duration = 140
+
+overlay_animation    = "scale"
+overlay_animation_duration = 160
+overlay_animation_exit_ratio = 1.0
+overlay_animation_curve = "ease_out"
 ```
 
 Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `AA` is the alpha channel). `"#33FFFFFF"` is white at ~20% opacity. Alpha is what makes a translucent theme translucent: panel and popup surfaces composite against the desktop behind them.
@@ -602,6 +608,11 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_shadow_offset_x`| `0.0`         | Horizontal displacement; positive is right, negative is left               |
 | `popup_shadow_offset_y`| `6.0`         | Vertical displacement; positive is down, negative is up                    |
 | `popup_animation`      | `slide`       | How a popup arrives, and — reversed — how it leaves (see below)             |
+| `popup_animation_duration` | `140`     | How long that entrance runs, in milliseconds; the exit takes four fifths of it |
+| `overlay_animation`    | `scale`       | How a full-screen overlay arrives, and — reversed — how it leaves (see below) |
+| `overlay_animation_duration` | `160`   | How long *that* entrance runs, in milliseconds                             |
+| `overlay_animation_exit_ratio` | `1.0` | What fraction of the entrance the overlay's exit takes                     |
+| `overlay_animation_curve` | `ease_out` | The easing the overlay's animation is paced on                             |
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
@@ -684,11 +695,59 @@ Popup *sizes* are not themable. Each module fixes its own width, and some of the
 
 `slide`, `grow` and `flip` take their direction from the bar the popup was opened from, so a bottom bar's menus rise and a top bar's drop. A menu anchored to the *pointer* — the desktop's context menu, an app-directory category flyout — has no bar to travel out of and is treated as hanging below its anchor, which is where the compositor puts it.
 
-The entrance runs for 140 ms and the exit for 110 ms: an entrance is paced to be followed, while a dismissal is you saying you are done with the card. Neither is themable, and `none` is a true off switch rather than a zero-length animation — nothing is wrapped and no animation controller is created at all.
+`popup_animation_duration` is how long the entrance runs, in milliseconds, and it defaults to 140. The exit is four fifths of whatever you set: an entrance is paced to be followed, while a dismissal is you saying you are done with the card, and a fraction rather than a second key is what stops the two drifting into an exit longer than the entrance it reverses. It is clamped to 0–2000, and `none` is the off switch rather than a duration of `0` — at `none` nothing is wrapped and no animation controller is created at all, where `0` is the effect played instantly.
 
 **The dock ignores this key.** Its hover labels and its unpin menu always open with `none`, whatever the theme says: the dock is a strip the pointer sweeps along, opening and abandoning a surface at every button on the way past, and a card that animated at each of them reads as the shell twitching rather than answering.
 
 Themes written before this key existed get `slide`.
+
+### About the overlay animation
+
+The four `overlay_animation*` keys are `popup_animation`'s counterpart one layer up: how the **full-screen overlays** arrive. That is the settings panel, the launcher, the emoji picker, the power menu, the keybind cheat sheet, the authentication prompt and the screen-share picker — everything that dims the screen and puts a card in the middle of it. Until these keys existed they all did exactly one thing, at exactly one pace.
+
+They are separate from the popup keys on purpose. A menu is furniture you are already reaching past, and an overlay is a surface you asked for; a theme that wants a snappy bar and a stately settings panel has to be able to say both.
+
+**`overlay_animation`** is the shape:
+
+| Value    | What it does                                                                 |
+| -------- | ---------------------------------------------------------------------------- |
+| `none`   | No animation. The overlay is simply there, and simply gone                    |
+| `fade`   | Opacity alone — the scrim washes in and the card fades up in place            |
+| `scale`  | The card grows a little into place from its own centre, under a fade — the default |
+| `zoom`   | The card settles back to size from slightly larger, as though coming towards you |
+| `rise`   | The card lifts into place from below, under a fade                           |
+| `drop`   | The card comes down into place from above, under a fade                       |
+| `unfold` | The card unfolds vertically from its own middle, keeping its width            |
+| `flip`   | The card tilts open about its horizontal middle, as though hinged there       |
+| `swing`  | The card swings open about its vertical middle, like a door                   |
+| `spin`   | The card turns a few degrees as it scales into place, under a fade            |
+
+Every value but `none` fades as well as moves, and that is not decoration: an overlay is a card centred on a scrim that covers the whole screen, so an effect that only moved would slide a solid card in over a wash that was already there.
+
+**`overlay_animation_curve`** is the pacing, and the two multiply out — a `rise` on an `elastic` and a `flip` on a `linear` are both sentences these keys can say:
+
+| Value         | What it does                                                          |
+| ------------- | --------------------------------------------------------------------- |
+| `linear`      | A constant rate, with no acceleration                                 |
+| `ease_in`     | Starts slowly and accelerates into place                              |
+| `ease_out`    | Starts quickly and settles — the shell's standard entrance, and the default |
+| `ease_in_out` | Eased at both ends                                                    |
+| `emphasized`  | A sharp departure and a soft landing, weighted towards the end        |
+| `overshoot`   | Goes a little past where it is heading, then settles back             |
+| `bounce`      | Lands, bounces, and lands again                                       |
+| `elastic`     | Springs past and oscillates before settling                           |
+
+The last three deliberately travel past the resting state and come back, which is the whole point of having them; the card's *opacity* is held inside its normal range while they do, so an overshoot is a movement rather than a flicker. `elastic` in particular wants a longer duration than the default — at 160 ms a spring reads as a stutter.
+
+**`overlay_animation_duration`** is how long the entrance runs, in milliseconds, clamped to 0–4000. A wider ceiling than a popup's, for the same reason these are separate keys at all. `0` is the animation played instantly; `overlay_animation = "none"` is the off switch, and it is a real one — no animation controller is built, nothing is layered over the card, and the window is destroyed on the frame it is dismissed.
+
+**`overlay_animation_exit_ratio`** is how the exit relates to the entrance, and it is the second timing knob rather than a second duration. The way out is always the way in reversed — the same shape, so a card that swung open swings shut — and this says only how long it takes: `0.75` leaves in three quarters of the time it arrived in, `1.0` (the default) takes exactly as long, and the ceiling of `2.0` is there because an overlay that dissolves more slowly than it appeared is a legitimate choice. Because it is a ratio, lengthening the entrance lengthens the exit with it; the two cannot drift apart. Read backwards, an `overshoot` entrance becomes an anticipation dip on the way out, which is the pair those curves are drawn to make.
+
+Two notes on what is *not* animated. The **scrim never moves** — it is the size of your display, so anything transforming or layering it would cost a full-screen composite every frame, and it arrives by its own alpha instead. And the **settings panel arrives a half again more slowly** than the other overlays, as it always has, because it is a workspace rather than a card you are chasing: that is a proportion of whatever you set here, not a duration of its own, so it still moves when you move `overlay_animation_duration`.
+
+The **notification panel keeps its own entrance**, and these keys do not reach it. It is a full-height surface butted against the screen edge rather than a card in the middle of one, so it slides out of that edge and is thrown back into it; a centre-pivoted scale there opens a transparent strip along the screen edge that reads as the panel having come loose.
+
+Themes written before these keys existed get `scale` at 160 ms on `ease_out`, which is exactly what every overlay played before there was a choice.
 
 ### About `font_size`
 

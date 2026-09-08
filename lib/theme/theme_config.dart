@@ -5,6 +5,7 @@ library;
 import 'dart:ui';
 
 import 'package:graceful_shell/config_reader.dart';
+import 'package:graceful_shell/theme/overlay_effect.dart';
 import 'package:graceful_shell/theme/popup_effect.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 
@@ -21,14 +22,30 @@ const String kDefaultThemeName = 'graceful';
 /// and a field default has to be a constant expression.
 const int _kDefaultPopupDurationMs = 140;
 
+/// The shipped `overlay_animation_duration`, in milliseconds.
+///
+/// [ShellDurations.overlayFade] read as a number, for the reason
+/// [_kDefaultPopupDurationMs] is [ShellDurations.popupIn]'s: a theme spelling no
+/// duration plays exactly what every overlay played before the key existed.
+const int _kDefaultOverlayDurationMs = 160;
+
 /// How a theme key parses and encodes.
 ///
 /// [color] goes through [ThemeConfig.formatColor] and its inverse; [number] is a
 /// clamped double; [integer] is read as a double and rounded, so a TOML float
-/// coerces; [flag] and [text] are verbatim. [effect] is a [PopupEffect] spelled
-/// by its slug — a closed set, so an unknown slug falls back like any other
-/// wrongly-typed value.
-enum _ThemeKeyKind { color, number, integer, flag, text, effect }
+/// coerces; [flag] and [text] are verbatim. [effect], [overlayEffect] and
+/// [overlayCurve] are each an enum spelled by its slug — closed sets, so an
+/// unknown slug falls back like any other wrongly-typed value.
+enum _ThemeKeyKind {
+  color,
+  number,
+  integer,
+  flag,
+  text,
+  effect,
+  overlayEffect,
+  overlayCurve,
+}
 
 /// One TOML theme key: its spelling, its kind, its clamp range, and where it
 /// lives on a [ThemeConfig].
@@ -77,6 +94,12 @@ class _ThemeKey {
       case _ThemeKeyKind.effect:
         return PopupEffect.fromSlug(map.stringOrNull(key)) ??
             fallback as PopupEffect;
+      case _ThemeKeyKind.overlayEffect:
+        return OverlayEffect.fromSlug(map.stringOrNull(key)) ??
+            fallback as OverlayEffect;
+      case _ThemeKeyKind.overlayCurve:
+        return OverlayCurve.fromSlug(map.stringOrNull(key)) ??
+            fallback as OverlayCurve;
     }
   }
 
@@ -88,6 +111,10 @@ class _ThemeKey {
         return ThemeConfig.formatColor(value as Color);
       case _ThemeKeyKind.effect:
         return (value as PopupEffect).slug;
+      case _ThemeKeyKind.overlayEffect:
+        return (value as OverlayEffect).slug;
+      case _ThemeKeyKind.overlayCurve:
+        return (value as OverlayCurve).slug;
       default:
         return value;
     }
@@ -270,6 +297,56 @@ class ThemeConfig {
       milliseconds:
           (popupAnimationDuration * ShellDurations.popupExitFraction).round());
 
+  /// Which animation a full-screen overlay plays as it opens, and — reversed —
+  /// as it closes.
+  ///
+  /// The settings panel, the launcher, the emoji picker, the power menu, the
+  /// polkit prompt, the screencast picker and the keybind cheat sheet all arrive
+  /// this way. A theme key for the same reason [popupEffect] is one: how the
+  /// shell's largest surfaces arrive is part of how the shell reads, and it used
+  /// to be a constant in a scaffold.
+  ///
+  /// [OverlayEffect.none] is a real off switch: no controller is built, no layer
+  /// is put over the card, and the window is destroyed on the frame it is
+  /// closed.
+  final OverlayEffect overlayEffect;
+
+  /// How long that animation lasts on the way in, in milliseconds.
+  ///
+  /// A wider range than [popupAnimationDuration]'s, because an overlay is a
+  /// surface the user has *asked* for rather than a menu they are already
+  /// reaching past: a stately four-second reveal is a real (if eccentric)
+  /// choice, where the same menu would be broken furniture. The floor is 0,
+  /// which is the animation played instantly rather than a controller that never
+  /// completes.
+  final int overlayAnimationDuration;
+
+  /// What fraction of the entrance the exit runs for.
+  ///
+  /// The second timing knob, and a *ratio* rather than a duration so the two
+  /// cannot drift apart: a theme that slows the entrance slows the exit with it,
+  /// and this key says only how the two relate. Below 1 is the usual shape — an
+  /// entrance is paced to be followed, a dismissal is the user saying they are
+  /// done — and popups hard-code exactly that at
+  /// [ShellDurations.popupExitFraction]. Above 1 is allowed because an overlay
+  /// that dissolves more slowly than it arrived is a legitimate theme; a menu
+  /// that did would be in the way.
+  final double overlayExitRatio;
+
+  /// The easing [overlayEffect] is played on, in both directions.
+  ///
+  /// The exit reads the same curve backwards, so an overshoot on the way in is
+  /// the anticipation dip on the way out.
+  final OverlayCurve overlayCurve;
+
+  /// [overlayAnimationDuration] as the entrance [Duration] a controller takes.
+  Duration get overlayInDuration =>
+      Duration(milliseconds: overlayAnimationDuration);
+
+  /// The exit: the entrance reversed, scaled by [overlayExitRatio].
+  Duration get overlayOutDuration => Duration(
+      milliseconds: (overlayAnimationDuration * overlayExitRatio).round());
+
   /// [popupShadowOffsetX] and [popupShadowOffsetY] as one offset.
   ///
   /// The two are separate fields because a [_ThemeKey] maps one TOML scalar to one
@@ -342,6 +419,10 @@ class ThemeConfig {
     this.popupShadowOffsetY = 6.0,
     this.popupEffect = PopupEffect.slide,
     this.popupAnimationDuration = _kDefaultPopupDurationMs,
+    this.overlayEffect = OverlayEffect.scale,
+    this.overlayAnimationDuration = _kDefaultOverlayDurationMs,
+    this.overlayExitRatio = 1.0,
+    this.overlayCurve = OverlayCurve.easeOut,
     this.scrim = const Color(0x882C2C2C),
     this.fontFamily = 'Ubuntu Sans',
     this.fontSize = ShellFontSizes.body,
@@ -414,6 +495,19 @@ class ThemeConfig {
     _ThemeKey('popup_animation_duration', _ThemeKeyKind.integer,
         (t) => t.popupAnimationDuration,
         min: 0.0, max: 2000.0),
+    _ThemeKey(
+        'overlay_animation', _ThemeKeyKind.overlayEffect, (t) => t.overlayEffect),
+    _ThemeKey('overlay_animation_duration', _ThemeKeyKind.integer,
+        (t) => t.overlayAnimationDuration,
+        min: 0.0, max: 4000.0),
+    // A ratio, so it is unitless and small. The ceiling is deliberately above
+    // 1: an overlay that leaves more slowly than it arrived is a legitimate
+    // (if unusual) theme, where a *menu* that did would be in the way.
+    _ThemeKey('overlay_animation_exit_ratio', _ThemeKeyKind.number,
+        (t) => t.overlayExitRatio,
+        min: 0.0, max: 2.0),
+    _ThemeKey(
+        'overlay_animation_curve', _ThemeKeyKind.overlayCurve, (t) => t.overlayCurve),
     _ThemeKey('scrim', _ThemeKeyKind.color, (t) => t.scrim),
   ];
 
@@ -479,6 +573,10 @@ class ThemeConfig {
       popupShadowOffsetY: v('popup_shadow_offset_y'),
       popupEffect: v('popup_animation'),
       popupAnimationDuration: v('popup_animation_duration'),
+      overlayEffect: v('overlay_animation'),
+      overlayAnimationDuration: v('overlay_animation_duration'),
+      overlayExitRatio: v('overlay_animation_exit_ratio'),
+      overlayCurve: v('overlay_animation_curve'),
       scrim: v('scrim'),
     );
   }
