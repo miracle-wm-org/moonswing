@@ -58,16 +58,25 @@ Border? _panelBorder(ThemeConfig theme) => theme.panelBorderWidth > 0
 
 /// [theme] is required on purpose: a defaulted palette here would silently
 /// paint the built-in colours over whatever theme is actually active.
+///
+/// [includeRim] false leaves the border out for a bar that paints its own —
+/// which is a bar whose theme attaches its popups and carries a rim, because
+/// that rim has to be interrupted across the mouth of an open menu and no
+/// [Border] can have a gap in it. `panelPaintsOwnRim` (`panel_rim.dart`) is the
+/// predicate, [PanelRimPainter] draws what this then leaves out, and the two
+/// agree on the outline: `Border.all` strokes it deflated by half its width and
+/// so does the painter.
 BoxDecoration panelBackgroundDecoration({
   String anchor = 'top',
   required ThemeConfig theme,
+  bool includeRim = true,
 }) {
   final radius = panelCornerRadius(anchor: anchor, theme: theme);
   // Normalised to null rather than BorderRadius.zero so that an untouched
   // theme produces exactly the decoration it did before corners were themable.
   final BorderRadius? borderRadius =
       radius == BorderRadius.zero ? null : radius;
-  final border = _panelBorder(theme);
+  final border = includeRim ? _panelBorder(theme) : null;
 
   if (!theme.panelGradient) {
     return BoxDecoration(

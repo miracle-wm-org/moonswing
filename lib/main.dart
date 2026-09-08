@@ -62,6 +62,7 @@ import 'package:graceful_shell/osd/osd.dart';
 import 'package:graceful_shell/osd/osd_service.dart';
 import 'package:graceful_shell/osd/osd_store.dart';
 import 'package:graceful_shell/panel_background.dart';
+import 'package:graceful_shell/panel_rim.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/polkit/auth_controller.dart';
@@ -2215,6 +2216,17 @@ class _PanelMainState extends State<PanelMain> {
     }
   }
 
+  /// The bar's content with its own rim layer over it, or the content alone
+  /// when the rim is still the decoration's.
+  ///
+  /// Over rather than under: the rim is the bar's outermost edge and a module
+  /// laid out flush to it would otherwise paint across the line. It absorbs no
+  /// hits — a `CustomPaint` with no child answers `hitTestSelf` false unless its
+  /// painter says otherwise — so the modules underneath are unaffected.
+  Widget _withRim(Widget content, Widget? rim) => rim == null
+      ? content
+      : Stack(fit: StackFit.expand, children: [content, rim]);
+
   @override
   Widget build(BuildContext context) {
     final layout = widget.panelConfig.layout;
@@ -2250,6 +2262,18 @@ class _PanelMainState extends State<PanelMain> {
           : EdgeInsets.fromLTRB(pad, 0, pad, 0),
       child: Stack(children: stackChildren),
     );
+    // A rimmed bar that attaches its popups paints its own rim, because that
+    // rim has to be left out across the mouth of an open menu and a `Border`
+    // cannot have a gap in it. The popup is placed *below* the panel and can
+    // never cover the line itself; see `panel_rim.dart`. The panel is named by
+    // its own FlutterView, which is what both ends resolve to the same object:
+    // the panel's tree is in it, and `PopupHost.openPopup` runs from a module's
+    // context inside that same tree.
+    final rim = panelRimLayer(
+      theme: theme,
+      anchor: widget.panelConfig.anchor,
+      panel: View.maybeOf(context),
+    );
 
     return BarScope(
       anchor: widget.panelConfig.anchor,
@@ -2270,10 +2294,14 @@ class _PanelMainState extends State<PanelMain> {
               decoration: panelBackgroundDecoration(
                 anchor: widget.panelConfig.anchor,
                 theme: theme,
+                includeRim: rim == null,
               ),
-              child: radius == BorderRadius.zero
-                  ? content
-                  : ClipRRect(borderRadius: radius, child: content),
+              child: _withRim(
+                radius == BorderRadius.zero
+                    ? content
+                    : ClipRRect(borderRadius: radius, child: content),
+                rim,
+              ),
             ),
           ),
         ),
