@@ -19,7 +19,7 @@ N = 32  # the sprite grid is 32x32
 
 PALETTE = {
     'o': '#22221f',  # outline
-    'k': '#3f3f3d',  # charcoal: the eye band, the chest markings, gloves, boots
+    'k': '#3f3f3d',  # charcoal: the eyes, the chest markings, gloves, boots
     'v': '#8e8a74',  # bone cloth in shadow: the cape, the back of the hood
                      # (darker than the reference, or the cape and the back
                      # leg merge into one pale mass at favicon sizes)
@@ -42,30 +42,37 @@ def sprite():
             if ch != ' ':
                 g[r + dy][c + i] = ch
 
-    # cape, hanging behind the shoulders and flaring below the gloves
-    put(13, 9, "ovvvvvvvvvvvvo")
-    put(14, 9, "ovvvvvvvvvvvvo")
-    put(15, 9, "ovvvvvvvvvvvvo")
-    put(16, 9, "ovvvvvvvvvvvvo")
-    put(17, 8, "ovvvvvvvvvvvvvvo")
-    put(18, 8, "ovvvvvvvvvvvvvvo")
-    put(19, 8, "ovvvvvvvvvvvvvvo")
-    put(20, 7, "ovvvvvvvvvvvvvvvvo")
-    put(21, 7, "ovvvvvvvvvvvvvvvvo")
-    put(22, 7, "ovvvvvvvvvvvvvvvvo")
-    put(23, 8, "ovvvvvvvvvvvvvvo")
-    put(24, 9, "ovvvvvvvvvvvvo")
-    # arms: bone pauldrons over bare skin, into charcoal gloves
-    put(14, 7, "osso")
-    put(15, 7, "osso")
-    put(16, 7, "osso")
-    put(17, 7, "okko")
-    put(18, 7, "okko")
-    put(14, 21, "osso")
-    put(15, 21, "osso")
-    put(16, 21, "osso")
-    put(17, 21, "okko")
-    put(18, 21, "okko")
+    # cape, hanging behind the shoulders and flaring past the hem. Two pixels
+    # clear of the arms, or it reads as piping rather than cloth.
+    put(13, 6, "ovvvvvvvvvvvvvvvvvvo")
+    put(14, 6, "ovvvvvvvvvvvvvvvvvvo")
+    put(15, 6, "ovvvvvvvvvvvvvvvvvvo")
+    put(16, 6, "ovvvvvvvvvvvvvvvvvvo")
+    put(17, 6, "ovvvvvvvvvvvvvvvvvvo")
+    put(18, 6, "ovvvvvvvvvvvvvvvvvvo")
+    put(19, 5, "ovvvvvvvvvvvvvvvvvvvvo")
+    put(20, 5, "ovvvvvvvvvvvvvvvvvvvvo")
+    put(21, 5, "ovvvvvvvvvvvvvvvvvvvvo")
+    put(22, 5, "ovvvvvvvvvvvvvvvvvvvvo")
+    put(23, 6, "ovvvvvvvvvvvvvvvvvvo")
+    put(24, 7, "ovvvvvvvvvvvvvvvvo")
+    # arms: one pixel of bare skin down each side, into a small round glove.
+    # The inner outline is the torso's own — a second one beside it reads as a
+    # gap, not an arm.
+    put(14, 9, "os")
+    put(15, 9, "os")
+    put(16, 9, "os")
+    put(17, 9, "os")
+    put(18, 8, "okk")
+    put(19, 8, "okk")
+    put(20, 8, "ooo")
+    put(14, 21, "so")
+    put(15, 21, "so")
+    put(16, 21, "so")
+    put(17, 21, "so")
+    put(18, 21, "kko")
+    put(19, 21, "kko")
+    put(20, 21, "ooo")
     # torso: the charcoal markings, the jade and red diamonds, the jade sash
     put(12, 9, "occcccccccccco")
     put(13, 10, "occccccccccо".replace("о", "o"))
@@ -90,15 +97,16 @@ def sprite():
     put(26, 16, "okkko")
     put(27, 10, "okkkko")
     put(27, 16, "okkkko")
-    # hood: the peak, and the charcoal band across the eyes
-    put(4, 14, "occco")
-    put(5, 13, "occccco")
+    # hood: it flares where it opens, and the opening shows the face —
+    # skin, two eyes, and the bone wrap over the mouth below them
+    put(4, 14, "occo")
+    put(5, 13, "occcco")
     put(6, 12, "occcccco")
-    put(7, 12, "occcccco")
-    put(8, 12, "ockkkkco")
-    put(9, 12, "occcccco")
-    put(10, 12, "occcccco")
-    put(11, 13, "occcco")
+    put(7, 11, "occcccccco")
+    put(8, 11, "ocskssksco")
+    put(9, 11, "occsssscco")
+    put(10, 11, "occcccccco")
+    put(11, 12, "occcccco")
     return [''.join(row) for row in g]
 
 

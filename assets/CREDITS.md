@@ -45,7 +45,7 @@ windows under a shell panel.
 
 The palette is the *graceful outfit* from Old School RuneScape, the agility set this project
 takes its name from: bone cloth, charcoal gloves and boots, the jade sash and chest diamond,
-the red diamond, and the charcoal band across the eyes. Read off an equipped-outfit render
+the red diamond, and the face looking out of the hood. Read off an equipped-outfit render
 and listed as `PALETTE` in that script; the cape is a shade darker than the reference, or it
 and the trailing leg merge into one pale mass at favicon sizes.
 
