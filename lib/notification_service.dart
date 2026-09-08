@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'config_store.dart';
 import 'dbus_service_object.dart';
 
 /// A single notification received from the FreeDesktop notification daemon
@@ -71,6 +72,14 @@ enum NotificationDaemonStatus {
   unavailable,
 }
 
+/// Where the silenced flag lives in `config.toml`.
+///
+/// A key of the shell's own config rather than state that dies with the
+/// process: silencing is a decision the user made about their machine, and a
+/// shell that quietly started interrupting them again after a restart would be
+/// the one failure mode a "do not disturb" switch may not have.
+const List<String> kNotificationSilencedPath = ['notifications', 'silenced'];
+
 /// Singleton ChangeNotifier that holds the current list of notifications.
 class NotificationStore extends ChangeNotifier {
   static final NotificationStore instance = NotificationStore._();
@@ -101,6 +110,66 @@ class NotificationStore extends ChangeNotifier {
   /// True while [retryDaemon] is in flight, so the button can show a loader
   /// instead of inviting a second attempt on top of the first.
   bool get daemonRetrying => _daemonRetrying;
+
+  ConfigStore? _resolvedConfig;
+  bool _configResolved = false;
+
+  /// The config the silenced flag is persisted through, or null.
+  ///
+  /// Resolved lazily, `KeyboardStore`'s rule and its two reasons:
+  /// `ConfigStore.instance` throws before `initShared()`, and a module built
+  /// alone in a widget test has no `main()` behind it. With no shared store the
+  /// flag is whatever this process set and nothing is written, which is exactly
+  /// what a test wants.
+  ConfigStore? get _config {
+    if (_configResolved) return _resolvedConfig;
+    _configResolved = true;
+    try {
+      _resolvedConfig = ConfigStore.instance;
+    } catch (_) {
+      _resolvedConfig = null;
+    }
+    return _resolvedConfig;
+  }
+
+  /// Null until first read, then the flag; see [silenced].
+  bool? _silenced;
+
+  /// Whether the shell is silencing notifications — "do not disturb".
+  ///
+  /// Silencing is about *interruption*, never about delivery. The daemon keeps
+  /// accepting `Notify` calls and the panel keeps filling up, so nothing is
+  /// lost and the user reads it when they choose; what stops is the shell
+  /// calling them away from what they are doing — the bell's shake and the
+  /// floating badge that puts itself in the corner of every output.
+  ///
+  /// Read through the config on first use rather than in the constructor: this
+  /// singleton is built the first time anything touches it, which is before
+  /// `ConfigStore.initShared()` has run.
+  bool get silenced =>
+      _silenced ??= _config?.get<bool>(kNotificationSilencedPath) ?? false;
+
+  /// Sets the flag and persists it. A no-op when nothing moves, so a rebuild
+  /// that re-asserts the current state costs no write and no notification.
+  void setSilenced(bool value) {
+    if (silenced == value) return;
+    _silenced = value;
+    _config?.set(kNotificationSilencedPath, value);
+    notifyListeners();
+  }
+
+  /// What the bell's right-click and the panel's switch both do.
+  void toggleSilenced() => setSilenced(!silenced);
+
+  /// Puts the silenced flag back to what a fresh process has, optionally bound
+  /// to [configStore]. For tests, which share this singleton across cases.
+  @visibleForTesting
+  void resetSilencedState({ConfigStore? configStore}) {
+    _silenced = null;
+    _resolvedConfig = configStore;
+    _configResolved = configStore != null;
+    notifyListeners();
+  }
 
   /// The attempt [retryDaemon] re-runs, defaulting to the real thing.
   ///

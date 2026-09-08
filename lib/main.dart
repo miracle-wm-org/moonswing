@@ -801,10 +801,18 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// them when there is not — [_onOsdChanged]'s shape and early return. The panel
   /// counts as "reported": it is a column down the same edge, so leaving the
   /// badge up would put it under the thing it exists to open.
+  ///
+  /// Silencing takes the badge away entirely, and it is the loudest thing
+  /// silencing has to take: a button that plants itself in the corner of every
+  /// output is the shell's most insistent way of asking for attention, so a
+  /// user who has said "not now" and still gets it has not silenced anything.
+  /// The store notifies on the flag, so flipping it here is a window teardown
+  /// on the same listener a notification arriving is.
   void _syncNotificationBadges() {
     if (!mounted) return;
+    final store = NotificationStore.instance;
     final wanted =
-        NotificationStore.instance.items.isNotEmpty && !_notifications.isOpen;
+        store.items.isNotEmpty && !store.silenced && !_notifications.isOpen;
     if (wanted == _badges.isNotEmpty) return;
 
     if (wanted) {

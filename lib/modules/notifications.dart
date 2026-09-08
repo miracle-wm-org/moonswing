@@ -77,20 +77,43 @@ class _NotificationsState extends State<Notifications>
   }
 
   void _onStoreChanged() {
-    final newCount = NotificationStore.instance.items.length;
-    if (newCount > _prevCount) {
+    final store = NotificationStore.instance;
+    final newCount = store.items.length;
+    // Silenced is about interruption, so the shake is the first thing it takes
+    // away: the notification is still collected, and the bell still counts it,
+    // but nothing moves in the corner of the user's eye to fetch them.
+    if (newCount > _prevCount && !store.silenced) {
       _shakeController.forward(from: 0.0);
     }
     _prevCount = newCount;
     if (mounted) setState(() {});
   }
 
-  /// The hover label that explains the exclamation dot.
+  /// What the hover label says, or null when a plain working bell has nothing
+  /// to explain.
   ///
-  /// The dot says *something* is wrong; this is where it says what, without
-  /// making the user open the panel to find out. Only shown while the daemon is
-  /// actually unavailable — a working bell has nothing to explain.
-  void _openBrokenTooltip(BuildContext context) {
+  /// Two states earn one, and the broken one wins: a bell that is silenced
+  /// *and* has lost the daemon is not silencing anything, so saying so would be
+  /// the more reassuring of two answers and the wrong one.
+  static String? _statusMessage(NotificationStore store) {
+    if (store.daemonUnavailable) {
+      return 'Notifications are not working — the shell could not claim the '
+          'notification service. Click to open the panel and retry.';
+    }
+    if (store.silenced) {
+      return 'Notifications are silenced. They still collect in the panel — '
+          'right-click to let them interrupt again.';
+    }
+    return null;
+  }
+
+  /// The hover label that explains the glyph the bell is currently wearing.
+  ///
+  /// The crossed-out bell and the exclamation dot each say *something* is up;
+  /// this is where it says what, without making the user open the panel to find
+  /// out — and, for the silenced bell, where the right-click that undoes it is
+  /// named, since nothing about a glyph advertises a gesture.
+  void _openStatusTooltip(BuildContext context, String message) {
     if (isPopupOpen) return;
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null || !renderBox.hasSize) return;
@@ -98,10 +121,7 @@ class _NotificationsState extends State<Notifications>
     openBarPopup(
       context,
       child: ThemeProvider(
-        child: const TooltipLabel(
-          text: 'Notifications are not working — the shell could not claim '
-              'the notification service. Click to open the panel and retry.',
-        ),
+        child: TooltipLabel(text: message),
       ),
       preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 96),
       // A hover label must not take down whatever the pointer is travelling
@@ -111,7 +131,7 @@ class _NotificationsState extends State<Notifications>
       // coordinator by the root rather than under this `State`, but the bell
       // still opens two different surfaces from one element, so the tooltip
       // keeps a slot of its own.
-      ownerKey: (this, 'broken-tooltip'),
+      ownerKey: (this, 'status-tooltip'),
       // A floating card, never glued to the bar — see the dock's tooltip.
       attach: false,
     );
@@ -124,6 +144,8 @@ class _NotificationsState extends State<Notifications>
     final count = store.items.length;
     final hasUnread = count > 0;
     final broken = store.daemonUnavailable;
+    final silenced = store.silenced;
+    final status = _statusMessage(store);
 
     final glyph = AnimatedBuilder(
       animation: _shakeAnimation,
@@ -136,10 +158,21 @@ class _NotificationsState extends State<Notifications>
       child: Stack(
         clipBehavior: Clip.none,
         children: [
+          // The glyph *is* the status: a crossed-out bell is what every
+          // other shell means by silenced, so it needs no legend. It is also
+          // deliberately never the accent colour, unread items or not —
+          // accent is the bar's "look at this", which is the one thing a
+          // silenced bell has been told not to say. The count bubble below
+          // keeps its own colour, so "silenced, and three waiting" is still
+          // one glance.
           FaIcon(
-            FontAwesomeIcons.bell,
+            silenced ? FontAwesomeIcons.bellSlash : FontAwesomeIcons.bell,
             size: 16,
-            color: hasUnread ? theme.accent : theme.foreground,
+            color: silenced
+                ? theme.foreground.withValues(alpha: 0.55)
+                : hasUnread
+                    ? theme.accent
+                    : theme.foreground,
           ),
           if (hasUnread)
             Positioned(
@@ -190,14 +223,20 @@ class _NotificationsState extends State<Notifications>
         // Tap-down, like every other popup toggle in the shell: the ancestor
         // `PopupDismissArea` Listener fires before any descendant recognizer.
         onTapDown: (_) => NotificationPanelController.instance.toggle(),
+        // Right-click silences and unsilences. A gesture rather than a menu
+        // because it is one boolean with one obvious inverse, and the panel's
+        // own switch is the discoverable half of the pair — the tooltip on a
+        // silenced bell names this one.
+        onSecondaryTapDown: (_) => NotificationStore.instance.toggleSilenced(),
         child: child!,
       ),
       child: glyph,
     );
 
-    // Only the broken state has a hover label, so the MouseRegion is only worth
-    // its callbacks then; a working bell is the plain BarButton it always was.
-    if (!broken) return bell;
+    // Only a bell with something to explain carries a hover label, so the
+    // MouseRegion is only worth its callbacks then; an ordinary one is the
+    // plain BarButton it always was.
+    if (status == null) return bell;
 
     return MouseRegion(
       onEnter: (_) {
@@ -206,8 +245,11 @@ class _NotificationsState extends State<Notifications>
         // element's render box, which the hover itself may still be resizing.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted || !_hovered) return;
-          if (!NotificationStore.instance.daemonUnavailable) return;
-          _openBrokenTooltip(context);
+          // Re-read rather than closing over `status`: a frame is long enough
+          // for the daemon to come back or for a right-click to land.
+          final current = _statusMessage(NotificationStore.instance);
+          if (current == null) return;
+          _openStatusTooltip(context, current);
         });
       },
       onExit: (_) {
@@ -463,6 +505,8 @@ class _NotificationPanelState extends State<NotificationPanel>
                           NotificationDaemonBanner(theme: theme),
                           Container(height: 1, color: theme.divider),
                         ],
+                        NotificationSilenceRow(theme: theme),
+                        Container(height: 1, color: theme.divider),
                         Expanded(
                           child: items.isEmpty
                               ? _buildEmpty(theme)
@@ -568,8 +612,13 @@ class _NotificationPanelState extends State<NotificationPanel>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // A plain bell, not a crossed-out one: on this surface the crossed
+            // bell is the silence switch's glyph, and an empty inbox is not the
+            // same claim as a silenced one — a user who had just silenced
+            // notifications would read the big version of that glyph as the
+            // panel reporting the switch back to them.
             FaIcon(
-              FontAwesomeIcons.bellSlash,
+              FontAwesomeIcons.bell,
               size: 44,
               color: theme.popupForeground.withValues(alpha: 0.28),
             ),
@@ -610,6 +659,90 @@ class _NotificationPanelState extends State<NotificationPanel>
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, i) =>
           _NotificationCard(item: items[i], theme: theme),
+    );
+  }
+}
+
+/// The panel's "do not disturb" switch — the discoverable half of the pair the
+/// bell's right-click is the quick half of.
+///
+/// It sits under the header rather than in it, with a sentence saying what
+/// silencing *does not* do: the one thing a user has to know before flipping a
+/// switch called "silence" is whether the notifications it silences are lost,
+/// and the answer is that they are all still here.
+///
+/// Rebuilt by `_NotificationPanelState`'s store listener, like
+/// [NotificationDaemonBanner] and for the same reason — the flag it renders and
+/// the flag it writes are the same store the panel already listens to.
+///
+/// Public because in its one real home it is inside a layer-shell window no
+/// widget test can pump.
+class NotificationSilenceRow extends StatelessWidget {
+  const NotificationSilenceRow({super.key, required this.theme});
+
+  final ThemeConfig theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final store = NotificationStore.instance;
+    final silenced = store.silenced;
+
+    return RepaintBoundary(
+      child: HoverRegion(
+        // The whole row, not just the 44px switch: the label is the biggest
+        // thing on it and pointing at a label that does nothing reads as the
+        // control being disabled. The switch is a `HoverRegion` of its own and
+        // wins the arena as the deeper one, so a tap on it toggles once.
+        onTap: store.toggleSilenced,
+        builder: (context, hovered) => Container(
+          color: hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null,
+          padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+          child: Row(
+            children: [
+              FaIcon(
+                silenced ? FontAwesomeIcons.bellSlash : FontAwesomeIcons.bell,
+                size: ShellFontSizes.label,
+                color: silenced
+                    ? theme.accent
+                    : theme.popupForeground.withValues(alpha: 0.45),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Silence notifications',
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.label,
+                        color: theme.popupForeground,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      silenced
+                          ? 'New notifications wait here quietly. '
+                              'Nothing is lost.'
+                          : 'New notifications announce themselves as they '
+                              'arrive.',
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.secondary,
+                        height: 1.35,
+                        color: theme.popupForeground.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              SettingsToggle(
+                value: silenced,
+                onChanged: store.setSilenced,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
