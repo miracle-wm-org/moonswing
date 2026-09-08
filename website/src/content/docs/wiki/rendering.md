@@ -94,10 +94,14 @@ The rest of the shared set:
   picture-backed desktop card.
 - **`ShellTextRoot`** — `Directionality` plus a theme-font `DefaultTextStyle`, applied once per
   window.
-- **`FadeOverlayScaffold`** — scrim and centred scale-in card, and owner of the `closing`
+- **`FadeOverlayScaffold`** — scrim and centred card, and owner of the `closing`
   handshake (reverse, *then* `onClosed`, which may tear the window down). Nothing may wrap it
   in an `Opacity`: these windows span the output, so that layer is a full-output offscreen per
-  frame.
+  frame — which is also why **no effect moves the scrim**, only the card. The entrance itself
+  is the theme's, as a popup's is: `overlay_animation` and `overlay_animation_curve` multiply
+  out to the shape, `overlay_animation_duration` paces it, and `overlay_animation_exit_ratio`
+  says how the exit relates — a ratio, never a second duration, so the two cannot drift. A
+  call site may only scale that pace, never replace it.
 - **`AnchoredSearchDropdown`** — the one dropdown. It floats in the **root** overlay, because an
   inline one pushes the form down as it opens and cannot open off the bottom of the screen.
 - **`OverlaySearchField`** — the launcher/emoji/settings search field, with `RenderEditable`

@@ -15,13 +15,24 @@ abstract final class ShellDurations {
   /// Toggles and control state changes.
   static const Duration base = Duration(milliseconds: 150);
 
-  /// Full-screen overlay fade in/out (launcher, pickers).
+  /// A full-screen overlay's entrance (`overlay_animation`), when the theme
+  /// spells no `overlay_animation_duration`.
+  ///
+  /// The *default* rather than the timing, as [popupIn] is for popups: a theme
+  /// moves it, and `ThemeConfig.overlayInDuration` is what actually plays.
+  /// Still the flat timing for the handful of fades that are not an overlay
+  /// entrance — the notification panel's own exit reads it directly.
   static const Duration overlayFade = Duration(milliseconds: 160);
 
   /// Larger reveals: tray spread, flyouts, page slides.
   static const Duration slow = Duration(milliseconds: 180);
 
   /// The settings overlay's entrance, deliberately statelier.
+  ///
+  /// Read as a *ratio* to [overlayFade] rather than as a duration — see
+  /// `FadeOverlayScaffold.durationScale`. Spelled as a duration because that is
+  /// what it has always been and what it reads as: 240ms against the shell's
+  /// 160.
   static const Duration overlayEntrance = Duration(milliseconds: 240);
 
   /// A popup card's entrance (`popup_animation`), when the theme spells no

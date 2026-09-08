@@ -1,23 +1,33 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:graceful_shell/overlay_transition.dart';
 import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:graceful_shell/theme/overlay_effect.dart';
 
-/// The scale-and-fade scaffold every full-screen overlay plays: scrim, a centred
-/// card that scales in, and the closing-notifier handshake.
+/// The entrance every full-screen overlay plays: scrim, a centred card that
+/// arrives on the theme's `overlay_animation`, and the closing-notifier
+/// handshake.
 ///
 /// The handshake is the load-bearing part: nothing tears the window down
 /// directly. The root flips [closing]; this scaffold plays the reverse animation
 /// and only then calls [onClosed], which unregisters and destroys the native
 /// window.
+///
+/// **The shape and the pace are the theme's, not a call site's.** This used to
+/// take a `duration` and a `beginScale`, and two overlays set them — which meant
+/// the same shell answered a keystroke two different ways for no reason the user
+/// could see or change. What is left of that is [durationScale], a *proportion*
+/// of whatever the theme asks for rather than a duration of its own, so an
+/// overlay that wants to arrive more deliberately still moves when the theme
+/// does. See `lib/theme/overlay_effect.dart` for the tables and `CONFIG.md` for
+/// the four keys.
 class FadeOverlayScaffold extends StatefulWidget {
   const FadeOverlayScaffold({
     super.key,
     required this.closing,
     required this.onClosed,
-    this.duration = ShellDurations.overlayFade,
-    this.beginScale = 0.96,
+    this.durationScale = 1.0,
     this.onBackdropTap,
     required this.child,
   });
@@ -28,8 +38,14 @@ class FadeOverlayScaffold extends StatefulWidget {
   /// Called once the fade-out has finished — the cue to tear the window down.
   final VoidCallback onClosed;
 
-  final Duration duration;
-  final double beginScale;
+  /// This overlay's pace as a multiple of the theme's, for the one surface that
+  /// is not a card the pointer is chasing.
+  ///
+  /// A ratio rather than a duration so `overlay_animation_duration` still moves
+  /// every overlay together, and so an overlay cannot quietly opt out of a
+  /// user's choice. Unread under [OverlayEffect.none], which builds no
+  /// controller at all.
+  final double durationScale;
 
   /// Tap on the scrim. The shell has no input-region support, so a
   /// full-screen surface swallows every click on the monitor — without
@@ -46,22 +62,82 @@ class FadeOverlayScaffold extends StatefulWidget {
 
 class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-  late final Animation<double> _opacity;
+  /// Null until the theme is resolved, and null for good under
+  /// [OverlayEffect.none] — which is what makes that value a real off switch
+  /// rather than a zero-length animation: no controller, no ticker, and no
+  /// layer over the card.
+  AnimationController? _controller;
+
+  /// The configured curve in its own units, which the overshooting curves take
+  /// outside `0..1`.
+  Animation<double>? _geometry;
+
+  /// The same progress as an alpha: [_geometry]'s curve, clamped.
+  Animation<double>? _opacity;
+
+  OverlayEffect? _effect;
+  bool _exiting = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: widget.duration);
-    _scale = Tween<double>(begin: widget.beginScale, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut),
-    );
-    _controller.forward();
     widget.closing.addListener(_onClosingChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The theme cannot be read from initState, and the effect has to be
+    // resolved before the first frame is built or the card would flash at full
+    // size on its way to being drawn at none of it.
+    if (_effect != null) return;
+    final theme = ThemeScope.of(context);
+    final effect = theme.overlayEffect;
+    _effect = effect;
+    if (effect.animates) {
+      final duration = theme.overlayInDuration * widget.durationScale;
+      _controller = AnimationController(
+        vsync: this,
+        duration: duration,
+        // The exit is the entrance reversed and scaled by
+        // `overlay_animation_exit_ratio` — one number rather than a second
+        // duration, so lengthening the entrance lengthens the exit with it and
+        // the ratio says only how the two relate.
+        reverseDuration: duration * theme.overlayExitRatio,
+      );
+      final curve = flutterCurve(theme.overlayCurve);
+      _geometry = CurvedAnimation(
+        parent: _controller!,
+        curve: curve,
+        // Read backwards, so an ease-out entrance leaves on an ease-in and an
+        // overshoot becomes the anticipation dip that answers it.
+        reverseCurve: curve.flipped,
+      );
+      final clamped = ClampedCurve(curve);
+      _opacity = CurvedAnimation(
+        parent: _controller!,
+        curve: clamped,
+        reverseCurve: clamped.flipped,
+      );
+      _controller!.forward();
+    }
+    // A close requested before this ever built — an overlay superseded in the
+    // same turn it opened — still has to be answered.
+    //
+    // Under `none` that answer is immediate, and immediate here means *inside
+    // the build this is part of*: `onClosed` unregisters a window and calls
+    // setState on the root, which during a build is an assertion in debug and a
+    // scheduling anomaly in release. So it waits for the end of the frame. An
+    // animated effect is already asynchronous — the reverse has to play — and
+    // needs no such care.
+    if (widget.closing.value) {
+      if (effect.animates) {
+        _onClosingChanged();
+      } else {
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _onClosingChanged());
+      }
+    }
   }
 
   @override
@@ -70,25 +146,36 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
     if (!identical(oldWidget.closing, widget.closing)) {
       oldWidget.closing.removeListener(_onClosingChanged);
       widget.closing.addListener(_onClosingChanged);
+      if (widget.closing.value) _onClosingChanged();
     }
   }
 
   @override
   void dispose() {
     widget.closing.removeListener(_onClosingChanged);
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   void _onClosingChanged() {
-    if (widget.closing.value) {
-      _controller.reverse().then((_) => widget.onClosed());
+    if (_exiting || !widget.closing.value) return;
+    // Before the effect is resolved there is nothing to reverse and no frame
+    // has been drawn; didChangeDependencies re-asks the moment there is.
+    if (_effect == null) return;
+    _exiting = true;
+    final controller = _controller;
+    if (controller == null) {
+      // `none`: the window may be torn down on the frame it was closed.
+      widget.onClosed();
+      return;
     }
+    controller.reverse().then((_) => widget.onClosed());
   }
 
   @override
   Widget build(BuildContext context) {
     final scrim = ThemeScope.of(context).scrim;
+    final opacity = _opacity;
 
     // No BackdropFilter here, deliberately. A filter reaches only what Flutter
     // has already painted beneath it, and this scaffold *is* the first thing
@@ -105,6 +192,10 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
     // frame at 4K. The scrim is a flat fill and fades by its own alpha instead;
     // only the card keeps a real layer, because a card is a stack of overlapping
     // pieces and fading them one at a time shows it through itself.
+    //
+    // This is also why no [OverlayEffect] moves the scrim: it is the size of the
+    // output, so anything transforming it is that same full-output layer under
+    // another name. The wash arrives by alpha, whatever the card is doing.
     Widget backdrop = Stack(
       // Non-directional, so this does not depend on an ambient
       // `Directionality` for a stack whose one unpositioned child is centred.
@@ -114,21 +205,25 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
       // output instead of centring it.
       children: [
         Positioned.fill(
-          child: AnimatedBuilder(
-            animation: _opacity,
-            builder: (context, _) => ColoredBox(
-              color: scrim.withValues(alpha: scrim.a * _opacity.value),
-            ),
-          ),
+          child: opacity == null
+              // `none`, and the one case that needs no listener at all.
+              ? ColoredBox(color: scrim)
+              : AnimatedBuilder(
+                  animation: opacity,
+                  builder: (context, _) => ColoredBox(
+                    color: scrim.withValues(alpha: scrim.a * opacity.value),
+                  ),
+                ),
         ),
-        // Built outside the AnimatedBuilder, and driven by transition widgets
-        // rather than by a rebuild: `ScaleTransition` and `FadeTransition`
-        // tick their own render objects, so the card, the `Center` and the
-        // transform stop being rebuilt on every frame of the animation.
+        // Built outside the scrim's builder, and driven by transition widgets
+        // rather than by a rebuild of this scaffold: the card, the `Center` and
+        // the transform stop being rebuilt on every frame of the animation.
         Center(
-          child: FadeTransition(
-            opacity: _opacity,
-            child: ScaleTransition(scale: _scale, child: widget.child),
+          child: OverlayTransition(
+            effect: _effect ?? OverlayEffect.scale,
+            geometry: _geometry ?? kAlwaysCompleteAnimation,
+            opacity: opacity ?? kAlwaysCompleteAnimation,
+            child: widget.child,
           ),
         ),
       ],

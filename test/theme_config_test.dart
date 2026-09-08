@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:graceful_shell/theme/overlay_effect.dart';
 import 'package:graceful_shell/theme/popup_effect.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/theme/tokens.dart';
@@ -321,6 +322,115 @@ void main() {
           ThemeConfig.fromMap({'popup_animation_duration': 99999})
               .popupAnimationDuration,
           2000);
+    });
+  });
+
+  group('the overlay animation keys', () {
+    test('the defaults are the entrance every overlay already played', () {
+      // The same guarantee popup_animation_duration makes: a theme file written
+      // before these four keys existed renders exactly as it did.
+      const theme = ThemeConfig();
+      expect(theme.overlayEffect, OverlayEffect.scale);
+      expect(theme.overlayCurve, OverlayCurve.easeOut);
+      expect(theme.overlayInDuration, ShellDurations.overlayFade);
+      expect(theme.overlayExitRatio, 1.0);
+      expect(theme.overlayOutDuration, theme.overlayInDuration);
+    });
+
+    test('each of the four parses and writes itself back', () {
+      final theme = ThemeConfig.fromMap({
+        'overlay_animation': 'swing',
+        'overlay_animation_duration': 320,
+        'overlay_animation_exit_ratio': 0.6,
+        'overlay_animation_curve': 'elastic',
+      });
+      expect(theme.overlayEffect, OverlayEffect.swing);
+      expect(theme.overlayAnimationDuration, 320);
+      expect(theme.overlayExitRatio, 0.6);
+      expect(theme.overlayCurve, OverlayCurve.elastic);
+
+      final map = theme.toMap();
+      expect(map['overlay_animation'], 'swing');
+      expect(map['overlay_animation_duration'], 320);
+      expect(map['overlay_animation_exit_ratio'], 0.6);
+      expect(map['overlay_animation_curve'], 'elastic');
+      expect(ThemeConfig.fromMap(map), theme, reason: 'round trip');
+    });
+
+    test('an unknown slug or a wrong type costs its key, not the theme', () {
+      // TomlReader's rule on two closed sets and two numbers at once: an effect
+      // or a curve added in a later release must not take down a shell reading
+      // the file back.
+      final theme = ThemeConfig.fromMap({
+        'overlay_animation': 'kaleidoscope',
+        'overlay_animation_curve': 'parabolic',
+        'overlay_animation_duration': 'brisk',
+        'overlay_animation_exit_ratio': true,
+        'popup_radius': 12.0,
+      });
+      const defaults = ThemeConfig();
+      expect(theme.overlayEffect, defaults.overlayEffect);
+      expect(theme.overlayCurve, defaults.overlayCurve);
+      expect(theme.overlayAnimationDuration, defaults.overlayAnimationDuration);
+      expect(theme.overlayExitRatio, defaults.overlayExitRatio);
+      expect(theme.popupRadius, 12.0);
+    });
+
+    test('a TOML float coerces into the duration', () {
+      expect(
+          ThemeConfig.fromMap({'overlay_animation_duration': 320.0})
+              .overlayAnimationDuration,
+          320);
+    });
+
+    test('the clamps hold at both ends', () {
+      // 0 is a real value at both keys — an entrance played instantly, and an
+      // exit that is — so neither floor is an off switch; `overlay_animation =
+      // "none"` is. The duration's ceiling is wider than a popup's because an
+      // overlay is a surface the user asked for rather than one they are
+      // already reaching past, and the ratio's is above 1 because an overlay
+      // that leaves more slowly than it arrived is a legitimate theme.
+      expect(
+          ThemeConfig.fromMap({'overlay_animation_duration': -50})
+              .overlayAnimationDuration,
+          0);
+      expect(
+          ThemeConfig.fromMap({'overlay_animation_duration': 99999})
+              .overlayAnimationDuration,
+          4000);
+      expect(
+          ThemeConfig.fromMap({'overlay_animation_exit_ratio': -1.0})
+              .overlayExitRatio,
+          0.0);
+      expect(
+          ThemeConfig.fromMap({'overlay_animation_exit_ratio': 9.0})
+              .overlayExitRatio,
+          2.0);
+    });
+
+    test('the exit follows the entrance through the ratio', () {
+      for (final ms in const [40, 160, 600, 4000]) {
+        final theme = ThemeConfig.fromMap({
+          'overlay_animation_duration': ms,
+          'overlay_animation_exit_ratio': 0.5,
+        });
+        expect(theme.overlayOutDuration.inMilliseconds, (ms * 0.5).round(),
+            reason: 'at ${ms}ms');
+      }
+    });
+
+    test('an overlay key is not a popup key', () {
+      // Two surfaces, two decisions: a theme that wants motion in its menus and
+      // none in its panels has to be able to say so.
+      final theme = ThemeConfig.fromMap({
+        'popup_animation': 'none',
+        'overlay_animation': 'flip',
+        'overlay_animation_duration': 500,
+      });
+      expect(theme.popupEffect, PopupEffect.none);
+      expect(theme.popupAnimationDuration, 140);
+      expect(theme.overlayEffect, OverlayEffect.flip);
+      expect(theme.overlayAnimationDuration, 500);
     });
   });
 
