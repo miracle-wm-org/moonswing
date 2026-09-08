@@ -57,22 +57,21 @@ def sprite():
     put(23, 6, "ovvvvvvvvvvvvvvvvvvo")
     put(24, 7, "ovvvvvvvvvvvvvvvvo")
     # arms: one pixel of bare skin down each side, into a small round glove.
-    # The inner outline is the torso's own — a second one beside it reads as a
-    # gap, not an arm.
-    put(14, 9, "os")
-    put(15, 9, "os")
-    put(16, 9, "os")
-    put(17, 9, "os")
-    put(18, 8, "okk")
-    put(19, 8, "okk")
-    put(20, 8, "ooo")
-    put(14, 21, "so")
-    put(15, 21, "so")
-    put(16, 21, "so")
-    put(17, 21, "so")
-    put(18, 21, "kko")
-    put(19, 21, "kko")
-    put(20, 21, "ooo")
+    # Undrawn on the outside — an arm this thin, outlined, is mostly outline —
+    # so the cape sits straight against the skin, and the only line beside it
+    # is the torso's own.
+    put(14, 10, "s")
+    put(15, 10, "s")
+    put(16, 10, "s")
+    put(17, 10, "s")
+    put(18, 9, "kk")
+    put(19, 9, "kk")
+    put(14, 21, "s")
+    put(15, 21, "s")
+    put(16, 21, "s")
+    put(17, 21, "s")
+    put(18, 21, "kk")
+    put(19, 21, "kk")
     # torso: the charcoal markings, the jade and red diamonds, the jade sash
     put(12, 9, "occcccccccccco")
     put(13, 10, "occccccccccо".replace("о", "o"))
@@ -97,11 +96,11 @@ def sprite():
     put(26, 16, "okkko")
     put(27, 10, "okkkko")
     put(27, 16, "okkkko")
-    # hood: it flares where it opens, and the opening shows the face —
+    # hood: a rounded crown, and the opening shows the face —
     # skin, two eyes, and the bone wrap over the mouth below them
-    put(4, 14, "occo")
-    put(5, 13, "occcco")
-    put(6, 12, "occcccco")
+    put(4, 13, "occcco")
+    put(5, 12, "occcccco")
+    put(6, 11, "occcccccco")
     put(7, 11, "occcccccco")
     put(8, 11, "ocskssksco")
     put(9, 11, "occsssscco")
