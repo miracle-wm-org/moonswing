@@ -20,6 +20,9 @@ N = 32  # the sprite grid is 32x32
 PALETTE = {
     'o': '#22221f',  # outline
     'k': '#3f3f3d',  # charcoal: the eyes, the chest markings, gloves, boots
+    'd': '#6b6757',  # the cape's own shadow, where it passes close behind the
+                     # body: the strip beside the torso, the inside edge of the
+                     # flare past the hips, and the gap between the legs
     'v': '#8e8a74',  # bone cloth in shadow: the cape, the back of the hood
                      # (darker than the reference, or the cape and the back
                      # leg merge into one pale mass at favicon sizes)
@@ -45,19 +48,33 @@ def sprite():
     # cape, hanging behind: a single pixel down the body, where the arms and
     # gloves cover it, and three where it clears them past the hips. That
     # widening is the whole read — an even strip beside the body is piping.
-    put(12, 8, "ovvvvvvvvvvvvvvo")
-    put(13, 8, "ovvvvvvvvvvvvvvo")
-    put(14, 8, "ovvvvvvvvvvvvvvo")
-    put(15, 8, "ovvvvvvvvvvvvvvo")
-    put(16, 8, "ovvvvvvvvvvvvvvo")
-    put(17, 8, "ovvvvvvvvvvvvvvo")
-    put(18, 8, "ovvvvvvvvvvvvvvo")
-    put(19, 8, "ovvvvvvvvvvvvvvo")
-    put(20, 7, "ovvvvvvvvvvvvvvvvo")
-    put(21, 7, "ovvvvvvvvvvvvvvvvo")
-    put(22, 7, "ovvvvvvvvvvvvvvvvo")
-    put(23, 8, "ovvvvvvvvvvvvvvo")
-    put(24, 9, "ovvvvvvvvvvvvo")
+    #
+    # The shoulders are round, not cut square. The top edge steps in twice on
+    # its way up to the hood (cols 8 -> 9 -> 10, and its mirror), which at this
+    # size is how a curve is spelled; a flat top row the full width of the cape
+    # reads as a signboard held up behind the character rather than cloth
+    # falling off a pair of shoulders.
+    #
+    # And where the cape passes close behind the body it is 'd' rather than
+    # 'v': the strip beside the torso, the inside edge of the flare past the
+    # hips, and the gap between the legs. That is the shadow the body casts on
+    # to it, and it is also what stops the near edge of the cape and the tabard
+    # reading as one flat cut-out.
+    put(11, 10, "ov")
+    put(11, 20, "vo")
+    put(12, 9, "ovvvvvvvvvvvvo")
+    put(13, 8, "odvvvvvvvvvvvvdo")
+    put(14, 8, "odvvvvvvvvvvvvdo")
+    put(15, 8, "odvvvvvvvvvvvvdo")
+    put(16, 8, "odvvvvvvvvvvvvdo")
+    put(17, 8, "odvvvvvvvvvvvvdo")
+    put(18, 8, "odvvvvvvvvvvvvdo")
+    put(19, 8, "odvvvvvvvvvvvvdo")
+    put(20, 7, "ovvdvvvvvvvvvvdvvo")
+    put(21, 7, "ovvdvvvvvvvvvvdvvo")
+    put(22, 7, "ovvdvvvvvvvvvvdvvo")
+    put(23, 8, "ovdvvvvvvvvvvdvo")
+    put(24, 9, "odvvvvvvvvvvdo")
     # arms: one pixel of bare skin down each side, into a small round glove.
     # Undrawn on the outside — an arm this thin, outlined, is mostly outline —
     # so the cape sits straight against the skin, and the only line beside it
@@ -100,11 +117,13 @@ def sprite():
     put(27, 16, "okkkko")
     # The two things that make a cape read from the front: it comes over the
     # shoulders as one band with the strips down the sides, and it hangs
-    # behind, showing in the gap between the legs.
-    put(12, 9, "vvvvvvvvvvvvvv")
-    put(23, 15, "vv")
-    put(24, 15, "vv")
-    put(25, 15, "vv")
+    # behind, showing in the gap between the legs. The band keeps the rounded
+    # corners the cape was drawn with, so it runs col 10..21 and not the full
+    # width, and it darkens where the hood hangs over it.
+    put(12, 10, "vvddddddddvv")
+    put(23, 15, "dd")
+    put(24, 15, "dd")
+    put(25, 15, "dd")
     # hood: a rounded crown, and the opening shows the face —
     # skin, two eyes, and the bone wrap over the mouth below them
     put(4, 13, "occcco")
@@ -156,87 +175,37 @@ def mark(rows):
 
 
 def banner(rows):
-    """The sprite at 6x, vaulting the gap between two windows under a panel."""
+    """The sprite at 12x on a plain gradient — no scene, no chrome.
+
+    The banner used to draw a little desktop behind the character: a panel, two
+    windows, a starfield. It was a screenshot the shell had not earned, and it
+    dated every time the real thing changed. A gradient dates never, and it
+    leaves the character as the only thing in the frame. The 960x420 box is
+    load-bearing all the same: website/scripts/sync.mjs rasterises the social
+    card at exactly 2x it.
+    """
     return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420"
      shape-rendering="auto" role="img"
-     aria-label="A hooded character in the graceful outfit, standing between two desktop windows under a shell panel">
+     aria-label="A hooded character in the graceful outfit, head-on, on a gradient background">
 {legend(rows)}
   <defs>
-    <linearGradient id="ga-sky" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#232831"/>
-      <stop offset="55%" stop-color="#1a1e25"/>
-      <stop offset="1" stop-color="#121519"/>
+    <linearGradient id="ga-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3c6f66"/>
+      <stop offset="50%" stop-color="#27333d"/>
+      <stop offset="1" stop-color="#15181d"/>
     </linearGradient>
-    <linearGradient id="ga-win" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2c333c" stop-opacity=".95"/>
-      <stop offset="1" stop-color="#1b2027" stop-opacity=".95"/>
-    </linearGradient>
-    <radialGradient id="ga-glow" cx="50%" cy="45%" r="55%">
-      <stop offset="0" stop-color="#4fa79b" stop-opacity=".22"/>
-      <stop offset="1" stop-color="#4fa79b" stop-opacity="0"/>
+    <radialGradient id="ga-lift" cx="50%" cy="52%" r="60%">
+      <stop offset="0" stop-color="#e8f2ef" stop-opacity=".10"/>
+      <stop offset="1" stop-color="#e8f2ef" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <rect width="960" height="420" fill="url(#ga-sky)"/>
-  <rect width="960" height="420" fill="url(#ga-glow)"/>
+  <rect width="960" height="420" fill="url(#ga-bg)"/>
+  <rect width="960" height="420" fill="url(#ga-lift)"/>
 
-  <!-- faint starfield -->
-  <g fill="#dfe6e4" fill-opacity=".18">
-    <circle cx="96" cy="72" r="1.6"/><circle cx="212" cy="46" r="1.1"/><circle cx="330" cy="96" r="1.4"/>
-    <circle cx="628" cy="58" r="1.2"/><circle cx="742" cy="104" r="1.7"/><circle cx="884" cy="64" r="1.3"/>
-    <circle cx="452" cy="40" r="1"/><circle cx="806" cy="176" r="1.2"/><circle cx="150" cy="168" r="1.1"/>
-  </g>
-
-  <!-- the shell's own panel, across the top -->
-  <rect x="0" y="0" width="960" height="26" fill="#171b21" fill-opacity=".92"/>
-  <g fill="#4fa79b" fill-opacity=".55">
-    <rect x="24" y="10" width="26" height="6" rx="3"/>
-    <rect x="58" y="10" width="12" height="6" rx="3" fill-opacity=".3"/>
-    <rect x="78" y="10" width="12" height="6" rx="3" fill-opacity=".3"/>
-    <rect x="432" y="10" width="52" height="6" rx="3" fill-opacity=".4"/>
-    <rect x="806" y="10" width="18" height="6" rx="3"/>
-    <rect x="832" y="10" width="18" height="6" rx="3"/>
-    <rect x="858" y="10" width="42" height="6" rx="3"/>
-  </g>
-  <rect x="0" y="26" width="960" height="1" fill="#4fa79b" fill-opacity=".22"/>
-
-  <!-- two windows, flanking, sharing the character's baseline -->
-  <g>
-    <rect x="40" y="200" width="280" height="180" rx="14" fill="url(#ga-win)"
-          stroke="#4fa79b" stroke-opacity=".28" stroke-width="1.5"/>
-    <rect x="40" y="200" width="280" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
-    <rect x="40" y="216" width="280" height="14" fill="#4fa79b" fill-opacity=".12"/>
-    <g fill="#7fc7bd" fill-opacity=".5">
-      <circle cx="62" cy="215" r="4"/><circle cx="78" cy="215" r="4"/><circle cx="94" cy="215" r="4"/>
-    </g>
-    <g fill="#dfe6e4" fill-opacity=".13">
-      <rect x="64" y="256" width="180" height="9" rx="4.5"/>
-      <rect x="64" y="278" width="222" height="9" rx="4.5"/>
-      <rect x="64" y="300" width="140" height="9" rx="4.5"/>
-      <rect x="64" y="322" width="196" height="9" rx="4.5"/>
-    </g>
-  </g>
-  <g>
-    <rect x="640" y="236" width="280" height="144" rx="14" fill="url(#ga-win)"
-          stroke="#4fa79b" stroke-opacity=".28" stroke-width="1.5"/>
-    <rect x="640" y="236" width="280" height="30" rx="14" fill="#4fa79b" fill-opacity=".12"/>
-    <rect x="640" y="252" width="280" height="14" fill="#4fa79b" fill-opacity=".12"/>
-    <g fill="#7fc7bd" fill-opacity=".5">
-      <circle cx="662" cy="251" r="4"/><circle cx="678" cy="251" r="4"/><circle cx="694" cy="251" r="4"/>
-    </g>
-    <g fill="#dfe6e4" fill-opacity=".13">
-      <rect x="664" y="292" width="200" height="9" rx="4.5"/>
-      <rect x="664" y="314" width="150" height="9" rx="4.5"/>
-      <rect x="664" y="336" width="184" height="9" rx="4.5"/>
-    </g>
-  </g>
-
-  <!-- the ground the three of them stand on -->
-  <ellipse cx="480" cy="380" rx="180" ry="16" fill="#4fa79b" fill-opacity=".13"/>
-  <rect x="0" y="380" width="960" height="1" fill="#4fa79b" fill-opacity=".16"/>
-
-  <!-- the sprite, at 10x so every pixel stays square -->
-  <g transform="translate(320 100) scale(10)" shape-rendering="crispEdges">
+  <!-- the sprite, at 12x so every pixel stays square, centred on its own
+       drawn extent (cols 7..24, rows 4..28) rather than on the 32x32 grid -->
+  <g transform="translate(288 12) scale(12)" shape-rendering="crispEdges">
 {rects(rows, '    ')}
   </g>
 </svg>

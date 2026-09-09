@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/graceful-banner.svg" alt="A hooded character in the graceful outfit, standing between two windows under a shell panel" width="720">
+  <img src="assets/graceful-banner.svg" alt="A hooded character in the graceful outfit, head-on, on a gradient background" width="720">
 </p>
 
 <h1 align="center">Graceful</h1>
