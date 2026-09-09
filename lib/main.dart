@@ -2224,17 +2224,6 @@ class _PanelMainState extends State<PanelMain> {
     }
   }
 
-  /// The bar's content with its own rim layer over it, or the content alone
-  /// when the rim is still the decoration's.
-  ///
-  /// Over rather than under: the rim is the bar's outermost edge and a module
-  /// laid out flush to it would otherwise paint across the line. It absorbs no
-  /// hits — a `CustomPaint` with no child answers `hitTestSelf` false unless its
-  /// painter says otherwise — so the modules underneath are unaffected.
-  Widget _withRim(Widget content, Widget? rim) => rim == null
-      ? content
-      : Stack(fit: StackFit.expand, children: [content, rim]);
-
   @override
   Widget build(BuildContext context) {
     final layout = widget.panelConfig.layout;
@@ -2276,12 +2265,11 @@ class _PanelMainState extends State<PanelMain> {
     // never cover the line itself; see `panel_rim.dart`. The panel is named by
     // its own FlutterView, which is what both ends resolve to the same object:
     // the panel's tree is in it, and `PopupHost.openPopup` runs from a module's
-    // context inside that same tree.
-    final rim = panelRimLayer(
-      theme: theme,
-      anchor: widget.panelConfig.anchor,
-      panel: View.maybeOf(context),
-    );
+    // context inside that same tree. `panelWithRim` paints it as a *foreground*
+    // painter over the bar's own content, which is what keeps the modules
+    // clickable — a `CustomPaint` laid over them as a background painter is
+    // opaque to hits.
+    final paintsOwnRim = panelPaintsOwnRim(theme);
 
     return BarScope(
       anchor: widget.panelConfig.anchor,
@@ -2302,13 +2290,15 @@ class _PanelMainState extends State<PanelMain> {
               decoration: panelBackgroundDecoration(
                 anchor: widget.panelConfig.anchor,
                 theme: theme,
-                includeRim: rim == null,
+                includeRim: !paintsOwnRim,
               ),
-              child: _withRim(
-                radius == BorderRadius.zero
+              child: panelWithRim(
+                theme: theme,
+                anchor: widget.panelConfig.anchor,
+                panel: View.maybeOf(context),
+                content: radius == BorderRadius.zero
                     ? content
                     : ClipRRect(borderRadius: radius, child: content),
-                rim,
               ),
             ),
           ),
