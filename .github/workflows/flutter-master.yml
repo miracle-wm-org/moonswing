@@ -42,9 +42,38 @@ jobs:
 
       # Flutter's standard Linux desktop toolchain plus what linux/CMakeLists.txt
       # declares REQUIRED: gtk+-3.0 and gtk-layer-shell-0. libmpv-dev is media_kit's
-      # and libasound2-dev is the audio stack's.
+      # and libasound2-dev is the audio stack's. Every one of them comes from the
+      # Ubuntu archive.
+      #
+      # The `rm` is what keeps that true. `ubuntu-latest` ships third-party apt
+      # sources this job never installs from, and `apt-get update` exits
+      # non-zero when *any* configured source fails — so one of them serving a
+      # bad index fails this step, and the job, before a line of Dart has run.
+      # That is not hypothetical: Chrome's repository published a Release file
+      # ahead of the index it pointed at and took CI down with `Hash Sum
+      # mismatch` on a diff that touches no CI, no packaging and no
+      # dependencies. Removing the sources beats tolerating a failed update,
+      # which would only defer the breakage to `install` with a worse message.
+      #
+      # Selected by *hostname* rather than by file name, because a file name is
+      # what a runner image is free to change: an `rm` of a path that has since
+      # been renamed silently does nothing and costs a whole red run to
+      # discover, while the grep covers `.list` and deb822 `.sources` alike.
+      # That is also the safety property — never a blanket clear of
+      # sources.list.d, which under deb822 is where the Ubuntu archive itself
+      # lives and removing it would leave nothing to install *from*. A literal
+      # glob one level deep, an explicit `-e` guard for the no-match case, and a
+      # removal of exactly the file just matched: no path is ever built from a
+      # variable that could be empty.
       - name: Install system dependencies
         run: |
+          for f in /etc/apt/sources.list.d/*; do
+            [ -e "$f" ] || continue
+            if grep -qE 'dl\.google\.com|packages\.microsoft\.com' "$f"; then
+              echo "Dropping unused apt source: $f"
+              sudo rm -f "$f"
+            fi
+          done
           sudo apt-get update
           sudo apt-get install -y \
             clang \
