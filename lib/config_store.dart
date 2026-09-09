@@ -139,7 +139,10 @@ class ConfigStore extends ChangeNotifier {
   /// True when a restart-only field has changed since the store loaded: values
   /// that parametrize native layer-shell windows and cannot apply live — panel
   /// `anchor`/`height`/`layer`, the set of panels, and whether the background
-  /// surface exists at all. Everything else updates live.
+  /// surface exists at all — plus `[shortcuts]`, which is not a window at all
+  /// but latches just as hard: the compositor is asked for the shell's global
+  /// shortcuts once, on its first answer, so a rebinding is a change to what the
+  /// *next* run registers. Everything else updates live.
   bool get needsRestart => _restartSignature() != _startupRestartSignature;
 
   String _restartSignature() {
@@ -176,6 +179,18 @@ class ConfigStore extends ChangeNotifier {
     final desktopEnabled =
         rawDesktopEnabled is bool ? rawDesktopEnabled : true;
     parts.add('bg:${hasWallpaper || desktopEnabled}');
+    // The four global shortcuts, signed as they are written rather than as they
+    // parse: this asks "has the user changed one", and a value the parser
+    // rejects still changes what the next run will make of it. An absent key is
+    // signed as absent, which is how falling back to the default reads as the
+    // change it is.
+    final shortcuts = _root['shortcuts'];
+    final shortcutKeys = shortcuts is Map
+        ? (shortcuts.keys.map((key) => '$key').toList()..sort())
+        : const <String>[];
+    for (final key in shortcutKeys) {
+      parts.add('shortcut:$key:${(shortcuts as Map)[key]}');
+    }
     return parts.join('|');
   }
 

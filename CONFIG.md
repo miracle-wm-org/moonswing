@@ -339,6 +339,18 @@ power_button = "poweroff"
 
 **Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
 
+### Changing one without editing the file
+
+The keyboard icon on the bar opens the shortcut sheet, and the four above are listed on it under **Shell**, alongside every binding the window manager has configured. Click one and press the combination you want:
+
+- **Esc** stops listening and changes nothing;
+- **Backspace** clears the shortcut, the same as writing `""` below;
+- the arrow beside a row you have changed puts it back on its default.
+
+Only the shell's own shortcuts can be changed from there. The window manager's bindings are on the same sheet but read-only — they are miracle's configuration, and they are edited under **Settings › Window Manager › Key Bindings**.
+
+What you press is written back into `config.toml` as the text you would have typed yourself, so the file stays readable and hand-editable. Two things the sheet says that the file cannot: it refuses a combination one of the other three is already on (the second registration would silently never happen), and it warns — without refusing — when the window manager already uses that combination for something. And because registration latches at start-up, an edited row says so until the shell is restarted.
+
 ### Syntax
 
 A shortcut is modifiers and a key joined by `+`, in any case:

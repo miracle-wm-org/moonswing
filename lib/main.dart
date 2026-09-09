@@ -47,6 +47,7 @@ import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/keybinds/keybind_cheatsheet_controller.dart';
 import 'package:graceful_shell/keybinds/keybind_cheatsheet_overlay.dart';
 import 'package:graceful_shell/keybinds/keybind_store.dart';
+import 'package:graceful_shell/keybinds/shell_keybind_store.dart';
 import 'package:graceful_shell/launcher/app_index.dart';
 import 'package:graceful_shell/launcher/app_search.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
@@ -181,6 +182,12 @@ void main() async {
   // reads — and a machine with no compositor must not settle a start-up task
   // `failed` over a cheat sheet nobody has opened.
   startKeybindService(miracle);
+
+  // The sheet's other half: the shell's own `[shortcuts]`, which — unlike
+  // miracle's bindings — it can also edit. Handed the snapshot the shortcuts
+  // below are registered from, so an edit can be told apart from what the
+  // keyboard actually does until the shell is restarted.
+  startShellKeybindService(store, registered: appConfig.shortcuts);
 
   // Live registry of outputs, kept current as monitors come and go. Empty until
   // [_connectDisplays] has enumerated them, which is why panels render before

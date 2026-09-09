@@ -103,4 +103,114 @@ void main() {
       expect(parseShortcut('ctrl+code:abc'), isNull);
     });
   });
+
+  group('formatShortcut', () {
+    /// The property the editor rests on: a shortcut captured from the keyboard
+    /// is stored as text, and what is stored has to parse back to the very same
+    /// registration. A round trip that loses the shift resolution binds the
+    /// wrong key on the next start-up, and nothing says so until a key is
+    /// pressed.
+    void roundTrips(String written) {
+      final spec = parseShortcut(written);
+      expect(spec, isNotNull, reason: '"$written" should parse');
+      expect(formatShortcut(spec!), written);
+      expect(parseShortcut(formatShortcut(spec)), spec);
+    }
+
+    test('writes the defaults exactly as the default config spells them', () {
+      expect(formatShortcut(kDefaultOpenSettings), 'ctrl+shift+s');
+      expect(formatShortcut(kDefaultOpenLauncher), 'ctrl+space');
+      expect(formatShortcut(kDefaultOpenEmoji), 'ctrl+shift+e');
+      expect(formatShortcut(kDefaultPowerButton), 'poweroff');
+    });
+
+    test('round-trips letters, digits, named keys and punctuation', () {
+      roundTrips('ctrl+a');
+      roundTrips('super+d');
+      roundTrips('alt+f5');
+      roundTrips('ctrl+alt+shift+f24');
+      roundTrips('ctrl+space');
+      roundTrips('escape');
+      roundTrips('ctrl+pageup');
+      roundTrips('super+period');
+      roundTrips('ctrl+bracketleft');
+      roundTrips('poweroff');
+      roundTrips('sleep');
+    });
+
+    test('un-does the shift resolution it was written with', () {
+      // `ctrl+shift+s` parses to `S`; writing that back out as `ctrl+shift+S`
+      // would not parse, and writing it as `ctrl+s` would drop the shift.
+      roundTrips('ctrl+shift+s');
+      roundTrips('ctrl+shift+1');
+      roundTrips('ctrl+shift+slash');
+      roundTrips('shift+minus');
+    });
+
+    test('writes the modifiers in the order a shortcut is read', () {
+      // Ctrl, Alt, Shift, Super — `miracle_labels.dart`'s order, because both
+      // halves of the cheat sheet are read off one page.
+      expect(
+        formatShortcut(parseShortcut('super+shift+alt+ctrl+a')!),
+        'ctrl+alt+shift+super+a',
+      );
+    });
+
+    test('keeps the two escape hatches', () {
+      roundTrips('ctrl+code:57');
+      // A keysym with no name of its own comes back as the number it is,
+      // rather than as a key that happens to be near it.
+      expect(formatShortcut(const ShortcutSpec(modifiers: 0, keysym: 0xfe03)),
+          '0xfe03');
+      expect(parseShortcut('0xfe03'),
+          const ShortcutSpec(modifiers: 0, keysym: 0xfe03));
+    });
+  });
+
+  group('xkbKeysymName', () {
+    /// The bridge that lets the shell's shortcuts be drawn by the key-cap table
+    /// written for miracle's: it has to answer in *miracle's* vocabulary, not
+    /// in the parser's.
+    test('answers with the compositor\'s spelling, not the config file\'s', () {
+      expect(xkbKeysymName(0xff1b), 'Escape');
+      expect(xkbKeysymName(0xff0d), 'Return');
+      expect(xkbKeysymName(0xff08), 'BackSpace');
+      expect(xkbKeysymName(0xff55), 'Prior');
+      expect(xkbKeysymName(0x1008ff2a), 'XF86PowerOff');
+      expect(xkbKeysymName(0x0020), 'space');
+      expect(xkbKeysymName(0xffbe), 'F1');
+    });
+
+    test('a printable keysym is its own character', () {
+      expect(xkbKeysymName(0x53), 'S');
+      expect(xkbKeysymName(0x73), 's');
+      expect(xkbKeysymName(0x21), '!');
+      expect(xkbKeysymName(0x5b), '[');
+    });
+
+    test('a keysym it has never heard of has no name', () {
+      expect(xkbKeysymName(0xfe03), isNull);
+    });
+  });
+
+  group('shortcutTokenForCharacter', () {
+    /// What a captured key press goes through: the editor knows only what the
+    /// key is labelled, and Shift is reported separately — so a label has to
+    /// come back as the *un*shifted token or the shift would be spelled twice.
+    test('drops the case and undoes the shift', () {
+      expect(shortcutTokenForCharacter('S'), 's');
+      expect(shortcutTokenForCharacter('s'), 's');
+      expect(shortcutTokenForCharacter('!'), '1');
+      expect(shortcutTokenForCharacter('?'), 'slash');
+      expect(shortcutTokenForCharacter('_'), 'minus');
+      expect(shortcutTokenForCharacter('-'), 'minus');
+      expect(shortcutTokenForCharacter('7'), '7');
+    });
+
+    test('a character with no spelling is refused, not guessed at', () {
+      expect(shortcutTokenForCharacter(''), isNull);
+      expect(shortcutTokenForCharacter('ab'), isNull);
+      expect(shortcutTokenForCharacter('\u00e9'), isNull);
+    });
+  });
 }

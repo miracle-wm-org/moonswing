@@ -40,21 +40,42 @@ class ShortcutSpec {
       ', ${isKeycode ? 'keycode' : 'keysym'}: 0x${keysym.toRadixString(16)})';
 }
 
+/// The modifier bits, named. Public because a shortcut is also *built* — by the
+/// cheat sheet's editor, from a key press — and not only parsed; a bitfield
+/// spelled `0x800` at a call site is the kind of literal this file exists to
+/// keep in one place.
+const int kShortcutModAlt = 0x01;
+const int kShortcutModShift = 0x08;
+const int kShortcutModCtrl = 0x100;
+const int kShortcutModSuper = 0x800;
+
 /// Modifier bits, keyed by the names accepted in a shortcut string.
 ///
 /// Only the *generic* bits are offered: the protocol fires a trigger when exactly
 /// the registered modifier set is held, so registering `ctrl_left` would mean the
 /// shortcut stops working on the right-hand Control key.
 const Map<String, int> _modifierNames = {
-  'ctrl': 0x100,
-  'control': 0x100,
-  'shift': 0x08,
-  'alt': 0x01,
-  'meta': 0x800,
-  'super': 0x800,
-  'win': 0x800,
-  'logo': 0x800,
+  'ctrl': kShortcutModCtrl,
+  'control': kShortcutModCtrl,
+  'shift': kShortcutModShift,
+  'alt': kShortcutModAlt,
+  'meta': kShortcutModSuper,
+  'super': kShortcutModSuper,
+  'win': kShortcutModSuper,
+  'logo': kShortcutModSuper,
 };
+
+/// The modifier bits in the order a shortcut is *written* — Ctrl, Alt, Shift,
+/// Super — each with the spelling [formatShortcut] writes.
+///
+/// The same order `miracle_labels.dart` sorts the compositor's own modifiers
+/// into, because both are read off the same cheat sheet.
+const List<(int, String)> kShortcutModifiersInWrittenOrder = [
+  (kShortcutModCtrl, 'ctrl'),
+  (kShortcutModAlt, 'alt'),
+  (kShortcutModShift, 'shift'),
+  (kShortcutModSuper, 'super'),
+];
 
 /// Named (non-character) keys, from `xkbcommon-keysyms.h`.
 const Map<String, int> _namedKeysyms = {
@@ -213,4 +234,145 @@ ShortcutSpec? parseShortcut(String value) {
   }
 
   return ShortcutSpec(modifiers: modifiers, keysym: keysym);
+}
+
+/// The canonical spellings for one named keysym: the token [formatShortcut]
+/// writes into `config.toml`, and the xkb name a key cap is drawn from.
+///
+/// Both, because the two vocabularies differ and only one table should have to
+/// know it: this file's own parser calls the Escape key `escape`, while the
+/// compositor — and so `keybind_model.dart`, which draws the caps for *its*
+/// bindings — calls it `Escape`. A shell shortcut drawn beside a compositor one
+/// has to arrive as the same kind of name, or the two would read as two
+/// different keyboards.
+///
+/// Only keysyms with a name are here. Everything printable is its own
+/// character, and everything else falls back to the `0x…` form the parser
+/// already accepts.
+const Map<int, ({String token, String xkb})> _namedKeysymSpellings = {
+  0x0020: (token: 'space', xkb: 'space'),
+  0xff0d: (token: 'enter', xkb: 'Return'),
+  0xff09: (token: 'tab', xkb: 'Tab'),
+  0xff1b: (token: 'escape', xkb: 'Escape'),
+  0xff08: (token: 'backspace', xkb: 'BackSpace'),
+  0xffff: (token: 'delete', xkb: 'Delete'),
+  0xff63: (token: 'insert', xkb: 'Insert'),
+  0xff50: (token: 'home', xkb: 'Home'),
+  0xff57: (token: 'end', xkb: 'End'),
+  0xff55: (token: 'pageup', xkb: 'Prior'),
+  0xff56: (token: 'pagedown', xkb: 'Next'),
+  0xff51: (token: 'left', xkb: 'Left'),
+  0xff52: (token: 'up', xkb: 'Up'),
+  0xff53: (token: 'right', xkb: 'Right'),
+  0xff54: (token: 'down', xkb: 'Down'),
+  0xff61: (token: 'print', xkb: 'Print'),
+  0xff13: (token: 'pause', xkb: 'Pause'),
+  0xff67: (token: 'menu', xkb: 'Menu'),
+  0x1008ff2a: (token: 'poweroff', xkb: 'XF86PowerOff'),
+  0x1008ff2f: (token: 'sleep', xkb: 'XF86Sleep'),
+};
+
+/// The punctuation names, keyed by the keysym rather than the spelling.
+///
+/// Derived from [_punctuationKeysyms] rather than written out again: two hand
+/// written tables that must agree are two tables that will not.
+final Map<int, String> _punctuationNames = {
+  for (final entry in _punctuationKeysyms.entries) entry.value: entry.key,
+};
+
+/// F1 - F24, which are contiguous from `XKB_KEY_F1`.
+const int _firstFunctionKeysym = 0xffbe;
+const int _lastFunctionKeysym = _firstFunctionKeysym + 23;
+
+/// [keysym] as the shell would write it in a shortcut string, or null when
+/// there is no spelling for it — the caller then falls back to `0x…`.
+String? _tokenForKeysym(int keysym) {
+  final named = _namedKeysymSpellings[keysym];
+  if (named != null) return named.token;
+  if (keysym >= _firstFunctionKeysym && keysym <= _lastFunctionKeysym) {
+    return 'f${keysym - _firstFunctionKeysym + 1}';
+  }
+  final punctuation = _punctuationNames[keysym];
+  if (punctuation != null) return punctuation;
+  // a-z and 0-9 are their own ASCII keysyms, and the parser reads them back as
+  // themselves. Anything else printable is a *shifted* character the parser
+  // only reaches through [_usShifted], so [formatShortcut] un-shifts first.
+  if ((keysym >= 0x61 && keysym <= 0x7a) || (keysym >= 0x30 && keysym <= 0x39)) {
+    return String.fromCharCode(keysym);
+  }
+  return null;
+}
+
+/// The xkb keysym *name* for [keysym] — the vocabulary the compositor reports
+/// its own bindings in — or null when this file has no name for it.
+///
+/// The bridge that lets a shell shortcut be drawn by the same key-cap table as
+/// a compositor binding: `0xff1b` comes back as `Escape`, which is exactly what
+/// miracle would have said.
+String? xkbKeysymName(int keysym) {
+  final named = _namedKeysymSpellings[keysym];
+  if (named != null) return named.xkb;
+  if (keysym >= _firstFunctionKeysym && keysym <= _lastFunctionKeysym) {
+    return 'F${keysym - _firstFunctionKeysym + 1}';
+  }
+  // Every other printable ASCII keysym *is* its character, `S` and `!` and `[`
+  // alike — which is both the xkb name for the ones that have one and a cap a
+  // person can read for the ones that do not.
+  if (keysym > 0x20 && keysym < 0x7f) return String.fromCharCode(keysym);
+  return null;
+}
+
+/// The keysym a shifted [keysym] was written from — `S` back to `s`, `!` back
+/// to `1` — or [keysym] itself when Shift did not move it.
+///
+/// [parseShortcut] resolves the shift as it parses, because that is what Mir
+/// matches on; writing a spec back out has to undo exactly that, or every
+/// shifted shortcut would come back as an unparseable `ctrl+shift+S`.
+int _unshiftKeysym(int keysym) {
+  if (keysym >= 0x41 && keysym <= 0x5a) return keysym + 0x20; // 'S' -> 's'
+  for (final entry in _usShifted.entries) {
+    if (entry.value == keysym) return entry.key;
+  }
+  return keysym;
+}
+
+/// [spec] as a shortcut string [parseShortcut] reads back as [spec].
+///
+/// The other half of the parser, and the reason an editor can exist at all: a
+/// shortcut captured from a key press is stored as the text a hand-written
+/// `config.toml` would have held, so the file stays something a person can
+/// still read and edit.
+///
+/// `test/shortcut_parse_test.dart` pins the round trip.
+String formatShortcut(ShortcutSpec spec) {
+  final parts = <String>[
+    for (final (bit, name) in kShortcutModifiersInWrittenOrder)
+      if (spec.modifiers & bit != 0) name,
+  ];
+  if (spec.isKeycode) {
+    parts.add('code:${spec.keysym}');
+    return parts.join('+');
+  }
+  final shifted = spec.modifiers & kShortcutModShift != 0;
+  final keysym = shifted ? _unshiftKeysym(spec.keysym) : spec.keysym;
+  parts.add(_tokenForKeysym(keysym) ?? '0x${keysym.toRadixString(16)}');
+  return parts.join('+');
+}
+
+/// The token [parseShortcut] accepts for the character [character] produces, or
+/// null when there is no way to write it.
+///
+/// The entry point for a shortcut *captured from a key press* rather than read
+/// out of the config file: the editor knows only what the key is labelled, and
+/// this is what turns that label back into the vocabulary of a shortcut string.
+///
+/// Case is dropped and the shift is undone — `S` is the `s` key and `!` is the
+/// `1` key — because Shift is a modifier the caller reports separately, and
+/// spelling it twice is how a shortcut string stops parsing.
+String? shortcutTokenForCharacter(String character) {
+  if (character.length != 1) return null;
+  var code = character.codeUnitAt(0);
+  if (code >= 0x41 && code <= 0x5a) code += 0x20; // 'S' -> 's'
+  code = _unshiftKeysym(code);
+  return _tokenForKeysym(code);
 }
