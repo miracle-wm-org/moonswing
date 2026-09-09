@@ -33,8 +33,11 @@ referenced by the default `[background]` section of `config.toml`.
 ## `graceful-mark.svg`, `graceful-banner.svg`
 
 The project mark (favicon, site logo) and the banner at the top of `README.md` and of the
-website: pixel art of a hooded character in the outfit, head-on, standing between two
-windows under a shell panel.
+website: pixel art of a hooded character in the outfit, head-on. The mark stands the sprite
+on a slate disc; the banner stands it on a plain diagonal gradient and nothing else. The
+banner used to draw a mock desktop behind the character — a panel, two windows, a starfield
+— and that was a screenshot the shell had not earned, dating itself every time the real
+thing changed.
 
 - **Credit:** original work for this repository.
 - **License:** GPL-3.0, the same as the shell — these are part of it, not aggregated with it.
@@ -47,7 +50,9 @@ The palette is the *graceful outfit* from Old School RuneScape, the agility set 
 takes its name from: bone cloth, charcoal gloves and boots, the jade sash and chest diamond,
 the red diamond, and the face looking out of the hood. Read off an equipped-outfit render
 and listed as `PALETTE` in that script; the cape is a shade darker than the reference, or it
-and the trailing leg merge into one pale mass at favicon sizes.
+and the trailing leg merge into one pale mass at favicon sizes, and it carries a darker shade
+again where it passes close behind the body — the shadow that keeps the near edge of the cape
+and the tabard from reading as one flat cut-out.
 
 **No RuneScape asset is used, or could be:** the wiki's images are Jagex's own game art,
 published under a non-commercial licence that neither a GPL-3.0 repository nor a public
