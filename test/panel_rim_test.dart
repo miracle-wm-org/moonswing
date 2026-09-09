@@ -186,6 +186,104 @@ void main() {
     });
   });
 
+  group('the rim does not take the bar\'s clicks', () {
+    // The regression this group exists for: the rim first shipped as a
+    // `CustomPaint` *stacked over* the bar's content, on the reasoning that a
+    // painter with no child absorbs no hits. The opposite is true — a
+    // background painter's `hitTest` defaults to *every point is a hit*
+    // (`hitTestSelf` is `hitTest(position) ?? true`), and only a foreground
+    // painter's defaults to none — so a full-width rim over a `carbon` bar
+    // swallowed every click on every module in it.
+    setUp(PanelRimBreaks.instance.clearAll);
+    tearDown(PanelRimBreaks.instance.clearAll);
+
+    // A 700x32 bar — one that fits the test surface whole, so the tap
+    // coordinates below are the bar's own — whose content is one tappable
+    // module.
+    Widget bar(ThemeConfig theme, Object? panel, VoidCallback onTap) =>
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: 700,
+              height: 32,
+              child: panelWithRim(
+                theme: theme,
+                anchor: 'top',
+                panel: panel,
+                content: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onTap,
+                  child: const SizedBox.expand(),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('a module under the rim still fires', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(bar(_carbonish, null, () => taps++));
+      await tester.tap(find.byType(GestureDetector));
+      expect(taps, 1);
+    });
+
+    testWidgets('including flush against the edge the rim is drawn on',
+        (tester) async {
+      // Corners and the inner edge, the way `tap_target_test` does: a centre
+      // tap passes even when the line itself is eating hits.
+      var taps = 0;
+      await tester.pumpWidget(bar(_carbonish, null, () => taps++));
+      final box = tester.getRect(find.byType(GestureDetector));
+      for (final at in [
+        box.topLeft + const Offset(0.5, 0.5),
+        box.bottomRight - const Offset(0.5, 0.5),
+        // The inner edge — where the mouth of every menu opens.
+        Offset(box.center.dx, box.bottom - 0.5),
+      ]) {
+        await tester.tapAt(at);
+      }
+      expect(taps, 3);
+    });
+
+    testWidgets('and still fires with a menu open across the mouth',
+        (tester) async {
+      final panel = Object();
+      var taps = 0;
+      PanelRimBreaks.instance.set(panel, (300, 500));
+      await tester.pumpWidget(bar(_carbonish, panel, () => taps++));
+      // Under the break and beside it alike: the clip is a paint concern only.
+      await tester.tapAt(tester.getRect(find.byType(GestureDetector)).topLeft +
+          const Offset(400, 16));
+      await tester.tap(find.byType(GestureDetector));
+      expect(taps, 2);
+
+      // And once the menu closes: the rim comes back whole over a bar that is
+      // still taking clicks.
+      PanelRimBreaks.instance.clear(panel);
+      await tester.pump();
+      await tester.tap(find.byType(GestureDetector));
+      expect(taps, 3);
+    });
+
+    testWidgets('a theme that paints no rim is handed back untouched',
+        (tester) async {
+      // No wrapper at all for every other theme, so those bars keep the tree,
+      // the layers and the hit test they always had.
+      const theme = ThemeConfig();
+      final content = SizedBox(key: UniqueKey());
+      expect(
+          panelWithRim(
+              theme: theme, anchor: 'top', panel: null, content: content),
+          same(content));
+
+      var taps = 0;
+      await tester.pumpWidget(bar(theme, null, () => taps++));
+      await tester.tap(find.byType(GestureDetector));
+      expect(taps, 1);
+    });
+  });
+
   group('the store', () {
     setUp(PanelRimBreaks.instance.clearAll);
     tearDown(PanelRimBreaks.instance.clearAll);

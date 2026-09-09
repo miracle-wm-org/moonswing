@@ -223,29 +223,43 @@ class PanelRimPainter extends CustomPainter {
       old.gap != gap;
 }
 
-/// The rim layer a panel stacks over its background, or null when the theme
-/// does not want one painted separately.
+/// [content] with the bar's rim painted over it, or [content] unchanged when
+/// the theme's rim is still the decoration's.
 ///
-/// Listens to [PanelRimBreaks] rather than having the panel do it, so a popup
-/// opening repaints one `CustomPaint` instead of rebuilding a bar full of
-/// modules.
-Widget? panelRimLayer({
+/// **A [CustomPaint] foreground painter, never a layer stacked over the bar.**
+/// A background `painter:` is *opaque to hits by default* — the documented
+/// default of [CustomPainter.hitTest] is that every point is a hit for a
+/// background painter and no point is for a foreground one, and
+/// `RenderCustomPaint.hitTestSelf` spells it `hitTest(position) ?? true`. A
+/// rim stacked over the bar therefore swallowed every click on every module in
+/// it, which is what a full-width painter laid over a panel does. Painting it
+/// as this content's foreground puts the line over the modules — where it
+/// belongs, since a module laid out flush to the bar's edge would otherwise
+/// paint across it — and leaves the pointer alone.
+///
+/// Listens to [PanelRimBreaks] here rather than having the panel do it, and
+/// hands [content] through unrebuilt, so a popup opening repaints the rim
+/// instead of rebuilding a bar full of modules.
+Widget panelWithRim({
   required ThemeConfig theme,
   required String anchor,
   required Object? panel,
+  required Widget content,
 }) {
-  if (!panelPaintsOwnRim(theme)) return null;
+  if (!panelPaintsOwnRim(theme)) return content;
   final radius = panelCornerRadius(anchor: anchor, theme: theme);
   return ListenableBuilder(
     listenable: PanelRimBreaks.instance,
-    builder: (context, _) => CustomPaint(
-      painter: PanelRimPainter(
+    builder: (context, child) => CustomPaint(
+      foregroundPainter: PanelRimPainter(
         color: theme.panelBorder,
         width: theme.panelBorderWidth,
         radius: radius,
         anchor: anchor,
         gap: PanelRimBreaks.instance.of(panel),
       ),
+      child: child,
     ),
+    child: content,
   );
 }
