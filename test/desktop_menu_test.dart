@@ -198,6 +198,43 @@ void main() {
       await tester.pump();
       expect(tapped, 0);
     });
+
+    // The other half of that rule: a row saying "this is what you already have"
+    // is *marked*, not greyed and not hidden, so a set of alternatives keeps its
+    // shape as the pointer moves through it.
+    testWidgets('a selected row is accented, checked, and still fires',
+        (tester) async {
+      var tapped = 0;
+      const theme = ThemeConfig();
+      await pumpMenu(
+        tester,
+        DesktopMenuCard(entries: [
+          DesktopMenuEntry(
+            label: 'Chosen',
+            icon: FontAwesomeIcons.tableCells,
+            selected: true,
+            onTap: () => tapped++,
+          ),
+          DesktopMenuEntry(label: 'Other', onTap: () {}),
+        ]),
+      );
+
+      // The check, because a theme is free to make its accent quiet — and the
+      // accent, because the check alone is easy to miss.
+      expect(find.byIcon(FontAwesomeIcons.check.data), findsOneWidget);
+      expect(
+        tester
+            .widget<FaIcon>(find.byIcon(FontAwesomeIcons.tableCells.data))
+            .color,
+        theme.accent,
+      );
+
+      // Re-choosing what is already chosen is a no-op, not an error: the row
+      // stays live so the menu can be dismissed by clicking it.
+      await tester.tap(find.text('Chosen'));
+      await tester.pump();
+      expect(tapped, 1);
+    });
   });
 
   group('DesktopEmptyMenu widgets page', () {

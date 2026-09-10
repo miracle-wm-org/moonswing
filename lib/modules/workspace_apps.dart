@@ -57,13 +57,13 @@ class WorkspacesConfig {
   /// and one past half a minute never visibly moves.
   final double urgentFlashSeconds;
 
-  /// Whether the focused workspace's button carries the button that switches
+  /// Whether a workspace button's right-click menu carries the rows that switch
   /// that workspace between tiling and floating new windows. On by default.
   ///
-  /// Only ever drawn on the focused workspace, so it costs one glyph in the bar
-  /// and nothing at all on the other buttons — and, like the urgency flash, no
-  /// round-trip: miracle reports the policy on the `GET_WORKSPACES` entry the
-  /// button is already built from.
+  /// It costs nothing in the bar — the menu is only built once it is opened —
+  /// and, like the urgency flash, no round-trip: miracle reports the policy on
+  /// the `GET_WORKSPACES` entry the button is already built from, so the menu
+  /// opens already knowing which of the two placements is checked.
   final bool showPolicyToggle;
 
   factory WorkspacesConfig.fromMap(Map<String, dynamic>? map) {
@@ -204,32 +204,19 @@ String? workspaceSelector(WorkspaceResult workspace) {
   return name != null && name.isNotEmpty ? name : null;
 }
 
-/// Whether the button for [workspace] carries the tile/float policy toggle.
+/// Whether the right-click menu for [workspace] carries the tile/float rows.
 ///
-/// **The focused workspace only.** The toggle changes where the *next* window
-/// opens, which is a statement about the workspace the user is about to open it
-/// on; on the other buttons it would be five more click targets in a bar, each
-/// one a switch-workspace tap waiting to be missed. It is also what keeps the
-/// row's width honest — one button grows by a glyph, and it is the button the
-/// user is already looking at.
+/// **Any workspace, not just the focused one.** It used to be the focused one
+/// alone, because the toggle was a glyph in the bar and five more of those are
+/// five switch-workspace clicks waiting to be missed. Inside a menu that cost is
+/// gone, and `workspace <n> policy` names its workspace anyway — so the row is
+/// offered wherever it can be acted on, which is every workspace a selector can
+/// address.
 bool shouldShowPolicyToggle(
   WorkspacesConfig config,
   WorkspaceResult workspace,
 ) =>
-    config.showPolicyToggle &&
-    workspace.focused &&
-    workspaceSelector(workspace) != null;
-
-/// The policy one press of that toggle moves [policy] to.
-///
-/// Exhaustive rather than a `!=`, so a placement policy miracle grows later
-/// forces a decision about where it sits in the cycle instead of quietly
-/// becoming "anything that is not tiling".
-WindowPlacementPolicy nextWorkspacePolicy(WindowPlacementPolicy policy) =>
-    switch (policy) {
-      WindowPlacementPolicy.tile => WindowPlacementPolicy.float,
-      WindowPlacementPolicy.float => WindowPlacementPolicy.tile,
-    };
+    config.showPolicyToggle && workspaceSelector(workspace) != null;
 
 // ---------------------------------------------------------------------------
 // Store

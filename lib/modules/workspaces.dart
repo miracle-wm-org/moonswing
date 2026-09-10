@@ -5,11 +5,11 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/miracle_manager.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/modules/workspace_apps.dart';
+import 'package:graceful_shell/modules/workspace_menu.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -32,6 +32,16 @@ class Workspaces extends StatefulWidget {
 
 class WorkspacesState extends State<Workspaces> {
   List<WorkspaceResult> _workspaces = <WorkspaceResult>[];
+
+  /// Every output miracle knows about, for the right-click menu's second page.
+  ///
+  /// Held rather than fetched when a menu opens, so the menu answers "where
+  /// could this go" out of memory instead of on a round-trip — and re-read on
+  /// miracle's own `output` event, never on a timer, which is the same rule the
+  /// workspace list itself follows. It costs one `GET_OUTPUTS` per bar per
+  /// hotplug, alongside the `GET_WORKSPACES` that event already triggers.
+  List<OutputResult> _outputs = <OutputResult>[];
+
   MiracleManager? _manager;
   MiracleConnection? _connection;
   StreamSubscription<Event>? _events;
@@ -118,6 +128,7 @@ class WorkspacesState extends State<Workspaces> {
     _events = null;
     _connection = connection;
     _workspaces = <WorkspaceResult>[];
+    _outputs = <OutputResult>[];
     // Every bar hands the store the same connection; it compares identity and
     // keeps one subscription for the machine.
     _apps.attach(connection);
@@ -135,11 +146,23 @@ class WorkspacesState extends State<Workspaces> {
         if (event is WorkspaceEvent || event is OutputEvent) {
           connection.getWorkspaces().then(_updateWorkspaces);
         }
+        // Only the output event: a workspace moving between monitors changes
+        // nothing about which monitors exist, and the menu's second page is
+        // built from the monitors alone.
+        if (event is OutputEvent) {
+          connection.getOutputs().then(_updateOutputs);
+        }
       },
       onError: (Object error) =>
           debugPrint('workspaces: undecodable IPC event: $error'),
     );
     connection.getWorkspaces().then(_updateWorkspaces);
+    // A failure here costs the menu's second page and nothing else — the row
+    // still renders and still switches — so it is caught rather than left to
+    // surface as an unhandled rejection.
+    connection.getOutputs().then(_updateOutputs).catchError((Object error) {
+      debugPrint('workspaces: could not read the outputs: $error');
+    });
   }
 
   void _updateWorkspaces(List<WorkspaceResult> workspaces) {
@@ -149,34 +172,97 @@ class WorkspacesState extends State<Workspaces> {
     });
   }
 
-  /// Flips [workspace] between tiling what is opened on it next and floating
-  /// it, then re-reads the row from miracle.
+  void _updateOutputs(List<OutputResult> outputs) {
+    if (!mounted) return;
+    setState(() {
+      _outputs = outputs;
+    });
+  }
+
+  /// Sets what [workspace] does with the windows opened on it next, then
+  /// re-reads the row from miracle.
   ///
-  /// **The re-read happens whether or not the command succeeded**, and the glyph
-  /// is never flipped optimistically: `workspace <n> policy float` is miracle's
-  /// own, so a compositor older than it answers with a parse error, and a toggle
-  /// that had already moved would be reporting a policy nothing took. Flipping
-  /// only once miracle has been asked again is what makes a refusal visible as
-  /// the button snapping back.
+  /// **The re-read happens whether or not the command succeeded**, and the check
+  /// mark in the menu is never moved optimistically: `workspace <n> policy float`
+  /// is miracle's own, so a compositor older than it answers with a parse error,
+  /// and a menu that had already moved would be reporting a policy nothing took.
+  /// Moving it only once miracle has been asked again is what makes a refusal
+  /// visible.
+  ///
+  /// A [policy] the workspace already has is dropped here rather than in the
+  /// menu: the checked row stays tappable, and what it should cost is a closed
+  /// menu, not a round-trip.
   ///
   /// The re-read is [MiracleConnection.getWorkspaces] — the same round-trip the
   /// row is built from — and it lands on the bar that was clicked. Another bar on
   /// the same output picks the change up from miracle's own `workspace` event,
   /// or, failing that, from the next one it sends.
-  Future<void> _togglePolicy(WorkspaceResult workspace) async {
+  Future<void> _setPolicy(
+    WorkspaceResult workspace,
+    WindowPlacementPolicy policy,
+  ) async {
+    if (policy == workspace.policy) return;
     final connection = _connection;
     final selector = workspaceSelector(workspace);
     if (connection == null || selector == null) return;
     try {
-      await connection.runOrThrow(MiracleCommand.workspacePolicy(
-        nextWorkspacePolicy(workspace.policy),
-        workspace: selector,
-      ));
+      await connection.runOrThrow(
+          MiracleCommand.workspacePolicy(policy, workspace: selector));
     } catch (error) {
       debugPrint('workspaces: could not set the workspace policy: $error');
     }
-    // The socket can die, or be replaced by a reconnect, while the command is
-    // in flight; `_updateWorkspaces` answers for the widget being gone.
+    await _reread(connection);
+  }
+
+  /// Moves [workspace] onto the output named [outputName].
+  ///
+  /// The command list is [moveWorkspaceCommands]'s, which is where the reason it
+  /// is a *list* is written down: miracle's `move workspace to output` acts on
+  /// the focused workspace, so a workspace that is not focused is focused, moved
+  /// and left again. [MiracleConnection.runAll] sends the hops as one payload,
+  /// so nothing can land between them.
+  ///
+  /// Re-read afterwards for [_setPolicy]'s reason, and with an extra one of its
+  /// own: the workspace has left this bar's output, so the row that was clicked
+  /// is one button shorter and cannot wait for an event to say so.
+  Future<void> _moveToOutput(
+    WorkspaceResult workspace,
+    String outputName,
+  ) async {
+    final connection = _connection;
+    final selector = workspaceSelector(workspace);
+    if (connection == null || selector == null) return;
+    final commands = moveWorkspaceCommands(
+      selector: selector,
+      output: outputName,
+      focused: workspace.focused,
+      // The workspace to come back to, which is the focused one — and null when
+      // that is the one being moved, or when miracle named it nothing a command
+      // could address.
+      restore: workspaceSelector(
+        _workspaces.firstWhere((ws) => ws.focused, orElse: () => workspace),
+      ),
+    );
+    try {
+      // One result per hop; a refusal part-way through is worth naming, because
+      // it can leave the focus on the workspace that was to be moved.
+      for (final result in await connection.runAll(commands)) {
+        if (!result.success) {
+          debugPrint('workspaces: could not move the workspace: '
+              '${result.error ?? 'refused'}');
+        }
+      }
+    } catch (error) {
+      debugPrint('workspaces: could not move the workspace: $error');
+    }
+    await _reread(connection);
+  }
+
+  /// Re-reads the workspace row from [connection], if it is still this row's.
+  ///
+  /// The socket can die, or be replaced by a reconnect, while a command is in
+  /// flight; `_updateWorkspaces` answers for the widget being gone.
+  Future<void> _reread(MiracleConnection connection) async {
     if (!mounted || !identical(_connection, connection)) return;
     try {
       _updateWorkspaces(await connection.getWorkspaces());
@@ -242,8 +328,8 @@ class WorkspacesState extends State<Workspaces> {
           children: visibleWorkspaces.map((workspace) {
             // Null for the one workspace miracle reported neither a number nor a
             // name for: there is no selector to send, so the button switches
-            // nothing and carries no policy toggle rather than spelling `null`
-            // into a command.
+            // nothing and carries no menu rather than spelling `null` into a
+            // command.
             final selector = workspaceSelector(workspace);
             return _WorkspaceButton(
               key: ValueKey(workspace.num ?? workspace.name),
@@ -260,18 +346,35 @@ class WorkspacesState extends State<Workspaces> {
                   : () => unawaited(
                         connection.run(MiracleCommand.workspace(selector)),
                       ),
+              // The right-click menu. Built on demand rather than eagerly: a bar
+              // with eight workspaces on it would otherwise be building eight
+              // menus it will never show on every `GET_WORKSPACES` reply.
+              //
+              // `close` is called *before* the action, not after: every one of
+              // these writes through miracle and re-reads the row, which rebuilds
+              // this button — and, when the workspace leaves this output, removes
+              // it — disposing the host that owns the popup mid-callback.
+              menuBuilder: selector == null
+                  ? null
+                  : (context, close) => WorkspaceMenu(
+                        workspace: workspace,
+                        outputs: _outputs,
+                        showPolicy: shouldShowPolicyToggle(config, workspace),
+                        onSetPolicy: (policy) {
+                          close();
+                          unawaited(_setPolicy(workspace, policy));
+                        },
+                        onMoveToOutput: (outputName) {
+                          close();
+                          unawaited(_moveToOutput(workspace, outputName));
+                        },
+                      ),
               child: _WorkspaceLabel(
                 label: workspace.name ?? workspace.num?.toString() ?? '?',
                 appIds:
                     config.showAppIcons ? _apps.appIdsFor(workspace) : const [],
                 config: config,
                 foreground: theme.foreground,
-                // Null on every button but the focused one; see
-                // [shouldShowPolicyToggle].
-                policy: shouldShowPolicyToggle(config, workspace)
-                    ? workspace.policy
-                    : null,
-                onTogglePolicy: () => unawaited(_togglePolicy(workspace)),
               ),
             );
           }).toList(),
@@ -279,11 +382,11 @@ class WorkspacesState extends State<Workspaces> {
   }
 }
 
-/// One workspace button's content: its number or name, the icons of what is
-/// open on it, and — on the focused workspace alone — the tile/float toggle.
+/// One workspace button's content: its number or name, and the icons of what is
+/// open on it.
 ///
 /// The label stays whatever the rest does — it is the number the user switches
-/// by, and an empty workspace with the toggle switched off has nothing else to
+/// by, and an empty workspace with its icons switched off has nothing else to
 /// render.
 class _WorkspaceLabel extends StatelessWidget {
   const _WorkspaceLabel({
@@ -291,8 +394,6 @@ class _WorkspaceLabel extends StatelessWidget {
     required this.appIds,
     required this.config,
     required this.foreground,
-    required this.policy,
-    required this.onTogglePolicy,
   });
 
   final String label;
@@ -300,18 +401,10 @@ class _WorkspaceLabel extends StatelessWidget {
   final WorkspacesConfig config;
   final Color foreground;
 
-  /// The workspace's window placement policy, or null when this button is not
-  /// the one that carries the toggle. See [shouldShowPolicyToggle].
-  final WindowPlacementPolicy? policy;
-
-  /// Flips [policy]. Only reached while [policy] is non-null.
-  final VoidCallback onTogglePolicy;
-
   @override
   Widget build(BuildContext context) {
     final text = Text(label, style: TextStyle(color: foreground));
-    final policy = this.policy;
-    if (appIds.isEmpty && policy == null) return text;
+    if (appIds.isEmpty) return text;
 
     final shown = appIds.length <= config.maxIcons
         ? appIds
@@ -340,86 +433,7 @@ class _WorkspaceLabel extends StatelessWidget {
               fontSize: ShellFontSizes.caption,
             ),
           ),
-        // Last, so the toggle sits at the trailing edge of the button whether or
-        // not the workspace is carrying icons — a control that moved to the
-        // middle of the row as windows opened would be a control nobody could
-        // aim at.
-        if (policy != null)
-          WorkspacePolicyToggle(policy: policy, onToggle: onTogglePolicy),
       ],
-    );
-  }
-}
-
-/// The focused workspace's tile/float switch.
-///
-/// Nested inside `_WorkspaceButton`'s own detector on purpose: this *is* a
-/// control on that button, and the gesture arena resolves it correctly by
-/// construction — hit testing runs deepest-first, so this recognizer enters the
-/// arena before the button's and wins the sweep, which leaves the workspace
-/// switch untriggered by a press on the glyph. The button's own tap-down still
-/// draws its pressed fill and is cancelled when this one wins, which is the
-/// feedback a press wants anyway. `test/workspace_policy_test.dart` is what
-/// keeps that true, which is why this widget is public rather than private.
-class WorkspacePolicyToggle extends StatelessWidget {
-  const WorkspacePolicyToggle({
-    super.key,
-    required this.policy,
-    required this.onToggle,
-  });
-
-  /// The pointer target, which is also the hover box — one rect, per
-  /// [HoverRegion].
-  ///
-  /// Below [ShellSizes.iconButtonDense] because the bar's height forces it, and
-  /// only just: a default 32px panel is spent exactly by the row's 8px padding,
-  /// the button's 8px padding and its 16px minimum content box, so a taller box
-  /// here grows the workspace row past the bar it is drawn in.
-  static const double _box = 16;
-
-  /// The glyph inside that box. Never the target — see [ShellSizes].
-  static const double _glyph = 9;
-
-  final WindowPlacementPolicy policy;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final bool floating = policy == WindowPlacementPolicy.float;
-    return RepaintBoundary(
-      // A bar has no repaint boundary of its own, so without this one the
-      // pointer crossing a 16px glyph would re-record the whole panel picture
-      // and damage the whole output.
-      child: HoverRegion(
-        onTap: onToggle,
-        builder: (context, hovered) => SizedBox(
-          width: _box,
-          height: _box,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: hovered ? theme.surfaceHover : null,
-              borderRadius: BorderRadius.circular(ShellRadii.barButton),
-            ),
-            child: Center(
-              child: FaIcon(
-                // Two overlapping windows against a grid of cells: the picture
-                // is what the *workspace* will do with the next window, not
-                // what the button does when pressed.
-                floating
-                    ? FontAwesomeIcons.solidClone
-                    : FontAwesomeIcons.tableCells,
-                size: _glyph,
-                // Floating is the departure from miracle's default, so it is the
-                // state that carries the accent; tiling reads as the quiet one.
-                color: floating
-                    ? theme.accent
-                    : theme.foreground.withValues(alpha: 0.65),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -527,6 +541,7 @@ class _WorkspaceButton extends StatefulWidget {
     this.urgent = false,
     this.urgentColor = const Color(0xFF853953),
     this.urgentPeriod = const Duration(seconds: 5),
+    this.menuBuilder,
   });
 
   /// Fixed, not parameters: every call site took the defaults.
@@ -550,6 +565,15 @@ class _WorkspaceButton extends StatefulWidget {
   /// How long one breath takes.
   final Duration urgentPeriod;
 
+  /// The card a right-click opens, given a callback that closes it again.
+  ///
+  /// A builder rather than a widget so a bar full of workspaces builds the one
+  /// menu it is asked for instead of one per button per `GET_WORKSPACES` reply,
+  /// and nullable because two of this button's users have no menu: the retry
+  /// button that stands in for the whole row, and the one workspace miracle
+  /// named nothing a command could address.
+  final Widget Function(BuildContext context, VoidCallback close)? menuBuilder;
+
   @override
   State<_WorkspaceButton> createState() => _WorkspaceButtonState();
 }
@@ -560,9 +584,49 @@ final Module workspacesModule = Module.simple(
   builder: (context, config) => Workspaces(config: config),
 );
 
-class _WorkspaceButtonState extends State<_WorkspaceButton> {
+class _WorkspaceButtonState extends State<_WorkspaceButton>
+    with PopupHost<_WorkspaceButton> {
   bool _hovered = false;
   bool _pressed = false;
+
+  /// Opens the right-click menu under this button.
+  ///
+  /// [closePopup] first, because the pointer-down that got here has already
+  /// asked the coordinator to dismiss whatever was open — including this
+  /// button's own menu, which is what makes a second right-click a re-open
+  /// rather than a second surface. The post-frame hop is the dock's, for the
+  /// dock's reason: the close is synchronous but the window it dropped is on
+  /// screen for another frame, and `openBarPopup` measures this button's box
+  /// against the panel to place the new one.
+  void _openMenu(BuildContext context) {
+    final menuBuilder = widget.menuBuilder;
+    if (menuBuilder == null) return;
+    closePopup();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      openBarPopup(
+        context,
+        // Loose: the menu sizes to its content (see [DesktopMenuCard]). Tall
+        // enough for the two placement rows, the move row and a page of
+        // outputs; wide enough for a connector name and a monitor's model.
+        preferredConstraints:
+            const BoxConstraints(maxWidth: 320, maxHeight: 320),
+        // The card lays out under its own FlutterView, so it carries its own
+        // theme — `ThemeScope` is an InheritedWidget and cannot span views.
+        child: ThemeProvider(
+          child: menuBuilder(context, closePopup),
+        ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    // The mixin answers the awaiting close and tears the window down; a popup
+    // outliving the button that opened it is what [PopupHost] exists to stop.
+    closePopup();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -629,6 +693,11 @@ class _WorkspaceButtonState extends State<_WorkspaceButton> {
       }),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        // On tap-*down*, the way every popup toggle in the bar opens: the same
+        // pointer-down the coordinator dismisses on, so the menu cannot be
+        // opened by a press that has yet to close what is already up.
+        onSecondaryTapDown:
+            widget.menuBuilder == null ? null : (_) => _openMenu(context),
         onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
         onTapUp: enabled
             ? (_) {
