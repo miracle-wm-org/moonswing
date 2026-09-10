@@ -86,20 +86,6 @@ dependencies:
   media_kit_libs_linux: ^1.0.4
   ubuntu_session: ^0.0.4
 
-# Temporary. `layer_shell`'s `LayershellWindowController` is missing the five
-# members Flutter master added to `BaseWindowControllerLinux`, which fails to
-# compile and takes `flutter test` and `flutter build` down with it. Upstream is
-# at its default-branch HEAD, so there is no revision to upgrade to, and no
-# package but that one can supply them. `packages/layer_shell` is that package
-# with the five members added and nothing else changed; its README says how to
-# delete it again.
-#
-# The dependency above is deliberately left pointing at the upstream git URL, so
-# removing this block is the whole revert.
-dependency_overrides:
-  layer_shell:
-    path: packages/layer_shell
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
