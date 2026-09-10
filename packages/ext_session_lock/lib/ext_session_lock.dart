@@ -476,6 +476,62 @@ class SessionLockWindowController extends WindowController
   }
 
   // Lock surfaces are entirely compositor-managed — no-op these operations.
+  //
+  // The five below are the ones Flutter added to `BaseWindowControllerLinux`
+  // when it became an `abstract mixin class` (they were not on the two-getter
+  // `abstract interface class` that preceded it). Three things about how they
+  // are spelled, each load-bearing:
+  //
+  // - **No `@override`.** This package has to compile against both the Flutter
+  //   revision the snap pins and the `master` the early-warning job builds, and
+  //   on the older one there is nothing here to override — which is an *error*,
+  //   where the missing annotation on the newer one is only a lint.
+  // - **`edge` is an `Object`, not a `WindowDragEdge`.** That enum does not
+  //   exist on the pinned revision, so naming it would not compile there.
+  //   Parameter types are contravariant, so a supertype is a valid
+  //   implementation, and this one never reads the value.
+  // - **They stay no-ops rather than forwarding to GTK**, which for two of them
+  //   is a security property and not laziness. See each.
+
+  /// Ignored: a lock surface must never be decorated.
+  ///
+  /// The constructor turns decorations off before realize because a decorated
+  /// GTK3 window draws its CSD titlebar *inside* the lock surface. Honouring a
+  /// later `true` would put it back.
+  // ignore: annotate_overrides
+  void setDecorated(bool decorated) {}
+
+  /// Ignored: the lock window's opacity is not the application's to choose.
+  // ignore: annotate_overrides
+  void setAppPaintable(bool appPaintable) {}
+
+  /// Ignored: the background stays the opaque black the constructor set.
+  ///
+  /// This is the see-through guard, so it is deliberately not forwarded: a
+  /// translucent lock surface shows the session underneath it, which is the one
+  /// thing a lock screen may never do.
+  // ignore: annotate_overrides
+  void setBackgroundColor(Color color) {}
+
+  /// Ignored: a lock surface is placed by the compositor and cannot be dragged.
+  // ignore: annotate_overrides
+  void beginMoveDrag({
+    required int button,
+    int rootX = 0,
+    int rootY = 0,
+    int timestamp = 0,
+  }) {}
+
+  /// Ignored: a lock surface is sized to its output by the compositor's
+  /// configure and cannot be resized by the client.
+  // ignore: annotate_overrides
+  void beginResizeDrag({
+    required Object edge,
+    required int button,
+    int rootX = 0,
+    int rootY = 0,
+    int timestamp = 0,
+  }) {}
 
   @override
   bool get isFullscreen => true;
