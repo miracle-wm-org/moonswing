@@ -15,6 +15,7 @@ class DesktopMenuEntry {
     required this.onTap,
     this.icon,
     this.enabled = true,
+    this.selected = false,
   });
 
   final String label;
@@ -24,6 +25,16 @@ class DesktopMenuEntry {
   /// A disabled row is shown greyed rather than hidden, so the menu's shape
   /// does not change between items and the user can see what is unavailable.
   final bool enabled;
+
+  /// Whether this row is the state the menu's subject is *already* in — one of
+  /// a set of alternatives, drawn in the accent colour with a check after it.
+  ///
+  /// Marked rather than disabled, and rather than absent: a menu is read before
+  /// it is clicked, so a set of choices has to say which one is current, and the
+  /// current one going grey or vanishing would make the set change shape as the
+  /// user moved through it. It stays tappable for the same reason — re-choosing
+  /// what is already chosen is a no-op, not an error.
+  final bool selected;
 }
 
 /// The themed card both desktop context menus render into.
@@ -119,8 +130,11 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final entry = widget.entry;
-    final foreground =
-        entry.enabled ? theme.popupForeground : theme.muted;
+    final foreground = !entry.enabled
+        ? theme.muted
+        : entry.selected
+            ? theme.accent
+            : theme.popupForeground;
 
     return MouseRegion(
       cursor: entry.enabled
@@ -161,6 +175,15 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
                   ),
                 ),
               ),
+              // The colour alone would be the only thing saying which of a set
+              // of alternatives is current, and a theme is free to make its
+              // accent quiet. `IntrinsicWidth` sizes the card to the widest
+              // row, so this pushes every row out by the same amount rather
+              // than making the checked one wider than its neighbours.
+              if (entry.selected) ...[
+                const SizedBox(width: 12),
+                FaIcon(FontAwesomeIcons.check, size: 10, color: foreground),
+              ],
             ],
           ),
         ),

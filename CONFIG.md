@@ -167,7 +167,7 @@ show_policy_toggle = true
 | `show_app_icons`     | bool | `true`  | Show the icons of the applications open on each workspace             |
 | `icon_size`          | int  | `14`    | Icon size in pixels (8–64)                                            |
 | `max_icons`          | int  | `4`     | Icons one workspace shows before the rest collapse into a `+N` (1–16) |
-| `show_policy_toggle` | bool | `true`  | Put the tiling/floating switch on the focused workspace's button      |
+| `show_policy_toggle` | bool | `true`  | Put the tiling/floating switch in a workspace's right-click menu      |
 
 With `show_app_icons` on, each workspace button carries its number or name
 *and* the icons of what is open on it, so the buttons are no longer all the
@@ -181,19 +181,30 @@ a window between workspaces count, so switching focus costs nothing. Nothing
 is read at all while `show_app_icons` is off, and one reader serves every panel
 on every monitor.
 
-With `show_policy_toggle` on, the **focused** workspace's button carries one
-more glyph: a grid of cells while that workspace tiles the windows opened on
-it, two overlapping windows in the accent colour while it floats them. Clicking
-it sends Miracle `workspace <n> policy tile|float`, which changes where the
-*next* window opens — whatever is already on the workspace stays where it is.
+**Right-clicking a workspace button opens a menu** for that workspace — not the
+focused one, whichever button was clicked. It has two things on it.
 
-It is drawn on the focused workspace alone, because that is the workspace the
-next window will open on, and because five more click targets in a bar are five
-switch-workspace clicks waiting to be missed. Like the urgency flash it costs no
-extra round-trip: Miracle reports the policy on the `GET_WORKSPACES` entry the
-button is already built from. A Miracle too old to know the command answers with
-a parse error, and the glyph visibly snaps back rather than reporting a policy
-nothing took.
+With `show_policy_toggle` on, the first two rows are the workspace's window
+placement: *Tile new windows* and *Float new windows*, with the one it is
+currently in marked. Choosing the other sends Miracle
+`workspace <n> policy tile|float`, which changes where the *next* window opens —
+whatever is already on the workspace stays where it is. Like the urgency flash it
+costs no extra round-trip: Miracle reports the policy on the `GET_WORKSPACES`
+entry the button is already built from, so the menu opens already knowing which
+row to mark. A Miracle too old to know the command answers with a parse error,
+and the mark visibly stays where it was rather than reporting a policy nothing
+took.
+
+*Move to output…* is the second page of the same menu, and lists every other
+display Miracle reports — by connector name, with the make and model beside it
+where Miracle knows them. On a single-monitor session the row is greyed rather
+than hidden. Miracle's own `move workspace to output` acts on the *focused*
+workspace and takes no selector, so moving one that is not focused focuses it,
+moves it and puts the focus back where it was; every hop carries
+`--no-auto-back-and-forth`, or a compositor with that option set would read the
+hop back as "go back" and land somewhere else. The list of displays is read once
+per connection and refreshed on Miracle's `output` event — never on a timer — so
+the menu answers out of memory rather than on a round-trip.
 
 ### Dock
 

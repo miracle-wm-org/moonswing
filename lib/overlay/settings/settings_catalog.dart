@@ -445,8 +445,9 @@ abstract final class SettingsCatalog {
   static final workspacesShowPolicyToggle = _module(
     'modules.workspaces.show_policy_toggle',
     'Tiling/floating toggle',
-    'Puts a button on the focused workspace that switches it between tiling '
-        'and floating the windows opened on it next.',
+    "Puts the rows that switch a workspace between tiling and floating the "
+        "windows opened on it next in that workspace button's right-click "
+        'menu.',
     const [
       'workspace',
       'tile',
@@ -456,6 +457,8 @@ abstract final class SettingsCatalog {
       'policy',
       'placement',
       'layout',
+      'menu',
+      'right-click',
     ],
   );
 
