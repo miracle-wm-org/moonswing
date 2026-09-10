@@ -454,10 +454,11 @@ const ShortcutSpec kDefaultPowerButton =
 /// distinct from the key being absent — absent falls back to the default.
 ///
 /// Registration latches on the first successful handshake, so these are read once
-/// from the startup snapshot and editing them needs a restart. A shortcut editor
-/// in the settings UI would have to add `shortcuts` to
-/// `ConfigStore._restartSignature()` so the "restart to apply" banner tells the
-/// truth.
+/// from the startup snapshot and editing them needs a restart. Which is why
+/// `shortcuts` is part of `ConfigStore._restartSignature()`: the keybind cheat
+/// sheet edits these in place (`keybinds/shell_keybind_store.dart`), and both
+/// the sheet's own notice and the settings overlay's "restart to apply" banner
+/// have to say so.
 class ShortcutsConfig {
   final ShortcutSpec? openSettings;
   final ShortcutSpec? openLauncher;
