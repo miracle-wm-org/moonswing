@@ -218,11 +218,9 @@ packages:
   layer_shell:
     dependency: "direct main"
     description:
-      path: "."
-      ref: HEAD
-      resolved-ref: "51db60159567497c0461efa9fd3dc4c313d33d4a"
-      url: "https://github.com/mattkae/layer_shell.dart.git"
-    source: git
+      path: "packages/layer_shell"
+      relative: true
+    source: path
     version: "0.3.0"
   leak_tracker:
     dependency: transitive
