@@ -218,6 +218,31 @@ bool shouldShowPolicyToggle(
 ) =>
     config.showPolicyToggle && workspaceSelector(workspace) != null;
 
+/// A spelling of everything the workspace row draws, for the guard that keeps a
+/// `GET_WORKSPACES` reply finding nothing new off every bar on every monitor.
+///
+/// The store's `_publish` rule, one level up: the row re-reads on *every*
+/// workspace and output event, most of which change nothing it renders, and a
+/// bar has no repaint boundary of its own — so a `setState` that redraws the
+/// identical row re-records the whole panel picture and damages the whole
+/// output, on each monitor.
+///
+/// Carries exactly the fields the row and its menu read — the label, the output
+/// it is filtered onto, the focus fill, the urgency flash and the placement the
+/// menu checks — and nothing else, so a reply differing only in something
+/// invisible (a rect, a `visible` flag the row does not use) costs no rebuild.
+String workspaceRowSignature(List<WorkspaceResult> workspaces) => workspaces
+    .map((ws) => '${ws.output}\u0000${ws.num}\u0000${ws.name}'
+        '\u0000${ws.focused}\u0000${ws.urgent}\u0000${ws.policy}')
+    .join('\u0001');
+
+/// The same guard for the right-click menu's second page, over the fields
+/// `outputMenuLabel` and its filter read.
+String outputMenuSignature(List<OutputResult> outputs) => outputs
+    .map((output) => '${output.name}\u0000${output.make}'
+        '\u0000${output.model}\u0000${output.active}')
+    .join('\u0001');
+
 // ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
@@ -259,14 +284,26 @@ class WorkspaceTreeSource {
 bool wakesWorkspaceApps(Event event) => switch (event) {
       WorkspaceEvent(:final change) => switch (change) {
           // A workspace being created, emptied, renamed, moved to another
-          // output, or switched to.
+          // output, or reloaded.
           WorkspaceChange.init ||
           WorkspaceChange.empty ||
-          WorkspaceChange.focus ||
           WorkspaceChange.move ||
           WorkspaceChange.rename ||
           WorkspaceChange.reload =>
             true,
+          // `focused`'s exclusion three arms down, and the load-bearing one on
+          // *this* event: switching workspace moves no window between
+          // workspaces, and under focus-follows-mouse every pass of the pointer
+          // across the seam between two monitors is one of these. A `GET_TREE`
+          // per crossing is the whole window tree fetched, decoded and walked on
+          // the UI isolate for icons that cannot have changed — which is exactly
+          // what the row's own re-read then finds, since the signature it
+          // publishes carries no focus in it.
+          //
+          // Neither case where the *set* of workspaces moves is lost with it:
+          // switching to a workspace that did not exist yet emits `init` first,
+          // and the one left behind empty emits `empty`.
+          WorkspaceChange.focus => false,
           // miracle.dart 2.1's other new arm, and the `focused` exclusion's
           // twin: miracle sends this alongside the window event so a bar watching
           // workspaces sees urgency without walking the tree — which is what the

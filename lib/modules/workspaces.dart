@@ -46,6 +46,25 @@ class WorkspacesState extends State<Workspaces> {
   MiracleConnection? _connection;
   StreamSubscription<Event>? _events;
 
+  /// Coalescing guards for the row's two round-trips, and the spelling of what
+  /// each last put on screen.
+  ///
+  /// The row re-reads on every workspace and output event, and those arrive in
+  /// bursts: focus-follows-mouse across the seam between two monitors is a
+  /// workspace focus change per crossing, on every bar at once. Without the
+  /// in-flight guard that is one `GET_WORKSPACES` per event per bar, all in
+  /// flight together and landing in whatever order the socket answers them —
+  /// so a stale reply could overwrite a newer one. Without the signature it is
+  /// a `setState` per reply, and a bar has no repaint boundary of its own, so
+  /// each of those re-records the whole panel picture and damages the whole
+  /// output.
+  bool _workspacesInFlight = false;
+  bool _workspacesQueued = false;
+  bool _outputsInFlight = false;
+  bool _outputsQueued = false;
+  String _workspacesSignature = '';
+  String _outputsSignature = '';
+
   /// What is open on each workspace. Shared with every other bar on the
   /// machine, and only read while somebody's icons are switched on.
   final WorkspaceAppsStore _apps = WorkspaceAppsStore.instance;
@@ -129,6 +148,8 @@ class WorkspacesState extends State<Workspaces> {
     _connection = connection;
     _workspaces = <WorkspaceResult>[];
     _outputs = <OutputResult>[];
+    _workspacesSignature = '';
+    _outputsSignature = '';
     // Every bar hands the store the same connection; it compares identity and
     // keeps one subscription for the machine.
     _apps.attach(connection);
@@ -144,39 +165,121 @@ class WorkspacesState extends State<Workspaces> {
         // event saying so, which leaves the `workspace -> output` mapping this
         // row filters on stale.
         if (event is WorkspaceEvent || event is OutputEvent) {
-          connection.getWorkspaces().then(_updateWorkspaces);
+          unawaited(_fetchWorkspaces());
         }
         // Only the output event: a workspace moving between monitors changes
         // nothing about which monitors exist, and the menu's second page is
         // built from the monitors alone.
         if (event is OutputEvent) {
-          connection.getOutputs().then(_updateOutputs);
+          unawaited(_fetchOutputs());
         }
       },
       onError: (Object error) =>
           debugPrint('workspaces: undecodable IPC event: $error'),
     );
-    connection.getWorkspaces().then(_updateWorkspaces);
-    // A failure here costs the menu's second page and nothing else — the row
-    // still renders and still switches — so it is caught rather than left to
-    // surface as an unhandled rejection.
-    connection.getOutputs().then(_updateOutputs).catchError((Object error) {
-      debugPrint('workspaces: could not read the outputs: $error');
-    });
+    unawaited(_fetchWorkspaces());
+    unawaited(_fetchOutputs());
   }
 
+  /// Re-reads the workspace row, coalescing a burst of events into one more
+  /// round-trip.
+  ///
+  /// [WorkspaceAppsStore]'s shape, for [WorkspaceAppsStore]'s reasons and one
+  /// more of its own: a request landing mid-flight is queued rather than
+  /// dropped, because nothing here polls and a dropped refetch leaves the row
+  /// stale until the next unrelated event — and only one reply is ever in
+  /// flight, so the row cannot be walked backwards by an older one answering
+  /// last.
+  ///
+  /// A reply from a connection that has since been replaced is discarded, and
+  /// the loop re-reads [_connection] rather than returning, so a refetch
+  /// [_syncConnection] queued behind a dead socket's round-trip is not lost
+  /// with it.
+  Future<void> _fetchWorkspaces() async {
+    if (_workspacesInFlight) {
+      _workspacesQueued = true;
+      return;
+    }
+    _workspacesInFlight = true;
+    try {
+      do {
+        _workspacesQueued = false;
+        final connection = _connection;
+        if (!mounted || connection == null) break;
+        try {
+          final workspaces = await connection.getWorkspaces();
+          if (mounted && identical(_connection, connection)) {
+            _updateWorkspaces(workspaces);
+          } else {
+            _workspacesQueued = true;
+          }
+        } catch (error) {
+          debugPrint('workspaces: could not re-read the workspaces: $error');
+        }
+      } while (_workspacesQueued);
+    } finally {
+      _workspacesInFlight = false;
+      _workspacesQueued = false;
+    }
+  }
+
+  /// The same, for the monitors behind the menu's second page.
+  ///
+  /// A failure here costs that page and nothing else — the row still renders and
+  /// still switches — so it is caught rather than left to surface as an
+  /// unhandled rejection.
+  Future<void> _fetchOutputs() async {
+    if (_outputsInFlight) {
+      _outputsQueued = true;
+      return;
+    }
+    _outputsInFlight = true;
+    try {
+      do {
+        _outputsQueued = false;
+        final connection = _connection;
+        if (!mounted || connection == null) break;
+        try {
+          final outputs = await connection.getOutputs();
+          if (mounted && identical(_connection, connection)) {
+            _updateOutputs(outputs);
+          } else {
+            _outputsQueued = true;
+          }
+        } catch (error) {
+          debugPrint('workspaces: could not read the outputs: $error');
+        }
+      } while (_outputsQueued);
+    } finally {
+      _outputsInFlight = false;
+      _outputsQueued = false;
+    }
+  }
+
+  /// Installs a `GET_WORKSPACES` reply, rebuilding only when it draws
+  /// differently.
+  ///
+  /// The store's "a read that finds nothing new must not notify" rule, applied
+  /// where the read is the widget's own. The list is kept whatever the
+  /// signature says — [_moveToOutput] reads the *globally* focused workspace
+  /// out of it, which can be on the other monitor — and only the `setState` is
+  /// guarded.
   void _updateWorkspaces(List<WorkspaceResult> workspaces) {
     if (!mounted) return;
-    setState(() {
-      _workspaces = workspaces;
-    });
+    _workspaces = workspaces;
+    final signature = workspaceRowSignature(workspaces);
+    if (signature == _workspacesSignature) return;
+    _workspacesSignature = signature;
+    setState(() {});
   }
 
   void _updateOutputs(List<OutputResult> outputs) {
     if (!mounted) return;
-    setState(() {
-      _outputs = outputs;
-    });
+    _outputs = outputs;
+    final signature = outputMenuSignature(outputs);
+    if (signature == _outputsSignature) return;
+    _outputsSignature = signature;
+    setState(() {});
   }
 
   /// Sets what [workspace] does with the windows opened on it next, then
@@ -261,14 +364,13 @@ class WorkspacesState extends State<Workspaces> {
   /// Re-reads the workspace row from [connection], if it is still this row's.
   ///
   /// The socket can die, or be replaced by a reconnect, while a command is in
-  /// flight; `_updateWorkspaces` answers for the widget being gone.
+  /// flight. Through [_fetchWorkspaces], so a command's re-read merges with
+  /// whatever miracle's own event for that same command has already asked for
+  /// rather than racing it — which is why this returns as soon as the read is
+  /// *queued*, and no caller waits on the reply.
   Future<void> _reread(MiracleConnection connection) async {
     if (!mounted || !identical(_connection, connection)) return;
-    try {
-      _updateWorkspaces(await connection.getWorkspaces());
-    } catch (error) {
-      debugPrint('workspaces: could not re-read the workspaces: $error');
-    }
+    await _fetchWorkspaces();
   }
 
   /// The placeholder that stands in for the workspace row while something it
@@ -678,10 +780,21 @@ class _WorkspaceButtonState extends State<_WorkspaceButton>
             ),
             child: content,
           )
-        : AnimatedContainer(
-            duration: ShellDurations.fast,
-            decoration: decoration,
-            child: content,
+        // Boundaried for the flash's reason, on the path that is hit far more
+        // often than the flash ever is. `AnimatedContainer` tweens the fill
+        // whenever this button gains or loses the focus ring — and under
+        // focus-follows-mouse, a pointer crossing the seam between two monitors
+        // retints a button on *each* of them, every crossing. A bar has no
+        // repaint boundary of its own, so without this each frame of that tween
+        // re-records the whole panel picture and damages the whole output; waggle
+        // the pointer across the seam and the two bars never settle. The urgent
+        // branch is already inside [UrgencyFlash]'s own boundary.
+        : RepaintBoundary(
+            child: AnimatedContainer(
+              duration: ShellDurations.fast,
+              decoration: decoration,
+              child: content,
+            ),
           );
 
     return MouseRegion(
