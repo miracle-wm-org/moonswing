@@ -102,4 +102,33 @@ void main() {
       );
     });
   });
+
+  group('hostProgramOverrides', () {
+    test('carries the filtered path for a launched application', () {
+      expect(
+        hostProgramOverrides(_snapEnvironment()),
+        {'LD_LIBRARY_PATH': '/home/user/.local/lib'},
+      );
+    });
+
+    test('asks for an unset, not an empty, path when it was all ours', () {
+      // The distinction this shape exists for: GIO's launch context can remove
+      // a variable from the child's environment, so an application the shell
+      // launches gets the environment the host would have given it exactly.
+      expect(
+        hostProgramOverrides(_snapEnvironment(
+          libraryPath: '/snap/graceful-shell/42/lib',
+        )),
+        {'LD_LIBRARY_PATH': null},
+      );
+    });
+
+    test('is empty off a snap, so a launch is left verbatim', () {
+      expect(
+        hostProgramOverrides(const {'LD_LIBRARY_PATH': '/home/user/.local/lib'}),
+        isEmpty,
+      );
+      expect(hostProgramOverrides(const {}), isEmpty);
+    });
+  });
 }
