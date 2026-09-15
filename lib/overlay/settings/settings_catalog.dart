@@ -621,6 +621,40 @@ abstract final class SettingsCatalog {
     const ['screenshot', 'cursor', 'mouse', 'pointer'],
   );
 
+  static final githubRefreshSeconds = _module(
+    'modules.github.refresh_seconds',
+    'Check every (seconds)',
+    'How often the notification list is re-read. GitHub enforces a floor of a '
+        'minute, and asks for longer when it is busy.',
+    const ['github', 'notifications', 'refresh', 'poll', 'interval'],
+  );
+  static final githubShowCount = _module(
+    'modules.github.show_count',
+    'Show the unread count',
+    'Puts the number of unread notifications beside the mark in the bar.',
+    const ['github', 'notifications', 'count', 'badge'],
+  );
+  static final githubParticipatingOnly = _module(
+    'modules.github.participating_only',
+    'Only what involves you',
+    'Lists threads you are mentioned in, assigned to or asked to review, '
+        'rather than everything you watch.',
+    const ['github', 'notifications', 'mention', 'review', 'participating'],
+  );
+  static final githubIncludeRead = _module(
+    'modules.github.include_read',
+    'Include read notifications',
+    'Keeps threads in the list after they have been marked read.',
+    const ['github', 'notifications', 'read', 'history'],
+  );
+  static final githubMarkReadOnOpen = _module(
+    'modules.github.mark_read_on_open',
+    'Mark read when opened',
+    'Marks a notification read as it opens in the browser, the way clicking '
+        'one on github.com does.',
+    const ['github', 'notifications', 'read', 'open', 'browser'],
+  );
+
   static final recorderDirectory = _module(
     'modules.screen_recorder.directory',
     'Save to',

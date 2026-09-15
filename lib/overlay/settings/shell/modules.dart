@@ -11,6 +11,7 @@ import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/battery.dart' show BatteryConfig;
 import 'package:graceful_shell/modules/clock.dart' show ClockConfig;
 import 'package:graceful_shell/modules/dock.dart' show DockConfig;
+import 'package:graceful_shell/modules/github.dart' show GithubConfig;
 import 'package:graceful_shell/modules/media_player.dart'
     show MediaPlayerConfig;
 import 'package:graceful_shell/modules/network.dart' show NetworkConfig;
@@ -260,6 +261,33 @@ final List<_ModuleGroup> _moduleGroups = [
       defaultValue: const NetworkConfig().pollSeconds,
       isInt: true,
     ),
+  ]),
+  _ModuleGroup('GitHub', [
+    _ModuleSetting.number(
+      SettingsCatalog.githubRefreshSeconds,
+      defaultValue: const GithubConfig().refreshSeconds,
+      isInt: true,
+    ),
+    _ModuleSetting.toggle(
+      SettingsCatalog.githubShowCount,
+      defaultValue: const GithubConfig().showCount,
+    ),
+    _ModuleSetting.toggle(
+      SettingsCatalog.githubParticipatingOnly,
+      defaultValue: const GithubConfig().participatingOnly,
+    ),
+    _ModuleSetting.toggle(
+      SettingsCatalog.githubIncludeRead,
+      defaultValue: const GithubConfig().includeRead,
+    ),
+    _ModuleSetting.toggle(
+      SettingsCatalog.githubMarkReadOnOpen,
+      defaultValue: const GithubConfig().markReadOnOpen,
+    ),
+    // `client_id` and `scopes` are deliberately not here. Neither is a
+    // preference: one is an OAuth app the user registered and the other is
+    // what that app may do, and both are typed once into `config.toml` by
+    // somebody who has read what they mean.
   ]),
   _ModuleGroup('Screenshot', [
     _ModuleSetting.text(

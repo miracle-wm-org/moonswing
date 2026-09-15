@@ -270,6 +270,93 @@ right = ["media_player", "notifications", "launcher"]
 
 The launcher lists the same applications any menu would: those `g_app_info_should_show()` accepts. An entry with `NoDisplay=true`, or one restricted with `OnlyShowIn=GNOME;`, will not appear.
 
+### GitHub
+
+The GitHub mark, the number of unread notifications beside it, and the inbox
+behind a click: what is waiting for you across every repository you watch, with
+the reason each thread arrived. Clicking one opens it in your browser and marks
+it read, the way clicking it on github.com does; the tick beside a row marks it
+read without opening it, and the double tick in the header marks the whole list.
+
+```toml
+[modules.github]
+refresh_seconds = 60
+show_count = true
+participating_only = false
+include_read = false
+mark_read_on_open = true
+```
+
+| Key                  | Type   | Default | Description                                                                                        |
+| -------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------- |
+| `refresh_seconds`    | int    | `60`    | How often the list is re-read (60–3600). GitHub enforces a floor of a minute and may ask for longer |
+| `show_count`         | bool   | `true`  | Show the unread count beside the mark                                                               |
+| `participating_only` | bool   | `false` | Only threads you are mentioned in, assigned to or asked to review                                   |
+| `include_read`       | bool   | `false` | Keep threads in the list after they are marked read                                                 |
+| `mark_read_on_open`  | bool   | `true`  | Mark a notification read as it opens                                                                |
+| `client_id`          | string | the GitHub CLI's | The OAuth app the sign-in runs against — see below                                        |
+| `scopes`             | string | `"notifications"` | What the sign-in asks for — see below                                                     |
+
+**This module is not in the default layout.** Add `"github"` to a panel's:
+
+```toml
+[panels.top.layout]
+right = ["github", "battery", "clock"]
+```
+
+#### Signing in
+
+The first click offers a **Sign in with GitHub** button. Pressing it starts the
+same *device flow* `gh auth login` uses: the shell asks GitHub for an eight
+character code, shows it, and opens github.com/login/device in your browser. You
+type the code in there, authorise the app, and the shell takes it from there —
+your password is never typed into the shell and never reaches it.
+
+The access token is written to `~/.local/state/graceful-shell/github-token`
+(mode 0600, in a directory created 0700), not into `config.toml`. **Sign out** in
+the popup's header deletes it. That signs this machine out; it does not revoke
+the authorisation, which is done from
+[Settings › Applications](https://github.com/settings/applications) on github.com.
+
+The consent screen says **GitHub CLI**, because `client_id` defaults to that
+tool's public client id — a client id is public by construction, and borrowing
+one is what lets this work without every user registering an app. To use your
+own instead, register an OAuth app (Developer settings › OAuth Apps) with
+*Enable Device Flow* ticked, and name it:
+
+```toml
+[modules.github]
+client_id = "Iv1.0123456789abcdef"
+```
+
+`scopes` is what that sign-in asks for. The default, `notifications`, is read
+access to the notification list plus the two calls that mark a thread read —
+nothing else, not the contents of a single repository. Notifications from
+**private** repositories are not included in that; listing them needs `repo`,
+which is full read/write access to every repository you can reach:
+
+```toml
+[modules.github]
+scopes = "notifications repo"
+```
+
+Change either key and the saved token no longer matches what is being asked for:
+sign out and in again.
+
+#### How current the list is
+
+There is no push channel for notifications — GitHub's API is polled — so the
+module polls it the way the API asks to be polled. Each request carries the
+previous response's validator, so an unchanged list comes back as a 304 that
+costs no rate-limit quota, and GitHub's own `X-Poll-Interval` is honoured
+whenever it asks for longer than `refresh_seconds`. Nothing is polled at all
+while no panel carries the module: one poll for the machine, however many bars
+draw the mark.
+
+Copying the sign-in code needs `wl-copy` (the `wl-clipboard` package), as the
+emoji picker does; without it the code can still be typed out by hand, and the
+card says so.
+
 ### Notifications
 
 A bell that shakes and shows a count when a notification arrives, and opens the

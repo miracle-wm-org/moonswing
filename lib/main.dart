@@ -24,6 +24,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/monitor_watcher.dart';
 import 'package:graceful_shell/modules/battery.dart';
 import 'package:graceful_shell/modules/dock.dart';
+import 'package:graceful_shell/modules/github.dart';
 import 'package:graceful_shell/modules/keybinds.dart';
 import 'package:graceful_shell/modules/keyboard_layout.dart';
 import 'package:graceful_shell/modules/launcher.dart';
@@ -139,6 +140,7 @@ void main() async {
   Module.register(screenRecorderModule);
   Module.register(keyboardLayoutModule);
   Module.register(keybindsModule);
+  Module.register(githubModule);
 
   // The desktop grid's own registry, populated the same way: `[[desktop.widgets]]`
   // names a type, and lookup happens at render time. See
