@@ -213,19 +213,22 @@ void main() {
     );
     await tester.pump();
 
-    // The 15th is in every month and never spills in from a neighbouring one:
-    // a 6x7 grid leaves at most fourteen trailing days and at most six leading
-    // ones, which come off the end of the previous month.
-    expect(find.text('15'), findsOneWidget);
+    // A day in 15..22 is in every month and never spills in from a
+    // neighbouring one: a 6x7 grid leaves at most fourteen trailing days (1..14
+    // of the next month) and at most six leading ones, which come off the end
+    // of the previous month and so are 23 or later even for a 28-day February.
+    // Today is the selected day, which paints the accent whatever the pointer
+    // does — and the default theme's surface_hover *is* the accent, so hovering
+    // today would assert nothing. Step off it.
+    final dayLabel = now.day == 15 ? '16' : '15';
+    final day = find.text(dayLabel);
+    expect(day, findsOneWidget);
 
     BoxDecoration cellDecoration() =>
         tester
                 .widget<Container>(
                   find
-                      .ancestor(
-                        of: find.text('15'),
-                        matching: find.byType(Container),
-                      )
+                      .ancestor(of: day, matching: find.byType(Container))
                       .first,
                 )
                 .decoration!
@@ -239,10 +242,14 @@ void main() {
     addTearDown(pointer.removePointer);
     await tester.pump();
 
-    final labelBefore = tester.widget<Text>(find.text('15'));
+    final labelBefore = tester.widget<Text>(day);
     final paintsBefore = counter.paints;
 
-    await pointer.moveTo(tester.getCenter(find.text('15')));
+    // Resting, so the highlight below is a change and not the state it started
+    // in.
+    expect(cellDecoration().color, const Color(0x00000000));
+
+    await pointer.moveTo(tester.getCenter(day));
     await tester.pump();
 
     // The highlight is on — without this the containment assertion below would
@@ -252,10 +259,7 @@ void main() {
     expect(counter.paints, paintsBefore);
     // The number is built outside the hover builder and handed in as a child,
     // so the rebuild the boundary contains is a decoration, not a paragraph.
-    expect(
-      identical(tester.widget<Text>(find.text('15')), labelBefore),
-      isTrue,
-    );
+    expect(identical(tester.widget<Text>(day), labelBefore), isTrue);
 
     await pointer.moveTo(Offset.zero);
     await tester.pump();
