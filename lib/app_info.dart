@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
 import 'app_scope.dart';
+import 'host_process.dart' show hostProgramEnvironment;
 import 'native/ffi_util.dart' show gSignalConnectData;
 
 // ---------------------------------------------------------------------------
@@ -160,6 +161,26 @@ external ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefault();
 @ffi.Native<ffi.Pointer<ffi.NativeType> Function()>(
     symbol: 'g_app_launch_context_new')
 external ffi.Pointer<ffi.NativeType> _gAppLaunchContextNew();
+
+/// Overrides one variable in the environment the context's *child* is spawned
+/// with. It does not touch this process's own environment: GIO keeps the
+/// overrides on the context and folds them into the envp it hands the spawn.
+@ffi.Native<
+    ffi.Void Function(ffi.Pointer<ffi.NativeType>, ffi.Pointer<ffi.Uint8>,
+        ffi.Pointer<ffi.Uint8>)>(symbol: 'g_app_launch_context_setenv')
+external void _gAppLaunchContextSetenv(
+    ffi.Pointer<ffi.NativeType> context,
+    ffi.Pointer<ffi.Uint8> variable,
+    ffi.Pointer<ffi.Uint8> value);
+
+/// Removes a variable from the child's environment outright — the half
+/// [_gAppLaunchContextSetenv] cannot express, and the one a host application
+/// needs when every entry on the shell's `LD_LIBRARY_PATH` was the bundle's.
+@ffi.Native<
+    ffi.Void Function(ffi.Pointer<ffi.NativeType>,
+        ffi.Pointer<ffi.Uint8>)>(symbol: 'g_app_launch_context_unsetenv')
+external void _gAppLaunchContextUnsetenv(
+    ffi.Pointer<ffi.NativeType> context, ffi.Pointer<ffi.Uint8> variable);
 
 /// `g_variant_lookup_value(dictionary, key, expected_type)` — the value for
 /// [key] in an `a{sv}`, or NULL when the key is absent or is not of the
@@ -599,6 +620,9 @@ int _pidFromPlatformData(ffi.Pointer<ffi.NativeType> platformData) {
 /// `g_desktop_app_info_launch_action` alike. Hence the plain-context fallback:
 /// without a display there is no token to lose, but there is still a process to
 /// hand to systemd.
+///
+/// The context carries a third thing worth having: the environment the child is
+/// spawned with — see [_applyHostEnvironment].
 ffi.Pointer<ffi.NativeType> _launchContext() {
   try {
     final display = _gdkDisplayGetDefault();
@@ -606,6 +630,7 @@ ffi.Pointer<ffi.NativeType> _launchContext() {
         ? _gAppLaunchContextNew()
         : _gdkDisplayGetAppLaunchContext(display);
     if (context == ffi.nullptr) return ffi.nullptr;
+    _applyHostEnvironment(context);
     final signal = _stringToNative('launched');
     try {
       // `g_signal_connect_data` parses the name as it connects and does not
@@ -625,6 +650,52 @@ ffi.Pointer<ffi.NativeType> _launchContext() {
     return context;
   } catch (_) {
     return ffi.nullptr;
+  }
+}
+
+/// Puts the environment the *host* would have given it onto [context], so the
+/// application GIO spawns through it does not inherit this bundle's.
+///
+/// GIO spawns a desktop entry's command out of this process, so an application
+/// starts with the shell's own environment — and under the classic snap that
+/// environment has `$SNAP/usr/lib/<triplet>` in front of `LD_LIBRARY_PATH`, for
+/// the libraries staged beside the shell. A host application picking those up
+/// is `lib/host_process.dart`'s bug with a quieter failure than ffmpeg's: the
+/// shape it gets reported in is a GTK application that starts and runs with no
+/// icons anywhere, its own window controls included, because the host's SVG
+/// pixbuf loader cannot load against a staged gdk-pixbuf and an icon that will
+/// not decode is simply not drawn.
+///
+/// Not best-effort the way the systemd adoption on the other side of this
+/// context is: that one improves an application already running correctly,
+/// whereas an environment is fixed at spawn and cannot be repaired afterwards.
+/// It is still safe inside [_launchContext]'s `try` — these are core GIO entry
+/// points in a process already calling `g_app_info_launch`, and a context
+/// dropped for a throw would cost the launch its startup-notification token and
+/// its scope, not its environment: a launch with no context spawns with this
+/// process's environ, which is the bug either way.
+///
+/// Off a snap [hostProgramEnvironment] is empty and this sets nothing.
+void _applyHostEnvironment(ffi.Pointer<ffi.NativeType> context) {
+  for (final MapEntry(:key, :value) in hostProgramEnvironment().entries) {
+    final variable = _stringToNative(key);
+    try {
+      if (value == null) {
+        // Every entry on it was ours, so the host would have set the variable
+        // not at all. `setenv` with an empty string is close enough for the
+        // loader and wrong for anything else that reads one.
+        _gAppLaunchContextUnsetenv(context, variable);
+        continue;
+      }
+      final native = _stringToNative(value);
+      try {
+        _gAppLaunchContextSetenv(context, variable, native);
+      } finally {
+        _gFree(native.cast());
+      }
+    } finally {
+      _gFree(variable.cast());
+    }
   }
 }
 

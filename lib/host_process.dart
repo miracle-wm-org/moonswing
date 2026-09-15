@@ -26,6 +26,18 @@
 // dropped from `LD_LIBRARY_PATH` for the child; everything else the shell
 // inherited stays, because a user's own entries are not ours to discard.
 //
+// **The applications the launcher starts are host programs too**, and they are
+// the ones a user notices. GIO spawns them out of this process (see
+// `lib/app_info.dart`), so they inherit the same path, and a staged library
+// that is merely *older* than the host's does not announce itself the way
+// ffmpeg did — it half-works. The reported shape is a GTK application that
+// starts and runs with no icons anywhere, its window controls included: the
+// host's gdk-pixbuf loader modules are built against the host's gdk-pixbuf, so
+// resolving that soname to the copy staged beside libgtk-layer-shell leaves the
+// SVG loader unable to load, and every symbolic icon in the theme silently
+// decodes to nothing. Hence [hostProgramEnvironment], which the launch context
+// in `app_info.dart` applies to every application the shell starts.
+//
 // Outside a snap this is a no-op: nothing sets `SNAP`, so nothing is filtered
 // and the child gets the parent's environment verbatim.
 
@@ -46,16 +58,41 @@ Future<Process> startHostProcess(
   List<String> arguments,
 ) => Process.start(executable, arguments, environment: hostToolEnvironment());
 
-/// The environment overrides a host program is started with.
+/// The environment changes a host program needs, as variable to new value —
+/// where a **null** value means the variable must be *unset* in the child, not
+/// set to nothing.
+///
+/// The distinction exists for the one caller that can act on it. Dart's process
+/// API can override a variable but not remove one, so [hostToolEnvironment]
+/// spells the removal as the empty string the loader ignores; GIO's launch
+/// context has `g_app_launch_context_unsetenv`, so an application launched
+/// through `lib/app_info.dart` is given the environment the host would have
+/// given it exactly, with no `LD_LIBRARY_PATH` at all where the host sets none.
+///
+/// Empty off a snap, and memoised because `Platform.environment` cannot change
+/// under a running process.
+Map<String, String?> hostProgramEnvironment() =>
+    _hostProgramEnvironment ??= hostProgramOverrides(Platform.environment);
+
+Map<String, String?>? _hostProgramEnvironment;
+
+/// [hostProgramEnvironment] against an arbitrary [environment], which is the
+/// half a test on a machine that is not a snap can reach.
+Map<String, String?> hostProgramOverrides(Map<String, String> environment) => {
+      if (hostLibraryPath(environment) case final path?)
+        'LD_LIBRARY_PATH': path.isEmpty ? null : path,
+    };
+
+/// [hostProgramEnvironment] in the shape [Process.run] and [Process.start]
+/// take.
 ///
 /// Layered *over* the parent environment rather than replacing it — Dart's
 /// `includeParentEnvironment` defaults to true — so this carries the one key
-/// that needs changing and nothing else. Empty off a snap, and memoised
-/// because `Platform.environment` cannot change under a running process.
+/// that needs changing and nothing else.
 Map<String, String> hostToolEnvironment() =>
     _hostToolEnvironment ??= {
-      if (hostLibraryPath(Platform.environment) case final path?)
-        'LD_LIBRARY_PATH': path,
+      for (final MapEntry(:key, :value) in hostProgramEnvironment().entries)
+        key: value ?? '',
     };
 
 Map<String, String>? _hostToolEnvironment;
