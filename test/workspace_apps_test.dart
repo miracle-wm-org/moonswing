@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/modules/workspace_apps.dart';
 import 'package:miracle/miracle.dart';
 
+import 'workspace_result.dart';
+
 /// Pins the workspace row's app icons: the tree walk that turns a `GET_TREE`
 /// reply into "what is open on each workspace", the identity matching that joins
 /// it to the `GET_WORKSPACES` list, and the lease/notify discipline between them.
@@ -167,11 +169,30 @@ void main() {
   });
 
   group('wakesWorkspaceApps', () {
-    test('a workspace or output event always does', () {
+    test('the workspace changes that move the set of workspaces do', () {
+      for (final change in [
+        WorkspaceChange.init,
+        WorkspaceChange.empty,
+        WorkspaceChange.move,
+        WorkspaceChange.rename,
+        WorkspaceChange.reload,
+      ]) {
+        expect(wakesWorkspaceApps(_workspaceEvent(change)), isTrue,
+            reason: change.name);
+      }
       // miracle never says which output changed, and a removed output has its
       // workspaces re-homed with no workspace event of its own.
-      expect(wakesWorkspaceApps(_workspaceEvent()), isTrue);
       expect(wakesWorkspaceApps(_outputEvent()), isTrue);
+    });
+
+    test('switching workspace does not', () {
+      // `WindowChange.focused`'s exclusion on the other event, and the
+      // load-bearing one here: under focus-follows-mouse every pass of the
+      // pointer across the seam between two monitors is one of these, and
+      // switching workspace moves no window between workspaces. `init` and
+      // `empty` cover the two cases where the set of workspaces does move.
+      expect(wakesWorkspaceApps(_workspaceEvent(WorkspaceChange.focus)),
+          isFalse);
     });
 
     test('urgency does not, on either of the two events that carry it', () {
@@ -214,6 +235,71 @@ void main() {
 
     test('an event about something else does not', () {
       expect(wakesWorkspaceApps(_tickEvent()), isFalse);
+    });
+  });
+
+  group('workspaceRowSignature', () {
+    // The row re-reads on every workspace and output event, most of which draw
+    // the identical row — and a bar has no repaint boundary of its own, so a
+    // `setState` per reply re-records the whole panel picture on every monitor.
+    test('is unchanged by a reply that draws the same row', () {
+      final before = [
+        workspaceResult(num: 1, name: '1', output: 'DP-1', focused: true),
+        workspaceResult(num: 2, name: '2', output: 'HDMI-A-1', focused: false),
+      ];
+      final after = [
+        workspaceResult(num: 1, name: '1', output: 'DP-1', focused: true),
+        workspaceResult(num: 2, name: '2', output: 'HDMI-A-1', focused: false),
+      ];
+      expect(workspaceRowSignature(after), workspaceRowSignature(before));
+    });
+
+    test('moves on every field the row or its menu reads', () {
+      final base = [workspaceResult(num: 1, name: '1', output: 'DP-1')];
+      final signature = workspaceRowSignature(base);
+
+      // The focus fill — this is the one a monitor switch moves.
+      expect(
+          workspaceRowSignature(
+              [workspaceResult(num: 1, name: '1', focused: false)]),
+          isNot(signature));
+      // The flash.
+      expect(
+          workspaceRowSignature(
+              [workspaceResult(num: 1, name: '1', urgent: true)]),
+          isNot(signature));
+      // The label, the output the row filters on, and the placement the menu
+      // checks.
+      expect(workspaceRowSignature([workspaceResult(num: 2, name: '2')]),
+          isNot(signature));
+      expect(
+          workspaceRowSignature(
+              [workspaceResult(num: 1, name: '1', output: 'HDMI-A-1')]),
+          isNot(signature));
+      expect(
+          workspaceRowSignature(
+              [workspaceResult(num: 1, name: '1', policy: 'float')]),
+          isNot(signature));
+      // And a workspace appearing or going away.
+      expect(workspaceRowSignature(const []), isNot(signature));
+    });
+  });
+
+  group('outputMenuSignature', () {
+    test('is unchanged by a reply that draws the same page', () {
+      expect(outputMenuSignature([outputResult(name: 'DP-1')]),
+          outputMenuSignature([outputResult(name: 'DP-1')]));
+    });
+
+    test('moves on the fields the page reads', () {
+      final signature = outputMenuSignature([outputResult(name: 'DP-1')]);
+      expect(outputMenuSignature([outputResult(name: 'DP-2')]),
+          isNot(signature));
+      expect(outputMenuSignature([outputResult(name: 'DP-1', model: 'U2723')]),
+          isNot(signature));
+      // The filter: an inactive output is not a place a workspace can go.
+      expect(outputMenuSignature([outputResult(name: 'DP-1', active: false)]),
+          isNot(signature));
     });
   });
 
@@ -292,7 +378,8 @@ void main() {
           ['firefox', 'kitty']);
     });
 
-    test('a focus change reads nothing', () async {
+    test('a focus change reads nothing, on either event that carries one',
+        () async {
       store.acquire();
       await pumpEventQueue();
 
@@ -301,6 +388,15 @@ void main() {
       await pumpEventQueue();
 
       expect(fetches, 1, reason: 'alt-tab must not cost a GET_TREE');
+
+      // And the workspace half of it, which is what focus-follows-mouse sends
+      // on every crossing between two monitors.
+      events.add(_workspaceEvent(WorkspaceChange.focus));
+      events.add(_workspaceEvent(WorkspaceChange.focus));
+      await pumpEventQueue();
+
+      expect(fetches, 1,
+          reason: 'switching monitors must not cost a GET_TREE either');
     });
 
     test('events arriving mid-flight coalesce into one more read', () async {
@@ -530,7 +626,9 @@ WorkspaceResult _result({
       'rect': _rect(),
     });
 
-Event _workspaceEvent([WorkspaceChange change = WorkspaceChange.focus]) =>
+// Defaults to `init` — a workspace event that genuinely moves the set of
+// workspaces. `focus` is the one that does not; it has tests of its own.
+Event _workspaceEvent([WorkspaceChange change = WorkspaceChange.init]) =>
     Event.fromJson(IpcType.ipcEventWorkspace, {
       'change': change.wireName,
       'old': null,
