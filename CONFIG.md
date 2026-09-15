@@ -297,11 +297,13 @@ mark_read_on_open = true
 | `client_id`          | string | the GitHub CLI's | The OAuth app the sign-in runs against — see below                                        |
 | `scopes`             | string | `"notifications"` | What the sign-in asks for — see below                                                     |
 
-**This module is not in the default layout.** Add `"github"` to a panel's:
+**This module is in the default bottom panel, but adding it to an existing
+config is manual** — the default config file is only written when none exists.
+Add `"github"` to a panel's layout:
 
 ```toml
-[panels.top.layout]
-right = ["github", "battery", "clock"]
+[panels.bottom.layout]
+left = ["github"]
 ```
 
 #### Signing in

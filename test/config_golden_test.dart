@@ -79,7 +79,7 @@ void main() {
       expect(bottom.paddingHorizontal, 0);
       expect(bottom.anchor, 'bottom');
       expect(bottom.layer, 'top');
-      expect(bottom.layout.left, isEmpty);
+      expect(bottom.layout.left, ['github']);
       expect(bottom.layout.center, ['dock']);
       expect(bottom.layout.right,
           ['media_player', 'notifications', 'launcher']);
