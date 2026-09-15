@@ -75,3 +75,27 @@ void closeFd(int fd) => _close(fd);
 /// through a Dart list.
 void memcpyPtr(ffi.Pointer<ffi.Void> dest, ffi.Pointer<ffi.Void> src, int n) =>
     _memcpy(dest, src, n);
+
+// int chmod(const char *pathname, mode_t mode);
+final _chmod = _process.lookupFunction<
+    ffi.Int32 Function(ffi.Pointer<Utf8>, ffi.Uint32),
+    int Function(ffi.Pointer<Utf8>, int)>('chmod');
+
+/// Sets [path]'s permission bits to [mode]. Returns true on success.
+///
+/// Here because `dart:io` has no way to say it and one thing the shell writes
+/// is a secret: the GitHub access token
+/// (`lib/github/github_token_store.dart`), which must not be readable by other
+/// users on the machine. Creating the file and *then* narrowing it leaves a
+/// window, so the caller creates it inside a directory this has already
+/// narrowed — the same order `ssh-keygen` uses on `~/.ssh`.
+bool chmodPath(String path, int mode) {
+  final pathPtr = path.toNativeUtf8();
+  try {
+    return _chmod(pathPtr, mode) == 0;
+  } catch (_) {
+    return false;
+  } finally {
+    malloc.free(pathPtr);
+  }
+}

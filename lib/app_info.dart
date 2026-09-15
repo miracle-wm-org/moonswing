@@ -774,6 +774,34 @@ bool openPathWithDefault(String path) {
   }
 }
 
+/// Opens [url] with the user's default handler for its scheme, swallowing any
+/// error.
+///
+/// [openPathWithDefault] minus the `file:` wrapping — an `https:` URL is
+/// already a URI and GIO resolves it through the same
+/// `g_app_info_launch_default_for_uri`, which is `xdg-open` with the launch
+/// context this process has. That context is the point: it is what puts the
+/// browser into a systemd scope of its own rather than leaving it in the
+/// shell's cgroup (see [_launchContext] and `_onLaunched`).
+///
+/// Refuses anything that is not an absolute URL, because the one caller is the
+/// GitHub module and a link it hands over comes from a web API — a relative or
+/// unparseable one is a row of somebody else's JSON, not a page to open.
+bool openUriWithDefault(String url) {
+  final parsed = Uri.tryParse(url);
+  if (parsed == null || !parsed.hasScheme || !parsed.hasAuthority) return false;
+  final uri = _stringToNative(parsed.toString());
+  final context = _launchContext();
+  try {
+    return _gAppInfoLaunchDefaultForUri(uri, context, ffi.nullptr) != 0;
+  } catch (_) {
+    return false;
+  } finally {
+    if (context != ffi.nullptr) _gObjectUnref(context);
+    _gFree(uri.cast());
+  }
+}
+
 /// The content type GIO guesses for [path] from its name, or empty.
 ///
 /// [isDirectory] short-circuits: `g_content_type_guess` works from the name

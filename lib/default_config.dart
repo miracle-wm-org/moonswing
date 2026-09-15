@@ -81,6 +81,7 @@ anchor = "bottom"
 layer = "top"
 
 [panels.bottom.layout]
+left = ["github"]
 center = ["dock"]
 right = ["media_player", "notifications", "launcher"]
 
