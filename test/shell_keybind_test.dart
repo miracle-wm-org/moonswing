@@ -45,18 +45,30 @@ void main() {
       // registered by the shell but missing here would be one a person can
       // press and never find written down.
       const config = ShortcutsConfig();
-      expect(ShellShortcut.values.length, 4);
+      expect(ShellShortcut.values.length, 7);
       expect(
         ShellShortcut.openLauncher.specIn(config),
-        parseShortcut('ctrl+space'),
+        parseShortcut('super+d'),
       );
       expect(
         ShellShortcut.openSettings.specIn(config),
-        parseShortcut('ctrl+shift+s'),
+        parseShortcut('super+s'),
       );
       expect(
         ShellShortcut.openEmoji.specIn(config),
         parseShortcut('ctrl+shift+e'),
+      );
+      expect(
+        ShellShortcut.openNotifications.specIn(config),
+        parseShortcut('super+e'),
+      );
+      expect(
+        ShellShortcut.screenshotArea.specIn(config),
+        parseShortcut('print'),
+      );
+      expect(
+        ShellShortcut.recordScreen.specIn(config),
+        parseShortcut('super+print'),
       );
       expect(
         ShellShortcut.powerButton.specIn(config),
@@ -70,15 +82,19 @@ void main() {
     test('a disabled shortcut is a null spec, not a missing row', () {
       final config = ShortcutsConfig.fromMap(const {'open_emoji': ''});
       expect(ShellShortcut.openEmoji.specIn(config), isNull);
-      // The other three are untouched: one key, one shortcut.
+      // The others are untouched: one key, one shortcut.
       expect(ShellShortcut.openLauncher.specIn(config), kDefaultOpenLauncher);
+      expect(ShellShortcut.recordScreen.specIn(config), kDefaultRecordScreen);
     });
   });
 
   group('caps', () {
     test('are the same caps the compositor\'s rows are drawn with', () {
-      expect(shortcutLabel(kDefaultOpenLauncher), 'Ctrl + Space');
-      expect(shortcutLabel(kDefaultOpenSettings), 'Ctrl + Shift + S');
+      expect(shortcutLabel(kDefaultOpenLauncher), 'Super + D');
+      expect(shortcutLabel(kDefaultOpenSettings), 'Super + S');
+      expect(shortcutLabel(kDefaultScreenshotArea), 'Print');
+      expect(shortcutLabel(kDefaultRecordScreen), 'Super + Print');
+      expect(shortcutLabel(kDefaultOpenEmoji), 'Ctrl + Shift + E');
       // `Modifier.meta` is `Super` on both halves of the sheet, because both
       // go through `miracle_labels.dart` rather than spelling it here.
       expect(shortcutLabel(parseShortcut('super+d')!), 'Super + D');
@@ -185,12 +201,44 @@ void main() {
       expect(
         captureShortcut(
           LogicalKeyboardKey.keyS,
-          ctrl: true,
+          ctrl: false,
           alt: false,
-          shift: true,
-          meta: false,
+          shift: false,
+          meta: true,
         ),
         kDefaultOpenSettings,
+      );
+      expect(
+        captureShortcut(
+          LogicalKeyboardKey.keyD,
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: true,
+        ),
+        kDefaultOpenLauncher,
+      );
+      // A key with a name rather than a character, captured with and without
+      // the modifier that tells the two capture shortcuts apart.
+      expect(
+        captureShortcut(
+          LogicalKeyboardKey.printScreen,
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: false,
+        ),
+        kDefaultScreenshotArea,
+      );
+      expect(
+        captureShortcut(
+          LogicalKeyboardKey.printScreen,
+          ctrl: false,
+          alt: false,
+          shift: false,
+          meta: true,
+        ),
+        kDefaultRecordScreen,
       );
       expect(
         captureShortcut(
@@ -200,7 +248,7 @@ void main() {
           shift: false,
           meta: false,
         ),
-        kDefaultOpenLauncher,
+        parseShortcut('ctrl+space'),
       );
       expect(
         captureShortcut(

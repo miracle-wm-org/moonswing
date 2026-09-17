@@ -172,9 +172,14 @@ show_username = true
 blur_sigma = 18.0
 
 [shortcuts]
-open_settings = "ctrl+shift+s"
-open_launcher = "ctrl+space"
+open_settings = "super+s"
+open_launcher = "super+d"
 open_emoji = "ctrl+shift+e"
+open_notifications = "super+e"
+# A screenshot of an area you drag out, and a recording of the screen you are
+# on. Press the recording shortcut again to stop it.
+screenshot_area = "print"
+record_screen = "super+print"
 # The machine's own power button. Clear it (or set [power] key_action = "none")
 # to hand the key back to systemd-logind.
 power_button = "poweroff"

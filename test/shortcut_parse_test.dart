@@ -7,9 +7,12 @@ void main() {
     test('reproduces the built-in defaults', () {
       // If these two ever diverge, every shortcut silently registers the wrong
       // key — the defaults are const and cannot call the parser themselves.
-      expect(parseShortcut('ctrl+shift+s'), kDefaultOpenSettings);
-      expect(parseShortcut('ctrl+space'), kDefaultOpenLauncher);
+      expect(parseShortcut('super+s'), kDefaultOpenSettings);
+      expect(parseShortcut('super+d'), kDefaultOpenLauncher);
       expect(parseShortcut('ctrl+shift+e'), kDefaultOpenEmoji);
+      expect(parseShortcut('super+e'), kDefaultOpenNotifications);
+      expect(parseShortcut('print'), kDefaultScreenshotArea);
+      expect(parseShortcut('super+print'), kDefaultRecordScreen);
       expect(parseShortcut('poweroff'), kDefaultPowerButton);
     });
 
@@ -118,9 +121,12 @@ void main() {
     }
 
     test('writes the defaults exactly as the default config spells them', () {
-      expect(formatShortcut(kDefaultOpenSettings), 'ctrl+shift+s');
-      expect(formatShortcut(kDefaultOpenLauncher), 'ctrl+space');
+      expect(formatShortcut(kDefaultOpenSettings), 'super+s');
+      expect(formatShortcut(kDefaultOpenLauncher), 'super+d');
       expect(formatShortcut(kDefaultOpenEmoji), 'ctrl+shift+e');
+      expect(formatShortcut(kDefaultOpenNotifications), 'super+e');
+      expect(formatShortcut(kDefaultScreenshotArea), 'print');
+      expect(formatShortcut(kDefaultRecordScreen), 'super+print');
       expect(formatShortcut(kDefaultPowerButton), 'poweroff');
     });
 
@@ -131,6 +137,8 @@ void main() {
       roundTrips('ctrl+alt+shift+f24');
       roundTrips('ctrl+space');
       roundTrips('escape');
+      roundTrips('print');
+      roundTrips('super+print');
       roundTrips('ctrl+pageup');
       roundTrips('super+period');
       roundTrips('ctrl+bracketleft');

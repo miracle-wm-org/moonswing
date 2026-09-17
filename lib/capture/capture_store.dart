@@ -14,6 +14,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:miracle/miracle.dart';
 
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/screencast/capture_connection.dart';
@@ -70,6 +71,18 @@ class CaptureStore extends ChangeNotifier {
   /// `$HOME`, resolved once. Injectable so the directory rules are testable
   /// without writing to the machine's real home.
   String home = Platform.environment['HOME'] ?? '';
+
+  /// One `GET_TREE`, or null when the shell is not connected to miracle.
+  ///
+  /// Wired at start-up from the shell's one `MiracleManager`, which is built
+  /// above `runWidget` and cannot be reached from a global shortcut's
+  /// callback; injectable for [connect]'s reason, since `flutter_test` has no
+  /// compositor behind it either.
+  ///
+  /// Only `runScreenRecordingShortcut` reads it, and only to answer "which
+  /// screen is the user on" without putting a selection surface up. Null is an
+  /// answer: the shortcut falls back to asking.
+  Future<BaseNode>? Function() readTree = () => null;
 
   ScreenRecorder? _recording;
   DateTime? _recordingStartedAt;

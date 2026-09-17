@@ -221,10 +221,10 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
           const SizedBox(height: 14),
         ],
         // One scroll view over both halves. The shell's shortcuts lead and are
-        // full width: they are four rows, they are the ones that can be
-        // changed, and dealing them into the balanced columns below would let
-        // the editor's own width decide how the compositor's fifty are laid
-        // out.
+        // full width: they are a handful of rows, they are the ones that can
+        // be changed, and dealing them into the balanced columns below would
+        // let the editor's own width decide how the compositor's fifty are
+        // laid out.
         //
         // The boundary is here rather than around the columns for the reason it
         // was always there: the mark a scroll leaves travels to the nearest
@@ -619,7 +619,7 @@ class _ShellSectionBlock extends StatelessWidget {
               ),
             ),
           ),
-          // Said once, over the four rows, rather than per row: a global
+          // Said once, over every row, rather than per row: a global
           // shortcut is registered on the compositor's first answer and latches
           // there, so *every* edit here is a change to what the next run binds.
           if (store.needsRestart)

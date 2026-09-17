@@ -103,6 +103,29 @@ List<SelectableWindow> collectWindows(BaseNode tree) {
   return windows;
 }
 
+/// The output the user is working on — the one holding the focused workspace —
+/// or null when [tree] names none.
+///
+/// What "the current screen" means to the recording shortcut, and the only
+/// place the shell answers that question without asking the user to point at a
+/// display. Miracle focuses exactly one workspace at a time, so the first match
+/// is the answer; an output that is inactive or has no area is skipped for
+/// [collectOutputs]'s reason, and a tree whose focused workspace sits on one of
+/// those is a tree with no answer rather than a wrong one.
+ScreenOutput? focusedOutput(BaseNode tree) {
+  for (final output in tree.outputs) {
+    if (!output.active) continue;
+    final rect = _rectOf(output.rect);
+    if (rect.isEmpty) continue;
+    for (final workspace in output.workspaces) {
+      if (workspace.focused) {
+        return ScreenOutput(name: output.name, rect: rect);
+      }
+    }
+  }
+  return null;
+}
+
 /// The frontmost window in [windows] containing the global logical point ([x],
 /// [y]), or null.
 ///

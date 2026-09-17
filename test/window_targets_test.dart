@@ -38,6 +38,7 @@ Map<String, dynamic> _workspace(
   int id,
   String output, {
   required bool visible,
+  bool focused = false,
   List<Map<String, dynamic>> nodes = const [],
   List<Map<String, dynamic>> floating = const [],
 }) =>
@@ -48,6 +49,7 @@ Map<String, dynamic> _workspace(
       'num': id,
       'output': output,
       'visible': visible,
+      'focused': focused,
       'rect': _rect(0, 0, 1920, 1080),
       'nodes': nodes,
       'floating_nodes': floating,
@@ -77,6 +79,60 @@ BaseNode _tree(List<Map<String, dynamic>> outputs) => BaseNode.fromJson({
     });
 
 void main() {
+  group('focusedOutput', () {
+    test('is the output holding the focused workspace', () {
+      final tree = _tree([
+        _output('DP-1', _rect(0, 0, 1920, 1080), workspaces: [
+          _workspace(1, 'DP-1', visible: true),
+        ]),
+        _output('HDMI-1', _rect(1920, 0, 1280, 1024), workspaces: [
+          _workspace(2, 'HDMI-1', visible: false),
+          _workspace(3, 'HDMI-1', visible: true, focused: true),
+        ]),
+      ]);
+
+      final screen = focusedOutput(tree);
+      expect(screen?.name, 'HDMI-1');
+      // In global coordinates, as everything here is: the recording is
+      // cropped against the output's own size, not the desktop's.
+      expect(screen?.rect.x, 1920);
+      expect(screen?.size, const CaptureSize(1280, 1024));
+    });
+
+    test('nothing focused is null, never the first output', () {
+      // The recording shortcut asks the user which screen when this answers
+      // null; a guess here would silently record the wrong monitor.
+      final tree = _tree([
+        _output('DP-1', _rect(0, 0, 1920, 1080), workspaces: [
+          _workspace(1, 'DP-1', visible: true),
+        ]),
+      ]);
+      expect(focusedOutput(tree), isNull);
+      expect(focusedOutput(_tree([])), isNull);
+    });
+
+    test('an inactive or zero-sized output is not an answer', () {
+      // `collectOutputs`' rule: such an output is disabled or mid-
+      // reconfiguration, and its size is not one a capture could use.
+      expect(
+        focusedOutput(_tree([
+          _output('DP-1', _rect(0, 0, 1920, 1080), active: false, workspaces: [
+            _workspace(1, 'DP-1', visible: true, focused: true),
+          ]),
+        ])),
+        isNull,
+      );
+      expect(
+        focusedOutput(_tree([
+          _output('DP-2', _rect(0, 0, 0, 0), workspaces: [
+            _workspace(1, 'DP-2', visible: true, focused: true),
+          ]),
+        ])),
+        isNull,
+      );
+    });
+  });
+
   group('collectOutputs', () {
     test('returns each active output in global coordinates', () {
       final tree = _tree([

@@ -6,11 +6,31 @@ import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
+import 'package:graceful_shell/notification_panel_controller.dart';
 import 'package:wayland/wayland.dart';
 
 /// Builds an event payload the way the compositor would, so decoding is tested
 /// against the same wire layout it is written with.
 WaylandWriteBuffer _payload() => WaylandWriteBuffer();
+
+/// A config with nothing bound but the shortcuts named here.
+///
+/// Every key is written out rather than left to default: `ShortcutsConfig`'s
+/// own defaults are all non-null, so a test naming only the keys it cares
+/// about would quietly register the rest and stop testing what it says.
+ShortcutsConfig _only({
+  ShortcutSpec? openSettings,
+  ShortcutSpec? openLauncher,
+}) =>
+    ShortcutsConfig(
+      openSettings: openSettings,
+      openLauncher: openLauncher,
+      openEmoji: null,
+      openNotifications: null,
+      screenshotArea: null,
+      recordScreen: null,
+      powerButton: null,
+    );
 
 void main() {
   group('InputTriggerStore', () {
@@ -198,6 +218,9 @@ void main() {
         'graceful-shell.open-settings',
         'graceful-shell.open-launcher',
         'graceful-shell.open-emoji',
+        'graceful-shell.open-notifications',
+        'graceful-shell.screenshot-area',
+        'graceful-shell.record-screen',
         kPowerButtonShortcut,
       });
     });
@@ -227,22 +250,52 @@ void main() {
       }
     });
 
-    test('the default settings shortcut is shift-resolved', () {
+    test('the default settings shortcut is Super+S, unresolved', () {
       final settings = named(inputShortcutsFor(const ShortcutsConfig()),
           'graceful-shell.open-settings');
 
-      expect(settings.modifiers,
-          InputTriggerModifiers.ctrl | InputTriggerModifiers.shift);
-      // Not 0x73: Mir matches the resolved character, so Shift+s is `S`.
-      expect(settings.keysym, InputTriggerKeysyms.capitalS);
+      expect(settings.modifiers, InputTriggerModifiers.meta);
+      // Not `S`: shift resolution applies only to a combination that holds
+      // Shift, and this one does not.
+      expect(settings.keysym, InputTriggerKeysyms.s);
     });
 
-    test('the default launcher shortcut is Ctrl+Space', () {
+    test('the default launcher shortcut is Super+D', () {
       final launcher = named(inputShortcutsFor(const ShortcutsConfig()),
           'graceful-shell.open-launcher');
 
-      expect(launcher.modifiers, InputTriggerModifiers.ctrl);
-      expect(launcher.keysym, 0x20);
+      expect(launcher.modifiers, InputTriggerModifiers.meta);
+      expect(launcher.keysym, 0x64);
+    });
+
+    test('the notification shortcut is Super+E and toggles the panel', () {
+      final panel = named(inputShortcutsFor(const ShortcutsConfig()),
+          'graceful-shell.open-notifications');
+
+      expect(panel.modifiers, InputTriggerModifiers.meta);
+      expect(panel.keysym, 0x65);
+
+      // Super+E and Ctrl+Shift+E sit next to each other in the table and both
+      // are a bare `toggle`, so a copy-paste would open the wrong surface.
+      final before = NotificationPanelController.instance.signalCount;
+      final emojiBefore = EmojiPickerController.instance.signalCount;
+      panel.onActivate();
+      expect(NotificationPanelController.instance.signalCount, before + 1);
+      expect(EmojiPickerController.instance.signalCount, emojiBefore);
+    });
+
+    test('the capture shortcuts are Print and Super+Print', () {
+      final shortcuts = inputShortcutsFor(const ShortcutsConfig());
+      final area = named(shortcuts, 'graceful-shell.screenshot-area');
+      final record = named(shortcuts, 'graceful-shell.record-screen');
+
+      expect(area.modifiers, 0);
+      expect(area.keysym, 0xff61);
+      expect(record.modifiers, InputTriggerModifiers.meta);
+      expect(record.keysym, 0xff61);
+      // The same key, and only the modifier telling them apart — so the
+      // collision guard must not have collapsed one into the other.
+      expect(area.spec == record.spec, isFalse);
     });
 
     test('the default emoji shortcut is Ctrl+Shift+E, shift-resolved', () {
@@ -271,42 +324,28 @@ void main() {
     });
 
     test('a disabled shortcut is not registered at all', () {
-      final shortcuts = inputShortcutsFor(const ShortcutsConfig(
-        openSettings: null,
-        openLauncher: null,
-        openEmoji: null,
-        powerButton: null,
-      ));
+      final shortcuts = inputShortcutsFor(_only());
       expect(shortcuts, isEmpty);
 
-      final onlyLauncher = inputShortcutsFor(const ShortcutsConfig(
-        openSettings: null,
-        openEmoji: null,
-        powerButton: null,
-      ));
+      final onlyLauncher =
+          inputShortcutsFor(_only(openLauncher: kDefaultOpenLauncher));
       expect(onlyLauncher.single.name, 'graceful-shell.open-launcher');
     });
 
     test('two shortcuts on the same combination collapse to the first', () {
       // Registering the second would come back `failed`, which the service
       // logs as "owned by another client" — a lie about the shell's own config.
-      final shortcuts = inputShortcutsFor(ShortcutsConfig(
+      final shortcuts = inputShortcutsFor(_only(
         openSettings: parseShortcut('ctrl+space'),
         openLauncher: parseShortcut('ctrl+space'),
-        openEmoji: null,
-        powerButton: null,
       ));
 
       expect(shortcuts.single.name, 'graceful-shell.open-settings');
     });
 
     test('a code: shortcut registers as a keycode', () {
-      final shortcuts = inputShortcutsFor(ShortcutsConfig(
-        openSettings: parseShortcut('ctrl+code:31'),
-        openLauncher: null,
-        openEmoji: null,
-        powerButton: null,
-      ));
+      final shortcuts =
+          inputShortcutsFor(_only(openSettings: parseShortcut('ctrl+code:31')));
       expect(shortcuts.single.spec.isKeycode, isTrue);
       expect(shortcuts.single.keysym, 31);
     });

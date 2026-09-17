@@ -33,6 +33,9 @@ void main() {
       expect(config.shortcuts.openSettings, kDefaultOpenSettings);
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
       expect(config.shortcuts.openEmoji, kDefaultOpenEmoji);
+      expect(config.shortcuts.openNotifications, kDefaultOpenNotifications);
+      expect(config.shortcuts.screenshotArea, kDefaultScreenshotArea);
+      expect(config.shortcuts.recordScreen, kDefaultRecordScreen);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
@@ -111,6 +114,9 @@ void main() {
       expect(config.shortcuts.openSettings, kDefaultOpenSettings);
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
       expect(config.shortcuts.openEmoji, kDefaultOpenEmoji);
+      expect(config.shortcuts.openNotifications, kDefaultOpenNotifications);
+      expect(config.shortcuts.screenshotArea, kDefaultScreenshotArea);
+      expect(config.shortcuts.recordScreen, kDefaultRecordScreen);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);

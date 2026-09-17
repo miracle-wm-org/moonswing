@@ -473,24 +473,32 @@ The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are
 
 ```toml
 [shortcuts]
-open_settings = "ctrl+shift+s"
-open_launcher = "ctrl+space"
+open_settings = "super+s"
+open_launcher = "super+d"
 open_emoji = "ctrl+shift+e"
+open_notifications = "super+e"
+screenshot_area = "print"
+record_screen = "super+print"
 power_button = "poweroff"
 ```
 
-| Key             | Type   | Default            | Description                                    |
-| --------------- | ------ | ------------------ | ---------------------------------------------- |
-| `open_settings` | string | `"ctrl+shift+s"`   | Opens (and closes) the settings overlay        |
-| `open_launcher` | string | `"ctrl+space"`     | Opens (and closes) the application launcher    |
-| `open_emoji`    | string | `"ctrl+shift+e"`   | Opens (and closes) the [emoji picker](#emoji-picker) |
-| `power_button`  | string | `"poweroff"`       | The machine's own power button — what it *does* is [`[power]`](#power-button) |
+| Key                  | Type   | Default            | Description                                    |
+| -------------------- | ------ | ------------------ | ---------------------------------------------- |
+| `open_settings`      | string | `"super+s"`        | Opens (and closes) the settings overlay        |
+| `open_launcher`      | string | `"super+d"`        | Opens (and closes) the application launcher    |
+| `open_emoji`         | string | `"ctrl+shift+e"`   | Opens (and closes) the [emoji picker](#emoji-picker) |
+| `open_notifications` | string | `"super+e"`        | Opens (and closes) the [notification panel](#notifications) |
+| `screenshot_area`    | string | `"print"`          | Drag out an area and screenshot it — the screenshot module's own **Select an area** |
+| `record_screen`      | string | `"super+print"`    | Starts recording the screen you are on; press it again to stop |
+| `power_button`       | string | `"poweroff"`       | The machine's own power button — what it *does* is [`[power]`](#power-button) |
+
+`record_screen` records the whole of the output holding the focused workspace, and needs no aim: nothing is put on screen first, so the recording opens on the desktop as it already is. On a shell that is not connected to the window manager — and so cannot tell which screen that is — it falls back to asking you to click the screen to record, which is what the recorder module's own **Select a screen** does.
 
 **Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
 
 ### Changing one without editing the file
 
-The keyboard icon on the bar opens the shortcut sheet, and the four above are listed on it under **Shell**, alongside every binding the window manager has configured. Click one and press the combination you want:
+The keyboard icon on the bar opens the shortcut sheet, and every one of the above is listed on it under **Shell**, alongside every binding the window manager has configured. Click one and press the combination you want:
 
 - **Esc** stops listening and changes nothing;
 - **Backspace** clears the shortcut, the same as writing `""` below;
@@ -498,7 +506,7 @@ The keyboard icon on the bar opens the shortcut sheet, and the four above are li
 
 Only the shell's own shortcuts can be changed from there. The window manager's bindings are on the same sheet but read-only — they are miracle's configuration, and they are edited under **Settings › Window Manager › Key Bindings**.
 
-What you press is written back into `config.toml` as the text you would have typed yourself, so the file stays readable and hand-editable. Two things the sheet says that the file cannot: it refuses a combination one of the other three is already on (the second registration would silently never happen), and it warns — without refusing — when the window manager already uses that combination for something. And because registration latches at start-up, an edited row says so until the shell is restarted.
+What you press is written back into `config.toml` as the text you would have typed yourself, so the file stays readable and hand-editable. Two things the sheet says that the file cannot: it refuses a combination another of the shell's own shortcuts is already on (the second registration would silently never happen), and it warns — without refusing — when the window manager already uses that combination for something. And because registration latches at start-up, an edited row says so until the shell is restarted.
 
 ### Syntax
 
@@ -1320,8 +1328,11 @@ apps = ["firefox", "org.gnome.Nautilus", "kitty"]
 icon_size = 24
 
 [shortcuts]
-open_settings = "ctrl+shift+s"
-open_launcher = "ctrl+space"
+open_settings = "super+s"
+open_launcher = "super+d"
+open_notifications = "super+e"
+screenshot_area = "print"
+record_screen = "super+print"
 power_button = "poweroff"
 
 [power]
