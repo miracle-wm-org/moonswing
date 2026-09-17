@@ -134,13 +134,5 @@ void main() {
       expect(powerActionFor(PowerKeyAction.menu), isNull);
       expect(powerActionFor(PowerKeyAction.none), isNull);
     });
-
-    test('only Lock skips the bar popup\'s confirmation', () {
-      expect(PowerAction.lock.needsConfirmation, isFalse);
-      final rest = PowerAction.values.where((a) => a != PowerAction.lock);
-      for (final action in rest) {
-        expect(action.needsConfirmation, isTrue, reason: action.label);
-      }
-    });
   });
 }

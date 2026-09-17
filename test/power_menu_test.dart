@@ -3,7 +3,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/modules/system.dart';
 import 'package:graceful_shell/power/power_actions.dart';
+import 'package:graceful_shell/power/power_menu_controller.dart';
 import 'package:graceful_shell/power/power_menu_overlay.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -143,5 +145,60 @@ void main() {
 
     expect(closed, 1);
     expect(performed, isEmpty);
+  });
+
+  // The bar's power icon opens this same menu. It used to open a popup of its
+  // own, with a confirmation dialog behind each destructive verb; it now creates
+  // no window at all and asks the root for the menu, exactly as the keyboard
+  // icon asks for the cheat sheet.
+  group('the bar module', () {
+    testWidgets('the power icon asks the root for the menu', (tester) async {
+      final controller = PowerMenuController.forTesting();
+      var signals = 0;
+      controller.addListener(() => signals++);
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        ThemeScope(
+          theme: const ThemeConfig(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(child: System(controller: controller)),
+          ),
+        ),
+      );
+
+      // The corner, not the centre: a tap target that only answers over its
+      // glyph passes a centre tap and fails a real one.
+      final box = tester.getRect(find.byType(System));
+      await tester.tapAt(box.topLeft + const Offset(1, 1));
+      await tester.pump();
+
+      expect(signals, 1);
+    });
+
+    testWidgets('it opens no popup of its own', (tester) async {
+      final controller = PowerMenuController.forTesting();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        ThemeScope(
+          theme: const ThemeConfig(),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Center(child: System(controller: controller)),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(System));
+      await tester.pumpAndSettle();
+
+      // No window registry is in play here, so a module that still built its
+      // own menu would throw rather than quietly draw one — but the verbs are
+      // what a regression would put back on screen, so look for those.
+      for (final action in PowerAction.values) {
+        expect(find.text(action.label), findsNothing, reason: action.label);
+      }
+    });
   });
 }

@@ -84,7 +84,6 @@ class CaptureMenuCard extends StatelessWidget {
         // The popup is sized to its content, and every row is a Row with an
         // Expanded label — so without this each would fill whatever maximum
         // the constraints allow and the card would simply be that wide.
-        // `SystemPopupContent` states the same reasoning.
         child: IntrinsicWidth(
           child: Column(
             mainAxisSize: MainAxisSize.min,

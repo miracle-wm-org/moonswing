@@ -75,6 +75,7 @@ import 'package:graceful_shell/polkit/polkit_types.dart';
 import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/power/power_actions.dart';
 import 'package:graceful_shell/power/power_controller.dart';
+import 'package:graceful_shell/power/power_menu_controller.dart';
 import 'package:graceful_shell/power/power_menu_overlay.dart';
 import 'package:graceful_shell/power/power_service.dart';
 import 'package:graceful_shell/screencast/picker_controller.dart';
@@ -503,9 +504,9 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     policy: TransientPolicy.modal,
   );
 
-  /// The power menu the physical power button opens (`[power] key_action =
-  /// "menu"`, the default). Modal like the two pickers: it holds a shutdown, so
-  /// the only ways out are its own Cancel path.
+  /// The power menu: the physical power button's default (`[power] key_action =
+  /// "menu"`) and what the bar's power icon opens outright. Modal like the two
+  /// pickers: it holds a shutdown, so the only ways out are its own Cancel path.
   final _OverlayWindow _powerMenu = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -625,6 +626,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (EmojiPickerController.instance, _onEmojiPickerTriggered),
       (KeybindCheatsheetController.instance, _onKeybindsTriggered),
       (PowerController.instance, _onPowerKeyPressed),
+      (PowerMenuController.instance, _onPowerMenuToggled),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
       (PolkitAuthController.instance, _onPolkitAuthChanged),
       (CaptureSelectionController.instance, _onCaptureSelectionChanged),
@@ -956,15 +958,31 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     final action = _liveConfig.value.power.keyAction;
     if (action == PowerKeyAction.none) return;
     if (action == PowerKeyAction.menu) {
-      if (_powerMenu.isOpen) {
-        _powerMenu.closing.value = true;
-      } else {
-        _openPowerMenu();
-      }
+      _togglePowerMenu();
       return;
     }
     final verb = powerActionFor(action);
     if (verb != null) unawaited(PowerActions.run(verb));
+  }
+
+  /// The bar's power button was pressed.
+  ///
+  /// Straight to the menu, with no `[power] key_action` in the way: that key
+  /// says what the *physical* button does, and a bar icon that inherited it
+  /// would be one small target in a row of them that shuts the machine down on
+  /// a mis-click — or, on `none`, does nothing at all.
+  void _onPowerMenuToggled() {
+    if (!mounted) return;
+    _togglePowerMenu();
+  }
+
+  /// Puts the power menu up, or starts its fade-out if it is already up.
+  void _togglePowerMenu() {
+    if (_powerMenu.isOpen) {
+      _powerMenu.closing.value = true;
+    } else {
+      _openPowerMenu();
+    }
   }
 
   /// Opens the power menu as a full-screen overlay-layer window.
