@@ -364,11 +364,49 @@ card says so.
 A bell that shakes and shows a count when a notification arrives, and opens the
 notification panel on click — a full-height surface that sweeps in from the right
 edge over everything else on screen, and back out the same way when dismissed,
-listing what has arrived with each notification's actions and a **Clear all**.
-The shell is the desktop's notification daemon, so this is where notifications
-from every application land.
+listing what has arrived with each notification's actions, a **mark everything
+read** button and a **Clear all**. The shell is the desktop's notification
+daemon, so this is where notifications from every application land.
 
-No configurable settings.
+```toml
+[modules.notifications]
+sound = "chime"
+sound_volume = 0.7
+```
+
+| Key            | Type   | Default   | What it does                                        |
+| -------------- | ------ | --------- | --------------------------------------------------- |
+| `sound`        | string | `"chime"` | What plays when a notification arrives — see below. |
+| `sound_volume` | float  | `0.7`     | How loud it plays, from 0 to 1. Clamped.            |
+
+`sound` takes four kinds of answer, tried in this order:
+
+- **One of the shipped sounds** — `chime`, `ping`, `glass`, `bell` or `knock`.
+  These are not files: the shell synthesises them from a handful of numbers and
+  writes the result into `~/.cache/graceful-shell/sounds/` the first time one is
+  wanted, which is what lets them work identically under `flutter run`, a `make
+  install` and the snap. `chime` is the default.
+- **`none`** (or `off`, or `silent`) — notifications arrive without a sound.
+- **A path** — anything with a `/` in it, `~` included. Any format mpv can open.
+- **A name from the system's sound theme** — anything else. Looked for under the
+  XDG sound directories (`~/.local/share/sounds`, `/usr/share/sounds`, and
+  whatever `XDG_DATA_DIRS` names), both directly and in the
+  `<theme>/<profile>/` layout the `sound-theme-freedesktop` package installs.
+  `sound = "message"` finds `/usr/share/sounds/freedesktop/stereo/message.oga`.
+
+A name that resolves to nothing is *not* silence: the notification panel's
+**Notification sound** row says so, names the key, and previews whatever is
+configured when you click it.
+
+Two things the chime deliberately does not do. It does not play while
+notifications are silenced — silencing is about interruption, and a sound is the
+most interrupting thing the shell does. And a burst of notifications arriving
+together plays once rather than once each, which is why the count on the bell is
+what says how many there were.
+
+**The chime belongs to this module**, so it plays only while a `notifications`
+module is in one of your panels. With the module in no panel there is nothing
+holding it open, and the panel's sound row says that too.
 
 **This module is in the default bottom panel, but adding it to an existing
 config is manual** — the default config file is only written when none exists.
@@ -382,6 +420,17 @@ right = ["media_player", "notifications", "launcher"]
 The panel ignores the bars' exclusive zones and draws on the overlay layer, so
 it covers the full height of the output and passes over the panels rather than
 being pushed between them.
+
+#### Read, and dismissed
+
+The panel's two clearing buttons are not the same act. The **✓✓** button marks
+everything read: nothing is removed, the messages stay on the list to be read
+again, and what stops is the shell *asking* — the bell's count, the floating
+card in the corner of every output, and the chime. **Clear all** empties the
+list.
+
+Opening the panel does not mark anything read. Reading a notification is
+something you do, not something a window being mapped does for you.
 
 ### Sound Control
 
@@ -704,6 +753,8 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `slider_track`         | `#612D53`     | The unfilled portion of sliders and usage bars                              |
 | `muted`                | `#853953`     | Secondary, de-emphasised text                                               |
 | `divider`              | `#33F3F4F4`   | Separator lines, and the resting fill of subtle list rows (supports alpha)  |
+| `notification_badge`   | `#F2B441`     | What an unread notification is announced in (see the note below)           |
+| `notification_badge_foreground` | `#2C1218` | Text and glyphs drawn on `notification_badge`                           |
 | `panel_background`     | `#EE2C2C2C`   | The bar's background, and the opacity of the whole bar (see below)          |
 | `panel_gradient`       | `true`        | Whether the bar fades from `accent`, or is a flat `panel_background`        |
 | `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to              |
@@ -729,6 +780,8 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
+
+`notification_badge` is deliberately not `accent`. The accent is the bar's ordinary "this one is active" — it is on the focused workspace, on every hovered button and on half the controls in the settings panel — and the floating card that plants itself in the corner of every output would read as more of the same furniture wearing it. This is the one colour in the shell that is allowed to be louder than the rest of the palette, so every shipped theme spells it as a hue that theme does not otherwise use. It is worn by the floating card, the bell's unread count and the dot on an unread message, so those three cannot disagree about what "unread" looks like.
 
 ### The panel
 
@@ -1149,7 +1202,9 @@ The `[notifications]` section holds the state of the notification bell's **silen
 |-----|------|---------|-------------|
 | `silenced` | boolean | `false` | Whether notifications are silenced. |
 
-Silencing is about interruption, never about delivery. The shell keeps acting as the notification daemon and every notification still arrives and stacks up in the panel; what stops is the shell asking for your attention — the bell no longer shakes, and the floating badge that plants itself in the corner of every monitor does not appear. The bell wears a crossed-out glyph while the switch is on, so the state is never invisible.
+Silencing is about interruption, never about delivery. The shell keeps acting as the notification daemon and every notification still arrives and stacks up in the panel; what stops is the shell asking for your attention — the bell no longer shakes, the chime does not play, and the floating card that plants itself in the corner of every monitor does not appear. The bell wears a crossed-out glyph while the switch is on, so the state is never invisible.
+
+The sound itself is configured in `[modules.notifications]`, not here: this key is a decision about the machine, and that one is an option of the module that plays it.
 
 It is a file key rather than state that dies with the process on purpose: a shell that quietly started interrupting you again after a restart would be the one failure a "do not disturb" switch may not have.
 

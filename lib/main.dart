@@ -813,16 +813,22 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// badge up would put it under the thing it exists to open.
   ///
   /// Silencing takes the badge away entirely, and it is the loudest thing
-  /// silencing has to take: a button that plants itself in the corner of every
+  /// silencing has to take: a card that plants itself in the corner of every
   /// output is the shell's most insistent way of asking for attention, so a
   /// user who has said "not now" and still gets it has not silenced anything.
   /// The store notifies on the flag, so flipping it here is a window teardown
   /// on the same listener a notification arriving is.
+  ///
+  /// So does the panel's check-all button, and that is the point of it: the
+  /// badge asks for attention, and a notification the user has marked read is
+  /// one they have said they are done being asked about. The list keeps it —
+  /// [NotificationStore.markAllRead] removes nothing — so closing the panel
+  /// afterwards leaves the messages there and the corner of the screen empty.
   void _syncNotificationBadges() {
     if (!mounted) return;
     final store = NotificationStore.instance;
     final wanted =
-        store.items.isNotEmpty && !store.silenced && !_notifications.isOpen;
+        store.hasUnread && !store.silenced && !_notifications.isOpen;
     if (wanted == _badges.isNotEmpty) return;
 
     if (wanted) {
@@ -898,8 +904,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     NotificationPanelController.instance.setOpen(false);
     _refreshWindows();
     _destroyAfterFrame([removed]);
-    // Anything still on the list gets its badge back, so a panel closed on a
-    // full list does not leave the shell silent about it.
+    // Anything still *unread* gets its badge back, so a panel closed on a list
+    // the user has not worked through does not leave the shell silent about it.
     _syncNotificationBadges();
   }
 

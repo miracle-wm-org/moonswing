@@ -18,6 +18,8 @@ import 'package:graceful_shell/modules/network.dart' show NetworkConfig;
 import 'package:graceful_shell/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:graceful_shell/modules/weather.dart' show WeatherConfig;
 import 'package:graceful_shell/modules/workspaces.dart' show WorkspacesConfig;
+import 'package:graceful_shell/notification_sound.dart'
+    show kDefaultNotificationSoundVolume, kNotificationSoundHint;
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
 import 'package:graceful_shell/overlay/settings/settings_search.dart';
@@ -260,6 +262,22 @@ final List<_ModuleGroup> _moduleGroups = [
       SettingsCatalog.networkPollSeconds,
       defaultValue: const NetworkConfig().pollSeconds,
       isInt: true,
+    ),
+  ]),
+  _ModuleGroup('Notifications', [
+    // A free-typed string rather than a segmented control: the shipped sounds
+    // are only five of the answers, and the other two — a name out of the
+    // machine's sound theme, and a path to a file of the user's own — are
+    // exactly the ones a fixed list cannot hold. The hint names the shipped
+    // set, so the common answers are still one glance away.
+    _ModuleSetting.text(
+      SettingsCatalog.notificationsSound,
+      addHint: kNotificationSoundHint,
+    ),
+    _ModuleSetting.number(
+      SettingsCatalog.notificationsSoundVolume,
+      defaultValue: kDefaultNotificationSoundVolume,
+      isInt: false,
     ),
   ]),
   _ModuleGroup('GitHub', [

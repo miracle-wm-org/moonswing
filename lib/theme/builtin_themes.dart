@@ -43,6 +43,14 @@ control_surface      = "#39393D"
 slider_track         = "#612D53"
 muted                = "#853953"
 divider              = "#33F3F4F4"
+
+# What an unread notification is announced in. Amber, and the only warm colour
+# in a maroon theme: the accent is already the bar's "this one is active", so
+# the floating card wears a hue nothing else here uses and cannot be read as
+# more furniture. The foreground is a near-black maroon, because white on amber
+# is the one pairing in the shell that is genuinely hard to read.
+notification_badge   = "#F2B441"
+notification_badge_foreground = "#2C1218"
 scrim                = "#882C2C2C"
 
 # The bar: a maroon-to-black fade at 93% opacity, which is what the shell has
@@ -138,6 +146,11 @@ slider_track         = "#2A6B4C"
 # saturated green in the palette on the least important text in the shell.
 muted                = "#8AA79A"
 divider              = "#33E8F2EA"
+
+# Amber against a theme that is one green held throughout — the complementary
+# hue, which is why it carries across a screen of pine and moss.
+notification_badge   = "#F5A524"
+notification_badge_foreground = "#10231A"
 scrim                = "#88101A15"
 
 # The bar fades sea green -> pine -> forest floor, all at panel_background's
@@ -214,6 +227,11 @@ control_surface      = "#44475A"
 slider_track         = "#6272A4"
 muted                = "#6272A4"
 divider              = "#33F8F8F2"
+
+# Dracula's own orange, from the palette the rest of this theme is taken from,
+# so the loudest thing in the shell is still a Dracula colour.
+notification_badge   = "#FFB86C"
+notification_badge_foreground = "#282A36"
 scrim                = "#88282A36"
 
 panel_background     = "#EE282A36"
@@ -282,6 +300,12 @@ control_surface      = "#26FFFFFF"
 slider_track         = "#40FFFFFF"
 muted                = "#99EAF0F8"
 divider              = "#26FFFFFF"
+
+# Warm amber under a cold blue theme. It is also the one fully opaque colour in
+# a translucent theme, which is deliberate: the card floats over the wallpaper
+# rather than over a surface of the shell's own.
+notification_badge   = "#FFCB6B"
+notification_badge_foreground = "#141821"
 scrim                = "#66101318"
 
 # No gradient: a sheet of glass, not a coloured fade. A gradient here would
@@ -387,6 +411,11 @@ muted                = "#8E9AC8"
 # hairline over these blues reads as grey dust on the surface; a periwinkle one
 # reads as the same light everything else in this theme is lit by.
 divider              = "#4C8098FF"
+
+# Yellow against indigo. This theme's accent is a blue among blues, so an
+# unread notification is the one thing on screen that is not part of the night.
+notification_badge   = "#FFD43B"
+notification_badge_foreground = "#0A0F22"
 # The deepest scrim shipped. An overlay here is the lights going out, not a
 # wash over what is behind it — which is what lets a panel of small text be
 # read over a bright wallpaper at this little contrast.
@@ -515,6 +544,11 @@ muted                = "#A8A8A8"
 # draws a line of a known colour instead — Carbon's border-subtle, one step up
 # from the card it separates.
 divider              = "#393939"
+
+# Carbon's support-warning yellow, from IBM's own palette — the token that
+# system means by "something is waiting for you".
+notification_badge   = "#F1C21B"
+notification_badge_foreground = "#161616"
 scrim                = "#A6161616"
 
 # A solid sheet of Gray 100 across the screen edge: no fade, and the only bar

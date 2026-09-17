@@ -139,6 +139,28 @@ class ThemeConfig {
   final Color muted;
   final Color divider;
 
+  /// The colour an unread notification is announced in.
+  ///
+  /// Deliberately its own key rather than [accent]. Accent is the bar's ordinary
+  /// "this one is active" — it is on the focused workspace, the hovered button
+  /// and half the controls in the settings panel — and a floating card that
+  /// plants itself in the corner of every output wearing the same colour reads
+  /// as more furniture. This is the one thing in the shell that is allowed to
+  /// be louder than the palette, so every shipped theme spells it as a hue the
+  /// rest of that theme does not use.
+  ///
+  /// Worn by the floating notification card, the bell's unread bubble and the
+  /// dot on an unread card, so those three cannot disagree about what "unread"
+  /// looks like.
+  final Color notificationBadge;
+
+  /// Text and glyphs drawn *on* [notificationBadge].
+  ///
+  /// A key of its own because the badge colour is chosen for how far it carries
+  /// rather than to sit in the palette, so nothing already in the theme is
+  /// reliably legible on it: [kOnAccent] is white, and these are light colours.
+  final Color notificationBadgeForeground;
+
   /// The bar's own background.
   ///
   /// The one surface that had no colour of its own — the panel used to be painted
@@ -405,6 +427,8 @@ class ThemeConfig {
     this.sliderTrack = const Color(0xFF612D53),
     this.muted = const Color(0xFF853953),
     this.divider = const Color(0x33F3F4F4),
+    this.notificationBadge = const Color(0xFFF2B441),
+    this.notificationBadgeForeground = const Color(0xFF2C1218),
     this.panelBackground = const Color(0xEE2C2C2C),
     this.panelGradient = true,
     this.panelMargin = 0,
@@ -459,6 +483,10 @@ class ThemeConfig {
     _ThemeKey('slider_track', _ThemeKeyKind.color, (t) => t.sliderTrack),
     _ThemeKey('muted', _ThemeKeyKind.color, (t) => t.muted),
     _ThemeKey('divider', _ThemeKeyKind.color, (t) => t.divider),
+    _ThemeKey(
+        'notification_badge', _ThemeKeyKind.color, (t) => t.notificationBadge),
+    _ThemeKey('notification_badge_foreground', _ThemeKeyKind.color,
+        (t) => t.notificationBadgeForeground),
     _ThemeKey('panel_background', _ThemeKeyKind.color, (t) => t.panelBackground),
     _ThemeKey('panel_gradient', _ThemeKeyKind.flag, (t) => t.panelGradient),
     _ThemeKey('panel_margin', _ThemeKeyKind.integer, (t) => t.panelMargin,
@@ -559,6 +587,8 @@ class ThemeConfig {
       sliderTrack: v('slider_track'),
       muted: v('muted'),
       divider: v('divider'),
+      notificationBadge: v('notification_badge'),
+      notificationBadgeForeground: v('notification_badge_foreground'),
       panelBackground: v('panel_background'),
       panelGradient: v('panel_gradient'),
       panelMargin: v('panel_margin'),

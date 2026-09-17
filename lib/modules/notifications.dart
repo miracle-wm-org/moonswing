@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/config.dart';
+import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/hover_region.dart';
 import 'package:graceful_shell/loading_indicator.dart';
 import 'package:graceful_shell/popup.dart';
@@ -11,6 +12,7 @@ import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/notification_badge.dart';
 import 'package:graceful_shell/notification_panel_controller.dart';
 import 'package:graceful_shell/notification_service.dart';
+import 'package:graceful_shell/notification_sound.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
@@ -27,14 +29,70 @@ import 'package:graceful_shell/theme/tokens.dart';
 int notificationPanelWidth(double screenWidth) =>
     (screenWidth / 4).round().clamp(360, 560);
 
+/// `[modules.notifications]`.
+///
+/// Both keys are about the chime, which is the only thing about notifications
+/// this module decides: the panel is the root's, the daemon is the shell's, and
+/// the silence switch is a `[notifications]` key because it is a decision about
+/// the machine rather than about a bar module.
+@immutable
+class NotificationsConfig {
+  const NotificationsConfig({
+    this.sound = kDefaultNotificationSound,
+    this.soundVolume = kDefaultNotificationSoundVolume,
+  });
+
+  /// A shipped voice's slug, a sound-theme name, a path, or `none`.
+  /// See `lib/notification_sound.dart`.
+  final String sound;
+
+  /// 0 to 1. Clamped rather than trusted: this key is hand-edited, and a
+  /// volume of 40 handed to mpv is a different kind of surprise.
+  final double soundVolume;
+
+  factory NotificationsConfig.fromMap(Map<String, dynamic>? map) {
+    const defaults = NotificationsConfig();
+    if (map == null) return defaults;
+    return NotificationsConfig(
+      sound: map.stringOrNull('sound') ?? defaults.sound,
+      soundVolume: map.doubleOr('sound_volume', defaults.soundVolume,
+          min: 0.0, max: 1.0),
+    );
+  }
+
+  /// What the sound layer reads off this.
+  NotificationSoundConfig get soundConfig =>
+      NotificationSoundConfig(sound: sound, volume: soundVolume);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationsConfig &&
+          other.sound == sound &&
+          other.soundVolume == soundVolume;
+
+  @override
+  int get hashCode => Object.hash(sound, soundVolume);
+}
+
 /// Bell icon widget that lives in the bar. Lights up and shakes when
 /// notifications arrive, and asks for the notification panel on click.
 ///
 /// It no longer *owns* that panel: the floating badge asks for the same one from
 /// a root-owned surface of its own, and two hosts cannot share a
 /// `LayerShellHost` window — so both go through [NotificationPanelController].
+///
+/// It is also what holds the chime's lease. The sound is leased rather than
+/// started with the shell for the reason every other shared worker here is: one
+/// FlutterView per panel per monitor means two bars would otherwise be two
+/// players, chiming a frame apart. Holding it *here* is what ties the sound to
+/// the module — a user with no `notifications` module in any panel has asked
+/// for no notification furniture, and `[modules.notifications]` is where the
+/// key that configures it lives.
 class Notifications extends StatefulWidget {
-  const Notifications({super.key});
+  const Notifications({super.key, this.config = const NotificationsConfig()});
+
+  final NotificationsConfig config;
 
   @override
   State<Notifications> createState() => _NotificationsState();
@@ -64,13 +122,29 @@ class _NotificationsState extends State<Notifications>
       TweenSequenceItem(tween: Tween(begin: 8.0, end: 0.0), weight: 1),
     ]).animate(_shakeController);
 
-    _prevCount = NotificationStore.instance.items.length;
+    _prevCount = NotificationStore.instance.unreadCount;
     NotificationStore.instance.addListener(_onStoreChanged);
+    // Config first, lease second: the store resolves the configured sound
+    // lazily, but seeding it before the listener is attached means the first
+    // notification of the session is never the one that discovers a typo.
+    NotificationSoundStore.instance.configure(widget.config.soundConfig);
+    NotificationSoundStore.instance.acquire();
+  }
+
+  @override
+  void didUpdateWidget(Notifications oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // `Module.loadAll` mutates the module's config in place and
+    // `Module.configChanges` is what rebuilds this widget with it, so this is
+    // the one place a `[modules.notifications]` edit reaches the player.
+    // `configure` is a no-op when nothing moved.
+    NotificationSoundStore.instance.configure(widget.config.soundConfig);
   }
 
   @override
   void dispose() {
     NotificationStore.instance.removeListener(_onStoreChanged);
+    NotificationSoundStore.instance.release();
     _shakeController.dispose();
     closePopup();
     super.dispose();
@@ -78,10 +152,14 @@ class _NotificationsState extends State<Notifications>
 
   void _onStoreChanged() {
     final store = NotificationStore.instance;
-    final newCount = store.items.length;
+    final newCount = store.unreadCount;
     // Silenced is about interruption, so the shake is the first thing it takes
     // away: the notification is still collected, and the bell still counts it,
     // but nothing moves in the corner of the user's eye to fetch them.
+    //
+    // Unread rather than the list's length, so the shake follows the same
+    // number the bubble shows: marking everything read and then clearing the
+    // list must not read as three more notifications arriving.
     if (newCount > _prevCount && !store.silenced) {
       _shakeController.forward(from: 0.0);
     }
@@ -141,7 +219,10 @@ class _NotificationsState extends State<Notifications>
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final store = NotificationStore.instance;
-    final count = store.items.length;
+    // Unread, not the list's length: the bell is one of the three surfaces
+    // that *ask* for the user's attention, and the panel's check-all button
+    // exists to stop all three asking without emptying the list.
+    final count = store.unreadCount;
     final hasUnread = count > 0;
     final broken = store.daemonUnavailable;
     final silenced = store.silenced;
@@ -171,7 +252,7 @@ class _NotificationsState extends State<Notifications>
             color: silenced
                 ? theme.foreground.withValues(alpha: 0.55)
                 : hasUnread
-                    ? theme.accent
+                    ? theme.notificationBadge
                     : theme.foreground,
           ),
           if (hasUnread)
@@ -181,7 +262,10 @@ class _NotificationsState extends State<Notifications>
               child: Container(
                 padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  color: theme.accent,
+                  // The one colour in the shell that is allowed to be louder
+                  // than the palette, and the same one the floating card and
+                  // the unread dot wear — see `ThemeConfig.notificationBadge`.
+                  color: theme.notificationBadge,
                   shape: BoxShape.circle,
                 ),
                 constraints: const BoxConstraints(
@@ -192,7 +276,7 @@ class _NotificationsState extends State<Notifications>
                   notificationBadgeLabel(count),
                   style: TextStyle(
                     fontSize: 8,
-                    color: theme.popupBackground,
+                    color: theme.notificationBadgeForeground,
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,
@@ -517,6 +601,8 @@ class _NotificationPanelState extends State<NotificationPanel>
                       ],
                       NotificationSilenceRow(theme: theme),
                       Container(height: 1, color: theme.divider),
+                      NotificationSoundRow(theme: theme),
+                      Container(height: 1, color: theme.divider),
                       Expanded(
                         child: items.isEmpty
                             ? _buildEmpty(theme)
@@ -533,13 +619,19 @@ class _NotificationPanelState extends State<NotificationPanel>
     );
   }
 
-  /// The header: what this panel is, how much is in it, and the two ways out.
+  /// The header: what this panel is, how much is in it, and the three ways out.
   ///
   /// Set at [ShellFontSizes.heading] with a count under it: a bold 15px word over
   /// a list of unlabelled cards said what the surface was called and nothing
   /// about what was in it. "Clear all" is a bordered button rather than a tinted
   /// word, because it destroys every item on the list.
+  ///
+  /// The two icons are deliberately not the same weight of act. Marking
+  /// everything read is reversible in the only sense that matters — nothing is
+  /// removed, the messages are all still on the list — so it is an icon; the
+  /// destructive one keeps its border and its word.
   Widget _buildHeader(ThemeConfig theme, int count) {
+    final unread = NotificationStore.instance.unreadCount;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 16, 14),
       child: Row(
@@ -559,11 +651,7 @@ class _NotificationPanelState extends State<NotificationPanel>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  count == 0
-                      ? 'Nothing waiting'
-                      : count == 1
-                          ? '1 notification'
-                          : '$count notifications',
+                  _countLabel(count, unread),
                   style: TextStyle(
                     fontSize: ShellFontSizes.secondary,
                     color: theme.popupForeground.withValues(alpha: 0.6),
@@ -597,8 +685,26 @@ class _NotificationPanelState extends State<NotificationPanel>
             ),
             const SizedBox(width: 10),
           ],
+          // Only when there is something to mark. A permanently-present button
+          // that does nothing on most presses is how a user learns not to
+          // trust the pair of them.
+          if (unread > 0) ...[
+            SettingsIconButton(
+              icon: FontAwesomeIcons.checkDouble,
+              box: ShellSizes.iconButton + 6,
+              size: ShellFontSizes.label,
+              color: theme.notificationBadge,
+              onTap: NotificationStore.instance.markAllRead,
+            ),
+            const SizedBox(width: 2),
+          ],
+          // A drawer closing, not a window being destroyed. The panel is a
+          // column butted against the output's right edge and it leaves by
+          // sliding back into that edge, so the glyph is an arrow going the
+          // same way — an X says the thing under it is being thrown away,
+          // which is what the button beside it does.
           SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
+            icon: FontAwesomeIcons.arrowRightToBracket,
             box: ShellSizes.iconButton + 6,
             size: ShellFontSizes.title,
             color: theme.popupForeground,
@@ -607,6 +713,20 @@ class _NotificationPanelState extends State<NotificationPanel>
         ],
       ),
     );
+  }
+
+  /// The line under the title: how much is on the list, and how much of it is
+  /// still asking.
+  ///
+  /// Both numbers, because they answer different questions and the check-all
+  /// button makes them come apart: "4 notifications" over a panel the user has
+  /// just silenced the count on would read as the button not having worked.
+  static String _countLabel(int count, int unread) {
+    if (count == 0) return 'Nothing waiting';
+    final total = count == 1 ? '1 notification' : '$count notifications';
+    if (unread == 0) return '$total, all read';
+    if (unread == count) return total;
+    return '$total, $unread unread';
   }
 
   /// The empty state, which is also the panel's instructions.
@@ -750,6 +870,130 @@ class NotificationSilenceRow extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What the shell plays when a notification arrives, and the one control that
+/// proves it.
+///
+/// The panel is where a user looks when they want to know why they were not
+/// told about something, so this is where the chime reports itself. It renders
+/// three states and they are not variations on one another:
+///
+/// - **A sound, with a preview.** The speaker button plays it, bypassing the
+///   rate limit — a preview a user pressed twice in a second must make a sound
+///   both times, or the button is what looks broken.
+/// - **A reason.** A path that is not there, or an mpv that would not open it.
+///   `[modules.notifications] sound` is named, because the fix is a config key
+///   and a row that only says "no sound" does not say where to go.
+/// - **Nothing is listening.** No `notifications` module in any panel means
+///   nothing holds the chime's lease, so a configured sound will never play.
+///   That is a real answer to "why did it not chime", and the only surface that
+///   can give it is this one — the panel is reachable from the floating card,
+///   which is exactly the shell a user with no bell module has.
+///
+/// Public, like the rest of the panel's parts, because in its one real home it
+/// is inside a layer-shell window no widget test can pump.
+class NotificationSoundRow extends StatelessWidget {
+  const NotificationSoundRow({super.key, required this.theme});
+
+  final ThemeConfig theme;
+
+  @override
+  Widget build(BuildContext context) {
+    // Its own subscription, unlike the silence row: the flag that row renders
+    // lives on the store the panel already listens to, and this one does not.
+    return RepaintBoundary(
+      child: ListenableBuilder(
+        listenable: NotificationSoundStore.instance,
+        builder: (context, _) => _build(context),
+      ),
+    );
+  }
+
+  Widget _build(BuildContext context) {
+    final sound = NotificationSoundStore.instance;
+    final choice = sound.choice;
+    final error = sound.error;
+    final silent = choice.isSilent;
+    final broken = error != null || choice.missing != null;
+
+    final String detail;
+    if (broken) {
+      detail = error ??
+          'No sound called “${choice.missing}” was found. '
+              'Set [modules.notifications] sound to one of the shipped '
+              'sounds, or to a path.';
+    } else if (silent) {
+      detail = 'Notifications arrive without a sound. '
+          '[modules.notifications] sound turns one on.';
+    } else if (!sound.armed) {
+      detail = '“${choice.label}” is set, but no notifications '
+          'module is in a panel, so nothing plays it.';
+    } else {
+      detail = choice.label;
+    }
+
+    return HoverRegion(
+      // The whole row previews, like the silence row toggles from anywhere
+      // along it: the button is the discoverable half, not the only half.
+      onTap: () => sound.playNow(force: true),
+      builder: (context, hovered) => Container(
+        color: hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null,
+        padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+        child: Row(
+          children: [
+            FaIcon(
+              silent
+                  ? FontAwesomeIcons.volumeXmark
+                  : FontAwesomeIcons.volumeHigh,
+              size: ShellFontSizes.label,
+              color: broken
+                  ? kErrorColor
+                  : silent
+                      ? theme.popupForeground.withValues(alpha: 0.45)
+                      : theme.notificationBadge,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Notification sound',
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.label,
+                      color: theme.popupForeground,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.secondary,
+                      height: 1.35,
+                      color: broken
+                          ? kErrorColor
+                          : theme.popupForeground.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Offered even while silent: pressing it then is how a user finds
+            // out that "none" is what they have, rather than a broken speaker.
+            SettingsIconButton(
+              icon: FontAwesomeIcons.play,
+              box: ShellSizes.iconButton,
+              size: ShellFontSizes.secondary,
+              color: theme.popupForeground.withValues(alpha: 0.55),
+              onTap: () => sound.playNow(force: true),
+            ),
+          ],
         ),
       ),
     );
@@ -926,7 +1170,14 @@ class _NotificationCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: theme.workspaceBackground.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(ShellRadii.card),
-        border: Border.all(color: theme.divider),
+        // An unread card is ringed in the badge colour rather than tinted: the
+        // body text on it is the thing the user came to read, and a wash under
+        // prose is the one place this palette's loudest colour must not go.
+        border: Border.all(
+          color: item.read
+              ? theme.divider
+              : theme.notificationBadge.withValues(alpha: 0.75),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -935,16 +1186,37 @@ class _NotificationCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  item.appName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.caption,
-                    letterSpacing: 0.6,
-                    fontWeight: FontWeight.bold,
-                    color: theme.accent.withValues(alpha: 0.9),
-                  ),
+                Row(
+                  children: [
+                    if (!item.read) ...[
+                      // The same dot the rest of the shell means by unread,
+                      // and the same colour the bell and the floating card
+                      // wear. It is what survives the card being read over a
+                      // photograph, where a border alone can vanish.
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: theme.notificationBadge,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 7),
+                    ],
+                    Flexible(
+                      child: Text(
+                        item.appName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: ShellFontSizes.caption,
+                          letterSpacing: 0.6,
+                          fontWeight: FontWeight.bold,
+                          color: theme.accent.withValues(alpha: 0.9),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -993,7 +1265,8 @@ class _NotificationCard extends StatelessWidget {
   }
 }
 
-final Module notificationsModule = Module.plain(
+final Module notificationsModule = Module.simple<NotificationsConfig>(
   configKey: 'notifications',
-  builder: (_) => const Notifications(),
+  fromMap: NotificationsConfig.fromMap,
+  builder: (_, config) => Notifications(config: config),
 );

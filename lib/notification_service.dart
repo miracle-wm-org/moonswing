@@ -16,6 +16,7 @@ class NotificationItem {
     required this.actions,
     required this.expireTimeout,
     required this.arrivedAt,
+    this.read = false,
   });
 
   final int id;
@@ -31,6 +32,19 @@ class NotificationItem {
 
   final DateTime arrivedAt;
 
+  /// Whether the user has acknowledged this one.
+  ///
+  /// Read is not the same claim as dismissed, and the panel needs both: a
+  /// dismissal takes the notification off the list, while marking it read
+  /// leaves it there to be read again and only stops the shell *asking* — the
+  /// bell's bubble, the floating card and the chime all hang off
+  /// [NotificationStore.unreadCount] rather than off the list's length.
+  ///
+  /// A notification arrives unread, and a replacement arrives unread again: an
+  /// application that rewrites a notification has said something new under an
+  /// id it happens to be reusing.
+  final bool read;
+
   NotificationItem copyWith({
     int? id,
     String? appName,
@@ -39,6 +53,7 @@ class NotificationItem {
     List<String>? actions,
     int? expireTimeout,
     DateTime? arrivedAt,
+    bool? read,
   }) {
     return NotificationItem(
       id: id ?? this.id,
@@ -48,6 +63,7 @@ class NotificationItem {
       actions: actions ?? this.actions,
       expireTimeout: expireTimeout ?? this.expireTimeout,
       arrivedAt: arrivedAt ?? this.arrivedAt,
+      read: read ?? this.read,
     );
   }
 }
@@ -87,6 +103,52 @@ class NotificationStore extends ChangeNotifier {
 
   final List<NotificationItem> _items = [];
   List<NotificationItem> get items => List.unmodifiable(_items);
+
+  /// How many of [items] the user has not acknowledged yet.
+  ///
+  /// The number every attention-seeking surface renders, and the one the chime
+  /// fires on: the bell's bubble, the floating card, and whether that card's
+  /// window exists at all. The panel's own header still counts the list, because
+  /// a panel that said "nothing waiting" over four cards would be lying.
+  int get unreadCount {
+    var count = 0;
+    for (final item in _items) {
+      if (!item.read) count++;
+    }
+    return count;
+  }
+
+  /// Whether anything is still asking for attention.
+  bool get hasUnread => _items.any((item) => !item.read);
+
+  /// Marks everything on the list acknowledged — the panel's check-all button.
+  ///
+  /// Deliberately *not* what opening the panel does. Reading a notification is
+  /// something the user does, not something a window being mapped does for
+  /// them, and a panel that silently cleared the count as it slid in would
+  /// leave a user who opened it by accident with no way of knowing what had
+  /// arrived. Nothing is removed: the list is still there to be read, and
+  /// [dismissAll] is the button that empties it.
+  ///
+  /// A no-op when nothing moves, so a second press costs no notification.
+  void markAllRead() {
+    var moved = false;
+    for (var i = 0; i < _items.length; i++) {
+      if (_items[i].read) continue;
+      _items[i] = _items[i].copyWith(read: true);
+      moved = true;
+    }
+    if (moved) notifyListeners();
+  }
+
+  /// Marks one item acknowledged. A no-op for an id that is not on the list or
+  /// is already read.
+  void markRead(int id) {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index == -1 || _items[index].read) return;
+    _items[index] = _items[index].copyWith(read: true);
+    notifyListeners();
+  }
 
   int _nextId = 1;
   final Map<int, Timer> _expireTimers = {};
@@ -255,6 +317,9 @@ class NotificationStore extends ChangeNotifier {
 
     if (existingIndex != -1) {
       _expireTimers.remove(_items[existingIndex].id)?.cancel();
+      // The incoming item wins whole, its `read` flag included: an application
+      // that rewrote a notification under an id it is reusing has said
+      // something the user has not seen. See [NotificationItem.read].
       _items[existingIndex] = item;
     } else {
       _items.insert(0, item);
