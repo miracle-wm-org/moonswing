@@ -11,6 +11,7 @@ import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
 import 'package:graceful_shell/notification_panel_controller.dart';
 import 'package:graceful_shell/power/power_controller.dart';
+import 'package:graceful_shell/power/power_menu_controller.dart';
 import 'package:graceful_shell/power/power_service.dart';
 import 'package:wayland/wayland.dart';
 
@@ -90,6 +91,12 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
       'graceful-shell.open-notifications',
       config.openNotifications,
       NotificationPanelController.instance.toggle,
+      null,
+    ),
+    (
+      'graceful-shell.open-power-menu',
+      config.openPowerMenu,
+      PowerMenuController.instance.toggle,
       null,
     ),
     // Both capture shortcuts are started and left to run: a selection surface

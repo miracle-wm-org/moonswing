@@ -34,6 +34,7 @@ void main() {
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
       expect(config.shortcuts.openEmoji, kDefaultOpenEmoji);
       expect(config.shortcuts.openNotifications, kDefaultOpenNotifications);
+      expect(config.shortcuts.openPowerMenu, kDefaultOpenPowerMenu);
       expect(config.shortcuts.screenshotArea, kDefaultScreenshotArea);
       expect(config.shortcuts.recordScreen, kDefaultRecordScreen);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
@@ -115,6 +116,7 @@ void main() {
       expect(config.shortcuts.openLauncher, kDefaultOpenLauncher);
       expect(config.shortcuts.openEmoji, kDefaultOpenEmoji);
       expect(config.shortcuts.openNotifications, kDefaultOpenNotifications);
+      expect(config.shortcuts.openPowerMenu, kDefaultOpenPowerMenu);
       expect(config.shortcuts.screenshotArea, kDefaultScreenshotArea);
       expect(config.shortcuts.recordScreen, kDefaultRecordScreen);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);

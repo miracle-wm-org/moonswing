@@ -477,6 +477,7 @@ open_settings = "super+s"
 open_launcher = "super+d"
 open_emoji = "ctrl+shift+e"
 open_notifications = "super+e"
+open_power_menu = "shift+super+e"
 screenshot_area = "print"
 record_screen = "super+print"
 power_button = "poweroff"
@@ -488,6 +489,7 @@ power_button = "poweroff"
 | `open_launcher`      | string | `"super+d"`        | Opens (and closes) the application launcher    |
 | `open_emoji`         | string | `"ctrl+shift+e"`   | Opens (and closes) the [emoji picker](#emoji-picker) |
 | `open_notifications` | string | `"super+e"`        | Opens (and closes) the [notification panel](#notifications) |
+| `open_power_menu`    | string | `"shift+super+e"`  | Opens (and closes) the [power menu](#power-button) — shut down, restart, suspend, lock or log out |
 | `screenshot_area`    | string | `"print"`          | Drag out an area and screenshot it — the screenshot module's own **Select an area** |
 | `record_screen`      | string | `"super+print"`    | Starts recording the screen you are on; press it again to stop |
 | `power_button`       | string | `"poweroff"`       | The machine's own power button — what it *does* is [`[power]`](#power-button) |
@@ -607,7 +609,7 @@ inhibit_logind = true
 
 Both keys are live: changing them in Settings → Shell → Power Button takes effect on the next press. The *binding* — `[shortcuts] power_button` — is not, because global shortcuts are registered once at start-up.
 
-`key_action` is about the *physical* key alone. The panel's power icon always opens the power menu, whatever this is set to — including `"none"`, which leaves the key to logind without leaving you with no way to shut down from the shell.
+`key_action` is about the *physical* key alone. The panel's power icon and the [`open_power_menu`](#shortcuts) shortcut (`Super+Shift+E`) always open the power menu, whatever this is set to — including `"none"`, which leaves the key to logind without leaving you with no way to shut down from the shell.
 
 ### Why `inhibit_logind` exists
 

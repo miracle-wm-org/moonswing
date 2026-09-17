@@ -45,7 +45,7 @@ void main() {
       // registered by the shell but missing here would be one a person can
       // press and never find written down.
       const config = ShortcutsConfig();
-      expect(ShellShortcut.values.length, 7);
+      expect(ShellShortcut.values.length, 8);
       expect(
         ShellShortcut.openLauncher.specIn(config),
         parseShortcut('super+d'),
@@ -61,6 +61,10 @@ void main() {
       expect(
         ShellShortcut.openNotifications.specIn(config),
         parseShortcut('super+e'),
+      );
+      expect(
+        ShellShortcut.openPowerMenu.specIn(config),
+        parseShortcut('super+shift+e'),
       );
       expect(
         ShellShortcut.screenshotArea.specIn(config),

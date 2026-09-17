@@ -10,6 +10,7 @@ void main() {
       expect(config.openLauncher, kDefaultOpenLauncher);
       expect(config.openEmoji, kDefaultOpenEmoji);
       expect(config.openNotifications, kDefaultOpenNotifications);
+      expect(config.openPowerMenu, kDefaultOpenPowerMenu);
       expect(config.screenshotArea, kDefaultScreenshotArea);
       expect(config.recordScreen, kDefaultRecordScreen);
     });
@@ -20,6 +21,7 @@ void main() {
       expect(config.openLauncher, kDefaultOpenLauncher);
       expect(config.openEmoji, kDefaultOpenEmoji);
       expect(config.openNotifications, kDefaultOpenNotifications);
+      expect(config.openPowerMenu, kDefaultOpenPowerMenu);
       expect(config.screenshotArea, kDefaultScreenshotArea);
       expect(config.recordScreen, kDefaultRecordScreen);
     });
@@ -41,6 +43,23 @@ void main() {
         ShortcutsConfig.fromMap({'open_notifications': 'ctrl+nosuchkey'})
             .openNotifications,
         kDefaultOpenNotifications,
+      );
+    });
+
+    test('open_power_menu reads, disables and degrades like the others', () {
+      expect(
+        ShortcutsConfig.fromMap({'open_power_menu': 'super+shift+q'})
+            .openPowerMenu,
+        parseShortcut('super+shift+q'),
+      );
+      expect(
+        ShortcutsConfig.fromMap({'open_power_menu': ''}).openPowerMenu,
+        isNull,
+      );
+      expect(
+        ShortcutsConfig.fromMap({'open_power_menu': 'ctrl+nosuchkey'})
+            .openPowerMenu,
+        kDefaultOpenPowerMenu,
       );
     });
 

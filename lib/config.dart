@@ -445,6 +445,17 @@ const ShortcutSpec kDefaultOpenEmoji =
 const ShortcutSpec kDefaultOpenNotifications =
     ShortcutSpec(modifiers: 0x800, keysym: 0x65);
 
+/// Super+Shift+E, the power menu. The shifted keysym (`E`, not `e`) is what
+/// Mir matches on once Shift is held — see [parseShortcut] — and it is spelled
+/// numerically for [kDefaultOpenSettings]'s reason;
+/// `test/shortcut_parse_test.dart` asserts the two agree.
+///
+/// Shift apart, this is `open_notifications`' combination, and deliberately so:
+/// the two are neighbours on the same key. A trigger fires only when *exactly*
+/// the registered modifiers are held, so the compositor tells them apart.
+const ShortcutSpec kDefaultOpenPowerMenu =
+    ShortcutSpec(modifiers: 0x808, keysym: 0x45);
+
 /// Print Screen on its own: a screenshot of an area the user drags out.
 const ShortcutSpec kDefaultScreenshotArea =
     ShortcutSpec(modifiers: 0, keysym: 0xff61);
@@ -485,6 +496,14 @@ class ShortcutsConfig {
   /// bell module's own click is: the root owns the one panel and decides.
   final ShortcutSpec? openNotifications;
 
+  /// The power menu (Super+Shift+E by default). A toggle, exactly as the system
+  /// module's own power button is: the root owns the one menu and decides.
+  ///
+  /// Distinct from [powerButton], which is where the machine's physical key is
+  /// picked up and whose press is resolved through `[power] key_action`. This
+  /// one always means the menu.
+  final ShortcutSpec? openPowerMenu;
+
   /// A screenshot of an area the user drags out (Print Screen by default).
   final ShortcutSpec? screenshotArea;
 
@@ -504,6 +523,7 @@ class ShortcutsConfig {
     this.openLauncher = kDefaultOpenLauncher,
     this.openEmoji = kDefaultOpenEmoji,
     this.openNotifications = kDefaultOpenNotifications,
+    this.openPowerMenu = kDefaultOpenPowerMenu,
     this.screenshotArea = kDefaultScreenshotArea,
     this.recordScreen = kDefaultRecordScreen,
     this.powerButton = kDefaultPowerButton,
@@ -517,6 +537,7 @@ class ShortcutsConfig {
       openEmoji: _read(map, 'open_emoji', kDefaultOpenEmoji),
       openNotifications:
           _read(map, 'open_notifications', kDefaultOpenNotifications),
+      openPowerMenu: _read(map, 'open_power_menu', kDefaultOpenPowerMenu),
       screenshotArea: _read(map, 'screenshot_area', kDefaultScreenshotArea),
       recordScreen: _read(map, 'record_screen', kDefaultRecordScreen),
       powerButton: _read(map, 'power_button', kDefaultPowerButton),
@@ -555,6 +576,7 @@ class ShortcutsConfig {
           other.openLauncher == openLauncher &&
           other.openEmoji == openEmoji &&
           other.openNotifications == openNotifications &&
+          other.openPowerMenu == openPowerMenu &&
           other.screenshotArea == screenshotArea &&
           other.recordScreen == recordScreen &&
           other.powerButton == powerButton;
@@ -565,6 +587,7 @@ class ShortcutsConfig {
         openLauncher,
         openEmoji,
         openNotifications,
+        openPowerMenu,
         screenshotArea,
         recordScreen,
         powerButton,
