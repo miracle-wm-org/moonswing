@@ -187,8 +187,9 @@ void main() {
                 onClosed: () => closed++,
                 store: resolved,
                 // Unbound unless a test asks otherwise: the sheet then draws
-                // the shell's four rows and offers no editing, which is what a
-                // widget test with no config file behind it has to get.
+                // the shell's own rows on their defaults and offers no
+                // editing, which is what a widget test with no config file
+                // behind it has to get.
                 shellStore: shellStore ?? ShellKeybindStore.forTesting(),
               ),
             ),
@@ -213,8 +214,10 @@ void main() {
 
     testWidgets('draws the keys as caps', (tester) async {
       await pump(tester);
-      // Two rows carry Super, and the header names it as the Action Key.
-      expect(find.text('Super'), findsNWidgets(4));
+      // Every compositor row in the fixture carries Super, the header names it
+      // as the Action Key, and four of the shell's own defaults are on it too
+      // — the launcher, settings, the notification panel and the recorder.
+      expect(find.text('Super'), findsNWidgets(8));
       expect(find.text('Q'), findsOneWidget);
       expect(find.text('Action Key'), findsOneWidget);
       // Enter is drawn as its glyph, so its label is not on screen.

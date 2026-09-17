@@ -184,7 +184,13 @@ void main() {
           key: 'space',
         ),
       ]);
-      expect(compositorCollisionFor(kDefaultOpenLauncher, result), 'ptyxis');
+      // Ctrl+Space, which is what the fake binds `ptyxis` to — no longer any
+      // shell shortcut's default, and it does not need to be: what is being
+      // tested is that the same caps on both sides are noticed.
+      expect(
+        compositorCollisionFor(parseShortcut('ctrl+space')!, result),
+        'ptyxis',
+      );
       expect(
         compositorCollisionFor(parseShortcut('super+q')!, result),
         'Close the focused window',
@@ -193,6 +199,8 @@ void main() {
       expect(compositorCollisionFor(parseShortcut('alt+q')!, result), isNull);
       // Nothing to compare against is not a collision either.
       expect(compositorCollisionFor(kDefaultOpenLauncher, null), isNull);
+      // And the launcher's own default is on nothing the compositor binds.
+      expect(compositorCollisionFor(kDefaultOpenLauncher, result), isNull);
     });
   });
 
