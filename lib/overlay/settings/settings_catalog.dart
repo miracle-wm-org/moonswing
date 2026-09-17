@@ -367,6 +367,23 @@ abstract final class SettingsCatalog {
       _color('divider', 'Divider', 'Hairlines between sections and rows.'),
     ),
     ThemeColorSetting(
+      'notification_badge',
+      _color(
+        'notification_badge',
+        'Notification badge',
+        'The colour an unread notification is announced in — the floating '
+            'card, the bell’s count and the dot on an unread message.',
+      ),
+    ),
+    ThemeColorSetting(
+      'notification_badge_foreground',
+      _color(
+        'notification_badge_foreground',
+        'Notification badge text',
+        'Text and glyphs drawn on the notification badge colour.',
+      ),
+    ),
+    ThemeColorSetting(
       'panel_background',
       _color(
         'panel_background',
@@ -583,6 +600,32 @@ abstract final class SettingsCatalog {
     'Confirm before quitting a process',
     'Asks first when you end a process from the monitor.',
     const ['monitor', 'processes', 'kill', 'quit', 'confirm'],
+  );
+
+  static final notificationsSound = _module(
+    'modules.notifications.sound',
+    'Notification sound',
+    'What plays when a notification arrives. One of the shipped sounds — '
+        'chime, ping, glass, bell, knock — the name of a sound from the '
+        'system’s sound theme, a path to a sound file, or none for silence.',
+    const [
+      'notifications',
+      'sound',
+      'chime',
+      'audio',
+      'alert',
+      'bell',
+      'ping',
+      'noise',
+      'silent',
+    ],
+  );
+  static final notificationsSoundVolume = _module(
+    'modules.notifications.sound_volume',
+    'Notification sound volume',
+    'How loud that sound plays, from 0 to 1. It does not touch the system '
+        'volume.',
+    const ['notifications', 'sound', 'volume', 'loud', 'quiet', 'chime'],
   );
 
   static final networkPollSeconds = _module(
@@ -1945,6 +1988,8 @@ abstract final class SettingsCatalog {
     systemMonitorShowKernelThreads,
     systemMonitorConfirmKill,
     networkPollSeconds,
+    notificationsSound,
+    notificationsSoundVolume,
     screenshotDirectory,
     screenshotCopyToClipboard,
     screenshotDelaySeconds,

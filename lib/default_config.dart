@@ -120,6 +120,14 @@ expanded_spacing = 6
 poll_seconds = 1
 temp_unit = "celsius"
 
+# What plays when a notification arrives. `chime`, `ping`, `glass`, `bell` and
+# `knock` are the shipped sounds, which the shell synthesises rather than
+# shipping as files; `none` is silence, and anything else is either a path or a
+# name looked for in the system's sound theme.
+[modules.notifications]
+sound = "chime"
+sound_volume = 0.7
+
 # Stills go to ~/Pictures/Screenshots and recordings to ~/Videos/Screencasts
 # unless `directory` names somewhere else; a leading `~` is expanded.
 [modules.screenshot]
