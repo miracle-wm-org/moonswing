@@ -9,6 +9,9 @@ void main() {
       expect(config.openSettings, kDefaultOpenSettings);
       expect(config.openLauncher, kDefaultOpenLauncher);
       expect(config.openEmoji, kDefaultOpenEmoji);
+      expect(config.openNotifications, kDefaultOpenNotifications);
+      expect(config.screenshotArea, kDefaultScreenshotArea);
+      expect(config.recordScreen, kDefaultRecordScreen);
     });
 
     test('an absent key keeps its default', () {
@@ -16,6 +19,29 @@ void main() {
       expect(config.openSettings, kDefaultOpenSettings);
       expect(config.openLauncher, kDefaultOpenLauncher);
       expect(config.openEmoji, kDefaultOpenEmoji);
+      expect(config.openNotifications, kDefaultOpenNotifications);
+      expect(config.screenshotArea, kDefaultScreenshotArea);
+      expect(config.recordScreen, kDefaultRecordScreen);
+    });
+
+    test('the capture and notification keys read, disable and degrade too', () {
+      // The three newest keys go through the same `_read`, and the point of
+      // the test is that they are actually wired to it rather than defaulted
+      // somewhere else: every one of them reads, disables and degrades.
+      expect(
+        ShortcutsConfig.fromMap({'screenshot_area': 'super+shift+s'})
+            .screenshotArea,
+        parseShortcut('super+shift+s'),
+      );
+      expect(
+        ShortcutsConfig.fromMap({'record_screen': ''}).recordScreen,
+        isNull,
+      );
+      expect(
+        ShortcutsConfig.fromMap({'open_notifications': 'ctrl+nosuchkey'})
+            .openNotifications,
+        kDefaultOpenNotifications,
+      );
     });
 
     test('open_emoji reads, disables and degrades like the others', () {

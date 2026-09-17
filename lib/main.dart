@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 import 'package:graceful_shell/app_info.dart';
 import 'package:graceful_shell/app_scope.dart';
+import 'package:graceful_shell/capture/capture_store.dart';
 import 'package:graceful_shell/capture/selection_controller.dart';
 import 'package:graceful_shell/capture/selector_overlay.dart';
 import 'package:graceful_shell/capture/window_targets.dart';
@@ -191,6 +192,13 @@ void main() async {
   // below are registered from, so an edit can be told apart from what the
   // keyboard actually does until the shell is restarted.
   startShellKeybindService(store, registered: appConfig.shortcuts);
+
+  // The same connection again, for the one capture that has nobody to ask: the
+  // recording shortcut records the screen holding miracle's focused workspace,
+  // and its callback is a global shortcut's, with no widget tree over it to
+  // read `MiracleScope` from. A shell that never connected answers null and the
+  // shortcut puts the picker up instead.
+  CaptureStore.instance.readTree = () => miracle.connection?.getTree();
 
   // Live registry of outputs, kept current as monitors come and go. Empty until
   // [_connectDisplays] has enumerated them, which is why panels render before

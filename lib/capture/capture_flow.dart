@@ -13,8 +13,11 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import 'capture_store.dart';
 import 'selection_controller.dart';
+import 'window_targets.dart';
 
 /// How long the shell waits between the selection surfaces coming down and the
 /// capture starting.
@@ -50,5 +53,67 @@ Future<void> runCaptureFlow(
       await captures.capture(target);
     case CaptureKind.video:
       await captures.startRecording(target);
+  }
+}
+
+/// The screen-recording shortcut: start recording the screen the user is on, or
+/// stop the recording that is already running.
+///
+/// A toggle, unlike every other way into [runCaptureFlow], and deliberately so:
+/// a recording is the one thing the shell can be doing that the user cannot
+/// see, and a key that could only ever start one would leave a shell with no
+/// recorder module in its bar no way of ending it. A recording that is still
+/// closing its file answers the same way — [CaptureStore.stopRecording] is a
+/// no-op then, which is the right no-op: it is what stops a second press
+/// during the encode from opening a second recording behind the first.
+///
+/// "The screen the user is on" is the output holding miracle's focused
+/// workspace. A shell that cannot ask — no connection, a tree that will not
+/// parse, a compositor that named no focused workspace — falls back to the
+/// selection surface rather than guessing at a display, which is the same
+/// choice [CaptureScene.empty] makes one layer down.
+Future<void> runScreenRecordingShortcut({
+  CaptureStore? store,
+  CaptureSelectionController? controller,
+  Duration settle = kSelectorSettleDelay,
+}) async {
+  final captures = store ?? CaptureStore.instance;
+  if (captures.recording || captures.stopping) {
+    await captures.stopRecording();
+    return;
+  }
+
+  final screen = await _focusedScreen(captures);
+  if (screen == null) {
+    await runCaptureFlow(
+      CaptureKind.video,
+      SelectionMode.output,
+      store: captures,
+      controller: controller,
+      settle: settle,
+    );
+    return;
+  }
+
+  // No settle: nothing of the shell's went up to be photographed, so the
+  // recording opens on the screen as it already is.
+  await captures.startRecording(OutputCapture(
+    connector: screen.name,
+    outputSize: screen.size,
+    outputOrigin: CapturePoint(screen.rect.x, screen.rect.y),
+  ));
+}
+
+/// The output the user is working on, or null when the shell cannot tell.
+///
+/// Never throws: a `GET_TREE` that fails costs the shortcut its aim and
+/// nothing else, and the caller then asks the user instead.
+Future<ScreenOutput?> _focusedScreen(CaptureStore store) async {
+  try {
+    final tree = await store.readTree();
+    return tree == null ? null : focusedOutput(tree);
+  } catch (error) {
+    debugPrint('capture: could not read the window tree: $error');
+    return null;
   }
 }

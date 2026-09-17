@@ -422,21 +422,36 @@ class LockConfig {
   int get hashCode => Object.hash(background, fit, showUsername, blurSigma);
 }
 
-/// Ctrl+Shift+S. The shifted keysym (`S`, not `s`) is what Mir matches on —
-/// see [parseShortcut]. Spelled numerically because a const field cannot call a
-/// function; `test/shortcut_parse_test.dart` asserts the two agree.
+/// Super+S. Spelled numerically because a const field cannot call a function;
+/// `test/shortcut_parse_test.dart` asserts the two agree.
+///
+/// Unshifted (`s`, not `S`) — the shifted form is only what Mir matches when
+/// Shift is part of the combination, [parseShortcut]'s rule.
 const ShortcutSpec kDefaultOpenSettings =
-    ShortcutSpec(modifiers: 0x108, keysym: 0x53);
+    ShortcutSpec(modifiers: 0x800, keysym: 0x73);
 
-/// Ctrl+Space.
+/// Super+D.
 const ShortcutSpec kDefaultOpenLauncher =
-    ShortcutSpec(modifiers: 0x100, keysym: 0x20);
+    ShortcutSpec(modifiers: 0x800, keysym: 0x64);
 
-/// Ctrl+Shift+E, the emoji picker. Shifted keysym (`E`, not `e`) for
-/// [kDefaultOpenSettings]'s reason, and spelled numerically for the same one;
+/// Ctrl+Shift+E, the emoji picker. The shifted keysym (`E`, not `e`) is what
+/// Mir matches on once Shift is held — see [parseShortcut] — and it is spelled
+/// numerically for [kDefaultOpenSettings]'s reason;
 /// `test/shortcut_parse_test.dart` asserts the two agree.
 const ShortcutSpec kDefaultOpenEmoji =
     ShortcutSpec(modifiers: 0x108, keysym: 0x45);
+
+/// Super+E, the notification panel.
+const ShortcutSpec kDefaultOpenNotifications =
+    ShortcutSpec(modifiers: 0x800, keysym: 0x65);
+
+/// Print Screen on its own: a screenshot of an area the user drags out.
+const ShortcutSpec kDefaultScreenshotArea =
+    ShortcutSpec(modifiers: 0, keysym: 0xff61);
+
+/// Super+Print Screen: record the screen the user is on.
+const ShortcutSpec kDefaultRecordScreen =
+    ShortcutSpec(modifiers: 0x800, keysym: 0xff61);
 
 /// The machine's own power button — `XF86PowerOff`, no modifiers.
 ///
@@ -466,15 +481,31 @@ class ShortcutsConfig {
   /// The emoji picker (Ctrl+Shift+E by default).
   final ShortcutSpec? openEmoji;
 
+  /// The notification panel (Super+E by default). A toggle, exactly as the
+  /// bell module's own click is: the root owns the one panel and decides.
+  final ShortcutSpec? openNotifications;
+
+  /// A screenshot of an area the user drags out (Print Screen by default).
+  final ShortcutSpec? screenshotArea;
+
+  /// Recording the whole of the screen the user is on (Super+Print Screen by
+  /// default). Pressing it again stops the recording — the shell records one
+  /// screen at a time, and a shell whose bar carries no recorder module would
+  /// otherwise have no way to end what this started.
+  final ShortcutSpec? recordScreen;
+
   /// The key the machine's power button produces. What a press *does* is
   /// `[power] key_action`, which is live; this is only where the key is
-  /// picked up, and like the other three it latches at start-up.
+  /// picked up, and like the others it latches at start-up.
   final ShortcutSpec? powerButton;
 
   const ShortcutsConfig({
     this.openSettings = kDefaultOpenSettings,
     this.openLauncher = kDefaultOpenLauncher,
     this.openEmoji = kDefaultOpenEmoji,
+    this.openNotifications = kDefaultOpenNotifications,
+    this.screenshotArea = kDefaultScreenshotArea,
+    this.recordScreen = kDefaultRecordScreen,
     this.powerButton = kDefaultPowerButton,
   });
 
@@ -484,6 +515,10 @@ class ShortcutsConfig {
       openSettings: _read(map, 'open_settings', kDefaultOpenSettings),
       openLauncher: _read(map, 'open_launcher', kDefaultOpenLauncher),
       openEmoji: _read(map, 'open_emoji', kDefaultOpenEmoji),
+      openNotifications:
+          _read(map, 'open_notifications', kDefaultOpenNotifications),
+      screenshotArea: _read(map, 'screenshot_area', kDefaultScreenshotArea),
+      recordScreen: _read(map, 'record_screen', kDefaultRecordScreen),
       powerButton: _read(map, 'power_button', kDefaultPowerButton),
     );
   }
@@ -519,11 +554,21 @@ class ShortcutsConfig {
           other.openSettings == openSettings &&
           other.openLauncher == openLauncher &&
           other.openEmoji == openEmoji &&
+          other.openNotifications == openNotifications &&
+          other.screenshotArea == screenshotArea &&
+          other.recordScreen == recordScreen &&
           other.powerButton == powerButton;
 
   @override
-  int get hashCode =>
-      Object.hash(openSettings, openLauncher, openEmoji, powerButton);
+  int get hashCode => Object.hash(
+        openSettings,
+        openLauncher,
+        openEmoji,
+        openNotifications,
+        screenshotArea,
+        recordScreen,
+        powerButton,
+      );
 }
 
 class AppConfig {

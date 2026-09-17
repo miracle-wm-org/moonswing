@@ -187,8 +187,9 @@ void main() {
                 onClosed: () => closed++,
                 store: resolved,
                 // Unbound unless a test asks otherwise: the sheet then draws
-                // the shell's four rows and offers no editing, which is what a
-                // widget test with no config file behind it has to get.
+                // the shell's own rows on their defaults and offers no
+                // editing, which is what a widget test with no config file
+                // behind it has to get.
                 shellStore: shellStore ?? ShellKeybindStore.forTesting(),
               ),
             ),
@@ -213,8 +214,10 @@ void main() {
 
     testWidgets('draws the keys as caps', (tester) async {
       await pump(tester);
-      // Two rows carry Super, and the header names it as the Action Key.
-      expect(find.text('Super'), findsNWidgets(4));
+      // Every compositor row in the fixture carries Super, the header names it
+      // as the Action Key, and four of the shell's own defaults are on it too
+      // — the launcher, settings, the notification panel and the recorder.
+      expect(find.text('Super'), findsNWidgets(8));
       expect(find.text('Q'), findsOneWidget);
       expect(find.text('Action Key'), findsOneWidget);
       // Enter is drawn as its glyph, so its label is not on screen.
@@ -383,11 +386,16 @@ void main() {
       expect(find.text('Open the application launcher'), findsOneWidget);
       expect(find.text('Open settings'), findsOneWidget);
       expect(find.text('Open the emoji picker'), findsOneWidget);
+      expect(find.text('Open the notification panel'), findsOneWidget);
+      expect(find.text('Screenshot an area'), findsOneWidget);
+      expect(find.text('Record the current screen'), findsOneWidget);
       expect(find.text('The power button'), findsOneWidget);
-      // Drawn as caps, exactly as the compositor's rows are: Ctrl+Space is the
-      // launcher's default.
-      expect(find.text('Space'), findsOneWidget);
-      expect(find.text('Ctrl'), findsNWidgets(3));
+      // Drawn as caps, exactly as the compositor's rows are: Print is the
+      // screenshot shortcut's default and Super+Print the recorder's.
+      expect(find.text('Print'), findsNWidgets(2));
+      // And Ctrl is the emoji picker's alone — every other default is on
+      // Super, which is what a cap count notices and a row label does not.
+      expect(find.text('Ctrl'), findsOneWidget);
       // And the compositor's own bindings are still there, under theirs.
       expect(find.text('Close the focused window'), findsOneWidget);
     });
@@ -455,17 +463,17 @@ void main() {
       final store = await pumpEditable(tester);
       await tester.tap(find.text('Open the emoji picker'));
       await tester.pumpAndSettle();
-      // Ctrl+Space is the launcher's.
-      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
-      await tester.sendKeyEvent(LogicalKeyboardKey.space);
-      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      // Super+D is the launcher's.
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyD);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
       await tester.pumpAndSettle();
 
       // The later of two registrations silently never happens, so this is
       // refused rather than warned about — and the row keeps listening.
       expect(store.specFor(ShellShortcut.openEmoji), kDefaultOpenEmoji);
       expect(
-        find.text('Ctrl + Space is already "Open the application launcher".'),
+        find.text('Super + D is already "Open the application launcher".'),
         findsOneWidget,
       );
       expect(find.text('Press keys…'), findsOneWidget);

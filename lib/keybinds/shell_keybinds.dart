@@ -19,7 +19,7 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/keybinds/keybind_model.dart';
 
-/// One shortcut the *shell* registers with the compositor — the four of
+/// One shortcut the *shell* registers with the compositor — every key of
 /// `[shortcuts]`, in the order the sheet lists them.
 ///
 /// An enum rather than a list of records because it is an identity: the editor
@@ -40,6 +40,24 @@ enum ShellShortcut {
     label: 'Open the emoji picker',
     configKey: 'open_emoji',
     defaultSpec: kDefaultOpenEmoji,
+  ),
+  openNotifications(
+    label: 'Open the notification panel',
+    configKey: 'open_notifications',
+    defaultSpec: kDefaultOpenNotifications,
+  ),
+  screenshotArea(
+    label: 'Screenshot an area',
+    configKey: 'screenshot_area',
+    defaultSpec: kDefaultScreenshotArea,
+  ),
+  recordScreen(
+    label: 'Record the current screen',
+    // The one shortcut here that is also how the thing it starts is ended,
+    // which a row showing only what it opens would not say.
+    detail: 'Press it again to stop recording',
+    configKey: 'record_screen',
+    defaultSpec: kDefaultRecordScreen,
   ),
   powerButton(
     label: 'The power button',
@@ -74,6 +92,9 @@ enum ShellShortcut {
     ShellShortcut.openLauncher => config.openLauncher,
     ShellShortcut.openSettings => config.openSettings,
     ShellShortcut.openEmoji => config.openEmoji,
+    ShellShortcut.openNotifications => config.openNotifications,
+    ShellShortcut.screenshotArea => config.screenshotArea,
+    ShellShortcut.recordScreen => config.recordScreen,
     ShellShortcut.powerButton => config.powerButton,
   };
 }
@@ -88,7 +109,7 @@ const String kShellSectionLabel = 'Shell';
 
 /// What a row says when the user has disabled a shortcut.
 ///
-/// A disabled shortcut keeps its row: it is still one of the shell's four, and
+/// A disabled shortcut keeps its row: it is still one of the shell's own, and
 /// the row is where it is turned back on.
 const String kShellShortcutDisabled = 'Disabled';
 

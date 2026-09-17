@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:graceful_shell/capture/capture_flow.dart';
+import 'package:graceful_shell/capture/selection_controller.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/emoji/emoji_controller.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
 import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
+import 'package:graceful_shell/notification_panel_controller.dart';
 import 'package:graceful_shell/power/power_controller.dart';
 import 'package:graceful_shell/power/power_service.dart';
 import 'package:wayland/wayland.dart';
@@ -79,6 +84,30 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
       'graceful-shell.open-emoji',
       config.openEmoji,
       EmojiPickerController.instance.toggle,
+      null,
+    ),
+    (
+      'graceful-shell.open-notifications',
+      config.openNotifications,
+      NotificationPanelController.instance.toggle,
+      null,
+    ),
+    // Both capture shortcuts are started and left to run: a selection surface
+    // goes up, the user takes as long as they like over it, and the shutter and
+    // its notification happen through the store — the same reason the two bar
+    // modules do not await their flows either.
+    (
+      'graceful-shell.screenshot-area',
+      config.screenshotArea,
+      () => unawaited(
+            runCaptureFlow(CaptureKind.screenshot, SelectionMode.area),
+          ),
+      null,
+    ),
+    (
+      'graceful-shell.record-screen',
+      config.recordScreen,
+      () => unawaited(runScreenRecordingShortcut()),
       null,
     ),
     (

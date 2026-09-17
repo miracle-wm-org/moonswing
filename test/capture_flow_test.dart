@@ -1,8 +1,41 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:miracle/miracle.dart' show BaseNode;
 
 import 'package:graceful_shell/capture/capture_flow.dart';
 import 'package:graceful_shell/capture/capture_store.dart';
 import 'package:graceful_shell/capture/selection_controller.dart';
+
+/// A `GET_TREE` reply with one output and one workspace on it, focused or not.
+BaseNode _tree({required bool focused, String connector = 'HDMI-1'}) =>
+    BaseNode.fromJson({
+      'type': 'root',
+      'id': 1,
+      'name': 'root',
+      'rect': {'x': 0, 'y': 0, 'width': 1920, 'height': 1080},
+      'nodes': [
+        {
+          'type': 'output',
+          'id': 2,
+          'name': connector,
+          'rect': {'x': 0, 'y': 0, 'width': 1920, 'height': 1080},
+          'active': true,
+          'nodes': [
+            {
+              'type': 'workspace',
+              'id': 3,
+              'name': '1',
+              'num': 1,
+              'output': connector,
+              'visible': true,
+              'focused': focused,
+              'rect': {'x': 0, 'y': 0, 'width': 1920, 'height': 1080},
+              'nodes': <dynamic>[],
+              'floating_nodes': <dynamic>[],
+            },
+          ],
+        },
+      ],
+    });
 
 /// Ask, wait for the surfaces to go, then capture.
 void main() {
@@ -131,5 +164,86 @@ void main() {
 
     await flow;
     expect(notices, hasLength(1));
+  });
+
+  group('runScreenRecordingShortcut', () {
+    /// A controller nothing may ask: it records that it was asked and backs
+    /// out, so a test can tell "recorded without asking" from "put the picker
+    /// up and then recorded".
+    ({CaptureSelectionController controller, List<SelectionRequest> asked})
+        watchfulController() {
+      final asked = <SelectionRequest>[];
+      final controller = CaptureSelectionController.forTesting();
+      addTearDown(controller.dispose);
+      controller.addListener(() {
+        final pending = controller.pending;
+        if (pending == null) return;
+        asked.add(pending);
+        controller.cancel();
+      });
+      return (controller: controller, asked: asked);
+    }
+
+    test('records the focused screen without asking which one', () async {
+      final (:store, :notices) = buildStore();
+      store.readTree = () async => _tree(focused: true);
+      final (:controller, :asked) = watchfulController();
+
+      await runScreenRecordingShortcut(
+        store: store,
+        controller: controller,
+        settle: noSettle,
+      );
+
+      expect(asked, isEmpty, reason: 'the shortcut knows which screen it is');
+      // There is no compositor behind a widget test, so the recording fails —
+      // but it was *started*, which is what this is pinning.
+      expect(notices.single.summary, 'Recording failed');
+    });
+
+    test('falls back to the picker when it cannot tell which screen', () async {
+      final (:store, :notices) = buildStore();
+      // Nothing focused, a tree that will not arrive, and a shell that is not
+      // connected at all: three ways of not knowing, one answer.
+      for (final source in <Future<BaseNode>? Function()>[
+        () async => _tree(focused: false),
+        () async => throw StateError('the socket went away'),
+        () => null,
+      ]) {
+        store.readTree = source;
+        final (:controller, :asked) = watchfulController();
+
+        await runScreenRecordingShortcut(
+          store: store,
+          controller: controller,
+          settle: noSettle,
+        );
+
+        expect(asked, hasLength(1));
+        expect(asked.single.kind, CaptureKind.video);
+        expect(asked.single.mode, SelectionMode.output);
+      }
+      // Every one of them was cancelled, and a cancelled selection captures
+      // nothing at all.
+      expect(notices, isEmpty);
+    });
+
+    test('nothing listening is not a recording of the wrong screen', () async {
+      // `RequestController`'s first rule reaching this path: with no window to
+      // put a picker in, the shortcut declines rather than picking a display.
+      final (:store, :notices) = buildStore();
+      store.readTree = () => null;
+      final controller = CaptureSelectionController.forTesting();
+      addTearDown(controller.dispose);
+
+      await runScreenRecordingShortcut(
+        store: store,
+        controller: controller,
+        settle: noSettle,
+      );
+
+      expect(notices, isEmpty);
+      expect(store.recording, isFalse);
+    });
   });
 }
