@@ -46,6 +46,14 @@ enum ShellShortcut {
     configKey: 'open_notifications',
     defaultSpec: kDefaultOpenNotifications,
   ),
+  openPowerMenu(
+    label: 'Open the power menu',
+    // Distinct from the power-button row further down, which is only where
+    // the machine's own key is picked up: this one always means the menu.
+    detail: 'Shut down, restart, suspend, lock or log out',
+    configKey: 'open_power_menu',
+    defaultSpec: kDefaultOpenPowerMenu,
+  ),
   screenshotArea(
     label: 'Screenshot an area',
     configKey: 'screenshot_area',
@@ -93,6 +101,7 @@ enum ShellShortcut {
     ShellShortcut.openSettings => config.openSettings,
     ShellShortcut.openEmoji => config.openEmoji,
     ShellShortcut.openNotifications => config.openNotifications,
+    ShellShortcut.openPowerMenu => config.openPowerMenu,
     ShellShortcut.screenshotArea => config.screenshotArea,
     ShellShortcut.recordScreen => config.recordScreen,
     ShellShortcut.powerButton => config.powerButton,

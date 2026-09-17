@@ -7,6 +7,7 @@ import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
 import 'package:graceful_shell/input_trigger/keysym.dart';
 import 'package:graceful_shell/launcher/launcher_controller.dart';
 import 'package:graceful_shell/notification_panel_controller.dart';
+import 'package:graceful_shell/power/power_menu_controller.dart';
 import 'package:wayland/wayland.dart';
 
 /// Builds an event payload the way the compositor would, so decoding is tested
@@ -27,6 +28,7 @@ ShortcutsConfig _only({
       openLauncher: openLauncher,
       openEmoji: null,
       openNotifications: null,
+      openPowerMenu: null,
       screenshotArea: null,
       recordScreen: null,
       powerButton: null,
@@ -219,6 +221,7 @@ void main() {
         'graceful-shell.open-launcher',
         'graceful-shell.open-emoji',
         'graceful-shell.open-notifications',
+        'graceful-shell.open-power-menu',
         'graceful-shell.screenshot-area',
         'graceful-shell.record-screen',
         kPowerButtonShortcut,
@@ -282,6 +285,40 @@ void main() {
       panel.onActivate();
       expect(NotificationPanelController.instance.signalCount, before + 1);
       expect(EmojiPickerController.instance.signalCount, emojiBefore);
+    });
+
+    test('the power menu shortcut is Super+Shift+E, shift-resolved', () {
+      final menu = named(inputShortcutsFor(const ShortcutsConfig()),
+          'graceful-shell.open-power-menu');
+
+      expect(menu.modifiers,
+          InputTriggerModifiers.meta | InputTriggerModifiers.shift);
+      // Not 0x65: Mir matches the resolved character, so Shift+e is `E`.
+      expect(menu.keysym, 0x45);
+      // Three shortcuts sit on the E key — this one, the notification panel
+      // and the emoji picker — and only the modifiers tell them apart, so the
+      // collision guard must not have collapsed any of them together.
+      final panel = named(inputShortcutsFor(const ShortcutsConfig()),
+          'graceful-shell.open-notifications');
+      final emoji = named(inputShortcutsFor(const ShortcutsConfig()),
+          'graceful-shell.open-emoji');
+      expect(menu.spec == panel.spec, isFalse);
+      expect(menu.spec == emoji.spec, isFalse);
+    });
+
+    test('the power menu shortcut opens the menu, not the panel', () {
+      // Every one of the three is a bare `toggle` on a SignalController, so a
+      // copy-paste that wired this to the notification panel would look right
+      // and open the wrong surface.
+      final before = PowerMenuController.instance.signalCount;
+      final panelBefore = NotificationPanelController.instance.signalCount;
+
+      named(inputShortcutsFor(const ShortcutsConfig()),
+              'graceful-shell.open-power-menu')
+          .onActivate();
+
+      expect(PowerMenuController.instance.signalCount, before + 1);
+      expect(NotificationPanelController.instance.signalCount, panelBefore);
     });
 
     test('the capture shortcuts are Print and Super+Print', () {

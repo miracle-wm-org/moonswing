@@ -176,6 +176,8 @@ open_settings = "super+s"
 open_launcher = "super+d"
 open_emoji = "ctrl+shift+e"
 open_notifications = "super+e"
+# The power menu — shut down, restart, suspend, lock or log out.
+open_power_menu = "shift+super+e"
 # A screenshot of an area you drag out, and a recording of the screen you are
 # on. Press the recording shortcut again to stop it.
 screenshot_area = "print"
