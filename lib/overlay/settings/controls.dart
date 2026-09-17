@@ -2461,9 +2461,8 @@ class SettingsConfirmCard extends StatelessWidget {
     final warning = this.warning;
     return Focus(
       autofocus: true,
-      // Escape cancels, matching the power menu's confirmation
-      // (`modules/system.dart`). The card is modal, so nothing below it is
-      // competing for the key.
+      // Escape cancels, as it does in the power menu. The card is modal, so
+      // nothing below it is competing for the key.
       onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.escape) {

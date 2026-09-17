@@ -1,5 +1,6 @@
-// The power menu the physical power button opens: a row of large targets over a
-// full-screen layer-shell backdrop, one per [PowerAction].
+// The shell's one power surface — what the physical power button opens, and what
+// the bar's power icon opens: a row of large targets over a full-screen
+// layer-shell backdrop, one per [PowerAction].
 //
 // The actions are injected (`onAction`), so a widget test drives the whole
 // surface without suspending the machine it runs on.
@@ -22,10 +23,12 @@ const double kPowerTileSize = 112;
 
 /// The full-screen power menu.
 ///
-/// Unlike the bar's power popup this asks for no confirmation, and the two are
-/// reached differently: the popup is one small target among a row of bar icons,
-/// where a mis-click lands on a verb nobody aimed at, while this menu *is* the
-/// confirmation — it appears because the power button was pressed.
+/// It asks for no confirmation of its own, because it *is* the confirmation: it
+/// is on screen only because the power button was pressed or the bar's power
+/// icon was clicked, so the tile the user picks next is already the second
+/// deliberate act. The bar icon used to open a popup of five verbs instead, each
+/// of the destructive ones behind a confirmation dialog — a second surface
+/// describing the same list, which is how that one came to be missing Restart.
 class PowerMenuOverlay extends StatefulWidget {
   const PowerMenuOverlay({
     super.key,
@@ -47,8 +50,8 @@ class PowerMenuOverlay extends StatefulWidget {
 
   final List<PowerAction> actions;
 
-  /// What Enter answers with before the user has moved. Shut Down, because this
-  /// dialog is what a power-button press opens, so the fast path is press,
+  /// What Enter answers with before the user has moved. Shut Down, because a
+  /// power-button press is the usual way here, so the fast path is press,
   /// glance, Enter. The two ways out are Escape and a click outside, which the
   /// card says under the tiles rather than spending a sixth tile on Cancel.
   final PowerAction initialAction;

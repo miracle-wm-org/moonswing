@@ -599,6 +599,8 @@ inhibit_logind = true
 
 Both keys are live: changing them in Settings → Shell → Power Button takes effect on the next press. The *binding* — `[shortcuts] power_button` — is not, because global shortcuts are registered once at start-up.
 
+`key_action` is about the *physical* key alone. The panel's power icon always opens the power menu, whatever this is set to — including `"none"`, which leaves the key to logind without leaving you with no way to shut down from the shell.
+
 ### Why `inhibit_logind` exists
 
 systemd-logind watches the power button directly, and `HandlePowerKey` in `logind.conf` is `poweroff` on a stock system. It does not care that a compositor also delivered the key to the shell — so a shell that only listened would draw its power menu onto a machine that was already going down.

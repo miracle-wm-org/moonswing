@@ -8,8 +8,9 @@ import 'package:graceful_shell/power/power_config.dart';
 /// One thing the shell can do to the session or the machine.
 ///
 /// The verbs used to be spelled inline in the system module's popup, one closure
-/// per button, which is why the bar menu had no Restart. The power menu offers
-/// the same five, and both take their labels from here so the two cannot drift.
+/// per button, which is why that menu had no Restart while the power menu did.
+/// There is one power surface now — the power menu, which both the physical key
+/// and the bar's power icon open — and it draws this list.
 enum PowerAction {
   lock('Lock', FontAwesomeIcons.lock),
   logout('Log Out', FontAwesomeIcons.arrowRightFromBracket),
@@ -19,30 +20,20 @@ enum PowerAction {
 
   const PowerAction(this.label, this.icon);
 
-  /// What the button says, and — lower-cased — what the confirmation asks
-  /// about ("Are you sure that you want to shut down?").
+  /// What the tile says.
   final String label;
 
-  /// The glyph both menus draw. Here rather than at the two call sites for
-  /// [label]'s reason: a user who has learned one picture should not have to
-  /// learn a second.
+  /// The glyph the menu draws. Beside [label] for its reason: a verb's word and
+  /// its picture belong to the verb, not to whatever surface is listing it.
   ///
   /// [FaIconData] rather than `IconData`: it is a *wrapper* around one rather
   /// than a subclass, and `FaIcon` — which draws these, because the plain `Icon`
   /// clips a non-square Font Awesome glyph — takes only the wrapper.
   final FaIconData icon;
-
-  /// Whether the action is worth confirming before it is performed.
-  ///
-  /// Locking is trivially reversible; the other four end the session or the
-  /// uptime and take unsaved work with them. The power *menu* is itself a
-  /// deliberate choice, so it acts on the press — this is for the bar popup,
-  /// where a mis-click lands on a verb the user was not aiming at.
-  bool get needsConfirmation => this != PowerAction.lock;
 }
 
-/// The order both power menus list them in: least destructive first, so the
-/// button that ends the uptime is the furthest from an accidental click.
+/// The order the power menu lists them in: least destructive first, so the tile
+/// that ends the uptime is the furthest from an accidental click.
 const List<PowerAction> kPowerMenuActions = PowerAction.values;
 
 /// The action a `[power] key_action` names, or null when it names none —
@@ -62,9 +53,9 @@ typedef PowerActionRunner = Future<void> Function(PowerAction action);
 
 /// The seam between "a button was pressed" and the machine actually going down.
 ///
-/// A static rather than a constructor parameter because the three call sites are
-/// each several layers from anything that could inject one, and because what a
-/// test needs is not a *different* runner but *no* runner: a widget test that
+/// A static rather than a constructor parameter because both call sites are
+/// several layers from anything that could inject one, and because what a test
+/// needs is not a *different* runner but *no* runner: a widget test that
 /// suspends the machine running it is not one anybody runs twice.
 abstract final class PowerActions {
   /// Replaced by tests, restored in their teardown.
@@ -77,9 +68,9 @@ abstract final class PowerActions {
 /// The real implementation of [PowerActions.runner].
 ///
 /// [UbuntuSession] resolves the session manager the desktop actually has (GNOME's,
-/// MATE's, or systemd-logind as the fallback) and is what the bar popup already
-/// used for logout and shutdown. Suspend has no place in that interface, so it
-/// goes to logind directly.
+/// MATE's, or systemd-logind as the fallback), which is why logout, reboot and
+/// shutdown go through it. Suspend has no place in that interface, so it goes to
+/// logind directly.
 Future<void> performPowerAction(PowerAction action) async {
   switch (action) {
     case PowerAction.lock:
