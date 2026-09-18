@@ -12,6 +12,11 @@
 ///   written into the user's cache directory the first time it is wanted. It is
 ///   also what makes the set open source in the only sense that matters here:
 ///   there is no sample from anywhere, only arithmetic anybody can read.
+///   `lib/shell_sound.dart` is where that rule, the RIFF writer, the sound-theme
+///   search and the player now live, because `lib/capture/capture_sound.dart`
+///   needed every one of them for the shutter. What stayed here is what is
+///   specific to a chime: the catalogue, the partial series a struck bell has,
+///   and the arrival this plays on.
 /// - **Silence is about interruption, so the chime is the first thing it takes.**
 ///   [NotificationStore.silenced] stops the chime exactly as it stops the bell's
 ///   shake and the floating card, and for the same reason — nothing is lost, the
@@ -21,10 +26,10 @@
 ///   the panel's sound row renders it. A chime that silently stopped working is
 ///   indistinguishable from a quiet day.
 ///
-/// Flutter-free apart from [ChangeNotifier] and the media_kit player, which is
-/// the same one `lib/background.dart` plays video wallpapers through — so the
-/// chime costs the shell no new dependency and no new staged library in the
-/// snap.
+/// Flutter-free apart from [ChangeNotifier] and, through [ShellSoundPlayer],
+/// the media_kit player `lib/background.dart` plays video wallpapers through —
+/// so the chime costs the shell no new dependency and no new staged library in
+/// the snap.
 library;
 
 import 'dart:async';
@@ -32,25 +37,27 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
-import 'package:media_kit/media_kit.dart';
 
 import 'package:graceful_shell/notification_service.dart';
+import 'package:graceful_shell/shell_sound.dart';
+
+/// `expandHome` was declared here before `lib/shell_sound.dart` existed, and a
+/// caller that reaches for it through this file is not wrong about where the
+/// shell's sound rules live.
+export 'package:graceful_shell/shell_sound.dart' show expandHome;
 
 /// The `sound` value a fresh config has.
 const String kDefaultNotificationSound = 'chime';
 
-/// The spellings that mean "play nothing".
-///
-/// Three of them because this key is hand-typed into `config.toml` and a user
-/// who writes `sound = "off"` has said what they meant; the settings row offers
-/// `none`, which is the one the shell writes.
-const Set<String> kNotificationSoundOff = {'none', 'off', 'silent'};
+/// The spellings that mean "play nothing". Shared with every other sound the
+/// shell plays — see [kShellSoundOff].
+const Set<String> kNotificationSoundOff = kShellSoundOff;
 
 /// How loud a chime is when the config says nothing.
 const double kDefaultNotificationSoundVolume = 0.7;
 
 /// The sample rate every shipped sound is rendered at.
-const int kNotificationSoundSampleRate = 44100;
+const int kNotificationSoundSampleRate = kShellSoundSampleRate;
 
 /// The shortest gap between two chimes.
 ///
@@ -263,30 +270,13 @@ NotificationVoice? notificationVoice(String slug) {
 // Rendering
 // ---------------------------------------------------------------------------
 
-/// How long the attack ramp is.
-///
-/// Not a taste decision: a waveform that starts at full amplitude on sample zero
-/// has a step discontinuity in it, which every speaker in the world reproduces
-/// as a click in front of the note.
-const double _kAttackSeconds = 0.004;
-
-/// How long the tail fades over, for the same reason at the other end: the file
-/// ends when it ends, and a sample that is not near zero when it does is a click.
-const double _kReleaseSeconds = 0.012;
-
-/// The peak the rendered waveform is normalised to.
-///
-/// Normalised rather than trusted: a voice is a hand-written list of gains that
-/// sum to whatever they sum to, and a recipe that happened to add up past 1.0
-/// would clip — which is audible, unlike the few tenths of a decibel this costs.
-const double _kPeak = 0.89;
-
-/// The RIFF header's size, and where the samples start.
-const int _kWavHeaderBytes = 44;
+/// How long the attack ramp is. See [kShellSoundAttackSeconds] for why there is
+/// one at all.
+const double _kAttackSeconds = kShellSoundAttackSeconds;
 
 /// How many frames [renderNotificationWav] will produce for [voice].
-int _frames(NotificationVoice voice, int sampleRate) =>
-    math.max(1, ((voice.duration + _kReleaseSeconds) * sampleRate).ceil());
+int _frames(NotificationVoice voice, int sampleRate) => math.max(
+    1, ((voice.duration + kShellSoundReleaseSeconds) * sampleRate).ceil());
 
 /// How many bytes [renderNotificationWav] will produce for [voice].
 ///
@@ -298,7 +288,7 @@ int notificationWavByteLength(
   NotificationVoice voice, {
   int sampleRate = kNotificationSoundSampleRate,
 }) =>
-    _kWavHeaderBytes + _frames(voice, sampleRate) * 2;
+    wavByteLength(_frames(voice, sampleRate));
 
 /// Renders [voice] as a 16-bit mono RIFF WAV.
 ///
@@ -312,7 +302,6 @@ Uint8List renderNotificationWav(
   final frames = _frames(voice, sampleRate);
   final samples = Float64List(frames);
 
-  var peak = 0.0;
   for (var i = 0; i < frames; i++) {
     final t = i / sampleRate;
     var value = 0.0;
@@ -337,61 +326,9 @@ Uint8List renderNotificationWav(
       }
     }
     samples[i] = value;
-    final magnitude = value.abs();
-    if (magnitude > peak) peak = magnitude;
   }
 
-  final scale = peak > 0 ? _kPeak / peak : 0.0;
-  final releaseFrames = math.min(frames, (_kReleaseSeconds * sampleRate).ceil());
-
-  const headerBytes = _kWavHeaderBytes;
-  final bytes = Uint8List(headerBytes + frames * 2);
-  final view = ByteData.sublistView(bytes);
-  _writeWavHeader(view, frames: frames, sampleRate: sampleRate);
-
-  for (var i = 0; i < frames; i++) {
-    var value = samples[i] * scale;
-    final intoRelease = i - (frames - releaseFrames);
-    if (intoRelease > 0) {
-      value *= 1.0 - intoRelease / releaseFrames;
-    }
-    final sample = (value * 32767).round().clamp(-32768, 32767);
-    view.setInt16(headerBytes + i * 2, sample, Endian.little);
-  }
-  return bytes;
-}
-
-/// The 44-byte canonical RIFF/WAVE header for mono 16-bit PCM.
-void _writeWavHeader(
-  ByteData view, {
-  required int frames,
-  required int sampleRate,
-}) {
-  const channels = 1;
-  const bitsPerSample = 16;
-  final byteRate = sampleRate * channels * bitsPerSample ~/ 8;
-  final blockAlign = channels * bitsPerSample ~/ 8;
-  final dataBytes = frames * blockAlign;
-
-  void ascii(int offset, String text) {
-    for (var i = 0; i < text.length; i++) {
-      view.setUint8(offset + i, text.codeUnitAt(i));
-    }
-  }
-
-  ascii(0, 'RIFF');
-  view.setUint32(4, 36 + dataBytes, Endian.little);
-  ascii(8, 'WAVE');
-  ascii(12, 'fmt ');
-  view.setUint32(16, 16, Endian.little); // PCM fmt chunk size
-  view.setUint16(20, 1, Endian.little); // format 1 = PCM
-  view.setUint16(22, channels, Endian.little);
-  view.setUint32(24, sampleRate, Endian.little);
-  view.setUint32(28, byteRate, Endian.little);
-  view.setUint16(32, blockAlign, Endian.little);
-  view.setUint16(34, bitsPerSample, Endian.little);
-  ascii(36, 'data');
-  view.setUint32(40, dataBytes, Endian.little);
+  return encodeWav16(samples, sampleRate: sampleRate);
 }
 
 // ---------------------------------------------------------------------------
@@ -438,32 +375,15 @@ class NotificationSoundChoice {
   String get label => voice?.label ?? path ?? missing ?? 'None';
 }
 
-/// The sound-theme extensions worth trying, commonest first.
-const List<String> _kSoundExtensions = [
-  '.oga',
-  '.ogg',
-  '.wav',
-  '.opus',
-  '.flac',
-  '.mp3',
-];
-
-/// The sound themes a bare name is looked for under. `freedesktop` is the one
-/// `sound-theme-freedesktop` installs and is what every desktop on the machine
-/// already plays.
-const List<String> _kSoundThemes = ['freedesktop', 'ubuntu', 'default'];
-
 /// Resolves the `sound` key's [spelling] against the filesystem.
-///
-/// Pure apart from [exists], which is injected for the same reason
-/// `NotificationStore.daemonStarter` is: the rules here are a table of string
-/// manipulations and a unit test must be able to reach them on a machine with no
-/// sound theme installed.
 ///
 /// The order is the order of decreasing certainty about what the user meant: an
 /// off switch, then a shipped voice, then a path they spelled out, then a bare
 /// name looked for in the sound themes — so a user who installs a theme
 /// containing a `chime` cannot have the shipped one taken away from them by it.
+/// The last two of those are [resolveSoundFile], because they are the same two
+/// for every sound the shell plays; [exists] is injected through it for the
+/// reason `NotificationStore.daemonStarter` is.
 NotificationSoundChoice resolveNotificationSound(
   String spelling, {
   required List<String> soundRoots,
@@ -471,106 +391,30 @@ NotificationSoundChoice resolveNotificationSound(
   String? home,
 }) {
   final wanted = spelling.trim();
-  if (wanted.isEmpty || kNotificationSoundOff.contains(wanted.toLowerCase())) {
-    return const NotificationSoundChoice.silent();
-  }
+  if (isSoundOff(wanted)) return const NotificationSoundChoice.silent();
 
   final shipped = notificationVoice(wanted);
   if (shipped != null) return NotificationSoundChoice.shipped(shipped);
 
-  // Anything with a separator in it is a path the user typed, and a path that
-  // is not there is a missing file rather than a name to go looking for: a
-  // typo in `/usr/share/sounds/…` must not silently resolve to something else.
-  if (wanted.contains('/')) {
-    final expanded = expandHome(wanted, home: home);
-    return exists(expanded)
-        ? NotificationSoundChoice.file(expanded)
-        : NotificationSoundChoice.missing(wanted);
-  }
-
-  // A name spelled with an extension is tried verbatim as well as stripped, so
-  // both `message` and `message.oga` find the same file.
-  final dot = wanted.indexOf('.');
-  final bare = dot > 0 ? wanted.substring(0, dot) : wanted;
-  final verbatim = dot > 0 ? <String>[wanted] : const <String>[];
-  for (final root in soundRoots) {
-    for (final candidate in [
-      // A file sitting directly in a sounds directory, spelled with its
-      // extension or without.
-      for (final name in verbatim) '$root/$name',
-      for (final extension in _kSoundExtensions) '$root/$bare$extension',
-      // The sound-theme layout: `<theme>/<profile>/<name>.<ext>`.
-      for (final theme in _kSoundThemes)
-        for (final profile in const ['stereo', 'mono'])
-          for (final extension in _kSoundExtensions)
-            '$root/$theme/$profile/$bare$extension',
-    ]) {
-      if (exists(candidate)) return NotificationSoundChoice.file(candidate);
-    }
-  }
-  return NotificationSoundChoice.missing(wanted);
+  final file = resolveSoundFile(
+    wanted,
+    soundRoots: soundRoots,
+    exists: exists,
+    home: home,
+  );
+  return file == null
+      ? NotificationSoundChoice.missing(wanted)
+      : NotificationSoundChoice.file(file);
 }
 
-/// `~` and `~/…` expanded against [home], which defaults to the environment's.
-///
-/// Anything else is returned verbatim, a bare `~user` included: this shell has
-/// no business guessing at another account's home directory.
-String expandHome(String path, {String? home}) {
-  if (path != '~' && !path.startsWith('~/')) return path;
-  final resolved = home ?? Platform.environment['HOME'];
-  if (resolved == null || resolved.isEmpty) return path;
-  if (path == '~') return resolved;
-  return '$resolved/${path.substring(2)}';
-}
-
-/// Where a bare sound name is looked for, in search order.
-///
-/// The XDG data directories with `/sounds` on the end, user first — which is
-/// where `sound-theme-freedesktop` and every desktop's own theme install to.
-List<String> notificationSoundRoots({Map<String, String>? environment}) {
-  final env = environment ?? Platform.environment;
-  final home = env['HOME'];
-  final roots = <String>[];
-
-  /// Appends `/sounds` to one XDG data directory. The trailing slash is dropped
-  /// first: `XDG_DATA_HOME=~/data/` is a legal spelling, and a root with a
-  /// doubled separator in it would have one in every candidate below it.
-  void add(String? base) {
-    if (base == null || base.isEmpty) return;
-    var trimmed = base;
-    while (trimmed.length > 1 && trimmed.endsWith('/')) {
-      trimmed = trimmed.substring(0, trimmed.length - 1);
-    }
-    final root = '$trimmed/sounds';
-    if (!roots.contains(root)) roots.add(root);
-  }
-
-  final dataHome = env['XDG_DATA_HOME'];
-  add(dataHome != null && dataHome.isNotEmpty
-      ? dataHome
-      : (home == null ? null : '$home/.local/share'));
-  for (final dir in (env['XDG_DATA_DIRS'] ?? '').split(':')) {
-    add(dir);
-  }
-  add('/usr/local/share');
-  add('/usr/share');
-  return roots;
-}
+/// Where a bare sound name is looked for, in search order. [shellSoundRoots]
+/// under the chime's own name, which is what `config.toml`'s reader documents.
+List<String> notificationSoundRoots({Map<String, String>? environment}) =>
+    shellSoundRoots(environment: environment);
 
 /// Where the shipped sounds are written so something can open them.
-///
-/// The user's cache directory rather than a temporary file: these are rendered
-/// once and played for the life of the install, and a cache is exactly the
-/// contract — losing it costs a few milliseconds of arithmetic.
-String notificationSoundCacheDirectory({Map<String, String>? environment}) {
-  final env = environment ?? Platform.environment;
-  final cacheHome = env['XDG_CACHE_HOME'];
-  if (cacheHome != null && cacheHome.isNotEmpty) {
-    return '$cacheHome/graceful-shell/sounds';
-  }
-  final home = env['HOME'] ?? '.';
-  return '$home/.cache/graceful-shell/sounds';
-}
+String notificationSoundCacheDirectory({Map<String, String>? environment}) =>
+    shellSoundCacheDirectory(environment: environment);
 
 // ---------------------------------------------------------------------------
 // The config the module pushes down
@@ -873,38 +717,23 @@ class NotificationSoundStore extends ChangeNotifier {
 String materialiseVoice(
   NotificationVoice voice, {
   Map<String, String>? environment,
-}) {
-  final directory = notificationSoundCacheDirectory(environment: environment);
-  final path = '$directory/${voice.slug}.wav';
-  final file = File(path);
-  if (file.existsSync() &&
-      file.lengthSync() == notificationWavByteLength(voice)) {
-    return path;
-  }
-  Directory(directory).createSync(recursive: true);
-  file.writeAsBytesSync(renderNotificationWav(voice), flush: true);
-  return path;
-}
+}) =>
+    materialiseSound(
+      '${voice.slug}.wav',
+      expectedLength: notificationWavByteLength(voice),
+      bytes: () => renderNotificationWav(voice),
+      environment: environment,
+    );
 
 /// The one media_kit player the chime uses.
 ///
 /// One for the process, kept between chimes: opening a player costs an mpv
 /// initialisation, and a store that built one per notification would spend it
-/// every time. It is closed with the last lease.
-Player? _player;
+/// every time. It is closed with the last lease. The shutter keeps its own —
+/// see [ShellSoundPlayer] for why the two are not one.
+final ShellSoundPlayer _player = ShellSoundPlayer();
 
-Future<void> _playWithMediaKit(String path, double volume) async {
-  final player = _player ??= Player(
-    // Nothing here has a picture or a subtitle track, and `lib/background.dart`
-    // builds its own player the same way.
-    configuration: const PlayerConfiguration(libass: false),
-  );
-  await player.setVolume((volume * 100).clamp(0.0, 100.0));
-  await player.open(Media(Uri.file(path).toString()), play: true);
-}
+Future<void> _playWithMediaKit(String path, double volume) =>
+    _player.play(path, volume);
 
-void _closePlayer() {
-  final player = _player;
-  _player = null;
-  player?.dispose();
-}
+void _closePlayer() => _player.close();

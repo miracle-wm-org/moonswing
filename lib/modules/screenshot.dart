@@ -16,6 +16,7 @@ import 'package:graceful_shell/bar_button.dart';
 import 'package:graceful_shell/capture/capture_config.dart';
 import 'package:graceful_shell/capture/capture_flow.dart';
 import 'package:graceful_shell/capture/capture_menu.dart';
+import 'package:graceful_shell/capture/capture_sound.dart';
 import 'package:graceful_shell/capture/capture_store.dart';
 import 'package:graceful_shell/capture/selection_controller.dart';
 import 'package:graceful_shell/module.dart';
@@ -53,20 +54,31 @@ class _ScreenshotButtonState extends State<ScreenshotButton>
       closePopup();
       return;
     }
+    final sound = ShutterSoundStore.instance;
     openBarPopup(
       context,
       preferredConstraints: const BoxConstraints(maxWidth: 360, maxHeight: 400),
       child: ThemeProvider(
         child: ListenableBuilder(
-          listenable: _store,
-          builder: (context, _) => CaptureMenuCard(
-            actions: [
-              for (final mode in SelectionMode.values)
-                CaptureMenuAction.mode(mode, () => _start(mode)),
-            ],
-            note: _store.error,
-            noteIsError: _store.error != null,
-          ),
+          // Both, because they fail separately: a capture that did not happen
+          // and a shutter that made no noise over one that did.
+          listenable: Listenable.merge([_store, sound]),
+          builder: (context, _) {
+            // The capture's own failure wins — it is the one that cost the
+            // user a photograph. A shutter that made no noise is what the row
+            // says when there is nothing worse to say, and it needs saying at
+            // all because the file is on the disk either way: the silence is
+            // the only sign that anything went wrong.
+            final note = _store.error ?? sound.error;
+            return CaptureMenuCard(
+              actions: [
+                for (final mode in SelectionMode.values)
+                  CaptureMenuAction.mode(mode, () => _start(mode)),
+              ],
+              note: note,
+              noteIsError: note != null,
+            );
+          },
         ),
       ),
     );
@@ -114,6 +126,11 @@ final Module screenshotModule = Module.simple<ScreenshotConfig>(
     // no panel carrying this module on the monitor that fires it.
     // `Module.simple`'s signature guard stops this re-running per keystroke.
     CaptureStore.instance.configureScreenshot(config);
+    // The sound is pushed to its own store for the same reason the chime's is,
+    // and from here rather than from `CaptureStore`: a spelling is resolved
+    // once per edit rather than once per photograph, and a store under test
+    // stays out of the singleton the shell actually plays through.
+    ShutterSoundStore.instance.configure(config.soundConfig);
     return config;
   },
   builder: (context, config) => const ScreenshotButton(),

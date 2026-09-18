@@ -6,6 +6,7 @@
 // fresh object on every sweep and `ConfigStore` notifies on every keystroke
 // anywhere in the settings UI, so the stores compare before acting.
 
+import 'package:graceful_shell/capture/capture_sound.dart';
 import 'package:graceful_shell/config_reader.dart';
 
 /// Where a still capture goes and what it does on the way.
@@ -16,6 +17,8 @@ class ScreenshotConfig {
     this.copyToClipboard = true,
     this.delaySeconds = 0,
     this.showCursor = false,
+    this.shutterSound = kDefaultShutterSound,
+    this.shutterVolume = kDefaultShutterVolume,
   });
 
   /// Empty means [kDefaultScreenshotDirectory] under `$HOME`. A leading `~` is
@@ -39,6 +42,23 @@ class ScreenshotConfig {
   /// is the opposite of the call [RecorderConfig.showCursor] makes.
   final bool showCursor;
 
+  /// What plays once the PNG has been written: a shipped shutter's slug, a path,
+  /// a sound-theme name, or `none`. See `lib/capture/capture_sound.dart`.
+  ///
+  /// It is a `[modules.screenshot]` key rather than a `[modules.screen_recorder]`
+  /// one because it is the *still* capture that ends with a sound — a recording
+  /// announces itself by the readout in the bar for as long as it runs, and a
+  /// shutter at the end of one would be a photograph nobody took.
+  final String shutterSound;
+
+  /// 0 to 1. Clamped rather than trusted: this key is hand-edited, and a volume
+  /// of 40 handed to mpv is a different kind of surprise.
+  final double shutterVolume;
+
+  /// What the sound layer reads off this.
+  ShutterSoundConfig get soundConfig =>
+      ShutterSoundConfig(sound: shutterSound, volume: shutterVolume);
+
   factory ScreenshotConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ScreenshotConfig();
     const defaults = ScreenshotConfig();
@@ -53,6 +73,9 @@ class ScreenshotConfig {
       delaySeconds:
           map.intOr('delay_seconds', defaults.delaySeconds, min: 0, max: 60),
       showCursor: map.boolOr('show_cursor', defaults.showCursor),
+      shutterSound: map.stringOr('shutter_sound', defaults.shutterSound),
+      shutterVolume: map.doubleOr('shutter_volume', defaults.shutterVolume,
+          min: 0.0, max: 1.0),
     );
   }
 
@@ -63,11 +86,13 @@ class ScreenshotConfig {
       other.filenamePrefix == filenamePrefix &&
       other.copyToClipboard == copyToClipboard &&
       other.delaySeconds == delaySeconds &&
-      other.showCursor == showCursor;
+      other.showCursor == showCursor &&
+      other.shutterSound == shutterSound &&
+      other.shutterVolume == shutterVolume;
 
   @override
-  int get hashCode => Object.hash(
-      directory, filenamePrefix, copyToClipboard, delaySeconds, showCursor);
+  int get hashCode => Object.hash(directory, filenamePrefix, copyToClipboard,
+      delaySeconds, showCursor, shutterSound, shutterVolume);
 }
 
 /// Where a recording goes and how it is encoded.

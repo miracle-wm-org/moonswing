@@ -467,6 +467,70 @@ Nothing is read until something needs it: the shell only samples `/proc` while t
 
 Two processes can never be killed from here, whatever the config says: the shell itself, and `init`.
 
+### Screenshot
+
+The camera in the bar: click it, choose an area, a window or a screen, and the
+PNG is on the disk and on the clipboard. The same settings apply to the
+`screenshot_area` shortcut, which takes the shot without the module being in any
+panel.
+
+```toml
+[modules.screenshot]
+directory = "~/Pictures/Screenshots"
+filename_prefix = "Screenshot"
+copy_to_clipboard = true
+delay_seconds = 0
+show_cursor = false
+shutter_sound = "shutter"
+shutter_volume = 0.6
+```
+
+| Key                 | Type   | Default                  | What it does                                                             |
+| ------------------- | ------ | ------------------------ | ------------------------------------------------------------------------ |
+| `directory`         | string | `~/Pictures/Screenshots` | Where the PNG is written. `~` and `$HOME` are expanded.                  |
+| `filename_prefix`   | string | `"Screenshot"`           | What each file is named before the date and time.                        |
+| `copy_to_clipboard` | bool   | `true`                   | Also put the shot on the clipboard, via `wl-copy`.                       |
+| `delay_seconds`     | int    | `0`                      | A pause before the shutter, for getting a menu on screen first (0–60).   |
+| `show_cursor`       | bool   | `false`                  | Paint the pointer into the frame.                                        |
+| `shutter_sound`     | string | `"shutter"`              | What plays once the file has been written — see below.                   |
+| `shutter_volume`    | float  | `0.6`                    | How loud it plays, from 0 to 1. Clamped.                                 |
+
+#### The shutter
+
+The sound plays when the screenshot has been **saved**, not when you choose what
+to capture — so it follows `delay_seconds`, and it is the thing that tells you
+the file exists. A capture that failed makes no sound, because nothing was
+photographed.
+
+`shutter_sound` takes four kinds of answer, tried in this order:
+
+- **One of the shipped shutters** — `shutter`, `snap`, `clack` or `tick`. These
+  are not files: the shell synthesises them from a handful of numbers and writes
+  the result into `~/.cache/graceful-shell/sounds/` the first time one is
+  wanted, which is what lets them work identically under `flutter run`, a `make
+  install` and the snap. It is also what makes them shippable — a camera click
+  recording is almost always somebody's licensed sample, and these are
+  arithmetic under this project's own GPL-3.0, with no third party in them.
+  `shutter` is the default: a reflex camera, mirror up and mirror down. `snap`
+  is one bright click, `clack` a heavier mechanism with the body ringing under
+  it, and `tick` a small dry tick for somebody who wants the confirmation
+  without the theatre.
+- **`none`** (or `off`, or `silent`) — screenshots are saved without a sound.
+- **A path** — anything with a `/` in it, `~` included. Any format mpv can open.
+- **A name from the system's sound theme** — anything else, looked for under the
+  XDG sound directories exactly as [the notification chime](#notifications) is.
+  `shutter_sound = "camera-shutter"` finds
+  `/usr/share/sounds/freedesktop/stereo/camera-shutter.oga`.
+
+A name that resolves to nothing is *not* silence: the screenshot menu says so
+and names what it could not find. The file is written either way, which is why
+it needs saying — a shutter that has quietly stopped working looks exactly like
+one you turned off.
+
+There is deliberately no shutter for a **recording**. A recording announces
+itself by the readout in the bar for as long as it runs, and a camera click at
+the end of one would be describing a photograph nobody took.
+
 ## Shortcuts
 
 The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are registered with the compositor (Mir's `ext-input-trigger` protocols), so they fire no matter which window has focus.
