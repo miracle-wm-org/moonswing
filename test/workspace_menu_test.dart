@@ -171,13 +171,13 @@ void main() {
         tester
             .widget<FaIcon>(find.byIcon(FontAwesomeIcons.solidClone.data))
             .color,
-        theme.accent,
+        theme.accentText,
       );
       expect(
         tester
             .widget<FaIcon>(find.byIcon(FontAwesomeIcons.tableCells.data))
             .color,
-        isNot(theme.accent),
+        isNot(theme.accentText),
       );
     });
 

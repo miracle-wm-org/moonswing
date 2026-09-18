@@ -175,7 +175,7 @@ class _ScreencastPickerOverlayState extends State<ScreencastPickerOverlay> {
               Row(
                 children: [
                   FaIcon(FontAwesomeIcons.display,
-                      size: 16, color: theme.accent),
+                      size: 16, color: theme.accentText),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -338,7 +338,7 @@ class _SourceTile extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 color:
-                    selected ? theme.accent : theme.popupForeground,
+                    selected ? theme.accentText : theme.popupForeground,
               ),
             ),
             if (source.sublabel.isNotEmpty)

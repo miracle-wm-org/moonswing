@@ -166,7 +166,11 @@ class _OverlaySearchFieldState extends State<OverlaySearchField> {
                         color: theme.popupForeground,
                         fontFamily: theme.fontFamily,
                       ),
-                      cursorColor: theme.accent,
+                      // The caret is a mark to be *seen*, so it takes the
+                      // accent's reading colour; the highlight below is a fill
+                      // and keeps the accent itself. Swapping them over would
+                      // put pale text on a pale block.
+                      cursorColor: theme.accentText,
                       backgroundCursorColor: theme.divider,
                       // Selected text is drawn on the accent, which reads as an
                       // inverted block against the field's dark control surface.

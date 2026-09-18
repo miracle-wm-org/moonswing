@@ -599,7 +599,7 @@ class _MiracleFooter extends StatelessWidget {
                           fontSize: ShellFontSizes.secondary,
                           fontFamily: theme.fontFamily,
                           color: dirty
-                              ? theme.accent
+                              ? theme.accentText
                               : theme.popupForeground.withValues(alpha: 0.5),
                         ),
                       ),
@@ -799,7 +799,7 @@ class _CategoryCard extends StatelessWidget {
                 category.icon,
                 size: ShellFontSizes.label,
                 color: hovered
-                    ? theme.accent
+                    ? theme.accentText
                     : theme.popupForeground.withValues(alpha: 0.8),
               ),
               const SizedBox(width: 12),

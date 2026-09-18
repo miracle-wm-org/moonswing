@@ -682,7 +682,7 @@ class _NotificationPanelState extends State<NotificationPanel>
                   'Clear all',
                   style: TextStyle(
                     fontSize: ShellFontSizes.label,
-                    color: theme.accent,
+                    color: theme.accentText,
                   ),
                 ),
               ),
@@ -836,7 +836,7 @@ class NotificationSilenceRow extends StatelessWidget {
                 silenced ? FontAwesomeIcons.bellSlash : FontAwesomeIcons.bell,
                 size: ShellFontSizes.label,
                 color: silenced
-                    ? theme.accent
+                    ? theme.accentText
                     : theme.popupForeground.withValues(alpha: 0.45),
               ),
               const SizedBox(width: 12),
@@ -1164,7 +1164,7 @@ class _NotificationCard extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: ShellFontSizes.label,
-                color: theme.accent,
+                color: theme.accentText,
               ),
             ),
           ),
@@ -1219,7 +1219,7 @@ class _NotificationCard extends StatelessWidget {
                           fontSize: ShellFontSizes.caption,
                           letterSpacing: 0.6,
                           fontWeight: FontWeight.bold,
-                          color: theme.accent.withValues(alpha: 0.9),
+                          color: theme.accentText.withValues(alpha: 0.9),
                         ),
                       ),
                     ),

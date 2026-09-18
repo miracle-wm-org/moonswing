@@ -354,7 +354,7 @@ class _LockScreenState extends State<LockScreen> {
                 fontSize: 15,
                 color: Color(0xFFFFFFFF),
               ),
-              cursorColor: theme.accent,
+              cursorColor: theme.accentText,
               backgroundCursorColor: const Color(0x44FFFFFF),
               obscureText: true,
               autocorrect: false,

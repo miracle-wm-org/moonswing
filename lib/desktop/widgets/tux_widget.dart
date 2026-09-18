@@ -414,7 +414,7 @@ class _Speech extends StatelessWidget {
                 fontSize: salutationSize,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
-                color: theme.accent,
+                color: theme.accentText,
               ),
             ),
             SizedBox(height: gap),

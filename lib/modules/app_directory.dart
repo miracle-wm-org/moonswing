@@ -594,7 +594,7 @@ class _SearchField extends StatelessWidget {
                     color: theme.popupForeground,
                     fontFamily: theme.fontFamily,
                   ),
-                  cursorColor: theme.accent,
+                  cursorColor: theme.accentText,
                   backgroundCursorColor: theme.divider,
                   onChanged: onChanged,
                 ),

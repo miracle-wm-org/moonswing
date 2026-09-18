@@ -162,7 +162,7 @@ class _AdvancedTabState extends State<AdvancedTab> {
           const Center(child: LoadingIndicator(size: 18))
         else if (_settingsError != null)
           Text(_settingsError!,
-              style: TextStyle(fontSize: 12, color: theme.accent))
+              style: TextStyle(fontSize: 12, color: theme.accentText))
         else ...[
           Text('Sample Rate',
               style: TextStyle(
@@ -271,7 +271,7 @@ class _AdvancedTabState extends State<AdvancedTab> {
               style: TextStyle(
                   fontSize: 12,
                   fontFamily: theme.fontFamily,
-                  color: theme.accent)),
+                  color: theme.accentText)),
         ],
       ],
     );

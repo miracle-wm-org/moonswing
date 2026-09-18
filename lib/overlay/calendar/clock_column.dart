@@ -355,7 +355,7 @@ class _WorldClockRowState extends State<_WorldClockRow> {
                       style: TextStyle(
                         fontSize: ShellFontSizes.caption,
                         fontFamily: theme.fontFamily,
-                        color: theme.accent,
+                        color: theme.accentText,
                       ),
                     ),
                 ],

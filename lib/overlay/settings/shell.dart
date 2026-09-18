@@ -463,7 +463,7 @@ class _CategoryCard extends StatelessWidget {
                   category.icon,
                   size: ShellFontSizes.title,
                   color: hovered
-                      ? theme.accent
+                      ? theme.accentText
                       : theme.popupForeground.withValues(alpha: 0.8),
                 ),
                 const SizedBox(width: 14),
@@ -503,7 +503,11 @@ class _RestartBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FaIcon(FontAwesomeIcons.arrowsRotate, size: 12, color: theme.accent),
+          FaIcon(
+            FontAwesomeIcons.arrowsRotate,
+            size: 12,
+            color: theme.accentText,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

@@ -279,7 +279,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
             size: ShellFontSizes.label,
             color: muted
                 ? theme.muted
-                : (hovered ? theme.accent : theme.popupForeground),
+                : (hovered ? theme.accentText : theme.popupForeground),
           ),
         ),
       ),

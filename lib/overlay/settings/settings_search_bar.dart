@@ -358,7 +358,7 @@ class _SettingsSearchResultRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: ShellFontSizes.caption,
                 fontFamily: theme.fontFamily,
-                color: theme.accent.withValues(alpha: 0.85),
+                color: theme.accentText.withValues(alpha: 0.85),
               ),
             ),
           ],

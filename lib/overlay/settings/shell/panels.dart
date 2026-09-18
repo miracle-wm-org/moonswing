@@ -253,7 +253,7 @@ class _PanelsSectionState extends State<PanelsSection> {
                       color: theme.popupForeground,
                       fontFamily: theme.fontFamily,
                     ),
-                    cursorColor: theme.accent,
+                    cursorColor: theme.accentText,
                     backgroundCursorColor: theme.divider,
                     onChanged: (_) => setState(() {}),
                     onSubmitted: (_) => _commitAdd(existing),
@@ -451,7 +451,7 @@ class _PanelTabClose extends StatelessWidget {
           FontAwesomeIcons.xmark,
           size: 10,
           color: hovered
-              ? theme.accent
+              ? theme.accentText
               : theme.popupForeground.withValues(alpha: 0.5),
         ),
       ),

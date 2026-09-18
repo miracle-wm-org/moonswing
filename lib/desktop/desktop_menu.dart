@@ -27,7 +27,8 @@ class DesktopMenuEntry {
   final bool enabled;
 
   /// Whether this row is the state the menu's subject is *already* in — one of
-  /// a set of alternatives, drawn in the accent colour with a check after it.
+  /// a set of alternatives, drawn in the accent's reading colour
+  /// (`ThemeConfig.accentText`) with a check after it.
   ///
   /// Marked rather than disabled, and rather than absent: a menu is read before
   /// it is clicked, so a set of choices has to say which one is current, and the
@@ -130,10 +131,20 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final entry = widget.entry;
+    // `accentText` rather than the accent: a checked row is a *label*, and the
+    // accent is the colour this palette fills buttons with. The shell's own
+    // theme put it on this card at 1.8:1, which made the one row the menu is
+    // trying to point at the one row that could not be read.
+    //
+    // Under the pointer it gives way to the ordinary foreground, because the
+    // fill it would then be read against is `surface_hover` — which in that
+    // same theme *is* the accent, and no lift clears its own source colour.
+    // The check after the label is what says "current" in either state, which
+    // is the job it was put there for.
     final foreground = !entry.enabled
         ? theme.muted
-        : entry.selected
-            ? theme.accent
+        : entry.selected && !_hovered
+            ? theme.accentText
             : theme.popupForeground;
 
     return MouseRegion(

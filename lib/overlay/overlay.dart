@@ -563,7 +563,7 @@ class _SidebarItem extends StatelessWidget {
                 icon,
                 size: ShellFontSizes.body,
                 color: selected
-                    ? theme.accent
+                    ? theme.accentText
                     : theme.popupForeground.withValues(alpha: 0.8),
               ),
               const SizedBox(width: 10),
@@ -573,7 +573,7 @@ class _SidebarItem extends StatelessWidget {
                   fontSize: ShellFontSizes.body,
                   fontFamily: theme.fontFamily,
                   color: selected
-                      ? theme.accent
+                      ? theme.accentText
                       : theme.popupForeground.withValues(alpha: 0.8),
                   fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
                 ),

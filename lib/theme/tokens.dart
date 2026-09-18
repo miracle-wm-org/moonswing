@@ -103,7 +103,19 @@ abstract final class ShellFontSizes {
 const Color kErrorColor = Color(0xFFE06C75);
 
 /// Text/iconography drawn on top of `theme.accent` fills.
+///
+/// The other half of the pair is `ThemeConfig.accentText`: this is what goes
+/// *on* an accent fill, that is what the accent becomes when it is the text
+/// rather than the fill.
 const Color kOnAccent = Color(0xFFFFFFFF);
+
+/// The contrast a colour needs against what is behind it to be read *as text*.
+///
+/// WCAG AA for body copy, and the floor `ThemeConfig.accentText` lifts an
+/// accent to. Deliberately not held against fills: a hairline rim, a slider's
+/// travel or a hover wash is furniture rather than prose, and holding those to
+/// a reading ratio would flatten every palette in the shell into two tones.
+const double kTextContrast = 4.5;
 
 /// Pointer-target sizes.
 ///

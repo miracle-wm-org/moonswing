@@ -256,7 +256,7 @@ class _DesktopRenameFieldState extends State<DesktopRenameField> {
                     fontFamily: theme.fontFamily,
                     color: theme.popupForeground,
                   ),
-                  cursorColor: theme.accent,
+                  cursorColor: theme.accentText,
                   backgroundCursorColor: theme.muted,
                   selectionColor: theme.accent.withValues(alpha: 0.4),
                 ),

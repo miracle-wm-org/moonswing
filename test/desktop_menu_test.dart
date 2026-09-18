@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/app_info.dart';
@@ -226,7 +227,7 @@ void main() {
         tester
             .widget<FaIcon>(find.byIcon(FontAwesomeIcons.tableCells.data))
             .color,
-        theme.accent,
+        theme.accentText,
       );
 
       // Re-choosing what is already chosen is a no-op, not an error: the row
@@ -234,6 +235,41 @@ void main() {
       await tester.tap(find.text('Chosen'));
       await tester.pump();
       expect(tapped, 1);
+    });
+
+    testWidgets('the mark gives way to the hover fill it would sit on',
+        (tester) async {
+      await pumpMenu(
+        tester,
+        DesktopMenuCard(entries: [
+          DesktopMenuEntry(
+            label: 'Chosen',
+            icon: FontAwesomeIcons.tableCells,
+            selected: true,
+            onTap: () {},
+          ),
+        ]),
+      );
+
+      final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(pointer.removePointer);
+      await pointer.addPointer(location: Offset.zero);
+      await tester.pump();
+      await pointer.moveTo(tester.getCenter(find.text('Chosen')));
+      await tester.pump();
+
+      // `surface_hover` is the accent itself in the shipped palette, and no
+      // lift off a surface clears that surface's own colour — so the hovered
+      // row is lettered in the ordinary foreground and the check is what goes
+      // on saying "current".
+      const theme = ThemeConfig();
+      expect(
+        tester
+            .widget<FaIcon>(find.byIcon(FontAwesomeIcons.tableCells.data))
+            .color,
+        theme.popupForeground,
+      );
+      expect(find.byIcon(FontAwesomeIcons.check.data), findsOneWidget);
     });
   });
 

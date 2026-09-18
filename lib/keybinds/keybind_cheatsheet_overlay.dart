@@ -367,7 +367,11 @@ class _CheatsheetHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            FaIcon(FontAwesomeIcons.keyboard, size: 18, color: theme.accent),
+            FaIcon(
+              FontAwesomeIcons.keyboard,
+              size: 18,
+              color: theme.accentText,
+            ),
             const SizedBox(width: 10),
             // Expanded rather than a Spacer after it: the title is the piece
             // that gives, so a narrow output ellipsises it instead of pushing
@@ -471,7 +475,7 @@ class _SectionHeading extends StatelessWidget {
       children: [
         Row(
           children: [
-            FaIcon(icon, size: 11, color: theme.accent),
+            FaIcon(icon, size: 11, color: theme.accentText),
             const SizedBox(width: 8),
             Text(
               label.toUpperCase(),
@@ -479,7 +483,7 @@ class _SectionHeading extends StatelessWidget {
                 fontSize: ShellFontSizes.caption,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.8,
-                color: theme.accent,
+                color: theme.accentText,
               ),
             ),
           ],
@@ -630,7 +634,7 @@ class _ShellSectionBlock extends StatelessWidget {
                   FaIcon(
                     FontAwesomeIcons.rotateRight,
                     size: 10,
-                    color: theme.accent,
+                    color: theme.accentText,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -639,7 +643,7 @@ class _ShellSectionBlock extends StatelessWidget {
                       'shortcuts are registered once, at start-up.',
                       style: TextStyle(
                         fontSize: ShellFontSizes.caption,
-                        color: theme.accent,
+                        color: theme.accentText,
                       ),
                     ),
                   ),
@@ -912,7 +916,7 @@ class _ShellShortcutTileState extends State<_ShellShortcutTile> {
             detail,
             style: TextStyle(
               fontSize: ShellFontSizes.caption,
-              color: isCapturing ? theme.accent : theme.muted,
+              color: isCapturing ? theme.accentText : theme.muted,
             ),
           ),
       ],
@@ -936,7 +940,7 @@ class _ShellShortcutTileState extends State<_ShellShortcutTile> {
           style: TextStyle(
             fontSize: ShellFontSizes.caption,
             fontWeight: FontWeight.w600,
-            color: theme.accent,
+            color: theme.accentText,
           ),
         ),
       );

@@ -441,7 +441,7 @@ class _ResponseField extends StatelessWidget {
           fontSize: ShellFontSizes.label,
           color: theme.popupForeground,
         ),
-        cursorColor: theme.accent,
+        cursorColor: theme.accentText,
         backgroundCursorColor: theme.muted,
         obscureText: obscure,
         autocorrect: false,

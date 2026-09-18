@@ -286,7 +286,7 @@ class SettingsSubLabel extends StatelessWidget {
       style: TextStyle(
         fontSize: 13,
         fontFamily: theme.fontFamily,
-        color: theme.accent,
+        color: theme.accentText,
         fontWeight: FontWeight.w600,
       ),
     );
@@ -846,7 +846,7 @@ class SettingsBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: ShellFontSizes.caption,
           fontFamily: theme.fontFamily,
-          color: theme.accent,
+          color: theme.accentText,
         ),
       ),
     );
@@ -1208,7 +1208,7 @@ TextStyle _dropdownLabelStyle(ThemeConfig theme, {required bool selected}) =>
     TextStyle(
       fontSize: ShellFontSizes.body,
       fontFamily: theme.fontFamily,
-      color: selected ? theme.accent : theme.popupForeground,
+      color: selected ? theme.accentText : theme.popupForeground,
     );
 
 TextStyle _dropdownDescriptionStyle(ThemeConfig theme) => TextStyle(
@@ -1437,7 +1437,7 @@ class _SettingsTextFieldState extends State<SettingsTextField>
             color: theme.popupForeground,
             fontFamily: theme.fontFamily,
           ),
-          cursorColor: theme.accent,
+          cursorColor: theme.accentText,
           backgroundCursorColor: theme.divider,
           selectionColor: theme.accent.withValues(alpha: 0.4),
           inputFormatters: widget.inputFormatters,
@@ -1613,7 +1613,7 @@ class SettingsIconButton extends StatelessWidget {
             icon,
             size: size,
             color: hovered
-                ? (hoverColor ?? theme.accent)
+                ? (hoverColor ?? theme.accentText)
                 : (color ?? theme.popupForeground.withValues(alpha: 0.6)),
           ),
         ),
@@ -1688,7 +1688,7 @@ class SettingsFontField extends StatelessWidget {
           style: TextStyle(
             fontSize: 13,
             fontFamily: family,
-            color: highlighted ? theme.accent : theme.popupForeground,
+            color: highlighted ? theme.accentText : theme.popupForeground,
           ),
           overflow: TextOverflow.ellipsis,
         );
@@ -2246,7 +2246,7 @@ class ColorPickerPopupState extends State<SettingsColorPicker> {
                         color: theme.popupForeground,
                         fontFamily: theme.fontFamily,
                       ),
-                      cursorColor: theme.accent,
+                      cursorColor: theme.accentText,
                       backgroundCursorColor: theme.divider,
                       inputFormatters: hexColorInputFormatters,
                       onChanged: _onHex,
@@ -2795,7 +2795,7 @@ class _SettingsStringListEditorState extends State<SettingsStringListEditor> {
                     color: theme.popupForeground,
                     fontFamily: theme.fontFamily,
                   ),
-                  cursorColor: theme.accent,
+                  cursorColor: theme.accentText,
                   backgroundCursorColor: theme.divider,
                   onChanged: (_) => setState(() {}),
                   // Enter commits and leaves the field open and focused: these
@@ -2918,7 +2918,7 @@ class SettingsAddButton extends StatelessWidget {
             FaIcon(
               FontAwesomeIcons.plus,
               size: ShellFontSizes.caption,
-              color: hovered ? theme.popupForeground : theme.accent,
+              color: hovered ? theme.popupForeground : theme.accentText,
             ),
             const SizedBox(width: 8),
             Text(
@@ -3138,7 +3138,7 @@ class SettingsNotice extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: FaIcon(icon, size: 14, color: theme.accent),
+            child: FaIcon(icon, size: 14, color: theme.accentText),
           ),
           const SizedBox(width: 10),
           Expanded(

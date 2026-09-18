@@ -406,7 +406,7 @@ class _DayCell extends StatelessWidget {
     var foreground = isSelected
         ? theme.popupForeground
         : theme.popupForeground.withValues(alpha: inMonth ? 0.9 : 0.35);
-    if (isToday && !isSelected) foreground = theme.accent;
+    if (isToday && !isSelected) foreground = theme.accentText;
 
     // Everything below here that the pointer cannot change, resolved once per
     // rebuild of the cell rather than once per pointer move.

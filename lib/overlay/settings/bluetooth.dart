@@ -408,7 +408,7 @@ class _BluetoothDeviceItemState extends State<_BluetoothDeviceItem> {
                 padding: const EdgeInsets.only(top: 6, left: 26),
                 child: Text(
                   widget.actionError!,
-                  style: TextStyle(fontSize: 11, color: theme.accent),
+                  style: TextStyle(fontSize: 11, color: theme.accentText),
                 ),
               ),
           ],
@@ -596,7 +596,7 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
           children: [
             Text(
               _scanError!,
-              style: TextStyle(fontSize: 13, color: theme.accent),
+              style: TextStyle(fontSize: 13, color: theme.accentText),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
