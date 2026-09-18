@@ -73,11 +73,13 @@ void main() {
         child: Align(
           alignment: Alignment.topLeft,
           child: ConstrainedBox(
-            // What `_GithubNotificationsState._togglePopup` passes.
+            // What `_GithubNotificationsState._togglePopup` passes: both axes
+            // pinned, which is what the popup's window is sized to.
             constraints: const BoxConstraints(
               minWidth: kGithubPopupWidth,
               maxWidth: kGithubPopupWidth,
-              maxHeight: 520,
+              minHeight: kGithubPopupHeight,
+              maxHeight: kGithubPopupHeight,
             ),
             child: GithubPopup(
               store: store,
@@ -252,6 +254,52 @@ void main() {
       expect(find.text('GitHub rate limit reached'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
       expect(find.text('Still here'), findsOneWidget);
+    });
+
+    testWidgets('is the fixed height whatever is in it', (tester) async {
+      // The card is the size the window was mapped at, in every state it has:
+      // one thread, fifty, none, and a sign-in form. Each of these used to size
+      // the surface, and only the first one that did got the placement it asked
+      // for.
+      for (final store in [
+        seeded(items: [testNotification(id: '1')]),
+        seeded(items: [
+          for (var i = 0; i < 50; i++) testNotification(id: '$i'),
+        ]),
+        seeded(),
+        seeded(stage: GithubAuthStage.signedOut),
+      ]) {
+        await pumpPopup(tester, store);
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getSize(find.byType(GithubPopup)).height,
+          kGithubPopupHeight,
+        );
+      }
+    });
+
+    testWidgets('scrolls a list longer than the card', (tester) async {
+      final store = seeded(items: [
+        for (var i = 0; i < 50; i++)
+          testNotification(id: '$i', title: 'Thread $i'),
+      ]);
+
+      await pumpPopup(tester, store);
+
+      // Off the bottom of a fixed-height card, so it is the *list* that has to
+      // reach it rather than the card growing until it fits.
+      expect(find.text('Thread 49'), findsNothing);
+
+      await tester.drag(
+        find.byType(ListView),
+        const Offset(0, -4000),
+        warnIfMissed: false,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Thread 49'), findsOneWidget);
+      expect(find.text('Thread 0'), findsNothing);
     });
 
     testWidgets('clicking a row opens it and marks it read', (tester) async {
