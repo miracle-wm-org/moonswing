@@ -100,6 +100,12 @@ poll_seconds = 30
 
 [modules.clock]
 show_date = true
+# What a finished countdown rings, and how loud. `ding`, `ding-dong`, `alarm`,
+# `gong`, a path, a name from the system's sound theme, or `none`. It also posts
+# a notification either way, which is what is still there if you missed the
+# sound.
+timer_sound = "ding"
+timer_volume = 0.7
 
 # The badge is hidden while there is only one input source to choose between,
 # which is GNOME's arrangement and costs a fresh config nothing. Settings >

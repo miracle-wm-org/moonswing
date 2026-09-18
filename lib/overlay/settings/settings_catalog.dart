@@ -512,6 +512,28 @@ abstract final class SettingsCatalog {
     'Puts the date beside the time in the bar.',
     const ['clock', 'time', 'date', 'calendar'],
   );
+  static final clockTimerSound = _module(
+    'modules.clock.timer_sound',
+    'Timer sound',
+    'What rings when a countdown reaches zero.',
+    // Tagged for "timer" and "alarm" as well as "clock", because a user
+    // looking for this types what ran out rather than what module owns it.
+    const [
+      'timer',
+      'alarm',
+      'countdown',
+      'sound',
+      'ding',
+      'clock',
+      'silent',
+    ],
+  );
+  static final clockTimerVolume = _module(
+    'modules.clock.timer_volume',
+    'Timer volume',
+    'How loud the timer alarm is, from 0 to 1.',
+    const ['timer', 'alarm', 'volume', 'sound', 'loud', 'quiet'],
+  );
 
   static final mediaPlayerMaxTextWidth = _module(
     'modules.media_player.max_text_width',

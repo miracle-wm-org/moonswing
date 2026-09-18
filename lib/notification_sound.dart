@@ -492,6 +492,10 @@ class NotificationSoundStore extends ChangeNotifier {
 
   int _leases = 0;
   int _prevUnread = 0;
+
+  /// [NotificationStore.chimelessArrivals] as it stood at the last change, so
+  /// this store reads it as a delta rather than as a total.
+  int _prevChimeless = 0;
   bool _listening = false;
 
   /// The clock [kNotificationSoundInterval] is measured against. Injected so
@@ -530,6 +534,7 @@ class NotificationSoundStore extends ChangeNotifier {
     // Seeded rather than started at zero: a module rebuilt while notifications
     // are already waiting must not chime for the backlog it arrived to find.
     _prevUnread = _notifications.unreadCount;
+    _prevChimeless = _notifications.chimelessArrivals;
     _notifications.addListener(_onNotificationsChanged);
   }
 
@@ -586,9 +591,16 @@ class NotificationSoundStore extends ChangeNotifier {
 
   void _onNotificationsChanged() {
     final unread = _notifications.unreadCount;
-    final arrived = unread > _prevUnread;
+    final chimeless = _notifications.chimelessArrivals;
+    final arrivals = unread - _prevUnread;
+    final chimelessArrivals = chimeless - _prevChimeless;
     _prevUnread = unread;
-    if (!arrived) return;
+    _prevChimeless = chimeless;
+    if (arrivals <= 0) return;
+    // Everything that arrived was something the shell has already made a noise
+    // about — a finished timer rings its own alarm — so the chime would be the
+    // second sound for one event. See [NotificationStore.chimelessArrivals].
+    if (chimelessArrivals >= arrivals) return;
     // Silence is about interruption, and a sound is the most interrupting thing
     // the shell does. The notification is still collected and still counted.
     if (_notifications.silenced) return;
@@ -698,6 +710,7 @@ class NotificationSoundStore extends ChangeNotifier {
     _error = null;
     _lastPlayed = null;
     _prevUnread = 0;
+    _prevChimeless = 0;
     _voicePaths.clear();
     _notifyQueued = false;
     now = DateTime.now;

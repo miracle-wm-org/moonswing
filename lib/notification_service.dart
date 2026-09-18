@@ -310,9 +310,31 @@ class NotificationStore extends ChangeNotifier {
     return id;
   }
 
+  /// How many notifications have arrived that the chime must not answer.
+  ///
+  /// Monotonic, never reset, and read as a *delta* by
+  /// `NotificationSoundStore`: the chime fires on [unreadCount] going up, and
+  /// this is what says how much of that rise was the shell announcing
+  /// something it has already made its own noise about. A timer finishing is
+  /// the case — it rings its own alarm and then posts this list a line saying
+  /// which timer it was, and answering that with the arrival chime as well
+  /// would be two sounds a frame apart for one event.
+  ///
+  /// A counter rather than a flag on [NotificationItem] because the chime
+  /// never sees the item: it listens to this store and compares counts, which
+  /// is what keeps it out of the list's internals.
+  int get chimelessArrivals => _chimelessArrivals;
+  int _chimelessArrivals = 0;
+
   /// Adds a new notification or replaces an existing one when [item.id]
   /// matches an existing entry. Returns the assigned id.
-  int addOrReplace(NotificationItem item) {
+  ///
+  /// [chime] false marks the arrival as one the shell has already sounded for
+  /// — see [chimelessArrivals]. It is for the shell's *own* posts only: a
+  /// notification arriving over D-Bus is somebody else's, and the user's chime
+  /// setting is the only thing that decides whether it is heard.
+  int addOrReplace(NotificationItem item, {bool chime = true}) {
+    if (!chime) _chimelessArrivals++;
     final existingIndex = _items.indexWhere((n) => n.id == item.id);
 
     if (existingIndex != -1) {

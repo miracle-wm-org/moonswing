@@ -16,6 +16,7 @@ import 'package:graceful_shell/popup_surface.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
 import 'package:graceful_shell/timers/timer_format.dart';
+import 'package:graceful_shell/timers/timer_sound.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
 
 /// One entry's row in a list. Fixed, so the lists that render entries can be
@@ -269,7 +270,7 @@ class _TimerComposerState extends State<TimerComposer> {
 /// same space. It adds no horizontal padding of its own — the column supplies
 /// that, and a second inset would step the section in from the clocks above.
 class TimersPane extends StatelessWidget {
-  const TimersPane({super.key, required this.active, this.store});
+  const TimersPane({super.key, required this.active, this.store, this.sound});
 
   /// Whether the calendar is the tab the user is looking at.
   ///
@@ -284,18 +285,32 @@ class TimersPane extends StatelessWidget {
   /// its own so no ticker is ever started behind the test zone.
   final TimersStore? store;
 
+  /// Where the alarm's failure is read from, defaulting to the singleton on the
+  /// same terms as [store].
+  ///
+  /// It is rendered here because this pane is the one place a user goes to set
+  /// a timer: the notification arrives whether or not the sound worked, so an
+  /// alarm that has quietly stopped working is otherwise indistinguishable from
+  /// one they switched off.
+  final TimerSoundStore? sound;
+
   @override
   Widget build(BuildContext context) {
     final store = this.store ?? TimersStore.instance;
+    final sound = this.sound ?? TimerSoundStore.instance;
     return active
         ? ListenableBuilder(
             listenable: store,
-            builder: (context, _) => _buildContent(context, store),
+            builder: (context, _) => _buildContent(context, store, sound),
           )
-        : _buildContent(context, store);
+        : _buildContent(context, store, sound);
   }
 
-  Widget _buildContent(BuildContext context, TimersStore store) {
+  Widget _buildContent(
+    BuildContext context,
+    TimersStore store,
+    TimerSoundStore sound,
+  ) {
     final theme = ThemeScope.of(context);
     final now = store.now;
     final entries = store.entries;
@@ -323,6 +338,13 @@ class TimersPane extends StatelessWidget {
               ),
           ],
         ),
+        // Its own subscription rather than a merge with the entries above it.
+        // Two reasons, and they pull the same way: the alarm's reason changes
+        // at most once per countdown while the rows tick four times a second,
+        // and `Listenable.merge` built in a `build` mints a fresh object every
+        // rebuild, which an `AnimatedWidget` answers by re-subscribing — sixty
+        // times a minute here, to a store that almost never moves.
+        _TimerSoundError(sound: sound, listening: active),
         const SizedBox(height: 8),
         Expanded(
           // The composer is the list's first item rather than a fixed header over
@@ -366,6 +388,48 @@ class TimersPane extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Why the last alarm made no noise, or nothing at all.
+///
+/// Its own widget so it is its own subscription and its own repaint boundary:
+/// the rows above it re-lay themselves four times a second, and a reason that
+/// rebuilt with them would be measuring a paragraph on every tick.
+class _TimerSoundError extends StatelessWidget {
+  const _TimerSoundError({required this.sound, required this.listening});
+
+  final TimerSoundStore sound;
+
+  /// False on an inactive tab, which subscribes to nothing at all — the pane's
+  /// own rule, for the reason `TimersPane.active` documents.
+  final bool listening;
+
+  @override
+  Widget build(BuildContext context) => listening
+      ? ListenableBuilder(
+          listenable: sound,
+          builder: (context, _) => _build(context),
+        )
+      : _build(context);
+
+  Widget _build(BuildContext context) {
+    final reason = sound.error;
+    if (reason == null) return const SizedBox.shrink();
+    final theme = ThemeScope.of(context);
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(
+          reason,
+          style: TextStyle(
+            fontSize: ShellFontSizes.secondary,
+            fontFamily: theme.fontFamily,
+            color: kErrorColor,
+          ),
+        ),
+      ),
     );
   }
 }
