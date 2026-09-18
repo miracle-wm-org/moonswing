@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -306,6 +307,77 @@ void main() {
       );
       // Nothing to clear, so nothing offering to.
       expect(find.text('Clear all'), findsNothing);
+    });
+  });
+
+  // Every chip in the panel is lettered in the accent, so none of them may be
+  // *filled* with it: `surface_hover` is the accent itself in the shipped
+  // palette, and a label drawn in the colour it sits on is not a label.
+  group('NotificationPanel highlights', () {
+    Future<void> pumpPanel(WidgetTester tester) async {
+      final closing = ValueNotifier(false);
+      addTearDown(closing.dispose);
+      await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
+      await tester.pumpAndSettle();
+    }
+
+    void expectTint(WidgetTester tester, String label) {
+      final container = tester.widget<Container>(find
+          .ancestor(of: find.text(label), matching: find.byType(Container))
+          .first);
+      final fill = (container.decoration! as BoxDecoration).color;
+      final ink = tester.widget<Text>(find.text(label)).style!.color!;
+      if (fill == null) return;
+      // A tint the card reads through, never the letters' own colour.
+      expect(fill, isNot(ink));
+      expect(fill.a, lessThan(0.5));
+    }
+
+    testWidgets('an action chip is a tint of the accent it is lettered in',
+        (tester) async {
+      store.addOrReplace(NotificationItem(
+        id: store.allocateId(),
+        appName: 'Mail',
+        summary: 'Hello',
+        body: '',
+        actions: const ['reply', 'Reply'],
+        expireTimeout: 0,
+        arrivedAt: DateTime(2026, 1, 1),
+      ));
+      await pumpPanel(tester);
+
+      // At rest, which is where the old fill made it unreadable: the resting
+      // chip wore `surface_hover` and only the *hovered* one was tinted.
+      expectTint(tester, 'Reply');
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.text('Reply')));
+      await tester.pumpAndSettle();
+
+      expectTint(tester, 'Reply');
+    });
+
+    testWidgets('so is a hovered "Clear all"', (tester) async {
+      store.addOrReplace(NotificationItem(
+        id: store.allocateId(),
+        appName: 'Mail',
+        summary: 'Hello',
+        body: '',
+        actions: const [],
+        expireTimeout: 0,
+        arrivedAt: DateTime(2026, 1, 1),
+      ));
+      await pumpPanel(tester);
+
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await gesture.moveTo(tester.getCenter(find.text('Clear all')));
+      await tester.pumpAndSettle();
+
+      expectTint(tester, 'Clear all');
     });
   });
 }

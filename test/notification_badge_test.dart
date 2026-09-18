@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -46,6 +47,15 @@ void _seed(int count, {String app = 'App', String body = ''}) {
 /// window rather than the thing being animated.
 Rect _cardRect(WidgetTester tester) =>
     tester.getRect(find.byType(FaIcon).first);
+
+/// The card's own fill. The card is the one [Container] in the surface sized
+/// to [kNotificationBadgeWidth]; the bubble and the glyph box are the others.
+Color _cardFill(WidgetTester tester) {
+  final card = tester.widget<Container>(find.byWidgetPredicate(
+    (w) => w is Container && w.constraints?.maxWidth == kNotificationBadgeWidth,
+  ));
+  return (card.decoration! as BoxDecoration).color!;
+}
 
 void main() {
   tearDown(() => NotificationStore.instance.dismissAll());
@@ -202,6 +212,39 @@ void main() {
       await tester.pump();
 
       expect(taps, 1);
+    });
+
+    // The card is three lines of prose over the wallpaper, so a hover moves
+    // its fill a little rather than repainting it: `surface_hover` is a
+    // control colour — the accent itself in the shipped palette, a near-white
+    // in glassy — and at full strength it put the summary and the
+    // badge-coloured application name on the loudest colour in the theme.
+    testWidgets('a hover tints the card rather than filling it', (tester) async {
+      const theme = ThemeConfig();
+      _seed(1, app: 'Mail', body: 'from somebody');
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+
+      await tester.pumpWidget(_badge());
+      await tester.pumpAndSettle();
+      final resting = _cardFill(tester);
+
+      await gesture.moveTo(tester.getCenter(find.text('Mail')));
+      await tester.pumpAndSettle();
+      final hovered = _cardFill(tester);
+
+      // Something moved, or there is no hover at all.
+      expect(hovered, isNot(resting));
+      // Still opaque: this floats over whatever picture the user chose.
+      expect(hovered.a, 1.0);
+      // And still the card's own surface — nowhere near `surface_hover`,
+      // which under the shipped palette is a third of the way across the
+      // channel from the resting fill.
+      expect((hovered.r - resting.r).abs(), lessThan(0.2));
+      expect((hovered.g - resting.g).abs(), lessThan(0.2));
+      expect((hovered.b - resting.b).abs(), lessThan(0.2));
+      expect(hovered, isNot(theme.surfaceHover.withValues(alpha: 1.0)));
     });
 
     // The entrance plays once and the bump plays on an arrival; neither leaves
