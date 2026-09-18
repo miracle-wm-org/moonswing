@@ -7,6 +7,8 @@ import 'package:graceful_shell/capture/capture_config.dart'
         kDefaultRecordingDirectory,
         kDefaultScreenshotDirectory,
         kRecorderContainers;
+import 'package:graceful_shell/capture/capture_sound.dart'
+    show kDefaultShutterVolume, kShutterSoundHint;
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/modules/battery.dart' show BatteryConfig;
 import 'package:graceful_shell/modules/clock.dart' show ClockConfig;
@@ -324,6 +326,18 @@ final List<_ModuleGroup> _moduleGroups = [
     _ModuleSetting.toggle(
       SettingsCatalog.screenshotShowCursor,
       defaultValue: const ScreenshotConfig().showCursor,
+    ),
+    // Free-typed for the reason the chime's row is: the shipped shutters are
+    // four of the answers, and a name out of the machine's sound theme and a
+    // path to a file of the user's own are the two a fixed list cannot hold.
+    _ModuleSetting.text(
+      SettingsCatalog.screenshotShutterSound,
+      addHint: kShutterSoundHint,
+    ),
+    _ModuleSetting.number(
+      SettingsCatalog.screenshotShutterVolume,
+      defaultValue: kDefaultShutterVolume,
+      isInt: false,
     ),
   ]),
   _ModuleGroup('Screen recorder', [

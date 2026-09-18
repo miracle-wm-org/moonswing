@@ -22,6 +22,7 @@ import 'package:graceful_shell/screencast/capture_host.dart';
 
 import 'capture_config.dart';
 import 'capture_grab.dart';
+import 'capture_sound.dart';
 import 'capture_source.dart';
 import 'capture_targets.dart';
 import 'recorder.dart';
@@ -67,6 +68,10 @@ class CaptureStore extends ChangeNotifier {
   /// `TimersStore.onFinished` is: a unit test of this store must not write
   /// into the notification daemon's own list.
   void Function(CaptureNotice notice) notify = postCaptureNotification;
+
+  /// What makes the shutter noise. Injectable for [notify]'s reason: the real
+  /// one opens libmpv, which no test may depend on being installed.
+  void Function() shutter = playShutterSound;
 
   /// `$HOME`, resolved once. Injectable so the directory rules are testable
   /// without writing to the machine's real home.
@@ -169,6 +174,15 @@ class CaptureStore extends ChangeNotifier {
         paintCursors: _screenshot.showCursor,
       );
       _lastFile = result.file.path;
+
+      // Here, and not a line earlier or later. The frame has been taken and the
+      // PNG is on the disk, so this is the moment there is a photograph — the
+      // clipboard round trip below can take a second and may fail, and a
+      // shutter that waited for it would land after the thing it is describing.
+      // Fire and forget: `ShutterSoundStore.playNow` catches its own failures
+      // and never awaits mpv, which is what keeps a shutter that made no noise
+      // from costing the user a screenshot that otherwise worked.
+      shutter();
 
       var body = result.file.path;
       if (_screenshot.copyToClipboard) {

@@ -11,9 +11,10 @@ void main() {
   const target =
       OutputCapture(connector: 'DP-1', outputSize: CaptureSize(1920, 1080));
 
-  CaptureStore build(List<CaptureNotice> notices) {
+  CaptureStore build(List<CaptureNotice> notices, {void Function()? shutter}) {
     final store = CaptureStore.forTesting()
       ..notify = notices.add
+      ..shutter = shutter ?? () {}
       ..home = '/tmp/graceful-shell-test-home';
     // Its own statement: `= () => null` followed by a cascade would put the
     // cascade on the null rather than on the store.
@@ -43,6 +44,19 @@ void main() {
     expect(notices.single.failed, isTrue,
         reason: 'a failure has to stay on screen until it is dismissed');
     expect(store.busy, isFalse, reason: 'the shutter is released either way');
+  });
+
+  test('a capture that failed makes no shutter noise', () async {
+    // The sound says a photograph exists. A failed capture already has a
+    // notification and a reason on the icon, and a shutter over the top of it
+    // would be the shell telling the user it took a shot it did not take.
+    var shutters = 0;
+    final store = build([], shutter: () => shutters++);
+
+    await store.capture(target);
+
+    expect(store.error, isNotNull);
+    expect(shutters, 0);
   });
 
   test('a recording that cannot start leaves nothing running', () async {

@@ -657,6 +657,26 @@ abstract final class SettingsCatalog {
     'How long the shutter waits after you choose what to capture.',
     const ['screenshot', 'timer', 'countdown', 'delay'],
   );
+  static final screenshotShutterSound = _module(
+    'modules.screenshot.shutter_sound',
+    'Shutter sound',
+    'What plays when a screenshot has been saved.',
+    const [
+      'screenshot',
+      'shutter',
+      'sound',
+      'click',
+      'camera',
+      'audio',
+      'silent',
+    ],
+  );
+  static final screenshotShutterVolume = _module(
+    'modules.screenshot.shutter_volume',
+    'Shutter volume',
+    'How loud the shutter is, from 0 to 1.',
+    const ['screenshot', 'shutter', 'volume', 'sound', 'loud', 'quiet'],
+  );
   static final screenshotShowCursor = _module(
     'modules.screenshot.show_cursor',
     'Include the pointer',
@@ -1994,6 +2014,8 @@ abstract final class SettingsCatalog {
     screenshotCopyToClipboard,
     screenshotDelaySeconds,
     screenshotShowCursor,
+    screenshotShutterSound,
+    screenshotShutterVolume,
     recorderDirectory,
     recorderContainer,
     recorderFps,
