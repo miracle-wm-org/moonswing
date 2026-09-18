@@ -215,9 +215,10 @@ void main() {
     testWidgets('draws the keys as caps', (tester) async {
       await pump(tester);
       // Every compositor row in the fixture carries Super, the header names it
-      // as the Action Key, and four of the shell's own defaults are on it too
-      // — the launcher, settings, the notification panel and the recorder.
-      expect(find.text('Super'), findsNWidgets(8));
+      // as the Action Key, and five of the shell's own defaults are on it too
+      // — the launcher, settings, the notification panel, the power menu
+      // and the recorder.
+      expect(find.text('Super'), findsNWidgets(9));
       expect(find.text('Q'), findsOneWidget);
       expect(find.text('Action Key'), findsOneWidget);
       // Enter is drawn as its glyph, so its label is not on screen.
