@@ -250,3 +250,26 @@ int _clampTolerant(int value, int lower, int upper) {
   if (lower > upper) return (lower + upper) ~/ 2;
   return value < lower ? lower : (value > upper ? upper : value);
 }
+
+/// Share of the scroll viewport the arrangement diagram takes between its two
+/// bounds, and those bounds.
+const double kDiagramHeightFraction = 0.45;
+const double kDiagramMinHeight = 120;
+const double kDiagramMaxHeight = 260;
+
+/// Height the arrangement diagram is given inside a viewport of
+/// [viewportHeight] logical pixels.
+///
+/// The diagram used to be a fixed 260px strip above the card list. The settings
+/// panel is a *share* of the monitor (`overlayPanelSize`), so on a small screen
+/// that strip was most of the pane and the cards below it were a two-line
+/// letterbox. It is a proportion of the viewport instead, floored at
+/// [kDiagramMinHeight] — below which a display rect is too small to aim at —
+/// and capped at [kDiagramMaxHeight], since a roomier pane is better spent on
+/// the cards.
+double diagramHeightFor(double viewportHeight) {
+  if (!viewportHeight.isFinite || viewportHeight <= 0) return kDiagramMaxHeight;
+  return (viewportHeight * kDiagramHeightFraction)
+      .clamp(kDiagramMinHeight, kDiagramMaxHeight)
+      .toDouble();
+}
