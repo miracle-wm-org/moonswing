@@ -313,8 +313,21 @@ class _BadgeCard extends StatelessWidget {
     // smaller size and for the same reason: this floats over the wallpaper
     // rather than over a surface of the shell's own, and a translucent fill
     // puts whatever photograph the user chose behind two lines of prose.
-    final fill = (hovered ? theme.surfaceHover : theme.popupBackground)
-        .withValues(alpha: 1.0);
+    final base = theme.popupBackground.withValues(alpha: 1.0);
+
+    // A hover *tints* that surface; it never replaces it. `surface_hover` is
+    // sized for a control the width of a word — in the shipped palette it is
+    // the accent itself, and in glassy it is a white the card would become
+    // once forced opaque — so taking it to full strength under three lines of
+    // prose is the wash the repaint-and-palette rules keep off body text: the
+    // summary, and the badge-coloured application name above it, both end up
+    // on the loudest colour in the theme. 0.16 is the alpha every other
+    // hovered row in this panel and in the bar already uses; it is blended
+    // into `base` rather than layered over it because this surface has to
+    // stay opaque over the wallpaper.
+    final fill = hovered
+        ? Color.alphaBlend(theme.surfaceHover.withValues(alpha: 0.16), base)
+        : base;
 
     return Container(
       width: kNotificationBadgeWidth,

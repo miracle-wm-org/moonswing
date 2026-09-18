@@ -668,7 +668,11 @@ class _NotificationPanelState extends State<NotificationPanel>
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: hovered ? theme.surfaceHover : null,
+                  // A tint of the accent the label is lettered in, never
+                  // `surface_hover` at full strength: that key is the accent
+                  // itself in the shipped palette, so the word disappeared
+                  // into its own button under the pointer.
+                  color: hovered ? theme.accent.withValues(alpha: 0.18) : null,
                   border: Border.all(
                     color: theme.accent.withValues(alpha: hovered ? 0.9 : 0.5),
                   ),
@@ -1145,9 +1149,12 @@ class _NotificationCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 14),
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: hovered
-                  ? theme.accent.withValues(alpha: 0.18)
-                  : theme.surfaceHover,
+              // The accent's own tint at two strengths, like "Clear all"
+              // above and every other accent-lettered chip in the shell. The
+              // resting fill used to be `surface_hover`, which in the shipped
+              // palette is exactly the accent this label is drawn in — the
+              // action read as a blank slab until the pointer reached it.
+              color: theme.accent.withValues(alpha: hovered ? 0.22 : 0.1),
               border: Border.all(
                 color: theme.accent.withValues(alpha: hovered ? 0.9 : 0.4),
               ),
