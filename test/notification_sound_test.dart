@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:graceful_shell/modules/notifications.dart';
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/notification_sound.dart';
+import 'package:graceful_shell/timers/timer_store.dart';
 
 /// A voice out of the shipped catalogue, so the tests below pin what the shell
 /// actually plays rather than a fixture that could drift from it.
@@ -365,6 +366,60 @@ void main() {
       expect(plays, 1);
       arrive();
       expect(plays, 2);
+    });
+
+    // One event, one sound. The shell's own alarms — a finished timer — ring
+    // before they post, so the chime would be the second noise for the same
+    // moment.
+    test('an arrival the shell has already sounded for does not chime', () {
+      var plays = 0;
+      final store = _store(
+        choice: NotificationSoundChoice.shipped(_voice('ping')),
+      );
+      store.play = (_, _) async => plays++;
+      store.acquire();
+
+      postTimerFinishedNotification(const ShellTimer(
+        id: 1,
+        kind: ShellTimerKind.timer,
+        total: Duration(minutes: 5),
+        accumulated: Duration(minutes: 5),
+        startedAt: null,
+        finished: true,
+      ));
+      expect(plays, 0);
+      expect(notifications.items, hasLength(1),
+          reason: 'the notification still arrives; only the chime is skipped');
+
+      // And the next ordinary notification still chimes: the skip is per
+      // arrival, not a switch left flipped.
+      arrive();
+      expect(plays, 1);
+    });
+
+    test('a chimeless arrival does not swallow an ordinary one beside it', () {
+      var plays = 0;
+      final store = _store(
+        choice: NotificationSoundChoice.shipped(_voice('ping')),
+      );
+      store.play = (_, _) async => plays++;
+      store.acquire();
+
+      notifications.addOrReplace(
+        NotificationItem(
+          id: notifications.allocateId(),
+          appName: 'Graceful Shell',
+          summary: 'Timer finished',
+          body: '',
+          actions: const [],
+          expireTimeout: 0,
+          arrivedAt: DateTime(2026, 1, 1),
+        ),
+        chime: false,
+      );
+      expect(plays, 0);
+      arrive();
+      expect(plays, 1);
     });
 
     test('a burst plays once, and the rate limit lifts with the clock', () {

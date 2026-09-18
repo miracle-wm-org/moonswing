@@ -135,11 +135,67 @@ poll_seconds = 30
 ```toml
 [modules.clock]
 show_date = true
+timer_sound = "ding"
+timer_volume = 0.7
 ```
 
-| Key         | Type | Default | Description                             |
-| ----------- | ---- | ------- | --------------------------------------- |
-| `show_date` | bool | `true`  | Whether to show the date alongside time |
+| Key            | Type   | Default  | Description                                           |
+| -------------- | ------ | -------- | ----------------------------------------------------- |
+| `show_date`    | bool   | `true`   | Whether to show the date alongside time               |
+| `timer_sound`  | string | `"ding"` | What rings when a countdown reaches zero — see below. |
+| `timer_volume` | float  | `0.7`    | How loud it rings, from 0 to 1. Clamped.              |
+
+#### When a timer is up
+
+The shell's timers live behind the clock: the readout appears beside the time
+while one runs, the popup under it pauses and stops them, and the calendar
+overlay's **Timers & stopwatches** section is where one is started. So the keys
+that decide what a finished countdown sounds like are `[modules.clock]` keys.
+
+A countdown reaching zero does two things, and it does both every time:
+
+1. **It rings.** `timer_sound` is the alarm, and it is what reaches somebody who
+   has walked away from the screen — which is most of the point of setting a
+   timer.
+2. **It posts a notification.** *Timer finished*, with the length that ran out,
+   and no timeout on it: it stays on the notification panel until you dismiss
+   it. A sound that has already played tells somebody who missed it nothing, so
+   the notification is what is still there when they come back.
+
+The notification deliberately does **not** also play the [notification
+chime](#notifications), whatever that is set to — the timer has already made its
+own noise, and answering one event with two sounds a frame apart is not an
+announcement, it is a collision. Setting `timer_sound = "none"` means a finished
+timer is silent and notified, not silent and chimed.
+
+`timer_sound` takes four kinds of answer, tried in this order:
+
+- **One of the shipped alarms** — `ding`, `ding-dong`, `alarm` or `gong`. These
+  are not files: the shell synthesises them from a handful of numbers and writes
+  the result into `~/.cache/graceful-shell/sounds/` the first time one is
+  wanted, which is what lets them work identically under `flutter run`, a `make
+  install` and the snap. It is also what makes them shippable — a recorded
+  kitchen timer is somebody's sample and somebody's licence, and these are
+  arithmetic under this project's own GPL-3.0. `ding` is the default, one clear
+  strike left to ring; `ding-dong` is two notes falling, like a doorbell;
+  `alarm` is two bursts of three quick tones for somebody in the next room; and
+  `gong` is one low strike with a long tail.
+- **`none`** (or `off`, or `silent`) — a finished timer notifies without a
+  sound.
+- **A path** — anything with a `/` in it, `~` included. Any format mpv can open.
+- **A name from the system's sound theme** — anything else, looked for under the
+  XDG sound directories exactly as [the notification chime](#notifications) is.
+  `timer_sound = "complete"` finds
+  `/usr/share/sounds/freedesktop/stereo/complete.oga`.
+
+A name that resolves to nothing is *not* silence: the calendar overlay's timers
+section says so and names what it could not find. The notification arrives
+either way, which is why it needs saying.
+
+Several countdowns set to the same minute ring **once**, not once each — the
+alarm is longer than a chime and three of them over each other is a noise. Each
+one still posts its own notification, so nothing about *which* timers finished
+is lost.
 
 ### Media Player
 
@@ -1387,6 +1443,8 @@ poll_seconds = 30
 
 [modules.clock]
 show_date = true
+timer_sound = "ding"
+timer_volume = 0.7
 
 [modules.media_player]
 max_text_width = 200.0

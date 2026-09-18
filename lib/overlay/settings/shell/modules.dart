@@ -28,6 +28,8 @@ import 'package:graceful_shell/overlay/settings/settings_search.dart';
 import 'package:graceful_shell/overlay/settings/shell/weather_location.dart';
 import 'package:graceful_shell/system/system_monitor_config.dart'
     show SystemMonitorConfig;
+import 'package:graceful_shell/timers/timer_sound.dart'
+    show kDefaultTimerVolume, kTimerSoundHint;
 
 /// Which control edits a module setting row.
 enum _Kind { toggle, number, segmented, text, stringList, weatherLocation }
@@ -185,6 +187,19 @@ final List<_ModuleGroup> _moduleGroups = [
     _ModuleSetting.toggle(
       SettingsCatalog.clockShowDate,
       defaultValue: const ClockConfig().showDate,
+    ),
+    // Free-typed for the reason the chime's and the shutter's rows are: the
+    // shipped alarms are four of the answers, and a name out of the machine's
+    // sound theme and a path to a file of the user's own are the two a fixed
+    // list cannot hold.
+    _ModuleSetting.text(
+      SettingsCatalog.clockTimerSound,
+      addHint: kTimerSoundHint,
+    ),
+    _ModuleSetting.number(
+      SettingsCatalog.clockTimerVolume,
+      defaultValue: kDefaultTimerVolume,
+      isInt: false,
     ),
   ]),
   _ModuleGroup('Media player', [

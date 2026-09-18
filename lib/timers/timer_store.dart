@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:graceful_shell/notification_service.dart';
 import 'package:graceful_shell/timers/timer_format.dart';
+import 'package:graceful_shell/timers/timer_sound.dart';
 
 /// How often the store re-notifies while something is counting.
 ///
@@ -137,7 +138,7 @@ class TimersStore extends ChangeNotifier {
     // than in a start-up service: a finished countdown that announced itself
     // only in the bar is one the user misses the moment they look away, and
     // the shell is its own notification daemon, so this is a store write.
-    ..onFinished = postTimerFinishedNotification;
+    ..onFinished = announceFinishedTimer;
 
   /// A store a test drives by hand.
   ///
@@ -165,8 +166,9 @@ class TimersStore extends ChangeNotifier {
 
   /// Called once, with the finished entry, when a countdown reaches zero.
   ///
-  /// Injectable so a unit test of this store never posts into the notification
-  /// daemon's store; the singleton wires [postTimerFinishedNotification].
+  /// Injectable so a unit test of this store never rings the machine's speakers
+  /// or posts into the notification daemon's store; the singleton wires
+  /// [announceFinishedTimer].
   void Function(ShellTimer entry)? onFinished;
 
   final List<ShellTimer> _entries = [];
@@ -361,12 +363,35 @@ class TimersStore extends ChangeNotifier {
   }
 }
 
+/// What a finished countdown does: it rings, and then it says so.
+///
+/// Both halves, in that order, because they answer different failures. The
+/// alarm is what reaches somebody who has walked away from the screen — which
+/// is what a timer is *for* — and the notification is what is still there when
+/// they come back, because a sound that has already played tells a user who
+/// missed it nothing at all.
+///
+/// The sound is asked for first so that a `sound = "none"` and a mis-spelled
+/// one are the same story either way: the notification is posted regardless,
+/// and [TimerSoundStore.error] is what says a configured alarm made no noise.
+void announceFinishedTimer(ShellTimer entry) {
+  playTimerSound();
+  postTimerFinishedNotification(entry);
+}
+
 /// Posts a finished countdown to the shell's own notification store.
 ///
 /// The bar readout is not enough: a timer that runs out while the user is looking
 /// elsewhere has to say so, and the shell already owns
 /// `org.freedesktop.Notifications`, so this is one store write rather than a
 /// D-Bus round trip to ourselves. No timeout — a fired timer stays until dismissed.
+///
+/// Posted **chimeless**: [announceFinishedTimer] has just rung this timer's own
+/// alarm, and letting the notification chime answer it as well would be two
+/// sounds a frame apart for one event. See
+/// [NotificationStore.chimelessArrivals]. It holds even when the alarm is
+/// switched off — a user who silenced the timer sound has said what they want
+/// a finished timer to sound like.
 void postTimerFinishedNotification(ShellTimer entry) {
   final store = NotificationStore.instance;
   store.addOrReplace(
@@ -379,5 +404,6 @@ void postTimerFinishedNotification(ShellTimer entry) {
       expireTimeout: 0,
       arrivedAt: DateTime.now(),
     ),
+    chime: false,
   );
 }

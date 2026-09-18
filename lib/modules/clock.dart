@@ -7,20 +7,59 @@ import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/overlay/overlay.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:graceful_shell/timers/timer_sound.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
 import 'package:graceful_shell/timers/timer_widgets.dart';
 
 class ClockConfig {
+  const ClockConfig({
+    this.showDate = true,
+    this.timerSound = kDefaultTimerSound,
+    this.timerVolume = kDefaultTimerVolume,
+  });
+
   final bool showDate;
 
-  const ClockConfig({this.showDate = true});
+  /// What a finished countdown rings: a shipped alarm's slug, a path, a
+  /// sound-theme name, or `none`. See `lib/timers/timer_sound.dart`.
+  ///
+  /// A `[modules.clock]` key because the clock is where the shell's timers
+  /// live — the bar readout hangs off this module and the composer that starts
+  /// a timer is in the calendar page behind it. It is read off the *config*
+  /// rather than off the module being in a panel, for `[modules.screenshot]`'s
+  /// reason: a countdown started from the calendar page finishes whether or not
+  /// the monitor it finishes on is carrying a clock.
+  final String timerSound;
+
+  /// 0 to 1. Clamped rather than trusted: this key is hand-edited, and a volume
+  /// of 40 handed to mpv is a different kind of surprise.
+  final double timerVolume;
+
+  /// What the sound layer reads off this.
+  TimerSoundConfig get timerSoundConfig =>
+      TimerSoundConfig(sound: timerSound, volume: timerVolume);
 
   factory ClockConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ClockConfig();
+    const defaults = ClockConfig();
     return ClockConfig(
-      showDate: map.boolOr('show_date', true),
+      showDate: map.boolOr('show_date', defaults.showDate),
+      timerSound: map.stringOr('timer_sound', defaults.timerSound),
+      timerVolume: map.doubleOr('timer_volume', defaults.timerVolume,
+          min: 0.0, max: 1.0),
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ClockConfig &&
+          other.showDate == showDate &&
+          other.timerSound == timerSound &&
+          other.timerVolume == timerVolume;
+
+  @override
+  int get hashCode => Object.hash(showDate, timerSound, timerVolume);
 }
 
 class Clock extends StatefulWidget {
@@ -237,6 +276,16 @@ class ClockState extends State<Clock>
 
 final Module clockModule = Module.simple(
   configKey: 'clock',
-  fromMap: ClockConfig.fromMap,
+  fromMap: (map) {
+    final config = ClockConfig.fromMap(map);
+    // A side effect in `fromMap`, the shape `screenshot.dart` has and for its
+    // reason: the store is where the alarm reads its settings, and a countdown
+    // finishes whether or not any panel on any monitor carries this module.
+    // `Module.simple`'s signature guard stops this re-running per keystroke,
+    // and pushing from here rather than from `TimersStore` resolves a spelling
+    // once per edit rather than once per timer.
+    TimerSoundStore.instance.configure(config.timerSoundConfig);
+    return config;
+  },
   builder: (context, config) => Clock(config: config),
 );

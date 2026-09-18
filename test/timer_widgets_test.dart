@@ -7,6 +7,7 @@ import 'package:graceful_shell/modules/clock.dart';
 import 'package:graceful_shell/overlay/settings/controls.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/theme/tokens.dart';
+import 'package:graceful_shell/timers/timer_sound.dart';
 import 'package:graceful_shell/timers/timer_store.dart';
 import 'package:graceful_shell/timers/timer_widgets.dart';
 
@@ -42,13 +43,50 @@ Finder _icon(FaIconData icon) =>
 
 /// The pane at the shape the calendar gives it: the width of the clock column,
 /// and about the half of it below the world clocks.
-Widget _pane(TimersStore store, {bool active = true}) => _host(
-      TimersPane(active: active, store: store),
+///
+/// The sound store is passed in for the reason the timers one is: this pane
+/// renders the alarm's failure, and a test must reach that without the
+/// singleton the shell actually plays through.
+Widget _pane(
+  TimersStore store, {
+  bool active = true,
+  TimerSoundStore? sound,
+}) =>
+    _host(
+      TimersPane(active: active, store: store, sound: sound),
       size: const Size(280, 300),
     );
 
+/// A sound store that has already failed, with every seam answered in memory.
+TimerSoundStore _brokenSound() {
+  final sound = TimerSoundStore.forTesting();
+  sound.resolve = (spelling) => TimerSoundChoice.missing(spelling);
+  sound.configure(const TimerSoundConfig(sound: 'nonesuch'));
+  return sound;
+}
+
 void main() {
   group('TimersPane', () {
+    testWidgets('an alarm that made no noise says so, and only then', (
+      tester,
+    ) async {
+      final store = _store();
+      addTearDown(store.dispose);
+      final sound = _brokenSound();
+      addTearDown(sound.dispose);
+
+      await tester.pumpWidget(_pane(store, sound: sound));
+      expect(find.textContaining('nonesuch'), findsNothing,
+          reason: 'nothing has failed until something tried to play');
+
+      sound.playNow();
+      await tester.pump();
+
+      // The notification arrives whether or not the sound worked, so this line
+      // is the only sign that anything went wrong.
+      expect(find.textContaining('nonesuch'), findsOneWidget);
+    });
+
     testWidgets('says nothing is running, with a duration already typed', (
       tester,
     ) async {
