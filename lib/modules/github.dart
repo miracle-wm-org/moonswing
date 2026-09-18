@@ -33,6 +33,20 @@ export 'package:graceful_shell/github/github_config.dart' show GithubConfig;
 /// lines of text that must wrap somewhere the card does not choose per item.
 const double kGithubPopupWidth = 380;
 
+/// The height of the popup. Fixed too, for a reason of its own.
+///
+/// A popup's surface is measured **once**, from the post-frame callback in
+/// [PopupHost.openPopup], and GTK3 resolves `gdk_window_move_to_rect` at map
+/// time and never revisits it — so a card sized to its content has to be the
+/// size it will *stay*. This card's content is the one in the shell that does
+/// not settle: the poll adds threads while the card is up, `markAllRead` empties
+/// it, and a sign-in completing swaps a form for a list. Sized to content that
+/// is a window that chases the inbox, anchored for a height it no longer has.
+///
+/// So the card is this tall whatever is in it: the list scrolls inside it, and
+/// everything shorter is centred in what it does not fill.
+const double kGithubPopupHeight = 460;
+
 /// The bar module.
 class GithubNotifications extends StatefulWidget {
   // Not const: the default store is the process-wide singleton, which a const
@@ -91,13 +105,13 @@ class _GithubNotificationsState extends State<GithubNotifications>
     }
     openBarPopup(
       context,
-      // Width fixed, height loose: a card with two notifications in it should be
-      // two notifications tall, and the maximum is where the list starts to
-      // scroll rather than a size.
+      // Both axes pinned, so the window the compositor places is the window the
+      // card keeps: see [kGithubPopupHeight].
       preferredConstraints: const BoxConstraints(
         minWidth: kGithubPopupWidth,
         maxWidth: kGithubPopupWidth,
-        maxHeight: 520,
+        minHeight: kGithubPopupHeight,
+        maxHeight: kGithubPopupHeight,
       ),
       child: ThemeProvider(
         child: GithubPopup(store: widget.store),
@@ -177,13 +191,15 @@ class GithubPopup extends StatelessWidget {
             fontSize: ShellFontSizes.secondary,
           ),
           child: PopupCard(
+            // [Expanded], not [Flexible]: the card's height is fixed, so the
+            // body is given what the header leaves rather than asked how tall it
+            // would like to be.
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _Header(store: store, theme: theme),
                 Container(height: 1, color: theme.divider),
-                Flexible(child: _Body(store: store, theme: theme, copy: copy)),
+                Expanded(child: _Body(store: store, theme: theme, copy: copy)),
               ],
             ),
           ),
@@ -264,13 +280,49 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (store.stage) {
       case GithubAuthStage.signedOut:
-        return _SignedOut(store: store, theme: theme);
+        return _ShortBody(child: _SignedOut(store: store, theme: theme));
       case GithubAuthStage.requestingCode:
       case GithubAuthStage.awaitingAuthorization:
-        return _DeviceCode(store: store, theme: theme, copy: copy);
+        return _ShortBody(
+          child: _DeviceCode(store: store, theme: theme, copy: copy),
+        );
       case GithubAuthStage.signedIn:
         return _Inbox(store: store, theme: theme);
     }
+  }
+}
+
+/// Content that is shorter than the card it is in, now that the card's height no
+/// longer follows it: centred in what it does not fill, and scrolled rather than
+/// overflowed if it turns out to be taller after all.
+///
+/// The scroller is not decoration. Every one of these states is text at the
+/// user's own `font_size` — a sign-in paragraph that wraps to three lines at 13
+/// and to six at 20 — and [kGithubPopupHeight] is one number for all of them.
+class _ShortBody extends StatelessWidget {
+  const _ShortBody({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    // [LayoutBuilder] for the one thing a [SingleChildScrollView] cannot tell
+    // its child: how much room there is to be centred in. The minimum is what
+    // fills the card; anything taller scrolls, and is then top-aligned because
+    // the [Center] has no slack left to give. An unbounded height — which the
+    // card no longer hands out, but a harness could — is no room to centre in
+    // rather than an infinite minimum, which is an assertion.
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight:
+                constraints.hasBoundedHeight ? constraints.maxHeight : 0.0,
+          ),
+          child: Center(child: child),
+        ),
+      ),
+    );
   }
 }
 
@@ -506,14 +558,10 @@ class _Inbox extends StatelessWidget {
     final items = store.items;
 
     if (store.loading && items.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.all(28),
-        child: Center(child: LoadingIndicator(color: theme.popupForeground)),
-      );
+      return Center(child: LoadingIndicator(color: theme.popupForeground));
     }
 
     return Column(
-      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Above the list rather than in place of it: a failed refresh keeps the
@@ -535,12 +583,15 @@ class _Inbox extends StatelessWidget {
             ),
           ),
         if (items.isEmpty)
-          _Empty(theme: theme)
+          Expanded(child: _Empty(theme: theme))
         else
-          Flexible(
+          Expanded(
+            // No `shrinkWrap`: the list is a viewport the size of the space the
+            // card has left, not a column as tall as its items. That is the
+            // whole of "fixed size, scrolled when it overflows" — one thread or
+            // fifty, the surface is [kGithubPopupHeight].
             child: ListView.separated(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              shrinkWrap: true,
               itemCount: items.length,
               separatorBuilder: (_, _) =>
                   Container(height: 1, color: theme.divider),
@@ -564,25 +615,27 @@ class _Empty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          FaIcon(
-            FontAwesomeIcons.inbox,
-            size: 32,
-            color: theme.popupForeground.withValues(alpha: 0.28),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'No unread notifications',
-            style: TextStyle(
-              fontSize: ShellFontSizes.label,
-              color: theme.popupForeground.withValues(alpha: 0.75),
+    return _ShortBody(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FaIcon(
+              FontAwesomeIcons.inbox,
+              size: 32,
+              color: theme.popupForeground.withValues(alpha: 0.28),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Text(
+              'No unread notifications',
+              style: TextStyle(
+                fontSize: ShellFontSizes.label,
+                color: theme.popupForeground.withValues(alpha: 0.75),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
