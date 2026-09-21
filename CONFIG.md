@@ -598,23 +598,37 @@ open_launcher = "super+d"
 open_emoji = "ctrl+shift+e"
 open_notifications = "super+e"
 open_power_menu = "shift+super+e"
+switch_windows = "alt+tab"
+switch_windows_back = "alt+shift+tab"
 screenshot_area = "print"
 record_screen = "super+print"
 power_button = "poweroff"
 ```
 
-| Key                  | Type   | Default            | Description                                    |
-| -------------------- | ------ | ------------------ | ---------------------------------------------- |
-| `open_settings`      | string | `"super+s"`        | Opens (and closes) the settings overlay        |
-| `open_launcher`      | string | `"super+d"`        | Opens (and closes) the application launcher    |
-| `open_emoji`         | string | `"ctrl+shift+e"`   | Opens (and closes) the [emoji picker](#emoji-picker) |
-| `open_notifications` | string | `"super+e"`        | Opens (and closes) the [notification panel](#notifications) |
-| `open_power_menu`    | string | `"shift+super+e"`  | Opens (and closes) the [power menu](#power-button) — shut down, restart, suspend, lock or log out |
-| `screenshot_area`    | string | `"print"`          | Drag out an area and screenshot it — the screenshot module's own **Select an area** |
-| `record_screen`      | string | `"super+print"`    | Starts recording the screen you are on; press it again to stop |
-| `power_button`       | string | `"poweroff"`       | The machine's own power button — what it *does* is [`[power]`](#power-button) |
+| Key                    | Type   | Default              | Description                                    |
+| ---------------------- | ------ | -------------------- | ---------------------------------------------- |
+| `open_settings`        | string | `"super+s"`          | Opens (and closes) the settings overlay        |
+| `open_launcher`        | string | `"super+d"`          | Opens (and closes) the application launcher    |
+| `open_emoji`           | string | `"ctrl+shift+e"`     | Opens (and closes) the [emoji picker](#emoji-picker) |
+| `open_notifications`   | string | `"super+e"`          | Opens (and closes) the [notification panel](#notifications) |
+| `open_power_menu`      | string | `"shift+super+e"`    | Opens (and closes) the [power menu](#power-button) — shut down, restart, suspend, lock or log out |
+| `switch_windows`       | string | `"alt+tab"`          | Opens the [window switcher](#the-window-switcher) and moves forward through it |
+| `switch_windows_back`  | string | `"alt+shift+tab"`    | The same switcher, moving backwards |
+| `screenshot_area`      | string | `"print"`            | Drag out an area and screenshot it — the screenshot module's own **Select an area** |
+| `record_screen`        | string | `"super+print"`      | Starts recording the screen you are on; press it again to stop |
+| `power_button`         | string | `"poweroff"`         | The machine's own power button — what it *does* is [`[power]`](#power-button) |
 
 `record_screen` records the whole of the output holding the focused workspace, and needs no aim: nothing is put on screen first, so the recording opens on the desktop as it already is. On a shell that is not connected to the window manager — and so cannot tell which screen that is — it falls back to asking you to click the screen to record, which is what the recorder module's own **Select a screen** does.
+
+### The window switcher
+
+`switch_windows` is the only shortcut here that is *held* rather than pressed. The first press puts an overlay on every screen showing an icon for each open window, five to a row; each further press of Tab moves the highlight, and letting go of Alt switches to whatever it is on. The full title of the highlighted window is written under the grid, which is what tells two windows of the same application apart. Escape, or a click on the backdrop, closes it without switching; a click on an icon switches to that window.
+
+The list is ordered most-recently-used first, so the very first press lands on the window you were in before this one — tap and release to go back and forth between two windows. That ordering comes from the window manager, so a shell that is not connected to it offers the compositor's own order instead; everything else works the same.
+
+Rebinding is the usual thing with one constraint: **keep a modifier in it**. What ends the gesture is the modifier coming back up, so a binding with none — `switch_windows = "f13"` — would leave the switcher on screen with nothing to release. Both keys are read independently, so you can bind them to different modifiers, or set either to `""` to turn that direction off.
+
+If the window that is picked is on another workspace, the shell switches to that workspace first and focuses the window second. Both go to the window manager as one request, so nothing can land in between.
 
 **Changing these requires restarting the shell.** Shortcuts are registered once at start-up; unlike the theme or panel layout they do not reload live.
 

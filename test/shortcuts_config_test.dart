@@ -13,6 +13,8 @@ void main() {
       expect(config.openPowerMenu, kDefaultOpenPowerMenu);
       expect(config.screenshotArea, kDefaultScreenshotArea);
       expect(config.recordScreen, kDefaultRecordScreen);
+      expect(config.switchWindows, kDefaultSwitchWindows);
+      expect(config.switchWindowsBack, kDefaultSwitchWindowsBack);
     });
 
     test('an absent key keeps its default', () {
@@ -24,6 +26,23 @@ void main() {
       expect(config.openPowerMenu, kDefaultOpenPowerMenu);
       expect(config.screenshotArea, kDefaultScreenshotArea);
       expect(config.recordScreen, kDefaultRecordScreen);
+      expect(config.switchWindows, kDefaultSwitchWindows);
+      expect(config.switchWindowsBack, kDefaultSwitchWindowsBack);
+    });
+
+    test('the switcher keys read, disable and degrade like the rest', () {
+      expect(
+        ShortcutsConfig.fromMap({'switch_windows': 'super+tab'}).switchWindows,
+        parseShortcut('super+tab'),
+      );
+      expect(
+        ShortcutsConfig.fromMap({'switch_windows_back': ''}).switchWindowsBack,
+        isNull,
+      );
+      expect(
+        ShortcutsConfig.fromMap({'switch_windows': 42}).switchWindows,
+        kDefaultSwitchWindows,
+      );
     });
 
     test('the capture and notification keys read, disable and degrade too', () {

@@ -12,6 +12,8 @@ void main() {
       expect(parseShortcut('ctrl+shift+e'), kDefaultOpenEmoji);
       expect(parseShortcut('super+e'), kDefaultOpenNotifications);
       expect(parseShortcut('super+shift+e'), kDefaultOpenPowerMenu);
+      expect(parseShortcut('alt+tab'), kDefaultSwitchWindows);
+      expect(parseShortcut('alt+shift+tab'), kDefaultSwitchWindowsBack);
       expect(parseShortcut('print'), kDefaultScreenshotArea);
       expect(parseShortcut('super+print'), kDefaultRecordScreen);
       expect(parseShortcut('poweroff'), kDefaultPowerButton);
@@ -35,6 +37,18 @@ void main() {
       // registered as `S` (0x53), never `s` (0x73).
       expect(parseShortcut('ctrl+shift+s')!.keysym, 0x53);
       expect(parseShortcut('ctrl+s')!.keysym, 0x73);
+    });
+
+    // Not a US-layout guess like the digits below: xkb resolves Shift+Tab to
+    // ISO_Left_Tab on every layout, and Mir matches the resolved keysym — so a
+    // plain `Tab` here is a shortcut that never fires.
+    test('shift resolves Tab to ISO_Left_Tab, and back again', () {
+      expect(parseShortcut('alt+shift+tab')!.keysym, kIsoLeftTabKeysym);
+      expect(parseShortcut('alt+tab')!.keysym, 0xff09);
+      expect(formatShortcut(parseShortcut('alt+shift+tab')!),
+          'alt+shift+tab');
+      // And the cap both halves of the cheat sheet draw it from.
+      expect(xkbKeysymName(kIsoLeftTabKeysym), 'ISO_Left_Tab');
     });
 
     test('shift resolves digits and punctuation through the US layout', () {

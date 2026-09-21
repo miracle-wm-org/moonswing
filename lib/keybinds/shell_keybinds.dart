@@ -54,6 +54,21 @@ enum ShellShortcut {
     configKey: 'open_power_menu',
     defaultSpec: kDefaultOpenPowerMenu,
   ),
+  switchWindows(
+    label: 'Switch windows',
+    // The gesture, not just the key: this is the one shell shortcut that is
+    // held rather than pressed, and a row reading "Alt + Tab" alone would not
+    // say that the Tab is repeatable or that letting go is the choice.
+    detail: 'Hold Alt and press Tab to move through the open windows; '
+        'let Alt go to switch',
+    configKey: 'switch_windows',
+    defaultSpec: kDefaultSwitchWindows,
+  ),
+  switchWindowsBack(
+    label: 'Switch windows, backwards',
+    configKey: 'switch_windows_back',
+    defaultSpec: kDefaultSwitchWindowsBack,
+  ),
   screenshotArea(
     label: 'Screenshot an area',
     configKey: 'screenshot_area',
@@ -102,6 +117,8 @@ enum ShellShortcut {
     ShellShortcut.openEmoji => config.openEmoji,
     ShellShortcut.openNotifications => config.openNotifications,
     ShellShortcut.openPowerMenu => config.openPowerMenu,
+    ShellShortcut.switchWindows => config.switchWindows,
+    ShellShortcut.switchWindowsBack => config.switchWindowsBack,
     ShellShortcut.screenshotArea => config.screenshotArea,
     ShellShortcut.recordScreen => config.recordScreen,
     ShellShortcut.powerButton => config.powerButton,

@@ -45,7 +45,7 @@ void main() {
       // registered by the shell but missing here would be one a person can
       // press and never find written down.
       const config = ShortcutsConfig();
-      expect(ShellShortcut.values.length, 8);
+      expect(ShellShortcut.values.length, 10);
       expect(
         ShellShortcut.openLauncher.specIn(config),
         parseShortcut('super+d'),
@@ -65,6 +65,14 @@ void main() {
       expect(
         ShellShortcut.openPowerMenu.specIn(config),
         parseShortcut('super+shift+e'),
+      );
+      expect(
+        ShellShortcut.switchWindows.specIn(config),
+        parseShortcut('alt+tab'),
+      );
+      expect(
+        ShellShortcut.switchWindowsBack.specIn(config),
+        parseShortcut('alt+shift+tab'),
       );
       expect(
         ShellShortcut.screenshotArea.specIn(config),
@@ -99,6 +107,10 @@ void main() {
       expect(shortcutLabel(kDefaultScreenshotArea), 'Print');
       expect(shortcutLabel(kDefaultRecordScreen), 'Super + Print');
       expect(shortcutLabel(kDefaultOpenEmoji), 'Ctrl + Shift + E');
+      expect(shortcutLabel(kDefaultSwitchWindows), 'Alt + Tab');
+      // `ISO_Left_Tab` is what Shift+Tab resolves to, and still the Tab key to
+      // the person pressing it.
+      expect(shortcutLabel(kDefaultSwitchWindowsBack), 'Alt + Shift + Tab');
       // `Modifier.meta` is `Super` on both halves of the sheet, because both
       // go through `miracle_labels.dart` rather than spelling it here.
       expect(shortcutLabel(parseShortcut('super+d')!), 'Super + D');

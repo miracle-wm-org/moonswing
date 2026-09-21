@@ -32,6 +32,8 @@ ShortcutsConfig _only({
       screenshotArea: null,
       recordScreen: null,
       powerButton: null,
+      switchWindows: null,
+      switchWindowsBack: null,
     );
 
 void main() {
@@ -222,6 +224,8 @@ void main() {
         'graceful-shell.open-emoji',
         'graceful-shell.open-notifications',
         'graceful-shell.open-power-menu',
+        'graceful-shell.switch-windows',
+        'graceful-shell.switch-windows-back',
         'graceful-shell.screenshot-area',
         'graceful-shell.record-screen',
         kPowerButtonShortcut,

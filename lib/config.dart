@@ -464,6 +464,28 @@ const ShortcutSpec kDefaultScreenshotArea =
 const ShortcutSpec kDefaultRecordScreen =
     ShortcutSpec(modifiers: 0x800, keysym: 0xff61);
 
+/// Alt+Tab, the window switcher.
+///
+/// The one shortcut in this file that is a *held* gesture rather than a toggle:
+/// the trigger opens the switcher and each further press moves the selection,
+/// and letting go of Alt is what commits — which the overlay reads off the
+/// keyboard, because the trigger's own `end` fires when Tab comes up rather
+/// than when Alt does. So the modifier is not decoration here: a binding with
+/// no modifier at all would have nothing to release, and the switcher would be
+/// a menu the user has to dismiss.
+const ShortcutSpec kDefaultSwitchWindows =
+    ShortcutSpec(modifiers: 0x01, keysym: 0xff09);
+
+/// Alt+Shift+Tab, the window switcher going the other way.
+///
+/// The keysym is `ISO_Left_Tab` (`0xfe20`), not `Tab`: xkb resolves Shift+Tab
+/// to it on every layout and Mir matches the resolved keysym — see
+/// [parseShortcut], which does that resolution, and
+/// `test/shortcut_parse_test.dart`, which asserts this constant and the string
+/// `"alt+shift+tab"` still agree.
+const ShortcutSpec kDefaultSwitchWindowsBack =
+    ShortcutSpec(modifiers: 0x09, keysym: kIsoLeftTabKeysym);
+
 /// The machine's own power button — `XF86PowerOff`, no modifiers.
 ///
 /// Bound like any other shortcut because to the compositor it *is* one: the ACPI
@@ -518,6 +540,16 @@ class ShortcutsConfig {
   /// picked up, and like the others it latches at start-up.
   final ShortcutSpec? powerButton;
 
+  /// The window switcher, forwards (Alt+Tab by default).
+  final ShortcutSpec? switchWindows;
+
+  /// The window switcher, backwards (Alt+Shift+Tab by default).
+  ///
+  /// Its own key rather than "the other one with Shift", because the two are
+  /// registered as two triggers: a trigger fires only when *exactly* its
+  /// modifier set is held, so the compositor cannot derive one from the other.
+  final ShortcutSpec? switchWindowsBack;
+
   const ShortcutsConfig({
     this.openSettings = kDefaultOpenSettings,
     this.openLauncher = kDefaultOpenLauncher,
@@ -527,6 +559,8 @@ class ShortcutsConfig {
     this.screenshotArea = kDefaultScreenshotArea,
     this.recordScreen = kDefaultRecordScreen,
     this.powerButton = kDefaultPowerButton,
+    this.switchWindows = kDefaultSwitchWindows,
+    this.switchWindowsBack = kDefaultSwitchWindowsBack,
   });
 
   factory ShortcutsConfig.fromMap(Map<String, dynamic>? map) {
@@ -541,6 +575,9 @@ class ShortcutsConfig {
       screenshotArea: _read(map, 'screenshot_area', kDefaultScreenshotArea),
       recordScreen: _read(map, 'record_screen', kDefaultRecordScreen),
       powerButton: _read(map, 'power_button', kDefaultPowerButton),
+      switchWindows: _read(map, 'switch_windows', kDefaultSwitchWindows),
+      switchWindowsBack:
+          _read(map, 'switch_windows_back', kDefaultSwitchWindowsBack),
     );
   }
 
@@ -579,7 +616,9 @@ class ShortcutsConfig {
           other.openPowerMenu == openPowerMenu &&
           other.screenshotArea == screenshotArea &&
           other.recordScreen == recordScreen &&
-          other.powerButton == powerButton;
+          other.powerButton == powerButton &&
+          other.switchWindows == switchWindows &&
+          other.switchWindowsBack == switchWindowsBack;
 
   @override
   int get hashCode => Object.hash(
@@ -591,6 +630,8 @@ class ShortcutsConfig {
         screenshotArea,
         recordScreen,
         powerButton,
+        switchWindows,
+        switchWindowsBack,
       );
 }
 
