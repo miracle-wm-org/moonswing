@@ -1,0 +1,355 @@
+Linux: dismiss popup windows on an outside click (xdg_popup grab)
+
+Against flutter/flutter at b710a6e0290f7cb9c3ad55666c5f8573aed2ee8f, the
+revision snap/snapcraft.yaml pins. Apply from the Flutter checkout root:
+
+    git apply -3 /path/to/flutter-popup-grab.patch
+
+The hunks are hand-authored against a read of that revision, so the offsets are
+approximate and `git apply` may want -3 or a manual fixup. Treat it as the
+change to make, not a blob to trust.
+
+NOT APPLIED OR COMPILED ANYWHERE. This is the upstream change the
+GRACEFUL_SHELL_POPUP_GRAB spike in lib/popup.dart exists to justify; do not
+send it until that spike shows a `grab` request on the wire and a `popup_done`
+coming back. See the spike's doc comments for what to measure.
+
+WHY THIS IS A BUG FIX AND NOT A FEATURE
+
+PopupWindowController's own class documentation already promises the behaviour
+(_window.dart:899-903):
+
+    /// A popup window is a transient window that is used for menus and context
+    /// menus. Popups may receive input focus. When another window receives
+    /// input focus, the popup is closed.
+
+On Linux nothing implements the third sentence. PopupWindowControllerLinux
+creates a GTK_WINDOW_POPUP, realizes it, sets it transient for the parent and
+places it with gdk_window_move_to_rect — so GDK does map it as an xdg_popup
+(should_map_as_popup returns TRUE for POSITION_METHOD_MOVE_TO_RECT) — but it
+never takes a seat grab. GDK3 emits xdg_popup.grab in exactly one place, as it
+creates the popup, and only when find_grab_input_seat finds a grab seat on the
+popup or its transient-for chain. No grab, no request; no request, no
+popup_done, and the popup stays on screen over whatever the user clicked.
+
+THE ORDERING, WHICH IS THE ONLY SUBTLE PART
+
+gdk_wayland_seat_grab records the seat on the window, calls the caller's
+prepare_func, and then bails with a g_critical and GDK_GRAB_NOT_VIEWABLE — and
+clears the seat it just recorded — if the window is still not visible:
+
+    gdk_wayland_seat_set_grab_window (wayland_seat, native);
+    ...
+    if (prepare_func)
+      (prepare_func) (seat, window, prepare_func_data);
+
+    if (!gdk_window_is_visible (window))
+      {
+        gdk_wayland_seat_set_grab_window (wayland_seat, NULL);
+        g_critical ("Window %p has not been made visible in GdkSeatGrabPrepareFunc", window);
+        return GDK_GRAB_NOT_VIEWABLE;
+      }
+
+So the prepare function is where the window must be shown, and GTK's own
+comment in find_grab_input_seat says as much: "this relies on GTK+ taking the
+grab before showing the popup window." The map is what creates the xdg_popup
+and reads the seat. Grabbing after the map is too late — GDK will not revisit
+it, and xdg-shell calls it invalid_grab.
+
+That is why the show moves *inside* the grab rather than the grab being added
+beside it. The popup is still shown from onFirstFrame, so nothing about when it
+becomes visible changes.
+
+TWO THINGS A REVIEWER WILL ASK
+
+Unconditional, or opt-in? This takes the grab for every popup, on the grounds
+that it is the documented contract and that a menu which outlives the click
+that dismissed it is wrong everywhere. The cost is that an explicit grab is
+defined to take keyboard focus, so a popup will pull focus off whatever had it
+— which is what a GTK menu does, and what most compositors do for menus, but
+it is a behaviour change. If that is not acceptable, the same diff works as a
+`bool grab` on PopupWindowController's factory threaded through
+WindowingOwner.createPopupWindowController; nothing else changes.
+
+Only PopupWindowControllerLinux is touched. The tooltip controller in this file
+also creates a GTK_WINDOW_POPUP, and deliberately keeps no grab: a tooltip that
+took the keyboard and swallowed the next click would be a worse bug than the
+one this fixes.
+
+REPORTING THE DISMISSAL
+
+popup_done reaches the widget layer as a window state change, not a destroy:
+GDK's xdg_popup_done handler calls gdk_window_hide, and gdk_window_hide
+synthesizes GDK_WINDOW_STATE_WITHDRAWN for a window with an impl. So
+onStateChanged plus the _GdkWindowState.withdrawn and _GdkWindow.getState()
+that this file already has is the whole detection, with no new bindings.
+
+The controller deliberately does NOT destroy itself here. destroy() calls
+gtk_widget_destroy before unregistering the view, and destroying a GTK window
+whose FlView still has a live view aborts the process — the destroy cascade
+disposes the per-view renderer whose frame_mutex the raster thread holds, and
+g_mutex_clear on a held mutex is a glib abort(). Deciding when it is safe to
+destroy is the owner's job, so this adds one additive, non-breaking delegate
+hook and lets the owner act on it.
+
+--- a/packages/flutter/lib/src/widgets/_window.dart
++++ b/packages/flutter/lib/src/widgets/_window.dart
+@@ -887,6 +887,20 @@ mixin class PopupWindowControllerDelegate {
+   void onWindowDestroyed() {
+     if (!isWindowingEnabled) {
+       throw UnsupportedError(_kWindowingDisabledErrorMessage);
+     }
+   }
++
++  /// Invoked when the compositor has dismissed the popup — typically because
++  /// the user clicked outside it, including on another application's window.
++  ///
++  /// The popup's surface is already off screen by the time this runs, but the
++  /// controller is still valid and its view is still live. The owner is
++  /// expected to call [PopupWindowController.destroy], on its own schedule and
++  /// once the framework has released the view; destroying a window whose view
++  /// is still attached is not safe.
++  ///
++  /// {@macro flutter.widgets.windowing.experimental}
++  @internal
++  void onWindowDismissed() {
++    if (!isWindowingEnabled) {
++      throw UnsupportedError(_kWindowingDisabledErrorMessage);
++    }
++  }
+ }
+--- a/packages/flutter/lib/src/widgets/_window_linux.dart
++++ b/packages/flutter/lib/src/widgets/_window_linux.dart
+@@ -1325,6 +1325,11 @@ class _GdkWindow extends _GObject {
+ /// Wraps GdkWindow.
+ class _GdkWindow extends _GObject {
+   /// Creates a wrapper to an existing [GdkWindow] in [instance].
+   const _GdkWindow(super.instance);
+ 
++  /// Gets the display this window belongs to.
++  _GdkDisplay getDisplay() => _GdkDisplay(_gdkWindowGetDisplay(instance));
++
+   /// Gets the window state.
+   Set<_GdkWindowState> getState() {
+     final int stateBits = _gdkWindowGetState(instance);
+@@ -1379,6 +1384,9 @@ class _GdkWindow extends _GObject {
+   @ffi.Native<ffi.Int Function(ffi.Pointer<ffi.NativeType>)>(symbol: 'gdk_window_get_state')
+   external static int _gdkWindowGetState(ffi.Pointer<ffi.NativeType> window);
+ 
++  @ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
++    symbol: 'gdk_window_get_display',
++  )
++  external static ffi.Pointer<ffi.NativeType> _gdkWindowGetDisplay(
++    ffi.Pointer<ffi.NativeType> window,
++  );
++
+   @ffi.Native<
+     ffi.Void Function(
+       ffi.Pointer<ffi.NativeType>,
+@@ -1410,6 +1418,72 @@ class _GdkWindow extends _GObject {
+     int rectAnchorDx,
+     int rectAnchorDy,
+   );
+ }
+ 
++/// `GdkGrabStatus`.
++enum _GdkGrabStatus { success, alreadyGrabbed, invalidTime, notViewable, frozen, failed }
++
++/// `GdkSeatCapabilities`, as a bitmask.
++abstract final class _GdkSeatCapabilities {
++  static const int pointer = 1 << 0;
++  static const int touch = 1 << 1;
++  static const int tabletStylus = 1 << 2;
++  static const int keyboard = 1 << 3;
++  static const int all = pointer | touch | tabletStylus | keyboard;
++}
++
++/// `void (*GdkSeatGrabPrepareFunc)(GdkSeat*, GdkWindow*, gpointer)`.
++typedef _GdkSeatGrabPrepareFuncNative =
++    ffi.Void Function(
++      ffi.Pointer<ffi.NativeType>,
++      ffi.Pointer<ffi.NativeType>,
++      ffi.Pointer<ffi.NativeType>,
++    );
++
++/// Wraps GdkDisplay.
++class _GdkDisplay extends _GObject {
++  /// Creates a wrapper to an existing [GdkDisplay] in [instance].
++  const _GdkDisplay(super.instance);
++
++  /// Gets the display's default seat.
++  _GdkSeat getDefaultSeat() => _GdkSeat(_gdkDisplayGetDefaultSeat(instance));
++
++  @ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
++    symbol: 'gdk_display_get_default_seat',
++  )
++  external static ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefaultSeat(
++    ffi.Pointer<ffi.NativeType> display,
++  );
++}
++
++/// Wraps GdkSeat.
++class _GdkSeat extends _GObject {
++  /// Creates a wrapper to an existing [GdkSeat] in [instance].
++  const _GdkSeat(super.instance);
++
++  /// Grabs the seat's devices for [window], showing it from [prepare].
++  ///
++  /// [prepare] must make [window] visible: GDK records the seat on the window,
++  /// calls [prepare], then refuses the grab and clears the seat again if the
++  /// window is still not visible. Showing it there is also what makes the map
++  /// — and so the `xdg_popup` GDK creates from it — carry the grab.
++  _GdkGrabStatus grab(
++    _GdkWindow window, {
++    int capabilities = _GdkSeatCapabilities.all,
++    bool ownerEvents = true,
++    required VoidCallback prepare,
++  }) {
++    // GDK invokes this synchronously, on this thread, from inside the call
++    // below, and does not retain it afterwards.
++    final callable = ffi.NativeCallable<_GdkSeatGrabPrepareFuncNative>.isolateLocal(
++      (ffi.Pointer<ffi.NativeType> _, ffi.Pointer<ffi.NativeType> __, ffi.Pointer<ffi.NativeType> ___) =>
++          prepare(),
++    );
++    try {
++      final int status = _gdkSeatGrab(
++        instance,
++        window.instance,
++        capabilities,
++        ownerEvents ? 1 : 0,
++        ffi.nullptr,
++        ffi.nullptr,
++        callable.nativeFunction.cast(),
++        ffi.nullptr,
++      );
++      return status >= 0 && status < _GdkGrabStatus.values.length
++          ? _GdkGrabStatus.values[status]
++          : _GdkGrabStatus.failed;
++    } finally {
++      callable.close();
++    }
++  }
++
++  /// Releases whatever this seat is grabbing.
++  void ungrab() => _gdkSeatUngrab(instance);
++
++  // `gboolean` is `gint`, so ffi.Int rather than ffi.Bool.
++  @ffi.Native<
++    ffi.Int Function(
++      ffi.Pointer<ffi.NativeType>,
++      ffi.Pointer<ffi.NativeType>,
++      ffi.Uint32,
++      ffi.Int,
++      ffi.Pointer<ffi.NativeType>,
++      ffi.Pointer<ffi.NativeType>,
++      ffi.Pointer<ffi.NativeType>,
++      ffi.Pointer<ffi.NativeType>,
++    )
++  >(symbol: 'gdk_seat_grab')
++  external static int _gdkSeatGrab(
++    ffi.Pointer<ffi.NativeType> seat,
++    ffi.Pointer<ffi.NativeType> window,
++    int capabilities,
++    int ownerEvents,
++    ffi.Pointer<ffi.NativeType> cursor,
++    ffi.Pointer<ffi.NativeType> event,
++    ffi.Pointer<ffi.NativeType> prepareFunc,
++    ffi.Pointer<ffi.NativeType> prepareFuncData,
++  );
++
++  @ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(symbol: 'gdk_seat_ungrab')
++  external static void _gdkSeatUngrab(ffi.Pointer<ffi.NativeType> seat);
++}
+@@ -925,12 +999,31 @@ class PopupWindowControllerLinux extends PopupWindowController
+     _windowMonitor = _FlWindowMonitor(
+       _window,
+       onConfigure: notifyListeners,
++      // popup_done reaches us as a state change, not a destroy: GDK's
++      // xdg_popup_done handler calls gdk_window_hide, which synthesizes
++      // GDK_WINDOW_STATE_WITHDRAWN for a window with an impl.
++      onStateChanged: _handleStateChanged,
+       onMovedToRect: (x, y, width, height) {
+         _offsetFromParent = Offset(x.toDouble(), y.toDouble());
+       },
+       onDestroy: _delegate.onWindowDestroyed,
+     );
+     setConstraints(constraints);
+     final engine = _FlEngine.current();
+     _view = _FlView(engine, isSizedToContent: true);
+     _viewMonitor = _FlViewMonitor(
+       _view,
+       onFirstFrame: () {
+-        _window.show();
++        // The grab has to be what shows the window. GDK records the seat on
++        // the window, calls the prepare function, and then refuses the grab —
++        // clearing the seat again — if the window is still not visible; and
++        // the map it performs here is what creates the xdg_popup and sends
++        // xdg_popup.grab. Grabbing after the map is too late for GDK and
++        // invalid_grab per xdg-shell, so there is no other order available.
++        //
++        // Without this a Linux popup is never dismissed by the compositor,
++        // contradicting this class's documented contract.
++        final _GdkSeat seat = _window.getWindow().getDisplay().getDefaultSeat();
++        final _GdkGrabStatus status = seat.grab(
++          _window.getWindow(),
++          prepare: _window.show,
++        );
++        if (status == _GdkGrabStatus.success) {
++          _grabbedSeat = seat;
++        } else {
++          // The popup is still usable, just not compositor-dismissable; and
++          // `prepare` has already shown it unless GDK bailed before calling
++          // it, so make sure it is on screen either way.
++          _window.show();
++        }
+       },
+     );
+@@ -963,6 +1056,11 @@ class PopupWindowControllerLinux extends PopupWindowController
+   late final _FlViewMonitor _viewMonitor;
+   late final _FlWindowMonitor _windowMonitor;
+   Offset? _offsetFromParent;
+   bool _destroyed = false;
++  _GdkSeat? _grabbedSeat;
++  bool _dismissed = false;
++
++  // Only ever true between the compositor dismissing the popup and the owner
++  // destroying it.
++  bool get _isWithdrawn => _window.getWindow().getState().contains(_GdkWindowState.withdrawn);
+ 
+   @override
+   @internal
+   bool get isDestroyed => _destroyed;
+@@ -976,10 +1074,29 @@ class PopupWindowControllerLinux extends PopupWindowController
+   @override
+   void destroy() {
+     if (_destroyed) {
+       return;
+     }
++    _grabbedSeat?.ungrab();
++    _grabbedSeat = null;
+     _viewMonitor.close();
+     _viewMonitor.unref();
+     _window.destroy();
+     _windowMonitor.close();
+     _windowMonitor.unref();
+     _destroyed = true;
+     _owner.registrar.unregister(rootView.viewId);
+     notifyListeners();
+   }
++
++  void _handleStateChanged() {
++    notifyListeners();
++    if (_destroyed || _dismissed || !_isWithdrawn) {
++      return;
++    }
++    // Latched: a withdrawn popup is not coming back, and the owner may take
++    // several frames to destroy it, during which more state changes can land.
++    _dismissed = true;
++    // The grab went with the surface.
++    _grabbedSeat = null;
++    // Deliberately not destroy(): that calls gtk_widget_destroy before the
++    // view is unregistered, and destroying a window whose FlView still holds a
++    // live view aborts the process. The owner destroys, once it has let go.
++    _delegate.onWindowDismissed();
++  }
+ }

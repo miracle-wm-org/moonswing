@@ -522,8 +522,22 @@ external int _gdkSeatGrab(
     symbol: 'gdk_seat_ungrab')
 external void _gdkSeatUngrab(ffi.Pointer<ffi.NativeType> seat);
 
-/// `GDK_GRAB_ALREADY_GRABBED` — see [_takePopupGrab] for why it is special.
-const int _kGrabAlreadyGrabbed = 1;
+// The counterpart of the `gtk_widget_hide` above: the grab's prepare function
+// has to *map* the window, so it needs this.
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gtk_widget_show')
+external void _gtkWidgetShow(ffi.Pointer<ffi.NativeType> widget);
+
+/// `void (*GdkSeatGrabPrepareFunc)(GdkSeat*, GdkWindow*, gpointer)`.
+typedef _GdkSeatGrabPrepareFunc = ffi.Void Function(
+  ffi.Pointer<ffi.NativeType>,
+  ffi.Pointer<ffi.NativeType>,
+  ffi.Pointer<ffi.NativeType>,
+);
+
+/// `GDK_GRAB_SUCCESS`. Anything else means no grab was taken — and, in the
+/// `not-viewable` case, that GDK cleared the seat off the window again.
+const int _kGrabSuccess = 0;
 
 /// `GdkGrabStatus`, for the log line — a non-success status is the first thing
 /// worth knowing when no `grab` appears on the wire.
@@ -536,34 +550,52 @@ const List<String> _kGrabStatusNames = <String>[
   'failed',
 ];
 
-/// Takes a seat grab on a popup that has been realized but **not yet mapped**,
-/// and answers the seat so [_releasePopupGrab] can give it back.
+/// Takes a seat grab on a popup and maps it, and answers the seat so
+/// [_releasePopupGrab] can give it back.
 ///
-/// The timing is the whole of this. GDK reads the grab seat when it creates the
-/// `xdg_popup`, which happens when the window is shown — and the SDK shows it
-/// from the engine's first-frame callback, after the constructor has returned.
-/// So the only moment that works is between construction and that first frame,
-/// which is where [PopupHost.openPopup] already reaches into the native window
-/// to make it transparent. Grabbing after the map would be too late for GDK and
-/// an `invalid_grab` protocol error if it were not.
+/// **The grab has to do the mapping, and that is the whole shape of this.**
+/// `gdk_wayland_seat_grab` records the seat on the window, calls the caller's
+/// prepare function, and then refuses outright — `g_critical` plus
+/// `GDK_GRAB_NOT_VIEWABLE`, with the seat it just recorded cleared again — if
+/// the window is still not visible. The prepare function is the documented
+/// place to show it, which is why GTK's own comment in `find_grab_input_seat`
+/// reads "this relies on GTK+ taking the grab before showing the popup
+/// window": the map is what creates the `xdg_popup`, and it sends
+/// `xdg_popup.grab` only if the seat is already on the window by then.
 ///
-/// Answers null on anything unexpected — a missing symbol, no display, a
-/// refused grab — because a spike that cannot arm itself must still leave a
-/// working popup behind.
+/// So this is called from the post-frame callback that has just sized the
+/// window — the last moment before the engine's first-frame callback maps it —
+/// and the SDK's own `_window.show()` then finds a window that is already
+/// visible and does nothing. Mapping any earlier would reintroduce the
+/// mis-placement the size callback exists to prevent, and grabbing any later
+/// would be after the `xdg_popup` was created without a grab, which GDK will
+/// not revisit and xdg-shell calls `invalid_grab`.
+///
+/// Answers null on anything unexpected, because a spike that cannot arm itself
+/// must still leave a working popup behind.
 ffi.Pointer<ffi.NativeType>? _takePopupGrab(
   ffi.Pointer<ffi.Void> windowHandle,
   _PopupGrabMode mode,
 ) {
+  ffi.NativeCallable<_GdkSeatGrabPrepareFunc>? prepare;
   try {
     final gdkWindow = _gtkWidgetGetWindow(windowHandle.cast());
     if (gdkWindow == ffi.nullptr) {
-      debugPrint('popup grab: the popup has no GdkWindow yet; not grabbing');
+      debugPrint('popup grab: the popup has no GdkWindow; not grabbing');
       return null;
     }
     final display = gdkDisplayGetDefault();
     if (display == ffi.nullptr) return null;
     final seat = _gdkDisplayGetDefaultSeat(display.cast());
     if (seat == ffi.nullptr) return null;
+    // Invoked synchronously by GDK on this thread, from inside the call below,
+    // which is what makes `isolateLocal` correct — the same reason every
+    // callback in `lib/native/` is one.
+    prepare = ffi.NativeCallable<_GdkSeatGrabPrepareFunc>.isolateLocal(
+      (ffi.Pointer<ffi.NativeType> _, ffi.Pointer<ffi.NativeType> __,
+              ffi.Pointer<ffi.NativeType> ___) =>
+          _gtkWidgetShow(windowHandle.cast()),
+    );
     final status = _gdkSeatGrab(
       seat,
       gdkWindow,
@@ -573,28 +605,21 @@ ffi.Pointer<ffi.NativeType>? _takePopupGrab(
       1,
       ffi.nullptr,
       ffi.nullptr,
-      ffi.nullptr,
+      prepare.nativeFunction.cast(),
       ffi.nullptr,
     );
     final name = status >= 0 && status < _kGrabStatusNames.length
         ? _kGrabStatusNames[status]
         : '$status';
     debugPrint('popup grab: gdk_seat_grab(${mode.name}) -> $name');
-    // Answered even on most non-success statuses, deliberately: GDK records the
-    // grab seat on the window separately from what it returns here, so a
-    // refusal does not prove `xdg_popup.grab` will not go out — the wire trace
-    // is the authority on that — and holding the seat is what makes us hand it
-    // back rather than leak it.
-    //
-    // `already-grabbed` is the exception, because there the grab belongs to
-    // somebody else and ungrabbing would take *theirs* down. Nothing in the
-    // shell holds a GTK grab today, so this should never be seen; if it is, it
-    // is a finding rather than something to work around.
-    if (status == _kGrabAlreadyGrabbed) return null;
+    if (status != _kGrabSuccess) return null;
     return seat;
   } catch (error) {
     debugPrint('popup grab: could not grab the seat: $error');
     return null;
+  } finally {
+    // GDK does not keep the prepare function past the call.
+    prepare?.close();
   }
 }
 
@@ -1090,14 +1115,6 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     final gtkWindow = GtkWindow.fromHandle(native.windowHandle);
     gtkWindow.setAppPaintable(true);
     FlView.fromHandle(native.flutterViewHandle).setBackgroundColor('#00000000');
-    // The spike, and the one moment it can happen: realized by the SDK's
-    // constructor above, not yet shown — the engine's first-frame callback is
-    // what maps it, and GDK reads the grab seat as it creates the `xdg_popup`.
-    // See [_takePopupGrab].
-    final grabMode = _kPopupGrabMode;
-    if (grabMode != null) {
-      _grabbedSeat = _takePopupGrab(native.windowHandle, grabMode);
-    }
     // A sized-to-content popup has to be told its size before it maps, or it is
     // positioned as though it were some other size.
     //
@@ -1122,6 +1139,15 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       final size = contentKey.currentContext?.size;
       if (size == null) return;
       gtkWindow.resize(size.width.ceil(), size.height.ceil());
+      // The spike, here for the same reason the resize is: this is the last
+      // moment before the engine's first-frame callback maps the window, and
+      // the grab is what has to do the mapping. [_takePopupGrab] explains why
+      // it cannot be earlier or later. Sized first, so the popup maps at the
+      // size it was placed as.
+      final grabMode = _kPopupGrabMode;
+      if (grabMode != null && _popupController == thisController) {
+        _grabbedSeat = _takePopupGrab(native.windowHandle, grabMode);
+      }
       // The same measurement answers the panel's other question: how much of
       // its inner rim this card's mouth covers, so it can leave that stretch
       // unpainted. It has to be here rather than at open, because the mouth is
