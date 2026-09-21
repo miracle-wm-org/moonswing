@@ -69,14 +69,23 @@ class TransientHandle {
 /// see another's popups: they share the root's [WindowRegistry], but a popup is a
 /// sibling view of the panel that opened it. Nothing else dismisses them either —
 /// the Linux popup controller takes no `gdk_seat_grab`, so the compositor never
-/// sends `popup_done`, and there is no focus-lost callback anywhere in the
-/// Wayland or GTK stack.
+/// sends `popup_done`, and the one focus signal GTK does offer cannot see this.
 ///
-/// Focus moving *away* is the one thing the shell learns about from outside,
-/// and not from that stack: miracle's `window` event says which application
-/// window the compositor focused, which `lib/popup_focus_dismiss.dart` turns
-/// into a [dismissOutside]. It is a second caller here, not a second closer —
-/// this is still the only thing that closes a popup.
+/// That signal is real but inapplicable: `LayershellWindowController` notifies
+/// on `notify::is-active`, and on Wayland GTK takes `is-active` from
+/// `wl_keyboard.enter`/`leave`. A surface at `LayerShellKeyboardMode.none` —
+/// which every panel is, and every popup inherits — never receives keyboard
+/// enter, so it is never active and the property never transitions. Clicking an
+/// application window is not a focus change involving the shell at all.
+/// `AppLifecycleState` is no help either: the engine attaches its
+/// `FlWindowStateMonitor` to the *implicit* view's toplevel only, and every
+/// surface here is a secondary view.
+///
+/// So focus moving away is learned from outside that stack entirely: miracle's
+/// `window` event says which application window the compositor focused, which
+/// `lib/popup_focus_dismiss.dart` turns into a [dismissOutside]. It is a second
+/// caller here, not a second closer — this is still the only thing that closes
+/// a popup.
 class PopupCoordinator extends ChangeNotifier {
   PopupCoordinator._();
 

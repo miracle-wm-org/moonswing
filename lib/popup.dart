@@ -350,8 +350,10 @@ class TransientScope extends InheritedWidget {
 /// Wrapped around the two surfaces that cover real screen area and are not
 /// themselves transient — a panel and the desktop surface — because nothing else
 /// can tell us the user clicked elsewhere: the Linux popup controller takes no
-/// `gdk_seat_grab`, so the compositor never sends `popup_done`, and no
-/// layer-shell surface reports focus loss.
+/// `gdk_seat_grab`, so the compositor never sends `popup_done`, and a panel's
+/// own focus never changes — it is [LayerShellKeyboardMode.none], so GTK's
+/// `is-active` (which the controller *does* notify on) is permanently false
+/// and never transitions.
 ///
 /// Translucent, so a click on a panel's empty space dismisses too. It still
 /// cannot catch a click on an ordinary application window — nothing available

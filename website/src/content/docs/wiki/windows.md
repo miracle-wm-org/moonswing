@@ -54,11 +54,14 @@ twice.
 ## Popups
 
 Nothing in the *Wayland* stack says a popup should go away. The Linux popup controller takes
-no `gdk_seat_grab`, so no `popup_done` ever arrives, and no layer-shell surface reports focus
-loss — the layer-shell binding has no focus callback at all, and `ext-foreign-toplevel-list-v1`
-carries no state. `PopupCoordinator.instance` is the only thing that closes them,
-`PopupDismissArea` the only thing that notices a click on a shell surface, and the compositor's
-own IPC the only thing that notices one anywhere else.
+no `gdk_seat_grab`, so no `popup_done` ever arrives, and `ext-foreign-toplevel-list-v1` carries
+no state at all. GTK does report a window gaining and losing keyboard focus, but a panel never
+takes any — it is deliberately the mode that does not steal focus from whatever you are typing
+in — so for a bar and its popups that signal never fires. Flutter's own app-lifecycle state
+cannot help either: the engine derives it from a single window, the one the shell never shows.
+`PopupCoordinator.instance` is the only thing that closes them, `PopupDismissArea` the only
+thing that notices a click on a shell surface, and the compositor's own IPC the only thing that
+notices one anywhere else.
 
 - A handle's **chain** is itself plus its transitive parents, and nothing in a chain dismisses
   anything else in it. Parentage is read from `TransientScope.maybeOf(context)`, never passed
