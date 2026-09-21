@@ -49,7 +49,11 @@ const double kSwitcherMaxGridFraction = 0.6;
 /// gesture — and a surface that takes focus with a key already down may only
 /// ever learn about it through the modifier state, which is reported under the
 /// synonym.
-const Set<LogicalKeyboardKey> kSwitcherModifiers = {
+///
+/// `final`, not `const`: [LogicalKeyboardKey] overrides `==`, and a constant
+/// set has to canonicalize on primitive equality. A top-level `final` is
+/// lazily initialized, so it still costs nothing until the first Alt+Tab.
+final Set<LogicalKeyboardKey> kSwitcherModifiers = {
   LogicalKeyboardKey.alt,
   LogicalKeyboardKey.altLeft,
   LogicalKeyboardKey.altRight,
