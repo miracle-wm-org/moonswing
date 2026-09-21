@@ -1238,6 +1238,15 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       // leave the new session drawn on windows already on their way to being
       // destroyed. The new one waits and gets a fresh set.
       _switcherReopen = true;
+      // The fading surface gave its grab back when the last session committed,
+      // so until the new set is mapped nothing in the shell is reading the
+      // keyboard — and this session's own release would go unheard. The old
+      // surface is still up and its overlay is still mounted, so take the grab
+      // back on it for the gap. It may cost the previous session's switch, if
+      // that one's commands have not reached miracle yet; a user who has
+      // started choosing again is telling us which window they want, and it is
+      // the last choice that should win.
+      _grantSwitcherKeyboard();
       return;
     }
     _openSwitcher(controller);
@@ -1265,6 +1274,8 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         keyboard: entry.key == _switcherKeyboardKey,
       );
     }
+    // The root owns the surfaces, so the root is what can hand the grab back.
+    controller.onReleaseKeyboard = _releaseSwitcherKeyboard;
     // A menu policy, not a modal one: the switcher owes nobody an answer, and
     // anything else that wants the screen — the lock, a polkit prompt — should
     // be free to take it out from under a gesture the user has walked away
@@ -1306,6 +1317,47 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     return controller;
   }
 
+  /// Hands the compositor's keyboard grab back, before
+  /// [WindowSwitcherController] asks miracle to focus the window the user chose.
+  ///
+  /// Not an optimization and not tidiness: an exclusive layer surface is
+  /// `mir_focus_mode_grabbing` to Mir, and miral refuses every focus change
+  /// while a grabbing window is the active one — so the switch would be
+  /// swallowed, reported successful, and undone by the compositor refocusing
+  /// the window the user came from as these surfaces go away. See
+  /// [WindowSwitcherController.commit] for the ordering that makes the release
+  /// land first.
+  ///
+  /// [_switcherKeyboardKey] is deliberately *not* cleared: the surface is still
+  /// the one that would read the keyboard, and a session that reopens mid-fade
+  /// takes the grab back on it. [_onSwitcherClosed] is what forgets it.
+  void _releaseSwitcherKeyboard() =>
+      _setSwitcherKeyboard(LayerShellKeyboardMode.none);
+
+  /// Takes the grab back on the surface that last held it. See
+  /// [_onSwitcherChanged]'s reopen branch, the only thing that needs it.
+  void _grantSwitcherKeyboard() =>
+      _setSwitcherKeyboard(LayerShellKeyboardMode.exclusive);
+
+  /// Puts the one keyboard-taking switcher surface into [mode].
+  ///
+  /// Guarded on [LayershellWindowController.isDestroyed] rather than assumed
+  /// live — every getter on a destroyed controller throws, and a monitor
+  /// unplugged mid-gesture destroys the surface before the session ends — and
+  /// on the mode already being the one asked for, so nothing is sent twice.
+  /// The commit is forced for [setPanelMargin]'s reason: a keyboard-mode change
+  /// on a mapped surface only queues a resize, and an idle shell produces no
+  /// frame to carry it.
+  void _setSwitcherKeyboard(LayerShellKeyboardMode mode) {
+    final key = _switcherKeyboardKey;
+    if (key == null) return;
+    final controller = _switcher[key];
+    if (controller == null || controller.isDestroyed) return;
+    if (controller.keyboardMode == mode) return;
+    controller.setKeyboardMode(mode);
+    controller.tryForceCommit();
+  }
+
   /// Called by the switcher surfaces once they have stopped painting; the first
   /// takes them all down.
   void _onSwitcherClosed() {
@@ -1313,6 +1365,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     final removed = _switcher.values.toList();
     _switcher.clear();
     _switcherKeyboardKey = null;
+    WindowSwitcherController.instance.onReleaseKeyboard = null;
     _switcherWindows = const [];
     PopupCoordinator.instance.close(_switcherHandle);
     _switcherHandle = null;
@@ -1946,6 +1999,10 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       ctrl.destroy();
     }
     _switcher.clear();
+    _switcherKeyboardKey = null;
+    // The controller is a singleton and outlives this State; a hook left on it
+    // would reach into destroyed surfaces on the next Alt+Tab.
+    WindowSwitcherController.instance.onReleaseKeyboard = null;
     PopupCoordinator.instance.close(_switcherHandle);
     _switcherHandle = null;
     // Every root-owned overlay, symmetrically: each dispose covers the window,

@@ -409,6 +409,63 @@ void main() {
       expect(controller.isOpen, isFalse);
     });
 
+    test('the keyboard grab goes back before the switch is asked for', () {
+      // The surface that read the release holds the keyboard exclusively, which
+      // is `mir_focus_mode_grabbing` to Mir, and miral refuses every focus
+      // change while a grabbing window is the active one. A switch sent with
+      // the grab still up is accepted, reported successful and dropped, so the
+      // order of these two is the whole of the fix.
+      final order = <String>[];
+      final controller = WindowSwitcherController.forTesting(
+        readWindows: () => [_w('a'), _w('b')],
+        activate: (_, _) async {
+          order.add('switch');
+        },
+      );
+      addTearDown(controller.dispose);
+      controller.onReleaseKeyboard = () => order.add('release');
+
+      controller.cycle(forward: true);
+      controller.commit();
+      expect(order, ['release', 'switch']);
+    });
+
+    test('a commit with nothing highlighted still gives the grab back', () {
+      // No window to switch to is not a session that keeps the keyboard: the
+      // gesture is over either way, and a grab nobody hands back is one the
+      // compositor only drops when the surface goes.
+      var releases = 0;
+      final controller = WindowSwitcherController.forTesting(
+        readWindows: () => <OpenWindow>[],
+      );
+      addTearDown(controller.dispose);
+      controller.onReleaseKeyboard = () => releases++;
+
+      controller.cycle(forward: true);
+      expect(controller.selected, isNull);
+      controller.commit();
+      expect(releases, 1);
+    });
+
+    test('a commit on a session that already ended asks for nothing', () {
+      var releases = 0;
+      var switches = 0;
+      final controller = WindowSwitcherController.forTesting(
+        readWindows: () => [_w('a'), _w('b')],
+        activate: (_, _) async {
+          switches++;
+        },
+      );
+      addTearDown(controller.dispose);
+      controller.onReleaseKeyboard = () => releases++;
+
+      controller.cycle(forward: true);
+      controller.commit();
+      controller.commit();
+      expect(releases, 1);
+      expect(switches, 1);
+    });
+
     test('cancelling switches to nothing', () {
       var switches = 0;
       final controller = WindowSwitcherController.forTesting(
