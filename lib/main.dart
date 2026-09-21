@@ -87,6 +87,10 @@ import 'package:graceful_shell/screencast/screencast_service.dart';
 import 'package:graceful_shell/shell_services.dart';
 import 'package:graceful_shell/shell_text_root.dart';
 import 'package:graceful_shell/status_notifier_service.dart';
+import 'package:graceful_shell/switcher/open_window.dart';
+import 'package:graceful_shell/switcher/open_window_store.dart';
+import 'package:graceful_shell/switcher/switcher_controller.dart';
+import 'package:graceful_shell/switcher/switcher_overlay.dart';
 import 'package:graceful_shell/scopes.dart';
 import 'package:graceful_shell/config_store.dart';
 import 'package:graceful_shell/desktop/app_chooser.dart';
@@ -304,6 +308,26 @@ void _startShellServices({
   // until the compositor confirms the shell owns the key (see [PowerKeyService]),
   // and `key_action = "none"` claims nothing at all.
   services.run(ShellService.power, () => startPowerService(appConfig.power));
+
+  // The window switcher's list of open windows, and the recency order it
+  // offers them in. Late in this function and below `runWidget` for the same
+  // reason the application index is: opening the capture connection is a
+  // dlopen and two synchronous Wayland round trips.
+  //
+  // Not a `ShellService`, [startKeybindService]'s reason: there is nothing to
+  // await, and a machine that cannot reach a compositor must not settle a
+  // start-up task `failed` over a switcher nobody has pressed Alt+Tab on — the
+  // overlay says so itself, on the one surface where it can be read.
+  //
+  // Skipped outright when both directions are disabled, which is the one case
+  // where nothing can ever ask for the list: a connection opened for a feature
+  // that cannot be reached is a connection the shell should not be holding.
+  // The start-up snapshot, like the registration it mirrors — an edit needs a
+  // restart either way.
+  if (appConfig.shortcuts.switchWindows != null ||
+      appConfig.shortcuts.switchWindowsBack != null) {
+    startWindowSwitcherService(miracle);
+  }
 
   // Enumerates installed applications while the shell is already on screen, so
   // the launcher can paint the instant its shortcut fires. Until it lands the
@@ -579,6 +603,49 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
   /// [_onSelectionClosed], which is idempotent.
   final ValueNotifier<bool> _selectionClosing = ValueNotifier(false);
 
+  /// The window switcher's surfaces, keyed like [_surfaces].
+  ///
+  /// One per monitor, like the selection surfaces and for the same reason a
+  /// layer-shell surface covers one output — except that here it is also the
+  /// point: Alt+Tab must put the list where the user is looking, and the shell
+  /// cannot know which display that is without a round trip it does not have
+  /// time for.
+  final Map<String, LayershellWindowController> _switcher = {};
+
+  /// The monitor key of the one switcher surface that takes the keyboard.
+  ///
+  /// Exactly one, because two mapped layer surfaces both asking for exclusive
+  /// keyboard focus is not something the protocol defines an answer for — and
+  /// one is enough: what the focus is *for* is reading Alt coming back up, and
+  /// the key goes to whoever has it wherever the pointer is.
+  String? _switcherKeyboardKey;
+
+  /// The windows the open switcher is drawing.
+  ///
+  /// Held here rather than read off the controller for the reason the capture
+  /// selection's request is: the controller ends its session the moment the
+  /// user lets go, while the surfaces stay mounted through their exit
+  /// animation, and a grid that emptied itself on the way out would be the
+  /// last thing the user saw of it.
+  List<OpenWindow> _switcherWindows = const [];
+
+  /// Whether the shell could read the window list at all when the switcher
+  /// opened. Snapshotted with [_switcherWindows], and for the same reason.
+  bool _switcherAvailable = true;
+
+  /// Flips to start the switcher surfaces coming down; the first to finish
+  /// answers with [_onSwitcherClosed], which is idempotent.
+  final ValueNotifier<bool> _switcherClosing = ValueNotifier(false);
+
+  /// The coordinator registration all of the switcher's surfaces share — they
+  /// are one transient, drawn once per output.
+  final Object _switcherOwner = Object();
+  TransientHandle? _switcherHandle;
+
+  /// A switcher session that started while the previous one's surfaces were
+  /// still fading out, and is waiting for its own set. See [_onSwitcherChanged].
+  bool _switcherReopen = false;
+
   /// The coordinator registration all of the selection surfaces share — they
   /// are one modal, drawn once per output.
   final Object _selectionOwner = Object();
@@ -638,6 +705,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       (ScreencastPickerController.instance, _onScreencastPickChanged),
       (PolkitAuthController.instance, _onPolkitAuthChanged),
       (CaptureSelectionController.instance, _onCaptureSelectionChanged),
+      (WindowSwitcherController.instance, _onSwitcherChanged),
       (LockController.instance, _onLockRequested),
       (NotificationPanelController.instance, _onNotificationPanelToggled),
       // The badges are created and destroyed off the store's own emptiness,
@@ -1148,6 +1216,116 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     CaptureSelectionController.instance.complete(answer);
   }
 
+  /// The window switcher opened, or ended.
+  ///
+  /// Only the *session* is signalled here; the cycling itself never reaches the
+  /// root, because the selection is a [ValueNotifier] the cells listen to
+  /// directly. A surface per output is a native window per output, and Alt+Tab
+  /// is pressed often enough that rebuilding them on every press of Tab would
+  /// be the most expensive thing in the shell.
+  void _onSwitcherChanged() {
+    if (!mounted) return;
+    final controller = WindowSwitcherController.instance;
+    if (!controller.isOpen) {
+      if (_switcher.isNotEmpty) _switcherClosing.value = true;
+      return;
+    }
+    if (_switcher.isNotEmpty) {
+      // A second Alt+Tab inside the first one's fade. Surfaces exist here only
+      // while an exit is playing — cycling notifies nobody, so the only
+      // notification that finds them is this one — and they cannot be reused:
+      // [FadeOverlayScaffold] latches its exit, so clearing the notifier would
+      // leave the new session drawn on windows already on their way to being
+      // destroyed. The new one waits and gets a fresh set.
+      _switcherReopen = true;
+      return;
+    }
+    _openSwitcher(controller);
+  }
+
+  void _openSwitcher(WindowSwitcherController controller) {
+    if (_surfaces.isEmpty) {
+      // No monitor, so no surface, so nothing will ever call
+      // [_onSwitcherClosed] — a session opened here would stay open with no
+      // way of ending it and would swallow every later Alt+Tab.
+      controller.cancel();
+      return;
+    }
+    _switcherWindows = controller.windows;
+    _switcherAvailable = OpenWindowStore.instance.available;
+    _switcherClosing.value = false;
+    // The first monitor enumerated is the one that takes the keyboard. Which
+    // one is arbitrary and invisible — the surfaces are identical and nothing
+    // is typed into them — but it must be *one*, and it must be a monitor that
+    // gets a surface, which the guard above is what guarantees.
+    _switcherKeyboardKey = _surfaces.keys.first;
+    for (final entry in _surfaces.entries) {
+      _switcher[entry.key] = _createSwitcher(
+        entry.value.monitor,
+        keyboard: entry.key == _switcherKeyboardKey,
+      );
+    }
+    // A menu policy, not a modal one: the switcher owes nobody an answer, and
+    // anything else that wants the screen — the lock, a polkit prompt — should
+    // be free to take it out from under a gesture the user has walked away
+    // from. Its dismiss is the cancel, so nothing is switched to.
+    _switcherHandle = PopupCoordinator.instance.open(
+      owner: _switcherOwner,
+      policy: TransientPolicy.menu,
+      onDismiss: controller.cancel,
+    );
+    _refreshWindows();
+  }
+
+  /// One switcher surface: the whole of one output, on the overlay layer.
+  ///
+  /// [LayerShellKeyboardMode.exclusive] on the one that reads the keyboard,
+  /// not `onDemand`: nothing here is clicked to focus it, and the surface has
+  /// to be holding the keyboard *before* the user lets go of a key they are
+  /// already holding down.
+  LayershellWindowController _createSwitcher(
+    MonitorInfo monitor, {
+    required bool keyboard,
+  }) {
+    final controller = LayershellWindowController(
+      layer: LayerShellLayer.overlay,
+      anchorEdges: const [
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+        LayerShellEdge.left,
+        LayerShellEdge.right,
+      ],
+      keyboardMode: keyboard
+          ? LayerShellKeyboardMode.exclusive
+          : LayerShellKeyboardMode.none,
+      monitor: monitor.gdkMonitor,
+    );
+    // Or the compositor shrinks it into the gap between the panels and the
+    // card is centred on the space left over rather than on the screen.
+    spanFullOutput(controller);
+    return controller;
+  }
+
+  /// Called by the switcher surfaces once they have stopped painting; the first
+  /// takes them all down.
+  void _onSwitcherClosed() {
+    if (!mounted || _switcher.isEmpty) return;
+    final removed = _switcher.values.toList();
+    _switcher.clear();
+    _switcherKeyboardKey = null;
+    _switcherWindows = const [];
+    PopupCoordinator.instance.close(_switcherHandle);
+    _switcherHandle = null;
+    _refreshWindows();
+    _destroyAfterFrame(removed);
+    if (!_switcherReopen) return;
+    _switcherReopen = false;
+    // The session that arrived mid-exit. Still open unless the user has let go
+    // again since, in which case it has already answered itself.
+    final controller = WindowSwitcherController.instance;
+    if (controller.isOpen) _openSwitcher(controller);
+  }
+
   /// polkitd asked the user to prove who they are (or the prompt was answered).
   ///
   /// The agent is blocked inside `BeginAuthentication` awaiting
@@ -1586,6 +1764,26 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         if (badge != null) removed.add(badge);
         final selector = _selector.remove(key);
         if (selector != null) removed.add(selector);
+        final switcher = _switcher.remove(key);
+        if (switcher != null) {
+          removed.add(switcher);
+          // The unplugged display may have been the one reading the keyboard,
+          // and a switcher nothing can read the release off is one the user
+          // cannot finish. So the whole session goes with it, bookkeeping
+          // included — and at once rather than through [_switcherClosing],
+          // because there is no fade to play for a gesture whose screen has
+          // just been pulled out from under it.
+          if (_switcherKeyboardKey == key) {
+            removed.addAll(_switcher.values);
+            _switcher.clear();
+            _switcherKeyboardKey = null;
+            _switcherWindows = const [];
+            _switcherReopen = false;
+            PopupCoordinator.instance.close(_switcherHandle);
+            _switcherHandle = null;
+            WindowSwitcherController.instance.cancel();
+          }
+        }
         final lock = _lockHost.removeMonitor(key);
         if (lock != null) removedLocks.add(lock);
         changed = true;
@@ -1613,6 +1811,13 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
       // Same for a monitor plugged in while something is on the list: the
       // badge is per-output precisely so the user sees it wherever they are.
       if (_badges.isNotEmpty) _badges[entry.key] = _createBadge(entry.value);
+      // A monitor plugged in mid-gesture gets one too, for the reason the
+      // switcher is per-output at all: it must be on the screen the user is
+      // looking at. Never the keyboard one — that surface already exists and
+      // already has the focus this gesture is being read through.
+      if (_switcher.isNotEmpty) {
+        _switcher[entry.key] = _createSwitcher(entry.value, keyboard: false);
+      }
       // Likewise a monitor plugged in while locked: without a lock surface
       // the compositor would just blank it.
       _lockHost.addMonitor(entry.key, entry.value.gdkMonitor);
@@ -1737,6 +1942,12 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     _selector.clear();
     PopupCoordinator.instance.close(_selectionHandle);
     _selectionHandle = null;
+    for (final ctrl in _switcher.values) {
+      ctrl.destroy();
+    }
+    _switcher.clear();
+    PopupCoordinator.instance.close(_switcherHandle);
+    _switcherHandle = null;
     // Every root-owned overlay, symmetrically: each dispose covers the window,
     // the coordinator registration, the AppIndex bracket and the closing
     // notifier.
@@ -1756,6 +1967,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
     }
     _liveConfig.dispose();
     _selectionClosing.dispose();
+    _switcherClosing.dispose();
     super.dispose();
   }
 
@@ -1975,6 +2187,30 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
                 );
               },
             ),
+        // The window switcher, one surface per output for the same reason the
+        // selection surfaces are: a layer-shell surface covers one screen, and
+        // this one has to be on the screen the user is looking at.
+        if (_switcher[_monitorKey(surfaces.monitor)] case final switcher?)
+          (
+            controller: switcher,
+            builder: (_) => _windowChrome(
+              WindowSwitcherOverlay(
+                // The root's snapshot, not the controller's: the session ends
+                // the instant Alt comes up, and these surfaces outlive it by
+                // a fade.
+                windows: _switcherWindows,
+                available: _switcherAvailable,
+                selection: WindowSwitcherController.instance.selection,
+                takesKeyboard:
+                    _monitorKey(surfaces.monitor) == _switcherKeyboardKey,
+                closingNotifier: _switcherClosing,
+                onClosed: _onSwitcherClosed,
+                onSelect: WindowSwitcherController.instance.select,
+                onCommit: WindowSwitcherController.instance.commit,
+                onCancel: WindowSwitcherController.instance.cancel,
+              ),
+            ),
+          ),
       ],
       // The notification panel. A single window like the overlays below it — one
       // panel for the machine, however many bells and badges ask for it — so it

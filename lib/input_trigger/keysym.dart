@@ -129,6 +129,24 @@ const Map<String, int> _punctuationKeysyms = {
   'bracketright': 0x005d,
 };
 
+/// `XKB_KEY_ISO_Left_Tab` — what Shift+Tab produces.
+///
+/// Named because three places need it and none of them should spell it: the
+/// shift resolution below, its inverse, and [xkbKeysymName], which is what
+/// draws the key cap for `alt+shift+tab`.
+const int kIsoLeftTabKeysym = 0xfe20;
+
+/// Keys whose shifted keysym is the same on every layout.
+///
+/// Unlike [_usShifted] this is not an assumption about the user's keyboard:
+/// xkb resolves Shift+Tab to `ISO_Left_Tab` wherever the Tab key happens to
+/// be, on every layout. Mir matches the resolved keysym, so `"alt+shift+tab"`
+/// registered as a plain `Tab` would be a binding the compositor never fires —
+/// which is exactly what the window switcher's "previous window" shortcut is.
+const Map<int, int> _shiftResolved = {
+  0xff09: kIsoLeftTabKeysym, // Tab -> ISO_Left_Tab
+};
+
 /// What the US layout produces when Shift is held with a digit or punctuation
 /// key. Mir matches on the *resolved* keysym, so `"ctrl+shift+1"` registers `!`.
 ///
@@ -229,7 +247,7 @@ ShortcutSpec? parseShortcut(String value) {
     if (keysym >= 0x61 && keysym <= 0x7a) {
       keysym -= 0x20; // 's' -> 'S'
     } else {
-      keysym = _usShifted[keysym] ?? keysym;
+      keysym = _shiftResolved[keysym] ?? _usShifted[keysym] ?? keysym;
     }
   }
 
@@ -312,6 +330,11 @@ String? _tokenForKeysym(int keysym) {
 String? xkbKeysymName(int keysym) {
   final named = _namedKeysymSpellings[keysym];
   if (named != null) return named.xkb;
+  // Shift+Tab. Deliberately not in [_namedKeysymSpellings], which also holds
+  // the token [formatShortcut] writes: this keysym has no token of its own —
+  // it is written `shift+tab`, and [_unshiftKeysym] is what turns it back — so
+  // giving it one would break the round trip in the one direction that matters.
+  if (keysym == kIsoLeftTabKeysym) return 'ISO_Left_Tab';
   if (keysym >= _firstFunctionKeysym && keysym <= _lastFunctionKeysym) {
     return 'F${keysym - _firstFunctionKeysym + 1}';
   }
@@ -330,6 +353,9 @@ String? xkbKeysymName(int keysym) {
 /// shifted shortcut would come back as an unparseable `ctrl+shift+S`.
 int _unshiftKeysym(int keysym) {
   if (keysym >= 0x41 && keysym <= 0x5a) return keysym + 0x20; // 'S' -> 's'
+  for (final entry in _shiftResolved.entries) {
+    if (entry.value == keysym) return entry.key;
+  }
   for (final entry in _usShifted.entries) {
     if (entry.value == keysym) return entry.key;
   }

@@ -184,6 +184,10 @@ open_emoji = "ctrl+shift+e"
 open_notifications = "super+e"
 # The power menu — shut down, restart, suspend, lock or log out.
 open_power_menu = "shift+super+e"
+# The window switcher. Hold Alt, press Tab to move through the open windows,
+# and let Alt go to switch to the one you are on.
+switch_windows = "alt+tab"
+switch_windows_back = "alt+shift+tab"
 # A screenshot of an area you drag out, and a recording of the screen you are
 # on. Press the recording shortcut again to stop it.
 screenshot_area = "print"

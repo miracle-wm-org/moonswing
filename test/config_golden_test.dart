@@ -38,6 +38,8 @@ void main() {
       expect(config.shortcuts.screenshotArea, kDefaultScreenshotArea);
       expect(config.shortcuts.recordScreen, kDefaultRecordScreen);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
+      expect(config.shortcuts.switchWindows, kDefaultSwitchWindows);
+      expect(config.shortcuts.switchWindowsBack, kDefaultSwitchWindowsBack);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);
@@ -120,6 +122,8 @@ void main() {
       expect(config.shortcuts.screenshotArea, kDefaultScreenshotArea);
       expect(config.shortcuts.recordScreen, kDefaultRecordScreen);
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
+      expect(config.shortcuts.switchWindows, kDefaultSwitchWindows);
+      expect(config.shortcuts.switchWindowsBack, kDefaultSwitchWindowsBack);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);

@@ -17,6 +17,9 @@
 //   one callback and there are two interested parties; and the old arrangement
 //   left the dead connection in place, so every capture after a compositor
 //   restart was made against a socket nobody was listening on.
+// - **`onToplevelsChanged` fans out too**, for the same reason and a third
+//   party: the window switcher's list lives for the whole session, while the
+//   screencast picker only wants the list while it is on screen.
 //
 // Deliberately Flutter-free, like everything else below the screencast UI.
 
@@ -30,6 +33,7 @@ class CaptureHost {
   static CaptureConnection? _connection;
   static bool _attempted = false;
   static final List<void Function()> _diedListeners = [];
+  static final List<void Function()> _toplevelListeners = [];
 
   /// The live connection, or null when there is none *right now* — this never
   /// connects. For "give me one", use [connect].
@@ -57,6 +61,7 @@ class CaptureHost {
       return null;
     }
     connection.onDied = _onDied;
+    connection.onToplevelsChanged = _onToplevelsChanged;
     _connection = connection;
     return connection;
   }
@@ -68,6 +73,29 @@ class CaptureHost {
 
   static void removeDiedListener(void Function() listener) =>
       _diedListeners.remove(listener);
+
+  /// Registers [listener] for a toplevel opening, closing or being retitled.
+  /// Idempotent per callback.
+  ///
+  /// `onDied`'s reason, a second time: [CaptureConnection] carries one callback
+  /// and there is now more than one interested party — the screencast picker
+  /// while it is on screen, and the window switcher's list for the whole life
+  /// of the session. Whoever set the field last would otherwise be the only one
+  /// told.
+  static void addToplevelsChangedListener(void Function() listener) {
+    if (!_toplevelListeners.contains(listener)) {
+      _toplevelListeners.add(listener);
+    }
+  }
+
+  static void removeToplevelsChangedListener(void Function() listener) =>
+      _toplevelListeners.remove(listener);
+
+  static void _onToplevelsChanged() {
+    for (final listener in List.of(_toplevelListeners)) {
+      listener();
+    }
+  }
 
   static void _onDied() {
     screencastLog('capture connection lost');
@@ -85,6 +113,7 @@ class CaptureHost {
   /// smaller than the process is allowed to close it.
   static void dispose() {
     _diedListeners.clear();
+    _toplevelListeners.clear();
     final connection = _connection;
     _connection = null;
     _attempted = false;
@@ -95,6 +124,7 @@ class CaptureHost {
   /// that need a clean slate.
   static void resetForTesting() {
     _diedListeners.clear();
+    _toplevelListeners.clear();
     _connection = null;
     _attempted = false;
   }

@@ -13,6 +13,7 @@ import 'package:graceful_shell/notification_panel_controller.dart';
 import 'package:graceful_shell/power/power_controller.dart';
 import 'package:graceful_shell/power/power_menu_controller.dart';
 import 'package:graceful_shell/power/power_service.dart';
+import 'package:graceful_shell/switcher/switcher_controller.dart';
 import 'package:wayland/wayland.dart';
 
 /// One global shortcut: a key combination and what it does when the compositor
@@ -115,6 +116,24 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
       'graceful-shell.record-screen',
       config.recordScreen,
       () => unawaited(runScreenRecordingShortcut()),
+      null,
+    ),
+    // The two halves of Alt+Tab. Unlike every other shortcut here these are
+    // not toggles: the first press opens the switcher and each one after it
+    // moves the selection, which works because Mir re-fires a trigger's
+    // `begin` on every press of the key while the modifiers stay held. What
+    // ends the gesture is Alt coming back up, which no trigger reports — the
+    // overlay reads that off the keyboard itself.
+    (
+      'graceful-shell.switch-windows',
+      config.switchWindows,
+      () => WindowSwitcherController.instance.cycle(forward: true),
+      null,
+    ),
+    (
+      'graceful-shell.switch-windows-back',
+      config.switchWindowsBack,
+      () => WindowSwitcherController.instance.cycle(forward: false),
       null,
     ),
     (
