@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,7 +5,6 @@ import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/emoji/emoji_clipboard.dart';
 import 'package:graceful_shell/github/github_api.dart';
 import 'package:graceful_shell/github/github_store.dart';
-import 'package:graceful_shell/github/github_token_store.dart';
 import 'package:graceful_shell/modules/github.dart';
 import 'package:graceful_shell/scopes.dart';
 
@@ -15,18 +12,14 @@ import 'github_fakes.dart';
 
 /// The bar strip and the card behind it, pumped the way the shell builds them.
 void main() {
-  late Directory tempDir;
-  late GithubTokenStore tokens;
+  late FakeGithubTokenStore tokens;
   late List<String> opened;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('graceful-github-widget');
-    tokens = GithubTokenStore(directory: tempDir.path);
+    // In memory, as in the store's own tests: a pumped frame is no better than
+    // a `settle()` at waiting for the I/O pool. See [FakeGithubTokenStore].
+    tokens = FakeGithubTokenStore();
     opened = [];
-  });
-
-  tearDown(() {
-    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
   GithubStore seeded({

@@ -1,5 +1,5 @@
-// Shared fakes for the GitHub tests: an offline [GithubClient], a token store
-// under a temporary directory, and the builders that make a notification.
+// Shared fakes for the GitHub tests: an offline [GithubClient], an in-memory
+// token store, and the builders that make a notification.
 //
 // Not a `_test.dart` file, so `flutter test` does not try to run it. The point
 // is `weather_fakes.dart`'s: every store test here takes a real lease on a real
@@ -8,6 +8,7 @@
 import 'dart:async';
 
 import 'package:graceful_shell/github/github_api.dart';
+import 'package:graceful_shell/github/github_token_store.dart';
 
 /// A client that answers from what it was handed, counts its calls, and opens
 /// nothing.
@@ -158,9 +159,54 @@ GithubNotification testNotification({
 /// The store's `acquire()` is fire-and-forget by design — a widget's
 /// `initState` cannot await a token read — so a test that wants to see what it
 /// did has to let the event queue drain. Turns rather than a delay, so this
-/// costs no wall-clock time and cannot flake on a loaded runner.
+/// costs no wall-clock time.
+///
+/// **A turn drains the microtask queue and nothing else.** It does not wait on
+/// Dart's I/O thread pool, so a real file anywhere under one of those
+/// `unawaited` calls makes this return early on a loaded runner however many
+/// turns it is given — which is exactly what [FakeGithubTokenStore] exists to
+/// keep out of these tests.
 Future<void> settle([int turns = 24]) async {
   for (var i = 0; i < turns; i++) {
     await Future<void>.delayed(Duration.zero);
   }
+}
+
+/// A token store that keeps the token in memory.
+///
+/// The real one is `dart:io`, and that is what [settle] cannot wait for: a
+/// single [GithubTokenStore.read] is a `File.exists` and a `File.readAsString`,
+/// two round trips through Dart's I/O thread pool, and a pool under load
+/// delivers them some unbounded number of event-loop turns later. [settle]
+/// counts turns, so on a loaded runner it returned while the store was still
+/// signing in and whichever assertion came next failed. Which test that was
+/// moved from run to run, because which files the pool was busy with did —
+/// several tests in one run, none in the next, and never once on an idle
+/// machine.
+///
+/// So nothing a `settle()` covers may touch a real file. The file itself —
+/// the round trip, the 0700 directory and the 0600 mode — is
+/// `github_token_store_test.dart`'s subject, where it is awaited directly and
+/// no turn-counting is involved.
+///
+/// [directory] is a path that does not exist and never will, so a call that
+/// reaches the filesystem after all fails loudly rather than quietly writing
+/// somewhere real.
+class FakeGithubTokenStore extends GithubTokenStore {
+  FakeGithubTokenStore() : super(directory: '/nonexistent/graceful-shell-test');
+
+  /// The saved token, as the real store's file would hold it.
+  String? token;
+
+  @override
+  Future<String?> read() async => token;
+
+  @override
+  Future<bool> write(String token) async {
+    this.token = token;
+    return true;
+  }
+
+  @override
+  Future<void> clear() async => token = null;
 }

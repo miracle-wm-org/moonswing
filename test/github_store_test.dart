@@ -1,11 +1,8 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:graceful_shell/github/github_api.dart';
 import 'package:graceful_shell/github/github_config.dart';
 import 'package:graceful_shell/github/github_store.dart';
-import 'package:graceful_shell/github/github_token_store.dart';
 
 import 'github_fakes.dart';
 
@@ -13,18 +10,15 @@ import 'github_fakes.dart';
 /// that mark a thread read. Every one of these drives a real store through a
 /// fake client and a token file under a temporary directory.
 void main() {
-  late Directory tempDir;
-  late GithubTokenStore tokens;
+  late FakeGithubTokenStore tokens;
   late List<String> opened;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('graceful-github-test');
-    tokens = GithubTokenStore(directory: tempDir.path);
+    // In memory, not a temporary directory: see [FakeGithubTokenStore]. Every
+    // one of these tests reaches the store through a `settle()`, which counts
+    // event-loop turns and so cannot wait for a real file.
+    tokens = FakeGithubTokenStore();
     opened = [];
-  });
-
-  tearDown(() {
-    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
   });
 
   GithubStore storeWith(
