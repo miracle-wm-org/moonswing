@@ -874,7 +874,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups. Any fontconfig family name; the settings picker lists the ones installed (via `fc-list`), and falls back to a free-typed field where there is no fontconfig |
 | `font_size`            | `13.0`        | Size of the shell's body text, in logical pixels, and with it the whole type scale — labels, captions and headings keep their proportions either side of it. Clamped to 6–32. See the note below |
 | `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
-| `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series   |
+| `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series (see the note below) |
 | `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
 | `surface_hover`        | `#853953`     | Button background when hovered                                              |
 | `surface_pressed`      | `#612D53`     | Button background when pressed; the mid stop of the panel gradient          |
@@ -883,7 +883,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_foreground`     | `#F3F4F4`     | Text and icons inside popups                                                |
 | `control_surface`      | `#39393D`     | Cards, inputs and tiles inside popups and the settings pages                |
 | `slider_track`         | `#612D53`     | The unfilled portion of sliders and usage bars                              |
-| `muted`                | `#853953`     | Secondary, de-emphasised text                                               |
+| `muted`                | `#C4A8B2`     | Secondary, de-emphasised text: menu headers, timestamps, units, greyed rows |
 | `divider`              | `#33F3F4F4`   | Separator lines, and the resting fill of subtle list rows (supports alpha)  |
 | `notification_badge`   | `#F2B441`     | What an unread notification is announced in (see the note below)           |
 | `notification_badge_foreground` | `#2C1218` | Text and glyphs drawn on `notification_badge`                           |
@@ -912,6 +912,9 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
+
+**`accent` is a fill, and the shell derives its own reading colour from it.** The accent is picked to be *filled* — a primary button, the focused workspace, the travelled half of a slider — which means it has to be dark enough to carry white. A colour dark enough for that is rarely light enough to be read as a *label* on a dark card: the shell's own `#853953` holds white at 7.8:1 and then lands on its own popup at 1.8:1. So anything writing in the accent — a checked menu row, the current tab, today's date, a section heading in the settings pages — is drawn in the accent moved along its own lightness ramp until it clears 4.5:1 against `popup_background`, keeping its hue and saturation. There is no key for this and nothing to set: an accent that already reads as text is used exactly as written, and one that does not is lifted only as far as it has to be. Fills, rims and washes are never touched, so the colour you chose is still the colour that gets filled.
+
 
 `notification_badge` is deliberately not `accent`. The accent is the bar's ordinary "this one is active" — it is on the focused workspace, on every hovered button and on half the controls in the settings panel — and the floating card that plants itself in the corner of every output would read as more of the same furniture wearing it. This is the one colour in the shell that is allowed to be louder than the rest of the palette, so every shipped theme spells it as a hue that theme does not otherwise use. It is worn by the floating card, the bell's unread count and the dot on an unread message, so those three cannot disagree about what "unread" looks like.
 

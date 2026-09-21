@@ -70,7 +70,7 @@ class _PasswordFieldState extends State<_PasswordField> {
           color: theme.popupForeground,
           fontFamily: theme.fontFamily,
         ),
-        cursorColor: theme.accent,
+        cursorColor: theme.accentText,
         backgroundCursorColor: theme.divider,
         obscureText: true,
         autofocus: true,
@@ -297,7 +297,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
               style: TextStyle(
                 fontSize: 13,
                 fontFamily: theme.fontFamily,
-                color: theme.accent,
+                color: theme.accentText,
               ),
               textAlign: TextAlign.center,
             ),
@@ -404,7 +404,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
                         style: TextStyle(
                           fontSize: 12,
                           fontFamily: theme.fontFamily,
-                          color: theme.accent,
+                          color: theme.accentText,
                         ),
                       ),
                     ),

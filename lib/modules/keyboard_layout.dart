@@ -341,7 +341,7 @@ class _SourceRow extends StatelessWidget {
                 code,
                 style: TextStyle(
                   fontSize: ShellFontSizes.caption,
-                  color: theme.accent,
+                  color: theme.accentText,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -361,7 +361,7 @@ class _SourceRow extends StatelessWidget {
               FaIcon(
                 FontAwesomeIcons.check,
                 size: ShellFontSizes.caption,
-                color: theme.accent,
+                color: theme.accentText,
               )
             else
               const SizedBox(width: ShellFontSizes.caption),

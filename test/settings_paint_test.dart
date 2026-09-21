@@ -165,7 +165,7 @@ void main() {
 
     // The hover is on — without this the containment assertion below would
     // pass on a control that had simply stopped reacting.
-    expect(firstIconColor(tester), const ThemeConfig().accent);
+    expect(firstIconColor(tester), const ThemeConfig().accentText);
     expect(
       counter().paints,
       before,

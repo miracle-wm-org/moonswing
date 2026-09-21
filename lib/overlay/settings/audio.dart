@@ -105,7 +105,7 @@ class _AudioSettingsPageState extends State<AudioSettingsPage> {
               style: TextStyle(
                   fontSize: 13,
                   fontFamily: theme.fontFamily,
-                  color: theme.accent),
+                  color: theme.accentText),
               textAlign: TextAlign.center,
             ),
           ),

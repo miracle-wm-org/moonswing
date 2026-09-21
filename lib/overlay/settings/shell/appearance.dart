@@ -656,7 +656,7 @@ class _ThemeCard extends StatelessWidget {
                           ? FaIcon(
                               FontAwesomeIcons.check,
                               size: ShellFontSizes.caption,
-                              color: theme.accent,
+                              color: theme.accentText,
                             )
                           : (hovered && onDelete != null)
                           ? SettingsIconButton(

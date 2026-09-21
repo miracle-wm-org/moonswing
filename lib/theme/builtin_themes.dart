@@ -41,7 +41,13 @@ popup_background     = "#2C2C2C"
 popup_foreground     = "#F3F4F4"
 control_surface      = "#39393D"
 slider_track         = "#612D53"
-muted                = "#853953"
+# Secondary text — menu headers, timestamps, units, a greyed row — is a rose
+# grey rather than the accent. It used to be the accent verbatim, which is the
+# mistake forest and midnight both spell out a rule against: the accent is a
+# *fill* here, dark enough to hold white, and on this card it read at 1.8:1.
+# Half the text in every popup was the least legible thing on the screen. This
+# is the same hue lifted off the surface instead, at 6.4:1.
+muted                = "#C4A8B2"
 divider              = "#33F3F4F4"
 
 # What an unread notification is announced in. Amber, and the only warm colour

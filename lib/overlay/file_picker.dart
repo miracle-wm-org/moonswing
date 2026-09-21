@@ -1254,7 +1254,7 @@ class _TreeRow extends StatelessWidget {
                     ? FontAwesomeIcons.folderOpen
                     : FontAwesomeIcons.solidFolder,
                 size: 13,
-                color: theme.accent,
+                color: theme.accentText,
               ),
             ),
             const SizedBox(width: 10),
@@ -1310,7 +1310,7 @@ class _EntryThumb extends StatelessWidget {
         entry.isDirectory ? FontAwesomeIcons.solidFolder : iconForFile(entry.path),
         size: iconSize,
         color: entry.isDirectory
-            ? theme.accent
+            ? theme.accentText
             : theme.popupForeground.withValues(alpha: 0.55),
       ),
     );
@@ -1575,7 +1575,7 @@ class _HiddenToggle extends StatelessWidget {
       icon: value ? FontAwesomeIcons.solidEye : FontAwesomeIcons.solidEyeSlash,
       size: 13,
       color: value
-          ? theme.accent
+          ? theme.accentText
           : theme.popupForeground.withValues(alpha: 0.6),
       onTap: () => onChanged(!value),
     );

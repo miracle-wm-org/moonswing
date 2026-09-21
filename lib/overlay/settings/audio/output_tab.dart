@@ -155,7 +155,7 @@ class _OutputTabState extends State<OutputTab> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(error,
-              style: TextStyle(fontSize: 13, color: theme.accent),
+              style: TextStyle(fontSize: 13, color: theme.accentText),
               textAlign: TextAlign.center),
           const SizedBox(height: 12),
           SizedBox(

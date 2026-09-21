@@ -673,7 +673,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
               style: TextStyle(
                 fontSize: 13,
                 fontFamily: theme.fontFamily,
-                color: theme.accent,
+                color: theme.accentText,
               ),
               textAlign: TextAlign.center,
             ),
@@ -771,7 +771,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 style: TextStyle(
                   fontSize: 12,
                   fontFamily: theme.fontFamily,
-                  color: theme.accent,
+                  color: theme.accentText,
                 ),
               ),
             ),

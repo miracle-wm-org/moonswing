@@ -359,7 +359,7 @@ class _SortHeaderState extends State<_SortHeader> {
     final theme = ThemeScope.of(context);
     final isActive = widget.active == widget.sortKey;
     final color = isActive
-        ? theme.accent
+        ? theme.accentText
         : theme.popupForeground.withValues(alpha: _hovered ? 1.0 : 0.5);
 
     return MouseRegion(
@@ -391,7 +391,7 @@ class _SortHeaderState extends State<_SortHeader> {
                     ? FontAwesomeIcons.caretUp
                     : FontAwesomeIcons.caretDown,
                 size: 12,
-                color: theme.accent,
+                color: theme.accentText,
               ),
             ],
           ],

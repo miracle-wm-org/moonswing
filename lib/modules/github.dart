@@ -682,7 +682,7 @@ class _NotificationRow extends StatelessWidget {
                   _iconFor(item.type),
                   size: ShellFontSizes.secondary,
                   color: item.unread
-                      ? theme.accent
+                      ? theme.accentText
                       : theme.popupForeground.withValues(alpha: 0.45),
                 ),
               ),

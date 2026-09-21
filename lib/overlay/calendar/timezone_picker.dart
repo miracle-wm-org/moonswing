@@ -73,9 +73,10 @@ class TimeZonePickerButton extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontFamily: theme.fontFamily,
-                      color:
-                          (highlighted ? theme.accent : theme.popupForeground)
-                              .withValues(alpha: alpha),
+                      color: (highlighted
+                              ? theme.accentText
+                              : theme.popupForeground)
+                          .withValues(alpha: alpha),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

@@ -13,6 +13,15 @@ import 'package:graceful_shell/theme/tokens.dart';
 ThemeConfig _shipped(String slug) =>
     ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
 
+/// The WCAG contrast ratio between two colours, spelled out here rather than
+/// reached for in the library: a test that measured contrast with the same
+/// expression the code does could only ever agree with itself.
+double _contrast(Color a, Color b) {
+  final x = a.computeLuminance();
+  final y = b.computeLuminance();
+  return x > y ? (x + 0.05) / (y + 0.05) : (y + 0.05) / (x + 0.05);
+}
+
 void main() {
   test('the default theme ships', () {
     expect(kBuiltInThemes.keys, contains(kDefaultThemeName));
@@ -139,8 +148,8 @@ void main() {
 
     // The single-hue rule: every surface is green, and the accent is the only
     // *saturated* one. `muted` reusing the accent — which is what graceful
-    // does — would put the theme's one vivid green on its least important
-    // text, so it is pinned apart from it.
+    // used to do, at 1.8:1 on its own card — would put the theme's one vivid
+    // green on its least important text, so it is pinned apart from it.
     for (final surface in [
       forest.workspaceBackground,
       forest.popupBackground,
@@ -335,6 +344,77 @@ void main() {
       expect(theme.popupBorderWidth, greaterThan(0), reason: 'in ${entry.key}');
       expect(theme.popupBorder.a, greaterThan(0), reason: 'in ${entry.key}');
     }
+  });
+
+  test('every shipped theme can be read on its own popup', () {
+    // The reported bug, pinned for all six. graceful's `muted` was its accent
+    // verbatim — a fill colour, chosen dark enough to carry white — which put
+    // every menu header, timestamp, unit and greyed row on its own card at
+    // 1.8:1. A popup is where the shell does its reading, so the three colours
+    // it reads in are held to a floor here rather than to an eye.
+    for (final slug in kBuiltInThemes.keys) {
+      final theme = _shipped(slug);
+      expect(_contrast(theme.popupForeground, theme.popupBackground),
+          greaterThanOrEqualTo(kTextContrast),
+          reason: 'popup_foreground in $slug');
+      expect(_contrast(theme.accentText, theme.popupBackground),
+          greaterThanOrEqualTo(kTextContrast),
+          reason: 'accentText in $slug');
+      // Secondary text is held to the large-text floor rather than AA's body
+      // ratio. It is the tier that is *meant* to recede, and dracula's `muted`
+      // is Dracula's own comment colour — authentic to the palette it is taken
+      // from, and a shade the theme would not be itself without. What the floor
+      // rules out is the tier vanishing altogether, which is where graceful had
+      // it.
+      expect(_contrast(theme.muted, theme.popupBackground),
+          greaterThanOrEqualTo(3.0),
+          reason: 'muted in $slug');
+      expect(theme.muted, isNot(theme.accent),
+          reason: 'secondary text in $slug is a fill colour');
+    }
+  });
+
+  test('accentText lifts an accent only as far as reading it needs', () {
+    // The accent stays the accent: whatever a theme fills with is what gets
+    // filled, and only the *writing* moves.
+    for (final slug in kBuiltInThemes.keys) {
+      final theme = _shipped(slug);
+      final reads =
+          _contrast(theme.accent, theme.popupBackground) >= kTextContrast;
+      expect(theme.accentText == theme.accent, reads,
+          reason: 'an accent that already reads is handed back untouched, and '
+              'one that does not is not — in $slug');
+    }
+
+    // graceful is the case this exists for, and the one that cannot be fixed
+    // by choosing a better accent: nothing that holds kOnAccent's white on a
+    // button also clears 4.5:1 as text on a #2C2C2C card.
+    const graceful = ThemeConfig();
+    expect(_contrast(graceful.accent, graceful.popupBackground), lessThan(2.0));
+    expect(_contrast(graceful.accentText, graceful.popupBackground),
+        greaterThanOrEqualTo(kTextContrast));
+    // The same colour read louder, not a different one: hue and saturation are
+    // held, so a maroon theme is still lettered in maroon.
+    final accent = HSLColor.fromColor(graceful.accent);
+    final lifted = HSLColor.fromColor(graceful.accentText);
+    expect(lifted.hue, closeTo(accent.hue, 1.0));
+    expect(lifted.saturation, closeTo(accent.saturation, 0.01));
+    expect(lifted.lightness, greaterThan(accent.lightness));
+  });
+
+  test('accentText darkens instead when the card is a pale one', () {
+    // No shipped theme is light, and the day somebody writes one the rule has
+    // to still be "away from the surface" rather than "upwards".
+    const pale = ThemeConfig(
+      accent: Color(0xFFFFE08A),
+      popupBackground: Color(0xFFFAFAFA),
+    );
+    expect(_contrast(pale.accent, pale.popupBackground),
+        lessThan(kTextContrast));
+    expect(_contrast(pale.accentText, pale.popupBackground),
+        greaterThanOrEqualTo(kTextContrast));
+    expect(HSLColor.fromColor(pale.accentText).lightness,
+        lessThan(HSLColor.fromColor(pale.accent).lightness));
   });
 
   test('toMap round-trips through TOML unchanged', () {

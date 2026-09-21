@@ -83,7 +83,7 @@ class TimerRow extends StatelessWidget {
     final theme = ThemeScope.of(context);
     final Color readoutColor;
     if (entry.finished) {
-      readoutColor = theme.accent;
+      readoutColor = theme.accentText;
     } else if (entry.running) {
       readoutColor = theme.popupForeground;
     } else {
@@ -103,7 +103,7 @@ class TimerRow extends StatelessWidget {
             timerKindIcon(entry.kind),
             size: 12,
             color: entry.finished
-                ? theme.accent
+                ? theme.accentText
                 : theme.popupForeground.withValues(alpha: 0.6),
           ),
           const SizedBox(width: 10),
@@ -536,7 +536,7 @@ class TimerBarIndicator extends StatelessWidget {
         final style = TextStyle(
           fontSize: ShellFontSizes.title,
           color: only != null && only.finished
-              ? theme.accent
+              ? theme.accentText
               : theme.foreground,
           fontFeatures: const [FontFeature.tabularFigures()],
         );

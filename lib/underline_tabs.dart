@@ -42,7 +42,7 @@ class UnderlineTab extends StatelessWidget {
       builder: (context, hovered) {
         final Color foreground;
         if (selected) {
-          foreground = theme.accent;
+          foreground = theme.accentText;
         } else if (hovered) {
           foreground = theme.popupForeground;
         } else {

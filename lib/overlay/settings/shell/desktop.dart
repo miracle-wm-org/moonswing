@@ -256,7 +256,7 @@ class _DesktopItemRow extends StatelessWidget {
                   DesktopItemKind.file => FontAwesomeIcons.file,
                 },
                 size: 12,
-                color: theme.accent,
+                color: theme.accentText,
               ),
             ),
             const SizedBox(width: 8),

@@ -621,7 +621,7 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
                   color: theme.popupForeground,
                   fontFamily: theme.fontFamily,
                 ),
-                cursorColor: theme.accent,
+                cursorColor: theme.accentText,
                 backgroundCursorColor: theme.divider,
                 onChanged: _filter,
                 // Enter takes the highlighted match, so a full name can be

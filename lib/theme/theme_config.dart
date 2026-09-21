@@ -4,6 +4,7 @@ library;
 
 import 'dart:ui';
 
+import 'package:flutter/painting.dart' show HSLColor;
 import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/theme/overlay_effect.dart';
 import 'package:graceful_shell/theme/popup_effect.dart';
@@ -136,7 +137,18 @@ class ThemeConfig {
   final Color popupForeground;
   final Color controlSurface;
   final Color sliderTrack;
+
+  /// Secondary text: menu headers, timestamps, units, a greyed-out row.
+  ///
+  /// A **text** colour, and the one place a palette is most tempted to save a
+  /// key by reusing [accent]. It cannot: an accent is dark enough to be filled
+  /// and carry white, so on the card it is written on it lands somewhere near
+  /// invisible — which is exactly where the shell's own theme had this tier
+  /// until it was given a rose grey of its own. Every shipped theme now spells
+  /// it apart from its accent, and `test/builtin_themes_test.dart` holds them
+  /// to it.
   final Color muted;
+
   final Color divider;
 
   /// The colour an unread notification is announced in.
@@ -415,6 +427,33 @@ class ThemeConfig {
   /// default height will crop, and the answer is that panel's `height` key.
   double get textScale => fontSize / ShellFontSizes.body;
 
+  /// [accent] as *text*, rather than as the fill it is chosen to be.
+  ///
+  /// An accent is picked to be filled — a primary button, the focused
+  /// workspace, the travelled half of a slider — so it has to be dark enough to
+  /// carry [kOnAccent]'s white, and the shell's own palette takes that to its
+  /// limit: `#853953` holds white at 7.8:1 and then reads on its own popup at
+  /// 1.8:1, which is not text so much as a stain. The two jobs pull opposite
+  /// ways and on a card this dark no single colour does both, so the *fill*
+  /// stays the theme's and anything **writing** in the accent reads this
+  /// instead — the same hue and saturation, moved along the lightness ramp only
+  /// as far as [kTextContrast] against [popupBackground] requires.
+  ///
+  /// Derived rather than an eighteenth colour key, and the difference is the
+  /// point: a hand-written theme is fixed without being rewritten, the two can
+  /// never drift apart, and a theme whose accent already reads as prose — of
+  /// the shipped six, dracula's and glassy's do — is handed its own accent
+  /// back untouched.
+  ///
+  /// Measured against [popupBackground] alone. It is the surface nearly every
+  /// accent-coloured label in the shell is drawn on, it is what an overlay's
+  /// panel is made opaque from (`overlayPanelFill`), and in a theme whose bar
+  /// is a different colour the two are a shade apart rather than a tier. Alpha
+  /// does not enter into it: a translucent card is composited over a wallpaper
+  /// this layer cannot see, so its own colour is the only thing about it that
+  /// is knowable here.
+  Color get accentText => _readableOn(accent, popupBackground);
+
   const ThemeConfig({
     this.foreground = const Color(0xFFF3F4F4),
     this.accent = const Color(0xFF853953),
@@ -425,7 +464,7 @@ class ThemeConfig {
     this.popupForeground = const Color(0xFFF3F4F4),
     this.controlSurface = const Color(0xFF39393D),
     this.sliderTrack = const Color(0xFF612D53),
-    this.muted = const Color(0xFF853953),
+    this.muted = const Color(0xFFC4A8B2),
     this.divider = const Color(0x33F3F4F4),
     this.notificationBadge = const Color(0xFFF2B441),
     this.notificationBadgeForeground = const Color(0xFF2C1218),
@@ -636,3 +675,81 @@ class ThemeConfig {
   @override
   int get hashCode => Object.hashAll([for (final k in _keys) k.get(this)]);
 }
+
+// ---------------------------------------------------------------------------
+// Reading a fill as text
+// ---------------------------------------------------------------------------
+
+/// What [ThemeConfig.accentText] has already answered, keyed on the pair it was
+/// asked about.
+///
+/// The palette changes rarely and every surface on every monitor asks the same
+/// question of it on every rebuild, so the search below would otherwise run a
+/// few hundred times a frame for one answer. Cleared wholesale rather than
+/// evicted: the only thing that mints palettes faster than it reuses them is a
+/// colour picker under the pointer, and that wants the *newest* entry every
+/// frame — a cache of one palette's worth of colours is the working set.
+final Map<(int, int), Color> _readableCache = {};
+
+/// The most palettes worth keeping. Two or three is the live count (the active
+/// theme, and whatever the settings pane is previewing).
+const int _kReadableCacheLimit = 16;
+
+/// [color], moved along its own lightness ramp until it clears [kTextContrast]
+/// against [surface] — or as far as that ramp reaches, when nothing on it does.
+///
+/// Hue and saturation are held, so the answer is the same colour read louder
+/// rather than a different colour altogether, and the direction is whichever
+/// end of the ramp [surface] is furthest from: this darkens an accent on a
+/// pale card exactly as it lightens one on a dark card, which is what lets a
+/// light theme nobody has written yet work without a second rule.
+///
+/// Returns [color] itself when it already reads, so the common case costs one
+/// luminance and the shipped themes that need nothing are changed by nothing.
+Color _readableOn(Color color, Color surface) {
+  final key = (color.toARGB32(), surface.toARGB32());
+  final cached = _readableCache[key];
+  if (cached != null) return cached;
+
+  final resolved = _resolveReadable(color, surface);
+  if (_readableCache.length >= _kReadableCacheLimit) _readableCache.clear();
+  _readableCache[key] = resolved;
+  return resolved;
+}
+
+Color _resolveReadable(Color color, Color surface) {
+  final backdrop = surface.computeLuminance();
+  if (_contrast(color.computeLuminance(), backdrop) >= kTextContrast) {
+    return color;
+  }
+
+  final ramp = HSLColor.fromColor(color);
+  Color at(double lightness) => ramp.withLightness(lightness).toColor();
+
+  // White or black, whichever this surface leaves more room against. A mid-grey
+  // card clears the floor in neither direction, and then the better of the two
+  // is still the right answer — a washed-out label beats an invisible one.
+  final end = _contrast(1.0, backdrop) >= _contrast(0.0, backdrop) ? 1.0 : 0.0;
+  if (_contrast(at(end).computeLuminance(), backdrop) < kTextContrast) {
+    return at(end);
+  }
+
+  // The least movement that clears it. `pass` always does and `fail` never
+  // does, so the halving works in either direction without knowing which way
+  // round they sit.
+  var fail = ramp.lightness;
+  var pass = end;
+  for (var i = 0; i < 12; i++) {
+    final mid = (fail + pass) / 2;
+    if (_contrast(at(mid).computeLuminance(), backdrop) >= kTextContrast) {
+      pass = mid;
+    } else {
+      fail = mid;
+    }
+  }
+  return at(pass);
+}
+
+/// The WCAG contrast ratio between two relative luminances.
+double _contrast(double a, double b) =>
+    a > b ? (a + 0.05) / (b + 0.05) : (b + 0.05) / (a + 0.05);
