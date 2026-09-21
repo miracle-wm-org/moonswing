@@ -85,6 +85,13 @@ window (there is no grab), and one on bare desktop with no background surface. A
 invisible barrier is not the answer — with no input-region support it would swallow every click
 on the monitor.
 
+A popup grab is what *should* catch the first of the two — with one, the compositor
+dismisses the popup on any outside click and says so, which is how every menu on the
+desktop works. Flutter's Linux popups never take one, so the request never goes out.
+There is an experiment behind `GRACEFUL_SHELL_POPUP_GRAB` that takes the grab by hand;
+whether it works is a question about the compositor rather than the shell, and it is
+read off the Wayland wire rather than the screen.
+
 **The first of the two is caught by its consequence instead.** miracle reports which
 application window the compositor focused, on the same IPC connection the workspace row
 already uses, so clicking Firefox — or Alt+Tabbing to it, or switching workspace — dismisses

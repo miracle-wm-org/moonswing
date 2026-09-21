@@ -69,7 +69,9 @@ class TransientHandle {
 /// see another's popups: they share the root's [WindowRegistry], but a popup is a
 /// sibling view of the panel that opened it. Nothing else dismisses them either —
 /// the Linux popup controller takes no `gdk_seat_grab`, so the compositor never
-/// sends `popup_done`, and the one focus signal GTK does offer cannot see this.
+/// sends `popup_done` (`lib/popup.dart`'s `GRACEFUL_SHELL_POPUP_GRAB` spike is
+/// the experiment in taking one by hand), and the one focus signal GTK does
+/// offer cannot see this.
 ///
 /// That signal is real but inapplicable: `LayershellWindowController` notifies
 /// on `notify::is-active`, and on Wayland GTK takes `is-active` from

@@ -13,6 +13,7 @@
 
 import 'dart:async';
 import 'dart:ffi' as ffi;
+import 'dart:io' show Platform;
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
@@ -24,6 +25,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 // windowing and positioner pieces this file needs, but not the Linux-specific
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
+import 'package:graceful_shell/native/ffi_util.dart' show gdkDisplayGetDefault;
 import 'package:graceful_shell/panel_rim.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
 import 'package:graceful_shell/popup_surface.dart';
@@ -401,6 +403,211 @@ extension on State {
     symbol: 'gtk_widget_hide')
 external void _gtkWidgetHide(ffi.Pointer<ffi.NativeType> widget);
 
+// ---------------------------------------------------------------------------
+// Spike: the popup grab (`GRACEFUL_SHELL_POPUP_GRAB`)
+// ---------------------------------------------------------------------------
+//
+// Off unless the environment asks for it. Everything below is an experiment
+// with one question to answer, and the answer is on the wire, not in the UI:
+// **does an `xdg_popup` grab reach Mir, and does Mir send `popup_done` when the
+// user clicks an unrelated window?** If it does, this is a better mechanism for
+// bar popups than `lib/popup_focus_dismiss.dart`'s IPC route, because the
+// compositor is telling the shell rather than the shell inferring it — and it
+// would work on a compositor that is not miracle.
+//
+// Why the grab is missing in the first place: `PopupWindowControllerLinux`
+// creates a `GTK_WINDOW_POPUP`, realizes it, sets it transient for the parent
+// and places it with `gdk_window_move_to_rect` — and never calls
+// `gdk_seat_grab`. GDK3 emits `xdg_popup.grab` in exactly one place, when it
+// creates the popup, gated on finding a grab seat on the popup or its
+// transient-for chain; with no seat grab there is no request, so no
+// `popup_done` and no compositor-driven dismissal. That is a gap in Flutter's
+// Linux windowing API rather than anything this shell did.
+//
+// What is *not* expected to change, and why this does not replace anything:
+//
+// * Mir deliberately withholds keyboard focus from a grabbing popup — the
+//   `AbstractShell` HACK citing mir#2324 says Weston and others disobey
+//   xdg-shell here because focusing menus breaks Qt submenus. So
+//   [_borrowPopupKeyboard] stays exactly as necessary as it is today, and
+//   equally, opening a bar popup will *not* steal focus from whatever the user
+//   is typing in. The protocol's "the top most grabbing popup will always have
+//   keyboard focus" does not describe this compositor.
+// * `LayerShellHost`'s windows are layer surfaces with no popup role at all, so
+//   the overlays can never receive `popup_done`. The IPC dismisser stays
+//   regardless of how this turns out.
+//
+// The known failure mode to look for *first* is not a popup that fails to
+// close, but one that never opens: Mir's `add_grabbing_popup` closes and hides
+// a grabbing popup immediately when its toplevel is not the compositor's
+// current popup-parent, which miracle sets from pointer handling. A popup
+// opened from a keyboard shortcut, or while an application window is focused,
+// may therefore appear and vanish in the same frame.
+//
+// Formally this is out of spec: `xdg_popup.grab` requires an `xdg_toplevel` or
+// another grabbing popup as the parent, and a layer surface is neither — so
+// whatever happens here is compositor-defined, which is why it is a spike and
+// not a patch.
+
+/// How the popup grab spike is configured, or null when it is off.
+///
+/// `GRACEFUL_SHELL_POPUP_GRAB=1` grabs pointer *and* keyboard, which is what a
+/// GTK menu grab is and the likeliest to make GDK take the popup-grab path.
+/// `=pointer` grabs the pointing devices only — worth a second run, because if
+/// that still puts `grab` on the wire it is the narrower thing to ask for.
+/// Anything else, or unset, leaves the spike off entirely.
+final _PopupGrabMode? _kPopupGrabMode = () {
+  final value = Platform.environment['GRACEFUL_SHELL_POPUP_GRAB'];
+  return switch (value) {
+    '1' || 'all' => _PopupGrabMode.all,
+    'pointer' => _PopupGrabMode.pointer,
+    _ => null,
+  };
+}();
+
+enum _PopupGrabMode {
+  /// `GDK_SEAT_CAPABILITY_ALL`.
+  all(0xF),
+
+  /// `GDK_SEAT_CAPABILITY_ALL_POINTING` — pointer, touch and tablet stylus.
+  pointer(0x7);
+
+  const _PopupGrabMode(this.capabilities);
+
+  /// The `GdkSeatCapabilities` bitmask this mode asks for.
+  final int capabilities;
+}
+
+// GdkWindow* gtk_widget_get_window(GtkWidget*) — the popup's GdkWindow, valid
+// only once the widget is realized (which the SDK's constructor does before it
+// returns). layer_shell's GtkWidget wrapper binds no GdkWindow accessor at all.
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gtk_widget_get_window')
+external ffi.Pointer<ffi.NativeType> _gtkWidgetGetWindow(
+    ffi.Pointer<ffi.NativeType> widget);
+
+// GdkSeat* gdk_display_get_default_seat(GdkDisplay*)
+@ffi.Native<ffi.Pointer<ffi.NativeType> Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gdk_display_get_default_seat')
+external ffi.Pointer<ffi.NativeType> _gdkDisplayGetDefaultSeat(
+    ffi.Pointer<ffi.NativeType> display);
+
+// GdkGrabStatus gdk_seat_grab(GdkSeat*, GdkWindow*, GdkSeatCapabilities,
+//     gboolean owner_events, GdkCursor*, const GdkEvent*,
+//     GdkSeatGrabPrepareFunc, gpointer)
+@ffi.Native<
+    ffi.Int Function(
+      ffi.Pointer<ffi.NativeType>,
+      ffi.Pointer<ffi.NativeType>,
+      ffi.Uint32,
+      ffi.Int32,
+      ffi.Pointer<ffi.NativeType>,
+      ffi.Pointer<ffi.NativeType>,
+      ffi.Pointer<ffi.NativeType>,
+      ffi.Pointer<ffi.NativeType>,
+    )>(symbol: 'gdk_seat_grab')
+external int _gdkSeatGrab(
+  ffi.Pointer<ffi.NativeType> seat,
+  ffi.Pointer<ffi.NativeType> window,
+  int capabilities,
+  int ownerEvents,
+  ffi.Pointer<ffi.NativeType> cursor,
+  ffi.Pointer<ffi.NativeType> event,
+  ffi.Pointer<ffi.NativeType> prepareFunc,
+  ffi.Pointer<ffi.NativeType> prepareFuncData,
+);
+
+// void gdk_seat_ungrab(GdkSeat*)
+@ffi.Native<ffi.Void Function(ffi.Pointer<ffi.NativeType>)>(
+    symbol: 'gdk_seat_ungrab')
+external void _gdkSeatUngrab(ffi.Pointer<ffi.NativeType> seat);
+
+/// `GDK_GRAB_ALREADY_GRABBED` — see [_takePopupGrab] for why it is special.
+const int _kGrabAlreadyGrabbed = 1;
+
+/// `GdkGrabStatus`, for the log line — a non-success status is the first thing
+/// worth knowing when no `grab` appears on the wire.
+const List<String> _kGrabStatusNames = <String>[
+  'success',
+  'already-grabbed',
+  'invalid-time',
+  'not-viewable',
+  'frozen',
+  'failed',
+];
+
+/// Takes a seat grab on a popup that has been realized but **not yet mapped**,
+/// and answers the seat so [_releasePopupGrab] can give it back.
+///
+/// The timing is the whole of this. GDK reads the grab seat when it creates the
+/// `xdg_popup`, which happens when the window is shown — and the SDK shows it
+/// from the engine's first-frame callback, after the constructor has returned.
+/// So the only moment that works is between construction and that first frame,
+/// which is where [PopupHost.openPopup] already reaches into the native window
+/// to make it transparent. Grabbing after the map would be too late for GDK and
+/// an `invalid_grab` protocol error if it were not.
+///
+/// Answers null on anything unexpected — a missing symbol, no display, a
+/// refused grab — because a spike that cannot arm itself must still leave a
+/// working popup behind.
+ffi.Pointer<ffi.NativeType>? _takePopupGrab(
+  ffi.Pointer<ffi.Void> windowHandle,
+  _PopupGrabMode mode,
+) {
+  try {
+    final gdkWindow = _gtkWidgetGetWindow(windowHandle.cast());
+    if (gdkWindow == ffi.nullptr) {
+      debugPrint('popup grab: the popup has no GdkWindow yet; not grabbing');
+      return null;
+    }
+    final display = gdkDisplayGetDefault();
+    if (display == ffi.nullptr) return null;
+    final seat = _gdkDisplayGetDefaultSeat(display.cast());
+    if (seat == ffi.nullptr) return null;
+    final status = _gdkSeatGrab(
+      seat,
+      gdkWindow,
+      mode.capabilities,
+      // owner_events: the popup's own widgets keep getting their events, which
+      // is the "owner-events" grab xdg-shell describes.
+      1,
+      ffi.nullptr,
+      ffi.nullptr,
+      ffi.nullptr,
+      ffi.nullptr,
+    );
+    final name = status >= 0 && status < _kGrabStatusNames.length
+        ? _kGrabStatusNames[status]
+        : '$status';
+    debugPrint('popup grab: gdk_seat_grab(${mode.name}) -> $name');
+    // Answered even on most non-success statuses, deliberately: GDK records the
+    // grab seat on the window separately from what it returns here, so a
+    // refusal does not prove `xdg_popup.grab` will not go out — the wire trace
+    // is the authority on that — and holding the seat is what makes us hand it
+    // back rather than leak it.
+    //
+    // `already-grabbed` is the exception, because there the grab belongs to
+    // somebody else and ungrabbing would take *theirs* down. Nothing in the
+    // shell holds a GTK grab today, so this should never be seen; if it is, it
+    // is a finding rather than something to work around.
+    if (status == _kGrabAlreadyGrabbed) return null;
+    return seat;
+  } catch (error) {
+    debugPrint('popup grab: could not grab the seat: $error');
+    return null;
+  }
+}
+
+/// Gives back what [_takePopupGrab] took.
+void _releasePopupGrab(ffi.Pointer<ffi.NativeType>? seat) {
+  if (seat == null) return;
+  try {
+    _gdkSeatUngrab(seat);
+  } catch (error) {
+    debugPrint('popup grab: could not ungrab the seat: $error');
+  }
+}
+
 /// Destroys a native window only once Flutter has let go of its view, and one
 /// frame after that.
 ///
@@ -645,6 +852,12 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   /// host actually flipped may be flipped back.
   LayershellWindowController? _keyboardLender;
 
+  /// The seat this host's popup grabbed, and null when it grabbed none — which
+  /// is every popup unless `GRACEFUL_SHELL_POPUP_GRAB` is set. Held for
+  /// [_keyboardLender]'s reason: only a grab this host actually took may be
+  /// given back.
+  ffi.Pointer<ffi.NativeType>? _grabbedSeat;
+
   /// The flag the open popup's [PopupTransition] watches, handed to its
   /// [_ClosingPopup] when the popup is closed.
   ValueNotifier<bool>? _closing;
@@ -877,6 +1090,14 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     final gtkWindow = GtkWindow.fromHandle(native.windowHandle);
     gtkWindow.setAppPaintable(true);
     FlView.fromHandle(native.flutterViewHandle).setBackgroundColor('#00000000');
+    // The spike, and the one moment it can happen: realized by the SDK's
+    // constructor above, not yet shown — the engine's first-frame callback is
+    // what maps it, and GDK reads the grab seat as it creates the `xdg_popup`.
+    // See [_takePopupGrab].
+    final grabMode = _kPopupGrabMode;
+    if (grabMode != null) {
+      _grabbedSeat = _takePopupGrab(native.windowHandle, grabMode);
+    }
     // A sized-to-content popup has to be told its size before it maps, or it is
     // positioned as though it were some other size.
     //
@@ -1065,6 +1286,11 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // length of an animation is holding it from the window underneath.
     _returnPopupKeyboard(_keyboardLender);
     _keyboardLender = null;
+    // Given back here and not at the end of the exit, for the same reason: a
+    // pointer grab held through a 112ms fade is held from the window
+    // underneath, and the card is [IgnorePointer]ed on its way out anyway.
+    _releasePopupGrab(_grabbedSeat);
+    _grabbedSeat = null;
     // Released now rather than at the end of the exit: see [_ClosingPopup].
     PopupCoordinator.instance.close(_handle);
     _popupController = null;
@@ -1116,6 +1342,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     // surface holding focus.
     _returnPopupKeyboard(_keyboardLender);
     _keyboardLender = null;
+    _releasePopupGrab(_grabbedSeat);
+    _grabbedSeat = null;
     // Modules close their popup from their own `dispose`, which runs before this:
     // what is left is a card animating out on behalf of a host that no longer
     // exists. Finish it now rather than leaving a timer and a registered window

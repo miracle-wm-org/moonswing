@@ -1,13 +1,23 @@
 // Closing the shell's transient surfaces when the user focuses something that
 // is not the shell.
 //
-// The rest of the popup stack cannot see this happen. The Linux popup
-// controller takes no `gdk_seat_grab`, so the compositor never sends
-// `popup_done`; no layer-shell surface reports focus loss (`package:layer_shell`
-// offers no focus callback at all, only an `isActivated` poll); and
-// `ext-foreign-toplevel-list-v1` carries no state — not focus, not
-// minimisation. So `PopupDismissArea` catches a click on a panel or the
-// desktop and nothing catches a click on an ordinary application window.
+// The rest of the popup stack cannot see this happen, for three separate
+// reasons:
+//
+//  * The Linux popup controller takes no `gdk_seat_grab`, so the compositor
+//    never sends `popup_done`. `lib/popup.dart`'s `GRACEFUL_SHELL_POPUP_GRAB`
+//    is the experiment in taking one by hand — and even if it works it reaches
+//    only the bar popups, never the overlays, which are layer surfaces with no
+//    popup role at all. So this file stays either way.
+//  * A panel's own focus never changes. `LayershellWindowController` does
+//    notify on `notify::is-active`, but on Wayland GTK takes `is-active` from
+//    `wl_keyboard.enter`/`leave`, and a panel is `LayerShellKeyboardMode.none`
+//    — so it is never active and never transitions.
+//  * `ext-foreign-toplevel-list-v1` carries no state — not focus, not
+//    minimisation.
+//
+// So `PopupDismissArea` catches a click on a panel or the desktop, and nothing
+// in that stack catches a click on an ordinary application window.
 //
 // What *is* visible is the consequence of that click: miracle emits a `window`
 // event with `change: focus` when the compositor focuses an application
