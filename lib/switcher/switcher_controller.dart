@@ -60,6 +60,13 @@ class WindowSwitcherController extends ChangeNotifier {
   bool _open = false;
   List<OpenWindow> _windows = const [];
 
+  /// Hands back the keyboard grab the switcher's surface is holding, called by
+  /// [commit] before it asks the compositor for the switch.
+  ///
+  /// Set by the root, which owns the surfaces; null in a test, and on a machine
+  /// where no surface was ever created.
+  VoidCallback? onReleaseKeyboard;
+
   /// Which icon is highlighted.
   ///
   /// A [ValueNotifier] rather than a field behind [notifyListeners] because
@@ -114,10 +121,28 @@ class WindowSwitcherController extends ChangeNotifier {
   /// way out and the IPC round trip is two commands over a socket; holding the
   /// surfaces up until it answers would make every switch look slower than the
   /// compositor actually is.
+  ///
+  /// **The grab goes back before the switch is asked for, and that order is the
+  /// whole of this method.** The surface that read the release holds the
+  /// keyboard *exclusively*, which Mir spells `mir_focus_mode_grabbing`, and
+  /// miral refuses every focus change while a grabbing window is the active one
+  /// — `BasicWindowManager::select_active_window` returns the previous window
+  /// untouched, and `can_select_window` answers false. miracle's `focus` runs
+  /// through exactly that call and reports success regardless, so a switch sent
+  /// while the grab is up is lost in silence; the compositor then puts focus
+  /// back on the window the user started from as the surface goes away, which
+  /// is the switcher appearing to do nothing at all.
+  ///
+  /// What orders the two is [activateWindow]'s `GET_TREE`: releasing the grab
+  /// queues Wayland requests that GTK flushes on the next turn of the main
+  /// loop, and the tree's round trip cannot answer before that turn has
+  /// happened. The focus command goes out after the reply, by which point the
+  /// compositor has taken the grab down.
   void commit() {
     if (!_open) return;
     final window = selected;
     final all = _windows;
+    onReleaseKeyboard?.call();
     _close();
     if (window != null) unawaited(_activate(window, all));
   }
