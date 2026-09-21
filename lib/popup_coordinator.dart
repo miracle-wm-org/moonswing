@@ -69,7 +69,14 @@ class TransientHandle {
 /// see another's popups: they share the root's [WindowRegistry], but a popup is a
 /// sibling view of the panel that opened it. Nothing else dismisses them either —
 /// the Linux popup controller takes no `gdk_seat_grab`, so the compositor never
-/// sends `popup_done`, and there is no focus-lost callback anywhere in the stack.
+/// sends `popup_done`, and there is no focus-lost callback anywhere in the
+/// Wayland or GTK stack.
+///
+/// Focus moving *away* is the one thing the shell learns about from outside,
+/// and not from that stack: miracle's `window` event says which application
+/// window the compositor focused, which `lib/popup_focus_dismiss.dart` turns
+/// into a [dismissOutside]. It is a second caller here, not a second closer —
+/// this is still the only thing that closes a popup.
 class PopupCoordinator extends ChangeNotifier {
   PopupCoordinator._();
 

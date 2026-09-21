@@ -353,9 +353,13 @@ class TransientScope extends InheritedWidget {
 /// `gdk_seat_grab`, so the compositor never sends `popup_done`, and no
 /// layer-shell surface reports focus loss.
 ///
-/// Translucent, so a click on a panel's empty space dismisses too. It cannot
-/// catch a click on an ordinary application window; nothing available to the
-/// shell can.
+/// Translucent, so a click on a panel's empty space dismisses too. It still
+/// cannot catch a click on an ordinary application window — nothing available
+/// to the shell can — but the *focus change* that click causes is reported by
+/// miracle, and `lib/popup_focus_dismiss.dart` dismisses on that. So the click
+/// is invisible and its consequence is not, which leaves this the only thing
+/// that notices a click on a shell surface and the only one that can arm the
+/// reopen guard.
 class PopupDismissArea extends StatelessWidget {
   const PopupDismissArea({super.key, required this.child});
 

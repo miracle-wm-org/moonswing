@@ -53,10 +53,12 @@ twice.
 
 ## Popups
 
-Nothing in the stack says a popup should go away. The Linux popup controller takes no
-`gdk_seat_grab`, so no `popup_done` ever arrives, and no layer-shell surface reports focus
-loss. `PopupCoordinator.instance` is the only thing that closes them, and `PopupDismissArea`
-the only thing that notices an outside click.
+Nothing in the *Wayland* stack says a popup should go away. The Linux popup controller takes
+no `gdk_seat_grab`, so no `popup_done` ever arrives, and no layer-shell surface reports focus
+loss — the layer-shell binding has no focus callback at all, and `ext-foreign-toplevel-list-v1`
+carries no state. `PopupCoordinator.instance` is the only thing that closes them,
+`PopupDismissArea` the only thing that notices a click on a shell surface, and the compositor's
+own IPC the only thing that notices one anywhere else.
 
 - A handle's **chain** is itself plus its transitive parents, and nothing in a chain dismisses
   anything else in it. Parentage is read from `TransientScope.maybeOf(context)`, never passed
@@ -75,10 +77,22 @@ the only thing that notices an outside click.
   and `onClosed` into a record that finishes on the animation **or a timer**, and outright on
   `dispose`.
 
-Two clicks the coordinator cannot catch by construction: one on an ordinary application window
-(there is no grab), and one on bare desktop with no background surface. A full-screen invisible
-barrier is not the answer — with no input-region support it would swallow every click on the
-monitor.
+Two clicks `PopupDismissArea` cannot catch by construction: one on an ordinary application
+window (there is no grab), and one on bare desktop with no background surface. A full-screen
+invisible barrier is not the answer — with no input-region support it would swallow every click
+on the monitor.
+
+**The first of the two is caught by its consequence instead.** miracle reports which
+application window the compositor focused, on the same IPC connection the workspace row
+already uses, so clicking Firefox — or Alt+Tabbing to it, or switching workspace — dismisses
+whatever the shell had open. Everything dismissable goes, the full-screen overlays included,
+since an overlay-layer surface would otherwise stay painted over the window that just took
+focus. The consent prompts do not: alt-tabbing away from the screencast picker or the
+authentication dialog must not answer it, and dismissing either one *is* the refusal. A switch
+the shell asked for itself — the window switcher's own commit — is suppressed briefly, or a
+second Alt+Tab pressed during the first one's fade-out would be cancelled by the switch
+already in flight. A session not connected to the compositor's IPC keeps the old behaviour,
+quietly: there is nowhere a warning about it could usefully be read.
 
 `PopupTransition` plays one controller forward to open and backward to close, so an effect
 cannot describe an opening it has no closing for. The effect comes from the theme

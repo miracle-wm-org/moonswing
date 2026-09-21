@@ -28,6 +28,7 @@ import 'package:miracle/miracle.dart';
 
 import 'package:graceful_shell/capture/toplevel_match.dart';
 import 'package:graceful_shell/modules/workspace_apps.dart' show containerAppId;
+import 'package:graceful_shell/popup_focus_dismiss.dart';
 import 'package:graceful_shell/switcher/open_window.dart';
 
 /// Where a window the switcher can see lives in miracle's tree.
@@ -184,6 +185,14 @@ Future<void> activateWindow(
   }
 
   if (commands.isEmpty) return;
+  // The focus this is about to cause is the shell's own, so the popup
+  // dismisser must not read it as the user leaving. It matters because
+  // `commit` does not await this: a second Alt+Tab inside the first session's
+  // fade opens a new session, and this switch's focus event — still in flight
+  // — would cancel it. Armed here rather than in `commit` because this is the
+  // instant the request actually goes out, and the one path that returns
+  // early above never asked for anything.
+  PopupFocusDismisser.instance.expectSelfFocus();
   try {
     for (final result in await connection.runAll(commands)) {
       if (result.success) continue;

@@ -68,6 +68,7 @@ import 'package:graceful_shell/panel_background.dart';
 import 'package:graceful_shell/panel_rim.dart';
 import 'package:graceful_shell/popup.dart';
 import 'package:graceful_shell/popup_coordinator.dart';
+import 'package:graceful_shell/popup_focus_dismiss.dart';
 import 'package:graceful_shell/polkit/auth_controller.dart';
 import 'package:graceful_shell/polkit/auth_dialog.dart';
 import 'package:graceful_shell/polkit/auth_session.dart';
@@ -190,6 +191,15 @@ void main() async {
   // reads — and a machine with no compositor must not settle a start-up task
   // `failed` over a cheat sheet nobody has opened.
   startKeybindService(miracle);
+
+  // The one thing that closes a popup when the user focuses an application
+  // window. Nothing in the Wayland or GTK stack reports that — no `popup_done`
+  // without a seat grab, and no focus-loss callback on a layer surface — but
+  // miracle's `window` event does, on the connection above. Not a
+  // `ShellService`, for `startKeybindService`'s reason, and unconditional: it
+  // costs one more listener on a broadcast stream the shell already subscribes
+  // to.
+  startPopupFocusDismissService(miracle);
 
   // The sheet's other half: the shell's own `[shortcuts]`, which — unlike
   // miracle's bindings — it can also edit. Handed the snapshot the shortcuts
