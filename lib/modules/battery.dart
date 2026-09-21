@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:graceful_shell/config_reader.dart';
 import 'package:graceful_shell/module.dart';
 import 'package:graceful_shell/scopes.dart';
@@ -17,6 +18,65 @@ class BatteryConfig {
       pollSeconds: map.intOr('poll_seconds', 30),
     );
   }
+}
+
+/// One reading of the pack, as the bar renders it.
+///
+/// The store publishes this rather than the line of text it used to compose,
+/// so the glyph is the widget's decision and the arithmetic is the store's —
+/// and so a reading can be compared: `==` is what lets a poll that found
+/// nothing new stay silent (see [BatteryStore._readBattery]).
+@immutable
+class BatteryReading {
+  const BatteryReading({
+    required this.capacity,
+    required this.charging,
+    this.time,
+  });
+
+  /// Charge across every battery in the machine, 0-100.
+  final int capacity;
+
+  /// On mains and filling — not merely "not discharging", which is what a
+  /// laptop sitting at 100% on the charger reports.
+  final bool charging;
+
+  /// `h:mm` until full or until empty, when the rate files gave one; null
+  /// while idle, and null rather than a figure the estimate cannot support.
+  final String? time;
+
+  @override
+  bool operator ==(Object other) =>
+      other is BatteryReading &&
+      other.capacity == capacity &&
+      other.charging == charging &&
+      other.time == time;
+
+  @override
+  int get hashCode => Object.hash(capacity, charging, time);
+}
+
+/// The glyph for [reading], from the icon font the shell already ships.
+///
+/// Charging is the plug, which is what the emoji before it said. Anything else
+/// is the level itself: the one battery emoji was the same picture for a full
+/// pack and a dying one, and five steps is what an icon set can say instead.
+FaIconData batteryIconFor(BatteryReading reading) {
+  if (reading.charging) return FontAwesomeIcons.plug;
+  if (reading.capacity >= 90) return FontAwesomeIcons.batteryFull;
+  if (reading.capacity >= 65) return FontAwesomeIcons.batteryThreeQuarters;
+  if (reading.capacity >= 40) return FontAwesomeIcons.batteryHalf;
+  if (reading.capacity >= 15) return FontAwesomeIcons.batteryQuarter;
+  return FontAwesomeIcons.batteryEmpty;
+}
+
+/// The text beside [batteryIconFor]'s glyph.
+String batteryLabelFor(BatteryReading reading) {
+  final time = reading.time;
+  if (time == null) return '${reading.capacity}%';
+  return reading.charging
+      ? '${reading.capacity}% ($time until full)'
+      : '${reading.capacity}% ($time remaining)';
 }
 
 /// The battery reading for the whole shell.
@@ -54,8 +114,10 @@ class BatteryStore extends ChangeNotifier {
 
   // --- published state -----------------------------------------------------
 
-  String _batteryText = '';
-  String get batteryText => _batteryText;
+  BatteryReading? _reading;
+
+  /// The last reading, or null until the first one lands.
+  BatteryReading? get reading => _reading;
 
   bool _hasBattery = false;
   bool get hasBattery => _hasBattery;
@@ -198,17 +260,17 @@ class BatteryStore extends ChangeNotifier {
         timeStr = null;
       }
 
-      if (anyCharging && !anyDischarging) {
-        _batteryText = timeStr != null
-            ? '🔌 $capacity% ($timeStr until full)'
-            : '🔌 $capacity%';
-      } else if (anyDischarging) {
-        _batteryText = timeStr != null
-            ? '🔋 $capacity% ($timeStr remaining)'
-            : '🔋 $capacity%';
-      } else {
-        _batteryText = '🔋 $capacity%';
-      }
+      final reading = BatteryReading(
+        capacity: capacity,
+        charging: anyCharging && !anyDischarging,
+        time: timeStr,
+      );
+
+      // Every bar on every monitor listens, and udev speaks up for any change
+      // in the subsystem — a charger's own current included. A reading that
+      // renders identically is not news.
+      if (reading == _reading) return;
+      _reading = reading;
       notifyListeners();
     } catch (_) {
       // Silently fail
@@ -262,14 +324,26 @@ class BatteryState extends State<Battery> {
     return ListenableBuilder(
       listenable: _store,
       builder: (context, _) {
-        if (!_store.hasBattery || _store.batteryText.isEmpty) {
+        final reading = _store.reading;
+        if (!_store.hasBattery || reading == null) {
           return const SizedBox.shrink();
         }
 
-        return Text(
-          _store.batteryText,
-          style:
-              TextStyle(fontSize: 16, color: ThemeScope.of(context).foreground),
+        final theme = ThemeScope.of(context);
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FaIcon(
+              batteryIconFor(reading),
+              size: 12,
+              color: theme.foreground,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              batteryLabelFor(reading),
+              style: TextStyle(fontSize: 16, color: theme.foreground),
+            ),
+          ],
         );
       },
     );
