@@ -2,7 +2,12 @@
 
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:flutter/gestures.dart' show DragStartBehavior;
+import 'package:flutter/gestures.dart'
+    show
+        DragStartBehavior,
+        GestureDisposition,
+        PanGestureRecognizer,
+        PointerDownEvent;
 import 'package:flutter/widgets.dart';
 import 'package:graceful_shell/config.dart';
 import 'package:graceful_shell/loading_indicator.dart';
@@ -691,69 +696,104 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         _buildHeader(theme),
         Container(height: 1, color: theme.divider),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (manager.heads.isNotEmpty)
-                _DisplayDiagram(
-                  heads: manager.heads,
-                  edits: _edits,
-                  onPositionsChanged: (positions) {
-                    setState(() {
-                      _dirty = true;
-                      positions.forEach((headId, pos) {
-                        final edit = _edits[headId];
-                        if (edit != null) {
-                          _edits[headId] = edit.copyWith(
-                            positionX: pos.x,
-                            positionY: pos.y,
-                          );
-                        }
-                      });
-                    });
-                  },
-                ),
-              Container(height: 1, color: theme.divider),
-              Expanded(
-                child: manager.heads.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No displays detected',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontFamily: theme.fontFamily,
-                            color: theme.popupForeground.withValues(alpha: 0.5),
-                          ),
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: manager.heads.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 12),
-                        itemBuilder: (_, i) {
-                          final head = manager.heads[i];
-                          final edit = _edits[head.id];
-                          if (edit == null) return const SizedBox.shrink();
-                          return _DisplayCard(
-                            head: head,
-                            edit: edit,
-                            onEditChanged: (newEdit) {
-                              setState(() {
-                                _dirty = true;
-                                _edits[head.id] = newEdit;
-                              });
-                            },
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
+          child: manager.heads.isEmpty
+              ? Center(
+                  child: Text(
+                    'No displays detected',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground.withValues(alpha: 0.5),
+                    ),
+                  ),
+                )
+              : _buildScroller(theme, manager),
         ),
         Container(height: 1, color: theme.divider),
         _buildFooter(theme),
       ],
     );
+  }
+
+  /// The diagram and the cards in **one** scroller.
+  ///
+  /// The diagram used to be a fixed-height strip pinned above a scrolling card
+  /// list, which on a small screen left the cards a couple of rows tall — the
+  /// resolution dropdown of the second monitor could not be reached at all. It
+  /// scrolls with them now, and its height is a share of the viewport
+  /// ([diagramHeightFor]) rather than a constant, so it gives way rather than
+  /// pushing the cards off the pane.
+  ///
+  /// The header and the Apply footer stay pinned: both are one row, and an
+  /// Apply that scrolls out of reach is worse than an Apply that costs nothing.
+  Widget _buildScroller(ThemeConfig theme, ZwlrOutputManagerV1 manager) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final diagramHeight = diagramHeightFor(constraints.maxHeight);
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _DisplayDiagram(
+                    heads: manager.heads,
+                    edits: _edits,
+                    height: diagramHeight,
+                    onPositionsChanged: _applyPositions,
+                  ),
+                  Container(height: 1, color: theme.divider),
+                ],
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.all(16),
+              // `SliverList` rather than a `Column`, for the per-card repaint
+              // boundary it hands out — a hover inside one card must not
+              // re-record the diagram above it.
+              sliver: SliverList.list(children: _buildCards(manager)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildCards(ZwlrOutputManagerV1 manager) {
+    final cards = <Widget>[];
+    for (final head in manager.heads) {
+      final edit = _edits[head.id];
+      if (edit == null) continue;
+      cards.add(
+        Padding(
+          padding: EdgeInsets.only(top: cards.isEmpty ? 0.0 : 12.0),
+          child: _DisplayCard(
+            head: head,
+            edit: edit,
+            onEditChanged: (newEdit) {
+              setState(() {
+                _dirty = true;
+                _edits[head.id] = newEdit;
+              });
+            },
+          ),
+        ),
+      );
+    }
+    return cards;
+  }
+
+  void _applyPositions(Map<int, ({int x, int y})> positions) {
+    setState(() {
+      _dirty = true;
+      positions.forEach((headId, pos) {
+        final edit = _edits[headId];
+        if (edit != null) {
+          _edits[headId] = edit.copyWith(positionX: pos.x, positionY: pos.y);
+        }
+      });
+    });
   }
 
   Widget _buildFooter(ThemeConfig theme) {
@@ -804,11 +844,16 @@ class _DisplayDiagram extends StatefulWidget {
   const _DisplayDiagram({
     required this.heads,
     required this.edits,
+    required this.height,
     required this.onPositionsChanged,
   });
 
   final List<ZwlrOutputHeadV1> heads;
   final Map<int, _DisplayEdit> edits;
+
+  /// Handed down rather than fixed here: the strip is a share of the pane the
+  /// diagram scrolls inside. See [diagramHeightFor].
+  final double height;
 
   /// One call per pointer move while dragging (a single entry), and one on
   /// drop carrying every head the settle moved.
@@ -819,7 +864,6 @@ class _DisplayDiagram extends StatefulWidget {
 }
 
 class _DisplayDiagramState extends State<_DisplayDiagram> {
-  static const double _height = 260;
   static const double _padding = 16;
 
   // Accumulated *unsnapped* drag position (in logical pixels) per head id. The
@@ -833,6 +877,9 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
   // delta non-linear because it is divided by this scale.
   DiagramFit? _frozenFit;
   int? _draggingId;
+
+  // Whether the live gesture ever moved the rect — see [_endDrag].
+  bool _moved = false;
 
   DisplayBox? _boxFor(ZwlrOutputHeadV1 head) {
     final edit = widget.edits[head.id];
@@ -866,13 +913,19 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
 
   void _endDrag(int headId) {
     _dragAccum.remove(headId);
-    final settled = rebaseToOrigin(relinkDisconnected(_boxes()));
-    widget.onPositionsChanged({
-      for (final b in settled) b.id: (x: b.x, y: b.y),
-    });
+    // A gesture that never moved is a click on a display, and the recognizer
+    // below claims those too (it accepts on contact). Settling one would rebase
+    // the arrangement and mark the page dirty for a click that changed nothing.
+    if (_moved) {
+      final settled = rebaseToOrigin(relinkDisconnected(_boxes()));
+      widget.onPositionsChanged({
+        for (final b in settled) b.id: (x: b.x, y: b.y),
+      });
+    }
     setState(() {
       _frozenFit = null;
       _draggingId = null;
+      _moved = false;
     });
   }
 
@@ -882,11 +935,11 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
     final boxes = _boxes();
     return LayoutBuilder(
       builder: (context, constraints) {
-        final viewport = Size(constraints.maxWidth, _height);
+        final viewport = Size(constraints.maxWidth, widget.height);
         final fit = _frozenFit ?? fitBoxes(boxes, viewport, padding: _padding);
 
         return Container(
-          height: _height,
+          height: widget.height,
           color: theme.popupBackground.withValues(alpha: 0.6),
           child: Stack(
             children: [
@@ -922,7 +975,7 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
       top: rect.top,
       width: rect.width,
       height: rect.height,
-      child: GestureDetector(
+      child: RawGestureDetector(
         // Opaque, not `deferToChild`: the rect's `margin: all(2)` is inset
         // painting and the `MouseRegion` inside advertises a grab cursor over it,
         // so the outer 2px of every display was cursored for a drag that could not
@@ -930,36 +983,54 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
         // which means a press exactly on a shared edge resolves to whichever rect
         // is later in `boxes` — the rule an *overlapping* pair already followed.
         behavior: HitTestBehavior.opaque,
-        dragStartBehavior: DragStartBehavior.down,
-        onPanStart: (_) {
-          _dragAccum[head.id] = Offset(
-            moving.x.toDouble(),
-            moving.y.toDouble(),
-          );
-          setState(() {
-            _frozenFit = fit;
-            _draggingId = head.id;
-          });
+        gestures: {
+          _DisplayDragRecognizer:
+              GestureRecognizerFactoryWithHandlers<_DisplayDragRecognizer>(
+                () => _DisplayDragRecognizer(debugOwner: this),
+                (recognizer) => recognizer
+                  ..dragStartBehavior = DragStartBehavior.down
+                  ..onStart = (_) {
+                    _dragAccum[head.id] = Offset(
+                      moving.x.toDouble(),
+                      moving.y.toDouble(),
+                    );
+                    setState(() {
+                      _frozenFit = fit;
+                      _draggingId = head.id;
+                      _moved = false;
+                    });
+                  }
+                  ..onUpdate = (details) {
+                    final accum = _dragAccum[head.id];
+                    if (accum == null) return;
+                    _moved = true;
+                    final next = accum + details.delta / fit.scale;
+                    _dragAccum[head.id] = next;
+                    final others = [
+                      for (final b in boxes)
+                        if (b.id != head.id) b,
+                    ];
+                    final snapped = snapPosition(
+                      moving: moving,
+                      others: others,
+                      desiredX: next.dx.round(),
+                      desiredY: next.dy.round(),
+                    );
+                    widget.onPositionsChanged({
+                      head.id: (x: snapped.x, y: snapped.y),
+                    });
+                  }
+                  // Block bodies, not arrows: a cascade written after an
+                  // arrow lambda continues the *body's* expression, not the
+                  // recognizer's.
+                  ..onEnd = (_) {
+                    _endDrag(head.id);
+                  }
+                  ..onCancel = () {
+                    _endDrag(head.id);
+                  },
+              ),
         },
-        onPanUpdate: (details) {
-          final accum = _dragAccum[head.id];
-          if (accum == null) return;
-          final next = accum + details.delta / fit.scale;
-          _dragAccum[head.id] = next;
-          final others = [
-            for (final b in boxes)
-              if (b.id != head.id) b,
-          ];
-          final snapped = snapPosition(
-            moving: moving,
-            others: others,
-            desiredX: next.dx.round(),
-            desiredY: next.dy.round(),
-          );
-          widget.onPositionsChanged({head.id: (x: snapped.x, y: snapped.y)});
-        },
-        onPanEnd: (_) => _endDrag(head.id),
-        onPanCancel: () => _endDrag(head.id),
         child: MouseRegion(
           cursor: dragging
               ? SystemMouseCursors.grabbing
@@ -988,6 +1059,28 @@ class _DisplayDiagramState extends State<_DisplayDiagram> {
         ),
       ),
     );
+  }
+}
+
+// A pan that claims the pointer the moment it lands, instead of after the slop.
+//
+// The diagram scrolls with the cards now, which puts a `Scrollable` between it
+// and the page. A vertical drag declares itself at `kTouchSlop` while a pan
+// waits for `kPanSlop` (twice that), so the scroller won every downward drag:
+// the display stayed put and the page slid instead. Accepting in
+// `addAllowedPointer` is what `EagerGestureRecognizer` does, and it settles the
+// arena before the scroller can ask.
+//
+// The cost is a scroll gesture that *starts* on a display rect, which is the
+// trade a drag surface wants: the diagram's background, the cards, and the
+// wheel — a pointer signal, never an arena member — all still scroll the page.
+class _DisplayDragRecognizer extends PanGestureRecognizer {
+  _DisplayDragRecognizer({super.debugOwner});
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
   }
 }
 

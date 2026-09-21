@@ -245,4 +245,33 @@ void main() {
       expect(rebaseToOrigin(boxes), boxes);
     });
   });
+
+  group('diagramHeightFor', () {
+    test('takes its share of a middling viewport', () {
+      expect(diagramHeightFor(400), 180);
+    });
+
+    test('gives way on a short viewport rather than filling it', () {
+      // The bug: a fixed 260 strip left a 300px pane 40px of cards. It is now
+      // a minority of the pane at every height the panel can be given.
+      expect(diagramHeightFor(300), 135);
+      expect(diagramHeightFor(300), lessThan(300 / 2));
+    });
+
+    test('never shrinks below the floor a display rect can be aimed at', () {
+      expect(diagramHeightFor(200), kDiagramMinHeight);
+      expect(diagramHeightFor(1), kDiagramMinHeight);
+    });
+
+    test('stops growing on a tall viewport', () {
+      expect(diagramHeightFor(2000), kDiagramMaxHeight);
+    });
+
+    test('falls back to the cap for a viewport it cannot read', () {
+      expect(diagramHeightFor(double.infinity), kDiagramMaxHeight);
+      expect(diagramHeightFor(double.nan), kDiagramMaxHeight);
+      expect(diagramHeightFor(0), kDiagramMaxHeight);
+      expect(diagramHeightFor(-10), kDiagramMaxHeight);
+    });
+  });
 }
