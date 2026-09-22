@@ -1,6 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/popup_coordinator.dart';
+import 'package:moonswing/popup_coordinator.dart';
 
 /// Stands in for the `State` that owns a surface: identity plus a record of
 /// what the coordinator asked it to do.

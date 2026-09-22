@@ -12,7 +12,7 @@ import 'package:flutter/foundation.dart' show immutable, visibleForTesting;
 import 'package:timezone/data/latest.dart' show initializeTimeZones;
 import 'package:timezone/timezone.dart' as tz;
 
-import 'package:graceful_shell/world_cities.dart';
+import 'package:moonswing/world_cities.dart';
 
 bool _initialized = false;
 

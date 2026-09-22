@@ -1,7 +1,7 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
 
 /// A 4x3 grid of 100px cells with no spacing or padding, so a cell's pixel
 /// rect is its coordinates times 100 and the arithmetic is checkable by eye.

@@ -32,16 +32,16 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/desktop/desktop_layout.dart' show GridSpan;
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/weather/weather_api.dart';
-import 'package:graceful_shell/weather/weather_condition.dart';
-import 'package:graceful_shell/weather/weather_icons.dart';
-import 'package:graceful_shell/weather/weather_sky.dart';
-import 'package:graceful_shell/weather/weather_store.dart';
+import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_icons.dart';
+import 'package:moonswing/weather/weather_sky.dart';
+import 'package:moonswing/weather/weather_store.dart';
 
 /// The smallest box each layout draws in. Content measurements, not cell
 /// counts: a cell is configurable down to 32px and the content is not.

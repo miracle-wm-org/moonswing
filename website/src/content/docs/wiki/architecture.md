@@ -1,11 +1,11 @@
 ---
 title: Architecture
-description: How Graceful Shell starts, what it registers, and the scopes every surface reads from.
+description: How Moonswing starts, what it registers, and the scopes every surface reads from.
 sidebar:
   order: 1
 ---
 
-Graceful Shell is one Flutter process that draws an entire session: `wlr-layer-shell`
+Moonswing is one Flutter process that draws an entire session: `wlr-layer-shell`
 panels, a wallpaper and desktop-icon surface, full-screen overlays, popups, an on-screen
 display and a lock screen. It is also the session's notification daemon, its
 StatusNotifierItem tray host, its `xdg-desktop-portal` ScreenCast backend, its polkit
@@ -76,7 +76,7 @@ windows* changed. Those cannot be a scope: an `InheritedWidget` cannot span Flut
 
 ## Configuration
 
-`AppConfig.load()` reads `~/.config/graceful-shell/config.toml` into typed objects, writing a
+`AppConfig.load()` reads `~/.config/moonswing/config.toml` into typed objects, writing a
 default layout if the file is absent. `ConfigStore.instance` is the live writable view the
 settings UI mutates, with a debounced atomic write behind it.
 

@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/theme/builtin_themes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/theme/builtin_themes.dart';
 import 'package:toml/toml.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/scopes.dart';
 
 /// Pumps [card] under a [ThemeScope] carrying [theme].
 Future<void> pumpCard(

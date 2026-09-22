@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
 
 void main() {
   group('parseShortcut', () {

@@ -31,7 +31,7 @@ class PipewireVideoStream {
     required this.height,
     required this.spaVideoFormat,
     this.maxFrameRate = 60,
-    this.name = 'graceful-shell-screencast',
+    this.name = 'moonswing-screencast',
     this.driveWithGlib = true,
   });
 

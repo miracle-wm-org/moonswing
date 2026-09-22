@@ -8,10 +8,10 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/overlay/settings/miracle.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
-import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
-import 'package:graceful_shell/overlay/settings/settings_search.dart';
+import 'package:moonswing/overlay/settings/miracle.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_highlight.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart';
 
 /// The sidebar ids `_SettingsSidebar` offers, and the only categories a route
 /// can name.

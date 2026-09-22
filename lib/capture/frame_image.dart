@@ -15,7 +15,7 @@ import 'dart:ffi'; // for the Pointer.asTypedList extension
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:graceful_shell/screencast/capture_session.dart';
+import 'package:moonswing/screencast/capture_session.dart';
 
 import 'capture_targets.dart';
 

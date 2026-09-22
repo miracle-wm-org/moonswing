@@ -5,13 +5,13 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/desktop/widgets/tux_widget.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/tux/tux_art.dart';
-import 'package:graceful_shell/tux/tux_greetings.dart';
-import 'package:graceful_shell/tux/tux_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/widgets/tux_widget.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/tux/tux_art.dart';
+import 'package:moonswing/tux/tux_greetings.dart';
+import 'package:moonswing/tux/tux_store.dart';
 
 /// 1x1 on the default grid, which is the size this widget is *for*.
 const Size _oneByOne = Size(96, 96);

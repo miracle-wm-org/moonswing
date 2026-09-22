@@ -3,13 +3,13 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/emoji/emoji_clipboard.dart';
-import 'package:graceful_shell/github/github_api.dart';
-import 'package:graceful_shell/github/github_store.dart';
-import 'package:graceful_shell/github/github_token_store.dart';
-import 'package:graceful_shell/modules/github.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/github/github_store.dart';
+import 'package:moonswing/github/github_token_store.dart';
+import 'package:moonswing/modules/github.dart';
+import 'package:moonswing/scopes.dart';
 
 import 'github_fakes.dart';
 
@@ -20,7 +20,7 @@ void main() {
   late List<String> opened;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('graceful-github-widget');
+    tempDir = Directory.systemTemp.createTempSync('moonswing-github-widget');
     tokens = GithubTokenStore(directory: tempDir.path);
     opened = [];
   });

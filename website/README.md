@@ -1,4 +1,4 @@
-# The Graceful Shell website
+# The Moonswing website
 
 The project's website and wiki: <https://miracle-wm-org.github.io/graceful-shell/>
 
@@ -12,7 +12,7 @@ Node 20 or newer, then from this directory:
 
 ```sh
 npm install
-npm run dev          # http://localhost:4321/graceful-shell/
+npm run dev          # http://localhost:4321/moonswing/
 ```
 
 The dev server hot-reloads on every edit under `src/`, and on edits to `CONFIG.md` after a
@@ -30,14 +30,14 @@ npm run sync         # regenerate the parts taken from the repository
 ## What is generated, and what is written by hand
 
 `npm run sync` — which `npm run dev` and `npm run build` both run first — writes everything
-the site takes from the repository itself, so no fact about Graceful Shell is maintained in
+the site takes from the repository itself, so no fact about Moonswing is maintained in
 two places:
 
 | Generated | From |
 |---|---|
 | `src/content/docs/configuration/*.md` | `../CONFIG.md`, split into pages |
-| `public/favicon.svg`, `public/favicon.png` | `../assets/graceful-mark.svg` |
-| `src/assets/graceful-banner.svg`, `public/og.png` | `../assets/graceful-banner.svg` |
+| `public/favicon.svg`, `public/favicon.png` | `../assets/moonswing-mark.svg` |
+| `src/assets/moonswing-banner.svg`, `public/og.png` | `../assets/moonswing-banner.svg` |
 
 All of it is gitignored. **Do not edit those files** — edit `CONFIG.md` or the SVGs in
 `assets/` at the root of the repository, and re-run `npm run sync`.
@@ -55,6 +55,6 @@ Everything else — the landing page, `start/`, and `wiki/` — is hand-written 
 every push to `main` that touches the site, `CONFIG.md` or `assets/`. It needs **Settings →
 Pages → Source: GitHub Actions** enabled on the repository once.
 
-The site is configured for a project page at `/graceful-shell/`. Moving it to a custom domain
+The site is configured for a project page at `/moonswing/`. Moving it to a custom domain
 is the two constants at the top of [`astro.config.mjs`](astro.config.mjs): set `site` to the
 domain and `base` to `'/'`.

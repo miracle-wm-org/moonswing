@@ -2,14 +2,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/modules/clock.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/timers/timer_sound.dart';
-import 'package:graceful_shell/timers/timer_store.dart';
-import 'package:graceful_shell/timers/timer_widgets.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/modules/clock.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/timers/timer_sound.dart';
+import 'package:moonswing/timers/timer_store.dart';
+import 'package:moonswing/timers/timer_widgets.dart';
 
 /// Every store here is hand-driven: [TimersStore.forTesting] starts no ticker,
 /// and a pending [Timer] fails the binding's end-of-test invariants.

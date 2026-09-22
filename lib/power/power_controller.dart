@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 /// The seam between "the physical power button was pressed" and
-/// `_GracefulShellRootState`, which owns every window.
+/// `_MoonswingRootState`, which owns every window.
 ///
 /// The compositor delivers the press to the input-trigger service, a
 /// Wayland-layer object with no widget tree under it; what the press *means* is

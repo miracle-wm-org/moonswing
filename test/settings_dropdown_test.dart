@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The host the trigger is measured through — a settings row's worth of width.
 const _hostKey = ValueKey('host');

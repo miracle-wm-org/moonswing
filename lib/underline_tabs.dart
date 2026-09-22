@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
 
 /// One tab in an underline tab strip.
 ///

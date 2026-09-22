@@ -17,7 +17,7 @@
 
 import 'dart:math' as math;
 
-import 'package:graceful_shell/moon/moon_ephemeris.dart';
+import 'package:moonswing/moon/moon_ephemeris.dart';
 
 /// The eight phases, in cycle order from new.
 enum MoonPhase {

@@ -1,8 +1,8 @@
 // The Tux store: the lease, the one-shot rollover behind it, and the tap.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/tux/tux_greetings.dart';
-import 'package:graceful_shell/tux/tux_store.dart';
+import 'package:moonswing/tux/tux_greetings.dart';
+import 'package:moonswing/tux/tux_store.dart';
 
 /// A store on a clock the test moves by hand.
 ({TuxStore store, void Function(DateTime) setNow}) _store({

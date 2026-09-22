@@ -10,7 +10,7 @@ Default lock-screen wallpaper.
 - **Source:** [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Hubble2005-01-barred-spiral-galaxy-NGC1300.jpg)
   (downscaled from the 6637×3787 original)
 
-Installed to `$PREFIX/share/graceful-shell/lock-wallpaper.jpg` by `make install`
+Installed to `$PREFIX/share/moonswing/lock-wallpaper.jpg` by `make install`
 and referenced by the default `[lock]` section of `config.toml`.
 
 ## `wallpaper.jpg`
@@ -27,36 +27,33 @@ Default desktop wallpaper.
 - **Changes:** centre-cropped from the 4096×4096 square original to 16:9,
   downscaled to 3840×2160, and re-encoded as JPEG.
 
-Installed to `$PREFIX/share/graceful-shell/wallpaper.jpg` by `make install` and
+Installed to `$PREFIX/share/moonswing/wallpaper.jpg` by `make install` and
 referenced by the default `[background]` section of `config.toml`.
 
-## `graceful-mark.svg`, `graceful-banner.svg`
+## `moonswing-mark.svg`, `moonswing-banner.svg`
 
 The project mark (favicon, site logo) and the banner at the top of `README.md` and of the
-website: pixel art of a hooded character in the outfit, head-on. The mark stands the sprite
-on a slate disc; the banner stands it on a plain diagonal gradient and nothing else. The
-banner used to draw a mock desktop behind the character — a panel, two windows, a starfield
-— and that was a screenshot the shell had not earned, dating itself every time the real
-thing changed.
+website: a silhouette of someone on a swing in front of a full moon — the image the project
+is named for. The mark crops it to the moon itself, so the ropes leave the frame over its
+top edge; the banner sets the same drawing on a night sky and nothing else. The banner used
+to draw a mock desktop behind its subject — a panel, two windows, a starfield — and that was
+a screenshot the shell had not earned, dating itself every time the real thing changed. The
+stars are all that is kept of it.
 
-- **Credit:** original work for this repository.
+- **Credit:** original work for this repository. No third-party reference, asset or trace.
 - **License:** GPL-3.0, the same as the shell — these are part of it, not aggregated with it.
-- **Source:** `tool/graceful_sprite.py`, which writes both files from one 32×32 sprite, so the
-  favicon and the banner are literally the same character. **Edit the script, not the SVGs** —
-  a grid of `<rect>`s is not hand-editable. The banner draws that sprite at 10×, an integer
-  scale, so every pixel stays square.
+- **Source:** `tool/moonswing_sprite.py`, which writes both files. **Edit the script, not the
+  SVGs.** The banner's placement is *derived* from the mark's — the scale is the ratio of the
+  two moons — so the two cannot drift into being two different drawings, which is the failure
+  a pair of hand-edited files invites. The script's own docstring carries the reasoning for
+  the pose.
 
-The palette is the *graceful outfit* from Old School RuneScape, the agility set this project
-takes its name from: bone cloth, charcoal gloves and boots, the jade sash and chest diamond,
-the red diamond, and the face looking out of the hood. Read off an equipped-outfit render
-and listed as `PALETTE` in that script; the cape is a shade darker than the reference, or it
-and the trailing leg merge into one pale mass at favicon sizes, and it carries a darker shade
-again where it passes close behind the body — the shadow that keeps the near edge of the cape
-and the tabard from reading as one flat cut-out.
-
-**No RuneScape asset is used, or could be:** the wiki's images are Jagex's own game art,
-published under a non-commercial licence that neither a GPL-3.0 repository nor a public
-website can honour. Every pixel here is placed by hand.
+The silhouette is one ink over a warm grey-cream moon: past favicon size a silhouette is
+carried entirely by its outline, so a second tone would be detail that only the banner ever
+keeps. The figure is built from tapered limbs rather than a traced outline, because the two
+things it loses most easily are a neck — a head as wide as the shoulders under it is a blob
+at any size — and an upright read, which an early pass lost by reclining the body until it
+was wider than it was tall.
 
 Neither file is installed by `make install`; they are repository and website artwork only.
 `website/scripts/sync.mjs` copies them into the site and rasterises the favicon fallback and

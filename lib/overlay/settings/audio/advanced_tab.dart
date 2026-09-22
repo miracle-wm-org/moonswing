@@ -4,10 +4,10 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/host_process.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/host_process.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
 
 // ---------------------------------------------------------------------------
 // Tab 5 — Advanced

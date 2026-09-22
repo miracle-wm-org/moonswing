@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/power/power_controller.dart';
-import 'package:graceful_shell/power/power_inhibitor.dart';
-import 'package:graceful_shell/power/power_service.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/power/power_controller.dart';
+import 'package:moonswing/power/power_inhibitor.dart';
+import 'package:moonswing/power/power_service.dart';
 
 /// A [PowerInhibitor] that records rather than talks to logind — the whole
 /// reason the interface exists: a unit test must never change what the machine

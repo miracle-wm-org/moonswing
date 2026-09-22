@@ -8,8 +8,8 @@
 // at all, and the two failure modes trade off against each other.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/osd/osd_audio_tracker.dart';
-import 'package:graceful_shell/pulse_client.dart';
+import 'package:moonswing/osd/osd_audio_tracker.dart';
+import 'package:moonswing/pulse_client.dart';
 
 PaSink _sink(String name, double volume, {bool mute = false}) => PaSink(
       index: 0,

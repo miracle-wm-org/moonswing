@@ -2,8 +2,8 @@
 // `config.dart`, the shape `weather_config.dart` and `capture_config.dart` have:
 // the store reads it and the bar module re-exports it.
 
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/github/github_api.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/github/github_api.dart';
 
 /// The GitHub module's options.
 class GithubConfig {

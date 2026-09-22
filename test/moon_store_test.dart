@@ -5,9 +5,9 @@
 // point of the store is that most of the time it does not even do that.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/moon/moon_store.dart';
-import 'package:graceful_shell/weather/weather_config.dart';
-import 'package:graceful_shell/weather/weather_store.dart';
+import 'package:moonswing/moon/moon_store.dart';
+import 'package:moonswing/weather/weather_config.dart';
+import 'package:moonswing/weather/weather_store.dart';
 
 import 'moon_fakes.dart';
 import 'weather_fakes.dart';

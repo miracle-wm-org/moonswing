@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/modules/workspace_apps.dart';
+import 'package:moonswing/modules/workspace_apps.dart';
 import 'package:miracle/miracle.dart';
 
 import 'workspace_result.dart';

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/overlay/file_picker.dart';
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/overlay/file_picker.dart';
+import 'package:moonswing/request_controller.dart';
 
 /// What to show in a root-owned file picker window.
 @immutable
@@ -20,7 +20,7 @@ class FilePickerRequest {
 }
 
 /// The seam between "a surface that cannot host a modal wants a file picker" and
-/// `_GracefulShellRootState`, which owns the windows.
+/// `_MoonswingRootState`, which owns the windows.
 ///
 /// [showFilePicker] inserts into the nearest root [Overlay], which is fine inside
 /// the settings overlay and useless on the desktop: the background surface is on

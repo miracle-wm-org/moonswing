@@ -1,15 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/system/disk_reader.dart';
-import 'package:graceful_shell/system/history.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/proc_reader.dart';
-import 'package:graceful_shell/system/process_killer.dart';
-import 'package:graceful_shell/system/process_reader.dart';
-import 'package:graceful_shell/system/process_sampler.dart';
-import 'package:graceful_shell/system/system_monitor_config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/system/disk_reader.dart';
+import 'package:moonswing/system/history.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/proc_reader.dart';
+import 'package:moonswing/system/process_killer.dart';
+import 'package:moonswing/system/process_reader.dart';
+import 'package:moonswing/system/process_sampler.dart';
+import 'package:moonswing/system/system_monitor_config.dart';
 
 /// The single source of system stats for the whole shell.
 ///

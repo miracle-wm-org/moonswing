@@ -1,12 +1,12 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/pulse_client.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay/settings/audio/pulse_helpers.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/pulse_client.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/settings/audio/pulse_helpers.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
 
 // ---------------------------------------------------------------------------
 // Tab 4 — Device Profiles

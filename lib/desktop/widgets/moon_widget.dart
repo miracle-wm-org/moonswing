@@ -20,21 +20,21 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:graceful_shell/desktop/desktop_layout.dart' show GridSpan;
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/moon/moon_facts.dart';
-import 'package:graceful_shell/moon/moon_format.dart';
-import 'package:graceful_shell/moon/moon_phase.dart';
-import 'package:graceful_shell/moon/moon_render.dart';
-import 'package:graceful_shell/moon/moon_store.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/moon/moon_facts.dart';
+import 'package:moonswing/moon/moon_format.dart';
+import 'package:moonswing/moon/moon_phase.dart';
+import 'package:moonswing/moon/moon_render.dart';
+import 'package:moonswing/moon/moon_store.dart';
+import 'package:moonswing/theme/tokens.dart';
 // The place marker and the three tokens for text over a picture. Both live beside
 // the weather because that is where the first surface needing them was.
 // `WeatherIcon` is deliberately not borrowed with them — it draws Meteocons, a
 // weather set with no glyph for anything on this card.
-import 'package:graceful_shell/weather/weather_icons.dart' show kLocationIcon;
-import 'package:graceful_shell/weather/weather_sky.dart'
+import 'package:moonswing/weather/weather_icons.dart' show kLocationIcon;
+import 'package:moonswing/weather/weather_sky.dart'
     show kSkyForeground, kSkyMutedForeground, kSkyTextShadows;
 
 /// The smallest box each layout draws in — content measurements, not cell

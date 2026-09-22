@@ -3,11 +3,11 @@ import 'dart:ffi' as ffi;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/app_chooser.dart';
-import 'package:graceful_shell/launcher/app_search.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/app_chooser.dart';
+import 'package:moonswing/launcher/app_search.dart';
+import 'package:moonswing/scopes.dart';
 
 /// [AppEntry.appInfo] is a raw `GAppInfo*`, and nothing here launches anything,
 /// so a null pointer stands in — the chooser only ever reads the Dart fields.

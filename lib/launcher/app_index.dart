@@ -2,9 +2,9 @@ import 'dart:ffi' as ffi;
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/native/ffi_util.dart';
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/launcher/app_search.dart';
+import 'package:moonswing/native/ffi_util.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/launcher/app_search.dart';
 
 /// The process-wide list of installed applications, kept warm for the launcher.
 ///

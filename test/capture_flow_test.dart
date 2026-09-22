@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:miracle/miracle.dart' show BaseNode;
 
-import 'package:graceful_shell/capture/capture_flow.dart';
-import 'package:graceful_shell/capture/capture_store.dart';
-import 'package:graceful_shell/capture/selection_controller.dart';
+import 'package:moonswing/capture/capture_flow.dart';
+import 'package:moonswing/capture/capture_store.dart';
+import 'package:moonswing/capture/selection_controller.dart';
 
 /// A `GET_TREE` reply with one output and one workspace on it, focused or not.
 BaseNode _tree({required bool focused, String connector = 'HDMI-1'}) =>
@@ -47,7 +47,7 @@ void main() {
     final notices = <CaptureNotice>[];
     final store = CaptureStore.forTesting()
       ..notify = notices.add
-      ..home = '/tmp/graceful-shell-test-home';
+      ..home = '/tmp/moonswing-test-home';
     store.connect = () => null;
     addTearDown(store.dispose);
     return (store: store, notices: notices);

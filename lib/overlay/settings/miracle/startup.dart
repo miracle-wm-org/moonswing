@@ -5,11 +5,11 @@ import 'package:flutter/widgets.dart';
 
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/miracle_config/miracle_config_store.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/miracle/miracle_controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/miracle_config/miracle_config_store.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/miracle/miracle_controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 class MiracleStartupSection extends StatelessWidget {
   const MiracleStartupSection({super.key, required this.store});
@@ -31,7 +31,7 @@ class MiracleStartupSection extends StatelessWidget {
           ),
           children: [
             const SettingsHint(
-              'Run once the compositor is ready for clients. graceful-shell '
+              'Run once the compositor is ready for clients. moonswing '
               'itself is usually one of these.',
             ),
             MiracleCollection(

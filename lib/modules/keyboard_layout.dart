@@ -7,21 +7,21 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/keyboard/keyboard_short_codes.dart';
-import 'package:graceful_shell/keyboard/keyboard_store.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/overlay/settings_route.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_text_root.dart';
-import 'package:graceful_shell/theme/theme_config.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/keyboard/keyboard_short_codes.dart';
+import 'package:moonswing/keyboard/keyboard_store.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_text_root.dart';
+import 'package:moonswing/theme/theme_config.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// `[modules.keyboard_layout]`.
 @immutable

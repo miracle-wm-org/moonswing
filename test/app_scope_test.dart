@@ -1,6 +1,6 @@
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/app_scope.dart';
+import 'package:moonswing/app_scope.dart';
 
 /// Records what would have been asked of systemd, and can be told to refuse.
 class _FakeStarter {
@@ -30,7 +30,7 @@ void main() {
     test('is a systemd app scope named for the launcher, app and pid', () {
       expect(
         appScopeUnitName(appId: 'org.gnome.Nautilus.desktop', pid: 4321),
-        r'app-graceful\x2dshell-org.gnome.Nautilus-4321.scope',
+        r'app-moonswing-org.gnome.Nautilus-4321.scope',
       );
     });
 
@@ -38,22 +38,22 @@ void main() {
         () {
       expect(
         appScopeUnitName(appId: 'google-chrome.desktop', pid: 7),
-        r'app-graceful\x2dshell-google\x2dchrome-7.scope',
+        r'app-moonswing-google\x2dchrome-7.scope',
       );
     });
 
     test('replaces what systemd will not accept in a unit name', () {
       expect(
         appScopeUnitName(appId: 'my app/v2!.desktop', pid: 9),
-        r'app-graceful\x2dshell-my_app_v2_-9.scope',
+        r'app-moonswing-my_app_v2_-9.scope',
       );
     });
 
     test('an appinfo with no id still gets a name', () {
       expect(appScopeUnitName(appId: '', pid: 11),
-          r'app-graceful\x2dshell-app-11.scope');
+          r'app-moonswing-app-11.scope');
       expect(appScopeUnitName(appId: '   ', pid: 11),
-          r'app-graceful\x2dshell-app-11.scope');
+          r'app-moonswing-app-11.scope');
     });
 
     test('a preposterous id is truncated rather than rejected by systemd', () {
@@ -75,7 +75,7 @@ void main() {
       );
       expect(starter.calls.single.pid, 1234);
       expect(starter.calls.single.unitName,
-          r'app-graceful\x2dshell-firefox-1234.scope');
+          r'app-moonswing-firefox-1234.scope');
       expect(starter.calls.single.description, contains('Firefox'));
     });
 
@@ -88,7 +88,7 @@ void main() {
         isTrue,
       );
       expect(starter.calls.single.unitName,
-          r'app-graceful\x2dshell-Text_Editor-12.scope');
+          r'app-moonswing-Text_Editor-12.scope');
     });
 
     test('a pid GIO did not report is not asked about', () async {

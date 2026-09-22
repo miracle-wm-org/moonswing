@@ -1,8 +1,8 @@
 import 'dart:ffi' as ffi;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/launcher/app_search.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/launcher/app_search.dart';
 
 AppEntry _app(
   String name, {

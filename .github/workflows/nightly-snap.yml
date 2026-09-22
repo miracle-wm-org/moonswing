@@ -16,7 +16,7 @@ jobs:
         uses: snapcore/action-build@v1
       - uses: actions/upload-artifact@v4
         with:
-          name: graceful-shell-snap
+          name: moonswing-snap
           path: ${{ steps.build.outputs.snap }}
       - name: Publish rolling nightly release
         uses: softprops/action-gh-release@v2
@@ -27,4 +27,4 @@ jobs:
           files: ${{ steps.build.outputs.snap }}
           body: |
             Automated nightly classic snap built from the latest `main`.
-            Install: `sudo snap install ./graceful-shell_*.snap --classic --dangerous`
+            Install: `sudo snap install ./moonswing_*.snap --classic --dangerous`

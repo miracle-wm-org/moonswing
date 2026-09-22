@@ -1,7 +1,7 @@
 import 'dart:isolate';
 
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/process_reader.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/process_reader.dart';
 
 /// The seam between the store and the `/proc` walk.
 ///

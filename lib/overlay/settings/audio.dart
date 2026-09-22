@@ -1,16 +1,16 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/pulse_client.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay/settings/audio/advanced_tab.dart';
-import 'package:graceful_shell/overlay/settings/audio/apps_tab.dart';
-import 'package:graceful_shell/overlay/settings/audio/input_tab.dart';
-import 'package:graceful_shell/overlay/settings/audio/output_tab.dart';
-import 'package:graceful_shell/overlay/settings/audio/profiles_tab.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/underline_tabs.dart';
+import 'package:moonswing/pulse_client.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/settings/audio/advanced_tab.dart';
+import 'package:moonswing/overlay/settings/audio/apps_tab.dart';
+import 'package:moonswing/overlay/settings/audio/input_tab.dart';
+import 'package:moonswing/overlay/settings/audio/output_tab.dart';
+import 'package:moonswing/overlay/settings/audio/profiles_tab.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/underline_tabs.dart';
 
 // ---------------------------------------------------------------------------
 // AudioSettingsPage

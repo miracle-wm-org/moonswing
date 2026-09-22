@@ -1,10 +1,10 @@
 #!/bin/sh
 #
-# Install the latest Graceful Shell nightly snap.
+# Install the latest Moonswing nightly snap.
 #
 #   curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh | sh
 #
-# Downloads the newest `graceful-shell_*.snap` asset from the rolling `nightly`
+# Downloads the newest `moonswing_*.snap` asset from the rolling `nightly`
 # release and installs it with `--classic --dangerous`. Re-running it is how you
 # update: snapd replaces the installed revision in place.
 #
@@ -12,12 +12,12 @@
 
 set -eu
 
-REPO=${GRACEFUL_REPO:-miracle-wm-org/graceful-shell}
-TAG=${GRACEFUL_TAG:-nightly}
+REPO=${MOONSWING_REPO:-miracle-wm-org/graceful-shell}
+TAG=${MOONSWING_TAG:-nightly}
 API="https://api.github.com/repos/$REPO/releases/tags/$TAG"
 
 die() {
-    echo "graceful-shell install: $*" >&2
+    echo "moonswing install: $*" >&2
     exit 1
 }
 
@@ -77,9 +77,9 @@ else
     snapname=${url##*/}
 fi
 [ -n "$url" ] || die "the $TAG release has no .snap asset."
-[ -n "$snapname" ] || snapname="graceful-shell.snap"
+[ -n "$snapname" ] || snapname="moonswing.snap"
 
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/graceful-shell.XXXXXX")
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/moonswing.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
 echo "==> Downloading $snapname"
@@ -94,9 +94,9 @@ cat <<'EOF'
 
 Installed. Start it with:
 
-    graceful-shell
+    moonswing
 
 Screen sharing and the lock screen work out of the box. To remove:
 
-    sudo snap remove graceful-shell
+    sudo snap remove moonswing
 EOF

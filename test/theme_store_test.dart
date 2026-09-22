@@ -4,13 +4,13 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/theme/builtin_themes.dart';
-import 'package:graceful_shell/theme/theme_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/theme/builtin_themes.dart';
+import 'package:moonswing/theme/theme_store.dart';
 
 /// Every store here is rooted at a temp directory — never the user's real
-/// `~/.config/graceful-shell/themes`.
+/// `~/.config/moonswing/themes`.
 void main() {
   late Directory tempDir;
   late String themesDir;
@@ -20,7 +20,7 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('gs_theme_store_test');
     themesDir = '${tempDir.path}/themes';
     configPath = '${tempDir.path}/config.toml';
-    await File(configPath).writeAsString('theme = "graceful"\n');
+    await File(configPath).writeAsString('theme = "moonswing"\n');
   });
 
   tearDown(() async {
@@ -55,7 +55,7 @@ void main() {
   test('resolves the theme config.toml names, and follows a change to it',
       () async {
     final (themes, config) = await open();
-    expect(themes.activeName, 'graceful');
+    expect(themes.activeName, 'moonswing');
     expect(themes.theme.accent, const Color(0xFF853953));
 
     config.set(['theme'], 'dracula');

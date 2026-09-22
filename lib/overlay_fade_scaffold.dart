@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/overlay_transition.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/overlay_effect.dart';
+import 'package:moonswing/overlay_transition.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
 
 /// The entrance every full-screen overlay plays: scrim, a centred card that
 /// arrives on the theme's `overlay_animation`, and the closing-notifier

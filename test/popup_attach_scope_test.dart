@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
 
 /// A bar popup's card is built once and captured in a `WindowEntry` builder, in a
 /// FlutterView that is a *sibling* of the panel's, so it cannot read the panel's
@@ -11,7 +11,7 @@ import 'package:graceful_shell/scopes.dart';
 /// what a card does with it — the only half of the attached mode observable
 /// without a compositor.
 
-/// A square join: the default, and the shape `graceful` and `dracula` ship.
+/// A square join: the default, and the shape `moonswing` and `dracula` ship.
 const _square = ThemeConfig(popupRadius: 12.0, popupBorderWidth: 1.0);
 
 /// A flared join, which is a different kind of decoration entirely.
@@ -126,7 +126,7 @@ void main() {
   testWidgets('an unrimmed bar leaves the square card exactly as it was',
       (tester) async {
     // Nothing paints outside the card, so the decoration is the plain box it has
-    // always been. This is what keeps `graceful` and `dracula` — both attached,
+    // always been. This is what keeps `moonswing` and `dracula` — both attached,
     // both square — byte-identical.
     await tester.pumpWidget(_host(_card, attach: 'top'));
     expect(_cardDecoration(tester), isA<BoxDecoration>());

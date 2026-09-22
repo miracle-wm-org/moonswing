@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/theme/builtin_themes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/theme/builtin_themes.dart';
 
 /// Pins today's parse behaviour so the config refactor (the shared TomlReader,
 /// and later the file splits) cannot silently change a default, a clamp, or a
@@ -101,7 +101,7 @@ void main() {
     });
 
     test('theme, desktop, lock, shortcuts, screenshare, power, polkit', () {
-      expect(config.themeName, 'graceful');
+      expect(config.themeName, 'moonswing');
       expect(config.desktop.enabled, isTrue);
       expect(config.desktop.cellWidth, 96);
       expect(config.desktop.cellHeight, 96);

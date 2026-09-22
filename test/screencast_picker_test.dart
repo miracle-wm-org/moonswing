@@ -5,12 +5,12 @@ import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/screencast/capture_session.dart';
-import 'package:graceful_shell/screencast/picker_controller.dart';
-import 'package:graceful_shell/screencast/picker_overlay.dart';
-import 'package:graceful_shell/screencast/preview.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/screencast/capture_session.dart';
+import 'package:moonswing/screencast/picker_controller.dart';
+import 'package:moonswing/screencast/picker_overlay.dart';
+import 'package:moonswing/screencast/preview.dart';
 
 const _request = PickRequest(
   appId: 'com.example.Meet',

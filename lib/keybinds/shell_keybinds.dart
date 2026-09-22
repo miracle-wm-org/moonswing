@@ -15,9 +15,9 @@ library;
 
 import 'package:miracle/miracle.dart' show KeybindsResult, Modifier;
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/keybinds/keybind_model.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/keybinds/keybind_model.dart';
 
 /// One shortcut the *shell* registers with the compositor — every key of
 /// `[shortcuts]`, in the order the sheet lists them.

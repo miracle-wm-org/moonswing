@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/calendar/analog_clock.dart';
-import 'package:graceful_shell/overlay/calendar/month.dart';
-import 'package:graceful_shell/overlay/calendar/time_zones.dart';
-import 'package:graceful_shell/overlay/calendar/timezone_picker.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/calendar/analog_clock.dart';
+import 'package:moonswing/overlay/calendar/month.dart';
+import 'package:moonswing/overlay/calendar/time_zones.dart';
+import 'package:moonswing/overlay/calendar/timezone_picker.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// Width of the whole column. Fixed rather than fractional: the overlay panel is
 /// 800 wide at its smallest, and the month grid beside this has to stay usable.

@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_coordinator.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_coordinator.dart';
 
 /// [PopupDismissArea] talks to the process-wide singleton — that is the point
 /// of it — so each test registers into that instance and unregisters after.

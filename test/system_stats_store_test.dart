@@ -1,12 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/disk_reader.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/proc_reader.dart';
-import 'package:graceful_shell/system/process_sampler.dart';
-import 'package:graceful_shell/system/system_monitor_config.dart';
-import 'package:graceful_shell/system/system_stats_store.dart';
+import 'package:moonswing/system/disk_reader.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/proc_reader.dart';
+import 'package:moonswing/system/process_sampler.dart';
+import 'package:moonswing/system/system_monitor_config.dart';
+import 'package:moonswing/system/system_stats_store.dart';
 
 /// Counts walks and answers from memory, so no test spawns an isolate or reads
 /// the real `/proc`.

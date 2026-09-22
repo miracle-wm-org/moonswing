@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/moon/moon_format.dart';
+import 'package:moonswing/moon/moon_format.dart';
 
 void main() {
   group('formatMoonTime', () {

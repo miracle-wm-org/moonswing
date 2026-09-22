@@ -2,14 +2,14 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/github/github_token_store.dart';
+import 'package:moonswing/github/github_token_store.dart';
 
 /// Where the access token lives, and who can read it.
 void main() {
   late Directory tempDir;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('graceful-github-token');
+    tempDir = Directory.systemTemp.createTempSync('moonswing-github-token');
   });
 
   tearDown(() {
@@ -70,7 +70,7 @@ void main() {
     const store = GithubTokenStore();
 
     // Not `~/.config`: that file is hand-edited and pasted into bug reports.
-    expect(store.directory, endsWith('/graceful-shell'));
+    expect(store.directory, endsWith('/moonswing'));
     expect(store.path, endsWith('/github-token'));
   });
 }

@@ -24,13 +24,13 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 // windowing and positioner pieces this file needs, but not the Linux-specific
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
-import 'package:graceful_shell/panel_rim.dart';
-import 'package:graceful_shell/popup_coordinator.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/popup_transition.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/popup_effect.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/panel_rim.dart';
+import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/popup_transition.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/tokens.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:layer_shell/src/gtk.dart';
 

@@ -11,13 +11,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/emoji/emoji_data.dart';
-import 'package:graceful_shell/emoji/emoji_search.dart';
-import 'package:graceful_shell/overlay_fade_scaffold.dart';
-import 'package:graceful_shell/overlay_search_field.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_data.dart';
+import 'package:moonswing/emoji/emoji_search.dart';
+import 'package:moonswing/overlay_fade_scaffold.dart';
+import 'package:moonswing/overlay_search_field.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// Cells across the grid.
 ///

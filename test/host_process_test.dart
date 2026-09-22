@@ -1,19 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/host_process.dart';
+import 'package:moonswing/host_process.dart';
 
 /// The environment the classic snap's launcher actually leaves behind, minus
 /// the entries that do not matter here. `LD_LIBRARY_PATH` is verbatim from
 /// `snap/snapcraft.yaml`, with a host entry appended the way `$LD_LIBRARY_PATH`
 /// at its tail would leave one.
 Map<String, String> _snapEnvironment({String? libraryPath}) => {
-  'SNAP': '/snap/graceful-shell/42',
-  'SNAP_NAME': 'graceful-shell',
+  'SNAP': '/snap/moonswing/42',
+  'SNAP_NAME': 'moonswing',
   'LD_LIBRARY_PATH': libraryPath ??
-      '/snap/graceful-shell/42/usr/lib/x86_64-linux-gnu:'
-          '/snap/graceful-shell/42/usr/lib/x86_64-linux-gnu/blas:'
-          '/snap/graceful-shell/42/usr/lib/x86_64-linux-gnu/lapack:'
-          '/snap/graceful-shell/42/usr/lib/x86_64-linux-gnu/pulseaudio:'
-          '/snap/graceful-shell/42/lib:'
+      '/snap/moonswing/42/usr/lib/x86_64-linux-gnu:'
+          '/snap/moonswing/42/usr/lib/x86_64-linux-gnu/blas:'
+          '/snap/moonswing/42/usr/lib/x86_64-linux-gnu/lapack:'
+          '/snap/moonswing/42/usr/lib/x86_64-linux-gnu/pulseaudio:'
+          '/snap/moonswing/42/lib:'
           '/home/user/.local/lib',
 };
 
@@ -34,8 +34,8 @@ void main() {
       // unsetting is not something the process API can express.
       expect(
         hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/graceful-shell/42/lib:'
-              '/snap/graceful-shell/42/usr/lib/x86_64-linux-gnu',
+          libraryPath: '/snap/moonswing/42/lib:'
+              '/snap/moonswing/42/usr/lib/x86_64-linux-gnu',
         )),
         '',
       );
@@ -59,10 +59,10 @@ void main() {
 
     test('is a no-op when there is no library path at all', () {
       expect(hostLibraryPath(const {}), isNull);
-      expect(hostLibraryPath(const {'SNAP': '/snap/graceful-shell/42'}), isNull);
+      expect(hostLibraryPath(const {'SNAP': '/snap/moonswing/42'}), isNull);
       expect(
         hostLibraryPath(const {
-          'SNAP': '/snap/graceful-shell/42',
+          'SNAP': '/snap/moonswing/42',
           'LD_LIBRARY_PATH': '',
         }),
         isNull,
@@ -75,8 +75,8 @@ void main() {
       // same directory as $SNAP.
       expect(
         hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/graceful-shell/current/lib:'
-              '/var/lib/snapd/snap/graceful-shell/42/lib:'
+          libraryPath: '/snap/moonswing/current/lib:'
+              '/var/lib/snapd/snap/moonswing/42/lib:'
               '/usr/local/lib',
         )),
         '/usr/local/lib',
@@ -86,17 +86,17 @@ void main() {
     test('does not match a sibling whose name merely starts the same', () {
       expect(
         hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/graceful-shell-extras/9/lib:'
-              '/snap/graceful-shell/42/lib',
+          libraryPath: '/snap/moonswing-extras/9/lib:'
+              '/snap/moonswing/42/lib',
         )),
-        '/snap/graceful-shell-extras/9/lib',
+        '/snap/moonswing-extras/9/lib',
       );
     });
 
     test('ignores a trailing slash on either side of the match', () {
       expect(
         hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/graceful-shell/42/lib/:/usr/lib/oss',
+          libraryPath: '/snap/moonswing/42/lib/:/usr/lib/oss',
         )),
         '/usr/lib/oss',
       );
@@ -117,7 +117,7 @@ void main() {
       // launches gets the environment the host would have given it exactly.
       expect(
         hostProgramOverrides(_snapEnvironment(
-          libraryPath: '/snap/graceful-shell/42/lib',
+          libraryPath: '/snap/moonswing/42/lib',
         )),
         {'LD_LIBRARY_PATH': null},
       );

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/launcher/launcher_controller.dart';
+import 'package:moonswing/launcher/launcher_controller.dart';
 
 void main() {
   group('LauncherController', () {

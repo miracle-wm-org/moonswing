@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The text environment a shell window needs at its root.
 ///

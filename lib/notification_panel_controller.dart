@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 /// The seam between anything that wants the notification panel open and
-/// `_GracefulShellRootState`, which owns every window.
+/// `_MoonswingRootState`, which owns every window.
 ///
 /// Two things ask for it and neither can create the window: the bell module,
 /// deep inside a panel's widget tree, and the floating badge, a root-owned

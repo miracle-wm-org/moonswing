@@ -12,9 +12,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/weather/weather_api.dart';
-import 'package:graceful_shell/weather/weather_condition.dart';
-import 'package:graceful_shell/weather/weather_config.dart';
+import 'package:moonswing/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_config.dart';
 
 class WeatherStore extends ChangeNotifier {
   WeatherStore._({WeatherClient? client})

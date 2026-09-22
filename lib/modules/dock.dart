@@ -3,17 +3,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/desktop/desktop_menu.dart';
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/modules/app_directory.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/theme/popup_effect.dart';
-import 'package:graceful_shell/popup_coordinator.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/modules/app_directory.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_provider.dart';
 
 class DockConfig {
   final List<String> apps;

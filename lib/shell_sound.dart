@@ -280,10 +280,10 @@ String shellSoundCacheDirectory({Map<String, String>? environment}) {
   final env = environment ?? Platform.environment;
   final cacheHome = env['XDG_CACHE_HOME'];
   if (cacheHome != null && cacheHome.isNotEmpty) {
-    return '$cacheHome/graceful-shell/sounds';
+    return '$cacheHome/moonswing/sounds';
   }
   final home = env['HOME'] ?? '.';
-  return '$home/.cache/graceful-shell/sounds';
+  return '$home/.cache/moonswing/sounds';
 }
 
 /// Renders [bytes] into the sound cache as [name] if it is not already there,

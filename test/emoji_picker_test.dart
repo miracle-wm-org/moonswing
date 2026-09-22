@@ -2,12 +2,12 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/emoji/emoji_data.dart';
-import 'package:graceful_shell/emoji/emoji_picker_overlay.dart';
-import 'package:graceful_shell/emoji/emoji_search.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_text_root.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_data.dart';
+import 'package:moonswing/emoji/emoji_picker_overlay.dart';
+import 'package:moonswing/emoji/emoji_search.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_text_root.dart';
 
 Emoji _e(String char, String name, List<String> keywords) =>
     Emoji(char, name, EmojiCategory.food, keywords);

@@ -3,7 +3,7 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/fortune/fortune_text_fit.dart';
+import 'package:moonswing/fortune/fortune_text_fit.dart';
 
 const TextStyle _style = TextStyle(fontFamily: 'Roboto');
 

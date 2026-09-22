@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 /// Which page of the settings overlay to land on.
 ///
@@ -70,7 +70,7 @@ class SettingsRoute {
 }
 
 /// The seam between "something deep in a surface wants the settings overlay
-/// open at a particular page" and `_GracefulShellRootState`, which owns the
+/// open at a particular page" and `_MoonswingRootState`, which owns the
 /// window.
 ///
 /// A [SignalController] with a payload. (Why not `InputTriggerStore`: see

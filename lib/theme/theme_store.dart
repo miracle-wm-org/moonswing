@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:toml/toml.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/theme/builtin_themes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/theme/builtin_themes.dart';
 
 /// One theme file, as the picker sees it.
 @immutable
@@ -52,7 +52,7 @@ class ThemeStore extends ChangeNotifier {
   static final ThemeStore instance = ThemeStore._(resolveThemesDir());
 
   /// A store rooted at [directory]. Tests always pass a temp dir — never the
-  /// user's real `~/.config/graceful-shell/themes`.
+  /// user's real `~/.config/moonswing/themes`.
   @visibleForTesting
   factory ThemeStore.forTesting({required String directory}) =>
       ThemeStore._(directory);
@@ -62,7 +62,7 @@ class ThemeStore extends ChangeNotifier {
     final homeDir = Platform.environment['HOME'] ?? '';
     final configHome =
         Platform.environment['XDG_CONFIG_HOME'] ?? '$homeDir/.config';
-    return '$configHome/graceful-shell/themes';
+    return '$configHome/moonswing/themes';
   }
 
   static const Duration _debounce = Duration(milliseconds: 400);

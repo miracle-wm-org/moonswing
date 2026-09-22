@@ -3,7 +3,7 @@
 // Not in `config.toml`. That file is hand-edited, pasted into bug reports,
 // rewritten by the settings UI on every keystroke and world-readable like any
 // other config; a bearer token is none of those things. It goes in the XDG
-// *state* directory instead — `~/.local/state/graceful-shell/github-token` —
+// *state* directory instead — `~/.local/state/moonswing/github-token` —
 // which is exactly what that directory is for, in a directory narrowed to 0700
 // before the file is written into it, and the file itself at 0600.
 //
@@ -16,7 +16,7 @@
 
 import 'dart:io';
 
-import 'package:graceful_shell/native/libc.dart';
+import 'package:moonswing/native/libc.dart';
 
 /// Reads, writes and clears the saved token.
 class GithubTokenStore {
@@ -36,9 +36,9 @@ class GithubTokenStore {
   static String _defaultDirectory() {
     final env = Platform.environment;
     final state = env['XDG_STATE_HOME'];
-    if (state != null && state.isNotEmpty) return '$state/graceful-shell';
+    if (state != null && state.isNotEmpty) return '$state/moonswing';
     final home = env['HOME'] ?? '.';
-    return '$home/.local/state/graceful-shell';
+    return '$home/.local/state/moonswing';
   }
 
   /// The saved token, or null when there is none.

@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/input_devices.dart';
-import 'package:graceful_shell/system/proc_reader.dart';
-import 'package:graceful_shell/system/system_info.dart';
+import 'package:moonswing/system/input_devices.dart';
+import 'package:moonswing/system/proc_reader.dart';
+import 'package:moonswing/system/system_info.dart';
 
 /// A fake `/proc` and `/etc` in a temp directory, a fake environment map, and a
 /// fake process runner, so no test reads the real machine.

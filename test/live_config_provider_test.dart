@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/live_config_provider.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/live_config_provider.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The regression test for what the live-config scope is *for*.
 ///
@@ -21,7 +21,7 @@ import 'package:graceful_shell/scopes.dart';
 void main() {
   setUp(() => _Probe.builds = 0);
 
-  AppConfig config({int padding = 8, String theme = 'graceful'}) => AppConfig(
+  AppConfig config({int padding = 8, String theme = 'moonswing'}) => AppConfig(
         themeName: theme,
         panels: {
           'top': PanelConfig(

@@ -3,14 +3,14 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/host_process.dart';
-import 'package:graceful_shell/pulse_client.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay/settings/audio/audio_slider.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/host_process.dart';
+import 'package:moonswing/pulse_client.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/settings/audio/audio_slider.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/scopes.dart';
 
 // ---------------------------------------------------------------------------
 // Tab 1 — Output Device

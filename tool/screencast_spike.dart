@@ -14,14 +14,14 @@ import 'dart:async';
 import 'dart:ffi'; // for the Pointer.asTypedList extension
 import 'dart:io';
 
-import 'package:graceful_shell/pipewire/spa_pod.dart';
-import 'package:graceful_shell/pipewire/video_stream.dart';
-import 'package:graceful_shell/screencast/capture_connection.dart';
-import 'package:graceful_shell/screencast/capture_session.dart';
-import 'package:graceful_shell/screencast/pick_types.dart';
-import 'package:graceful_shell/screencast/screencast_log.dart';
-import 'package:graceful_shell/screencast/screencast_service.dart';
-import 'package:graceful_shell/wayland_ffi/wl_protocols.dart';
+import 'package:moonswing/pipewire/spa_pod.dart';
+import 'package:moonswing/pipewire/video_stream.dart';
+import 'package:moonswing/screencast/capture_connection.dart';
+import 'package:moonswing/screencast/capture_session.dart';
+import 'package:moonswing/screencast/pick_types.dart';
+import 'package:moonswing/screencast/screencast_log.dart';
+import 'package:moonswing/screencast/screencast_service.dart';
+import 'package:moonswing/wayland_ffi/wl_protocols.dart';
 
 Future<void> main(List<String> argv) async {
   screencastLog = say;

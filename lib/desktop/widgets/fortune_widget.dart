@@ -30,19 +30,19 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:graceful_shell/desktop/desktop_layout.dart' show GridSpan;
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/fortune/fortune_store.dart';
-import 'package:graceful_shell/fortune/fortune_text_fit.dart';
-import 'package:graceful_shell/fortune/lamp_scene.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/sky_icon_button.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/fortune/fortune_store.dart';
+import 'package:moonswing/fortune/fortune_text_fit.dart';
+import 'package:moonswing/fortune/lamp_scene.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/sky_icon_button.dart';
+import 'package:moonswing/theme/tokens.dart';
 // The three tokens for text over a picture, borrowed the way `moon_widget.dart`
 // borrows them: they live beside the weather because that is where the first
 // surface needing them was, and nothing about any of them is about the weather.
-import 'package:graceful_shell/weather/weather_sky.dart'
+import 'package:moonswing/weather/weather_sky.dart'
     show kSkyForeground, kSkyMutedForeground, kSkyTextShadows;
 
 /// The smallest box the card draws in — a content measurement, not a cell

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/github/github_api.dart';
-import 'package:graceful_shell/github/github_config.dart';
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/github/github_config.dart';
 
 /// `[modules.github]`, under the config layer's one rule: a wrongly-typed value
 /// costs that key, never the table.

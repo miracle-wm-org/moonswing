@@ -2,16 +2,16 @@
 
 import 'dart:async';
 import 'package:dbus/dbus.dart';
-import 'package:graceful_shell/dbus_clients.dart';
+import 'package:moonswing/dbus_clients.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_provider.dart';
 
 // ---------------------------------------------------------------------------
 // Config

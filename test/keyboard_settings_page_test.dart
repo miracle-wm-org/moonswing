@@ -4,15 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/keyboard/keyboard_store.dart';
-import 'package:graceful_shell/keyboard/locale1_client.dart';
-import 'package:graceful_shell/keyboard/xkb_catalog.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/keyboard.dart';
-import 'package:graceful_shell/overlay/settings/keyboard/input_source_picker.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/keyboard/keyboard_store.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
+import 'package:moonswing/keyboard/xkb_catalog.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/keyboard.dart';
+import 'package:moonswing/overlay/settings/keyboard/input_source_picker.dart';
+import 'package:moonswing/scopes.dart';
 
 import 'keyboard_fakes.dart';
 

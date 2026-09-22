@@ -1,34 +1,34 @@
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/capture/capture_config.dart'
+import 'package:moonswing/capture/capture_config.dart'
     show
         RecorderConfig,
         ScreenshotConfig,
         kDefaultRecordingDirectory,
         kDefaultScreenshotDirectory,
         kRecorderContainers;
-import 'package:graceful_shell/capture/capture_sound.dart'
+import 'package:moonswing/capture/capture_sound.dart'
     show kDefaultShutterVolume, kShutterSoundHint;
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/modules/battery.dart' show BatteryConfig;
-import 'package:graceful_shell/modules/clock.dart' show ClockConfig;
-import 'package:graceful_shell/modules/dock.dart' show DockConfig;
-import 'package:graceful_shell/modules/github.dart' show GithubConfig;
-import 'package:graceful_shell/modules/media_player.dart'
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/modules/battery.dart' show BatteryConfig;
+import 'package:moonswing/modules/clock.dart' show ClockConfig;
+import 'package:moonswing/modules/dock.dart' show DockConfig;
+import 'package:moonswing/modules/github.dart' show GithubConfig;
+import 'package:moonswing/modules/media_player.dart'
     show MediaPlayerConfig;
-import 'package:graceful_shell/modules/network.dart' show NetworkConfig;
-import 'package:graceful_shell/modules/system_tray.dart' show SystemTrayConfig;
-import 'package:graceful_shell/modules/weather.dart' show WeatherConfig;
-import 'package:graceful_shell/modules/workspaces.dart' show WorkspacesConfig;
-import 'package:graceful_shell/notification_sound.dart'
+import 'package:moonswing/modules/network.dart' show NetworkConfig;
+import 'package:moonswing/modules/system_tray.dart' show SystemTrayConfig;
+import 'package:moonswing/modules/weather.dart' show WeatherConfig;
+import 'package:moonswing/modules/workspaces.dart' show WorkspacesConfig;
+import 'package:moonswing/notification_sound.dart'
     show kDefaultNotificationSoundVolume, kNotificationSoundHint;
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
-import 'package:graceful_shell/overlay/settings/settings_search.dart';
-import 'package:graceful_shell/overlay/settings/shell/weather_location.dart';
-import 'package:graceful_shell/system/system_monitor_config.dart'
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart';
+import 'package:moonswing/overlay/settings/shell/weather_location.dart';
+import 'package:moonswing/system/system_monitor_config.dart'
     show SystemMonitorConfig;
-import 'package:graceful_shell/timers/timer_sound.dart'
+import 'package:moonswing/timers/timer_sound.dart'
     show kDefaultTimerVolume, kTimerSoundHint;
 
 /// Which control edits a module setting row.

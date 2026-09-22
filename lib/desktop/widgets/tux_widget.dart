@@ -31,20 +31,20 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/desktop/desktop_layout.dart' show GridSpan;
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 // The measured type ladder. Borrowed the way `moon_widget.dart` borrows the
 // weather's text-over-a-picture tokens: it lives beside the fortune because
 // that is where the first card needing it was, and nothing about it is about
 // fortunes.
-import 'package:graceful_shell/fortune/fortune_text_fit.dart'
+import 'package:moonswing/fortune/fortune_text_fit.dart'
     show fitFortuneText, kFortuneLineHeight;
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/tux/tux_art.dart';
-import 'package:graceful_shell/tux/tux_greetings.dart';
-import 'package:graceful_shell/tux/tux_store.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/tux/tux_art.dart';
+import 'package:moonswing/tux/tux_greetings.dart';
+import 'package:moonswing/tux/tux_store.dart';
 
 /// The smallest box the card draws in — a content measurement, not a cell
 /// count, because a cell is configurable down to 32px and Tux is not. Below

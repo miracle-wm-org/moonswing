@@ -19,14 +19,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/miracle_config/miracle_color.dart';
-import 'package:graceful_shell/miracle_config/miracle_config_store.dart';
-import 'package:graceful_shell/miracle_config/miracle_key_codes.dart';
-import 'package:graceful_shell/miracle_config/miracle_labels.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/miracle.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/miracle_config/miracle_color.dart';
+import 'package:moonswing/miracle_config/miracle_config_store.dart';
+import 'package:moonswing/miracle_config/miracle_key_codes.dart';
+import 'package:moonswing/miracle_config/miracle_labels.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/miracle.dart';
+import 'package:moonswing/scopes.dart';
 
 void main() {
   group('evdev key table', () {

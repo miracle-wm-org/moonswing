@@ -28,9 +28,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/switcher/open_window.dart';
-import 'package:graceful_shell/switcher/open_window_store.dart';
-import 'package:graceful_shell/switcher/window_activation.dart';
+import 'package:moonswing/switcher/open_window.dart';
+import 'package:moonswing/switcher/open_window_store.dart';
+import 'package:moonswing/switcher/window_activation.dart';
 
 class WindowSwitcherController extends ChangeNotifier {
   WindowSwitcherController._();

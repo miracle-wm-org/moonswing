@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/scopes.dart';
 
 /// A popup card's corner rounding, from [ThemeConfig.popupRadius].
 ///

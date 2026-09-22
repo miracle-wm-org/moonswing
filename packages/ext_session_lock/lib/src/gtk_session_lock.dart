@@ -129,7 +129,7 @@ class GtkSessionLockBindings {
 
 // GLib signal plumbing. GObject is already in the process (Flutter's Linux
 // embedder pulls GTK in), so these resolve from the running process — the same
-// approach `graceful_shell`'s `MonitorWatcher` and `layer_shell`'s
+// approach `moonswing`'s `MonitorWatcher` and `layer_shell`'s
 // `GdkMonitor.getConnector` take.
 final ffi.DynamicLibrary _process = ffi.DynamicLibrary.process();
 

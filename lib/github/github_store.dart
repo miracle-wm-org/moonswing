@@ -21,10 +21,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/github/github_api.dart';
-import 'package:graceful_shell/github/github_config.dart';
-import 'package:graceful_shell/github/github_token_store.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/github/github_config.dart';
+import 'package:moonswing/github/github_token_store.dart';
 
 /// How far along the sign-in is.
 enum GithubAuthStage {

@@ -11,7 +11,7 @@
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/config_reader.dart';
+import 'package:moonswing/config_reader.dart';
 
 /// One xkb layout, optionally narrowed to a variant.
 ///

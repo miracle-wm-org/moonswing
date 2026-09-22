@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/github/github_api.dart';
-import 'package:graceful_shell/github/github_config.dart';
-import 'package:graceful_shell/github/github_store.dart';
-import 'package:graceful_shell/github/github_token_store.dart';
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/github/github_config.dart';
+import 'package:moonswing/github/github_store.dart';
+import 'package:moonswing/github/github_token_store.dart';
 
 import 'github_fakes.dart';
 
@@ -18,7 +18,7 @@ void main() {
   late List<String> opened;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('graceful-github-test');
+    tempDir = Directory.systemTemp.createTempSync('moonswing-github-test');
     tokens = GithubTokenStore(directory: tempDir.path);
     opened = [];
   });

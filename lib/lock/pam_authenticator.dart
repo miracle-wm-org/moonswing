@@ -5,7 +5,7 @@ import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
-import 'package:graceful_shell/native/ffi_util.dart';
+import 'package:moonswing/native/ffi_util.dart';
 
 import 'user_identity.dart';
 
@@ -74,11 +74,11 @@ class PamAuthenticator {
 
   /// PAM service names to try, most preferred first.
   ///
-  /// We ship `/etc/pam.d/graceful-shell`; `login` is the universally present
+  /// We ship `/etc/pam.d/moonswing`; `login` is the universally present
   /// fallback for installs that could not write to `/etc` (its `auth` stack
   /// includes `common-auth`, which is all we exercise — we never open a session).
   static const List<String> _serviceCandidates = <String>[
-    'graceful-shell',
+    'moonswing',
     'login',
   ];
 

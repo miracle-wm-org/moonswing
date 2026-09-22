@@ -2,15 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/overlay.dart';
-import 'package:graceful_shell/overlay/system/overview_page.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/system/disk_reader.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/proc_reader.dart';
-import 'package:graceful_shell/system/process_sampler.dart';
-import 'package:graceful_shell/system/system_stats_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/overlay.dart';
+import 'package:moonswing/overlay/system/overview_page.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/system/disk_reader.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/proc_reader.dart';
+import 'package:moonswing/system/process_sampler.dart';
+import 'package:moonswing/system/system_stats_store.dart';
 
 class FakeSampler implements ProcessSampler {
   @override

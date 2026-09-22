@@ -1,12 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/keyboard/xkb_catalog.dart';
-import 'package:graceful_shell/overlay/settings/keyboard/input_source_picker.dart';
-import 'package:graceful_shell/search_list.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/keyboard/xkb_catalog.dart';
+import 'package:moonswing/overlay/settings/keyboard/input_source_picker.dart';
+import 'package:moonswing/search_list.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
 
 /// Pins where an add button sits: at the **top** of the list it adds to, on
 /// the right. Every one of these used to be a block under its list, which is
@@ -62,14 +62,14 @@ void main() {
       SettingsSection(
         label: 'Theme',
         trailing: SettingsAddButton(label: 'New theme…', onTap: () {}),
-        children: const [Text('graceful')],
+        children: const [Text('moonswing')],
       ),
     );
     final label = tester.getRect(find.text('THEME'));
     final button = tester.getRect(find.text('New theme…'));
     expect(button.left, greaterThan(label.right));
     expect(button.bottom, lessThanOrEqualTo(tester
-        .getRect(find.text('graceful'))
+        .getRect(find.text('moonswing'))
         .top));
   });
 

@@ -7,10 +7,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/launcher/launcher_controller.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/launcher/launcher_controller.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/scopes.dart';
 
 class LauncherButton extends StatefulWidget {
   const LauncherButton({super.key, this.iconSize = 18});

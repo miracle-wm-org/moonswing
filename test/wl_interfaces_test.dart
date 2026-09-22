@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/wayland_ffi/wl_interfaces.dart';
-import 'package:graceful_shell/wayland_ffi/wl_types.dart';
+import 'package:moonswing/wayland_ffi/wl_interfaces.dart';
+import 'package:moonswing/wayland_ffi/wl_types.dart';
 import 'package:xml/xml.dart';
 
 /// Diffs the hand-transcribed `wl_interface` tables in `wl_interfaces.dart`

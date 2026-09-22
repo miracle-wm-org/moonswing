@@ -3,10 +3,10 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_actions.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_actions.dart';
+import 'package:moonswing/scopes.dart';
 
 /// One cell of the desktop grid: an icon over its label, with the selection
 /// chrome.

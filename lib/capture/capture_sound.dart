@@ -34,7 +34,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/shell_sound.dart';
+import 'package:moonswing/shell_sound.dart';
 
 /// The `shutter_sound` value a fresh config has.
 const String kDefaultShutterSound = 'shutter';

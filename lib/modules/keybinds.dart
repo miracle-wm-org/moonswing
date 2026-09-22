@@ -7,11 +7,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/keybinds/keybind_cheatsheet_controller.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The bar's keyboard icon.
 class KeybindsButton extends StatelessWidget {

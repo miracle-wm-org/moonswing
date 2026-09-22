@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/capture/capture_config.dart';
-import 'package:graceful_shell/capture/capture_store.dart';
-import 'package:graceful_shell/capture/capture_targets.dart';
+import 'package:moonswing/capture/capture_config.dart';
+import 'package:moonswing/capture/capture_store.dart';
+import 'package:moonswing/capture/capture_targets.dart';
 
 /// The state the two bar modules render, and the one path a test with no
 /// compositor behind it can drive end to end: the connection that is not
@@ -15,7 +15,7 @@ void main() {
     final store = CaptureStore.forTesting()
       ..notify = notices.add
       ..shutter = shutter ?? () {}
-      ..home = '/tmp/graceful-shell-test-home';
+      ..home = '/tmp/moonswing-test-home';
     // Its own statement: `= () => null` followed by a cascade would put the
     // cascade on the null rather than on the store.
     store.connect = () => null;

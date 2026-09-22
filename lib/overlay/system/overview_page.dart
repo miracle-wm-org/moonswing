@@ -1,14 +1,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/system/stat_tile.dart';
-import 'package:graceful_shell/overlay/system/time_series_chart.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/system/format.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/system_stats_store.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/usage_bar.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/system/stat_tile.dart';
+import 'package:moonswing/overlay/system/time_series_chart.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/system/format.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/system_stats_store.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/usage_bar.dart';
 
 /// The machine at a glance: CPU with per-core breakdown, memory and swap,
 /// vitals, network throughput, and filesystem usage.

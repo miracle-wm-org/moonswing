@@ -2,7 +2,7 @@
 // that a wake-up finding the same minute says nothing.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/clock/minute_clock_store.dart';
+import 'package:moonswing/clock/minute_clock_store.dart';
 
 /// A store on a clock the test moves by hand.
 ({MinuteClockStore store, void Function(DateTime) setNow}) _store({

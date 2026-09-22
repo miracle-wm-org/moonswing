@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/overlay/calendar/time_zones.dart';
-import 'package:graceful_shell/world_cities.dart';
+import 'package:moonswing/overlay/calendar/time_zones.dart';
+import 'package:moonswing/world_cities.dart';
 
 WorldCity _city(String name, {String country = 'Nowhere', String zone = 'Etc/UTC'}) =>
     WorldCity(

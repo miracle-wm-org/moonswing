@@ -1,12 +1,12 @@
-# Graceful Panel Configuration
+# Moonswing Configuration
 
-Graceful Panel is configured via a TOML file located at:
+Moonswing is configured via a TOML file located at:
 
 ```
-~/.config/graceful-shell/config.toml
+~/.config/moonswing/config.toml
 ```
 
-If `$XDG_CONFIG_HOME` is set, the config file is read from `$XDG_CONFIG_HOME/graceful-shell/config.toml` instead.
+If `$XDG_CONFIG_HOME` is set, the config file is read from `$XDG_CONFIG_HOME/moonswing/config.toml` instead.
 
 The panel works out of the box with no configuration file. All settings have sensible defaults that match the standard layout. You only need to create a config file to customize behavior.
 
@@ -172,7 +172,7 @@ timer is silent and notified, not silent and chimed.
 
 - **One of the shipped alarms** — `ding`, `ding-dong`, `alarm` or `gong`. These
   are not files: the shell synthesises them from a handful of numbers and writes
-  the result into `~/.cache/graceful-shell/sounds/` the first time one is
+  the result into `~/.cache/moonswing/sounds/` the first time one is
   wanted, which is what lets them work identically under `flutter run`, a `make
   install` and the snap. It is also what makes them shippable — a recorded
   kitchen timer is somebody's sample and somebody's licence, and these are
@@ -370,7 +370,7 @@ character code, shows it, and opens github.com/login/device in your browser. You
 type the code in there, authorise the app, and the shell takes it from there —
 your password is never typed into the shell and never reaches it.
 
-The access token is written to `~/.local/state/graceful-shell/github-token`
+The access token is written to `~/.local/state/moonswing/github-token`
 (mode 0600, in a directory created 0700), not into `config.toml`. **Sign out** in
 the popup's header deletes it. That signs this machine out; it does not revoke
 the authorisation, which is done from
@@ -439,7 +439,7 @@ sound_volume = 0.7
 
 - **One of the shipped sounds** — `chime`, `ping`, `glass`, `bell` or `knock`.
   These are not files: the shell synthesises them from a handful of numbers and
-  writes the result into `~/.cache/graceful-shell/sounds/` the first time one is
+  writes the result into `~/.cache/moonswing/sounds/` the first time one is
   wanted, which is what lets them work identically under `flutter run`, a `make
   install` and the snap. `chime` is the default.
 - **`none`** (or `off`, or `silent`) — notifications arrive without a sound.
@@ -562,7 +562,7 @@ photographed.
 
 - **One of the shipped shutters** — `shutter`, `snap`, `clack` or `tick`. These
   are not files: the shell synthesises them from a handful of numbers and writes
-  the result into `~/.cache/graceful-shell/sounds/` the first time one is
+  the result into `~/.cache/moonswing/sounds/` the first time one is
   wanted, which is what lets them work identically under `flutter run`, a `make
   install` and the snap. It is also what makes them shippable — a camera click
   recording is almost always somebody's licensed sample, and these are
@@ -757,7 +757,7 @@ Turn `inhibit_logind` off if your `logind.conf` already says `HandlePowerKey=ign
 
 ### If the button does nothing
 
-- Check that the compositor is delivering it: the shell logs `input-trigger: "graceful-shell.power-button" owned` on start-up when it has the key, and says so when another client owns it instead.
+- Check that the compositor is delivering it: the shell logs `input-trigger: "moonswing.power-button" owned` on start-up when it has the key, and says so when another client owns it instead.
 - Some keyboards' power keys emit a keysym this table's `poweroff` does not match. Bind the physical key instead, which is layout- and keysym-independent:
 
   ```toml
@@ -804,7 +804,7 @@ With `enabled = false` and no other agent running, nothing on the desktop can as
 
 ## Theme
 
-Themes live in their own files, one per theme, under `~/.config/graceful-shell/themes/`. `config.toml` picks one by name — the file's basename without `.toml`:
+Themes live in their own files, one per theme, under `~/.config/moonswing/themes/`. `config.toml` picks one by name — the file's basename without `.toml`:
 
 ```toml
 theme = "dracula"
@@ -814,14 +814,14 @@ Six themes ship with the shell and are written into that directory the first tim
 
 | Name       | Looks like                                                        |
 | ---------- | ----------------------------------------------------------------- |
-| `graceful` | Deep maroon over near-black. The default, and the palette earlier versions hard-coded. |
+| `moonswing` | Deep maroon over near-black. The default, and the palette earlier versions hard-coded. |
 | `forest`   | Pine and moss over a near-black green, floating on a lit sage rim. |
 | `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
 | `glassy`   | Cool translucent surfaces that let the wallpaper through.          |
 | `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
 | `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
 
-If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `graceful` rather than starting unstyled. A single bad value inside a theme file costs only that key.
+If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `moonswing` rather than starting unstyled. A single bad value inside a theme file costs only that key.
 
 The **Appearance** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The six shipped themes are read-only there — editing one offers to duplicate it first.
 
@@ -832,7 +832,7 @@ Because the shell owns those six files, it rewrites any of them that differs fro
 A theme file is a flat table — no section header. Every key is optional.
 
 ```toml
-# ~/.config/graceful-shell/themes/gruvbox.toml
+# ~/.config/moonswing/themes/gruvbox.toml
 name = "Gruvbox"
 
 font = "Ubuntu Sans"
@@ -1078,7 +1078,7 @@ Sizes are in logical pixels and clamped to 6–32. The settings editor's **Font 
 
 ### Migrating from an inline `[theme]` table
 
-Older versions kept the palette in a `[theme]` table inside `config.toml`. That table is now ignored — `theme` is a name, not a table. To keep a palette you had customized, copy the contents of your old `[theme]` table into `~/.config/graceful-shell/themes/mine.toml` (dropping the `[theme]` header line), delete the table from `config.toml`, and set `theme = "mine"`. An un-migrated `[theme]` table is harmless: it costs you the theme, not the rest of your config.
+Older versions kept the palette in a `[theme]` table inside `config.toml`. That table is now ignored — `theme` is a name, not a table. To keep a palette you had customized, copy the contents of your old `[theme]` table into `~/.config/moonswing/themes/mine.toml` (dropping the `[theme]` header line), delete the table from `config.toml`, and set `theme = "mine"`. An un-migrated `[theme]` table is harmless: it costs you the theme, not the rest of your config.
 
 ## Background
 
@@ -1298,7 +1298,7 @@ blur_sigma = 18.0
 | `show_username` | boolean | `true`             | Show the account's name above the unlock button                     |
 | `blur_sigma`    | number  | `18.0`             | Blur applied to the wallpaper once the password field appears; `0` leaves it sharp |
 
-Unlike `[background]`, this is a single wallpaper rather than a rotating list — but it accepts the same image and video formats, and videos loop silently. If `background` is unset or the file is missing, the shipped default (`$PREFIX/share/graceful-shell/lock-wallpaper.jpg`) is used, falling back to a plain dark fill.
+Unlike `[background]`, this is a single wallpaper rather than a rotating list — but it accepts the same image and video formats, and videos loop silently. If `background` is unset or the file is missing, the shipped default (`$PREFIX/share/moonswing/lock-wallpaper.jpg`) is used, falling back to a plain dark fill.
 
 `blur_sigma` is clamped to `0`–`100`.
 
@@ -1411,12 +1411,12 @@ max_fps = 0
 - **The portal files installed.** Two of them: a `.portal` that tells xdg-desktop-portal the shell implements ScreenCast, and a `-portals.conf` that prefers it over any other backend claiming the same interface.
 
   From a source build, `make install` (or `make install-portal`) writes:
-  - `~/.local/share/xdg-desktop-portal/portals/graceful-shell.portal`
+  - `~/.local/share/xdg-desktop-portal/portals/moonswing.portal`
   - `~/.config/xdg-desktop-portal/mir-portals.conf` (only written if absent, so an existing preference is never overwritten)
 
   then run `systemctl --user restart xdg-desktop-portal` once.
 
-  **The snap does all of this for you.** Its install hook writes `/usr/share/xdg-desktop-portal/portals/graceful-shell.portal` and `/usr/share/xdg-desktop-portal/{miracle-wm,mir}-portals.conf`; the launcher writes the same pair under `~/.local/share` and `~/.config` on first run, and restarts xdg-desktop-portal itself. `snap remove` deletes both sets again. Nothing is manual.
+  **The snap does all of this for you.** Its install hook writes `/usr/share/xdg-desktop-portal/portals/moonswing.portal` and `/usr/share/xdg-desktop-portal/{miracle-wm,mir}-portals.conf`; the launcher writes the same pair under `~/.local/share` and `~/.config` on first run, and restarts xdg-desktop-portal itself. `snap remove` deletes both sets again. Nothing is manual.
 
   Two names for the conf because `XDG_CURRENT_DESKTOP` is `miracle-wm:mir`, and xdg-desktop-portal tries `<desktop>-portals.conf` for each name in that list before falling back to the generic `portals.conf`. Two *locations* because of precedence: `portals.conf(5)` searches `$XDG_CONFIG_HOME`, then `$XDG_CONFIG_DIRS`, then `/etc`, then `$XDG_DATA_HOME`, then `$XDG_DATA_DIRS`. `/usr/share` is the last of those, which makes the system-wide copy a machine default that never out-ranks a choice you made; only the per-user copy is high enough to beat an existing `~/.config/xdg-desktop-portal/portals.conf`.
 

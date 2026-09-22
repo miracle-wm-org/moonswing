@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/lock/lock_controller.dart';
+import 'package:moonswing/lock/lock_controller.dart';
 
 void main() {
   final controller = LockController.instance;

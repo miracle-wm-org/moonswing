@@ -49,14 +49,14 @@ is Flutter-free on purpose.
 The PulseAudio driver has its own:
 
 ```sh
-dart run tool/pulse_spike.dart          # GRACEFUL_PULSE_LOG=1 for logging
+dart run tool/pulse_spike.dart          # MOONSWING_PULSE_LOG=1 for logging
 ```
 
 ## Profiling
 
 ```sh
 flutter build linux --profile
-GRACEFUL_SHELL_IMPELLER=1 ./build/linux/x64/profile/bundle/graceful_shell
+MOONSWING_IMPELLER=1 ./build/linux/x64/profile/bundle/moonswing
 ```
 
 Worth knowing before you read a frame graph: panels, overlays and the desktop surface have

@@ -26,8 +26,8 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/lock/user_identity.dart';
-import 'package:graceful_shell/tux/tux_greetings.dart';
+import 'package:moonswing/lock/user_identity.dart';
+import 'package:moonswing/tux/tux_greetings.dart';
 
 /// Who to greet, resolved once.
 ///

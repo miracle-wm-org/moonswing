@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/dbus_clients.dart';
+import 'package:moonswing/dbus_clients.dart';
 
 /// A held claim on the machine's power key.
 ///
@@ -52,7 +52,7 @@ class LogindPowerInhibitor implements PowerInhibitor {
         _why = why;
 
   static const String _defaultWhy =
-      'Graceful Shell shows the power menu on a power-key press';
+      'Moonswing shows the power menu on a power-key press';
 
   static const String _busName = 'org.freedesktop.login1';
   static const String _managerInterface = 'org.freedesktop.login1.Manager';
@@ -84,7 +84,7 @@ class LogindPowerInhibitor implements PowerInhibitor {
       'Inhibit',
       [
         const DBusString('handle-power-key'),
-        const DBusString('Graceful Shell'),
+        const DBusString('Moonswing'),
         DBusString(_why),
         const DBusString('block'),
       ],

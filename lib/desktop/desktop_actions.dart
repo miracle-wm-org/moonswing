@@ -7,8 +7,8 @@
 import 'dart:ffi' as ffi;
 import 'dart:io';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
 
 /// The last path segment of [path], tolerant of a trailing slash.
 ///

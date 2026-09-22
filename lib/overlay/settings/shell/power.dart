@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
 
 /// What the machine's physical power button does.
 ///

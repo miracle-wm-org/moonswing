@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:graceful_shell/media_paths.dart';
+import 'package:moonswing/media_paths.dart';
 
 /// The wallpapers this machine already ships — Ubuntu's `/usr/share/backgrounds`,
 /// Fedora's day/night sets, KDE's `/usr/share/wallpapers` themes — discovered at
@@ -197,7 +197,7 @@ List<String> systemWallpaperRoots(Map<String, String> environment) {
   for (final dir in dataDirs) {
     roots.add('$dir/backgrounds');
     roots.add('$dir/wallpapers');
-    roots.add('$dir/graceful-shell');
+    roots.add('$dir/moonswing');
   }
   roots.add('/usr/share/desktop-base');
   roots.add('/usr/share/pixmaps/backgrounds');

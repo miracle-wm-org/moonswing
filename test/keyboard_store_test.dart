@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/keyboard/keyboard_store.dart';
-import 'package:graceful_shell/keyboard/locale1_client.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/keyboard/keyboard_store.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
 
 import 'keyboard_fakes.dart';
 
@@ -212,7 +212,7 @@ layout = "us"
 '''));
     expect(store.status, KeyboardStatus.unavailable);
     expect(store.error, 'no bus');
-    expect(store.sources, const [_us], reason: "it is graceful's own config");
+    expect(store.sources, const [_us], reason: "it is moonswing's own config");
   });
 
   group('seeding', () {
@@ -224,7 +224,7 @@ layout = "us"
           model: 'pc105',
         ),
       );
-      final config = await configWith('theme = "graceful"\n');
+      final config = await configWith('theme = "moonswing"\n');
       final store = await leased(config);
 
       expect(store.sources, const [
@@ -249,7 +249,7 @@ sources = []
     });
 
     test('a second lease does not re-seed', () async {
-      final config = await configWith('theme = "graceful"\n');
+      final config = await configWith('theme = "moonswing"\n');
       final store = await leased(config);
       expect(store.sources, const [_us]);
 

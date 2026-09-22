@@ -4,9 +4,9 @@
 // Kept out of `keyboard_store.dart` so all of it is a plain unit test with no
 // D-Bus behind it.
 
-import 'package:graceful_shell/keyboard/keyboard_config.dart';
-import 'package:graceful_shell/keyboard/locale1_client.dart';
-import 'package:graceful_shell/keyboard/xkb_catalog.dart';
+import 'package:moonswing/keyboard/keyboard_config.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
+import 'package:moonswing/keyboard/xkb_catalog.dart';
 
 /// The source locale1 is *currently* applying, or null when it reports nothing.
 ///

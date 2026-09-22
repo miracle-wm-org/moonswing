@@ -7,9 +7,9 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/launcher/app_index.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/launcher/app_index.dart';
 import 'package:miracle/miracle.dart';
 
 // ---------------------------------------------------------------------------

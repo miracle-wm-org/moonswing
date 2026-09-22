@@ -1,4 +1,4 @@
 [portal]
-DBusName=org.freedesktop.impl.portal.desktop.graceful_shell
+DBusName=org.freedesktop.impl.portal.desktop.moonswing
 Interfaces=org.freedesktop.impl.portal.ScreenCast;
 UseIn=mir;miracle-wm;

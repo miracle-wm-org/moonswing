@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/graceful-banner.svg" alt="A hooded character in the graceful outfit, head-on, on a gradient background" width="720">
+  <img src="assets/moonswing-banner.svg" alt="A silhouette of someone on a swing in front of a full moon" width="720">
 </p>
 
-<h1 align="center">Graceful</h1>
+<h1 align="center">Moonswing</h1>
 
 <p align="center">
   A largely AI-coded, very unserious, just for funzies desktop<br>
@@ -26,7 +26,7 @@ The purpose of this project is to:
 The snap will be the only supported packaging from my end. The config format is subject to change
 at any time.
 
-![Graceful Shell demo](demo.png)
+![Moonswing demo](demo.png)
 
 ## Install
 
@@ -38,18 +38,18 @@ curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/
 
 Then, in your environment of choice (miracle-wm, Miriway, Sway, etc.), run:
 ```sh
-graceful-shell
+moonswing
 ```
 
 Re-run the same command to update, and to remove:
 
 ```sh
-sudo snap remove graceful-shell
+sudo snap remove moonswing
 ```
 
 FYI! The snap cannot install the PAM service file for you.
 
-- **The PAM service file.** `/etc/pam.d/graceful-shell` needs root, so the lock
+- **The PAM service file.** `/etc/pam.d/moonswing` needs root, so the lock
   screen falls back to the system `login` service — it still authenticates, it
   just attributes unlock attempts to `login` in the auth logs.
 
@@ -96,7 +96,7 @@ make install PREFIX=/usr/local
 Then run:
 
 ```sh
-graceful-shell
+moonswing
 ```
 
 Optionally, install the lock screen's PAM service file (needs root, and writes
@@ -135,7 +135,7 @@ locally:
 ```sh
 cd website
 npm install
-npm run dev          # http://localhost:4321/graceful-shell/
+npm run dev          # http://localhost:4321/moonswing/
 ```
 
 Its configuration pages are generated from `CONFIG.md` and its artwork from `assets/`, so

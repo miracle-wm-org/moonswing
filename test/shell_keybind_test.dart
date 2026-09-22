@@ -4,12 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/keybinds/shell_keybind_store.dart';
-import 'package:graceful_shell/keybinds/shell_keybinds.dart';
-import 'package:graceful_shell/keybinds/shortcut_capture.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/keybinds/shell_keybind_store.dart';
+import 'package:moonswing/keybinds/shell_keybinds.dart';
+import 'package:moonswing/keybinds/shortcut_capture.dart';
 
 Keybind _bind({
   BuiltInKeyCommand? action,

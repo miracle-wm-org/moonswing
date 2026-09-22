@@ -7,7 +7,7 @@
 // every term in both tables at once.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/moon/moon_ephemeris.dart';
+import 'package:moonswing/moon/moon_ephemeris.dart';
 
 /// Meeus, *Astronomical Algorithms*, example 47.a: 1992 April 12.0 TD.
 final DateTime _example47a = DateTime.utc(1992, 4, 12);

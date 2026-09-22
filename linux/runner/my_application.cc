@@ -80,12 +80,12 @@ static void my_application_activate(GApplication* application) {
   // variable, so the snap and a `make install` build would both have kept the
   // slow default however carefully a developer invoked the tool.
   //
-  // GRACEFUL_SHELL_IMPELLER=1 turns it back on, which is how the comparison
+  // MOONSWING_IMPELLER=1 turns it back on, which is how the comparison
   // above is reproduced and how this decision gets revisited: Impeller's GLES
   // backend is under active development, and the machine this was measured on
   // has both an Intel iGPU and a discrete Radeon, so the fault may be in which
   // context it lands on rather than in Impeller everywhere.
-  const gchar* impeller = g_getenv("GRACEFUL_SHELL_IMPELLER");
+  const gchar* impeller = g_getenv("MOONSWING_IMPELLER");
   gboolean enable_impeller =
       impeller != nullptr && g_strcmp0(impeller, "") != 0 &&
       g_strcmp0(impeller, "0") != 0;

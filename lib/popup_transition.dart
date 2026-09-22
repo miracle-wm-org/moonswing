@@ -15,9 +15,9 @@ library;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/popup_effect.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// How far a sliding popup travels, in logical pixels.
 ///

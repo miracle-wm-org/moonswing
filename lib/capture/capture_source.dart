@@ -7,8 +7,8 @@
 // cropping its output when we do not. Only the first follows the window as it
 // moves, and only the second exists without `ext-foreign-toplevel-list-v1`.
 
-import 'package:graceful_shell/screencast/capture_connection.dart';
-import 'package:graceful_shell/screencast/capture_session.dart';
+import 'package:moonswing/screencast/capture_connection.dart';
+import 'package:moonswing/screencast/capture_session.dart';
 
 import 'capture_targets.dart';
 import 'toplevel_match.dart';

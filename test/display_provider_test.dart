@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:wayland/wayland.dart';
 
-import 'package:graceful_shell/display_provider.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_services.dart';
+import 'package:moonswing/display_provider.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_services.dart';
 
 /// The regression test for the rule the panels' workspace lists depend on: a bar
 /// learns which physical display it is on *after* it has painted, and it must

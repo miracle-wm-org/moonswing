@@ -1,12 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/keyboard/keyboard_store.dart';
-import 'package:graceful_shell/keyboard/locale1_client.dart';
-import 'package:graceful_shell/keyboard/xkb_catalog.dart';
-import 'package:graceful_shell/modules/keyboard_layout.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/keyboard/keyboard_store.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
+import 'package:moonswing/keyboard/xkb_catalog.dart';
+import 'package:moonswing/modules/keyboard_layout.dart';
+import 'package:moonswing/scopes.dart';
 
 import 'keyboard_fakes.dart';
 

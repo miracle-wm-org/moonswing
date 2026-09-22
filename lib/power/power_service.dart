@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/power/power_config.dart';
-import 'package:graceful_shell/power/power_inhibitor.dart';
+import 'package:moonswing/power/power_config.dart';
+import 'package:moonswing/power/power_inhibitor.dart';
 
 /// Decides when the shell holds logind's power-key inhibitor — the *and* of the
 /// two things that have to be true for the shell to answer the button at all.

@@ -5,7 +5,7 @@ sidebar:
   order: 8
 ---
 
-Graceful Shell ships as a **classic** snap, built nightly from `main` by
+Moonswing ships as a **classic** snap, built nightly from `main` by
 `.github/workflows/nightly-snap.yml`. Classic confinement puts the host's libraries on the
 loader path, and `LD_LIBRARY_PATH` only *prepends* `$SNAP` — which is the constraint everything
 below follows from.
@@ -29,13 +29,13 @@ host GTK3 mapped, so staging `libgtk-3-0` would put a second GTK in that address
 ## Portal registration is split in two halves, neither droppable
 
 `portals.conf(5)` directory precedence beats file specificity. So the root hooks write a machine
-default under `/usr/share`, and `snap/local/graceful-shell-wrapper` writes the per-user copy
+default under `/usr/share`, and `snap/local/moonswing-wrapper` writes the per-user copy
 that alone can out-rank an existing preference.
 
 Both write `miracle-wm-portals.conf` *and* `mir-portals.conf`, because `XDG_CURRENT_DESKTOP` is
 `miracle-wm:mir`.
 
-Hooks are marker-guarded with `# graceful-shell-snap-managed` — anything without that marker is
+Hooks are marker-guarded with `# moonswing-snap-managed` — anything without that marker is
 never rewritten or deleted — and never fatal: a non-zero `install` hook aborts `snap install`,
 and `/usr` may be read-only.
 

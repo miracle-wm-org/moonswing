@@ -6,7 +6,7 @@
 /// cgroup, so every application started from the launcher, the dock, the app
 /// directory or a desktop icon keeps running inside whatever unit the session
 /// started the shell in. Under the snap that unit is
-/// `snap.graceful-shell.….scope`, and a snap with processes in its scope "has
+/// `snap.moonswing.….scope`, and a snap with processes in its scope "has
 /// running apps": snapd refuses to refresh it, so updating the shell meant
 /// quitting everything ever launched from it first. The same inheritance is
 /// why stopping the shell's own unit takes those applications down with it.
@@ -80,7 +80,7 @@ String appScopeUnitName({required String appId, required int pid}) {
   }
   id = _escapeUnitPart(id);
   if (id.isEmpty) id = 'app';
-  return 'app-graceful\\x2dshell-$id-$pid.scope';
+  return 'app-moonswing-$id-$pid.scope';
 }
 
 /// Starts one transient scope. Injectable so the naming and the
@@ -133,7 +133,7 @@ class AppScopeAdopter {
       await _start(
         unitName: unitName,
         pid: pid,
-        description: 'Application launched by Graceful Shell: $label',
+        description: 'Application launched by Moonswing: $label',
       );
       appScopeLog('adopted $label (pid $pid) into $unitName');
       return true;

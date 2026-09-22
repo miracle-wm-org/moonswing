@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/timers/timer_format.dart';
-import 'package:graceful_shell/timers/timer_sound.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/timers/timer_format.dart';
+import 'package:moonswing/timers/timer_sound.dart';
 
 /// How often the store re-notifies while something is counting.
 ///
@@ -397,7 +397,7 @@ void postTimerFinishedNotification(ShellTimer entry) {
   store.addOrReplace(
     NotificationItem(
       id: store.allocateId(),
-      appName: 'Graceful Shell',
+      appName: 'Moonswing',
       summary: 'Timer finished',
       body: '${formatTimerDuration(entry.total)} is up.',
       actions: const [],

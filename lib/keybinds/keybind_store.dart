@@ -15,7 +15,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/miracle_manager.dart';
+import 'package:moonswing/miracle_manager.dart';
 
 /// How far along the store's view of the compositor's bindings is.
 ///

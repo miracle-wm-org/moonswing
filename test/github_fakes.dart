@@ -7,7 +7,7 @@
 
 import 'dart:async';
 
-import 'package:graceful_shell/github/github_api.dart';
+import 'package:moonswing/github/github_api.dart';
 
 /// A client that answers from what it was handed, counts its calls, and opens
 /// nothing.

@@ -1,24 +1,24 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/modules/battery.dart';
-import 'package:graceful_shell/modules/clock.dart';
-import 'package:graceful_shell/modules/dock.dart';
-import 'package:graceful_shell/modules/github.dart';
-import 'package:graceful_shell/modules/keybinds.dart';
-import 'package:graceful_shell/modules/keyboard_layout.dart';
-import 'package:graceful_shell/modules/launcher.dart';
-import 'package:graceful_shell/modules/media_player.dart';
-import 'package:graceful_shell/modules/network.dart';
-import 'package:graceful_shell/modules/notifications.dart';
-import 'package:graceful_shell/modules/screen_recorder.dart';
-import 'package:graceful_shell/modules/screenshot.dart';
-import 'package:graceful_shell/modules/sound_control.dart';
-import 'package:graceful_shell/modules/system.dart';
-import 'package:graceful_shell/modules/system_monitor.dart';
-import 'package:graceful_shell/modules/system_tray.dart';
-import 'package:graceful_shell/modules/weather.dart';
-import 'package:graceful_shell/modules/workspaces.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/modules/battery.dart';
+import 'package:moonswing/modules/clock.dart';
+import 'package:moonswing/modules/dock.dart';
+import 'package:moonswing/modules/github.dart';
+import 'package:moonswing/modules/keybinds.dart';
+import 'package:moonswing/modules/keyboard_layout.dart';
+import 'package:moonswing/modules/launcher.dart';
+import 'package:moonswing/modules/media_player.dart';
+import 'package:moonswing/modules/network.dart';
+import 'package:moonswing/modules/notifications.dart';
+import 'package:moonswing/modules/screen_recorder.dart';
+import 'package:moonswing/modules/screenshot.dart';
+import 'package:moonswing/modules/sound_control.dart';
+import 'package:moonswing/modules/system.dart';
+import 'package:moonswing/modules/system_monitor.dart';
+import 'package:moonswing/modules/system_tray.dart';
+import 'package:moonswing/modules/weather.dart';
+import 'package:moonswing/modules/workspaces.dart';
 
 /// Pins the registry across the Module.simple collapse: every key a panel
 /// layout can name must resolve, and per-module options must reach their

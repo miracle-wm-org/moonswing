@@ -27,7 +27,7 @@
 import 'dart:io';
 
 import 'package:dbus/dbus.dart';
-import 'package:graceful_shell/host_process.dart';
+import 'package:moonswing/host_process.dart';
 
 import 'screencast_log.dart';
 
@@ -137,7 +137,7 @@ Future<void> reconcilePortalFrontend({
   } else {
     screencastLog('portal frontend still advertises no source types after a '
         'restart; check that portals.conf routes '
-        'org.freedesktop.impl.portal.ScreenCast to graceful-shell');
+        'org.freedesktop.impl.portal.ScreenCast to moonswing');
   }
 }
 

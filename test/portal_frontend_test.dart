@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/screencast/portal_frontend.dart';
-import 'package:graceful_shell/screencast/screencast_log.dart';
+import 'package:moonswing/screencast/portal_frontend.dart';
+import 'package:moonswing/screencast/screencast_log.dart';
 
 /// The repair in `lib/screencast/portal_frontend.dart`: xdg-desktop-portal reads
 /// this backend's `AvailableSourceTypes` once, as its own frontend starts, and

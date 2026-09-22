@@ -3,11 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/capture/selection_controller.dart';
-import 'package:graceful_shell/capture/selector_overlay.dart';
-import 'package:graceful_shell/capture/window_targets.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/capture/selection_controller.dart';
+import 'package:moonswing/capture/selector_overlay.dart';
+import 'package:moonswing/capture/window_targets.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The selection surface. Every input it has is a parameter, so the whole thing
 /// pumps with no compositor, no Wayland and no IPC socket — which is what makes

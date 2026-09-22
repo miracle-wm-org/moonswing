@@ -16,11 +16,11 @@ export default defineConfig({
   trailingSlash: 'always',
   integrations: [
     starlight({
-      title: 'Graceful Shell',
+      title: 'Moonswing',
       description:
         'A Flutter desktop shell for Wayland: panels, wallpaper, desktop icons, ' +
         'overlays, notifications, tray, screen sharing and a lock screen.',
-      logo: { src: './public/favicon.svg', alt: 'Graceful Shell' },
+      logo: { src: './public/favicon.svg', alt: 'Moonswing' },
       favicon: '/favicon.svg',
       head: [
         // SVG favicons are near-universal now, but a raster fallback costs one
@@ -42,7 +42,7 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: repo }],
       editLink: { baseUrl: `${repo}/edit/main/website/` },
       lastUpdated: true,
-      customCss: ['./src/styles/graceful.css'],
+      customCss: ['./src/styles/moonswing.css'],
       sidebar: [
         { label: 'Getting started', items: [{ autogenerate: { directory: 'start' } }] },
         { label: 'Configuration', items: [{ autogenerate: { directory: 'configuration' } }] },

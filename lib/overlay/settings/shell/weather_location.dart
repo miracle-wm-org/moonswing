@@ -11,16 +11,16 @@
 import 'package:flutter/widgets.dart';
 import 'package:material_symbols_icons/symbols.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/search_list.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/weather/weather_api.dart';
-import 'package:graceful_shell/weather/weather_config.dart';
-import 'package:graceful_shell/world_cities.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/search_list.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_config.dart';
+import 'package:moonswing/world_cities.dart';
 
 /// The config path each half of the location lives at.
 const List<String> kWeatherLocationPath = ['modules', 'weather', 'location'];

@@ -1,5 +1,5 @@
 // Generates everything the site takes from the repository itself, so no fact
-// about Graceful Shell is maintained twice:
+// about Moonswing is maintained twice:
 //
 //   ../CONFIG.md            -> src/content/docs/configuration/*.md
 //   ../assets/*.svg         -> public/ and src/assets/ (favicon, hero, card)
@@ -232,24 +232,25 @@ async function generateArtwork() {
   await mkdir(publicDir, { recursive: true });
   await mkdir(assetDir, { recursive: true });
 
-  const mark = join(repo, 'assets/graceful-mark.svg');
-  const hero = join(repo, 'assets/graceful-banner.svg');
+  const mark = join(repo, 'assets/moonswing-mark.svg');
+  const hero = join(repo, 'assets/moonswing-banner.svg');
 
   await copyFile(mark, join(publicDir, 'favicon.svg'));
   // The hero goes through Astro's asset pipeline, which only reaches src/.
-  await copyFile(hero, join(assetDir, 'graceful-banner.svg'));
+  await copyFile(hero, join(assetDir, 'moonswing-banner.svg'));
 
   // A raster fallback for browsers with no SVG favicon support, and a social
-  // card, which no platform will render from SVG. Both are pixel art, so both
-  // are integer multiples of the source — 192 is 6x the 32px sprite, 1920x840
-  // is 2x the banner — and both resample nearest-neighbour. Anything else
-  // resamples the sprite into mush.
-  await sharp(mark, { density: 1200 })
-    .resize(192, 192, { kernel: 'nearest' })
+  // card, which no platform will render from SVG. The artwork is smooth vector
+  // — curves and a gradient, not a pixel grid — so both render at several
+  // times the target and come down with the default filter. The nearest
+  // neighbour these used while the mark was pixel art would now alias every
+  // rope and the moon's limb.
+  await sharp(mark, { density: 2400 })
+    .resize(192, 192)
     .png()
     .toFile(join(publicDir, 'favicon.png'));
-  await sharp(hero, { density: 300 })
-    .resize(1920, 840, { kernel: 'nearest' })
+  await sharp(hero, { density: 288 })
+    .resize(1920, 840)
     .png()
     .toFile(join(publicDir, 'og.png'));
 }

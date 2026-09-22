@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/osd/osd_store.dart';
+import 'package:moonswing/osd/osd_store.dart';
 
 void main() {
   const short = Duration(milliseconds: 30);

@@ -2,10 +2,10 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/theme/overlay_effect.dart';
-import 'package:graceful_shell/theme/popup_effect.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 void main() {
   group('a hand-edited theme cannot crash the shell', () {

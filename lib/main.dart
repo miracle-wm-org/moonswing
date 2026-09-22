@@ -8,106 +8,106 @@ import 'package:flutter/widgets.dart';
 // `layer_shell` re-exports WindowManager / WindowRegistry / WindowEntry but not
 // this, and there is nowhere else to reach it from.
 import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/app_scope.dart';
-import 'package:graceful_shell/capture/capture_store.dart';
-import 'package:graceful_shell/capture/selection_controller.dart';
-import 'package:graceful_shell/capture/selector_overlay.dart';
-import 'package:graceful_shell/capture/window_targets.dart';
-import 'package:graceful_shell/desktop/desktop_surface.dart';
-import 'package:graceful_shell/display_provider.dart';
-import 'package:graceful_shell/overlay/file_picker.dart';
-import 'package:graceful_shell/overlay/file_picker_controller.dart';
-import 'package:graceful_shell/overlay/settings_route.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/miracle_manager.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/monitor_watcher.dart';
-import 'package:graceful_shell/modules/battery.dart';
-import 'package:graceful_shell/modules/dock.dart';
-import 'package:graceful_shell/modules/github.dart';
-import 'package:graceful_shell/modules/keybinds.dart';
-import 'package:graceful_shell/modules/keyboard_layout.dart';
-import 'package:graceful_shell/modules/launcher.dart';
-import 'package:graceful_shell/modules/sound_control.dart';
-import 'package:graceful_shell/modules/clock.dart';
-import 'package:graceful_shell/modules/media_player.dart';
-import 'package:graceful_shell/modules/network.dart';
-import 'package:graceful_shell/modules/notifications.dart';
-import 'package:graceful_shell/modules/screen_recorder.dart';
-import 'package:graceful_shell/modules/screenshot.dart';
-import 'package:graceful_shell/modules/system.dart';
-import 'package:graceful_shell/modules/system_monitor.dart';
-import 'package:graceful_shell/modules/system_tray.dart';
-import 'package:graceful_shell/modules/weather.dart';
-import 'package:graceful_shell/modules/workspaces.dart';
-import 'package:graceful_shell/emoji/emoji_clipboard.dart';
-import 'package:graceful_shell/emoji/emoji_controller.dart';
-import 'package:graceful_shell/emoji/emoji_picker_overlay.dart';
-import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
-import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
-import 'package:graceful_shell/keybinds/keybind_cheatsheet_controller.dart';
-import 'package:graceful_shell/keybinds/keybind_cheatsheet_overlay.dart';
-import 'package:graceful_shell/keybinds/keybind_store.dart';
-import 'package:graceful_shell/keybinds/shell_keybind_store.dart';
-import 'package:graceful_shell/launcher/app_index.dart';
-import 'package:graceful_shell/launcher/app_search.dart';
-import 'package:graceful_shell/launcher/launcher_controller.dart';
-import 'package:graceful_shell/launcher/launcher_overlay.dart';
-import 'package:graceful_shell/lock/lock_controller.dart';
-import 'package:graceful_shell/lock/lock_screen.dart';
-import 'package:graceful_shell/live_config_provider.dart';
-import 'package:graceful_shell/lock/session_lock_host.dart';
-import 'package:graceful_shell/notification_badge.dart';
-import 'package:graceful_shell/notification_panel_controller.dart';
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/osd/osd.dart';
-import 'package:graceful_shell/osd/osd_service.dart';
-import 'package:graceful_shell/osd/osd_store.dart';
-import 'package:graceful_shell/panel_background.dart';
-import 'package:graceful_shell/panel_rim.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_coordinator.dart';
-import 'package:graceful_shell/polkit/auth_controller.dart';
-import 'package:graceful_shell/polkit/auth_dialog.dart';
-import 'package:graceful_shell/polkit/auth_session.dart';
-import 'package:graceful_shell/polkit/polkit_agent.dart';
-import 'package:graceful_shell/polkit/polkit_types.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/power/power_actions.dart';
-import 'package:graceful_shell/power/power_controller.dart';
-import 'package:graceful_shell/power/power_menu_controller.dart';
-import 'package:graceful_shell/power/power_menu_overlay.dart';
-import 'package:graceful_shell/power/power_service.dart';
-import 'package:graceful_shell/screencast/picker_controller.dart';
-import 'package:graceful_shell/screencast/picker_overlay.dart';
-import 'package:graceful_shell/screencast/picker_sources.dart';
-import 'package:graceful_shell/screencast/screencast_log.dart';
-import 'package:graceful_shell/screencast/screencast_service.dart';
-import 'package:graceful_shell/shell_services.dart';
-import 'package:graceful_shell/shell_text_root.dart';
-import 'package:graceful_shell/status_notifier_service.dart';
-import 'package:graceful_shell/switcher/open_window.dart';
-import 'package:graceful_shell/switcher/open_window_store.dart';
-import 'package:graceful_shell/switcher/switcher_controller.dart';
-import 'package:graceful_shell/switcher/switcher_overlay.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/desktop/app_chooser.dart';
-import 'package:graceful_shell/desktop/desktop_actions.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
-import 'package:graceful_shell/desktop/desktop_store.dart';
-import 'package:graceful_shell/desktop/widgets/analog_clock_widget.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/desktop/widgets/media_player_widget.dart';
-import 'package:graceful_shell/desktop/widgets/fortune_widget.dart';
-import 'package:graceful_shell/desktop/widgets/moon_widget.dart';
-import 'package:graceful_shell/desktop/widgets/tux_widget.dart';
-import 'package:graceful_shell/desktop/widgets/weather_widget.dart';
-import 'package:graceful_shell/overlay/overlay.dart';
-import 'package:graceful_shell/system/system_stats_store.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/theme_store.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/app_scope.dart';
+import 'package:moonswing/capture/capture_store.dart';
+import 'package:moonswing/capture/selection_controller.dart';
+import 'package:moonswing/capture/selector_overlay.dart';
+import 'package:moonswing/capture/window_targets.dart';
+import 'package:moonswing/desktop/desktop_surface.dart';
+import 'package:moonswing/display_provider.dart';
+import 'package:moonswing/overlay/file_picker.dart';
+import 'package:moonswing/overlay/file_picker_controller.dart';
+import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/miracle_manager.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/monitor_watcher.dart';
+import 'package:moonswing/modules/battery.dart';
+import 'package:moonswing/modules/dock.dart';
+import 'package:moonswing/modules/github.dart';
+import 'package:moonswing/modules/keybinds.dart';
+import 'package:moonswing/modules/keyboard_layout.dart';
+import 'package:moonswing/modules/launcher.dart';
+import 'package:moonswing/modules/sound_control.dart';
+import 'package:moonswing/modules/clock.dart';
+import 'package:moonswing/modules/media_player.dart';
+import 'package:moonswing/modules/network.dart';
+import 'package:moonswing/modules/notifications.dart';
+import 'package:moonswing/modules/screen_recorder.dart';
+import 'package:moonswing/modules/screenshot.dart';
+import 'package:moonswing/modules/system.dart';
+import 'package:moonswing/modules/system_monitor.dart';
+import 'package:moonswing/modules/system_tray.dart';
+import 'package:moonswing/modules/weather.dart';
+import 'package:moonswing/modules/workspaces.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
+import 'package:moonswing/emoji/emoji_controller.dart';
+import 'package:moonswing/emoji/emoji_picker_overlay.dart';
+import 'package:moonswing/input_trigger/input_trigger_service.dart';
+import 'package:moonswing/input_trigger/input_trigger_store.dart';
+import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
+import 'package:moonswing/keybinds/keybind_cheatsheet_overlay.dart';
+import 'package:moonswing/keybinds/keybind_store.dart';
+import 'package:moonswing/keybinds/shell_keybind_store.dart';
+import 'package:moonswing/launcher/app_index.dart';
+import 'package:moonswing/launcher/app_search.dart';
+import 'package:moonswing/launcher/launcher_controller.dart';
+import 'package:moonswing/launcher/launcher_overlay.dart';
+import 'package:moonswing/lock/lock_controller.dart';
+import 'package:moonswing/lock/lock_screen.dart';
+import 'package:moonswing/live_config_provider.dart';
+import 'package:moonswing/lock/session_lock_host.dart';
+import 'package:moonswing/notification_badge.dart';
+import 'package:moonswing/notification_panel_controller.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/osd/osd.dart';
+import 'package:moonswing/osd/osd_service.dart';
+import 'package:moonswing/osd/osd_store.dart';
+import 'package:moonswing/panel_background.dart';
+import 'package:moonswing/panel_rim.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/polkit/auth_controller.dart';
+import 'package:moonswing/polkit/auth_dialog.dart';
+import 'package:moonswing/polkit/auth_session.dart';
+import 'package:moonswing/polkit/polkit_agent.dart';
+import 'package:moonswing/polkit/polkit_types.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/power/power_actions.dart';
+import 'package:moonswing/power/power_controller.dart';
+import 'package:moonswing/power/power_menu_controller.dart';
+import 'package:moonswing/power/power_menu_overlay.dart';
+import 'package:moonswing/power/power_service.dart';
+import 'package:moonswing/screencast/picker_controller.dart';
+import 'package:moonswing/screencast/picker_overlay.dart';
+import 'package:moonswing/screencast/picker_sources.dart';
+import 'package:moonswing/screencast/screencast_log.dart';
+import 'package:moonswing/screencast/screencast_service.dart';
+import 'package:moonswing/shell_services.dart';
+import 'package:moonswing/shell_text_root.dart';
+import 'package:moonswing/status_notifier_service.dart';
+import 'package:moonswing/switcher/open_window.dart';
+import 'package:moonswing/switcher/open_window_store.dart';
+import 'package:moonswing/switcher/switcher_controller.dart';
+import 'package:moonswing/switcher/switcher_overlay.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/desktop/app_chooser.dart';
+import 'package:moonswing/desktop/desktop_actions.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
+import 'package:moonswing/desktop/desktop_store.dart';
+import 'package:moonswing/desktop/widgets/analog_clock_widget.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/widgets/media_player_widget.dart';
+import 'package:moonswing/desktop/widgets/fortune_widget.dart';
+import 'package:moonswing/desktop/widgets/moon_widget.dart';
+import 'package:moonswing/desktop/widgets/tux_widget.dart';
+import 'package:moonswing/desktop/widgets/weather_widget.dart';
+import 'package:moonswing/overlay/overlay.dart';
+import 'package:moonswing/system/system_stats_store.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/theme_store.dart';
 import 'package:ext_session_lock/ext_session_lock.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
@@ -119,9 +119,9 @@ import 'package:wayland/wayland.dart';
 /// measured as 37% of the shell's UI thread: it is charged per view per frame,
 /// the shell has around seven views, and the Linux embedder offers no way to
 /// refuse it — so the only lever is an empty tree. Set
-/// `GRACEFUL_SHELL_SEMANTICS=1` to put it back; the real fix is a cheap tree.
+/// `MOONSWING_SEMANTICS=1` to put it back; the real fix is a cheap tree.
 final bool kExcludeSemantics = () {
-  final on = Platform.environment['GRACEFUL_SHELL_SEMANTICS'];
+  final on = Platform.environment['MOONSWING_SEMANTICS'];
   return on == null || on.isEmpty || on == '0';
 }();
 
@@ -164,7 +164,7 @@ void main() async {
   final appConfig = await AppConfig.load();
   final store = await ConfigStore.initShared();
 
-  // Seeds the shipped themes into ~/.config/graceful-shell/themes on first run
+  // Seeds the shipped themes into ~/.config/moonswing/themes on first run
   // and resolves the one config.toml names, before anything paints.
   startThemeService(store);
 
@@ -217,10 +217,10 @@ void main() async {
   initSessionLock();
 
   // Layer-shell controllers are created from within the widget tree (see
-  // [_GracefulShellRootState.initState]), not here, so GTK's windowing system is
+  // [_MoonswingRootState.initState]), not here, so GTK's windowing system is
   // fully initialized before the first surface.
   runWidget(
-    GracefulShellRoot(
+    MoonswingRoot(
       appConfig: appConfig,
       store: store,
       miracle: miracle,
@@ -413,8 +413,8 @@ Future<void> _connectDisplays(
 /// (backgrounds + panels) on every monitor: creating them for the monitors
 /// present at startup, adding and destroying them on hotplug, and tearing them
 /// all down in [dispose].
-class GracefulShellRoot extends StatefulWidget {
-  const GracefulShellRoot({
+class MoonswingRoot extends StatefulWidget {
+  const MoonswingRoot({
     super.key,
     required this.appConfig,
     required this.store,
@@ -436,7 +436,7 @@ class GracefulShellRoot extends StatefulWidget {
   final ShellServices services;
 
   @override
-  State<GracefulShellRoot> createState() => _GracefulShellRootState();
+  State<MoonswingRoot> createState() => _MoonswingRootState();
 }
 
 /// The layer-shell surfaces (optional background window plus the configured
@@ -446,7 +446,7 @@ class _MonitorSurfaces {
 
   /// The GDK description of this monitor, as of the last enumeration.
   ///
-  /// Mutable, and refreshed by [_GracefulShellRootState._syncMonitors] on a
+  /// Mutable, and refreshed by [_MoonswingRootState._syncMonitors] on a
   /// reconfigure: a panel carrying a stale position could no longer be matched
   /// to its `wl_output`.
   MonitorInfo monitor;
@@ -469,7 +469,7 @@ typedef _RootWindow = ({
   WidgetBuilder builder,
 });
 
-class _GracefulShellRootState extends State<GracefulShellRoot> {
+class _MoonswingRootState extends State<MoonswingRoot> {
   /// The [WindowRegistry] the root's [WindowManager] publishes, once a window
   /// below has handed it back (see [_RegistryBinder]).
   ///
@@ -1497,7 +1497,7 @@ class _GracefulShellRootState extends State<GracefulShellRoot> {
         store.addOrReplace(
           NotificationItem(
             id: store.allocateId(),
-            appName: 'Graceful Shell',
+            appName: 'Moonswing',
             summary: 'Could not copy $char',
             body: result == ClipboardResult.unavailable
                 ? 'The emoji picker copies through $kClipboardCommand, which '

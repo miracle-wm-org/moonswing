@@ -10,14 +10,14 @@ library;
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/timers/timer_format.dart';
-import 'package:graceful_shell/timers/timer_sound.dart';
-import 'package:graceful_shell/timers/timer_store.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/timers/timer_format.dart';
+import 'package:moonswing/timers/timer_sound.dart';
+import 'package:moonswing/timers/timer_store.dart';
 
 /// One entry's row in a list. Fixed, so the lists that render entries can be
 /// [ListView]s with an `itemExtent`.

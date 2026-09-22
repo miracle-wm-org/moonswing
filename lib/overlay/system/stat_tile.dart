@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// A named block of content: its heading, and the elevated surface the content
 /// sits on.

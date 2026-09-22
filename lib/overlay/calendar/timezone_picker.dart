@@ -1,10 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/overlay/calendar/time_zones.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/search_list.dart';
+import 'package:moonswing/overlay/calendar/time_zones.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/search_list.dart';
 
 const double kTimeZonePickerWidth = 260;
 const double kTimeZonePickerMaxHeight = 320;

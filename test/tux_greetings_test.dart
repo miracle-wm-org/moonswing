@@ -4,7 +4,7 @@
 // imports no Flutter at all, which is the point of it being its own file.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/tux/tux_greetings.dart';
+import 'package:moonswing/tux/tux_greetings.dart';
 
 /// A local noon on the given date. Noon rather than midnight so a test cannot
 /// pass by accident on a machine whose zone would push a midnight over the day

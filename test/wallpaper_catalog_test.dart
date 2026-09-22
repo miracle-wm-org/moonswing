@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/wallpaper_catalog.dart';
+import 'package:moonswing/wallpaper_catalog.dart';
 
 /// The installed-wallpaper scan, against a temp tree standing in for the
 /// distributions' real layouts.
@@ -164,7 +164,7 @@ void main() {
       expect(roots, contains('/usr/share/wallpapers'));
       expect(roots, contains('/var/lib/flatpak/exports/share/backgrounds'));
       // The shell's own installed wallpapers.
-      expect(roots, contains('/usr/share/graceful-shell'));
+      expect(roots, contains('/usr/share/moonswing'));
     });
 
     test('falls back to the spec default when nothing is exported', () {
@@ -188,10 +188,10 @@ void main() {
     });
 
     test('adds a classic snap\'s own share directory', () {
-      final roots = systemWallpaperRoots({'SNAP': '/snap/graceful-shell/42'});
+      final roots = systemWallpaperRoots({'SNAP': '/snap/moonswing/42'});
 
-      expect(roots, contains('/snap/graceful-shell/42/share/backgrounds'));
-      expect(roots, contains('/snap/graceful-shell/42/share/graceful-shell'));
+      expect(roots, contains('/snap/moonswing/42/share/backgrounds'));
+      expect(roots, contains('/snap/moonswing/42/share/moonswing'));
     });
 
     test('drops empty and relative entries, and never repeats a directory', () {

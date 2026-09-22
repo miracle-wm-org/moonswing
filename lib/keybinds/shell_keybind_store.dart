@@ -19,10 +19,10 @@
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/keybinds/shell_keybinds.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/keybinds/shell_keybinds.dart';
 
 /// The shell's global shortcuts: what the config file says now, what the
 /// running shell actually registered, and the writes that change the first.

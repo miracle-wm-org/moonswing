@@ -12,7 +12,7 @@
 
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/modules/workspace_apps.dart' show containerAppId;
+import 'package:moonswing/modules/workspace_apps.dart' show containerAppId;
 
 import 'capture_targets.dart';
 

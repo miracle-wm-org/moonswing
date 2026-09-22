@@ -5,12 +5,12 @@ import 'package:flutter/widgets.dart';
 
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/miracle_config/miracle_color.dart';
-import 'package:graceful_shell/miracle_config/miracle_config_store.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/miracle/miracle_controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
-import 'package:graceful_shell/overlay/settings/settings_search.dart';
+import 'package:moonswing/miracle_config/miracle_color.dart';
+import 'package:moonswing/miracle_config/miracle_config_store.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/miracle/miracle_controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart';
 
 class MiracleGapsSection extends StatelessWidget {
   const MiracleGapsSection({super.key, required this.store});

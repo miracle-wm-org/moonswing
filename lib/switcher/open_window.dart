@@ -7,7 +7,7 @@
 // compositor. The store that fills it is `open_window_store.dart`; the join
 // back to miracle's window tree is `window_activation.dart`.
 
-import 'package:graceful_shell/capture/toplevel_match.dart';
+import 'package:moonswing/capture/toplevel_match.dart';
 
 /// One toplevel the compositor has told the shell about.
 ///

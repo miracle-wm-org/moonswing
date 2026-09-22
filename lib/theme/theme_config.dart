@@ -5,14 +5,14 @@ library;
 import 'dart:ui';
 
 import 'package:flutter/painting.dart' show HSLColor;
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/theme/overlay_effect.dart';
-import 'package:graceful_shell/theme/popup_effect.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The theme selected when `config.toml` names none, and the one every
 /// failure path falls back to. Matches `lib/theme/builtin_themes.dart`.
-const String kDefaultThemeName = 'graceful';
+const String kDefaultThemeName = 'moonswing';
 
 /// The shipped `popup_animation_duration`, in milliseconds.
 ///
@@ -124,7 +124,7 @@ class _ThemeKey {
 
 /// A resolved palette.
 ///
-/// Each theme is its own file under `~/.config/graceful-shell/themes/`, with
+/// Each theme is its own file under `~/.config/moonswing/themes/`, with
 /// `config.toml` naming the active one. The file *is* this table, flat, so
 /// [fromMap] parses a whole theme document. See `lib/theme/theme_store.dart`.
 class ThemeConfig {

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 class _TestController extends RequestController<String, int> {}
 

@@ -1,12 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_actions.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_actions.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
 
 /// One row of a desktop context menu.
 class DesktopMenuEntry {

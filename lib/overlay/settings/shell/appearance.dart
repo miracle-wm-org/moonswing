@@ -1,16 +1,16 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/font_catalog.dart';
-import 'package:graceful_shell/theme/overlay_effect.dart';
-import 'package:graceful_shell/theme/popup_effect.dart';
-import 'package:graceful_shell/theme/theme_store.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/font_catalog.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/theme_store.dart';
 
 /// Theme picker + editor.
 ///

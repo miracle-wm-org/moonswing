@@ -8,7 +8,7 @@
 
 import 'dart:math' as math;
 
-import 'package:graceful_shell/launcher/expression.dart' show formatResult;
+import 'package:moonswing/launcher/expression.dart' show formatResult;
 
 /// What a unit measures. Two units convert only within one of these.
 enum UnitDimension {

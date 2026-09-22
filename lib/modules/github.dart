@@ -10,24 +10,24 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/emoji/emoji_clipboard.dart';
-import 'package:graceful_shell/github/github_api.dart';
-import 'package:graceful_shell/github/github_config.dart';
-import 'package:graceful_shell/github/github_store.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_text_root.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/github/github_config.dart';
+import 'package:moonswing/github/github_store.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_text_root.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 
-export 'package:graceful_shell/github/github_config.dart' show GithubConfig;
+export 'package:moonswing/github/github_config.dart' show GithubConfig;
 
 /// The width of the popup. Fixed, like the app directory's: the rows hold two
 /// lines of text that must wrap somewhere the card does not choose per item.

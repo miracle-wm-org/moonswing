@@ -15,9 +15,9 @@
 
 import 'dart:math' as math;
 
-import 'package:graceful_shell/moon/moon_ephemeris.dart';
-import 'package:graceful_shell/moon/moon_format.dart';
-import 'package:graceful_shell/moon/moon_phase.dart';
+import 'package:moonswing/moon/moon_ephemeris.dart';
+import 'package:moonswing/moon/moon_format.dart';
+import 'package:moonswing/moon/moon_phase.dart';
 
 /// What a fact is about. The widget maps these to icons; nothing here knows
 /// what an icon is.

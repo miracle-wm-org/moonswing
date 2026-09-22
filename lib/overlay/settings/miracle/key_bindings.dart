@@ -13,13 +13,13 @@ import 'package:flutter/widgets.dart';
 
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/miracle_config/miracle_config_store.dart';
-import 'package:graceful_shell/miracle_config/miracle_key_codes.dart';
-import 'package:graceful_shell/miracle_config/miracle_labels.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/miracle/miracle_controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/miracle_config/miracle_config_store.dart';
+import 'package:moonswing/miracle_config/miracle_key_codes.dart';
+import 'package:moonswing/miracle_config/miracle_labels.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/miracle/miracle_controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The key a new binding starts on.
 ///

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/keybinds/keybind_model.dart';
+import 'package:moonswing/keybinds/keybind_model.dart';
 
 Keybind _bind({
   BuiltInKeyCommand? action,

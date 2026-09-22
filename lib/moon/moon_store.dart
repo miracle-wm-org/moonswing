@@ -16,10 +16,10 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/moon/moon_facts.dart';
-import 'package:graceful_shell/moon/moon_phase.dart';
-import 'package:graceful_shell/weather/weather_api.dart';
-import 'package:graceful_shell/weather/weather_store.dart';
+import 'package:moonswing/moon/moon_facts.dart';
+import 'package:moonswing/moon/moon_phase.dart';
+import 'package:moonswing/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_store.dart';
 
 /// How often the numbers are recomputed while something is watching.
 ///

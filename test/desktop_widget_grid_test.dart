@@ -2,14 +2,14 @@ import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_grid.dart';
-import 'package:graceful_shell/desktop/desktop_icon.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
-import 'package:graceful_shell/desktop/desktop_store.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget_frame.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_grid.dart';
+import 'package:moonswing/desktop/desktop_icon.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
+import 'package:moonswing/desktop/desktop_store.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget_frame.dart';
+import 'package:moonswing/scopes.dart';
 
 /// 400x300 of 100px cells: a 4x3 grid whose pixel maths is its coordinates
 /// times 100.

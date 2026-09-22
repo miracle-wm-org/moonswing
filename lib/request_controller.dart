@@ -1,5 +1,5 @@
 /// The two shapes of "seam" controller between something deep in a surface's
-/// widget tree and `_GracefulShellRootState`, which owns every window.
+/// widget tree and `_MoonswingRootState`, which owns every window.
 ///
 /// A widget that needs a root-owned window cannot create one, so it pokes a
 /// process-wide singleton and the root — the only listener — reacts.

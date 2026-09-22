@@ -14,8 +14,8 @@ library;
 
 import 'package:flutter/foundation.dart' show immutable;
 
-import 'package:graceful_shell/overlay/settings/settings_search.dart';
-import 'package:graceful_shell/overlay/settings_route.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 
 /// One themeable colour: the key it is written under, and its catalogue entry.
 ///

@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/disk_reader.dart';
-import 'package:graceful_shell/system/format.dart';
-import 'package:graceful_shell/system/history.dart';
+import 'package:moonswing/system/disk_reader.dart';
+import 'package:moonswing/system/format.dart';
+import 'package:moonswing/system/history.dart';
 
 void main() {
   group('formatBytesKb', () {

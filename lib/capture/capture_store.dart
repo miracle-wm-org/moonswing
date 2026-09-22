@@ -16,9 +16,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/screencast/capture_connection.dart';
-import 'package:graceful_shell/screencast/capture_host.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/screencast/capture_connection.dart';
+import 'package:moonswing/screencast/capture_host.dart';
 
 import 'capture_config.dart';
 import 'capture_grab.dart';
@@ -336,7 +336,7 @@ void postCaptureNotification(CaptureNotice notice) {
   store.addOrReplace(
     NotificationItem(
       id: store.allocateId(),
-      appName: 'Graceful Shell',
+      appName: 'Moonswing',
       summary: notice.summary,
       body: notice.body,
       actions: const [],

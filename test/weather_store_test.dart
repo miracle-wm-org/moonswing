@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/weather/weather_api.dart';
-import 'package:graceful_shell/weather/weather_config.dart';
-import 'package:graceful_shell/weather/weather_store.dart';
+import 'package:moonswing/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_config.dart';
+import 'package:moonswing/weather/weather_store.dart';
 
 import 'weather_fakes.dart';
 

@@ -6,7 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/fortune/lamp_scene.dart';
+import 'package:moonswing/fortune/lamp_scene.dart';
 
 /// Paints [field] at [size] and returns nothing — the assertion is that it did
 /// not throw. A picture is the one thing a unit test cannot check, but "this

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/keyboard/locale1_client.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
 
 void main() {
   test('polkit interaction is its own kind', () {

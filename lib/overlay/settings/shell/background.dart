@@ -3,16 +3,16 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay/file_picker.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/wallpaper_catalog.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/file_picker.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/wallpaper_catalog.dart';
 
 /// Visual wallpaper selector: a 3-column preview grid with multi-select, drag
 /// reordering of the shown wallpapers, and a single global rotation interval.

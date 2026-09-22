@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/osd/brightness_monitor.dart';
+import 'package:moonswing/osd/brightness_monitor.dart';
 
 /// Writes a fake `/sys/class/backlight` device into [root].
 void writeDevice(Directory root, String name, int brightness, int max) {

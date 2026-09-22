@@ -14,7 +14,7 @@ library;
 
 import 'package:flutter/services.dart';
 
-import 'package:graceful_shell/input_trigger/keysym.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
 
 /// The keys that are only ever part of a shortcut, never the whole of one.
 ///

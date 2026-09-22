@@ -2,10 +2,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/switcher/open_window.dart';
-import 'package:graceful_shell/switcher/switcher_overlay.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/switcher/open_window.dart';
+import 'package:moonswing/switcher/switcher_overlay.dart';
 
 /// The Alt+Tab surface. The gesture it is drawn for cannot be reproduced here —
 /// the presses that cycle it are consumed by the compositor and arrive as a

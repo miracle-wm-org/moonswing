@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:graceful_shell/system/file_read.dart';
-import 'package:graceful_shell/system/models.dart';
+import 'package:moonswing/system/file_read.dart';
+import 'package:moonswing/system/models.dart';
 
 /// The cheap `/proc` and `/sys` reads: six small files, fast enough to do on the
 /// UI isolate at the poll cadence. The expensive per-process walk lives in

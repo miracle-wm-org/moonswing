@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/emoji/emoji_clipboard.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
 
 /// A `Process` that records what was written to it and answers a set code.
 ///

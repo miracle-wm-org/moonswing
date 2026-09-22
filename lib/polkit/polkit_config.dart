@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/config_reader.dart';
+import 'package:moonswing/config_reader.dart';
 
 /// `[polkit]` — whether the shell answers polkit's authentication requests.
 ///

@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
-import 'package:graceful_shell/config_store.dart';
+import 'package:moonswing/config_store.dart';
 
 /// End-to-end test of the settings write layer against a real temp file.
 ///
 /// Uses [ConfigStore.loadFrom] with an isolated temp directory so it never
-/// touches the user's real `~/.config/graceful-shell/config.toml`.
+/// touches the user's real `~/.config/moonswing/config.toml`.
 void main() {
   late Directory tempDir;
   late String path;

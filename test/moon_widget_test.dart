@@ -3,13 +3,13 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/desktop/widgets/moon_widget.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/moon/moon_render.dart';
-import 'package:graceful_shell/moon/moon_store.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/widgets/moon_widget.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/moon/moon_render.dart';
+import 'package:moonswing/moon/moon_store.dart';
+import 'package:moonswing/scopes.dart';
 
 import 'moon_fakes.dart';
 import 'weather_fakes.dart';

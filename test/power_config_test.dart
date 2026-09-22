@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/power/power_actions.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/power/power_actions.dart';
 
 void main() {
   group('PowerConfig.fromMap', () {

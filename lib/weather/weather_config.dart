@@ -5,8 +5,8 @@
 // read these settings, and neither is the bar module. The module file re-exports
 // it, so importers are unaffected.
 
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/weather/weather_api.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/weather/weather_api.dart';
 
 class WeatherConfig {
   const WeatherConfig({

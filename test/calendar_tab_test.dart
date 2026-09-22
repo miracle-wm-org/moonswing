@@ -2,13 +2,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/calendar/calendar_tab.dart';
-import 'package:graceful_shell/overlay/calendar/month.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/timers/timer_store.dart';
-import 'package:graceful_shell/timers/timer_widgets.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/calendar/calendar_tab.dart';
+import 'package:moonswing/overlay/calendar/month.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/timers/timer_store.dart';
+import 'package:moonswing/timers/timer_widgets.dart';
 
 import 'paint_counter.dart';
 

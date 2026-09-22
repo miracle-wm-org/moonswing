@@ -23,11 +23,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/capture/toplevel_match.dart';
-import 'package:graceful_shell/miracle_manager.dart';
-import 'package:graceful_shell/modules/workspace_apps.dart' show containerAppId;
-import 'package:graceful_shell/screencast/capture_host.dart';
-import 'package:graceful_shell/switcher/open_window.dart';
+import 'package:moonswing/capture/toplevel_match.dart';
+import 'package:moonswing/miracle_manager.dart';
+import 'package:moonswing/modules/workspace_apps.dart' show containerAppId;
+import 'package:moonswing/screencast/capture_host.dart';
+import 'package:moonswing/switcher/open_window.dart';
 
 class OpenWindowStore extends ChangeNotifier {
   OpenWindowStore._();

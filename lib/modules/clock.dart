@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:layer_shell/layer_shell.dart';
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/overlay/overlay.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/timers/timer_sound.dart';
-import 'package:graceful_shell/timers/timer_store.dart';
-import 'package:graceful_shell/timers/timer_widgets.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/overlay/overlay.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/timers/timer_sound.dart';
+import 'package:moonswing/timers/timer_store.dart';
+import 'package:moonswing/timers/timer_widgets.dart';
 
 class ClockConfig {
   const ClockConfig({

@@ -7,7 +7,7 @@
 // mainloop by a different path and always worked.
 //
 //   dart run tool/pulse_spike.dart [seconds]
-//   GRACEFUL_PULSE_LOG=1 dart run tool/pulse_spike.dart
+//   MOONSWING_PULSE_LOG=1 dart run tool/pulse_spike.dart
 //
 // While it runs, change the volume from somewhere else — the keyboard's knob, or
 // `pactl set-sink-volume @DEFAULT_SINK@ +5%`. Exits non-zero if nothing arrived.
@@ -33,7 +33,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:graceful_shell/pulse_client.dart';
+import 'package:moonswing/pulse_client.dart';
 
 Future<void> main(List<String> args) async {
   final rest = args.where((a) => a != '--reconnect').toList();

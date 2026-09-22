@@ -2,9 +2,9 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/capture/capture_config.dart';
-import 'package:graceful_shell/capture/capture_sound.dart';
-import 'package:graceful_shell/shell_sound.dart';
+import 'package:moonswing/capture/capture_config.dart';
+import 'package:moonswing/capture/capture_sound.dart';
+import 'package:moonswing/shell_sound.dart';
 
 /// A voice out of the shipped catalogue, so the tests below pin what the shell
 /// actually plays rather than a fixture that could drift from it.

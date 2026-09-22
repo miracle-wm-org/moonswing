@@ -4,11 +4,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/modules/notifications.dart';
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/modules/notifications.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The bar module needs a [ThemeScope] and nothing else — the layer-shell
 /// window it can open is only reached by a click, which none of these do.

@@ -30,10 +30,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/clock/clock_face.dart';
-import 'package:graceful_shell/clock/clock_hands.dart';
-import 'package:graceful_shell/clock/minute_clock_store.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/clock/clock_face.dart';
+import 'package:moonswing/clock/clock_hands.dart';
+import 'package:moonswing/clock/minute_clock_store.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 
 /// The widget's body. Public and store-injectable so a widget test can name the
 /// minute it is pretending to be and pump it with no timer behind it.

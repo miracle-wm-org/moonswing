@@ -15,7 +15,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:graceful_shell/host_process.dart';
+import 'package:moonswing/host_process.dart';
 
 import 'polkit_log.dart';
 

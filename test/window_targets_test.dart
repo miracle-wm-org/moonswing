@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/capture/capture_targets.dart';
-import 'package:graceful_shell/capture/window_targets.dart';
+import 'package:moonswing/capture/capture_targets.dart';
+import 'package:moonswing/capture/window_targets.dart';
 
 /// The half of the window picker that comes from miracle: where every window the
 /// user can point at is, and which output it is on.

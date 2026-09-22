@@ -9,7 +9,7 @@
 // an unlisted layout shows `ara` rather than a guessed language, which is
 // worse-looking than GNOME and never false.
 
-import 'package:graceful_shell/keyboard/keyboard_config.dart';
+import 'package:moonswing/keyboard/keyboard_config.dart';
 
 /// Layout codes whose ISO-3166 country differs from the ISO-639 language a reader
 /// expects to see on the badge.

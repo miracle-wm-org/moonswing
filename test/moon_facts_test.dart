@@ -5,8 +5,8 @@
 // getting them the wrong way round is the whole bug.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/moon/moon_facts.dart';
-import 'package:graceful_shell/moon/moon_phase.dart';
+import 'package:moonswing/moon/moon_facts.dart';
+import 'package:moonswing/moon/moon_phase.dart';
 
 MoonReading _at(DateTime instant) => computeMoonReading(at: instant);
 

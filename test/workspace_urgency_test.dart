@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/modules/workspaces.dart';
+import 'package:moonswing/modules/workspaces.dart';
 
 /// Pins the workspace row's urgency flash: the shape of one breath, the
 /// wall-clock phase that keeps every urgent button on every monitor breathing

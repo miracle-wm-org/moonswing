@@ -2,10 +2,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/modules/notifications.dart';
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/notification_sound.dart';
-import 'package:graceful_shell/timers/timer_store.dart';
+import 'package:moonswing/modules/notifications.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/notification_sound.dart';
+import 'package:moonswing/timers/timer_store.dart';
 
 /// A voice out of the shipped catalogue, so the tests below pin what the shell
 /// actually plays rather than a fixture that could drift from it.
@@ -408,7 +408,7 @@ void main() {
       notifications.addOrReplace(
         NotificationItem(
           id: notifications.allocateId(),
-          appName: 'Graceful Shell',
+          appName: 'Moonswing',
           summary: 'Timer finished',
           body: '',
           actions: const [],

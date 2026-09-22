@@ -5,13 +5,13 @@ import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/background.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/lock/pam_authenticator.dart';
-import 'package:graceful_shell/lock/user_identity.dart';
+import 'package:moonswing/background.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/lock/pam_authenticator.dart';
+import 'package:moonswing/lock/user_identity.dart';
 
 /// The lock screen drawn on an `ext-session-lock-v1` surface.
 ///

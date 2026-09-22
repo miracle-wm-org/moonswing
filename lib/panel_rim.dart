@@ -27,8 +27,8 @@ import 'dart:ui' show ClipOp;
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/panel_background.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/panel_background.dart';
 
 /// The stretch of a panel's main axis an attached popup's mouth covers, in the
 /// panel's own logical coordinates.

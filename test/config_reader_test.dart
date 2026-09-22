@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config_reader.dart';
+import 'package:moonswing/config_reader.dart';
 
 /// The readers' one job is that nothing a hand-edited TOML file contains can
 /// throw — a throw out of a `fromMap` costs the user their whole config.

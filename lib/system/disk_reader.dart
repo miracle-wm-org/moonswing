@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:graceful_shell/host_process.dart';
-import 'package:graceful_shell/system/models.dart';
+import 'package:moonswing/host_process.dart';
+import 'package:moonswing/system/models.dart';
 
 /// Filesystem usage, via `df`.
 ///

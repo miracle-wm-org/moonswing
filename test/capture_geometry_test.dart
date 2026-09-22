@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/capture/capture_targets.dart';
+import 'package:moonswing/capture/capture_targets.dart';
 
 /// The coordinate layer of the screenshot and recording feature: a selection
 /// is made in logical pixels and a capture arrives in physical ones, and every

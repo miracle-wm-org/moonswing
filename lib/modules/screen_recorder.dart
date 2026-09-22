@@ -17,19 +17,19 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/capture/capture_config.dart';
-import 'package:graceful_shell/capture/capture_flow.dart';
-import 'package:graceful_shell/capture/capture_menu.dart';
-import 'package:graceful_shell/capture/capture_store.dart';
-import 'package:graceful_shell/capture/selection_controller.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/capture/capture_config.dart';
+import 'package:moonswing/capture/capture_flow.dart';
+import 'package:moonswing/capture/capture_menu.dart';
+import 'package:moonswing/capture/capture_store.dart';
+import 'package:moonswing/capture/selection_controller.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 
-export 'package:graceful_shell/capture/capture_config.dart' show RecorderConfig;
+export 'package:moonswing/capture/capture_config.dart' show RecorderConfig;
 
 class ScreenRecorderButton extends StatefulWidget {
   const ScreenRecorderButton({super.key, this.store});

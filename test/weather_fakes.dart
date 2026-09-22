@@ -7,7 +7,7 @@
 
 import 'dart:async';
 
-import 'package:graceful_shell/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_api.dart';
 
 const WeatherPlace kTestPlace = WeatherPlace(
   name: 'Springfield',

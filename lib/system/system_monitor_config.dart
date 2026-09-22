@@ -1,5 +1,5 @@
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/system/process_reader.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/system/process_reader.dart';
 
 /// Everything under `[modules.system_monitor]`.
 ///

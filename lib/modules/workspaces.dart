@@ -3,22 +3,22 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/miracle_manager.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/modules/workspace_apps.dart';
-import 'package:graceful_shell/modules/workspace_menu.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_coordinator.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_services.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/miracle_manager.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/modules/workspace_apps.dart';
+import 'package:moonswing/modules/workspace_menu.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_services.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 import 'package:miracle/miracle.dart';
 
-export 'package:graceful_shell/modules/workspace_apps.dart'
+export 'package:moonswing/modules/workspace_apps.dart'
     show WorkspacesConfig;
 
 class Workspaces extends StatefulWidget {

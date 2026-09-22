@@ -6,14 +6,14 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/desktop/widgets/fortune_widget.dart';
-import 'package:graceful_shell/fortune/fortune_reader.dart';
-import 'package:graceful_shell/fortune/fortune_store.dart';
-import 'package:graceful_shell/fortune/lamp_scene.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/widgets/fortune_widget.dart';
+import 'package:moonswing/fortune/fortune_reader.dart';
+import 'package:moonswing/fortune/fortune_store.dart';
+import 'package:moonswing/fortune/lamp_scene.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/scopes.dart';
 
 const Size _card = Size(320, 200);
 

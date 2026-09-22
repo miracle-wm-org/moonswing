@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/process_reader.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/process_reader.dart';
 
 /// Builds a `/proc/<pid>/stat` line with the fields we read set, and plausible
 /// filler in between. See proc(5): after the `)` the fields are space-separated

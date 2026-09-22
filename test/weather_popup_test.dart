@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/modules/weather.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/weather/weather_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/modules/weather.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/weather/weather_store.dart';
 
 import 'weather_fakes.dart';
 

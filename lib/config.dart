@@ -2,7 +2,7 @@
 /// classes that still live here.
 ///
 /// The sections that belong to a subsystem live beside it and are re-exported
-/// below, so `import 'package:graceful_shell/config.dart'` keeps providing every
+/// below, so `import 'package:moonswing/config.dart'` keeps providing every
 /// name it always has: the theme palette, the desktop grid model, the generated
 /// default config, the media-extension predicates and the power-button policy.
 library;
@@ -12,23 +12,23 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:toml/toml.dart';
 
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/default_config.dart';
-import 'package:graceful_shell/desktop/desktop_config.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/polkit/polkit_config.dart';
-import 'package:graceful_shell/power/power_config.dart';
-import 'package:graceful_shell/theme/theme_config.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/default_config.dart';
+import 'package:moonswing/desktop/desktop_config.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/polkit/polkit_config.dart';
+import 'package:moonswing/power/power_config.dart';
+import 'package:moonswing/theme/theme_config.dart';
 
-export 'package:graceful_shell/default_config.dart';
-export 'package:graceful_shell/desktop/desktop_config.dart';
-export 'package:graceful_shell/keyboard/keyboard_config.dart';
-export 'package:graceful_shell/media_paths.dart'
+export 'package:moonswing/default_config.dart';
+export 'package:moonswing/desktop/desktop_config.dart';
+export 'package:moonswing/keyboard/keyboard_config.dart';
+export 'package:moonswing/media_paths.dart'
     show imageExtensions, videoExtensions, isImagePath;
-export 'package:graceful_shell/polkit/polkit_config.dart';
-export 'package:graceful_shell/power/power_config.dart';
-export 'package:graceful_shell/theme/theme_config.dart';
+export 'package:moonswing/polkit/polkit_config.dart';
+export 'package:moonswing/power/power_config.dart';
+export 'package:moonswing/theme/theme_config.dart';
 
 enum BackgroundFit {
   fill,
@@ -640,7 +640,7 @@ class AppConfig {
   final BackgroundConfig? background;
 
   /// The name of the active theme — the basename of a file under
-  /// `~/.config/graceful-shell/themes/`. Resolving it to a [ThemeConfig] is
+  /// `~/.config/moonswing/themes/`. Resolving it to a [ThemeConfig] is
   /// `ThemeStore`'s job, not this one's; nothing here touches the disk.
   final String themeName;
 
@@ -684,7 +684,7 @@ class AppConfig {
     final homeDir = Platform.environment['HOME'] ?? '';
     final configHome =
         Platform.environment['XDG_CONFIG_HOME'] ?? '$homeDir/.config';
-    return '$configHome/graceful-shell/config.toml';
+    return '$configHome/moonswing/config.toml';
   }
 
   static Future<AppConfig> load() async {
@@ -716,7 +716,7 @@ class AppConfig {
       // file — everything past the parser degrades per field (TomlReader).
       // Say so on stderr: silently reverting every panel to defaults reads
       // as a broken shell, not a broken config.
-      stderr.writeln('graceful-shell: failed to parse $configPath: $e — '
+      stderr.writeln('moonswing: failed to parse $configPath: $e — '
           'using the default configuration');
       return const AppConfig();
     }

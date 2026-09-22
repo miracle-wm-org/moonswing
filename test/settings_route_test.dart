@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/overlay/settings/shell.dart';
-import 'package:graceful_shell/overlay/settings_route.dart';
+import 'package:moonswing/overlay/settings/shell.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 
 void main() {
   group('SettingsController', () {

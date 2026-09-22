@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/background.dart';
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/background.dart';
+import 'package:moonswing/config.dart';
 
 void main() {
   group('isImagePath', () {

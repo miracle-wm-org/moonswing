@@ -1,9 +1,9 @@
 {
-  "name": "graceful-shell-website",
+  "name": "moonswing-website",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Website and wiki for Graceful Shell",
+  "description": "Website and wiki for Moonswing",
   "scripts": {
     "sync": "node scripts/sync.mjs",
     "dev": "npm run sync && astro dev",

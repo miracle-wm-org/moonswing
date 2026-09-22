@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/theme_store.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/theme_store.dart';
 
 /// The regression test for the guarantee the theming engine is built on: a tree
 /// under a [ThemeProvider] restyles when the theme changes, *without* the widget
@@ -50,7 +50,7 @@ void main() {
         child: const _AccentBox(),
       ),
     );
-    expect(paintedColor(tester), const Color(0xFF853953)); // graceful
+    expect(paintedColor(tester), const Color(0xFF853953)); // moonswing
 
     themes.select('dracula');
     await tester.pump();
