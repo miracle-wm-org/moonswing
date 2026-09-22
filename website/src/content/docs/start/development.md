@@ -68,5 +68,5 @@ the whole surface picture and damages the whole output. See
 
 The shell's own conventions — how to add a bar module, what a store owes its consumers, why
 a `GestureDetector` always carries a `behavior:` — are in the [wiki](/wiki/architecture/) and,
-at more length, in [`CLAUDE.md`](https://github.com/miracle-wm-org/graceful-shell/blob/main/CLAUDE.md)
+at more length, in [`CLAUDE.md`](https://github.com/miracle-wm-org/moonswing/blob/main/CLAUDE.md)
 at the root of the repository.

@@ -2,7 +2,7 @@
 #
 # Install the latest Moonswing nightly snap.
 #
-#   curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh | sh
 #
 # Downloads the newest `moonswing_*.snap` asset from the rolling `nightly`
 # release and installs it with `--classic --dangerous`. Re-running it is how you
@@ -12,7 +12,7 @@
 
 set -eu
 
-REPO=${MOONSWING_REPO:-miracle-wm-org/graceful-shell}
+REPO=${MOONSWING_REPO:-miracle-wm-org/moonswing}
 TAG=${MOONSWING_TAG:-nightly}
 API="https://api.github.com/repos/$REPO/releases/tags/$TAG"
 

@@ -1,6 +1,6 @@
 # The Moonswing website
 
-The project's website and wiki: <https://miracle-wm-org.github.io/graceful-shell/>
+The project's website and wiki: <https://miracle-wm-org.github.io/moonswing/>
 
 Built with [Astro](https://astro.build) and [Starlight](https://starlight.astro.build),
 Astro's documentation theme. It is a static site — the build produces plain HTML with a

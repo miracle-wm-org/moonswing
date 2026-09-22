@@ -228,7 +228,7 @@ void main() {
       await store.open(store.items.single);
       await settle();
 
-      expect(opened, ['https://github.com/miracle-wm-org/graceful-shell/pull/1']);
+      expect(opened, ['https://github.com/miracle-wm-org/moonswing/pull/1']);
       expect(client.markedRead, ['7']);
       expect(store.unreadCount, 0);
     });

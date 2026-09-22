@@ -10,9 +10,9 @@
 </p>
 
 <p align="center">
-  <a href="https://miracle-wm-org.github.io/graceful-shell/"><b>Website &amp; wiki</b></a> &middot;
-  <a href="https://miracle-wm-org.github.io/graceful-shell/start/install/">Install</a> &middot;
-  <a href="https://miracle-wm-org.github.io/graceful-shell/configuration/">Configuration</a>
+  <a href="https://miracle-wm-org.github.io/moonswing/"><b>Website &amp; wiki</b></a> &middot;
+  <a href="https://miracle-wm-org.github.io/moonswing/start/install/">Install</a> &middot;
+  <a href="https://miracle-wm-org.github.io/moonswing/configuration/">Configuration</a>
 </p>
 
 The purpose of this project is to:
@@ -33,7 +33,7 @@ at any time.
 To get the latest nightly snap (amd64):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh | sh
 ```
 
 Then, in your environment of choice (miracle-wm, Miriway, Sway, etc.), run:
@@ -126,7 +126,7 @@ flutter run
 
 The full configuration reference is in [`CONFIG.md`](CONFIG.md), and the same content — plus
 install, build and wiki pages — is published at
-<https://miracle-wm-org.github.io/graceful-shell/>.
+<https://miracle-wm-org.github.io/moonswing/>.
 
 The site lives in [`website/`](website/) and is built with
 [Astro](https://astro.build) and [Starlight](https://starlight.astro.build). To run it

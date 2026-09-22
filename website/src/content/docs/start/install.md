@@ -24,7 +24,7 @@ The shell may be entirely unstable, and the config format is subject to change a
 ## Install
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh | sh
 ```
 
 The script looks up the rolling `nightly` release, downloads the newest
@@ -34,7 +34,7 @@ The script looks up the rolling `nightly` release, downloads the newest
 - `--dangerous` because the file is downloaded from a GitHub release, not store-signed.
 
 If you would rather do it by hand, download the asset from the
-[`nightly` release](https://github.com/miracle-wm-org/graceful-shell/releases/tag/nightly)
+[`nightly` release](https://github.com/miracle-wm-org/moonswing/releases/tag/nightly)
 and run the same command the script does:
 
 ```sh
@@ -61,7 +61,7 @@ it live.
 Re-run the install command. `snapd` replaces the installed revision in place:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh | sh
 ```
 
 ## Remove
@@ -96,7 +96,7 @@ sudo make install-pam
 anonymous GitHub API answers `404`. Export a token and re-run:
 
 ```sh
-GH_TOKEN=$(gh auth token) sh -c "$(curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/graceful-shell/main/install.sh)"
+GH_TOKEN=$(gh auth token) sh -c "$(curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh)"
 ```
 
 **Panels do not appear** — the compositor must implement `wlr-layer-shell`. GNOME's Mutter

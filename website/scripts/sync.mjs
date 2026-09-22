@@ -181,7 +181,7 @@ async function generateConfigPages() {
       'title: ' + yamlString(order.title),
       'description: ' + yamlString(order.description),
       `sidebar:\n  order: ${order.order}` + (order.label ? `\n  label: ${yamlString(order.label)}` : ''),
-      'editUrl: https://github.com/miracle-wm-org/graceful-shell/edit/main/CONFIG.md',
+      'editUrl: https://github.com/miracle-wm-org/moonswing/edit/main/CONFIG.md',
       '---',
       '',
       '<!-- Generated from CONFIG.md by website/scripts/sync.mjs — do not edit. -->',

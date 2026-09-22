@@ -155,7 +155,7 @@ void main() {
       expect(find.text('octocat'), findsOneWidget);
       expect(find.text('Add a GitHub module'), findsOneWidget);
       expect(
-        find.text('miracle-wm-org/graceful-shell · Review requested'),
+        find.text('miracle-wm-org/moonswing · Review requested'),
         findsOneWidget,
       );
     });
@@ -311,7 +311,7 @@ void main() {
 
       expect(
         opened,
-        ['https://github.com/miracle-wm-org/graceful-shell/pull/1'],
+        ['https://github.com/miracle-wm-org/moonswing/pull/1'],
       );
       expect(store.unreadCount, 0);
     });

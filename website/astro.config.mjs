@@ -6,9 +6,9 @@ import starlight from '@astrojs/starlight';
 // domain instead means setting `site` to it and dropping `base` — those two
 // lines are the whole difference.
 const site = 'https://miracle-wm-org.github.io';
-const base = '/graceful-shell';
+const base = '/moonswing';
 
-const repo = 'https://github.com/miracle-wm-org/graceful-shell';
+const repo = 'https://github.com/miracle-wm-org/moonswing';
 
 export default defineConfig({
   site,
