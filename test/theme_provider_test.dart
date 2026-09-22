@@ -50,15 +50,15 @@ void main() {
         child: const _AccentBox(),
       ),
     );
-    expect(paintedColor(tester), const Color(0xFF853953)); // moonswing
+    expect(paintedColor(tester), const Color(0xFF7FB6FF)); // glassy
 
     themes.select('dracula');
     await tester.pump();
     expect(paintedColor(tester), const Color(0xFFBD93F9)); // dracula
 
-    themes.select('glassy');
+    themes.select('forest');
     await tester.pump();
-    expect(paintedColor(tester), const Color(0xFF7FB6FF)); // glassy
+    expect(paintedColor(tester), const Color(0xFF2E8B57)); // forest
 
     settle();
   });

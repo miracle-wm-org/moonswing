@@ -66,7 +66,7 @@ max_fps = 24
 
     test('a config with no [screenshare] table still enables sharing', () {
       final config = AppConfig.fromMap(TomlDocument.parse('''
-theme = "moonswing"
+theme = "glassy"
 ''').toMap());
       expect(config.screenshare.enabled, isTrue);
     });

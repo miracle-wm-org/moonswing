@@ -17,15 +17,16 @@ and referenced by the default `[lock]` section of `config.toml`.
 
 Default desktop wallpaper.
 
-- **Subject:** "Pixel Pusher" (dark variant) — a red dot-matrix field
-- **Credit:** Jakub Steiner, for the GNOME Project
-- **License:** [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/).
-  This file is a derivative work and is distributed under the same license; it
-  is aggregated with, and not part of, the GPL-3.0 shell itself.
-- **Source:** [`gnome-backgrounds`](https://github.com/GNOME/gnome-backgrounds)
-  `backgrounds/pixel-pusher-d.jxl` (commit `4b1c8f40`)
-- **Changes:** centre-cropped from the 4096×4096 square original to 16:9,
-  downscaled to 3840×2160, and re-encoded as JPEG.
+- **Subject:** The cratered surface of the Moon, photographed obliquely from
+  lunar orbit, with the black of space above the horizon
+- **Credit:** NASA
+- **License:** Public domain — NASA material is not subject to copyright.
+  Crediting NASA does not imply NASA's endorsement of this project.
+- **Source:** [Unsplash, `jlV2k_Fx0fc`](https://unsplash.com/photos/jlV2k_Fx0fc),
+  as redistributed by [`pop-os/wallpapers`](https://github.com/pop-os/wallpapers)
+  `original/nasa-45068.jpg` (commit `20a9fdd1`)
+- **Changes:** cropped from the 3000×3000 square original to a 3000×1688 (16:9)
+  band starting 1080px from the top, and re-encoded as JPEG.
 
 Installed to `$PREFIX/share/moonswing/wallpaper.jpg` by `make install` and
 referenced by the default `[background]` section of `config.toml`.

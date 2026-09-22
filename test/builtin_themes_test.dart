@@ -67,15 +67,6 @@ void main() {
     }
   });
 
-  test('moonswing reproduces the palette that used to be the default', () {
-    final moonswing =
-        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['moonswing']!).toMap());
-    // Every colour matches the ThemeConfig defaults, so seeding the themes
-    // directory cannot change how an existing install looks.
-    const defaults = ThemeConfig();
-    expect(moonswing, defaults);
-  });
-
   test('a shipped theme that keeps the gradient is opaque enough to read', () {
     // Nothing forces a bar to be translucent, but a gradient one puts the
     // accent against the screen edge — so a theme either commits to the fade
@@ -89,9 +80,9 @@ void main() {
   });
 
   test('the flush themes keep the geometry the bar always had', () {
-    // moonswing is pinned to the ThemeConfig defaults by the test above, but
-    // dracula is not — and neither should have moved off the screen edge.
-    for (final slug in const ['moonswing', 'dracula']) {
+    // Dracula is a flat palette and should never have moved off the screen
+    // edge.
+    for (final slug in const ['dracula']) {
       final theme =
           ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
       expect(theme.panelMargin, 0, reason: 'in $slug');
@@ -347,11 +338,12 @@ void main() {
   });
 
   test('every shipped theme can be read on its own popup', () {
-    // The reported bug, pinned for all six. moonswing's `muted` was its accent
-    // verbatim — a fill colour, chosen dark enough to carry white — which put
-    // every menu header, timestamp, unit and greyed row on its own card at
-    // 1.8:1. A popup is where the shell does its reading, so the three colours
-    // it reads in are held to a floor here rather than to an eye.
+    // The reported bug, pinned for every shipped theme. One palette's `muted`
+    // was its accent verbatim — a fill colour, chosen dark enough to carry
+    // white — which put every menu header, timestamp, unit and greyed row on
+    // its own card at 1.8:1. A popup is where the shell does its reading, so
+    // the three colours it reads in are held to a floor here rather than to an
+    // eye.
     for (final slug in kBuiltInThemes.keys) {
       final theme = _shipped(slug);
       expect(_contrast(theme.popupForeground, theme.popupBackground),
