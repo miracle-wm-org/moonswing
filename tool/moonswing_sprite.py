@@ -55,7 +55,7 @@ ROPE_X = 4.0  # half the rope spacing — where they meet the seat. Wide
 #               taken out of the head rather than as a rope behind it.
 ROPE_TOP = -34.0  # drawn well past the pivot so the ropes leave both frames
 SEAT_Y = 26.0  # the top face of the seat
-SEAT_HALF = 4.7
+SEAT_HALF = 4.4
 SEAT_H = 1.1
 
 # Seated in profile, facing the direction of travel. The near arm reaches up
@@ -66,31 +66,65 @@ SEAT_H = 1.1
 # supplies the rest: swing space is upright, so a torso drawn straight up from
 # the hip already arrives in the world leaning back by LEAN. Drawing the
 # recline here as well is what tipped an early pass flat onto its back.
-HIP = (0.2, 25.2)
-KNEE = (5.6, 24.6)
-ANKLE = (9.2, 28.0)  # below the seat — feet hang, they do not float
-TOE = (10.5, 27.7)
+# The thigh lies *along* the plank rather than lifting off it, and the kick is
+# all in the shin. A thigh that leaves the hip at a shallow angle opens a long
+# thin wedge of moon between it and the plank, and at silhouette scale that
+# reads as a crack in the drawing rather than as daylight under a raised leg —
+# there is no angle small enough to be invisible and none large enough to look
+# deliberate. Overlapping the plank has neither problem, and it is what sitting
+# on a swing actually looks like.
+# The kick is in the shin, and it goes *down*: straightening the leg forward
+# and up merges thigh, shin and plank into one long sweep, and the swing stops
+# being a swing. A bent knee with the shin falling away from the plank is what
+# keeps the seat legible as a seat.
+HIP = (0.2, 25.3)
+KNEE = (5.8, 25.0)
+ANKLE = (9.6, 27.4)
+TOE = (10.9, 27.2)
 SHOULDER = (-0.5, 17.5)
 HEAD = (-0.6, 12.9)
-HEAD_R = 1.95
+HEAD_R = 1.85
 ELBOW = (2.3, 14.8)
 HAND = (ROPE_X, 11.0)  # on the rope, not near it, and high enough up it that
 #                        the arm clears the torso — gripping at shoulder height
 #                        drew an arm that merged into the chest and vanished.
 
-# Hair, trailing the direction of travel: a wedge off the back of the skull,
-# not strands. Two thin strands read as whiskers at favicon size, which is
-# exactly where the head has to stay a head.
-HAIR = ((-2.6, 11.6), 2.2, 0.8)
+# A short, flowy haircut, in two parts. Both are needed: the cap alone is a
+# bigger skull, and the sweep alone is a wedge stuck to a bald head.
+#
+#   * CAP — a disc a little wider than the skull, sitting back and up off it,
+#     so the crown and the back of the head carry hair and the face does not.
+#   * SWEEP — a short taper off the nape, trailing the direction of travel and
+#     rising, which is the whole of the "flowy". It has to rise by noticeably
+#     more than LEAN: swing space is upright, so hair drawn level here arrives
+#     in the world angled *down* and behind the jaw, which on a figure facing
+#     the other way reads as a chin on the back of the head.
+#
+# Short is the constraint, not a preference: earlier passes drew two long
+# strands and then a long wedge, and at favicon size both read as a limb
+# thrown out behind rather than as hair. The sweep also has to stop clear of
+# the back rope, or the two merge into one shape.
+HAIR_CAP = ((-0.95, 12.5), 1.09)  # centre, and a multiple of HEAD_R
+HAIR_SWEEP = ((-1.5, 13.2), (-3.0, 11.9), 1.7, 0.9)
 
 W_HIP, W_SHOULDER = 3.0, 4.4  # the torso taper: widest where the arms hang
 #                               off, and wider than the head — a head as broad
 #                               as the shoulders under it is a blob at any size
-W_NECK = 1.6
+W_NECK = 2.05  # wide: the head and the shoulder are both discs, and a thin
+#                neck between them leaves a notch at each side that no amount
+#                of outward rounding can reach, a corner being concave there
 W_UPPER_ARM, W_ELBOW, W_WRIST = 1.45, 1.25, 0.95
 W_THIGH, W_KNEE, W_ANKLE = 2.4, 1.9, 1.3
 W_FOOT = 1.2
 W_ROPE = 0.5
+
+# How far every corner in the drawing is rounded off. Each filled shape is
+# built this much smaller and then stroked back out to size with a round join,
+# so the silhouette keeps its dimensions and loses its corners: the quadrilateral
+# limbs stop meeting the torso, each other and the seat at points. It is one
+# number for the whole figure on purpose — a silhouette whose knee is rounder
+# than its shoulder reads as two drawings.
+SOFTEN = 0.7
 
 # ---------------------------------------------------------------------------
 # Framing. The mark is the moon, full-bleed in a 32x32 box. The banner states
@@ -147,7 +181,8 @@ def _fit(span, centre):
              (KNEE, W_KNEE / 2), (ANKLE, W_ANKLE / 2), (TOE, W_FOOT / 2),
              (ELBOW, W_ELBOW / 2), (HAND, W_WRIST / 2),
              ((-SEAT_HALF, SEAT_Y + SEAT_H), 0), ((SEAT_HALF, SEAT_Y), 0)]
-    blobs.append((HAIR[0], HAIR[2] / 2))
+    blobs.append((HAIR_CAP[0], HEAD_R * HAIR_CAP[1]))
+    blobs.append((HAIR_SWEEP[1], HAIR_SWEEP[3] / 2))
 
     xs = [c for p, r in blobs for c in (_rotate(p)[0] - r, _rotate(p)[0] + r)]
     ys = [c for p, r in blobs for c in (_rotate(p)[1] - r, _rotate(p)[1] + r)]
@@ -183,34 +218,44 @@ def _stroke(a, b, width, indent):
             f'stroke-width="{_n(width)}"/>')
 
 
-def _joint(p, width, indent):
-    """A rounded joint.
+def _disc(p, width, indent):
+    """A rounded joint, or any disc: the head, the fist, a knee.
 
     Two tapers meeting at an angle leave a notch on the outside of it — a
     quadrilateral has a corner where a stroke would have a cap. A disc the
     width of the limb fills it, which is what `stroke-linejoin` does for the
     limbs that are strokes.
     """
-    return (f'{indent}<circle cx="{_n(p[0])}" cy="{_n(p[1])}" '
-            f'r="{_n(width / 2)}" stroke="none"/>')
+    r = max(width / 2 - SOFTEN / 2, 0.02)
+    return (f'{indent}<circle cx="{_n(p[0])}" cy="{_n(p[1])}" r="{_n(r)}" '
+            f'stroke-width="{_n(SOFTEN)}"/>')
 
 
 def _taper(a, b, wa, wb, indent):
     """A limb that changes thickness, as a quadrilateral.
 
     A stroke cannot taper, and the torso has to: see the module docstring.
-    Drawn *and* stroked, thinly, so the corners round over the same way the
-    stroked limbs' caps do and the joins do not show as facets.
+    Drawn *and* stroked so the corners round over the same way the stroked
+    limbs' caps do — see SOFTEN.
     """
     dx, dy = b[0] - a[0], b[1] - a[1]
     length = math.hypot(dx, dy)
     nx, ny = -dy / length, dx / length
-    pts = [(a[0] + nx * wa / 2, a[1] + ny * wa / 2),
-           (b[0] + nx * wb / 2, b[1] + ny * wb / 2),
-           (b[0] - nx * wb / 2, b[1] - ny * wb / 2),
-           (a[0] - nx * wa / 2, a[1] - ny * wa / 2)]
+    ha, hb = max(wa - SOFTEN, 0) / 2, max(wb - SOFTEN, 0) / 2
+    pts = [(a[0] + nx * ha, a[1] + ny * ha), (b[0] + nx * hb, b[1] + ny * hb),
+           (b[0] - nx * hb, b[1] - ny * hb), (a[0] - nx * ha, a[1] - ny * ha)]
     d = 'M' + 'L'.join(f'{_n(x)} {_n(y)}' for x, y in pts) + 'Z'
-    return f'{indent}<path d="{d}" stroke-width=".35"/>'
+    return f'{indent}<path d="{d}" stroke-width="{_n(SOFTEN)}"/>'
+
+
+def _seat(indent):
+    """The plank, softened the same way and by the same amount as the body."""
+    h = SOFTEN / 2
+    return (f'{indent}<rect x="{_n(-SEAT_HALF + h)}" y="{_n(SEAT_Y + h)}" '
+            f'width="{_n(2 * SEAT_HALF - SOFTEN)}" '
+            f'height="{_n(max(SEAT_H - SOFTEN, 0.02))}" '
+            f'rx="{_n(max(SEAT_H / 2 - h, 0.02))}" '
+            f'stroke-width="{_n(SOFTEN)}"/>')
 
 
 def moon(cx, cy, r, ident, indent):
@@ -241,30 +286,29 @@ def swing(i):
     out = [f'{i}<!-- the swing itself -->']
     out += [_stroke((x, ROPE_TOP), (x, SEAT_Y), W_ROPE, i)
             for x in (-ROPE_X, ROPE_X)]
-    out.append(f'{i}<rect x="{_n(-SEAT_HALF)}" y="{_n(SEAT_Y)}" '
-               f'width="{_n(2 * SEAT_HALF)}" height="{_n(SEAT_H)}" '
-               f'rx="{_n(SEAT_H / 3)}" stroke="none"/>')
+    out.append(_seat(i))
 
     out.append(f'{i}<!-- leg: thigh forward, shin hanging past the seat -->')
     out.append(_taper(HIP, KNEE, W_THIGH, W_KNEE, i))
-    out.append(_joint(KNEE, W_KNEE, i))
+    out.append(_disc(KNEE, W_KNEE, i))
     out.append(_taper(KNEE, ANKLE, W_KNEE, W_ANKLE, i))
+    out.append(_disc(ANKLE, W_ANKLE, i))
     out.append(_stroke(ANKLE, TOE, W_FOOT, i))
 
     out.append(f'{i}<!-- torso, neck, head, hair -->')
     out.append(_taper(HIP, SHOULDER, W_HIP, W_SHOULDER, i))
-    out.append(_joint(HIP, W_HIP, i))
-    out.append(_joint(SHOULDER, W_SHOULDER, i))
+    out.append(_disc(HIP, W_HIP, i))
+    out.append(_disc(SHOULDER, W_SHOULDER, i))
     out.append(_stroke(SHOULDER, HEAD, W_NECK, i))
-    out.append(_taper(HEAD, HAIR[0], HAIR[1], HAIR[2], i))
-    out.append(f'{i}<circle cx="{_n(HEAD[0])}" cy="{_n(HEAD[1])}" '
-               f'r="{_n(HEAD_R)}" stroke="none"/>')
+    out.append(_disc(HEAD, HEAD_R * 2, i))
+    out.append(_disc(HAIR_CAP[0], HEAD_R * HAIR_CAP[1] * 2, i))
+    out.append(_taper(*HAIR_SWEEP, i))
 
     out.append(f'{i}<!-- the near arm, up to the front rope -->')
     out.append(_taper(SHOULDER, ELBOW, W_UPPER_ARM, W_ELBOW, i))
-    out.append(_joint(ELBOW, W_ELBOW, i))
+    out.append(_disc(ELBOW, W_ELBOW, i))
     out.append(_taper(ELBOW, HAND, W_ELBOW, W_WRIST, i))
-    out.append(_joint(HAND, W_WRIST * 1.6, i))  # the fist closed on the rope
+    out.append(_disc(HAND, W_WRIST * 1.6, i))  # the fist closed on the rope
     return '\n'.join(out)
 
 
