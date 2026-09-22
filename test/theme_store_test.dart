@@ -20,7 +20,7 @@ void main() {
     tempDir = await Directory.systemTemp.createTemp('gs_theme_store_test');
     themesDir = '${tempDir.path}/themes';
     configPath = '${tempDir.path}/config.toml';
-    await File(configPath).writeAsString('theme = "moonswing"\n');
+    await File(configPath).writeAsString('theme = "forest"\n');
   });
 
   tearDown(() async {
@@ -55,8 +55,8 @@ void main() {
   test('resolves the theme config.toml names, and follows a change to it',
       () async {
     final (themes, config) = await open();
-    expect(themes.activeName, 'moonswing');
-    expect(themes.theme.accent, const Color(0xFF853953));
+    expect(themes.activeName, 'forest');
+    expect(themes.theme.accent, const Color(0xFF2E8B57));
 
     config.set(['theme'], 'dracula');
     expect(themes.activeName, 'dracula');
@@ -88,8 +88,9 @@ void main() {
     final (themes, config) = await open();
 
     expect(themes.activeName, 'nope');
-    // Falls back to the built-in default rather than an unstyled shell.
-    expect(themes.theme.accent, const ThemeConfig().accent);
+    // Falls back to the built-in default (glassy) rather than an unstyled
+    // shell.
+    expect(themes.theme.accent, const Color(0xFF7FB6FF));
     // The unparseable file is simply absent from the picker.
     expect(themes.themes.map((t) => t.slug), isNot(contains('broken')));
 

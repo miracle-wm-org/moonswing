@@ -21,7 +21,7 @@ import 'package:moonswing/scopes.dart';
 void main() {
   setUp(() => _Probe.builds = 0);
 
-  AppConfig config({int padding = 8, String theme = 'moonswing'}) => AppConfig(
+  AppConfig config({int padding = 8, String theme = 'glassy'}) => AppConfig(
         themeName: theme,
         panels: {
           'top': PanelConfig(

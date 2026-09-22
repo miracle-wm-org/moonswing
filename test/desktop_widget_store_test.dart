@@ -41,7 +41,7 @@ void main() {
     dir = Directory.systemTemp.createTempSync('gs_desktop_widget_store_test');
     path = '${dir.path}/config.toml';
     File(path).writeAsStringSync('''
-theme = "moonswing"
+theme = "glassy"
 
 [desktop]
 enabled = true

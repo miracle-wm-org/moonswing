@@ -101,7 +101,7 @@ void main() {
     });
 
     test('theme, desktop, lock, shortcuts, screenshare, power, polkit', () {
-      expect(config.themeName, 'moonswing');
+      expect(config.themeName, 'glassy');
       expect(config.desktop.enabled, isTrue);
       expect(config.desktop.cellWidth, 96);
       expect(config.desktop.cellHeight, 96);

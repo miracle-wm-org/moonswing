@@ -810,22 +810,21 @@ Themes live in their own files, one per theme, under `~/.config/moonswing/themes
 theme = "dracula"
 ```
 
-Six themes ship with the shell and are written into that directory the first time it starts:
+Five themes ship with the shell and are written into that directory the first time it starts:
 
 | Name       | Looks like                                                        |
 | ---------- | ----------------------------------------------------------------- |
-| `moonswing` | Deep maroon over near-black. The default, and the palette earlier versions hard-coded. |
+| `glassy`   | Cool translucent surfaces that let the wallpaper through. The default. |
 | `forest`   | Pine and moss over a near-black green, floating on a lit sage rim. |
 | `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
-| `glassy`   | Cool translucent surfaces that let the wallpaper through.          |
 | `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
 | `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
 
-If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `moonswing` rather than starting unstyled. A single bad value inside a theme file costs only that key.
+If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `glassy` rather than starting unstyled. A single bad value inside a theme file costs only that key.
 
-The **Appearance** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The six shipped themes are read-only there — editing one offers to duplicate it first.
+The **Appearance** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The five shipped themes are read-only there — editing one offers to duplicate it first.
 
-Because the shell owns those six files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
+Because the shell owns those five files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
 
 ### Writing a theme file
 

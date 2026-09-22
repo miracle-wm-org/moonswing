@@ -47,7 +47,7 @@ void main() {
     systemA = await writePng('backgrounds/a-warty.png');
     systemB = await writePng('backgrounds/b-adwaita.png');
     userPath = await writePng('pictures/mine.png');
-    await File(configPath).writeAsString('theme = "moonswing"\n');
+    await File(configPath).writeAsString('theme = "glassy"\n');
     store = await ConfigStore.loadFrom(configPath);
   });
 

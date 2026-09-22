@@ -17,103 +17,12 @@ library;
 /// theme must never inherit a [ThemeConfig] default, or changing a default
 /// would silently restyle it.
 const Map<String, String> kBuiltInThemes = {
-  'moonswing': _moonswing,
+  'glassy': _glassy,
   'forest': _forest,
   'dracula': _dracula,
-  'glassy': _glassy,
   'midnight': _midnight,
   'carbon': _carbon,
 };
-
-const String _moonswing = '''
-# Moonswing — the shell's own palette: deep maroon over near-black.
-name = "Moonswing"
-
-font = "Ubuntu Sans"
-font_size = 13.0
-
-accent               = "#853953"
-foreground           = "#F3F4F4"
-surface_hover        = "#853953"
-surface_pressed      = "#612D53"
-workspace_background = "#2C2C2C"
-popup_background     = "#2C2C2C"
-popup_foreground     = "#F3F4F4"
-control_surface      = "#39393D"
-slider_track         = "#612D53"
-# Secondary text — menu headers, timestamps, units, a greyed row — is a rose
-# grey rather than the accent. It used to be the accent verbatim, which is the
-# mistake forest and midnight both spell out a rule against: the accent is a
-# *fill* here, dark enough to hold white, and on this card it read at 1.8:1.
-# Half the text in every popup was the least legible thing on the screen. This
-# is the same hue lifted off the surface instead, at 6.4:1.
-muted                = "#C4A8B2"
-divider              = "#33F3F4F4"
-
-# What an unread notification is announced in. Amber, and the only warm colour
-# in a maroon theme: the accent is already the bar's "this one is active", so
-# the floating card wears a hue nothing else here uses and cannot be read as
-# more furniture. The foreground is a near-black maroon, because white on amber
-# is the one pairing in the shell that is genuinely hard to read.
-notification_badge   = "#F2B441"
-notification_badge_foreground = "#2C1218"
-scrim                = "#882C2C2C"
-
-# The bar: a maroon-to-black fade at 93% opacity, which is what the shell has
-# always drawn. panel_background's alpha sets the opacity of every stop.
-panel_background     = "#EE2C2C2C"
-panel_gradient       = true
-
-# Flush to the screen edge, square, no rim — the geometry the bar has always
-# had. panel_border is spelled out even though nothing draws it at width 0: it
-# is the colour a rim would take if one were switched on.
-panel_margin         = 0
-panel_radius         = 0.0
-panel_border         = "#33F3F4F4"
-panel_border_width   = 0.0
-
-# Popups: rounded cards with a hairline rim, which is the shape the shell's
-# menus have always drawn — now stated once instead of hardcoded at fifteen
-# call sites. Unlike the bar a popup rounds all four corners: nothing sits
-# behind it to cut a wedge out of. The rim colour is `divider`, which is what
-# those menus used.
-popup_radius         = 8.0
-popup_border         = "#33F3F4F4"
-popup_border_width   = 1.0
-
-# A bar popup sits flush against the bar and grows out of it: no gap, and a
-# square butt join, so the menu's sides continue the panel's. The join drops its
-# rim and its shadow, so nothing draws a seam across it. popup_attach_radius
-# above zero would flare the join outward into the bar instead — a concave
-# fillet, not a rounded corner — which suits a softer theme than this one.
-popup_gap            = 0.0
-popup_attach_radius  = 0.0
-
-# The card's lift. Blur is the reach past the edge and the offset pushes it
-# downward, exactly as a CSS box-shadow reads; a popup grows its own window by
-# that reach so the shadow is not clipped at the surface edge, and is
-# repositioned by the same amount so the card stays put. An alpha of 0 here is
-# the off switch.
-popup_shadow_color   = "#66000000"
-popup_shadow_blur    = 16.0
-popup_shadow_spread  = 0.0
-popup_shadow_offset_x = 0.0
-popup_shadow_offset_y = 6.0
-
-# How a popup arrives, and — reversed — how it leaves. The card is attached to
-# the bar here, so it slides the short distance out of it and back in again.
-# The duration is the entrance in milliseconds; the exit is four fifths of it.
-popup_animation      = "slide"
-popup_animation_duration = 140
-
-# How the settings panel, the launcher and the other full-screen overlays
-# arrive. The shipped values: a small scale under a fade, at the pace the
-# shell has always used, leaving as slowly as it came.
-overlay_animation    = "scale"
-overlay_animation_duration = 160
-overlay_animation_exit_ratio = 1.0
-overlay_animation_curve = "ease_out"
-''';
 
 const String _forest = '''
 # Forest — pine and moss over a near-black green, with a lit rim.
@@ -178,10 +87,10 @@ popup_radius         = 10.0
 popup_border         = "#594FB183"
 popup_border_width   = 1.0
 
-# Its popups float too, for glassy's reason rather than moonswing's: this bar
-# is lifted off the screen by panel_margin, so a menu glued to it would be the
-# only thing in the picture touching anything, and matching that margin keeps
-# the two gaps equal. It would also cost the rim on the joined edge — the one
+# Its popups float too, for glassy's reason: this bar is lifted off the
+# screen by panel_margin, so a menu glued to it would be the only thing in the
+# picture touching anything, and matching that margin keeps the two gaps
+# equal. It would also cost the rim on the joined edge — the one
 # lit line this theme is built around — which an attached popup drops so no
 # seam crosses the join. popup_attach_radius is therefore unread here, and
 # spelled only because every theme spells every key.
@@ -243,23 +152,23 @@ scrim                = "#88282A36"
 panel_background     = "#EE282A36"
 panel_gradient       = true
 
-# Flush and square, like moonswing — Dracula is a flat palette, not a floating
-# one. The rim colour matches divider so switching it on reads as Dracula.
+# Flush and square — Dracula is a flat palette, not a floating one. The rim
+# colour matches divider so switching it on reads as Dracula.
 panel_margin         = 0
 panel_radius         = 0.0
 panel_border         = "#33F8F8F2"
 panel_border_width   = 0.0
 
-# The same card shape as moonswing; the rim takes Dracula's own divider.
+# The shell's default card shape; the rim takes Dracula's own divider.
 popup_radius         = 8.0
 popup_border         = "#33F8F8F2"
 popup_border_width   = 1.0
 
-# Attached to the bar, as moonswing is.
+# Attached to the bar.
 popup_gap            = 0.0
 popup_attach_radius  = 0.0
 
-# The same lift as moonswing, tinted with Dracula's own background rather than
+# The shell's default lift, tinted with Dracula's own background rather than
 # pure black so it reads as part of the palette.
 popup_shadow_color   = "#66191A21"
 popup_shadow_blur    = 16.0
@@ -267,7 +176,7 @@ popup_shadow_spread  = 0.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
 
-# Attached to the bar, so it slides out of it, as moonswing does.
+# Attached to the bar, so it slides out of it.
 popup_animation      = "slide"
 popup_animation_duration = 140
 

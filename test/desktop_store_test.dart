@@ -29,7 +29,7 @@ void main() {
     dir = Directory.systemTemp.createTempSync('gs_desktop_store_test');
     path = '${dir.path}/config.toml';
     File(path).writeAsStringSync('''
-theme = "moonswing"
+theme = "glassy"
 
 [desktop]
 enabled = true
@@ -391,14 +391,14 @@ row = 0
       final (store, config) = await open();
       var notifications = 0;
       store.addListener(() => notifications++);
-      config.set(['theme'], 'glassy');
+      config.set(['theme'], 'dracula');
       expect(notifications, 0);
     });
 
     test('an unrelated write leaves items and selection alone', () async {
       final (store, config) = await open();
       store.select('/tmp/a.txt');
-      config.set(['theme'], 'glassy');
+      config.set(['theme'], 'dracula');
       expect(store.selectedTargets, {'/tmp/a.txt'});
       expect(store.items.map((i) => i.target), ['/tmp/a.txt', '/tmp/b.txt']);
     });

@@ -224,7 +224,7 @@ layout = "us"
           model: 'pc105',
         ),
       );
-      final config = await configWith('theme = "moonswing"\n');
+      final config = await configWith('theme = "glassy"\n');
       final store = await leased(config);
 
       expect(store.sources, const [
@@ -249,7 +249,7 @@ sources = []
     });
 
     test('a second lease does not re-seed', () async {
-      final config = await configWith('theme = "moonswing"\n');
+      final config = await configWith('theme = "glassy"\n');
       final store = await leased(config);
       expect(store.sources, const [_us]);
 
