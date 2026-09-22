@@ -15,18 +15,28 @@ and referenced by the default `[lock]` section of `config.toml`.
 
 ## `wallpaper.jpg`
 
-Default desktop wallpaper.
+Default desktop wallpaper: the full moon, the whole near side, on a field of
+stars.
 
-- **Subject:** The cratered surface of the Moon, photographed obliquely from
-  lunar orbit, with the black of space above the horizon
-- **Credit:** NASA
-- **License:** Public domain — NASA material is not subject to copyright.
-  Crediting NASA does not imply NASA's endorsement of this project.
-- **Source:** [Unsplash, `jlV2k_Fx0fc`](https://unsplash.com/photos/jlV2k_Fx0fc),
-  as redistributed by [`pop-os/wallpapers`](https://github.com/pop-os/wallpapers)
-  `original/nasa-45068.jpg` (commit `20a9fdd1`)
-- **Changes:** cropped from the 3000×3000 square original to a 3000×1688 (16:9)
-  band starting 1080px from the top, and re-encoded as JPEG.
+- **Subject:** A render, not a photograph. The Moon's near side is projected
+  onto a sphere from the Clementine UVVIS basemap mosaic, a map of the whole
+  lunar surface, and set on a generated starfield. No single photograph shows
+  both: a camera exposed for the full moon records no stars.
+- **Credit:** Lunar map: NASA/SDIO, courtesy of the
+  [USGS Astrogeology Research Program](https://astrogeology.usgs.gov), from the
+  Clementine mission (1994). The render and starfield are original work for this
+  repository.
+- **License:** The Clementine basemap is a US Government work in the public
+  domain. The render adds nothing that restricts it, so this file is also in
+  the public domain. Crediting NASA and the USGS does not imply that either
+  endorses this project.
+- **Source:** The map is the copy KDE Marble ships as
+  `maps/moon/clementine/clementine.jpg` (Ubuntu 24.04 `marble-qt-data`).
+  `tool/moon_wallpaper.py` renders the wallpaper from it. **Edit the script, not
+  the JPEG.** Its starfield comes from a fixed seed, so a re-run reproduces
+  the file. The script also fills the gaps the mosaic left in its coverage and
+  evens out the streaked polar rows, which otherwise show as black specks and
+  stripes on the disc.
 
 Installed to `$PREFIX/share/moonswing/wallpaper.jpg` by `make install` and
 referenced by the default `[background]` section of `config.toml`.
