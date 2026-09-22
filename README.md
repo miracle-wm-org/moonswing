@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/moonswing-banner.svg" alt="A silhouette of someone on a swing in front of a full moon" width="720">
+  <img src="assets/moonswing-banner.svg" alt="A silhouette of someone with long hair on a swing hung from a branch, in front of a full moon" width="720">
 </p>
 
 <h1 align="center">Moonswing</h1>

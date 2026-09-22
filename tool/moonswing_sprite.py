@@ -1,416 +1,291 @@
 #!/usr/bin/env python3
 """Draws the project's artwork: assets/moonswing-mark.svg and moonswing-banner.svg.
 
-Both are one drawing — a silhouette of someone on a swing in front of a full
-moon — emitted twice: cropped to the moon for the favicon and site logo, and
-set on a night sky for the README and the website hero. The figure is authored
-here rather than in the SVGs because the banner's placement is *derived* from
-the mark's, so the two cannot drift into being two different drawings the way
-two hand-edited files would. Change the geometry below and re-run:
+Both are one scene — someone with long hair on a swing hung from a branch, in
+front of a full moon, a tree at the left and a hill below — seen through two
+windows: a square cropped close on the moon for the favicon and site logo, and
+a wide one for the README and the website hero. The scene is authored once, in
+its own coordinates (a 1080x1350 poster, the moon at its heart), and each file
+is that scene under a different `viewBox`. Nothing is placed per file, so the
+two cannot drift into being two different drawings the way two hand-edited
+files would. Change the geometry below and re-run:
 
     python3 tool/moonswing_sprite.py
 
-Two things the shapes below are trying to buy, both of which a silhouette
-loses easily and cannot get back with colour, because it has only one:
-
-  * **A neck.** A head drawn as wide as the shoulders it sits on is a blob at
-    any size. The torso is a taper rather than a stroke so it can be widest at
-    the shoulder, and the head is narrower than that with a thin neck between.
-  * **A pose that is not horizontal.** The first attempt reclined the figure
-    until it was wider than it was tall, and it read as someone lying down.
-    The torso is near-upright, the thighs run forward and the shins hang below
-    the seat, so the outline is an upright mass with one clear horizontal.
-
-The placement is computed, not hand-tuned: `_fit` measures the drawing and
-centres it, so moving a joint cannot quietly push the figure off the disc.
+The things that have to reach the frame's edges — the sky, the trunk, the hill
+— are built from the frame they are drawn for, since the banner sees far more
+of the world to either side than the poster the scene was drawn on.
 """
 
-import math
 import os
 
 # ---------------------------------------------------------------------------
-# Palette. One ink and no shading: past favicon size a silhouette is carried
-# entirely by its outline, and anything else is detail only the banner keeps.
+# Palette. One ink for everything that is not sky or moon: the tree, the swing
+# and the figure are a single silhouette, and past favicon size a silhouette
+# is carried entirely by its outline.
 # ---------------------------------------------------------------------------
 
-INK = '#151926'  # the silhouette: near-black, blued so it sits in a night scene
-MOON_LIT = '#F7F2E4'  # the moon's centre
-MOON_RIM = '#E4D9BD'  # its limb, warmer and a shade darker
-MARIA_FILL = '#D6CAAC'  # the maria, at low opacity over the disc
-
-SKY = ('#31456B', '#1B2338', '#120E18')  # banner sky, zenith -> horizon
-STAR = '#E8EEFA'
-
-# ---------------------------------------------------------------------------
-# The swing, in its own space: the pivot is the origin and y runs downward, so
-# the swing hangs straight down and LEAN tilts it. Everything named below is a
-# joint; the W_* values are limb thicknesses, not outlines.
-# ---------------------------------------------------------------------------
-
-LEAN = -14  # degrees; negative swings the seat forward, the way the figure faces
-
-ROPE_X = 4.0  # half the rope spacing — where they meet the seat. Wide
-#               enough that the back rope clears the head: run closer and
-#               it grazes the skull, and a silhouette reads that as a bite
-#               taken out of the head rather than as a rope behind it.
-ROPE_TOP = -34.0  # drawn well past the pivot so the ropes leave both frames
-SEAT_Y = 26.0  # the top face of the seat
-SEAT_HALF = 4.4
-SEAT_H = 1.1
-
-# Seated in profile, facing the direction of travel. The near arm reaches up
-# to the front rope and the far one is behind the body, so only one is drawn:
-# a second arm in a silhouette reads as a second limb, never as depth.
-#
-# The torso is only slightly off the seat's perpendicular, because the lean
-# supplies the rest: swing space is upright, so a torso drawn straight up from
-# the hip already arrives in the world leaning back by LEAN. Drawing the
-# recline here as well is what tipped an early pass flat onto its back.
-# The thigh lies *along* the plank rather than lifting off it, and the kick is
-# all in the shin. A thigh that leaves the hip at a shallow angle opens a long
-# thin wedge of moon between it and the plank, and at silhouette scale that
-# reads as a crack in the drawing rather than as daylight under a raised leg —
-# there is no angle small enough to be invisible and none large enough to look
-# deliberate. Overlapping the plank has neither problem, and it is what sitting
-# on a swing actually looks like.
-# The kick is in the shin, and it goes *down*: straightening the leg forward
-# and up merges thigh, shin and plank into one long sweep, and the swing stops
-# being a swing. A bent knee with the shin falling away from the plank is what
-# keeps the seat legible as a seat.
-HIP = (0.2, 25.3)
-KNEE = (5.8, 25.0)
-ANKLE = (9.6, 27.4)
-TOE = (10.9, 27.2)
-SHOULDER = (-0.5, 17.5)
-HEAD = (-0.6, 12.85)
-HEAD_RX, HEAD_RY = 1.8, 2.15  # a head is taller than it is deep, in profile
-#                               as much as head-on, and a circle at this size
-#                               reads as a ball on a stick. The oval is slight
-#                               on purpose: swing space is upright, so it
-#                               arrives in the world tipped back by LEAN, and
-#                               a stronger one would read as a tilted head.
-ELBOW = (2.3, 14.8)
-HAND = (ROPE_X, 11.0)  # on the rope, not near it, and high enough up it that
-#                        the arm clears the torso — gripping at shoulder height
-#                        drew an arm that merged into the chest and vanished.
-
-W_HIP, W_SHOULDER = 3.0, 4.4  # the torso taper: widest where the arms hang
-#                               off, and wider than the head — a head as broad
-#                               as the shoulders under it is a blob at any size
-W_NECK = 2.05  # wide: the head and the shoulder are both discs, and a thin
-#                neck between them leaves a notch at each side that no amount
-#                of outward rounding can reach, a corner being concave there
-W_UPPER_ARM, W_ELBOW, W_WRIST = 1.45, 1.25, 0.95
-W_THIGH, W_KNEE, W_ANKLE = 2.4, 1.9, 1.3
-W_FOOT = 1.2
-W_ROPE = 0.5
-
-# How far every corner in the drawing is rounded off. Each filled shape is
-# built this much smaller and then stroked back out to size with a round join,
-# so the silhouette keeps its dimensions and loses its corners: the quadrilateral
-# limbs stop meeting the torso, each other and the seat at points. It is one
-# number for the whole figure on purpose — a silhouette whose knee is rounder
-# than its shoulder reads as two drawings.
-SOFTEN = 0.7
+INK = '#0A0C1A'
+MOON = '#F7ECCB'  # the moon's body; its glow is the same colour, fading
+MOON_LIT = '#FFFDF2'  # the bright spot the face gradient starts from
+MOON_RIM = '#E3CF98'  # the limb, warmer and darker
+MARIA_FILL = '#C9B37C'
+CRATER_FILL = '#CDB67F'
+CRATER_FLOOR = '#B89F66'
+CRATER_RIM = '#FFFAF0'
+SKY = ('#2A3566', '#141A3D', '#070A1C')  # around the moon -> the corners
+STAR = '#FDF7E0'
 
 # ---------------------------------------------------------------------------
-# Framing. The mark is the moon, full-bleed in a 32x32 box. The banner states
-# its own moon and derives the swing from the mark's, so the banner is the
-# mark's drawing at the banner's scale and nothing else.
+# The scene, in its own units. y runs downward.
+# ---------------------------------------------------------------------------
+
+MOON_C = (560.0, 640.0)
+MOON_R = 380.0
+GLOW_R = 560.0
+
+# Low-contrast seas, as (cx, cy, rx, ry), clipped to the disc.
+MARIA = ((420, 470, 120, 90), (690, 780, 150, 110), (760, 500, 80, 120),
+         (400, 820, 90, 60))
+
+# Craters: (cx, cy, r, rim) — the larger ones get a darker floor and a lit
+# upper rim, which is what makes them read as dents rather than spots.
+CRATERS = ((470, 420, 46, True), (700, 560, 64, True), (380, 680, 34, False),
+           (600, 880, 52, True), (820, 760, 28, False), (560, 330, 22, False),
+           (300, 560, 18, False), (520, 600, 14, False), (760, 380, 16, False),
+           (470, 960, 20, False), (880, 600, 12, False), (640, 700, 10, False),
+           (340, 780, 11, False), (720, 960, 15, False))
+
+# x, y, r. Fixed rather than random so the artwork diffs. The poster's own
+# stars sit inside 0..1080; the rest fill the banner's wings either side.
+STARS = ((90, 70, 2), (210, 130, 1.4), (330, 60, 2.4), (610, 90, 1.6),
+         (760, 50, 2), (880, 140, 2.6), (1010, 80, 1.5), (960, 260, 1.8),
+         (1040, 380, 2.2), (1000, 560, 1.4), (1050, 720, 2), (990, 880, 1.6),
+         (150, 340, 1.6), (60, 480, 2.2), (120, 700, 1.4), (70, 900, 2),
+         (180, 1010, 1.5), (930, 1040, 1.8), (700, 150, 1.2), (480, 40, 1.4),
+         (1060, 200, 1.3),
+         (-547, 264, 4), (-341, 449, 2.7), (-482, 704, 4.9), (-210, 248, 3),
+         (-640, 519, 3.3), (-395, 954, 3.8), (-140, 759, 2.7), (-585, 905, 4.3),
+         (-265, 1101, 3), (-75, 503, 3.5), (1318, 302, 4.6), (1530, 492, 3.3),
+         (1137, 660, 3.8), (1708, 753, 2.7), (1398, 959, 4.1), (1203, 1100, 3),
+         (1632, 258, 3.5), (1784, 986, 3.3), (1061, 437, 2.7), (1475, 1167, 2.7))
+
+# Four-pointed glints: (x, y, arm).
+SPARKLES = ((904, 206, 16), (113, 599, 12), (-300, 360, 14), (1560, 620, 13))
+
+BRANCH = ('M 20 150 C 180 150 330 180 470 196 C 620 212 760 222 900 246 '
+          'C 780 238 620 232 470 222 C 330 212 170 200 40 212 Z')
+# Twigs off the branch, as (path, width).
+TWIGS = (('M 720 222 C 760 200 790 180 830 176', 7),
+         ('M 260 180 C 280 150 300 130 330 120', 6),
+         ('M 610 214 C 640 240 660 262 700 270', 5),
+         ('M 830 236 C 860 250 880 270 900 290', 5))
+# Leaves: (cx, cy, rx, ry, angle).
+LEAVES = ((836, 172, 18, 8, -20), (812, 184, 15, 7, 30), (336, 116, 18, 8, -25),
+          (310, 130, 14, 6, 35), (706, 272, 17, 7, 15), (682, 258, 13, 6, 50),
+          (904, 296, 16, 7, 50), (900, 246, 16, 7, 10), (120, 150, 22, 9, -30),
+          (160, 176, 18, 8, 20))
+
+# The swing and its rider, drawn hanging straight down from the branch and then
+# swung forward about the point the ropes are tied at.
+SWING_PIVOT = (470, 210)
+SWING_ANGLE = -20
+SWING = '''\
+<line x1="440" y1="206" x2="440" y2="782" stroke-width="4" fill="none"/>
+<line x1="500" y1="206" x2="500" y2="782" stroke-width="4" fill="none"/>
+<rect x="392" y="776" width="150" height="14" rx="3" stroke="none"/>
+<!-- legs, out along the seat -->
+<path stroke="none" d="M 452 752 C 482 750 512 752 536 758 C 556 764 574 772 592 778 C 604 780 616 786 622 794 C 624 799 620 802 614 802 C 604 802 594 800 584 797 C 566 792 550 786 534 780 C 524 778 516 777 508 777 L 456 777 C 448 772 446 760 452 752 Z"/>
+<!-- the far arm -->
+<path fill="none" stroke-width="12" d="M 438 642 Q 468 624 494 606"/>
+<ellipse cx="498" cy="603" rx="8" ry="10" stroke="none"/>
+<!-- body and head -->
+<path stroke="none" d="M 428 777 C 418 758 410 724 408 690 C 406 668 408 650 414 638 C 418 630 420 624 418 616 C 404 608 400 588 406 574 C 414 560 434 556 446 566 C 452 572 454 578 454 582 L 462 594 L 456 598 C 458 604 456 610 452 614 C 448 618 444 620 442 622 C 446 628 452 634 460 640 C 470 650 474 670 470 690 C 468 708 470 726 482 744 C 506 744 526 746 544 750 C 564 756 584 762 602 766 C 614 767 626 770 634 777 C 637 782 634 786 628 787 C 616 788 604 786 594 784 C 576 780 560 776 544 772 C 526 774 504 777 480 777 L 428 777 Z"/>
+<!-- hair, streaming back -->
+<path stroke="none" d="M 448 568 C 438 552 414 546 396 554 C 380 560 370 572 356 576 C 346 580 336 578 326 584 C 336 592 346 594 354 598 C 346 606 338 612 328 618 C 342 626 358 624 370 618 C 380 628 394 630 404 624 C 412 618 416 610 418 604 C 424 590 438 578 448 576 Z"/>
+<!-- the near arm, up to the rope -->
+<path stroke="none" d="M 430 652 C 452 638 476 626 494 616 C 504 612 512 620 506 630 C 486 642 462 654 444 666 C 436 668 428 660 430 652 Z"/>
+<ellipse cx="502" cy="621" rx="9" ry="11" stroke="none"/>'''
+
+# ---------------------------------------------------------------------------
+# Framing: each file is a window onto the scene, (x, y, w, h) in scene units.
 # ---------------------------------------------------------------------------
 
 MARK_N = 32
-MARK_MOON = (16.0, 16.0, 15.5)  # cx, cy, r
-MARK_SPAN = 18.0  # the body's longer side, against a 31-wide disc
-MARK_CENTRE = (16.7, 18.0)  # low of the disc's centre: the ropes want the top
+MARK_VIEW = (-20.0, 140.0, 1080.0, 1080.0)  # the moon, the branch over it, the
+#                                         hill's crest and a sliver of trunk
+MARK_RADIUS = 0.2  # of the side: the corner rounding of the icon's tile
 
 BANNER_W, BANNER_H = 960, 420  # website/scripts/sync.mjs rasterises the card at 2x
-BANNER_MOON = (470.0, 196.0, 152.0)
+_BANNER_SCALE = 1140 / BANNER_H  # scene units per banner pixel
+BANNER_VIEW = (MOON_C[0] - 480 * _BANNER_SCALE, 90.0,
+               BANNER_W * _BANNER_SCALE, 1140.0)
 
-# Fractions of the moon's radius: offset from its centre, then radius. Most sit
-# behind the figure at any scale; the ones that do not are what stop the disc
-# reading as a hole punched in the sky.
-MARIA = ((-0.40, -0.32, 0.22), (0.20, -0.48, 0.14), (0.44, 0.16, 0.21),
-         (-0.16, 0.46, 0.17), (-0.56, 0.20, 0.12), (0.10, -0.10, 0.11))
-
-# x, y, r, opacity. Fixed rather than random so the artwork diffs, and kept
-# clear of the moon and its halo.
-STARS = ((72, 64, 1.5, .55), (148, 132, 1.0, .35), (96, 226, 1.8, .45),
-         (196, 58, 1.1, .40), (38, 158, 1.2, .30), (128, 318, 1.4, .40),
-         (222, 246, 1.0, .30), (58, 300, 1.6, .50), (176, 372, 1.1, .30),
-         (246, 152, 1.3, .35), (758, 78, 1.7, .55), (836, 148, 1.2, .38),
-         (692, 210, 1.4, .42), (902, 244, 1.0, .30), (788, 320, 1.5, .45),
-         (716, 372, 1.1, .30), (874, 62, 1.3, .40), (930, 330, 1.2, .35),
-         (664, 128, 1.0, .30), (820, 396, 1.0, .28))
+LABEL = ('A silhouette of someone with long hair on a swing hung from a '
+         'branch, in front of a full moon')
 
 
 def _n(v):
     """A number, without the trailing zeroes that make the SVGs diff noisily."""
-    return f'{v:.4g}'
+    return f'{v:.5g}'
 
 
-def _rotate(p):
-    """A point in swing space, leaned."""
-    a = math.radians(LEAN)
-    return (p[0] * math.cos(a) - p[1] * math.sin(a),
-            p[0] * math.sin(a) + p[1] * math.cos(a))
+def _indent(text, indent):
+    return '\n'.join(indent + line for line in text.splitlines())
 
 
-def _fit(span, centre):
-    """Scale and pivot that put the leaned body at `centre`, `span` across.
-
-    Measured from the drawing itself so a moved joint re-centres the figure
-    instead of silently pushing it off the disc. The ropes are left out on
-    purpose: they run off the top of both frames by design, and measuring them
-    would shrink the figure to nothing.
-    """
-    # Each entry is a point and how far the drawing reaches around it — one
-    # number, or a pair for the head, which is the only thing here that is not
-    # round. Expanding the rotated centre along the world axes is a shade off
-    # for an oval (the oval leans too), and over-estimates, which is the safe
-    # direction for something deciding how much room to leave.
-    blobs = [(HEAD, (HEAD_RX, HEAD_RY)), (HIP, W_HIP / 2),
-             (SHOULDER, W_SHOULDER / 2), (KNEE, W_KNEE / 2),
-             (ANKLE, W_ANKLE / 2), (TOE, W_FOOT / 2), (ELBOW, W_ELBOW / 2),
-             (HAND, W_WRIST / 2),
-             ((-SEAT_HALF, SEAT_Y + SEAT_H), 0), ((SEAT_HALF, SEAT_Y), 0)]
-
-    xs, ys = [], []
-    for point, reach in blobs:
-        rx, ry = reach if isinstance(reach, tuple) else (reach, reach)
-        x, y = _rotate(point)
-        xs += [x - rx, x + rx]
-        ys += [y - ry, y + ry]
-    lo = (min(xs), min(ys))
-    hi = (max(xs), max(ys))
-
-    scale = span / max(hi[0] - lo[0], hi[1] - lo[1])
-    mid = ((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2)
-    return scale, (centre[0] - mid[0] * scale, centre[1] - mid[1] * scale)
+def _trunk(view):
+    """The tree, rising out of the left of the poster. It runs past the top of
+    either frame so the branch never grows out of a stump."""
+    top = _n(view[1] - 100)
+    bottom = _n(view[1] + view[3] + 100)
+    return (f'M -150 {bottom} C -90 1100 -60 800 -50 500 C -44 300 -40 150 -36 {top} '
+            f'L 52 {top} C 50 0 52 120 60 180 '
+            f'C 70 260 64 420 72 600 C 80 820 110 1060 170 {bottom} Z')
 
 
-def _banner_placement():
-    """The banner's scale and pivot, as the mark's seen at the banner's size.
-
-    This is the whole reason the banner is not its own drawing: the ratio of
-    the two moons is the only number it gets, so a change to the figure or to
-    either moon moves both files and neither can be adjusted on its own.
-    """
-    scale, pivot = _fit(MARK_SPAN, MARK_CENTRE)
-    k = BANNER_MOON[2] / MARK_MOON[2]
-    return scale * k, (BANNER_MOON[0] + (pivot[0] - MARK_MOON[0]) * k,
-                       BANNER_MOON[1] + (pivot[1] - MARK_MOON[1]) * k)
-
-
-# ---------------------------------------------------------------------------
-# Shapes
-# ---------------------------------------------------------------------------
+def _hill(view):
+    """The ground, from one edge of the frame to the other."""
+    x0, x1 = view[0] - 10, view[0] + view[2] + 10
+    bottom = view[1] + view[3] + 10
+    left = (f'M {_n(x0)} {_n(bottom)} L {_n(x0)} 1150 '
+            f'C {_n(x0 / 2)} 1140 {_n(x0 / 3)} 1220 0 1210 ' if x0 < 0 else
+            f'M {_n(x0)} {_n(bottom)} L {_n(x0)} 1210 ')
+    right = (f'C {_n(1080 + (x1 - 1080) / 3)} 1165 {_n(1080 + (x1 - 1080) * 2 / 3)} '
+             f'1130 {_n(x1)} 1150 ' if x1 > 1080 else '')
+    return (left + 'C 160 1170 300 1190 460 1215 C 640 1245 820 1200 1080 1180 '
+            + right + f'L {_n(max(x1, 1080))} {_n(bottom)} Z')
 
 
-def _stroke(a, b, width, indent):
-    """A limb of one thickness: a round-capped stroke is its own union."""
-    return (f'{indent}<path d="M{_n(a[0])} {_n(a[1])}L{_n(b[0])} {_n(b[1])}" '
-            f'stroke-width="{_n(width)}"/>')
+def _sparkle(x, y, a):
+    b = a / 3
+    return (f'M {_n(x)} {_n(y - a)} L {_n(x + b)} {_n(y - b)} L {_n(x + a)} {_n(y)} '
+            f'L {_n(x + b)} {_n(y + b)} L {_n(x)} {_n(y + a)} L {_n(x - b)} {_n(y + b)} '
+            f'L {_n(x - a)} {_n(y)} L {_n(x - b)} {_n(y - b)} Z')
 
 
-def _disc(p, width, indent):
-    """A rounded joint, or any disc: the head, the fist, a knee.
-
-    Two tapers meeting at an angle leave a notch on the outside of it — a
-    quadrilateral has a corner where a stroke would have a cap. A disc the
-    width of the limb fills it, which is what `stroke-linejoin` does for the
-    limbs that are strokes.
-    """
-    r = max(width / 2 - SOFTEN / 2, 0.02)
-    return (f'{indent}<circle cx="{_n(p[0])}" cy="{_n(p[1])}" r="{_n(r)}" '
-            f'stroke-width="{_n(SOFTEN)}"/>')
+def _in(view, x, y, margin):
+    return (view[0] - margin <= x <= view[0] + view[2] + margin
+            and view[1] - margin <= y <= view[1] + view[3] + margin)
 
 
-def _oval(p, rx, ry, indent):
-    """The head. Softened exactly as the discs are, so it sits in the same
-    silhouette: built inward by half of SOFTEN, then stroked back out."""
-    return (f'{indent}<ellipse cx="{_n(p[0])}" cy="{_n(p[1])}" '
-            f'rx="{_n(max(rx - SOFTEN / 2, 0.02))}" '
-            f'ry="{_n(max(ry - SOFTEN / 2, 0.02))}" '
-            f'stroke-width="{_n(SOFTEN)}"/>')
+def defs(p):
+    """Gradients and clips, their ids prefixed so two files inlined into one
+    page cannot resolve each other's."""
+    cx, cy = MOON_C
+    return f'''\
+<radialGradient id="{p}-sky" cx="{_n(cx)}" cy="{_n(cy)}" r="900" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="{SKY[0]}"/>
+  <stop offset=".45" stop-color="{SKY[1]}"/>
+  <stop offset="1" stop-color="{SKY[2]}"/>
+</radialGradient>
+<radialGradient id="{p}-glow" cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(GLOW_R)}" gradientUnits="userSpaceOnUse">
+  <stop offset=".6" stop-color="{MOON}" stop-opacity=".55"/>
+  <stop offset=".75" stop-color="{MOON}" stop-opacity=".16"/>
+  <stop offset="1" stop-color="{MOON}" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="{p}-face" cx="{_n(cx - 60)}" cy="{_n(cy - 80)}" r="420" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="{MOON_LIT}"/>
+  <stop offset=".7" stop-color="{MOON}"/>
+  <stop offset="1" stop-color="{MOON_RIM}"/>
+</radialGradient>
+<clipPath id="{p}-moon">
+  <circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(MOON_R)}"/>
+</clipPath>'''
 
 
-def _taper(a, b, wa, wb, indent):
-    """A limb that changes thickness, as a quadrilateral.
+def scene(view, p):
+    """Everything, back to front, for a frame onto `view`."""
+    x, y, w, h = view
+    cx, cy = MOON_C
+    out = [f'<rect x="{_n(x)}" y="{_n(y)}" width="{_n(w)}" height="{_n(h)}" '
+           f'fill="url(#{p}-sky)"/>']
 
-    A stroke cannot taper, and the torso has to: see the module docstring.
-    Drawn *and* stroked so the corners round over the same way the stroked
-    limbs' caps do — see SOFTEN.
-    """
-    dx, dy = b[0] - a[0], b[1] - a[1]
-    length = math.hypot(dx, dy)
-    nx, ny = -dy / length, dx / length
-    ha, hb = max(wa - SOFTEN, 0) / 2, max(wb - SOFTEN, 0) / 2
-    pts = [(a[0] + nx * ha, a[1] + ny * ha), (b[0] + nx * hb, b[1] + ny * hb),
-           (b[0] - nx * hb, b[1] - ny * hb), (a[0] - nx * ha, a[1] - ny * ha)]
-    d = 'M' + 'L'.join(f'{_n(x)} {_n(y)}' for x, y in pts) + 'Z'
-    return f'{indent}<path d="{d}" stroke-width="{_n(SOFTEN)}"/>'
+    out.append(f'<g fill="{STAR}">')
+    out += [f'  <circle cx="{_n(sx)}" cy="{_n(sy)}" r="{_n(r)}"/>'
+            for sx, sy, r in STARS if _in(view, sx, sy, r)]
+    out += [f'  <path d="{_sparkle(sx, sy, a)}"/>'
+            for sx, sy, a in SPARKLES if _in(view, sx, sy, a)]
+    out.append('</g>')
 
+    out.append('<!-- the moon: its light on the sky, the disc, then its face -->')
+    out.append(f'<circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(GLOW_R)}" '
+               f'fill="url(#{p}-glow)"/>')
+    out.append(f'<circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(MOON_R)}" '
+               f'fill="url(#{p}-face)"/>')
+    out.append(f'<g clip-path="url(#{p}-moon)">')
+    out.append(f'  <g fill="{MARIA_FILL}" opacity=".28">')
+    out += [f'    <ellipse cx="{mx}" cy="{my}" rx="{rx}" ry="{ry}"/>'
+            for mx, my, rx, ry in MARIA]
+    out.append('  </g>')
+    for kx, ky, r, rim in CRATERS:
+        out.append(f'  <circle cx="{kx}" cy="{ky}" r="{r}" fill="{CRATER_FILL}" '
+                   f'opacity=".45"/>')
+        if rim:
+            d = r * 0.12
+            out.append(f'  <circle cx="{_n(kx + d)}" cy="{_n(ky + d)}" '
+                       f'r="{_n(r * 0.83)}" fill="{CRATER_FLOOR}" opacity=".33"/>')
+            out.append(f'  <path d="M {_n(kx - r * 0.83)} {_n(ky - r * 0.43)} '
+                       f'A {r} {r} 0 0 1 {_n(kx + r * 0.78)} {_n(ky - r * 0.52)}" '
+                       f'stroke="{CRATER_RIM}" stroke-width="{_n(r / 12)}" '
+                       f'fill="none" opacity=".5"/>')
+    out.append('</g>')
 
-def _seat(indent):
-    """The plank, softened the same way and by the same amount as the body."""
-    h = SOFTEN / 2
-    return (f'{indent}<rect x="{_n(-SEAT_HALF + h)}" y="{_n(SEAT_Y + h)}" '
-            f'width="{_n(2 * SEAT_HALF - SOFTEN)}" '
-            f'height="{_n(max(SEAT_H - SOFTEN, 0.02))}" '
-            f'rx="{_n(max(SEAT_H / 2 - h, 0.02))}" '
-            f'stroke-width="{_n(SOFTEN)}"/>')
-
-
-def moon(cx, cy, r, ident, indent):
-    """The full moon: the lit disc, then its maria."""
-    out = [f'{indent}<circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(r)}" '
-           f'fill="url(#{ident})"/>']
-    out += [f'{indent}<circle cx="{_n(cx + dx * r)}" cy="{_n(cy + dy * r)}" '
-            f'r="{_n(dr * r)}" fill="{MARIA_FILL}" opacity=".32"/>'
-            for dx, dy, dr in MARIA]
+    out.append('<!-- the tree, the ground, and the swing hung from the branch -->')
+    out.append(f'<g fill="{INK}" stroke="{INK}" stroke-linecap="round" '
+               'stroke-linejoin="round">')
+    out.append(f'  <path stroke="none" d="{_trunk(view)}"/>')
+    out.append(f'  <path stroke="none" d="{BRANCH}"/>')
+    out += [f'  <path fill="none" stroke-width="{sw}" d="{d}"/>' for d, sw in TWIGS]
+    out += [f'  <ellipse stroke="none" cx="{lx}" cy="{ly}" rx="{rx}" ry="{ry}" '
+            f'transform="rotate({a} {lx} {ly})"/>' for lx, ly, rx, ry, a in LEAVES]
+    out.append(f'  <path stroke="none" d="{_hill(view)}"/>')
+    px, py = SWING_PIVOT
+    out.append(f'  <g transform="rotate({SWING_ANGLE} {px} {py})">')
+    out.append(_indent(SWING, '    '))
+    out.append('  </g>')
+    out.append('</g>')
     return '\n'.join(out)
 
 
-def moon_gradient(ident, indent):
-    return (f'{indent}<radialGradient id="{ident}" cx="38%" cy="34%" r="72%">\n'
-            f'{indent}  <stop offset="0" stop-color="{MOON_LIT}"/>\n'
-            f'{indent}  <stop offset="1" stop-color="{MOON_RIM}"/>\n'
-            f'{indent}</radialGradient>')
-
-
-def swing(i):
-    """The silhouette, in swing space, back to front.
-
-    Order matters only where the ink meets itself — it is one colour, so the
-    drawing is the union of these shapes and nothing here can occlude anything
-    above it. It is written back to front anyway, because that is the order
-    the pose is easiest to read in.
-    """
-    out = [f'{i}<!-- the swing itself -->']
-    out += [_stroke((x, ROPE_TOP), (x, SEAT_Y), W_ROPE, i)
-            for x in (-ROPE_X, ROPE_X)]
-    out.append(_seat(i))
-
-    out.append(f'{i}<!-- leg: thigh forward, shin hanging past the seat -->')
-    out.append(_taper(HIP, KNEE, W_THIGH, W_KNEE, i))
-    out.append(_disc(KNEE, W_KNEE, i))
-    out.append(_taper(KNEE, ANKLE, W_KNEE, W_ANKLE, i))
-    out.append(_disc(ANKLE, W_ANKLE, i))
-    out.append(_stroke(ANKLE, TOE, W_FOOT, i))
-
-    out.append(f'{i}<!-- torso, neck, head -->')
-    out.append(_taper(HIP, SHOULDER, W_HIP, W_SHOULDER, i))
-    out.append(_disc(HIP, W_HIP, i))
-    out.append(_disc(SHOULDER, W_SHOULDER, i))
-    out.append(_stroke(SHOULDER, HEAD, W_NECK, i))
-    out.append(_oval(HEAD, HEAD_RX, HEAD_RY, i))
-
-    out.append(f'{i}<!-- the near arm, up to the front rope -->')
-    out.append(_taper(SHOULDER, ELBOW, W_UPPER_ARM, W_ELBOW, i))
-    out.append(_disc(ELBOW, W_ELBOW, i))
-    out.append(_taper(ELBOW, HAND, W_ELBOW, W_WRIST, i))
-    out.append(_disc(HAND, W_WRIST * 1.6, i))  # the fist closed on the rope
-    return '\n'.join(out)
-
-
-def figure_group(pivot, scale, indent):
-    """The swing, placed. Read the transform right to left, as SVG applies it:
-    the drawing leans about its own pivot first, so LEAN is an angle of the
-    swing and not of the frame."""
-    transform = (f'translate({_n(pivot[0])} {_n(pivot[1])}) '
-                 f'scale({_n(scale)}) rotate({_n(LEAN)})')
-    return (f'{indent}<g transform="{transform}" fill="{INK}" stroke="{INK}"\n'
-            f'{indent}   stroke-linecap="round" stroke-linejoin="round">\n'
-            f'{swing(indent + "  ")}\n'
-            f'{indent}</g>')
-
-
-def legend():
-    """The joints, as a comment, so a diff of the artwork is readable."""
-    joints = (('hip', HIP), ('knee', KNEE), ('ankle', ANKLE), ('toe', TOE),
-              ('shoulder', SHOULDER), ('elbow', ELBOW), ('hand', HAND),
-              ('head', HEAD))
-    body = '  '.join(f'{k} {_n(v[0])},{_n(v[1])}' for k, v in joints)
-    return ('  <!-- Generated by tool/moonswing_sprite.py — edit there, not here.\n'
-            f'    lean {_n(LEAN)}deg   ropes +-{_n(ROPE_X)}   seat y{_n(SEAT_Y)}\n'
-            f'    {body}\n'
-            '  -->')
+def _header(view, width, height):
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" '
+            f'viewBox="{" ".join(_n(v) for v in view)}" '
+            f'width="{width}" height="{height}"\n'
+            f'     role="img" aria-label="{LABEL}">\n'
+            '  <!-- Generated by tool/moonswing_sprite.py — edit there, not here. -->')
 
 
 def mark():
-    """The swing on the moon, cropped to it: the favicon and the site logo.
-
-    The disc is the moon rather than a plate the drawing stands on, so the
-    ropes have nowhere to go but off its top edge — which is what the clip is
-    for. They leave the frame the way they would leave a photograph, and the
-    mark needs no branch, no sky and no second colour to say what it is.
-    """
-    cx, cy, r = MARK_MOON
-    scale, pivot = _fit(MARK_SPAN, MARK_CENTRE)
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {MARK_N} {MARK_N}" \
-width="{MARK_N}" height="{MARK_N}"
-     role="img" aria-label="A silhouette of someone on a swing in front of a full moon">
-{legend()}
+    """The scene cropped close on the moon, on a rounded tile: the favicon and
+    the site logo."""
+    x, y, w, h = MARK_VIEW
+    r = w * MARK_RADIUS
+    return f'''{_header(MARK_VIEW, MARK_N, MARK_N)}
   <defs>
-{moon_gradient('ms-moon-m', '    ')}
-    <clipPath id="ms-disc">
-      <circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(r)}"/>
+{_indent(defs('ms-m'), '    ')}
+    <clipPath id="ms-m-tile">
+      <rect x="{_n(x)}" y="{_n(y)}" width="{_n(w)}" height="{_n(h)}" rx="{_n(r)}"/>
     </clipPath>
   </defs>
-
-{moon(cx, cy, r, 'ms-moon-m', '  ')}
-  <g clip-path="url(#ms-disc)">
-{figure_group(pivot, scale, '    ')}
+  <g clip-path="url(#ms-m-tile)">
+{_indent(scene(MARK_VIEW, 'ms-m'), '    ')}
   </g>
 </svg>
 '''
 
 
 def banner():
-    """The same drawing on a night sky, for README.md and the website hero.
-
-    No scene beyond the sky. The banner used to draw a mock desktop behind the
-    character — a panel, two windows, a starfield — and that was a screenshot
-    the shell had not earned, dating itself every time the real thing changed.
-    The stars are the one thing kept from it, because a sky this wide is
-    otherwise a gradient with a hole in it, and a star dates never.
+    """The same scene, wide, for README.md and the website hero.
 
     The 960x420 box is load-bearing: website/scripts/sync.mjs rasterises the
     social card at exactly 2x it.
     """
-    scale, pivot = _banner_placement()
-    cx, cy, r = BANNER_MOON
-    stars = '\n'.join(
-        f'  <circle cx="{_n(x)}" cy="{_n(y)}" r="{_n(rad)}" fill="{STAR}" '
-        f'opacity="{_n(op)}"/>' for x, y, rad, op in STARS)
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {BANNER_W} {BANNER_H}" \
-width="{BANNER_W}" height="{BANNER_H}"
-     role="img" aria-label="A silhouette of someone on a swing in front of a full moon">
-{legend()}
+    return f'''{_header(BANNER_VIEW, BANNER_W, BANNER_H)}
   <defs>
-    <linearGradient id="ms-sky" x1="0" y1="0" x2=".25" y2="1">
-      <stop offset="0" stop-color="{SKY[0]}"/>
-      <stop offset="55%" stop-color="{SKY[1]}"/>
-      <stop offset="1" stop-color="{SKY[2]}"/>
-    </linearGradient>
-    <radialGradient id="ms-halo" cx="50%" cy="50%" r="50%">
-      <stop offset="0" stop-color="{MOON_LIT}" stop-opacity=".26"/>
-      <stop offset="55%" stop-color="{MOON_LIT}" stop-opacity=".07"/>
-      <stop offset="1" stop-color="{MOON_LIT}" stop-opacity="0"/>
-    </radialGradient>
-{moon_gradient('ms-moon-b', '    ')}
+{_indent(defs('ms-b'), '    ')}
   </defs>
-
-  <rect width="{BANNER_W}" height="{BANNER_H}" fill="url(#ms-sky)"/>
-{stars}
-
-  <!-- the halo first: it is the moon's light falling on the sky, so it sits
-       under the disc and over the stars it would wash out -->
-  <circle cx="{_n(cx)}" cy="{_n(cy)}" r="{_n(r * 2.1)}" fill="url(#ms-halo)"/>
-{moon(cx, cy, r, 'ms-moon-b', '  ')}
-
-{figure_group(pivot, scale, '  ')}
+{_indent(scene(BANNER_VIEW, 'ms-b'), '  ')}
 </svg>
 '''
 
