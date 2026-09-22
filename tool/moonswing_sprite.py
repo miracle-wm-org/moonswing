@@ -82,30 +82,17 @@ KNEE = (5.8, 25.0)
 ANKLE = (9.6, 27.4)
 TOE = (10.9, 27.2)
 SHOULDER = (-0.5, 17.5)
-HEAD = (-0.6, 12.9)
-HEAD_R = 1.85
+HEAD = (-0.6, 12.85)
+HEAD_RX, HEAD_RY = 1.8, 2.15  # a head is taller than it is deep, in profile
+#                               as much as head-on, and a circle at this size
+#                               reads as a ball on a stick. The oval is slight
+#                               on purpose: swing space is upright, so it
+#                               arrives in the world tipped back by LEAN, and
+#                               a stronger one would read as a tilted head.
 ELBOW = (2.3, 14.8)
 HAND = (ROPE_X, 11.0)  # on the rope, not near it, and high enough up it that
 #                        the arm clears the torso — gripping at shoulder height
 #                        drew an arm that merged into the chest and vanished.
-
-# A short, flowy haircut, in two parts. Both are needed: the cap alone is a
-# bigger skull, and the sweep alone is a wedge stuck to a bald head.
-#
-#   * CAP — a disc a little wider than the skull, sitting back and up off it,
-#     so the crown and the back of the head carry hair and the face does not.
-#   * SWEEP — a short taper off the nape, trailing the direction of travel and
-#     rising, which is the whole of the "flowy". It has to rise by noticeably
-#     more than LEAN: swing space is upright, so hair drawn level here arrives
-#     in the world angled *down* and behind the jaw, which on a figure facing
-#     the other way reads as a chin on the back of the head.
-#
-# Short is the constraint, not a preference: earlier passes drew two long
-# strands and then a long wedge, and at favicon size both read as a limb
-# thrown out behind rather than as hair. The sweep also has to stop clear of
-# the back rope, or the two merge into one shape.
-HAIR_CAP = ((-0.95, 12.5), 1.09)  # centre, and a multiple of HEAD_R
-HAIR_SWEEP = ((-1.5, 13.2), (-3.0, 11.9), 1.7, 0.9)
 
 W_HIP, W_SHOULDER = 3.0, 4.4  # the torso taper: widest where the arms hang
 #                               off, and wider than the head — a head as broad
@@ -177,15 +164,23 @@ def _fit(span, centre):
     purpose: they run off the top of both frames by design, and measuring them
     would shrink the figure to nothing.
     """
-    blobs = [(HEAD, HEAD_R), (HIP, W_HIP / 2), (SHOULDER, W_SHOULDER / 2),
-             (KNEE, W_KNEE / 2), (ANKLE, W_ANKLE / 2), (TOE, W_FOOT / 2),
-             (ELBOW, W_ELBOW / 2), (HAND, W_WRIST / 2),
+    # Each entry is a point and how far the drawing reaches around it — one
+    # number, or a pair for the head, which is the only thing here that is not
+    # round. Expanding the rotated centre along the world axes is a shade off
+    # for an oval (the oval leans too), and over-estimates, which is the safe
+    # direction for something deciding how much room to leave.
+    blobs = [(HEAD, (HEAD_RX, HEAD_RY)), (HIP, W_HIP / 2),
+             (SHOULDER, W_SHOULDER / 2), (KNEE, W_KNEE / 2),
+             (ANKLE, W_ANKLE / 2), (TOE, W_FOOT / 2), (ELBOW, W_ELBOW / 2),
+             (HAND, W_WRIST / 2),
              ((-SEAT_HALF, SEAT_Y + SEAT_H), 0), ((SEAT_HALF, SEAT_Y), 0)]
-    blobs.append((HAIR_CAP[0], HEAD_R * HAIR_CAP[1]))
-    blobs.append((HAIR_SWEEP[1], HAIR_SWEEP[3] / 2))
 
-    xs = [c for p, r in blobs for c in (_rotate(p)[0] - r, _rotate(p)[0] + r)]
-    ys = [c for p, r in blobs for c in (_rotate(p)[1] - r, _rotate(p)[1] + r)]
+    xs, ys = [], []
+    for point, reach in blobs:
+        rx, ry = reach if isinstance(reach, tuple) else (reach, reach)
+        x, y = _rotate(point)
+        xs += [x - rx, x + rx]
+        ys += [y - ry, y + ry]
     lo = (min(xs), min(ys))
     hi = (max(xs), max(ys))
 
@@ -228,6 +223,15 @@ def _disc(p, width, indent):
     """
     r = max(width / 2 - SOFTEN / 2, 0.02)
     return (f'{indent}<circle cx="{_n(p[0])}" cy="{_n(p[1])}" r="{_n(r)}" '
+            f'stroke-width="{_n(SOFTEN)}"/>')
+
+
+def _oval(p, rx, ry, indent):
+    """The head. Softened exactly as the discs are, so it sits in the same
+    silhouette: built inward by half of SOFTEN, then stroked back out."""
+    return (f'{indent}<ellipse cx="{_n(p[0])}" cy="{_n(p[1])}" '
+            f'rx="{_n(max(rx - SOFTEN / 2, 0.02))}" '
+            f'ry="{_n(max(ry - SOFTEN / 2, 0.02))}" '
             f'stroke-width="{_n(SOFTEN)}"/>')
 
 
@@ -295,14 +299,12 @@ def swing(i):
     out.append(_disc(ANKLE, W_ANKLE, i))
     out.append(_stroke(ANKLE, TOE, W_FOOT, i))
 
-    out.append(f'{i}<!-- torso, neck, head, hair -->')
+    out.append(f'{i}<!-- torso, neck, head -->')
     out.append(_taper(HIP, SHOULDER, W_HIP, W_SHOULDER, i))
     out.append(_disc(HIP, W_HIP, i))
     out.append(_disc(SHOULDER, W_SHOULDER, i))
     out.append(_stroke(SHOULDER, HEAD, W_NECK, i))
-    out.append(_disc(HEAD, HEAD_R * 2, i))
-    out.append(_disc(HAIR_CAP[0], HEAD_R * HAIR_CAP[1] * 2, i))
-    out.append(_taper(*HAIR_SWEEP, i))
+    out.append(_oval(HEAD, HEAD_RX, HEAD_RY, i))
 
     out.append(f'{i}<!-- the near arm, up to the front rope -->')
     out.append(_taper(SHOULDER, ELBOW, W_UPPER_ARM, W_ELBOW, i))
