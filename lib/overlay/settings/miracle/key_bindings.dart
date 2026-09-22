@@ -169,10 +169,8 @@ class MiracleKeyBindingsSection extends StatelessWidget {
       modifiers: binding.modifiers,
       keyCode: binding.key,
       action: binding.action,
-      onModifiers: (next) => _editCustom(
-        index,
-        (binding) => binding.copyWith(modifiers: next),
-      ),
+      onModifiers: (next) =>
+          _editCustom(index, (binding) => binding.copyWith(modifiers: next)),
       onKey: (next) =>
           _editCustom(index, (binding) => binding.copyWith(key: next)),
       onAction: (next) =>
@@ -186,13 +184,11 @@ class MiracleKeyBindingsSection extends StatelessWidget {
       ),
       target: _LabelledControl(
         label: 'Runs',
-        child: SettingsTextField(
+        child: SettingsCommitField(
           initial: binding.command,
           hint: 'e.g. firefox',
-          onChanged: (text) => _editCustom(
-            index,
-            (binding) => binding.copyWith(command: text),
-          ),
+          onCommitted: (text) =>
+              _editCustom(index, (binding) => binding.copyWith(command: text)),
         ),
       ),
     );
@@ -215,10 +211,8 @@ class MiracleKeyBindingsSection extends StatelessWidget {
       ),
       onKey: (next) =>
           _editOverride(index, (override) => override.copyWith(key: next)),
-      onAction: (next) => _editOverride(
-        index,
-        (override) => override.copyWith(action: next),
-      ),
+      onAction: (next) =>
+          _editOverride(index, (override) => override.copyWith(action: next)),
       onMoveUp: index > 0 ? () => _moveOverride(index, -1) : null,
       onMoveDown: index < config.builtInKeyCommandOverrides.length - 1
           ? () => _moveOverride(index, 1)

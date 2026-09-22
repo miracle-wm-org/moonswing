@@ -105,10 +105,10 @@ class _WorkspaceCard extends StatelessWidget {
   final VoidCallback? onMoveUp;
   final VoidCallback? onMoveDown;
 
-  /// Digits only. The number is a `SettingsTextField` rather than a
+  /// Digits only. The number is a [SettingsCommitField] rather than a
   /// [SettingsNumberField] because both fields here have to be *clearable* —
   /// either one may legitimately be unset — and a number field cannot report an
-  /// empty box, only the last number that was in it.
+  /// empty box, only a number.
   static final List<TextInputFormatter> _digits = [
     FilteringTextInputFormatter.allow(RegExp(r'[0-9]')),
   ];
@@ -131,12 +131,12 @@ class _WorkspaceCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          SettingsTextField(
+          SettingsCommitField(
             width: 70,
             initial: workspace.number?.toString() ?? '',
             hint: 'any',
             inputFormatters: _digits,
-            onChanged: (text) {
+            onCommitted: (text) {
               final trimmed = text.trim();
               if (trimmed.isEmpty) {
                 onChanged(workspace.copyWith(clearNumber: true));
@@ -157,10 +157,10 @@ class _WorkspaceCard extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Expanded(
-            child: SettingsTextField(
+            child: SettingsCommitField(
               initial: workspace.name ?? '',
               hint: 'unnamed',
-              onChanged: (text) {
+              onCommitted: (text) {
                 final trimmed = text.trim();
                 onChanged(
                   trimmed.isEmpty

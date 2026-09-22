@@ -163,14 +163,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                         if (fonts == null || fonts.isEmpty) {
                           // Still loading, or no fontconfig on this machine.
                           // The key stays editable by hand either way.
-                          return SettingsTextField(
-                            // Keyed on the theme so switching re-seeds the
-                            // field — SettingsTextField reads `initial` only
-                            // on first build.
+                          return SettingsCommitField(
+                            // Keyed on the theme so switching starts a fresh
+                            // edit rather than carrying one across themes.
                             key: ValueKey('font-$active'),
                             width: 180,
                             initial: value,
-                            onChanged: (v) => _themes.edit('font', v.trim()),
+                            onCommitted: (v) => _themes.edit('font', v.trim()),
                           );
                         }
                         return SettingsFontField(

@@ -14,8 +14,7 @@ import 'package:moonswing/modules/battery.dart' show BatteryConfig;
 import 'package:moonswing/modules/clock.dart' show ClockConfig;
 import 'package:moonswing/modules/dock.dart' show DockConfig;
 import 'package:moonswing/modules/github.dart' show GithubConfig;
-import 'package:moonswing/modules/media_player.dart'
-    show MediaPlayerConfig;
+import 'package:moonswing/modules/media_player.dart' show MediaPlayerConfig;
 import 'package:moonswing/modules/network.dart' show NetworkConfig;
 import 'package:moonswing/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:moonswing/modules/weather.dart' show WeatherConfig;
@@ -458,11 +457,11 @@ class ModulesSection extends StatelessWidget {
           store: store,
           path: path,
           fallback: '',
-          builder: (context, value) => SettingsTextField(
+          builder: (context, value) => SettingsCommitField(
             initial: value!,
             hint: setting.addHint,
             width: 220,
-            onChanged: (value) => store.set(path, value),
+            onCommitted: (value) => store.set(path, value),
           ),
         );
       case _Kind.stringList:

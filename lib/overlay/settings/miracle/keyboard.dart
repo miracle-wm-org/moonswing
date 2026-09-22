@@ -133,14 +133,14 @@ class MiracleKeyboardSection extends StatelessWidget {
             store: store,
             select: (config) => config.keymap.language,
             fallback: '',
-            builder: (context, value) => SettingsTextField(
+            builder: (context, value) => SettingsCommitField(
               width: kMiracleControlWidth,
               initial: value,
               hint: _defaultLanguage,
               // The property setter, never `keymap.set()`: setting the whole
               // keymap rebuilds it from scratch and drops every XKB option the
               // user has configured.
-              onChanged: (text) =>
+              onCommitted: (text) =>
                   store.edit((config) => config.keymap.language = text.trim()),
             ),
           ),
@@ -151,11 +151,11 @@ class MiracleKeyboardSection extends StatelessWidget {
             store: store,
             select: (config) => config.keymap.variant ?? '',
             fallback: '',
-            builder: (context, value) => SettingsTextField(
+            builder: (context, value) => SettingsCommitField(
               width: kMiracleControlWidth,
               initial: value,
               hint: 'none',
-              onChanged: (text) {
+              onCommitted: (text) {
                 final trimmed = text.trim();
                 store.edit(
                   (config) =>
