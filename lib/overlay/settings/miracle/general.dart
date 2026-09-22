@@ -107,11 +107,11 @@ class MiracleGeneralSection extends StatelessWidget {
                 store: store,
                 select: (config) => config.terminal ?? '',
                 fallback: '',
-                builder: (context, value) => SettingsTextField(
+                builder: (context, value) => SettingsCommitField(
                   width: kMiracleControlWidth,
                   initial: value,
                   hint: 'miracle picks one',
-                  onChanged: (text) {
+                  onCommitted: (text) {
                     final trimmed = text.trim();
                     store.edit(
                       (config) =>

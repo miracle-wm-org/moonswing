@@ -41,8 +41,7 @@ class MiracleAccessibilitySection extends StatelessWidget {
             _decimal(
               SettingsCatalog.miracleMagnifierScaleIncrement,
               select: (config) => config.magnifier.scaleIncrement,
-              apply: (config, value) =>
-                  config.magnifier.scaleIncrement = value,
+              apply: (config, value) => config.magnifier.scaleIncrement = value,
             ),
             _whole(
               SettingsCatalog.miracleMagnifierWidth,
@@ -76,13 +75,11 @@ class MiracleAccessibilitySection extends StatelessWidget {
             _milliseconds(
               SettingsCatalog.miracleHoverClickDuration,
               select: (config) => config.hoverClick.hoverDuration,
-              apply: (config, value) =>
-                  config.hoverClick.hoverDuration = value,
+              apply: (config, value) => config.hoverClick.hoverDuration = value,
             ),
             _whole(
               SettingsCatalog.miracleHoverClickCancel,
-              select: (config) =>
-                  config.hoverClick.cancelDisplacementThreshold,
+              select: (config) => config.hoverClick.cancelDisplacementThreshold,
               apply: (config, value) =>
                   config.hoverClick.cancelDisplacementThreshold = value,
             ),
@@ -142,9 +139,8 @@ class MiracleAccessibilitySection extends StatelessWidget {
               SettingsCatalog.miracleStickyKeysDisable,
               select: (config) =>
                   config.stickyKeys.disableIfTwoKeysArePressedTogether,
-              apply: (config, value) => config
-                  .stickyKeys
-                  .disableIfTwoKeysArePressedTogether = value,
+              apply: (config, value) =>
+                  config.stickyKeys.disableIfTwoKeysArePressedTogether = value,
             ),
             const SettingsHint(
               'Sticky keys latch a modifier when it is pressed, so Action Key '
@@ -162,17 +158,15 @@ class MiracleAccessibilitySection extends StatelessWidget {
                 store: store,
                 select: (config) => config.outputFilter.shaderPath ?? '',
                 fallback: '',
-                builder: (context, value) => SettingsTextField(
+                builder: (context, value) => SettingsCommitField(
                   width: 300,
                   initial: value,
                   hint: 'no filter',
-                  onChanged: (text) {
+                  onCommitted: (text) {
                     final trimmed = text.trim();
                     store.edit(
-                      (config) => config.outputFilter.shaderPath = trimmed
-                              .isEmpty
-                          ? null
-                          : trimmed,
+                      (config) => config.outputFilter.shaderPath =
+                          trimmed.isEmpty ? null : trimmed,
                     );
                   },
                 ),
@@ -263,8 +257,7 @@ class MiracleAccessibilitySection extends StatelessWidget {
         value: value,
         isInt: true,
         onChanged: (next) => store.edit(
-          (config) =>
-              apply(config, Duration(milliseconds: next.toInt())),
+          (config) => apply(config, Duration(milliseconds: next.toInt())),
         ),
       ),
     ),

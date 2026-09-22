@@ -25,8 +25,7 @@ class MiracleStartupSection extends StatelessWidget {
           trailing: SettingsAddButton(
             label: 'Add application',
             onTap: () => store.editStructure(
-              (config) =>
-                  config.startupApps.add(const StartupApp(command: '')),
+              (config) => config.startupApps.add(const StartupApp(command: '')),
             ),
           ),
           children: [
@@ -108,8 +107,7 @@ class MiracleStartupSection extends StatelessWidget {
                             ? () => _moveVariable(i, 1)
                             : null,
                         onRemove: () => store.editStructure(
-                          (config) =>
-                              config.environmentVariables.removeAt(i),
+                          (config) => config.environmentVariables.removeAt(i),
                         ),
                       ),
                   ],
@@ -207,10 +205,10 @@ class _AppCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SettingsTextField(
+          SettingsCommitField(
             initial: app.command,
             hint: 'e.g. nm-applet',
-            onChanged: (text) => onChanged(app.copyWith(command: text)),
+            onCommitted: (text) => onChanged(app.copyWith(command: text)),
           ),
           const SizedBox(height: 6),
           // Pills rather than four labelled [SettingsToggle] rows: toggles
@@ -261,10 +259,10 @@ class _VariableCard extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: SettingsTextField(
+            child: SettingsCommitField(
               initial: variable.key,
               hint: 'NAME',
-              onChanged: (text) => onChanged(variable.copyWith(key: text)),
+              onCommitted: (text) => onChanged(variable.copyWith(key: text)),
             ),
           ),
           Padding(
@@ -279,10 +277,10 @@ class _VariableCard extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: SettingsTextField(
+            child: SettingsCommitField(
               initial: variable.value,
               hint: 'value',
-              onChanged: (text) => onChanged(variable.copyWith(value: text)),
+              onCommitted: (text) => onChanged(variable.copyWith(value: text)),
             ),
           ),
         ],

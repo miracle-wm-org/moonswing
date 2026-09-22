@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -1471,6 +1472,172 @@ class _SettingsTextFieldState extends State<SettingsTextField>
   }
 }
 
+/// A [SettingsTextField] whose value is *committed*, not streamed: nothing is
+/// reported while the user types, only when they press Enter, tab away, click
+/// outside the field, or the field is unmounted mid-edit.
+///
+/// The settings pages write through to live state — the shell re-reads its own
+/// config as it changes — so a field that reported every keystroke applied
+/// every half-typed value on the way to the one meant: typing `24` into a panel
+/// height laid the bar out at `2` first, and backspacing through a terminal
+/// name wrote each shorter prefix. This is the one place that holds an edit
+/// back; a page never wires Enter and blur itself.
+///
+/// A commit is reported only when the text differs from the last one reported
+/// (or from [initial]), so Enter followed by the blur it causes is one call.
+/// [accepts] rejects a commit outright — the text reverts to [initial] rather
+/// than leaving something on screen the setting does not hold.
+///
+/// While unfocused the field follows [initial], so a value changed from
+/// elsewhere (a reset, a theme switch, a store clamping what was committed)
+/// shows up without the caller having to re-key the field. While focused it is
+/// the user's, and nothing from outside overwrites it.
+class SettingsCommitField extends StatefulWidget {
+  const SettingsCommitField({
+    super.key,
+    required this.initial,
+    required this.onCommitted,
+    this.accepts,
+    this.width,
+    this.inputFormatters,
+    this.hint,
+  });
+
+  /// The value the setting currently holds, as text.
+  final String initial;
+
+  /// The text the user settled on.
+  final ValueChanged<String> onCommitted;
+
+  /// Whether [onCommitted] may be given this text. Null accepts anything.
+  final bool Function(String text)? accepts;
+
+  final double? width;
+  final List<TextInputFormatter>? inputFormatters;
+  final String? hint;
+
+  @override
+  State<SettingsCommitField> createState() => _SettingsCommitFieldState();
+}
+
+class _SettingsCommitFieldState extends State<SettingsCommitField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+  final FocusNode _focusNode = FocusNode();
+
+  /// What the setting was last known to hold: [SettingsCommitField.initial],
+  /// or the text last reported, whichever is newer.
+  late String _committed = widget.initial;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(SettingsCommitField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initial == oldWidget.initial) return;
+    _committed = widget.initial;
+    if (!_focusNode.hasFocus && _controller.text != widget.initial) {
+      _controller.text = widget.initial;
+    }
+  }
+
+  void _onFocusChanged() {
+    if (_focusNode.hasFocus) {
+      _watchPointers();
+    } else {
+      _unwatchPointers();
+      _commit();
+    }
+  }
+
+  bool _watching = false;
+
+  /// A click anywhere but the field ends the edit.
+  ///
+  /// [EditableText.onTapOutside] cannot do it: it needs a `TapRegionSurface`,
+  /// which only a `WidgetsApp` provides and no shell window has — and even with
+  /// one, a desktop field keeps focus through a click elsewhere, which would
+  /// leave the edit uncommitted until some other field took focus. A global
+  /// route sees every pointer down in the process, hit or not, and is held only
+  /// while focused.
+  void _watchPointers() {
+    if (_watching) return;
+    _watching = true;
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
+  }
+
+  void _unwatchPointers() {
+    if (!_watching) return;
+    _watching = false;
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+  }
+
+  void _onPointer(PointerEvent event) {
+    if (event is! PointerDownEvent || !mounted) return;
+    final box = context.findRenderObject();
+    // Another FlutterView — a popup, another monitor's panel — is outside by
+    // definition; its coordinates mean nothing in this one.
+    if (box is RenderBox &&
+        box.attached &&
+        event.viewId == View.maybeOf(context)?.viewId &&
+        (Offset.zero & box.size).contains(box.globalToLocal(event.position))) {
+      return;
+    }
+    _focusNode.unfocus();
+  }
+
+  void _commit() {
+    final text = _controller.text;
+    if (text == _committed) return;
+    final accepts = widget.accepts;
+    if (accepts != null && !accepts(text)) {
+      _controller.text = _committed = widget.initial;
+      return;
+    }
+    _committed = text;
+    widget.onCommitted(text);
+  }
+
+  @override
+  void dispose() {
+    _unwatchPointers();
+    _focusNode.removeListener(_onFocusChanged);
+    // An edit still in the field when it goes away — the overlay closed, the
+    // row scrolled out with focus elsewhere — is still what the user typed.
+    // Reported a microtask later, because the callback writes to a store whose
+    // listeners rebuild, and the tree is locked while this runs.
+    final text = _controller.text;
+    final accepts = widget.accepts;
+    final onCommitted = widget.onCommitted;
+    if (text != _committed && (accepts == null || accepts(text))) {
+      scheduleMicrotask(() => onCommitted(text));
+    }
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsTextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      width: widget.width,
+      inputFormatters: widget.inputFormatters,
+      hint: widget.hint,
+      onChanged: _ignore,
+      onSubmitted: (_) => _commit(),
+    );
+  }
+
+  static void _ignore(String _) {}
+}
+
 class SettingsNumberField extends StatelessWidget {
   const SettingsNumberField({
     super.key,
@@ -1489,9 +1656,12 @@ class SettingsNumberField extends StatelessWidget {
   /// cannot be negative, and the filter is the only thing stopping one. The
   /// shadow offsets and spread are the exception: CSS casts a shadow up and to
   /// the left with negative values, and shrinks one before blurring. A lone
-  /// `-` mid-typing parses to null, which the handler below already ignores.
+  /// `-` parses to null, which [SettingsCommitField.accepts] turns back into
+  /// the value the setting holds.
   final bool allowNegative;
 
+  /// The number the user committed — see [SettingsCommitField]; never a
+  /// half-typed one.
   final ValueChanged<num> onChanged;
 
   /// The four filters, compiled once.
@@ -1513,24 +1683,19 @@ class SettingsNumberField extends StatelessWidget {
     FilteringTextInputFormatter.allow(RegExp(r'[-0-9.]')),
   ];
 
+  num? _parse(String text) =>
+      isInt ? int.tryParse(text.trim()) : double.tryParse(text.trim());
+
   @override
   Widget build(BuildContext context) {
-    return SettingsTextField(
+    return SettingsCommitField(
       width: 90,
       initial: isInt ? '${value.toInt()}' : _trimDouble(value.toDouble()),
       inputFormatters: isInt
           ? (allowNegative ? _intSigned : _intOnly)
           : (allowNegative ? _decimalSigned : _decimalOnly),
-      onChanged: (text) {
-        if (text.isEmpty) return;
-        if (isInt) {
-          final v = int.tryParse(text);
-          if (v != null) onChanged(v);
-        } else {
-          final v = double.tryParse(text);
-          if (v != null) onChanged(v);
-        }
-      },
+      accepts: (text) => _parse(text) != null,
+      onCommitted: (text) => onChanged(_parse(text)!),
     );
   }
 
@@ -3091,7 +3256,6 @@ class SettingsBanner extends StatelessWidget {
     );
   }
 }
-
 
 /// [SettingsBanner]'s calm sibling: an accent-tinted note about something that
 /// went *right* and still needs the user to do something.
