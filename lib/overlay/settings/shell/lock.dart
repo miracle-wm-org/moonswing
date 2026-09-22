@@ -2,11 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/file_picker.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/file_picker.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The lock screen's wallpaper and chrome.
 ///

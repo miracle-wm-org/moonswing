@@ -10,13 +10,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
-import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
-import 'package:graceful_shell/overlay/settings/settings_search.dart';
-import 'package:graceful_shell/overlay/settings/settings_search_bar.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_highlight.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart';
+import 'package:moonswing/overlay/settings/settings_search_bar.dart';
+import 'package:moonswing/scopes.dart';
 
 Widget _chrome({
   required Widget child,

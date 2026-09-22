@@ -5,7 +5,7 @@ import 'dart:ffi';
 import 'dart:isolate';
 import 'dart:math' as math;
 import 'package:ffi/ffi.dart';
-import 'package:graceful_shell/pulse_log.dart';
+import 'package:moonswing/pulse_log.dart';
 import 'package:pulseaudio/src/generated_bindings.dart';
 
 // ---------------------------------------------------------------------------

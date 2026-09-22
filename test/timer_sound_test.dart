@@ -3,12 +3,12 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/modules/clock.dart';
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/notification_sound.dart';
-import 'package:graceful_shell/shell_sound.dart';
-import 'package:graceful_shell/timers/timer_sound.dart';
-import 'package:graceful_shell/timers/timer_store.dart';
+import 'package:moonswing/modules/clock.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/notification_sound.dart';
+import 'package:moonswing/shell_sound.dart';
+import 'package:moonswing/timers/timer_sound.dart';
+import 'package:moonswing/timers/timer_store.dart';
 
 /// A voice out of the shipped catalogue, so the tests below pin what the shell
 /// actually rings rather than a fixture that could drift from it.
@@ -171,7 +171,7 @@ void main() {
 
       final voice = _voice('ding');
       final path = materialiseTimerVoice(voice, environment: environment);
-      expect(path, '${cache.path}/graceful-shell/sounds/timer-ding.wav');
+      expect(path, '${cache.path}/moonswing/sounds/timer-ding.wav');
       expect(File(path).lengthSync(), timerWavByteLength(voice));
 
       // And the chime's own file is a different one, even where the slugs are

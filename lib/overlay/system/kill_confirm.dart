@@ -1,10 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/process_killer.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/process_killer.dart';
 
 /// Whether the user is being asked to terminate a process politely, or to kill
 /// one that has already ignored a SIGTERM.

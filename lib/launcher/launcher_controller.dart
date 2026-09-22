@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 /// The seam between anything that wants the launcher open and the shell root.
 ///
 /// Two things ask for it: the global shortcut and the magnifier bar module.
-/// Neither can create a window — `_GracefulShellRootState` owns them all — so
+/// Neither can create a window — `_MoonswingRootState` owns them all — so
 /// both poke this singleton and the root reacts. (Why not `InputTriggerStore`:
 /// see [SignalController].)
 class LauncherController extends SignalController {

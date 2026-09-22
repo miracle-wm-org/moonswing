@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:graceful_shell/keyboard/locale1_client.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
 
 /// A [Locale1Client] with no system bus behind it.
 class FakeLocale1Client implements Locale1Client {

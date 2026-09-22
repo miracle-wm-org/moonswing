@@ -1,22 +1,22 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_coordinator.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/notification_badge.dart';
-import 'package:graceful_shell/notification_panel_controller.dart';
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/notification_sound.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/notification_badge.dart';
+import 'package:moonswing/notification_panel_controller.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/notification_sound.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// How wide the panel is on an output [screenWidth] logical pixels across.
 ///
@@ -395,7 +395,7 @@ const Duration kNotificationPanelExit = ShellDurations.overlayFade;
 /// Arrives on creation by the animation it leaves by, played backwards (see
 /// [_NotificationPanelState]), and is destroyed once the leaving half is over.
 ///
-/// Owned by `_GracefulShellRootState` rather than the bell module — both things
+/// Owned by `_MoonswingRootState` rather than the bell module — both things
 /// that ask for it (the bell and the floating badge) ask the root, which is what
 /// makes there be exactly one.
 ///

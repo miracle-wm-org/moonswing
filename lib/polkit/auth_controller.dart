@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 import 'auth_session.dart';
 import 'polkit_types.dart';
 
 /// The seam between the polkit agent (a D-Bus object with no widget tree under
-/// it, blocked inside `BeginAuthentication`) and `_GracefulShellRootState`.
+/// it, blocked inside `BeginAuthentication`) and `_MoonswingRootState`.
 ///
 /// [RequestController]'s three rules are all load-bearing here, and the first is
 /// a security posture rather than a convenience:

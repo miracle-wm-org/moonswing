@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/capture/capture_source.dart';
-import 'package:graceful_shell/capture/capture_targets.dart';
+import 'package:moonswing/capture/capture_source.dart';
+import 'package:moonswing/capture/capture_targets.dart';
 
 /// Which display a pick is finally taken from.
 ///

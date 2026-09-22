@@ -11,23 +11,23 @@
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_text_root.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/weather/weather_api.dart';
-import 'package:graceful_shell/weather/weather_config.dart';
-import 'package:graceful_shell/weather/weather_icons.dart';
-import 'package:graceful_shell/weather/weather_store.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_text_root.dart';
+import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_config.dart';
+import 'package:moonswing/weather/weather_icons.dart';
+import 'package:moonswing/weather/weather_store.dart';
 
-export 'package:graceful_shell/weather/weather_config.dart' show WeatherConfig;
+export 'package:moonswing/weather/weather_config.dart' show WeatherConfig;
 
 class Weather extends StatefulWidget {
   // Not const: the default store is the process-wide singleton, which a const

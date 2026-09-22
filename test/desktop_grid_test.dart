@@ -5,12 +5,12 @@ import 'package:flutter/gestures.dart'
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_grid.dart';
-import 'package:graceful_shell/desktop/desktop_icon.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
-import 'package:graceful_shell/desktop/desktop_store.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_grid.dart';
+import 'package:moonswing/desktop/desktop_icon.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
+import 'package:moonswing/desktop/desktop_store.dart';
+import 'package:moonswing/scopes.dart';
 
 const Size _surface = Size(400, 300);
 

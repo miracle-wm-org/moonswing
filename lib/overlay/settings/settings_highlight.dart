@@ -11,7 +11,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/overlay/settings/settings_search.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart';
 
 /// How long a target waits to be claimed before it is dropped.
 ///

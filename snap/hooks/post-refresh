@@ -2,6 +2,6 @@
 # A refresh can change the shipped .portal / -portals.conf, so re-write the
 # machine-wide copies the install hook laid down. Same script, same
 # marker guard: a file this snap did not write is still left alone.
-setup="${SNAP:-}/bin/graceful-shell-portal-setup"
+setup="${SNAP:-}/bin/moonswing-portal-setup"
 [ -x "$setup" ] && "$setup" install
 exit 0

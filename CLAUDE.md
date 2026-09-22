@@ -2,7 +2,7 @@
 
 Guidance for Claude Code (claude.ai/code) working in this repository.
 
-## Graceful Shell
+## Moonswing
 
 A Flutter Linux desktop shell. It renders wlr-layer-shell panels, a wallpaper + desktop-icon surface, full-screen overlays, popups, an OSD and a lock screen. Built on Flutter's experimental windowing API (`flutter config --enable-windowing`), tracking `master`, which renames those APIs without notice. The shell is also the session's notification daemon, StatusNotifierItem tray host, xdg-desktop-portal ScreenCast backend, polkit authentication agent and session locker.
 
@@ -18,9 +18,9 @@ flutter analyze
 flutter test
 flutter test test/widget_test.dart
 
-# Profile against a live compositor (GRACEFUL_SHELL_IMPELLER=1 is the only way to Impeller).
-flutter build linux --profile && GRACEFUL_SHELL_IMPELLER=1 \
-  ./build/linux/x64/profile/bundle/graceful_shell
+# Profile against a live compositor (MOONSWING_IMPELLER=1 is the only way to Impeller).
+flutter build linux --profile && MOONSWING_IMPELLER=1 \
+  ./build/linux/x64/profile/bundle/moonswing
 
 # Capture/screencast stack — untestable from the shell binary; needs a live compositor.
 dart compile exe tool/screencast_spike.dart -o /tmp/spike
@@ -32,16 +32,16 @@ gdbus call --session --dest org.freedesktop.portal.Desktop \
   --method org.freedesktop.DBus.Properties.Get \
   org.freedesktop.portal.ScreenCast AvailableSourceTypes   # 0 = frontend cached no backend
 
-dart run tool/pulse_spike.dart      # PulseAudio driver; GRACEFUL_PULSE_LOG=1 for logging
+dart run tool/pulse_spike.dart      # PulseAudio driver; MOONSWING_PULSE_LOG=1 for logging
 ```
 
 ```sh
 # The website and wiki. `dev` and `build` regenerate the pages taken from CONFIG.md first.
-cd website && npm install && npm run dev   # http://localhost:4321/graceful-shell/
+cd website && npm install && npm run dev   # http://localhost:4321/moonswing/
 npm run build && npm run preview
 ```
 
-**Rendering backend (`linux/runner/my_application.cc`).** Impeller's GLES backend is the engine's Linux default and is switched **off in the runner**, not on the command line. It must stay a compiled-in default — `--no-enable-impeller` reaches the engine as an env var and so cannot help the snap or a `make install` build. `GRACEFUL_SHELL_IMPELLER=1` is the way back; re-measure with it after an engine bump, since this is expected to be temporary.
+**Rendering backend (`linux/runner/my_application.cc`).** Impeller's GLES backend is the engine's Linux default and is switched **off in the runner**, not on the command line. It must stay a compiled-in default — `--no-enable-impeller` reaches the engine as an env var and so cannot help the snap or a `make install` build. `MOONSWING_IMPELLER=1` is the way back; re-measure with it after an engine bump, since this is expected to be temporary.
 
 Build deps: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`. Runtime, for lock only: `libgtk-session-lock0`, `libpam` — both `dlopen`ed, so the shell builds without them.
 
@@ -51,14 +51,14 @@ A **classic** snap, built nightly from `main`. Classic confinement puts the host
 
 - **Stage a library only when the host cannot be trusted to have a compatible one.** `libgtk-layer-shell0`, `libmpv1`, `libpulse0`, `libasound2` are staged; the GL/EGL/GBM/DRI set, `libpipewire`, `libpam`, `libudev`, `libwayland-client`, `libdbus` are excluded in `prime:` (bundled core22 Mesa against host DRI drivers gives `libEGL fatal: did not find extension DRI_Mesa version 1`). Staging is half the job: Debian keeps `pulseaudio/`, `blas/`, `lapack/` out of the triplet dir with the soname link made by a maintainer script snapcraft never runs, so each must be named in `environment:` — and BLAS/LAPACK cannot simply be excluded, since `DT_NEEDED` aborts start-up rather than falling back.
 - **`libgtk-session-lock` is built from source and stages no GTK.** core22 has no package; without it Lock silently does nothing. It is dlopened into a process that already has the host GTK3 mapped, so staging `libgtk-3-0` would put a second GTK in that address space.
-- **Portal registration is split in two halves, neither droppable.** `portals.conf(5)` directory precedence beats file specificity, so the root hooks write a machine default under `/usr/share` and `snap/local/graceful-shell-wrapper` writes the per-user copy that alone can out-rank an existing preference. Both write `miracle-wm-portals.conf` *and* `mir-portals.conf` (`XDG_CURRENT_DESKTOP` is `miracle-wm:mir`). Hooks are marker-guarded (`# graceful-shell-snap-managed`; anything without it is never rewritten or deleted) and never fatal (a non-zero `install` hook aborts `snap install`, and `/usr` may be read-only).
+- **Portal registration is split in two halves, neither droppable.** `portals.conf(5)` directory precedence beats file specificity, so the root hooks write a machine default under `/usr/share` and `snap/local/moonswing-wrapper` writes the per-user copy that alone can out-rank an existing preference. Both write `miracle-wm-portals.conf` *and* `mir-portals.conf` (`XDG_CURRENT_DESKTOP` is `miracle-wm:mir`). Hooks are marker-guarded (`# moonswing-snap-managed`; anything without it is never rewritten or deleted) and never fatal (a non-zero `install` hook aborts `snap install`, and `/usr` may be read-only).
 - **The wrapper `try-restart`s xdg-desktop-portal once per revision**, gated on a `SNAP_REVISION` stamp: the frontend reads `.portal` files only at start-up. `try-restart` so a session with no systemd user instance is not forced to start one, and the frontend only, never the backends. It never overwrites a conf it did not write.
 - **The Flutter revision is pinned**; cloning `master` at HEAD once broke the release artifact overnight. `.github/workflows/flutter-master.yml` is the early warning, and the pin is bumped to a revision it has proven green.
 
 ## The website (`website/`)
 
 Astro + Starlight, published to GitHub Pages by `.github/workflows/website.yml`. `npm run dev`
-in `website/` serves it at `/graceful-shell/` — the `base`, so **links written as component
+in `website/` serves it at `/moonswing/` — the `base`, so **links written as component
 props or hero actions need relative hrefs**; only markdown links get `base` prefixed for them.
 
 **Nothing about the shell is documented twice.** `scripts/sync.mjs` runs before `dev` and
@@ -181,7 +181,7 @@ The seam letting something deep in a surface ask the root for a window has two s
 
 ### Config (`lib/config.dart`, `lib/config_reader.dart`, `lib/config_store.dart`)
 
-`AppConfig.load()` reads `~/.config/graceful-shell/config.toml` into typed objects, writing a default layout if absent. `ConfigStore.instance` is the live writable view the settings UI mutates, with a debounced atomic write.
+`AppConfig.load()` reads `~/.config/moonswing/config.toml` into typed objects, writing a default layout if absent. `ConfigStore.instance` is the live writable view the settings UI mutates, with a debounced atomic write.
 
 **Every field read goes through `TomlReader`, whose invariant is the one rule of this layer: a wrongly-typed value costs that key, never the whole table.** A throw out of any `fromMap` — a module's included, since `Module.loadAll` runs inside `AppConfig.fromMap` — makes `load` discard the user's entire config. So readers type-test and coerce (`height = 32.0` is a TOML float), treat NaN/infinity as absent, and clamp via `min:`/`max:`; never a bare `as X?` cast. Only a TOML *syntax* error still costs the file, and that path logs. The same degrade-per-field discipline applies to data from outside — an unknown enum from a web API, a tree that will not parse, a bad row in a shipped table: it costs that row, never the surface.
 
@@ -189,7 +189,7 @@ The seam letting something deep in a surface ask the root for a window has two s
 
 ### Theme (`lib/theme/`, `lib/popup_surface.dart`)
 
-A theme is a **file**, not a config section: a flat TOML table under `~/.config/graceful-shell/themes/`, named by a top-level `theme = "dracula"`. `ThemeStore` owns the resolved palette, catalogue, seeding, CRUD and the debounced write, and reads `ConfigStore` for the `theme` key alone (never `appConfig`, which re-runs `Module.loadAll`).
+A theme is a **file**, not a config section: a flat TOML table under `~/.config/moonswing/themes/`, named by a top-level `theme = "dracula"`. `ThemeStore` owns the resolved palette, catalogue, seeding, CRUD and the debounced write, and reads `ConfigStore` for the `theme` key alone (never `appConfig`, which re-runs `Module.loadAll`).
 
 - **`ThemeProvider` is the only thing that constructs a `ThemeScope`.** Each FlutterView is given the theme separately, so a module that snapshotted `ThemeScope.of` when opening a window froze it; listening is what makes an open popup restyle.
 - **`font_size` is a `TextScaler` on the `MediaQuery` `ThemeProvider` publishes**, so the whole `ShellFontSizes` scale moves as one and 13.0 is `noScaling` — a `DefaultTextStyle` size would reach only text that names none. So **a `TextPainter` deciding a layout must be given the scaler**. Pixels are *not* scaled: growing the type is not an instruction to grow the bar.
@@ -227,7 +227,7 @@ Four exported surfaces: `org.freedesktop.Notifications`, `org.kde.StatusNotifier
 
 Losing a name to another daemon is a **graceful decline** for `ShellServices` but a **visible failure** for the feature, which carries its own status: notifications going to a daemon the shell cannot see must not render as a quiet day. Registrations a peer restart silently drops (polkitd) are re-established from `nameOwnerChanged`.
 
-**Launching an application is a D-Bus act too (`lib/app_info.dart`, `lib/app_scope.dart`).** GIO spawns a desktop entry's command out of this process, so the application inherits the shell's cgroup — under the snap that is `snap.graceful-shell.…scope`, which is how snapd decides the snap "has running apps" and refuses to refresh it, and why stopping the shell's unit used to take everything ever launched from it down as well. So every launch is followed by an adoption: `StartTransientUnit` on the session's systemd user manager moves the pid into an `app-…-<pid>.scope` of its own under `app.slice`. The one hook that catches *every* launch is `GAppLaunchContext::launched` — the same context `g_app_info_launch`, `g_app_info_launch_uris`, `g_app_info_launch_default_for_uri` and `g_desktop_app_info_launch_action` are all already given for their startup-notification token, which is why `_launchContext()` now falls back to a plain `g_app_launch_context_new()` rather than launching with none. The adoption is best-effort by construction: it runs after the application has started, a session with no systemd user manager (or a shell cgroup outside its delegated subtree) costs the scope and nothing else, and a `ServiceUnknown` is remembered so twenty launches are not twenty doomed round trips. **That same context also carries the environment the application is spawned with**, which is the other thing it inherits from this process and the one that cannot be repaired afterwards: under the snap `LD_LIBRARY_PATH` leads with `$SNAP/usr/lib/<triplet>`, and a *host* application resolving a soname there is `lib/host_process.dart`'s ffmpeg bug with a quieter failure — the reported shape is a GTK application that runs with no icons at all, window controls included, because the host's SVG pixbuf loader will not load against a staged gdk-pixbuf. So `_launchContext()` applies `hostProgramEnvironment()` through `g_app_launch_context_setenv`/`unsetenv`, which is where the *unset* half of that map earns its keep: a process API that can only override spells the removal as an empty string, a launch context need not.
+**Launching an application is a D-Bus act too (`lib/app_info.dart`, `lib/app_scope.dart`).** GIO spawns a desktop entry's command out of this process, so the application inherits the shell's cgroup — under the snap that is `snap.moonswing.…scope`, which is how snapd decides the snap "has running apps" and refuses to refresh it, and why stopping the shell's unit used to take everything ever launched from it down as well. So every launch is followed by an adoption: `StartTransientUnit` on the session's systemd user manager moves the pid into an `app-…-<pid>.scope` of its own under `app.slice`. The one hook that catches *every* launch is `GAppLaunchContext::launched` — the same context `g_app_info_launch`, `g_app_info_launch_uris`, `g_app_info_launch_default_for_uri` and `g_desktop_app_info_launch_action` are all already given for their startup-notification token, which is why `_launchContext()` now falls back to a plain `g_app_launch_context_new()` rather than launching with none. The adoption is best-effort by construction: it runs after the application has started, a session with no systemd user manager (or a shell cgroup outside its delegated subtree) costs the scope and nothing else, and a `ServiceUnknown` is remembered so twenty launches are not twenty doomed round trips. **That same context also carries the environment the application is spawned with**, which is the other thing it inherits from this process and the one that cannot be repaired afterwards: under the snap `LD_LIBRARY_PATH` leads with `$SNAP/usr/lib/<triplet>`, and a *host* application resolving a soname there is `lib/host_process.dart`'s ffmpeg bug with a quieter failure — the reported shape is a GTK application that runs with no icons at all, window controls included, because the host's SVG pixbuf loader will not load against a staged gdk-pixbuf. So `_launchContext()` applies `hostProgramEnvironment()` through `g_app_launch_context_setenv`/`unsetenv`, which is where the *unset* half of that map earns its keep: a process API that can only override spells the removal as an empty string, a launch context need not.
 
 ### Native and FFI (`lib/native/`, `lib/wayland_ffi/`, `lib/pipewire/`, `lib/screencast/`, `lib/capture/`)
 

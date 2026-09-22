@@ -6,12 +6,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/modules/notifications.dart';
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/modules/notifications.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
 
 /// [FaIcon.icon] answers the wrapped [IconData], not the [FaIconData] the
 /// call site named, so the two are compared unwrapped.

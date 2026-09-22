@@ -1,4 +1,4 @@
-import 'package:graceful_shell/pulse_client.dart';
+import 'package:moonswing/pulse_client.dart';
 
 /// The OSD's memory of which audio devices are the default ones, and of the level
 /// each was last seen at.

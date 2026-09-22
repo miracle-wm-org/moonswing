@@ -18,9 +18,9 @@
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/weather/weather_sky.dart'
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/weather/weather_sky.dart'
     show kSkyForeground, kSkyMutedForeground, kSkyTextShadows;
 
 /// The button's box at a card drawn at its reference size.

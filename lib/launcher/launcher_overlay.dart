@@ -9,15 +9,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/launcher/app_search.dart';
-import 'package:graceful_shell/launcher/expression.dart';
-import 'package:graceful_shell/launcher/unit_convert.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay_fade_scaffold.dart';
-import 'package:graceful_shell/overlay_search_field.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/launcher/app_search.dart';
+import 'package:moonswing/launcher/expression.dart';
+import 'package:moonswing/launcher/unit_convert.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay_fade_scaffold.dart';
+import 'package:moonswing/overlay_search_field.dart';
+import 'package:moonswing/scopes.dart';
 
 /// Width of the card. Fixed: the rows need a bounded width, and a launcher that
 /// resizes as you type is unusable.

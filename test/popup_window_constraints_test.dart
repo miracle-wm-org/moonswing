@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_surface.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_surface.dart';
 
 /// A popup's `constraints` are handed to the Linux backend, which turns them
 /// into the GTK window's min/max geometry hints — they cap the *surface*, and

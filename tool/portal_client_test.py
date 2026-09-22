@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drives the graceful-shell ScreenCast backend the way xdg-desktop-portal
+"""Drives the moonswing ScreenCast backend the way xdg-desktop-portal
 does, so the impl contract can be checked without the frontend in the way.
 
   tool/portal_client_test.py            # monitor share, expect success
@@ -13,7 +13,7 @@ import threading
 
 from gi.repository import GLib, Gio
 
-BUS_NAME = "org.freedesktop.impl.portal.desktop.graceful_shell"
+BUS_NAME = "org.freedesktop.impl.portal.desktop.moonswing"
 OBJ_PATH = "/org/freedesktop/portal/desktop"
 IFACE = "org.freedesktop.impl.portal.ScreenCast"
 

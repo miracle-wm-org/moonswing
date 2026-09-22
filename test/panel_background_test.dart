@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/panel_background.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/panel_background.dart';
 
 List<Color> stopsOf(ThemeConfig theme) =>
     (panelBackgroundDecoration(theme: theme).gradient as LinearGradient).colors;
@@ -49,7 +49,7 @@ void main() {
   });
 
   test('a default bar is square and unbordered', () {
-    // The pixel-identity guard for graceful and dracula: this feature must
+    // The pixel-identity guard for moonswing and dracula: this feature must
     // change nothing at all until a theme asks for it.
     for (final gradient in [true, false]) {
       final decoration = panelBackgroundDecoration(

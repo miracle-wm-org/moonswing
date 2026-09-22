@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/proc_reader.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/proc_reader.dart';
 
 /// A fake `/proc` and `/sys` in a temp directory, so no test reads the real one.
 void main() {

@@ -2,12 +2,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/polkit/agent_helper.dart';
-import 'package:graceful_shell/polkit/auth_dialog.dart';
-import 'package:graceful_shell/polkit/auth_session.dart';
-import 'package:graceful_shell/polkit/polkit_types.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/polkit/agent_helper.dart';
+import 'package:moonswing/polkit/auth_dialog.dart';
+import 'package:moonswing/polkit/auth_session.dart';
+import 'package:moonswing/polkit/polkit_types.dart';
+import 'package:moonswing/scopes.dart';
 
 import 'polkit_fakes.dart';
 

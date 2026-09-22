@@ -1,8 +1,8 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/overlay.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/overlay.dart';
 
 void main() {
   test('an opaque palette is passed through unchanged', () {

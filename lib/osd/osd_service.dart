@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/osd/brightness_monitor.dart';
-import 'package:graceful_shell/osd/osd_audio_tracker.dart';
-import 'package:graceful_shell/osd/osd_store.dart';
-import 'package:graceful_shell/pulse_client.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/osd/brightness_monitor.dart';
+import 'package:moonswing/osd/osd_audio_tracker.dart';
+import 'package:moonswing/osd/osd_store.dart';
+import 'package:moonswing/pulse_client.dart';
 
 /// Feeds [OsdStore] from the things the indicator reports on: the default
 /// PulseAudio sink and source, and the display backlight.

@@ -4,17 +4,17 @@
 import 'package:flutter/widgets.dart';
 import 'package:layer_shell/layer_shell.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/background.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_actions.dart';
-import 'package:graceful_shell/desktop/desktop_grid.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
-import 'package:graceful_shell/desktop/desktop_menu.dart';
-import 'package:graceful_shell/desktop/desktop_store.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/background.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_actions.dart';
+import 'package:moonswing/desktop/desktop_grid.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
+import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/desktop/desktop_store.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/theme/theme_provider.dart';
 
 /// What the background layer-shell window renders: the wallpaper, with the
 /// desktop icon grid over it and the grid's context menus.

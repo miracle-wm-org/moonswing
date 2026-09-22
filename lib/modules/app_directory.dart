@@ -18,14 +18,14 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:layer_shell/layer_shell.dart' show WindowPositionerAnchor;
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/desktop/desktop_menu.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_provider.dart';
 
 /// The dock's right-side button that opens the application directory.
 class AppDirectoryButton extends StatefulWidget {

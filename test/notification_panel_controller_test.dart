@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/notification_panel_controller.dart';
+import 'package:moonswing/notification_panel_controller.dart';
 
 void main() {
   group('NotificationPanelController', () {

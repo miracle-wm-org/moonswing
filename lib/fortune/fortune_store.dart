@@ -18,7 +18,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/fortune/fortune_reader.dart';
+import 'package:moonswing/fortune/fortune_reader.dart';
 
 class FortuneStore extends ChangeNotifier {
   FortuneStore._({FortuneReader? reader}) : _reader = reader ?? FortuneReader();

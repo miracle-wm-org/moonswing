@@ -21,7 +21,7 @@
 // The lowercasing happens once, when the index is built.
 library;
 
-import 'package:graceful_shell/emoji/emoji_data.dart';
+import 'package:moonswing/emoji/emoji_data.dart';
 
 /// The strings that name each category, folded **once for the enum** rather than
 /// once per emoji.

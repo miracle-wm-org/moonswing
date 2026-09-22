@@ -5,7 +5,7 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/popup.dart';
+import 'package:moonswing/popup.dart';
 
 void main() {
   testWidgets('waits for the view to detach, then one more frame',

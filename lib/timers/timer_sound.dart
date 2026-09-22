@@ -40,8 +40,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/notification_sound.dart';
-import 'package:graceful_shell/shell_sound.dart';
+import 'package:moonswing/notification_sound.dart';
+import 'package:moonswing/shell_sound.dart';
 
 /// One shipped alarm, as the numbers it is rendered from.
 ///

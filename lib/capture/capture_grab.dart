@@ -10,10 +10,10 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:graceful_shell/host_process.dart';
-import 'package:graceful_shell/screencast/capture_connection.dart';
-import 'package:graceful_shell/screencast/capture_session.dart';
-import 'package:graceful_shell/screencast/screencast_log.dart';
+import 'package:moonswing/host_process.dart';
+import 'package:moonswing/screencast/capture_connection.dart';
+import 'package:moonswing/screencast/capture_session.dart';
+import 'package:moonswing/screencast/screencast_log.dart';
 
 import 'capture_source.dart';
 import 'capture_targets.dart';

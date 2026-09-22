@@ -3,13 +3,13 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/emoji/emoji_clipboard.dart';
-import 'package:graceful_shell/github/github_api.dart';
-import 'package:graceful_shell/github/github_store.dart';
-import 'package:graceful_shell/github/github_token_store.dart';
-import 'package:graceful_shell/modules/github.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/github/github_store.dart';
+import 'package:moonswing/github/github_token_store.dart';
+import 'package:moonswing/modules/github.dart';
+import 'package:moonswing/scopes.dart';
 
 import 'github_fakes.dart';
 
@@ -20,7 +20,7 @@ void main() {
   late List<String> opened;
 
   setUp(() {
-    tempDir = Directory.systemTemp.createTempSync('graceful-github-widget');
+    tempDir = Directory.systemTemp.createTempSync('moonswing-github-widget');
     tokens = GithubTokenStore(directory: tempDir.path);
     opened = [];
   });
@@ -155,7 +155,7 @@ void main() {
       expect(find.text('octocat'), findsOneWidget);
       expect(find.text('Add a GitHub module'), findsOneWidget);
       expect(
-        find.text('miracle-wm-org/graceful-shell · Review requested'),
+        find.text('miracle-wm-org/moonswing · Review requested'),
         findsOneWidget,
       );
     });
@@ -311,7 +311,7 @@ void main() {
 
       expect(
         opened,
-        ['https://github.com/miracle-wm-org/graceful-shell/pull/1'],
+        ['https://github.com/miracle-wm-org/moonswing/pull/1'],
       );
       expect(store.unreadCount, 0);
     });

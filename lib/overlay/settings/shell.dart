@@ -3,24 +3,24 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/settings/shell/appearance.dart';
-import 'package:graceful_shell/overlay/settings/shell/background.dart';
-import 'package:graceful_shell/overlay/settings/shell/calendar.dart';
-import 'package:graceful_shell/overlay/settings/shell/desktop.dart';
-import 'package:graceful_shell/overlay/settings/shell/lock.dart';
-import 'package:graceful_shell/overlay/settings/shell/modules.dart';
-import 'package:graceful_shell/overlay/settings/shell/panels.dart';
-import 'package:graceful_shell/overlay/settings/shell/power.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/settings/shell/appearance.dart';
+import 'package:moonswing/overlay/settings/shell/background.dart';
+import 'package:moonswing/overlay/settings/shell/calendar.dart';
+import 'package:moonswing/overlay/settings/shell/desktop.dart';
+import 'package:moonswing/overlay/settings/shell/lock.dart';
+import 'package:moonswing/overlay/settings/shell/modules.dart';
+import 'package:moonswing/overlay/settings/shell/panels.dart';
+import 'package:moonswing/overlay/settings/shell/power.dart';
 
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
-import 'package:graceful_shell/theme/theme_store.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_highlight.dart';
+import 'package:moonswing/theme/theme_store.dart';
 
-/// Settings page for graceful-shell's own configuration (`config.toml`).
+/// Settings page for moonswing's own configuration (`config.toml`).
 ///
 /// Reads the config file into a [ConfigStore], renders form controls for the
 /// theme, module options, panels/layout, and background, and writes every
@@ -228,7 +228,7 @@ Widget _buildLock(ConfigStore store) => LockSection(store: store);
 Widget _buildPower(ConfigStore store) => PowerSection(store: store);
 Widget _buildCalendar(ConfigStore store) => CalendarSection(store: store);
 
-/// Landing view: the "Graceful Shell" header plus a tappable row per category.
+/// Landing view: the "Moonswing" header plus a tappable row per category.
 class _ShellHome extends StatelessWidget {
   const _ShellHome({required this.store});
 
@@ -243,7 +243,7 @@ class _ShellHome extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
           child: Text(
-            'Graceful Shell',
+            'Moonswing',
             style: TextStyle(
               fontSize: 16,
               fontFamily: theme.fontFamily,
@@ -511,7 +511,7 @@ class _RestartBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Changes are saved automatically. Restart Graceful Shell for '
+              'Changes are saved automatically. Restart Moonswing for '
               'them to take effect.',
               style: TextStyle(
                 fontSize: 12,

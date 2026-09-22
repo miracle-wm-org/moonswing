@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/popup.dart';
+import 'package:moonswing/popup.dart';
 
 /// A bar popup is anchored to the *panel's* inner edge, centred on the module
 /// that opened it — not to the module's own rect, which sits some distance

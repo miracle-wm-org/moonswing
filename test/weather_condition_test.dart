@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_condition.dart';
 
 void main() {
   group('the WMO table', () {

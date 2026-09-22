@@ -15,7 +15,7 @@ library;
 
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/miracle_config/miracle_labels.dart';
+import 'package:moonswing/miracle_config/miracle_labels.dart';
 
 /// A picture a key cap can carry instead of its [KeyCap.label].
 ///

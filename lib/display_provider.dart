@@ -2,8 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:wayland/wayland.dart';
 
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_services.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_services.dart';
 
 /// Live set of Wayland outputs, kept in sync with the compositor's `wl_output`
 /// globals. Panels match against this to resolve which physical display they

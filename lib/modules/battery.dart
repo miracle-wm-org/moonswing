@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/scopes.dart';
 import 'package:udev/udev.dart';
 
 class BatteryConfig {

@@ -1,15 +1,15 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/desktop/widgets/weather_widget.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/modules/weather.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/weather/weather_api.dart';
-import 'package:graceful_shell/weather/weather_sky.dart';
-import 'package:graceful_shell/weather/weather_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/widgets/weather_widget.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/modules/weather.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/weather/weather_api.dart';
+import 'package:moonswing/weather/weather_sky.dart';
+import 'package:moonswing/weather/weather_store.dart';
 
 import 'weather_fakes.dart';
 

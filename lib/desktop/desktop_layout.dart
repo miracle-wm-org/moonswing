@@ -14,7 +14,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/painting.dart' show EdgeInsets;
 
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/config.dart';
 
 /// A cell address in the grid. A record rather than a class so it has value
 /// equality for free, which is what makes `Set<GridCell>` an occupancy test.

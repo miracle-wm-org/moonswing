@@ -18,16 +18,16 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart' show ThemeConfig;
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/modules/workspace_apps.dart'
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart' show ThemeConfig;
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/modules/workspace_apps.dart'
     show WorkspaceAppsStore;
-import 'package:graceful_shell/overlay_fade_scaffold.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/switcher/open_window.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/overlay_fade_scaffold.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/switcher/open_window.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The drawn icon. Large enough to be recognised at a glance from across a
 /// 4K screen, which is the whole job of this surface.

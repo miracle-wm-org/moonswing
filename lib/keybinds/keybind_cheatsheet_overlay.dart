@@ -21,20 +21,20 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:miracle/miracle.dart' show KeybindsResult;
 
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/keybinds/keybind_model.dart';
-import 'package:graceful_shell/keybinds/keybind_store.dart';
-import 'package:graceful_shell/keybinds/shell_keybind_store.dart';
-import 'package:graceful_shell/keybinds/shell_keybinds.dart';
-import 'package:graceful_shell/keybinds/shortcut_capture.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay_fade_scaffold.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_text_root.dart';
-import 'package:graceful_shell/theme/theme_config.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/keybinds/keybind_model.dart';
+import 'package:moonswing/keybinds/keybind_store.dart';
+import 'package:moonswing/keybinds/shell_keybind_store.dart';
+import 'package:moonswing/keybinds/shell_keybinds.dart';
+import 'package:moonswing/keybinds/shortcut_capture.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay_fade_scaffold.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_text_root.dart';
+import 'package:moonswing/theme/theme_config.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The widest the card is allowed to get.
 ///

@@ -1,10 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/osd/osd.dart';
-import 'package:graceful_shell/osd/osd_store.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/osd/osd.dart';
+import 'package:moonswing/osd/osd_store.dart';
+import 'package:moonswing/scopes.dart';
 
 /// Long enough that a test only reaches the fade-out by pumping there
 /// deliberately — [WidgetTester.pumpAndSettle] would otherwise run the hide

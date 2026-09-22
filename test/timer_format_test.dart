@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/timers/timer_format.dart';
+import 'package:moonswing/timers/timer_format.dart';
 
 void main() {
   group('formatTimerDuration', () {

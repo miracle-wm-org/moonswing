@@ -24,7 +24,7 @@ import 'package:http/http.dart' as http;
 /// A client id is public by construction — the device flow exists precisely
 /// because the *secret* cannot be shipped — and this one is in `gh`'s source.
 /// Borrowing it is what makes the module work out of the box, at the cost of a
-/// consent screen that says **GitHub CLI** rather than Graceful Shell, so
+/// consent screen that says **GitHub CLI** rather than Moonswing, so
 /// `[modules.github] client_id` lets anyone who minds register an OAuth app of
 /// their own (Developer settings › OAuth Apps, with device flow enabled) and
 /// point the module at it.
@@ -320,7 +320,7 @@ class HttpGithubClient implements GithubClient {
   static const Map<String, String> _apiHeaders = {
     'Accept': 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
-    'User-Agent': 'graceful-shell',
+    'User-Agent': 'moonswing',
   };
 
   Future<http.Response> _post(

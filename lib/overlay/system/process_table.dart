@@ -2,17 +2,17 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/system/kill_confirm.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/system/format.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/process_killer.dart';
-import 'package:graceful_shell/system/process_reader.dart';
-import 'package:graceful_shell/system/system_stats_store.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/usage_bar.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/system/kill_confirm.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/system/format.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/process_killer.dart';
+import 'package:moonswing/system/process_reader.dart';
+import 'package:moonswing/system/system_stats_store.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/usage_bar.dart';
 
 enum ProcessSortKey { name, pid, cpu, memory, uptime }
 

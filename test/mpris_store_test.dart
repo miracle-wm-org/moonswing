@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/media/mpris_store.dart';
+import 'package:moonswing/media/mpris_store.dart';
 
 MprisPlayer _player(
   String bus, {

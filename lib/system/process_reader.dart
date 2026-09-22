@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:graceful_shell/system/file_read.dart';
-import 'package:graceful_shell/system/models.dart';
+import 'package:moonswing/system/file_read.dart';
+import 'package:moonswing/system/models.dart';
 
 /// How a process's CPU percentage is scaled.
 enum CpuPercentMode {

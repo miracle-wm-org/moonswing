@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
-import 'package:graceful_shell/desktop/desktop_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
+import 'package:moonswing/desktop/desktop_store.dart';
 import 'package:toml/toml.dart';
 
 /// A 3x2 grid, so "full" is reachable and a 2x1 widget is a third of it.
@@ -41,7 +41,7 @@ void main() {
     dir = Directory.systemTemp.createTempSync('gs_desktop_widget_store_test');
     path = '${dir.path}/config.toml';
     File(path).writeAsStringSync('''
-theme = "graceful"
+theme = "moonswing"
 
 [desktop]
 enabled = true

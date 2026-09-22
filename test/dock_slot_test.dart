@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/modules/dock.dart';
+import 'package:moonswing/modules/dock.dart';
 
 /// Stands in for a dock button. The real one carries the pan recognizer that
 /// drives the reorder, so what these tests assert about [_ProbeState] — that it

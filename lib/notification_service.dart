@@ -418,8 +418,8 @@ class NotificationServer extends DBusServiceObject {
 
   DBusMethodResponse _handleGetServerInformation() {
     return DBusMethodSuccessResponse([
-      const DBusString('graceful-shell'),
-      const DBusString('graceful-shell'),
+      const DBusString('moonswing'),
+      const DBusString('moonswing'),
       const DBusString('1.0'),
       const DBusString('1.2'),
     ]);

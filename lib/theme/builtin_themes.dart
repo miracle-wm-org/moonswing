@@ -17,7 +17,7 @@ library;
 /// theme must never inherit a [ThemeConfig] default, or changing a default
 /// would silently restyle it.
 const Map<String, String> kBuiltInThemes = {
-  'graceful': _graceful,
+  'moonswing': _moonswing,
   'forest': _forest,
   'dracula': _dracula,
   'glassy': _glassy,
@@ -25,9 +25,9 @@ const Map<String, String> kBuiltInThemes = {
   'carbon': _carbon,
 };
 
-const String _graceful = '''
-# Graceful — the shell's own palette: deep maroon over near-black.
-name = "Graceful"
+const String _moonswing = '''
+# Moonswing — the shell's own palette: deep maroon over near-black.
+name = "Moonswing"
 
 font = "Ubuntu Sans"
 font_size = 13.0
@@ -178,7 +178,7 @@ popup_radius         = 10.0
 popup_border         = "#594FB183"
 popup_border_width   = 1.0
 
-# Its popups float too, for glassy's reason rather than graceful's: this bar
+# Its popups float too, for glassy's reason rather than moonswing's: this bar
 # is lifted off the screen by panel_margin, so a menu glued to it would be the
 # only thing in the picture touching anything, and matching that margin keeps
 # the two gaps equal. It would also cost the rim on the joined edge — the one
@@ -243,23 +243,23 @@ scrim                = "#88282A36"
 panel_background     = "#EE282A36"
 panel_gradient       = true
 
-# Flush and square, like graceful — Dracula is a flat palette, not a floating
+# Flush and square, like moonswing — Dracula is a flat palette, not a floating
 # one. The rim colour matches divider so switching it on reads as Dracula.
 panel_margin         = 0
 panel_radius         = 0.0
 panel_border         = "#33F8F8F2"
 panel_border_width   = 0.0
 
-# The same card shape as graceful; the rim takes Dracula's own divider.
+# The same card shape as moonswing; the rim takes Dracula's own divider.
 popup_radius         = 8.0
 popup_border         = "#33F8F8F2"
 popup_border_width   = 1.0
 
-# Attached to the bar, as graceful is.
+# Attached to the bar, as moonswing is.
 popup_gap            = 0.0
 popup_attach_radius  = 0.0
 
-# The same lift as graceful, tinted with Dracula's own background rather than
+# The same lift as moonswing, tinted with Dracula's own background rather than
 # pure black so it reads as part of the palette.
 popup_shadow_color   = "#66191A21"
 popup_shadow_blur    = 16.0
@@ -267,7 +267,7 @@ popup_shadow_spread  = 0.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
 
-# Attached to the bar, so it slides out of it, as graceful does.
+# Attached to the bar, so it slides out of it, as moonswing does.
 popup_animation      = "slide"
 popup_animation_duration = 140
 

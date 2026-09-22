@@ -2,9 +2,9 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/keyboard/keyboard_sources.dart';
-import 'package:graceful_shell/keyboard/xkb_catalog.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/keyboard/keyboard_sources.dart';
+import 'package:moonswing/keyboard/xkb_catalog.dart';
 
 /// Pins the `base.lst` parse. Pure — there is no filesystem behind any of this,
 /// which is the whole reason [parseXkbRulesList] is separate from

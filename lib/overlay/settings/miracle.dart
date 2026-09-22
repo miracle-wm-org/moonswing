@@ -4,7 +4,7 @@
 //
 // The one pane in this shell that edits *another program's* file. Everything
 // else under Settings either drives a running service (locale1, BlueZ,
-// PulseAudio) or writes graceful-shell's own `config.toml`; this writes
+// PulseAudio) or writes moonswing's own `config.toml`; this writes
 // `~/.config/miracle-wm/config.yaml`, which belongs to the compositor the shell
 // is running inside.
 //
@@ -30,25 +30,25 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:miracle/miracle.dart' show MiracleConfigError;
 
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/miracle_config/miracle_config_store.dart';
-import 'package:graceful_shell/miracle_config/miracle_key_codes.dart';
-import 'package:graceful_shell/miracle_config/miracle_labels.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/miracle/accessibility.dart';
-import 'package:graceful_shell/overlay/settings/miracle/animations.dart';
-import 'package:graceful_shell/overlay/settings/miracle/gaps_borders.dart';
-import 'package:graceful_shell/overlay/settings/miracle/general.dart';
-import 'package:graceful_shell/overlay/settings/miracle/includes.dart';
-import 'package:graceful_shell/overlay/settings/miracle/key_bindings.dart';
-import 'package:graceful_shell/overlay/settings/miracle/keyboard.dart';
-import 'package:graceful_shell/overlay/settings/miracle/pointer.dart';
-import 'package:graceful_shell/overlay/settings/miracle/startup.dart';
-import 'package:graceful_shell/overlay/settings/miracle/workspaces.dart';
-import 'package:graceful_shell/overlay/settings/settings_highlight.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/miracle_config/miracle_config_store.dart';
+import 'package:moonswing/miracle_config/miracle_key_codes.dart';
+import 'package:moonswing/miracle_config/miracle_labels.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/miracle/accessibility.dart';
+import 'package:moonswing/overlay/settings/miracle/animations.dart';
+import 'package:moonswing/overlay/settings/miracle/gaps_borders.dart';
+import 'package:moonswing/overlay/settings/miracle/general.dart';
+import 'package:moonswing/overlay/settings/miracle/includes.dart';
+import 'package:moonswing/overlay/settings/miracle/key_bindings.dart';
+import 'package:moonswing/overlay/settings/miracle/keyboard.dart';
+import 'package:moonswing/overlay/settings/miracle/pointer.dart';
+import 'package:moonswing/overlay/settings/miracle/startup.dart';
+import 'package:moonswing/overlay/settings/miracle/workspaces.dart';
+import 'package:moonswing/overlay/settings/settings_highlight.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 class MiracleSettingsPage extends StatefulWidget {
   const MiracleSettingsPage({

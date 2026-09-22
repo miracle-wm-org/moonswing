@@ -9,7 +9,7 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/moon/moon_render.dart';
+import 'package:moonswing/moon/moon_render.dart';
 
 const Offset _centre = Offset(100, 100);
 const double _radius = 50;

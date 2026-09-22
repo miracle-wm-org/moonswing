@@ -1,19 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/capture/capture_flow.dart';
-import 'package:graceful_shell/capture/selection_controller.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/emoji/emoji_controller.dart';
-import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
-import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/launcher/launcher_controller.dart';
-import 'package:graceful_shell/notification_panel_controller.dart';
-import 'package:graceful_shell/power/power_controller.dart';
-import 'package:graceful_shell/power/power_menu_controller.dart';
-import 'package:graceful_shell/power/power_service.dart';
-import 'package:graceful_shell/switcher/switcher_controller.dart';
+import 'package:moonswing/capture/capture_flow.dart';
+import 'package:moonswing/capture/selection_controller.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_controller.dart';
+import 'package:moonswing/input_trigger/input_trigger_protocol.dart';
+import 'package:moonswing/input_trigger/input_trigger_store.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/launcher/launcher_controller.dart';
+import 'package:moonswing/notification_panel_controller.dart';
+import 'package:moonswing/power/power_controller.dart';
+import 'package:moonswing/power/power_menu_controller.dart';
+import 'package:moonswing/power/power_service.dart';
+import 'package:moonswing/switcher/switcher_controller.dart';
 import 'package:wayland/wayland.dart';
 
 /// One global shortcut: a key combination and what it does when the compositor
@@ -54,7 +54,7 @@ class InputShortcut {
 /// The action name the power-button trigger is registered under. Named
 /// because two things care: the registration, and the ownership report that
 /// decides whether the shell holds logind's inhibitor.
-const String kPowerButtonShortcut = 'graceful-shell.power-button';
+const String kPowerButtonShortcut = 'moonswing.power-button';
 
 /// Turns the user's `[shortcuts]` config into the list the manager registers.
 ///
@@ -71,31 +71,31 @@ const String kPowerButtonShortcut = 'graceful-shell.power-button';
 List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
   final wanted = <(String, ShortcutSpec?, VoidCallback, void Function(bool)?)>[
     (
-      'graceful-shell.open-settings',
+      'moonswing.open-settings',
       config.openSettings,
       InputTriggerStore.instance.triggerSettings,
       null,
     ),
     (
-      'graceful-shell.open-launcher',
+      'moonswing.open-launcher',
       config.openLauncher,
       LauncherController.instance.toggle,
       null,
     ),
     (
-      'graceful-shell.open-emoji',
+      'moonswing.open-emoji',
       config.openEmoji,
       EmojiPickerController.instance.toggle,
       null,
     ),
     (
-      'graceful-shell.open-notifications',
+      'moonswing.open-notifications',
       config.openNotifications,
       NotificationPanelController.instance.toggle,
       null,
     ),
     (
-      'graceful-shell.open-power-menu',
+      'moonswing.open-power-menu',
       config.openPowerMenu,
       PowerMenuController.instance.toggle,
       null,
@@ -105,7 +105,7 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
     // its notification happen through the store — the same reason the two bar
     // modules do not await their flows either.
     (
-      'graceful-shell.screenshot-area',
+      'moonswing.screenshot-area',
       config.screenshotArea,
       () => unawaited(
             runCaptureFlow(CaptureKind.screenshot, SelectionMode.area),
@@ -113,7 +113,7 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
       null,
     ),
     (
-      'graceful-shell.record-screen',
+      'moonswing.record-screen',
       config.recordScreen,
       () => unawaited(runScreenRecordingShortcut()),
       null,
@@ -125,13 +125,13 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
     // ends the gesture is Alt coming back up, which no trigger reports — the
     // overlay reads that off the keyboard itself.
     (
-      'graceful-shell.switch-windows',
+      'moonswing.switch-windows',
       config.switchWindows,
       () => WindowSwitcherController.instance.cycle(forward: true),
       null,
     ),
     (
-      'graceful-shell.switch-windows-back',
+      'moonswing.switch-windows-back',
       config.switchWindowsBack,
       () => WindowSwitcherController.instance.cycle(forward: false),
       null,

@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/theme/font_catalog.dart';
+import 'package:moonswing/theme/font_catalog.dart';
 
 ProcessResult _ok(String stdout) => ProcessResult(0, 0, stdout, '');
 

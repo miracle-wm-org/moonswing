@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/shell_services.dart';
+import 'package:moonswing/shell_services.dart';
 
 void main() {
   group('ShellServices', () {

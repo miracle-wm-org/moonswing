@@ -3,11 +3,11 @@ import 'dart:ffi' as ffi;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/launcher/app_search.dart';
-import 'package:graceful_shell/launcher/launcher_overlay.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/launcher/app_search.dart';
+import 'package:moonswing/launcher/launcher_overlay.dart';
+import 'package:moonswing/scopes.dart';
 
 /// Fake entries carry a null `GAppInfo*` — safe precisely because the launcher
 /// takes its launch callbacks as parameters and never touches the pointer.

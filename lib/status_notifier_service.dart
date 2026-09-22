@@ -3,8 +3,8 @@ import 'dart:io' show pid;
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/dbus_menu.dart';
-import 'package:graceful_shell/dbus_service_object.dart';
+import 'package:moonswing/dbus_menu.dart';
+import 'package:moonswing/dbus_service_object.dart';
 
 /// StatusNotifierItem (SNI) system-tray support.
 ///

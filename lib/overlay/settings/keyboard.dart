@@ -8,14 +8,14 @@
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/keyboard/keyboard_store.dart';
-import 'package:graceful_shell/keyboard/locale1_client.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/keyboard/input_source_picker.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_config.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/keyboard/keyboard_store.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/keyboard/input_source_picker.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_config.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 class KeyboardSettingsPage extends StatefulWidget {
   const KeyboardSettingsPage({super.key, KeyboardStore? store})
@@ -78,7 +78,7 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
 
   Widget _body(ThemeConfig theme) {
     // Only the very first read shows a loader. A *failed* read still renders
-    // the page: the source list is graceful's own config and stays editable
+    // the page: the source list is moonswing's own config and stays editable
     // whatever locale1 is doing.
     if (_store.status == KeyboardStatus.loading && _store.systemState == null) {
       return const Center(child: LoadingIndicator(size: 22));

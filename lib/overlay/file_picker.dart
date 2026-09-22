@@ -23,16 +23,16 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
-import 'package:graceful_shell/root_modal.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/popup_transition.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/overlay/file_picker_controller.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/system/format.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
+import 'package:moonswing/root_modal.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/popup_transition.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/overlay/file_picker_controller.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/system/format.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
 
 /// A named set of file extensions the picker will show. An empty [extensions]
 /// set matches every file ("All files"). Extensions are stored with a leading

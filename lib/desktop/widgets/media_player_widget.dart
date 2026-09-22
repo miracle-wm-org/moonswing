@@ -12,14 +12,14 @@ import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/config.dart';
 
-import 'package:graceful_shell/desktop/desktop_layout.dart' show GridSpan;
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/media/media_controls.dart';
-import 'package:graceful_shell/media/mpris_store.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/media/media_controls.dart';
+import 'package:moonswing/media/mpris_store.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The widget's body. Public and store-injectable so a widget test can seed a
 /// player and pump it with no session bus behind it.

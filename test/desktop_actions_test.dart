@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_actions.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_actions.dart';
 
 // Only the pure half is covered here. Everything that reaches GIO — launching,
 // content-type guessing, handler enumeration — needs a live GLib and is

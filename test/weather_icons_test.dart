@@ -9,8 +9,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/weather/weather_condition.dart';
-import 'package:graceful_shell/weather/weather_icons.dart';
+import 'package:moonswing/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_icons.dart';
 
 /// Every code `conditionForCode` actually knows. Derived rather than listed, so
 /// a row added to the table is a row this test starts covering.

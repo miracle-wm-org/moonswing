@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/overlay/system/stat_tile.dart';
-import 'package:graceful_shell/system/input_devices.dart';
-import 'package:graceful_shell/system/system_info.dart';
+import 'package:moonswing/overlay/system/stat_tile.dart';
+import 'package:moonswing/system/input_devices.dart';
+import 'package:moonswing/system/system_info.dart';
 
 /// The **System Info** overlay tab: a read-only summary of the machine's
 /// hardware, its input devices, its software, and the desktop environment.

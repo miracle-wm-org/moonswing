@@ -2,9 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/scopes.dart';
 
 const _hoverColor = Color(0xFF123456);
 

@@ -1,9 +1,9 @@
-name: graceful-shell
+name: moonswing
 base: core22
 version: '0.1-nightly'
 summary: The shell of your dreams, built with Flutter
 description: |
-  Graceful Shell renders Wayland layer-shell panels (taskbars), a wallpaper,
+  Moonswing renders Wayland layer-shell panels (taskbars), a wallpaper,
   a lock screen and the ScreenCast portal backend for Wayland compositors such
   as Miracle WM, built with Flutter.
 
@@ -14,7 +14,7 @@ description: |
   honoured, never overwritten.
 
   One thing a snap cannot install for you: the PAM service file.
-  `/etc/pam.d/graceful-shell` needs root, so the lock screen falls back to the
+  `/etc/pam.d/moonswing` needs root, so the lock screen falls back to the
   system `login` service — it still authenticates.
 grade: devel
 confinement: classic
@@ -22,11 +22,11 @@ platforms:
   amd64:
 
 apps:
-  graceful-shell:
+  moonswing:
     # A wrapper, not the binary: it registers the per-user half of the
     # ScreenCast portal backend on first run and restarts xdg-desktop-portal.
-    # See snap/local/graceful-shell-wrapper.
-    command: bin/graceful-shell
+    # See snap/local/moonswing-wrapper.
+    command: bin/moonswing
     environment:
       # Classic confinement runs in the host namespace and does not set up a
       # library search path. Point the loader at the staged libs (libmpv.so.1
@@ -53,7 +53,7 @@ apps:
       LD_LIBRARY_PATH: $SNAP/usr/lib/x86_64-linux-gnu:$SNAP/usr/lib/x86_64-linux-gnu/blas:$SNAP/usr/lib/x86_64-linux-gnu/lapack:$SNAP/usr/lib/x86_64-linux-gnu/pulseaudio:$SNAP/lib:$LD_LIBRARY_PATH
 
 parts:
-  graceful-shell:
+  moonswing:
     plugin: flutter
     source: .
     flutter-target: lib/main.dart
@@ -196,14 +196,14 @@ parts:
   # The ScreenCast portal backend files. They are *staged*, not installed:
   # xdg-desktop-portal reads them from a search path a snap cannot write at
   # build time, so they are copied out at run time instead — machine-wide by
-  # snap/hooks/install (via bin/graceful-shell-portal-setup below) and per-user
+  # snap/hooks/install (via bin/moonswing-portal-setup below) and per-user
   # by the launcher, which is the only half with a home directory to write to.
   portal:
     plugin: dump
     source: portal
     organize:
-      graceful-shell.portal: share/graceful-shell/portal/graceful-shell.portal
-      graceful-shell-portals.conf: share/graceful-shell/portal/graceful-shell-portals.conf
+      moonswing.portal: share/moonswing/portal/moonswing.portal
+      moonswing-portals.conf: share/moonswing/portal/moonswing-portals.conf
 
   # Everything in snap/local is organized somewhere under bin/ — nothing may
   # land at the snap root. portal-setup is the machine-wide half of the portal
@@ -213,8 +213,8 @@ parts:
     plugin: dump
     source: snap/local
     organize:
-      graceful-shell-wrapper: bin/graceful-shell
-      portal-setup: bin/graceful-shell-portal-setup
+      moonswing-wrapper: bin/moonswing
+      portal-setup: bin/moonswing-portal-setup
 
   # Resolved by shippedDataFile() in lib/config.dart, which looks under
   # /snap/<name>/current — not $SNAP, whose revisioned path would go dead in the
@@ -223,9 +223,9 @@ parts:
     plugin: dump
     source: assets
     organize:
-      wallpaper.jpg: share/graceful-shell/wallpaper.jpg
-      lock-wallpaper.jpg: share/graceful-shell/lock-wallpaper.jpg
+      wallpaper.jpg: share/moonswing/wallpaper.jpg
+      lock-wallpaper.jpg: share/moonswing/lock-wallpaper.jpg
     stage:
       # CREDITS.md is the rest of assets/; nothing should land at the snap root.
-      - share/graceful-shell/wallpaper.jpg
-      - share/graceful-shell/lock-wallpaper.jpg
+      - share/moonswing/wallpaper.jpg
+      - share/moonswing/lock-wallpaper.jpg

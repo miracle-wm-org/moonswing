@@ -6,8 +6,8 @@
 // for and hours out a couple of decades either side.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/moon/moon_ephemeris.dart';
-import 'package:graceful_shell/moon/moon_phase.dart';
+import 'package:moonswing/moon/moon_ephemeris.dart';
+import 'package:moonswing/moon/moon_phase.dart';
 
 /// Asserts [found] is within [minutes] of [expected].
 void _expectNear(DateTime found, DateTime expected, {int minutes = 6}) {

@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/scopes.dart';
 
 // ---------------------------------------------------------------------------
 // LevelMeter

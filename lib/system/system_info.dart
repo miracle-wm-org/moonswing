@@ -1,11 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/host_process.dart';
-import 'package:graceful_shell/system/file_read.dart';
-import 'package:graceful_shell/system/format.dart';
-import 'package:graceful_shell/system/input_devices.dart';
-import 'package:graceful_shell/system/proc_reader.dart';
+import 'package:moonswing/host_process.dart';
+import 'package:moonswing/system/file_read.dart';
+import 'package:moonswing/system/format.dart';
+import 'package:moonswing/system/input_devices.dart';
+import 'package:moonswing/system/proc_reader.dart';
 
 /// A one-shot snapshot of the machine's static identity: hardware, software, and
 /// the desktop environment it is running under.

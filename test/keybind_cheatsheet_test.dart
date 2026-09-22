@@ -6,17 +6,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/keybinds/keybind_cheatsheet_controller.dart';
-import 'package:graceful_shell/keybinds/keybind_cheatsheet_overlay.dart';
-import 'package:graceful_shell/keybinds/keybind_store.dart';
-import 'package:graceful_shell/keybinds/shell_keybind_store.dart';
-import 'package:graceful_shell/keybinds/shell_keybinds.dart';
-import 'package:graceful_shell/modules/keybinds.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
+import 'package:moonswing/keybinds/keybind_cheatsheet_overlay.dart';
+import 'package:moonswing/keybinds/keybind_store.dart';
+import 'package:moonswing/keybinds/shell_keybind_store.dart';
+import 'package:moonswing/keybinds/shell_keybinds.dart';
+import 'package:moonswing/modules/keybinds.dart';
+import 'package:moonswing/scopes.dart';
 
 Keybind _bind({
   BuiltInKeyCommand? action,

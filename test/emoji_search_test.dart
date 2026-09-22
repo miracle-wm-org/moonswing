@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/emoji/emoji_data.dart';
-import 'package:graceful_shell/emoji/emoji_search.dart';
+import 'package:moonswing/emoji/emoji_data.dart';
+import 'package:moonswing/emoji/emoji_search.dart';
 
 Emoji _e(
   String char,

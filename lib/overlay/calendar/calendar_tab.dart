@@ -3,17 +3,17 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/calendar/clock_column.dart';
-import 'package:graceful_shell/overlay/calendar/month.dart';
-import 'package:graceful_shell/overlay/calendar/time_zones.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/timers/timer_store.dart';
-import 'package:graceful_shell/timers/timer_widgets.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/calendar/clock_column.dart';
+import 'package:moonswing/overlay/calendar/month.dart';
+import 'package:moonswing/overlay/calendar/time_zones.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/timers/timer_store.dart';
+import 'package:moonswing/timers/timer_widgets.dart';
 
 /// The Calendar tab of the overlay: a month grid the user can page through,
 /// beside a column holding the local time, the world clocks and the timers.

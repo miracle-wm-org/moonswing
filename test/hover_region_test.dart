@@ -3,7 +3,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/hover_region.dart';
+import 'package:moonswing/hover_region.dart';
 
 import 'tap_target.dart';
 

@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/panel_background.dart';
-import 'package:graceful_shell/panel_rim.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/panel_background.dart';
+import 'package:moonswing/panel_rim.dart';
 
 /// A rimmed bar draws its rim along its *inner* edge too — the edge every menu
 /// comes out of — and the compositor places a bar popup **below** the panel, so

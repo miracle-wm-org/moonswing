@@ -1,12 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config_reader.dart';
-import 'package:graceful_shell/media/media_controls.dart';
-import 'package:graceful_shell/media/mpris_store.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/media/media_controls.dart';
+import 'package:moonswing/media/mpris_store.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 class MediaPlayerConfig {
   final double maxTextWidth;

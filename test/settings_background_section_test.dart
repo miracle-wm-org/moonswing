@@ -6,11 +6,11 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/settings/shell/background.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/wallpaper_catalog.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/settings/shell/background.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/wallpaper_catalog.dart';
 
 /// The two sources of the wallpaper list, and the rule that separates them: a
 /// wallpaper the machine ships is always offered and can never be deleted, while
@@ -47,7 +47,7 @@ void main() {
     systemA = await writePng('backgrounds/a-warty.png');
     systemB = await writePng('backgrounds/b-adwaita.png');
     userPath = await writePng('pictures/mine.png');
-    await File(configPath).writeAsString('theme = "graceful"\n');
+    await File(configPath).writeAsString('theme = "moonswing"\n');
     store = await ConfigStore.loadFrom(configPath);
   });
 

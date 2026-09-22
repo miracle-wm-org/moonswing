@@ -1,9 +1,9 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 /// The seam between anything that wants the power menu on screen and
-/// `_GracefulShellRootState`, which owns every window.
+/// `_MoonswingRootState`, which owns every window.
 ///
 /// Distinct from [PowerController], which reports the *physical* power key and
 /// leaves the root to resolve `[power] key_action` — a press may mean a verb, or

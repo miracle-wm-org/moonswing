@@ -6,8 +6,8 @@
 // fresh object on every sweep and `ConfigStore` notifies on every keystroke
 // anywhere in the settings UI, so the stores compare before acting.
 
-import 'package:graceful_shell/capture/capture_sound.dart';
-import 'package:graceful_shell/config_reader.dart';
+import 'package:moonswing/capture/capture_sound.dart';
+import 'package:moonswing/config_reader.dart';
 
 /// Where a still capture goes and what it does on the way.
 class ScreenshotConfig {

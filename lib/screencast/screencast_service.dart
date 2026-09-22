@@ -13,7 +13,7 @@ import 'screencast_log.dart';
 import 'screencast_portal.dart';
 
 const String kScreencastBusName =
-    'org.freedesktop.impl.portal.desktop.graceful_shell';
+    'org.freedesktop.impl.portal.desktop.moonswing';
 
 ScreencastService? _service;
 

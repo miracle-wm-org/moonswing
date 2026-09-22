@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:ubuntu_session/ubuntu_session.dart';
 
-import 'package:graceful_shell/lock/lock_controller.dart';
-import 'package:graceful_shell/power/power_config.dart';
+import 'package:moonswing/lock/lock_controller.dart';
+import 'package:moonswing/power/power_config.dart';
 
 /// One thing the shell can do to the session or the machine.
 ///

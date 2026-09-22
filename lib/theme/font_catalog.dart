@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:graceful_shell/host_process.dart';
+import 'package:moonswing/host_process.dart';
 
 /// The font families installed on this machine, via fontconfig's `fc-list`.
 ///

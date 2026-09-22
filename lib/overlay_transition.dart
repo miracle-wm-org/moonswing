@@ -10,7 +10,7 @@ library;
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/theme/overlay_effect.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
 
 /// How far a travelling card moves, in logical pixels.
 ///

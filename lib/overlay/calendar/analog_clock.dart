@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/scopes.dart';
 
 /// An analog dial for [time].
 ///

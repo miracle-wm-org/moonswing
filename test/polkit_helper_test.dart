@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/polkit/agent_helper.dart';
+import 'package:moonswing/polkit/agent_helper.dart';
 
 void main() {
   group('parseHelperLine', () {

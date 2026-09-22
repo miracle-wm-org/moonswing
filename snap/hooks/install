@@ -2,6 +2,6 @@
 # Register the ScreenCast portal backend machine-wide at install time, so screen
 # sharing works without the user being told to do anything. See
 # snap/local/portal-setup for what it writes and why it can never fail the hook.
-setup="${SNAP:-}/bin/graceful-shell-portal-setup"
+setup="${SNAP:-}/bin/moonswing-portal-setup"
 [ -x "$setup" ] && "$setup" install
 exit 0

@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/osd/osd_store.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/osd/osd_store.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
 
 /// Logical size of the OSD *card*. The window is kept tight around it because the
 /// shell has no input-region support — a larger surface would swallow clicks

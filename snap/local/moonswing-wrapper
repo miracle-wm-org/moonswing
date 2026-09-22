@@ -21,10 +21,10 @@ set -eu
 real_home="${SNAP_REAL_HOME:-$HOME}"
 data_home="${XDG_DATA_HOME:-$real_home/.local/share}"
 config_home="${XDG_CONFIG_HOME:-$real_home/.config}"
-state_dir="${SNAP_USER_COMMON:-$real_home/snap/graceful-shell/common}"
+state_dir="${SNAP_USER_COMMON:-$real_home/snap/moonswing/common}"
 
-portal_src="$SNAP/share/graceful-shell/portal"
-portal_dst="$data_home/xdg-desktop-portal/portals/graceful-shell.portal"
+portal_src="$SNAP/share/moonswing/portal"
+portal_dst="$data_home/xdg-desktop-portal/portals/moonswing.portal"
 xdp_conf_dir="$config_home/xdg-desktop-portal"
 
 # XDG_CURRENT_DESKTOP under miracle-wm is "miracle-wm:mir", and
@@ -42,7 +42,7 @@ manifest="$state_dir/portal-installed"
 # ever.
 stamp="$state_dir/portal-stamp"
 
-note() { echo "graceful-shell: $*" >&2; }
+note() { echo "moonswing: $*" >&2; }
 
 # `[screenshare] enabled = false` in config.toml means the shell will not claim
 # the backend at all (lib/screencast/screencast_service.dart). Registering it
@@ -51,7 +51,7 @@ note() { echo "graceful-shell: $*" >&2; }
 # TOML parser in a POSIX shell, so read the one table: unreadable or absent
 # means the default, which is enabled.
 screenshare_enabled() {
-  cfg="$config_home/graceful-shell/config.toml"
+  cfg="$config_home/moonswing/config.toml"
   [ -r "$cfg" ] || return 0
   sed -n '/^[[:space:]]*\[screenshare\]/,/^[[:space:]]*\[/{ /^[[:space:]]*\[/d; p; }' \
     "$cfg" 2>/dev/null |
@@ -70,7 +70,7 @@ conflicting_conf() {
       "$f" 2>/dev/null | tail -n 1) || true
     [ -n "$line" ] || continue
     case "$line" in
-      *graceful-shell*) continue ;;
+      *moonswing*) continue ;;
       *) echo "$f"; return 0 ;;
     esac
   done
@@ -101,15 +101,15 @@ register_portal() {
     return 0
   }
 
-  install_absent "$portal_src/graceful-shell.portal" "$portal_dst" || true
+  install_absent "$portal_src/moonswing.portal" "$portal_dst" || true
 
   if conflict=$(conflicting_conf); then
     note "$conflict already routes ScreenCast elsewhere; leaving it alone."
     note "to use the shell's picker, set in that file:"
-    note "  org.freedesktop.impl.portal.ScreenCast=graceful-shell"
+    note "  org.freedesktop.impl.portal.ScreenCast=moonswing"
   else
     for name in $conf_names; do
-      install_absent "$portal_src/graceful-shell-portals.conf" \
+      install_absent "$portal_src/moonswing-portals.conf" \
         "$xdp_conf_dir/$name" || true
     done
   fi
@@ -145,4 +145,4 @@ if [ "$(cat "$stamp" 2>/dev/null || true)" != "${SNAP_REVISION:-unknown}" ]; the
   register_portal
 fi
 
-exec "$SNAP/graceful_shell" "$@"
+exec "$SNAP/moonswing" "$@"

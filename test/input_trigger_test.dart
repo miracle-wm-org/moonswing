@@ -1,13 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/emoji/emoji_controller.dart';
-import 'package:graceful_shell/input_trigger/input_trigger_protocol.dart';
-import 'package:graceful_shell/input_trigger/input_trigger_service.dart';
-import 'package:graceful_shell/input_trigger/input_trigger_store.dart';
-import 'package:graceful_shell/input_trigger/keysym.dart';
-import 'package:graceful_shell/launcher/launcher_controller.dart';
-import 'package:graceful_shell/notification_panel_controller.dart';
-import 'package:graceful_shell/power/power_menu_controller.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_controller.dart';
+import 'package:moonswing/input_trigger/input_trigger_protocol.dart';
+import 'package:moonswing/input_trigger/input_trigger_service.dart';
+import 'package:moonswing/input_trigger/input_trigger_store.dart';
+import 'package:moonswing/input_trigger/keysym.dart';
+import 'package:moonswing/launcher/launcher_controller.dart';
+import 'package:moonswing/notification_panel_controller.dart';
+import 'package:moonswing/power/power_menu_controller.dart';
 import 'package:wayland/wayland.dart';
 
 /// Builds an event payload the way the compositor would, so decoding is tested
@@ -186,7 +186,7 @@ void main() {
       ExtInputTriggerActionV1? action;
 
       trigger.onDone = () {
-        control = registration.getActionControl('graceful-shell.open-settings');
+        control = registration.getActionControl('moonswing.open-settings');
         control!.onToken = (token) {
           action = actionManager.getInputTriggerAction(
             token,
@@ -219,15 +219,15 @@ void main() {
       final shortcuts = inputShortcutsFor(const ShortcutsConfig());
 
       expect(shortcuts.map((s) => s.name).toSet(), {
-        'graceful-shell.open-settings',
-        'graceful-shell.open-launcher',
-        'graceful-shell.open-emoji',
-        'graceful-shell.open-notifications',
-        'graceful-shell.open-power-menu',
-        'graceful-shell.switch-windows',
-        'graceful-shell.switch-windows-back',
-        'graceful-shell.screenshot-area',
-        'graceful-shell.record-screen',
+        'moonswing.open-settings',
+        'moonswing.open-launcher',
+        'moonswing.open-emoji',
+        'moonswing.open-notifications',
+        'moonswing.open-power-menu',
+        'moonswing.switch-windows',
+        'moonswing.switch-windows-back',
+        'moonswing.screenshot-area',
+        'moonswing.record-screen',
         kPowerButtonShortcut,
       });
     });
@@ -259,7 +259,7 @@ void main() {
 
     test('the default settings shortcut is Super+S, unresolved', () {
       final settings = named(inputShortcutsFor(const ShortcutsConfig()),
-          'graceful-shell.open-settings');
+          'moonswing.open-settings');
 
       expect(settings.modifiers, InputTriggerModifiers.meta);
       // Not `S`: shift resolution applies only to a combination that holds
@@ -269,7 +269,7 @@ void main() {
 
     test('the default launcher shortcut is Super+D', () {
       final launcher = named(inputShortcutsFor(const ShortcutsConfig()),
-          'graceful-shell.open-launcher');
+          'moonswing.open-launcher');
 
       expect(launcher.modifiers, InputTriggerModifiers.meta);
       expect(launcher.keysym, 0x64);
@@ -277,7 +277,7 @@ void main() {
 
     test('the notification shortcut is Super+E and toggles the panel', () {
       final panel = named(inputShortcutsFor(const ShortcutsConfig()),
-          'graceful-shell.open-notifications');
+          'moonswing.open-notifications');
 
       expect(panel.modifiers, InputTriggerModifiers.meta);
       expect(panel.keysym, 0x65);
@@ -293,7 +293,7 @@ void main() {
 
     test('the power menu shortcut is Super+Shift+E, shift-resolved', () {
       final menu = named(inputShortcutsFor(const ShortcutsConfig()),
-          'graceful-shell.open-power-menu');
+          'moonswing.open-power-menu');
 
       expect(menu.modifiers,
           InputTriggerModifiers.meta | InputTriggerModifiers.shift);
@@ -303,9 +303,9 @@ void main() {
       // and the emoji picker — and only the modifiers tell them apart, so the
       // collision guard must not have collapsed any of them together.
       final panel = named(inputShortcutsFor(const ShortcutsConfig()),
-          'graceful-shell.open-notifications');
+          'moonswing.open-notifications');
       final emoji = named(inputShortcutsFor(const ShortcutsConfig()),
-          'graceful-shell.open-emoji');
+          'moonswing.open-emoji');
       expect(menu.spec == panel.spec, isFalse);
       expect(menu.spec == emoji.spec, isFalse);
     });
@@ -318,7 +318,7 @@ void main() {
       final panelBefore = NotificationPanelController.instance.signalCount;
 
       named(inputShortcutsFor(const ShortcutsConfig()),
-              'graceful-shell.open-power-menu')
+              'moonswing.open-power-menu')
           .onActivate();
 
       expect(PowerMenuController.instance.signalCount, before + 1);
@@ -327,8 +327,8 @@ void main() {
 
     test('the capture shortcuts are Print and Super+Print', () {
       final shortcuts = inputShortcutsFor(const ShortcutsConfig());
-      final area = named(shortcuts, 'graceful-shell.screenshot-area');
-      final record = named(shortcuts, 'graceful-shell.record-screen');
+      final area = named(shortcuts, 'moonswing.screenshot-area');
+      final record = named(shortcuts, 'moonswing.record-screen');
 
       expect(area.modifiers, 0);
       expect(area.keysym, 0xff61);
@@ -341,7 +341,7 @@ void main() {
 
     test('the default emoji shortcut is Ctrl+Shift+E, shift-resolved', () {
       final emoji = named(inputShortcutsFor(const ShortcutsConfig()),
-          'graceful-shell.open-emoji');
+          'moonswing.open-emoji');
 
       expect(emoji.modifiers,
           InputTriggerModifiers.ctrl | InputTriggerModifiers.shift);
@@ -357,7 +357,7 @@ void main() {
       final launcherBefore = LauncherController.instance.signalCount;
 
       named(inputShortcutsFor(const ShortcutsConfig()),
-              'graceful-shell.open-emoji')
+              'moonswing.open-emoji')
           .onActivate();
 
       expect(EmojiPickerController.instance.signalCount, before + 1);
@@ -370,7 +370,7 @@ void main() {
 
       final onlyLauncher =
           inputShortcutsFor(_only(openLauncher: kDefaultOpenLauncher));
-      expect(onlyLauncher.single.name, 'graceful-shell.open-launcher');
+      expect(onlyLauncher.single.name, 'moonswing.open-launcher');
     });
 
     test('two shortcuts on the same combination collapse to the first', () {
@@ -381,7 +381,7 @@ void main() {
         openLauncher: parseShortcut('ctrl+space'),
       ));
 
-      expect(shortcuts.single.name, 'graceful-shell.open-settings');
+      expect(shortcuts.single.name, 'moonswing.open-settings');
     });
 
     test('a code: shortcut registers as a keycode', () {

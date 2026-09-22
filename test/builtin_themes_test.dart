@@ -2,12 +2,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/panel_background.dart';
-import 'package:graceful_shell/panel_rim.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/theme/builtin_themes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/panel_background.dart';
+import 'package:moonswing/panel_rim.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/theme/builtin_themes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The shipped theme [slug], parsed the way the store parses it off disk.
 ThemeConfig _shipped(String slug) =>
@@ -67,13 +67,13 @@ void main() {
     }
   });
 
-  test('graceful reproduces the palette that used to be the default', () {
-    final graceful =
-        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['graceful']!).toMap());
+  test('moonswing reproduces the palette that used to be the default', () {
+    final moonswing =
+        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['moonswing']!).toMap());
     // Every colour matches the ThemeConfig defaults, so seeding the themes
     // directory cannot change how an existing install looks.
     const defaults = ThemeConfig();
-    expect(graceful, defaults);
+    expect(moonswing, defaults);
   });
 
   test('a shipped theme that keeps the gradient is opaque enough to read', () {
@@ -89,9 +89,9 @@ void main() {
   });
 
   test('the flush themes keep the geometry the bar always had', () {
-    // graceful is pinned to the ThemeConfig defaults by the test above, but
+    // moonswing is pinned to the ThemeConfig defaults by the test above, but
     // dracula is not — and neither should have moved off the screen edge.
-    for (final slug in const ['graceful', 'dracula']) {
+    for (final slug in const ['moonswing', 'dracula']) {
       final theme =
           ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
       expect(theme.panelMargin, 0, reason: 'in $slug');
@@ -147,7 +147,7 @@ void main() {
         BorderRadius.circular(forest.panelRadius));
 
     // The single-hue rule: every surface is green, and the accent is the only
-    // *saturated* one. `muted` reusing the accent — which is what graceful
+    // *saturated* one. `muted` reusing the accent — which is what moonswing
     // used to do, at 1.8:1 on its own card — would put the theme's one vivid
     // green on its least important text, so it is pinned apart from it.
     for (final surface in [
@@ -263,7 +263,7 @@ void main() {
     // too, which is the edge an attached popup meets. A *flared* join takes that
     // over: the card reaches one rim-width into the panel and the arcs carry the
     // line down the card. A square butt join has nothing to carry it with, so for
-    // those the two keys are still a pair — which is where graceful and dracula
+    // those the two keys are still a pair — which is where moonswing and dracula
     // sit.
     for (final slug in kBuiltInThemes.keys) {
       final theme = _shipped(slug);
@@ -334,7 +334,7 @@ void main() {
   });
 
   test('every shipped theme gives its popups a shape', () {
-    // A shipped theme may turn its bar's rounding off — graceful and dracula
+    // A shipped theme may turn its bar's rounding off — moonswing and dracula
     // both do — but a popup has no screen edge to sit flush against, so a
     // square shipped card would only ever be an oversight.
     for (final entry in kBuiltInThemes.entries) {
@@ -347,7 +347,7 @@ void main() {
   });
 
   test('every shipped theme can be read on its own popup', () {
-    // The reported bug, pinned for all six. graceful's `muted` was its accent
+    // The reported bug, pinned for all six. moonswing's `muted` was its accent
     // verbatim — a fill colour, chosen dark enough to carry white — which put
     // every menu header, timestamp, unit and greyed row on its own card at
     // 1.8:1. A popup is where the shell does its reading, so the three colours
@@ -364,7 +364,7 @@ void main() {
       // ratio. It is the tier that is *meant* to recede, and dracula's `muted`
       // is Dracula's own comment colour — authentic to the palette it is taken
       // from, and a shade the theme would not be itself without. What the floor
-      // rules out is the tier vanishing altogether, which is where graceful had
+      // rules out is the tier vanishing altogether, which is where moonswing had
       // it.
       expect(_contrast(theme.muted, theme.popupBackground),
           greaterThanOrEqualTo(3.0),
@@ -386,17 +386,17 @@ void main() {
               'one that does not is not — in $slug');
     }
 
-    // graceful is the case this exists for, and the one that cannot be fixed
+    // moonswing is the case this exists for, and the one that cannot be fixed
     // by choosing a better accent: nothing that holds kOnAccent's white on a
     // button also clears 4.5:1 as text on a #2C2C2C card.
-    const graceful = ThemeConfig();
-    expect(_contrast(graceful.accent, graceful.popupBackground), lessThan(2.0));
-    expect(_contrast(graceful.accentText, graceful.popupBackground),
+    const moonswing = ThemeConfig();
+    expect(_contrast(moonswing.accent, moonswing.popupBackground), lessThan(2.0));
+    expect(_contrast(moonswing.accentText, moonswing.popupBackground),
         greaterThanOrEqualTo(kTextContrast));
     // The same colour read louder, not a different one: hue and saturation are
     // held, so a maroon theme is still lettered in maroon.
-    final accent = HSLColor.fromColor(graceful.accent);
-    final lifted = HSLColor.fromColor(graceful.accentText);
+    final accent = HSLColor.fromColor(moonswing.accent);
+    final lifted = HSLColor.fromColor(moonswing.accentText);
     expect(lifted.hue, closeTo(accent.hue, 1.0));
     expect(lifted.saturation, closeTo(accent.saturation, 0.01));
     expect(lifted.lightness, greaterThan(accent.lightness));

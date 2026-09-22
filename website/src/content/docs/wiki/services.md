@@ -31,7 +31,7 @@ drops — polkitd's — are re-established from `nameOwnerChanged`.
 ## Launching an application is a D-Bus act too
 
 GIO spawns a desktop entry's command out of this process, so the application inherits the
-shell's cgroup. Under the snap that is `snap.graceful-shell.…scope`, which is how snapd decides
+shell's cgroup. Under the snap that is `snap.moonswing.…scope`, which is how snapd decides
 the snap "has running apps" and refuses to refresh it — and why stopping the shell's unit used
 to take everything ever launched from it down as well.
 

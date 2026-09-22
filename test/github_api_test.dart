@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/github/github_api.dart';
-import 'package:graceful_shell/modules/github.dart' show githubAge;
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/modules/github.dart' show githubAge;
 
 /// The pure half of the GitHub module: what a response means, and where a click
 /// goes. Nothing here opens a socket.

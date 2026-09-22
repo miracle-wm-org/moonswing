@@ -1,8 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/process_killer.dart';
-import 'package:graceful_shell/system/process_reader.dart';
+import 'package:moonswing/system/process_killer.dart';
+import 'package:moonswing/system/process_reader.dart';
 
 import 'system_process_reader_test.dart' show statLine;
 

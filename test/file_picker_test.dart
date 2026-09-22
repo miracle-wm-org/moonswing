@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/overlay/file_picker.dart';
+import 'package:moonswing/overlay/file_picker.dart';
 
 /// Exercises the picker's pure filesystem helpers against a temp directory, so
 /// no test touches the real filesystem or home directory.

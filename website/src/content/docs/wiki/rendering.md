@@ -8,7 +8,7 @@ sidebar:
 ## A theme is a file
 
 A theme is not a config section: it is a flat TOML table under
-`~/.config/graceful-shell/themes/`, named by a top-level `theme = "dracula"` in
+`~/.config/moonswing/themes/`, named by a top-level `theme = "dracula"` in
 `config.toml`. `ThemeStore` owns the resolved palette, the catalogue, seeding, CRUD and the
 debounced write, and reads `ConfigStore` for the `theme` key alone — never `appConfig`, which
 would re-run `Module.loadAll`.

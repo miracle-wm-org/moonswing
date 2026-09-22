@@ -3,8 +3,8 @@
 
 import 'dart:async';
 
-import 'package:graceful_shell/polkit/agent_helper.dart';
-import 'package:graceful_shell/polkit/polkit_types.dart';
+import 'package:moonswing/polkit/agent_helper.dart';
+import 'package:moonswing/polkit/polkit_types.dart';
 
 const PolkitIdentity ada =
     PolkitIdentity(uid: 1000, username: 'ada', displayName: 'Ada Lovelace');

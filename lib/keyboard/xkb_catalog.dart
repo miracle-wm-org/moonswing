@@ -11,7 +11,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/keyboard/keyboard_config.dart';
+import 'package:moonswing/keyboard/keyboard_config.dart';
 
 /// Where xkeyboard-config's rules listing is looked for, in order.
 const List<String> kXkbRulesPaths = [

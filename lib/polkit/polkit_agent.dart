@@ -14,8 +14,8 @@ import 'dart:io';
 
 import 'package:dbus/dbus.dart';
 
-import 'package:graceful_shell/dbus_service_object.dart';
-import 'package:graceful_shell/lock/user_identity.dart';
+import 'package:moonswing/dbus_service_object.dart';
+import 'package:moonswing/lock/user_identity.dart';
 
 import 'agent_helper.dart';
 import 'auth_session.dart';

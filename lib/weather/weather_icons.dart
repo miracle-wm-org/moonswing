@@ -32,7 +32,7 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:weather_icons_animated/weather_icons_animated.dart'
     as meteocons;
 
-import 'package:graceful_shell/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_condition.dart';
 
 /// One icon of the Meteocons set, as a value.
 ///

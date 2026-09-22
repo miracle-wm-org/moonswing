@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 /// The seam between the Lock button and the shell root.
 ///
 /// The button lives inside a panel module while the lock windows have to be
-/// created by `_GracefulShellRootState`, which owns every other window. Rather
+/// created by `_MoonswingRootState`, which owns every other window. Rather
 /// than thread a callback down, the module pokes this singleton and the root
 /// reacts — the singleton-`ChangeNotifier` shape.
 class LockController extends ChangeNotifier {

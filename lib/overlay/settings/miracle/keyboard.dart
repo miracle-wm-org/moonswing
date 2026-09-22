@@ -8,10 +8,10 @@
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/miracle_config/miracle_config_store.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/miracle/miracle_controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/miracle_config/miracle_config_store.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/miracle/miracle_controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
 
 class MiracleKeyboardSection extends StatelessWidget {
   const MiracleKeyboardSection({super.key, required this.store});

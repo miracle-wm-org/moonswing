@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:graceful_shell/system/file_read.dart';
+import 'package:moonswing/system/file_read.dart';
 
 /// What a device is, as far as a person reading the System Info page is
 /// concerned.

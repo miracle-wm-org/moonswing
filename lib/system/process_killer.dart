@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/process_reader.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/process_reader.dart';
 
 enum KillOutcome {
   /// The signal was delivered. Whether the process honours it is up to it.

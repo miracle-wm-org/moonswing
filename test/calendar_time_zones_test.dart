@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/overlay/calendar/month.dart';
-import 'package:graceful_shell/overlay/calendar/time_zones.dart';
+import 'package:moonswing/overlay/calendar/month.dart';
+import 'package:moonswing/overlay/calendar/time_zones.dart';
 
 List<TimeZoneName> _zones(List<String> names) =>
     [for (final name in names) TimeZoneName(name)];

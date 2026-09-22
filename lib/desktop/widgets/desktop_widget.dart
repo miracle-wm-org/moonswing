@@ -10,8 +10,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
 
 /// What a widget's [DesktopWidgetSpec.builder] is handed.
 ///

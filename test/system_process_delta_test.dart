@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/process_reader.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/process_reader.dart';
 
 /// The arithmetic that turns two raw snapshots into table rows. No I/O — this is
 /// exactly why the isolate returns raw counters and the store does the maths.

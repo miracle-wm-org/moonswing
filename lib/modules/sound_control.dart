@@ -4,15 +4,15 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/pulse_client.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/pulse_client.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/theme/theme_provider.dart';
 
 /// A sink's level as the shell last saw it.
 ///

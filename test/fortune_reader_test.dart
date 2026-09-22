@@ -4,7 +4,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/fortune/fortune_reader.dart';
+import 'package:moonswing/fortune/fortune_reader.dart';
 
 ProcessResult _ok(String stdout) => ProcessResult(0, 0, stdout, '');
 ProcessResult _failed(String stderr) => ProcessResult(0, 1, '', stderr);

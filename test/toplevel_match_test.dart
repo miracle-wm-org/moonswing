@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/capture/toplevel_match.dart';
+import 'package:moonswing/capture/toplevel_match.dart';
 
 /// Joining miracle's view of a window to the compositor's capture handle for
 /// it. The rule under test is mostly the *refusal*: an ambiguous pair answers

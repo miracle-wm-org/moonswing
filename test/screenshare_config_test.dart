@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/config.dart';
 import 'package:toml/toml.dart';
 
 void main() {
@@ -66,7 +66,7 @@ max_fps = 24
 
     test('a config with no [screenshare] table still enables sharing', () {
       final config = AppConfig.fromMap(TomlDocument.parse('''
-theme = "graceful"
+theme = "moonswing"
 ''').toMap());
       expect(config.screenshare.enabled, isTrue);
     });

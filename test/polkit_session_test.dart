@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/polkit/agent_helper.dart';
-import 'package:graceful_shell/polkit/auth_session.dart';
-import 'package:graceful_shell/polkit/polkit_types.dart';
+import 'package:moonswing/polkit/agent_helper.dart';
+import 'package:moonswing/polkit/auth_session.dart';
+import 'package:moonswing/polkit/polkit_types.dart';
 
 import 'polkit_fakes.dart';
 

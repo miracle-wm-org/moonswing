@@ -2,9 +2,9 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
 
 /// The desktop grid's state: the pinned items, and what the user is doing to
 /// them right now.

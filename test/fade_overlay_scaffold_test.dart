@@ -1,9 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay_fade_scaffold.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay_fade_scaffold.dart';
+import 'package:moonswing/scopes.dart';
 
 Widget _host({
   required ValueNotifier<bool> closing,

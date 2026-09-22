@@ -1,5 +1,5 @@
 // The seam between a bar module (three levels inside a panel's widget tree, and
-// unable to create a window) and `_GracefulShellRootState`, which owns every
+// unable to create a window) and `_MoonswingRootState`, which owns every
 // window the shell has.
 //
 // [RequestController]'s first rule is the reason this is that shape rather than a
@@ -10,7 +10,7 @@
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 import 'capture_targets.dart';
 

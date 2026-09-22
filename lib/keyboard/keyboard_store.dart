@@ -12,12 +12,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/keyboard/keyboard_config.dart';
-import 'package:graceful_shell/keyboard/keyboard_short_codes.dart';
-import 'package:graceful_shell/keyboard/keyboard_sources.dart';
-import 'package:graceful_shell/keyboard/locale1_client.dart';
-import 'package:graceful_shell/keyboard/xkb_catalog.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/keyboard/keyboard_config.dart';
+import 'package:moonswing/keyboard/keyboard_short_codes.dart';
+import 'package:moonswing/keyboard/keyboard_sources.dart';
+import 'package:moonswing/keyboard/locale1_client.dart';
+import 'package:moonswing/keyboard/xkb_catalog.dart';
 
 /// How far along the store's view of locale1 is.
 ///
@@ -36,7 +36,7 @@ enum KeyboardStatus {
   ready,
 
   /// locale1 could not be reached at all. The user's own list is still
-  /// editable — it is graceful's config, not the machine's.
+  /// editable — it is moonswing's config, not the machine's.
   unavailable,
 }
 

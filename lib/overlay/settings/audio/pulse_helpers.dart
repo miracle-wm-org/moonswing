@@ -1,4 +1,4 @@
-import 'package:graceful_shell/pulse_client.dart';
+import 'package:moonswing/pulse_client.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers

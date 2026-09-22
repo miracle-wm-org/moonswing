@@ -41,7 +41,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_condition.dart';
 /// The colours one condition is drawn in.
 ///
 /// Deliberately *not* from [ThemeConfig]: this is a picture of the sky, and a sky

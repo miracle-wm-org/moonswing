@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/widgets/media_player_widget.dart';
-import 'package:graceful_shell/media/media_controls.dart';
-import 'package:graceful_shell/media/mpris_store.dart';
-import 'package:graceful_shell/modules/media_player.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/widgets/media_player_widget.dart';
+import 'package:moonswing/media/media_controls.dart';
+import 'package:moonswing/media/mpris_store.dart';
+import 'package:moonswing/modules/media_player.dart';
+import 'package:moonswing/scopes.dart';
 
 MprisPlayer _player({
   MprisPlaybackStatus status = MprisPlaybackStatus.playing,

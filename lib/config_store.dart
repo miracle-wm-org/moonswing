@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:toml/toml.dart';
 
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/config.dart';
 
-/// Read/mutate/write layer for graceful-shell's own `config.toml`.
+/// Read/mutate/write layer for moonswing's own `config.toml`.
 ///
 /// Loads a mutable deep copy of the parsed document, exposes nested key-path
 /// access, and writes changes back atomically (temp file + rename) with a short

@@ -6,13 +6,13 @@
 
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/keyboard/keyboard_config.dart';
-import 'package:graceful_shell/keyboard/keyboard_sources.dart';
-import 'package:graceful_shell/keyboard/xkb_catalog.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/search_list.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/keyboard/keyboard_config.dart';
+import 'package:moonswing/keyboard/keyboard_sources.dart';
+import 'package:moonswing/keyboard/xkb_catalog.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/search_list.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 class InputSourcePicker extends StatefulWidget {
   const InputSourcePicker({

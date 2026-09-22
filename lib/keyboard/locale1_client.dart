@@ -10,7 +10,7 @@
 
 import 'package:dbus/dbus.dart';
 
-import 'package:graceful_shell/dbus_clients.dart';
+import 'package:moonswing/dbus_clients.dart';
 
 const String kLocale1BusName = 'org.freedesktop.locale1';
 const String kLocale1Path = '/org/freedesktop/locale1';

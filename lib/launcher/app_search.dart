@@ -3,7 +3,7 @@
 // Pure — no Flutter, no FFI — so the ordering is unit tested directly. The
 // lowercasing happens once, when the index is built.
 
-import 'package:graceful_shell/app_info.dart';
+import 'package:moonswing/app_info.dart';
 
 /// An [AppEntry] with its searchable text pre-folded to lower case.
 class SearchableApp {

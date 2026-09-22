@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/theme_store.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_store.dart';
 
 /// Provides the live palette to a widget subtree.
 ///

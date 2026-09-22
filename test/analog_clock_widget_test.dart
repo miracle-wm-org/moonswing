@@ -7,13 +7,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/clock/clock_face.dart';
-import 'package:graceful_shell/clock/clock_hands.dart';
-import 'package:graceful_shell/clock/minute_clock_store.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/widgets/analog_clock_widget.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/clock/clock_face.dart';
+import 'package:moonswing/clock/clock_hands.dart';
+import 'package:moonswing/clock/minute_clock_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/widgets/analog_clock_widget.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/scopes.dart';
 
 import 'paint_counter.dart';
 

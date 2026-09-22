@@ -5,8 +5,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/fortune/fortune_reader.dart';
-import 'package:graceful_shell/fortune/fortune_store.dart';
+import 'package:moonswing/fortune/fortune_reader.dart';
+import 'package:moonswing/fortune/fortune_store.dart';
 
 /// A runner that answers with each of [texts] in turn, counting the calls.
 class _Sequence {

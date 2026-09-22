@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/config.dart';
 
 /// The degradation rule at this end of the pipe: a wrongly-typed value costs
 /// that one key, never the whole table — a throw out of any `fromMap` is

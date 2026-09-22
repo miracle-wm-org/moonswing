@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/config.dart';
+import 'package:moonswing/config.dart';
 
 /// The background drawn behind a panel's modules.
 ///

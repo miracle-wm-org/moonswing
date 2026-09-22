@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/system/input_devices.dart';
+import 'package:moonswing/system/input_devices.dart';
 
 /// A fake `/proc` and `/sys` in a temp directory, so no test reads the real
 /// machine's devices.

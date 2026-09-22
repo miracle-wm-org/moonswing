@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/overlay/system/overview_page.dart';
-import 'package:graceful_shell/overlay/system/process_table.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/underline_tabs.dart';
-import 'package:graceful_shell/system/system_stats_store.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/overlay/system/overview_page.dart';
+import 'package:moonswing/overlay/system/process_table.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/underline_tabs.dart';
+import 'package:moonswing/system/system_stats_store.dart';
 
 enum _SubTab { overview, processes }
 

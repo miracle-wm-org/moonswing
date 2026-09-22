@@ -3,16 +3,16 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart' show DragStartBehavior;
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_actions.dart';
-import 'package:graceful_shell/desktop/desktop_icon.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
-import 'package:graceful_shell/desktop/desktop_store.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget.dart';
-import 'package:graceful_shell/desktop/widgets/desktop_widget_frame.dart';
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_actions.dart';
+import 'package:moonswing/desktop/desktop_icon.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
+import 'package:moonswing/desktop/desktop_store.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/desktop/widgets/desktop_widget_frame.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The interactive icon grid drawn over the wallpaper.
 ///

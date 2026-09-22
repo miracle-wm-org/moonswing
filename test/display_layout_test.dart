@@ -1,6 +1,6 @@
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/overlay/settings/display_layout.dart';
+import 'package:moonswing/overlay/settings/display_layout.dart';
 
 DisplayBox box(int id, int x, int y, [int w = 1920, int h = 1080]) =>
     (id: id, x: x, y: y, w: w, h: h);

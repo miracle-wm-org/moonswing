@@ -3,7 +3,7 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/modules/battery.dart';
+import 'package:moonswing/modules/battery.dart';
 
 BatteryReading _reading(int capacity, {bool charging = false, String? time}) =>
     BatteryReading(capacity: capacity, charging: charging, time: time);

@@ -17,8 +17,8 @@ import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// A raw [EditableText] (there is no Material `TextField` in this tree) with an
 /// autofocus and a hint drawn behind it.

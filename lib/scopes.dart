@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/miracle_manager.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/miracle_manager.dart';
 import 'package:wayland/wayland.dart';
 
 /// The nearest [S], or a [FlutterError] naming the missing scope — the
@@ -112,7 +112,7 @@ class DisplayScope extends InheritedWidget {
 ///
 /// Window *geometry* is not in here: anchor, height and layer are frozen at
 /// startup because the native surface was created from them, and the startup
-/// snapshot stays on `GracefulShellRoot.appConfig`.
+/// snapshot stays on `MoonswingRoot.appConfig`.
 class LiveConfigScope extends InheritedWidget {
   const LiveConfigScope({
     super.key,

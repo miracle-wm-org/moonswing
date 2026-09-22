@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/pipewire/spa_constants.dart';
-import 'package:graceful_shell/pipewire/spa_pod.dart';
+import 'package:moonswing/pipewire/spa_constants.dart';
+import 'package:moonswing/pipewire/spa_pod.dart';
 
 /// Reads the pods back the way PipeWire's own parser does, so a builder that
 /// drifts from the wire layout fails here rather than as a silent

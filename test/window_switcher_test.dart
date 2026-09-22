@@ -1,10 +1,10 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:miracle/miracle.dart';
 
-import 'package:graceful_shell/switcher/open_window.dart';
-import 'package:graceful_shell/switcher/open_window_store.dart';
-import 'package:graceful_shell/switcher/switcher_controller.dart';
-import 'package:graceful_shell/switcher/window_activation.dart';
+import 'package:moonswing/switcher/open_window.dart';
+import 'package:moonswing/switcher/open_window_store.dart';
+import 'package:moonswing/switcher/switcher_controller.dart';
+import 'package:moonswing/switcher/window_activation.dart';
 
 /// The window switcher, minus its Wayland and its socket: the ordering, the
 /// cycling, the grid arithmetic, the join back to miracle's tree, and the

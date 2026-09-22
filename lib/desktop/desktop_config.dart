@@ -2,14 +2,14 @@
 ///
 /// The runtime side — geometry, the store, the surface — lives in the
 /// sibling files here; this one is only the `[desktop]` config section, and
-/// is re-exported through `package:graceful_shell/config.dart`.
+/// is re-exported through `package:moonswing/config.dart`.
 library;
 
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/config_reader.dart';
+import 'package:moonswing/config_reader.dart';
 
 /// What a desktop grid item points at, which decides how it opens.
 ///

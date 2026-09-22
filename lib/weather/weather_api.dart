@@ -10,7 +10,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'package:graceful_shell/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_condition.dart';
 
 /// Which scale temperatures are reported in.
 enum TemperatureUnit {

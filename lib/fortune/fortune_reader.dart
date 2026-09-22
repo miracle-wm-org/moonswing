@@ -11,7 +11,7 @@
 
 import 'dart:io';
 
-import 'package:graceful_shell/host_process.dart';
+import 'package:moonswing/host_process.dart';
 
 /// A fortune that could not be fetched, with a line the card can show.
 ///

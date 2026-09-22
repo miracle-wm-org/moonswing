@@ -38,13 +38,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/notification_service.dart';
-import 'package:graceful_shell/shell_sound.dart';
+import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/shell_sound.dart';
 
 /// `expandHome` was declared here before `lib/shell_sound.dart` existed, and a
 /// caller that reaches for it through this file is not wrong about where the
 /// shell's sound rules live.
-export 'package:graceful_shell/shell_sound.dart' show expandHome;
+export 'package:moonswing/shell_sound.dart' show expandHome;
 
 /// The `sound` value a fresh config has.
 const String kDefaultNotificationSound = 'chime';

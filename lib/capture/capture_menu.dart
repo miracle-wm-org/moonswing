@@ -8,11 +8,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/hover_region.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/shell_text_root.dart';
-import 'package:graceful_shell/theme/tokens.dart';
+import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/shell_text_root.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 import 'selection_controller.dart';
 

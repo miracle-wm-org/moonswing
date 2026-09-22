@@ -13,10 +13,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/power/power_menu_controller.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/power/power_menu_controller.dart';
+import 'package:moonswing/scopes.dart';
 
 /// The bar's power icon.
 class System extends StatelessWidget {

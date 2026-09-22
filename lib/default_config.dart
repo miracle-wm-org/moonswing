@@ -4,7 +4,7 @@ library;
 
 import 'dart:io';
 
-import 'package:graceful_shell/theme/theme_config.dart';
+import 'package:moonswing/theme/theme_config.dart';
 
 /// Resolves [name] against the directories the shell's shipped wallpapers can
 /// live in, returning the first that exists.
@@ -26,17 +26,17 @@ String? shippedDataFile(String name) {
   if (snap.isNotEmpty) {
     final snapName = env['SNAP_NAME'] ?? '';
     if (snapName.isNotEmpty) {
-      roots.add('/snap/$snapName/current/share/graceful-shell');
+      roots.add('/snap/$snapName/current/share/moonswing');
     }
-    roots.add('$snap/share/graceful-shell');
+    roots.add('$snap/share/moonswing');
   }
 
   final dataHome = env['XDG_DATA_HOME'] ?? '';
   if (dataHome.isNotEmpty) {
-    roots.add('$dataHome/graceful-shell');
+    roots.add('$dataHome/moonswing');
   } else {
     final home = env['HOME'] ?? '';
-    if (home.isNotEmpty) roots.add('$home/.local/share/graceful-shell');
+    if (home.isNotEmpty) roots.add('$home/.local/share/moonswing');
   }
 
   for (final root in roots) {
@@ -57,9 +57,9 @@ String? shippedDataFile(String name) {
 /// unchanged in the typed config.
 String buildDefaultConfig(String homeDir) {
   final wallpaper = shippedDataFile('wallpaper.jpg') ??
-      '$homeDir/.local/share/graceful-shell/wallpaper.jpg';
+      '$homeDir/.local/share/moonswing/wallpaper.jpg';
   final lockWallpaper = shippedDataFile('lock-wallpaper.jpg') ??
-      '$homeDir/.local/share/graceful-shell/lock-wallpaper.jpg';
+      '$homeDir/.local/share/moonswing/lock-wallpaper.jpg';
   return '''
 theme = "$kDefaultThemeName"
 

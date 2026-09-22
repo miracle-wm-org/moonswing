@@ -1,12 +1,12 @@
 import 'package:flutter/foundation.dart';
 
-import 'package:graceful_shell/request_controller.dart';
+import 'package:moonswing/request_controller.dart';
 
 /// The seam between anything that wants the keybind cheat sheet open and the
 /// shell root.
 ///
 /// The keyboard bar module is the one thing that asks for it today, and a bar
-/// module cannot create a window — `_GracefulShellRootState` owns them all — so
+/// module cannot create a window — `_MoonswingRootState` owns them all — so
 /// it pokes this singleton and the root reacts. [LauncherController]'s shape
 /// exactly.
 class KeybindCheatsheetController extends SignalController {

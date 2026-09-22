@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/root_modal.dart';
-import 'package:graceful_shell/app_info.dart';
-import 'package:graceful_shell/launcher/app_search.dart';
-import 'package:graceful_shell/search_list.dart';
-import 'package:graceful_shell/loading_indicator.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
+import 'package:moonswing/root_modal.dart';
+import 'package:moonswing/app_info.dart';
+import 'package:moonswing/launcher/app_search.dart';
+import 'package:moonswing/search_list.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
 
 /// Width of the chooser card. Fixed, like the launcher's: a list that resized
 /// as you type is unusable.

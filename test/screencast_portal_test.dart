@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/screencast/pick_types.dart';
-import 'package:graceful_shell/screencast/screencast_portal.dart';
+import 'package:moonswing/screencast/pick_types.dart';
+import 'package:moonswing/screencast/screencast_portal.dart';
 
 /// Drives [ScreenCastPortalBackend] the way xdg-desktop-portal does, with the
 /// capture/PipeWire machinery replaced by fakes. What is under test is the

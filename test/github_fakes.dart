@@ -7,7 +7,7 @@
 
 import 'dart:async';
 
-import 'package:graceful_shell/github/github_api.dart';
+import 'package:moonswing/github/github_api.dart';
 
 /// A client that answers from what it was handed, counts its calls, and opens
 /// nothing.
@@ -134,12 +134,12 @@ class FakeGithubClient implements GithubClient {
 GithubNotification testNotification({
   String id = '1',
   String title = 'Fix the thing',
-  String repository = 'miracle-wm-org/graceful-shell',
+  String repository = 'miracle-wm-org/moonswing',
   GithubSubjectType type = GithubSubjectType.pullRequest,
   String reason = 'review_requested',
   bool unread = true,
   DateTime? updatedAt,
-  String url = 'https://github.com/miracle-wm-org/graceful-shell/pull/1',
+  String url = 'https://github.com/miracle-wm-org/moonswing/pull/1',
 }) =>
     GithubNotification(
       id: id,

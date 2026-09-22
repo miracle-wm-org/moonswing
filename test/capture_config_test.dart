@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/capture/capture_config.dart';
-import 'package:graceful_shell/capture/recorder.dart' show ffmpegArguments;
+import 'package:moonswing/capture/capture_config.dart';
+import 'package:moonswing/capture/recorder.dart' show ffmpegArguments;
 
 /// `[modules.screenshot]` and `[modules.screen_recorder]`, plus the ffmpeg
 /// command line — the part of the recorder that can be checked without a

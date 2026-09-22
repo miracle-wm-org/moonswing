@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 
-import 'package:graceful_shell/config_store.dart';
-import 'package:graceful_shell/overlay/settings/controls.dart';
-import 'package:graceful_shell/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
 
 /// The Calendar tab's own settings. The tab is a local month grid — there is no
 /// account integration — so this is presentation only.

@@ -1,11 +1,11 @@
 ---
 title: Build from source
-description: Dependencies, Flutter setup, and installing Graceful Shell to a prefix.
+description: Dependencies, Flutter setup, and installing Moonswing to a prefix.
 sidebar:
   order: 2
 ---
 
-Building is how you get Graceful Shell on a non-amd64 machine, on a distribution without
+Building is how you get Moonswing on a non-amd64 machine, on a distribution without
 `snapd`, or with a change of your own in it.
 
 ## Dependencies
@@ -59,13 +59,13 @@ make install                    # to ~/.local
 make install PREFIX=/usr/local  # or anywhere else
 ```
 
-`make install` builds the release bundle, copies it to `$PREFIX/lib/graceful-shell`, installs
-the default wallpapers to `$PREFIX/share/graceful-shell`, writes a `graceful-shell` launcher
+`make install` builds the release bundle, copies it to `$PREFIX/lib/moonswing`, installs
+the default wallpapers to `$PREFIX/share/moonswing`, writes a `moonswing` launcher
 into `$PREFIX/bin`, and registers the ScreenCast portal backend. Make sure `$PREFIX/bin` is on
 your `PATH`, then:
 
 ```sh
-graceful-shell
+moonswing
 ```
 
 To build without installing:
@@ -82,7 +82,7 @@ flutter build linux --release   # or: make build
 sudo make install-pam
 ```
 
-Writes `/etc/pam.d/graceful-shell`. It needs root, and writes to `/etc/pam.d` rather than the
+Writes `/etc/pam.d/moonswing`. It needs root, and writes to `/etc/pam.d` rather than the
 prefix, which is why it is a separate target. Without it the lock screen falls back to the
 system `login` service: it still authenticates, it just attributes unlock attempts to `login`
 in the auth logs.
@@ -95,13 +95,13 @@ make install-portal
 
 Run by `make install` already. It is separate because `xdg-desktop-portal` discovers backends
 through `XDG_DATA_HOME` and `XDG_CONFIG_HOME`, never through `PREFIX` — a custom prefix cannot
-move them. It installs `graceful-shell.portal` and, if you have no `mir-portals.conf` of your
+move them. It installs `moonswing.portal` and, if you have no `mir-portals.conf` of your
 own, one naming the shell as the preferred ScreenCast backend. An existing file is kept, and
 the target prints what to add to it:
 
 ```ini
 [preferred]
-org.freedesktop.impl.portal.ScreenCast=graceful-shell
+org.freedesktop.impl.portal.ScreenCast=moonswing
 ```
 
 Then pick it up:
@@ -132,7 +132,7 @@ build. To measure with Impeller on:
 
 ```sh
 flutter build linux --profile
-GRACEFUL_SHELL_IMPELLER=1 ./build/linux/x64/profile/bundle/graceful_shell
+MOONSWING_IMPELLER=1 ./build/linux/x64/profile/bundle/moonswing
 ```
 
 This is expected to be temporary; it is worth re-measuring after an engine bump.

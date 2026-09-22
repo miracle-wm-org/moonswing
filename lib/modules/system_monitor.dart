@@ -1,19 +1,19 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:graceful_shell/bar_button.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/popup.dart';
-import 'package:graceful_shell/module.dart';
-import 'package:graceful_shell/popup_surface.dart';
-import 'package:graceful_shell/scopes.dart';
-import 'package:graceful_shell/theme/tokens.dart';
-import 'package:graceful_shell/underline_tabs.dart';
-import 'package:graceful_shell/system/format.dart';
-import 'package:graceful_shell/system/models.dart';
-import 'package:graceful_shell/system/system_monitor_config.dart';
-import 'package:graceful_shell/system/system_stats_store.dart';
-import 'package:graceful_shell/usage_bar.dart';
-import 'package:graceful_shell/theme/theme_provider.dart';
+import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/module.dart';
+import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/underline_tabs.dart';
+import 'package:moonswing/system/format.dart';
+import 'package:moonswing/system/models.dart';
+import 'package:moonswing/system/system_monitor_config.dart';
+import 'package:moonswing/system/system_stats_store.dart';
+import 'package:moonswing/usage_bar.dart';
+import 'package:moonswing/theme/theme_provider.dart';
 
 /// CPU, memory and temperature in the panel, with a popup breaking out the
 /// per-core figures and the heaviest processes.

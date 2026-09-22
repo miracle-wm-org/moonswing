@@ -222,7 +222,7 @@ class CaptureSession {
     final stride = _width * 4;
     final size = stride * _height;
 
-    final fd = libc.memfdCreate('graceful-shell-capture');
+    final fd = libc.memfdCreate('moonswing-capture');
     if (fd < 0) {
       _stop('memfd_create failed');
       return false;

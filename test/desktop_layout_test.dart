@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/config.dart';
-import 'package:graceful_shell/desktop/desktop_layout.dart';
+import 'package:moonswing/config.dart';
+import 'package:moonswing/desktop/desktop_layout.dart';
 
 /// A grid whose arithmetic is easy to do in your head: 100px cells, no spacing,
 /// no padding, so cell (c, r) is exactly at (100c, 100r).

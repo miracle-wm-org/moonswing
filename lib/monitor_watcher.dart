@@ -2,7 +2,7 @@ import 'dart:ffi' as ffi;
 
 import 'package:ffi/ffi.dart';
 
-import 'package:graceful_shell/native/ffi_util.dart';
+import 'package:moonswing/native/ffi_util.dart';
 
 /// Watches the default GDK display for monitors being plugged in or unplugged and
 /// invokes [onChanged] whenever the set changes.

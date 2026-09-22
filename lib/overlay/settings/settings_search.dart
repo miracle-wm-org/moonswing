@@ -7,7 +7,7 @@ library;
 
 import 'package:flutter/foundation.dart' show immutable;
 
-import 'package:graceful_shell/overlay/settings_route.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 
 /// One searchable setting: what it is called, what it does, and where it lives.
 ///

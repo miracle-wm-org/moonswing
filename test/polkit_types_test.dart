@@ -1,7 +1,7 @@
 import 'package:dbus/dbus.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:graceful_shell/polkit/polkit_types.dart';
+import 'package:moonswing/polkit/polkit_types.dart';
 
 DBusValue _identity(String kind, Map<String, DBusValue> details) =>
     DBusStruct([DBusString(kind), DBusDict.stringVariant(details)]);

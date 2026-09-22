@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:graceful_shell/weather/weather_condition.dart';
-import 'package:graceful_shell/weather/weather_sky.dart';
+import 'package:moonswing/weather/weather_condition.dart';
+import 'package:moonswing/weather/weather_sky.dart';
 
 SkyField _field(int code, {double? cover, bool night = false}) {
   final condition = conditionForCode(code);
