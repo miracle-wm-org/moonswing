@@ -53,7 +53,11 @@ void main() {
     await tokens.write('saved-token');
     final store = storeWith(client, config: config);
     store.acquire();
-    await settle();
+    // The token read is file I/O, so turns alone cannot be relied on to see it
+    // land — wait for the sign-in and its first fetch to have finished.
+    await settleUntil(
+      () => store.stage == GithubAuthStage.signedIn && !store.loading,
+    );
     return store;
   }
 

@@ -153,6 +153,28 @@ GithubNotification testNotification({
       url: url,
     );
 
+/// Waits until [done] holds, then [settle]s whatever it set off.
+///
+/// For work that leaves the isolate: `GithubTokenStore.read` is real file I/O,
+/// answered from Dart's I/O thread whenever the disk gets to it, so no number
+/// of event-loop turns is guaranteed to outlast it — on a loaded CI runner 24
+/// did not, and the test asserted on a store that had not signed in yet. So
+/// this waits on the state itself, with real (1ms) delays between looks, and
+/// fails loudly rather than letting a test carry on against the wrong one.
+Future<void> settleUntil(
+  bool Function() done, {
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!done()) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw StateError('settleUntil: condition not met within $timeout');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+  }
+  await settle();
+}
+
 /// Lets everything the store started off an `unawaited` call finish.
 ///
 /// The store's `acquire()` is fire-and-forget by design — a widget's
