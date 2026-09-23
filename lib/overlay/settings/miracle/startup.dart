@@ -28,11 +28,10 @@ class MiracleStartupSection extends StatelessWidget {
               (config) => config.startupApps.add(const StartupApp(command: '')),
             ),
           ),
-          children: [
-            const SettingsHint(
+          info:
               'Run once the compositor is ready for clients. moonswing '
               'itself is usually one of these.',
-            ),
+          children: [
             MiracleCollection(
               store: store,
               signature: _appsSignature,
@@ -77,11 +76,10 @@ class MiracleStartupSection extends StatelessWidget {
               ),
             ),
           ),
-          children: [
-            const SettingsHint(
+          info:
               'Set for every application miracle launches, and for the '
               'compositor itself.',
-            ),
+          children: [
             MiracleCollection(
               store: store,
               signature: _variablesSignature,

@@ -75,11 +75,6 @@ class MiracleMouseSection extends StatelessWidget {
               select: (config) => config.mouse.hscrollSpeed,
               apply: (config, value) => config.mouse.hscrollSpeed = value,
             ),
-            const SettingsHint(
-              'The acceleration bias runs from -1 (slowest) through 0 (the '
-              'device\'s own speed) to 1. The scroll speeds are multipliers, '
-              'where 1 leaves the device alone.',
-            ),
           ],
         ),
         SliverSettingsSection(
@@ -156,10 +151,6 @@ class MiracleMouseSection extends StatelessWidget {
                   );
                 },
               ),
-            ),
-            const SettingsHint(
-              'All of the chosen modifiers have to be held at once. With none '
-              'chosen, a bare drag on a window moves it.',
             ),
           ],
         ),
@@ -281,6 +272,9 @@ class MiracleTouchpadSection extends StatelessWidget {
         ),
         SliverSettingsSection(
           label: 'Pointer',
+          info:
+              'These apply to every touchpad miracle sees. A machine with no '
+              'touchpad keeps the settings and has nothing to apply them to.',
           children: [
             _number(
               SettingsCatalog.miracleTouchpadAccelerationBias,
@@ -300,11 +294,6 @@ class MiracleTouchpadSection extends StatelessWidget {
               select: (config) => config.touchpad.disableWithExternalMouse,
               apply: (config, value) =>
                   config.touchpad.disableWithExternalMouse = value,
-            ),
-            const SettingsHint(
-              'These apply to every touchpad miracle sees. A machine with no '
-              'touchpad keeps the settings and simply has nothing to apply '
-              'them to.',
             ),
           ],
         ),

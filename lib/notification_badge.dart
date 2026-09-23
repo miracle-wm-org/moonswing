@@ -4,7 +4,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/notification_service.dart';
-import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
@@ -73,13 +72,14 @@ const Size kNotificationBadgeWindowSize = Size(
   kNotificationBadgeHeight + 2 * kNotificationBadgeShadowInset,
 );
 
-/// How far the close button sits in from the card's top-right corner. Tighter
-/// than the card's own padding, so the button's box can reach the corner
-/// without pushing the three lines of text any narrower than they have to be.
-const double kNotificationBadgeCloseInset = 4;
-
 /// How long the card takes to arrive.
 const Duration kNotificationBadgeEnter = Duration(milliseconds: 420);
+
+/// How long the card takes to leave once the pointer has passed over it.
+///
+/// Quicker than the arrival: the user has already seen it, and a card that
+/// lingers after being waved away is one still asking for attention.
+const Duration kNotificationBadgeExit = Duration(milliseconds: 260);
 
 /// How long one bounce lasts.
 const Duration kNotificationBadgeBump = Duration(milliseconds: 380);
@@ -119,10 +119,13 @@ String notificationBadgeLabel(int count) => count > 99 ? '99+' : '$count';
 ///   prevent. The card's *presence* is the standing signal; motion is reserved
 ///   for the moment something changes.
 /// - **The card is the whole box.** [HoverRegion] emits the opaque detector, so
-///   the rectangle is the hover box and the tap box alike — all but the X in
-///   its corner, which closes the card without reading anything: the list and
-///   the bell keep every notification, unread, and the next arrival brings the
-///   card back.
+///   the rectangle is the hover box and the tap box alike. A tap opens the
+///   panel; a pointer that crosses the card and leaves *without* tapping is the
+///   user waving it away, so the card slides back out and asks the store to
+///   keep it down ([NotificationStore.hideBadge]) — nothing is read or
+///   removed, the bell keeps its count, and the next arrival brings it back.
+///   There is no X: the pointer's passing is the dismissal, and a close button
+///   the size of a glyph was a target the pointer had to be aimed at.
 class NotificationBadge extends StatefulWidget {
   const NotificationBadge({super.key, required this.onTap});
 
@@ -179,6 +182,14 @@ class _NotificationBadgeState extends State<NotificationBadge>
   late final AnimationController _bumpController;
   late final Animation<double> _bump;
 
+  /// The departure: the slide back out toward the edge, and the fade.
+  late final AnimationController _exitController;
+
+  /// Whether the pointer is over the card now, and whether it has tapped the
+  /// card since it arrived. Plain fields: neither is painted.
+  bool _pointerInside = false;
+  bool _tapped = false;
+
   int _prevCount = 0;
 
   @override
@@ -216,6 +227,11 @@ class _NotificationBadgeState extends State<NotificationBadge>
     );
     _bump = _bounce.animate(_bumpController);
 
+    _exitController = AnimationController(
+      vsync: this,
+      duration: kNotificationBadgeExit,
+    );
+
     _prevCount = NotificationStore.instance.unreadCount;
     NotificationStore.instance.addListener(_onStoreChanged);
     _enterController.forward();
@@ -226,6 +242,7 @@ class _NotificationBadgeState extends State<NotificationBadge>
     NotificationStore.instance.removeListener(_onStoreChanged);
     _enterController.dispose();
     _bumpController.dispose();
+    _exitController.dispose();
     super.dispose();
   }
 
@@ -236,11 +253,43 @@ class _NotificationBadgeState extends State<NotificationBadge>
     // to the thing they are in the middle of clearing. The entrance carries its
     // own bounce, so an arrival that lands while the card is still coming in is
     // left alone rather than bounced twice.
-    if (count > _prevCount && _enterController.isCompleted) {
-      _bumpController.forward(from: 0.0);
+    if (count > _prevCount) {
+      // Something new arriving while the card is on its way out brings it back:
+      // it was waved away over the old messages, not this one. Setting the
+      // value cancels the departure, so its `hideBadge` never runs.
+      if (_exitController.value > 0) _exitController.value = 0;
+      if (_enterController.isCompleted) _bumpController.forward(from: 0.0);
     }
     _prevCount = count;
     if (mounted) setState(() {});
+  }
+
+  void _onEnter() {
+    _pointerInside = true;
+    _tapped = false;
+  }
+
+  /// The pointer left the card. Without a tap in between, that is the user
+  /// having seen it and moved on, so the card leaves.
+  ///
+  /// Only an exit that follows an [_onEnter] counts: `MouseRegion` also reports
+  /// content moving under a stationary cursor, and the card sliding in under a
+  /// pointer parked in the corner is not the user waving it away.
+  void _onExit() {
+    if (!_pointerInside) return;
+    _pointerInside = false;
+    if (_tapped || _exitController.isAnimating) return;
+    _exitController.forward().then((_) {
+      if (mounted) NotificationStore.instance.hideBadge();
+    });
+  }
+
+  void _onTapDown() {
+    _tapped = true;
+    // A tap during the departure takes the card back: the user has changed
+    // their mind about it, and the panel it opens takes it down anyway.
+    if (_exitController.value > 0) _exitController.value = 0;
+    widget.onTap();
   }
 
   @override
@@ -259,56 +308,46 @@ class _NotificationBadgeState extends State<NotificationBadge>
       newest: newest,
     );
 
+    // The exit is the entrance's slide run the other way, fading as it goes,
+    // so the card leaves by the edge it came in from.
+    final exit = CurvedAnimation(
+      parent: _exitController,
+      curve: Curves.easeInCubic,
+    );
+
     return Padding(
       padding: kNotificationBadgeInsets,
       child: FadeTransition(
         opacity: _fade,
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_enterController, _bumpController]),
-          // Built outside the builder: the card measures two paragraphs, and
-          // re-shaping them on every frame of a bounce is exactly what the
-          // repaint rules say to hand in unchanged instead.
-          child: Stack(
-            children: [
-              HoverRegion(
-                // Tap-down, not tap: `PopupDismissArea`'s ancestor `Listener`
-                // fires before any descendant recognizer, so every popup
-                // toggle in the shell opens on the down edge and is guarded
-                // there.
-                onTapDown: (_) => widget.onTap(),
-                builder: (context, hovered) => _BadgeCard(
-                  theme: theme,
-                  hovered: hovered,
-                  child: content,
-                ),
-              ),
-              // A sibling over the card rather than a child inside its
-              // detector. Nested, the card's tap-down would fire on any press
-              // on the X held past the tap deadline, opening the panel the user
-              // was closing the card to avoid; as the top of the `Stack`, the
-              // X's opaque box is where hit-testing stops.
-              //
-              // It hides the card and nothing else: see
-              // [NotificationStore.hideBadge].
-              Positioned(
-                top: kNotificationBadgeCloseInset,
-                right: kNotificationBadgeCloseInset,
-                child: SettingsIconButton(
-                  icon: FontAwesomeIcons.xmark,
-                  box: ShellSizes.minTapTarget,
-                  size: ShellFontSizes.label,
-                  color: theme.popupForeground.withValues(alpha: 0.55),
-                  onTap: store.hideBadge,
-                ),
-              ),
-            ],
-          ),
-          builder: (context, child) => Transform.translate(
-            offset: Offset(
-              _slide.value,
-              _enterBounce.value + _bump.value,
+        child: FadeTransition(
+          opacity: ReverseAnimation(exit),
+          child: AnimatedBuilder(
+            animation: Listenable.merge([
+              _enterController,
+              _bumpController,
+              _exitController,
+            ]),
+            // Built outside the builder: the card measures two paragraphs, and
+            // re-shaping them on every frame of a bounce is exactly what the
+            // repaint rules say to hand in unchanged instead.
+            child: HoverRegion(
+              onEnter: _onEnter,
+              onExit: _onExit,
+              // Tap-down, not tap: `PopupDismissArea`'s ancestor `Listener`
+              // fires before any descendant recognizer, so every popup
+              // toggle in the shell opens on the down edge and is guarded
+              // there.
+              onTapDown: (_) => _onTapDown(),
+              builder: (context, hovered) =>
+                  _BadgeCard(theme: theme, hovered: hovered, child: content),
             ),
-            child: child,
+            builder: (context, child) => Transform.translate(
+              offset: Offset(
+                _slide.value + exit.value * kNotificationBadgeSlide,
+                _enterBounce.value + _bump.value,
+              ),
+              child: child,
+            ),
           ),
         ),
       ),
@@ -393,10 +432,6 @@ class _BadgeCard extends StatelessWidget {
 /// single line the card has room for. A constant: it is read on every build.
 final RegExp _whitespace = RegExp(r'\s+');
 
-/// How far the close button reaches in past the card's right padding (14).
-const double _kCloseClearance =
-    ShellSizes.minTapTarget + kNotificationBadgeCloseInset - 14;
-
 /// What the card says: the bell and its count, then what arrived.
 class _BadgeContent extends StatelessWidget {
   const _BadgeContent({
@@ -469,8 +504,6 @@ class _BadgeContent extends StatelessWidget {
               ],
             ),
         ),
-        // Keeps the text clear of the close button over the card's corner.
-        const SizedBox(width: _kCloseClearance),
       ],
     );
   }

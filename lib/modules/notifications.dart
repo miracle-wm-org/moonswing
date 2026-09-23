@@ -790,8 +790,12 @@ class _NotificationPanelState extends State<NotificationPanel>
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
       itemCount: items.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, i) =>
-          _NotificationCard(item: items[i], theme: theme),
+      itemBuilder: (context, i) => _NotificationCard(
+        item: items[i],
+        theme: theme,
+        // Out of the way of whatever the notification just opened.
+        onActivated: () => widget.closingNotifier.value = true,
+      ),
     );
   }
 }
@@ -1125,14 +1129,25 @@ class _RetryButton extends StatelessWidget {
 /// The whole card is the dismiss target's neighbour, and the actions are real
 /// buttons: at the sizes this used, a "Reply" the size of a footnote was a
 /// control the pointer had to be aimed at.
+///
+/// Clicking the card itself is clicking the notification: it takes the
+/// sender's default action, or opens the application it came from — see
+/// [NotificationStore.activate]. The X and the action buttons are nested
+/// detectors inside it, and the innermost recognizer wins a tap, so pressing
+/// either does only what it says.
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
     required this.item,
     required this.theme,
+    required this.onActivated,
   });
 
   final NotificationItem item;
   final ThemeConfig theme;
+
+  /// Called when a click on the card opened something, so the panel can get
+  /// out of its way.
+  final VoidCallback onActivated;
 
   @override
   Widget build(BuildContext context) {
@@ -1172,102 +1187,119 @@ class _NotificationCard extends StatelessWidget {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-      decoration: BoxDecoration(
-        color: theme.workspaceBackground.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(ShellRadii.card),
-        // An unread card is ringed in the badge colour rather than tinted: the
-        // body text on it is the thing the user came to read, and a wash under
-        // prose is the one place this palette's loudest colour must not go.
-        border: Border.all(
-          color: item.read
-              ? theme.divider
-              : theme.notificationBadge.withValues(alpha: 0.75),
+    // Built outside the hover builder, so a pointer crossing the card moves a
+    // decoration rather than re-shaping the summary and body.
+    final content = _cardContent(actionWidgets);
+    return HoverRegion(
+      onTap: () {
+        if (NotificationStore.instance.activate(item.id)) onActivated();
+      },
+      builder: (context, hovered) => Container(
+        padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
+        decoration: BoxDecoration(
+          color: hovered
+              ? Color.alphaBlend(
+                  theme.surfaceHover.withValues(alpha: 0.16),
+                  theme.workspaceBackground.withValues(alpha: 0.5),
+                )
+              : theme.workspaceBackground.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(ShellRadii.card),
+          // An unread card is ringed in the badge colour rather than tinted: the
+          // body text on it is the thing the user came to read, and a wash under
+          // prose is the one place this palette's loudest colour must not go.
+          border: Border.all(
+            color: item.read
+                ? theme.divider
+                : theme.notificationBadge.withValues(alpha: 0.75),
+          ),
         ),
+        child: content,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    if (!item.read) ...[
-                      // The same dot the rest of the shell means by unread,
-                      // and the same colour the bell and the floating card
-                      // wear. It is what survives the card being read over a
-                      // photograph, where a border alone can vanish.
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          color: theme.notificationBadge,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 7),
-                    ],
-                    Flexible(
-                      child: Text(
-                        item.appName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: ShellFontSizes.caption,
-                          letterSpacing: 0.6,
-                          fontWeight: FontWeight.bold,
-                          color: theme.accentText.withValues(alpha: 0.9),
-                        ),
+    );
+  }
+
+  Widget _cardContent(List<Widget> actionWidgets) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (!item.read) ...[
+                    // The same dot the rest of the shell means by unread,
+                    // and the same colour the bell and the floating card
+                    // wear. It is what survives the card being read over a
+                    // photograph, where a border alone can vanish.
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: theme.notificationBadge,
+                        shape: BoxShape.circle,
                       ),
                     ),
+                    const SizedBox(width: 7),
                   ],
+                  Flexible(
+                    child: Text(
+                      item.appName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.caption,
+                        letterSpacing: 0.6,
+                        fontWeight: FontWeight.bold,
+                        color: theme.accentText.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                item.summary,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.title,
+                  height: 1.25,
+                  fontWeight: FontWeight.bold,
+                  color: theme.popupForeground,
                 ),
+              ),
+              if (item.body.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
-                  item.summary,
+                  item.body,
+                  // Six lines rather than four: the point of a wider panel
+                  // set in a larger type is that the message is readable
+                  // here instead of only in the application it came from.
+                  maxLines: 6,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: ShellFontSizes.title,
-                    height: 1.25,
-                    fontWeight: FontWeight.bold,
-                    color: theme.popupForeground,
+                    fontSize: ShellFontSizes.label,
+                    height: 1.45,
+                    color: theme.popupForeground.withValues(alpha: 0.85),
                   ),
                 ),
-                if (item.body.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    item.body,
-                    // Six lines rather than four: the point of a wider panel
-                    // set in a larger type is that the message is readable
-                    // here instead of only in the application it came from.
-                    maxLines: 6,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: ShellFontSizes.label,
-                      height: 1.45,
-                      color: theme.popupForeground.withValues(alpha: 0.85),
-                    ),
-                  ),
-                ],
-                if (actionWidgets.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Wrap(spacing: 8, runSpacing: 8, children: actionWidgets),
-                ],
               ],
-            ),
+              if (actionWidgets.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Wrap(spacing: 8, runSpacing: 8, children: actionWidgets),
+              ],
+            ],
           ),
-          const SizedBox(width: 8),
-          SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
-            box: ShellSizes.iconButton,
-            size: ShellFontSizes.label,
-            color: theme.popupForeground.withValues(alpha: 0.55),
-            onTap: () => NotificationStore.instance.dismiss(item.id),
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 8),
+        SettingsIconButton(
+          icon: FontAwesomeIcons.xmark,
+          box: ShellSizes.iconButton,
+          size: ShellFontSizes.label,
+          color: theme.popupForeground.withValues(alpha: 0.55),
+          onTap: () => NotificationStore.instance.dismiss(item.id),
+        ),
+      ],
     );
   }
 }

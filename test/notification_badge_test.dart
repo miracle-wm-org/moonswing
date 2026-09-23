@@ -214,30 +214,88 @@ void main() {
       expect(taps, 1);
     });
 
-    // The X closes the card and nothing else: every notification stays on the
-    // list, unread, so the bell keeps its count and the panel still has them.
-    testWidgets('its X hides the card without reading or removing anything',
+    // There is no X any more: the pointer's passing is the dismissal.
+    testWidgets('carries no close button', (tester) async {
+      _seed(1);
+      await tester.pumpWidget(_badge());
+      await tester.pumpAndSettle();
+      expect(find.byIcon(FontAwesomeIcons.xmark.data), findsNothing);
+    });
+
+    // Crossing the card and leaving without a click is the user having seen
+    // it: it slides out, then asks the store to keep it down — reading and
+    // removing nothing.
+    testWidgets('a pointer passing over without a click hides the card',
         (tester) async {
       _seed(2);
       var taps = 0;
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
       await tester.pumpWidget(_badge(onTap: () => taps++));
       await tester.pumpAndSettle();
 
       final store = NotificationStore.instance;
-      final close = find.byIcon(FontAwesomeIcons.xmark.data);
-      expect(close, findsOneWidget);
-
-      // Held past the tap deadline, which is where a close button nested
-      // inside the card's tap-down detector would open the panel as well.
-      final gesture = await tester.startGesture(tester.getCenter(close));
-      await tester.pump(const Duration(milliseconds: 300));
-      await gesture.up();
+      await gesture.moveTo(tester.getCenter(find.text('App')));
       await tester.pump();
+      expect(store.badgeHidden, isFalse, reason: 'entering is not leaving');
 
-      expect(taps, 0, reason: 'closing the card is not opening the panel');
+      final settled = _cardRect(tester);
+      await gesture.moveTo(Offset.zero);
+      await tester.pump();
+      await tester.pump(kNotificationBadgeExit ~/ 2);
+      // On its way out by the edge it came in from.
+      expect(_cardRect(tester).left, greaterThan(settled.left));
+      expect(store.badgeHidden, isFalse, reason: 'hidden once the exit ends');
+
+      await tester.pumpAndSettle();
       expect(store.badgeHidden, isTrue);
+      expect(taps, 0);
       expect(store.items, hasLength(2));
       expect(store.unreadCount, 2);
+    });
+
+    testWidgets('a pointer that clicks the card does not hide it on leaving',
+        (tester) async {
+      _seed(1);
+      var taps = 0;
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await tester.pumpWidget(_badge(onTap: () => taps++));
+      await tester.pumpAndSettle();
+
+      await gesture.moveTo(tester.getCenter(find.text('App')));
+      await tester.pump();
+      await gesture.down(tester.getCenter(find.text('App')));
+      await gesture.up();
+      await tester.pump();
+      await gesture.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+
+      expect(taps, 1);
+      expect(NotificationStore.instance.badgeHidden, isFalse);
+    });
+
+    // Waved away over the old messages, not the new one.
+    testWidgets('an arrival during the exit takes the card back',
+        (tester) async {
+      _seed(1);
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.addPointer(location: Offset.zero);
+      addTearDown(gesture.removePointer);
+      await tester.pumpWidget(_badge());
+      await tester.pumpAndSettle();
+
+      await gesture.moveTo(tester.getCenter(find.text('App')));
+      await tester.pump();
+      await gesture.moveTo(Offset.zero);
+      await tester.pump();
+      await tester.pump(kNotificationBadgeExit ~/ 2);
+
+      _seed(1, app: 'Chat');
+      await tester.pumpAndSettle();
+      expect(NotificationStore.instance.badgeHidden, isFalse);
     });
 
     test('a new arrival brings a closed card back', () {

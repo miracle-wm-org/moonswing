@@ -31,12 +31,11 @@ class MiracleWorkspacesSection extends StatelessWidget {
           config.workspaceConfigs.add(WorkspaceConfig(number: next));
         }),
       ),
-      children: [
-        const SettingsHint(
+      info:
           'Each entry configures one workspace. At least one of the number and '
           'the name has to be filled in, or miracle has nothing to match the '
           'entry to.',
-        ),
+      children: [
         MiracleCollection(
           store: store,
           signature: _signature,

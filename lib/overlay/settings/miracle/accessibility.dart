@@ -27,6 +27,9 @@ class MiracleAccessibilitySection extends StatelessWidget {
       slivers: [
         SliverSettingsSection(
           label: 'Magnifier',
+          info:
+              'The two steps are what one press of a magnifier binding '
+              'changes — see Key Bindings for which keys those are.',
           children: [
             _toggle(
               SettingsCatalog.miracleMagnifierEnabled,
@@ -58,14 +61,14 @@ class MiracleAccessibilitySection extends StatelessWidget {
               select: (config) => config.magnifier.sizeIncrement,
               apply: (config, value) => config.magnifier.sizeIncrement = value,
             ),
-            const SettingsHint(
-              'The two increments are what one press of a magnifier binding '
-              'changes — see Key Bindings for which keys those are.',
-            ),
           ],
         ),
         SliverSettingsSection(
           label: 'Clicking without a button',
+          info:
+              'Hover click clicks wherever the pointer rests. Hold to '
+              'right-click turns a long press of the primary button into a '
+              'right click.',
           children: [
             _toggle(
               SettingsCatalog.miracleHoverClickEnabled,
@@ -89,12 +92,6 @@ class MiracleAccessibilitySection extends StatelessWidget {
                   config.hoverClick.reclickDisplacementThreshold,
               apply: (config, value) =>
                   config.hoverClick.reclickDisplacementThreshold = value,
-            ),
-            const SettingsHint(
-              'Resting the pointer still clicks where it rests. The cancel '
-              'distance is how far it may drift before the pending click is '
-              'abandoned; the re-click distance is how far it must move before '
-              'it will click again.',
             ),
             _toggle(
               SettingsCatalog.miracleSecondaryClickEnabled,
@@ -142,11 +139,6 @@ class MiracleAccessibilitySection extends StatelessWidget {
               apply: (config, value) =>
                   config.stickyKeys.disableIfTwoKeysArePressedTogether = value,
             ),
-            const SettingsHint(
-              'Sticky keys latch a modifier when it is pressed, so Action Key '
-              'and Shift can be typed one after the other rather than held '
-              'together.',
-            ),
           ],
         ),
         SliverSettingsSection(
@@ -154,6 +146,9 @@ class MiracleAccessibilitySection extends StatelessWidget {
           children: [
             SettingsRow.field(
               SettingsCatalog.miracleOutputFilterShader,
+              info:
+                  '${SettingsCatalog.miracleOutputFilterShader.description} '
+                  'A leading ~ resolves to your home directory.',
               control: MiracleValue<String>(
                 store: store,
                 select: (config) => config.outputFilter.shaderPath ?? '',
@@ -171,11 +166,6 @@ class MiracleAccessibilitySection extends StatelessWidget {
                   },
                 ),
               ),
-            ),
-            const SettingsHint(
-              'A path to a shader miracle runs over every output — a '
-              'colour-blindness filter, a night tint. A leading ~ resolves to '
-              'your home directory. Leave it empty for none.',
             ),
           ],
         ),
