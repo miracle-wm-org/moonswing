@@ -214,6 +214,45 @@ void main() {
       expect(taps, 1);
     });
 
+    // The X closes the card and nothing else: every notification stays on the
+    // list, unread, so the bell keeps its count and the panel still has them.
+    testWidgets('its X hides the card without reading or removing anything',
+        (tester) async {
+      _seed(2);
+      var taps = 0;
+      await tester.pumpWidget(_badge(onTap: () => taps++));
+      await tester.pumpAndSettle();
+
+      final store = NotificationStore.instance;
+      final close = find.byIcon(FontAwesomeIcons.xmark.data);
+      expect(close, findsOneWidget);
+
+      // Held past the tap deadline, which is where a close button nested
+      // inside the card's tap-down detector would open the panel as well.
+      final gesture = await tester.startGesture(tester.getCenter(close));
+      await tester.pump(const Duration(milliseconds: 300));
+      await gesture.up();
+      await tester.pump();
+
+      expect(taps, 0, reason: 'closing the card is not opening the panel');
+      expect(store.badgeHidden, isTrue);
+      expect(store.items, hasLength(2));
+      expect(store.unreadCount, 2);
+    });
+
+    test('a new arrival brings a closed card back', () {
+      _seed(1);
+      final store = NotificationStore.instance;
+      store.hideBadge();
+      expect(store.badgeHidden, isTrue);
+
+      store.markRead(store.items.first.id);
+      expect(store.badgeHidden, isTrue, reason: 'reading is not an arrival');
+
+      _seed(1);
+      expect(store.badgeHidden, isFalse);
+    });
+
     // The card is three lines of prose over the wallpaper, so a hover moves
     // its fill a little rather than repainting it: `surface_hover` is a
     // control colour — the accent itself in the shipped palette, a near-white

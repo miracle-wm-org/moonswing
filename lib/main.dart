@@ -902,11 +902,16 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// one they have said they are done being asked about. The list keeps it —
   /// [NotificationStore.markAllRead] removes nothing — so closing the panel
   /// afterwards leaves the messages there and the corner of the screen empty.
+  ///
+  /// The card's own X takes it down too, without marking anything read — see
+  /// [NotificationStore.badgeHidden] — until the next notification arrives.
   void _syncNotificationBadges() {
     if (!mounted) return;
     final store = NotificationStore.instance;
-    final wanted =
-        store.hasUnread && !store.silenced && !_notifications.isOpen;
+    final wanted = store.hasUnread &&
+        !store.silenced &&
+        !store.badgeHidden &&
+        !_notifications.isOpen;
     if (wanted == _badges.isNotEmpty) return;
 
     if (wanted) {
