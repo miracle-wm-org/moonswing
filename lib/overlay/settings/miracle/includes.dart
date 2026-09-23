@@ -23,12 +23,10 @@ class MiracleIncludesSection extends StatelessWidget {
       slivers: [
         SliverSettingsSection(
           label: 'Included files',
-          children: [
-            const SettingsHint(
+          info:
               'Other configuration files merged into this one, in order. A '
               'later file wins where two of them set the same thing.',
-            ),
-            const SizedBox(height: 8),
+          children: [
             MiracleCollection(
               store: store,
               signature: (config) => config.includes.join('\n'),
@@ -48,12 +46,10 @@ class MiracleIncludesSection extends StatelessWidget {
         ),
         SliverSettingsSection(
           label: 'Plugins',
-          children: [
-            const SettingsHint(
+          info:
               'Shared objects miracle loads at startup. Each is a path to a '
               '.so, or to a directory of them.',
-            ),
-            const SizedBox(height: 8),
+          children: [
             MiracleCollection(
               store: store,
               signature: (config) =>

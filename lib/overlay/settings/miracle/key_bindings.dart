@@ -90,12 +90,11 @@ class MiracleKeyBindingsSection extends StatelessWidget {
               ),
             ),
           ),
-          children: [
-            const SettingsHint(
+          info:
               'Each of these runs a shell command. The Action Key stands for '
               'whatever you set it to under General, so a binding written '
               'against it follows that setting.',
-            ),
+          children: [
             MiracleCollection(
               store: store,
               signature: _customSignature,
@@ -133,12 +132,11 @@ class MiracleKeyBindingsSection extends StatelessWidget {
               ),
             ),
           ),
-          children: [
-            const SettingsHint(
+          info:
               "Each of these replaces the default binding for one of miracle's "
               'own commands. A command with no override here keeps whatever '
               'miracle ships with.',
-            ),
+          children: [
             MiracleCollection(
               store: store,
               signature: _overrideSignature,
@@ -343,12 +341,15 @@ class _BindingCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          target,
-          const SizedBox(height: 8),
+          // What it does, then which key and when, on one line: the three
+          // fields somebody edits together, and a card a line shorter.
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Expanded(flex: 3, child: target),
+              const SizedBox(width: 10),
               Expanded(
+                flex: 2,
                 child: _LabelledControl(
                   label: 'Key',
                   child: SettingsDropdown<int>(
@@ -360,6 +361,7 @@ class _BindingCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
+                flex: 2,
                 child: _LabelledControl(
                   label: 'Fires on',
                   child: SettingsDropdown<KeyboardAction>(
@@ -371,7 +373,7 @@ class _BindingCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           _LabelledControl(
             label: 'Held with',
             child: SettingsChipToggles<Modifier>(

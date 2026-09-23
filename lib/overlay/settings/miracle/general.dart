@@ -36,6 +36,10 @@ class MiracleGeneralSection extends StatelessWidget {
           children: [
             SettingsRow.field(
               SettingsCatalog.miracleActionKey,
+              info:
+                  '${SettingsCatalog.miracleActionKey.description} Every '
+                  'built-in binding is written against it, so changing it '
+                  'moves all of them at once.',
               control: MiracleValue<Modifier>(
                 store: store,
                 select: (config) => config.primaryModifier,
@@ -49,11 +53,6 @@ class MiracleGeneralSection extends StatelessWidget {
                       store.edit((config) => config.primaryModifier = next),
                 ),
               ),
-            ),
-            const SettingsHint(
-              'miracle calls this the Action Key. Every built-in binding is '
-              'written against it, so changing it here moves all of them at '
-              'once — the workspace switches, the window moves, the terminal.',
             ),
             SettingsRow.field(
               SettingsCatalog.miracleMoveModifier,
@@ -71,6 +70,12 @@ class MiracleGeneralSection extends StatelessWidget {
                 ),
               ),
             ),
+            // Said rather than disabled: the setting is real and a plugin may
+            // want it, but miracle has neither a reader nor a writer for it in
+            // the configuration file, so a change here lasts as long as this
+            // page does. The catalogue description, behind the row's info
+            // icon, says so — and a control that silently forgets is worse than
+            // one that says it will.
             SettingsRow.field(
               SettingsCatalog.miraclePrimaryButton,
               control: MiracleValue<MouseButton>(
@@ -87,22 +92,19 @@ class MiracleGeneralSection extends StatelessWidget {
                 ),
               ),
             ),
-            // Said plainly rather than by disabling the row: the setting is
-            // real and a plugin may want it, but miracle has neither a reader
-            // nor a writer for it in the configuration file, so a change here
-            // lasts as long as this page does. A control that silently forgets
-            // is worse than one that says it will.
-            const SettingsHint(
-              'miracle sets the primary button from plugins rather than from '
-              'the configuration file, so this is not written when you save.',
-            ),
           ],
         ),
         SliverSettingsSection(
           label: 'Behaviour',
           children: [
+            // The load-time check is worth stating because it makes a
+            // saved-and-reloaded terminal appear to have been ignored.
             SettingsRow.field(
               SettingsCatalog.miracleTerminal,
+              info:
+                  '${SettingsCatalog.miracleTerminal.description} miracle '
+                  'checks the program exists when it loads the configuration '
+                  'and silently falls back to its default if not.',
               control: MiracleValue<String>(
                 store: store,
                 select: (config) => config.terminal ?? '',
@@ -120,15 +122,6 @@ class MiracleGeneralSection extends StatelessWidget {
                   },
                 ),
               ),
-            ),
-            // Worth stating because it makes a saved-and-reloaded terminal
-            // appear to have been ignored: miracle checks the program exists
-            // when it *loads* a configuration, and falls back to its own
-            // default when the check fails.
-            const SettingsHint(
-              'miracle checks the program exists when it loads the '
-              'configuration and quietly falls back to its own default if it '
-              'does not — so a typo here reads as "nothing happened".',
             ),
             SettingsRow.field(
               SettingsCatalog.miracleResizeJump,
@@ -160,6 +153,10 @@ class MiracleGeneralSection extends StatelessWidget {
             ),
             SettingsRow.field(
               SettingsCatalog.miracleBackgroundColor,
+              info:
+                  '${SettingsCatalog.miracleBackgroundColor.description} Only '
+                  'visible where nothing else paints — the shell draws its own '
+                  'wallpaper over the whole screen.',
               control: MiracleValue<String>(
                 store: store,
                 // Written without an alpha component: the compositor's
@@ -177,11 +174,6 @@ class MiracleGeneralSection extends StatelessWidget {
                   },
                 ),
               ),
-            ),
-            const SettingsHint(
-              'What the compositor clears each output to. You will only see it '
-              'where nothing else is painted — the shell draws its own '
-              'wallpaper over the whole screen.',
             ),
           ],
         ),

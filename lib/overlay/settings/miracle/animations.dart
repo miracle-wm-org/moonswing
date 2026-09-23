@@ -97,6 +97,7 @@ class MiracleAnimationsSection extends StatelessWidget {
       slivers: [
         SliverSettingsSection(
           label: 'Animations',
+          info: 'Events keep their settings while animations are off.',
           children: [
             SettingsRow.field(
               SettingsCatalog.miracleAnimationsEnabled,
@@ -111,14 +112,11 @@ class MiracleAnimationsSection extends StatelessWidget {
                 ),
               ),
             ),
-            const SettingsHint(
-              'Off, every window appears, moves and disappears instantly. The '
-              'events below keep their settings either way.',
-            ),
           ],
         ),
         SliverSettingsSection(
           label: 'Events',
+          info: SettingsCatalog.miracleAnimatedEvents.description,
           children: [
             MiracleCollection(
               store: store,
@@ -185,7 +183,7 @@ class _EventCard extends StatelessWidget {
     final event = config.animateableEvents[index];
     final parts = event.parts;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         decoration: BoxDecoration(
@@ -310,15 +308,24 @@ class _PartCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            'Easing coefficients — most curves ignore them; see easings.net',
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground.withValues(alpha: 0.5),
-            ),
+          Row(
+            children: [
+              Text(
+                'Easing coefficients',
+                style: TextStyle(
+                  fontSize: ShellFontSizes.caption,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground.withValues(alpha: 0.5),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const SettingsInfoTip(
+                'Most curves ignore these. easings.net shows what each curve '
+                'does with them.',
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Wrap(
             spacing: 10,
             runSpacing: 6,
