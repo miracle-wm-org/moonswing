@@ -31,6 +31,8 @@ void main() {
     store.dismissAll();
   });
 
+  _activationTests(store);
+
   group('NotificationPanel dismissal', () {
     testWidgets('Escape asks for the exit rather than closing outright',
         (tester) async {
@@ -402,4 +404,94 @@ class _RectCloseTo extends Matcher {
   @override
   Description describe(Description description) =>
       description.add('within 0.01 of $expected');
+
+}
+
+/// Clicking a notification is clicking the thing it is about.
+void _activationTests(NotificationStore store) {
+  group('NotificationPanel activation', () {
+    int seed({List<String> actions = const [], String desktopEntry = ''}) {
+      return store.addOrReplace(NotificationItem(
+        id: store.allocateId(),
+        appName: 'Chat',
+        summary: 'Somebody said hi',
+        body: '',
+        actions: actions,
+        expireTimeout: 0,
+        arrivedAt: DateTime(2026, 1, 1),
+        desktopEntry: desktopEntry,
+      ));
+    }
+
+    final invoked = <(int, String)>[];
+    final launched = <String>[];
+    setUp(() {
+      invoked.clear();
+      launched.clear();
+      store.setActionInvokedCallback((id, key) => invoked.add((id, key)));
+      store.appLauncher = (entry) {
+        launched.add(entry);
+        return true;
+      };
+    });
+
+    Future<ValueNotifier<bool>> pumpPanel(WidgetTester tester) async {
+      final closing = ValueNotifier(false);
+      addTearDown(closing.dispose);
+      await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
+      await tester.pumpAndSettle();
+      return closing;
+    }
+
+    testWidgets('a click on the card takes its default action and closes',
+        (tester) async {
+      final id = seed(actions: ['default', 'Open', 'reply', 'Reply']);
+      final closing = await pumpPanel(tester);
+
+      await tester.tap(find.text('Somebody said hi'));
+      await tester.pump();
+
+      expect(invoked, [(id, 'default')]);
+      expect(launched, isEmpty);
+      expect(store.items, isEmpty);
+      expect(closing.value, isTrue);
+    });
+
+    testWidgets('an action button does only its own action', (tester) async {
+      final id = seed(actions: ['default', 'Open', 'reply', 'Reply']);
+      await pumpPanel(tester);
+
+      await tester.tap(find.text('Reply'));
+      await tester.pump();
+
+      expect(invoked, [(id, 'reply')]);
+    });
+
+    testWidgets('with no default action it opens the sending application',
+        (tester) async {
+      seed(desktopEntry: 'discord');
+      final closing = await pumpPanel(tester);
+
+      await tester.tap(find.text('Somebody said hi'));
+      await tester.pump();
+
+      expect(invoked, isEmpty);
+      expect(launched, ['discord']);
+      expect(store.items, isEmpty);
+      expect(closing.value, isTrue);
+    });
+
+    testWidgets('with nothing to open it is only marked read', (tester) async {
+      seed();
+      final closing = await pumpPanel(tester);
+
+      await tester.tap(find.text('Somebody said hi'));
+      await tester.pump();
+
+      expect(invoked, isEmpty);
+      expect(store.items, hasLength(1));
+      expect(store.items.single.read, isTrue);
+      expect(closing.value, isFalse);
+    });
+  });
 }

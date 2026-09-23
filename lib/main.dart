@@ -903,7 +903,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// [NotificationStore.markAllRead] removes nothing — so closing the panel
   /// afterwards leaves the messages there and the corner of the screen empty.
   ///
-  /// The card's own X takes it down too, without marking anything read — see
+  /// Waving the pointer across the card takes it down too, and so does opening
+  /// the panel, neither marking anything read — see
   /// [NotificationStore.badgeHidden] — until the next notification arrives.
   void _syncNotificationBadges() {
     if (!mounted) return;
@@ -973,7 +974,12 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     }
     _notifications.open(monitor: monitor);
     NotificationPanelController.instance.setOpen(true);
-    // Takes the badges down: they sit under the panel's own edge.
+    // The panel is what the badge was asking the user to open, so once it has
+    // been the badge has done its job: it stays down after the panel closes,
+    // messages still unread, until something new arrives. `hideBadge`'s
+    // notification lands on the listener below and takes the badges down —
+    // they would sit under the panel's own edge anyway.
+    NotificationStore.instance.hideBadge();
     _syncNotificationBadges();
     _refreshWindows();
   }
@@ -987,8 +993,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     NotificationPanelController.instance.setOpen(false);
     _refreshWindows();
     _destroyAfterFrame([removed]);
-    // Anything still *unread* gets its badge back, so a panel closed on a list
-    // the user has not worked through does not leave the shell silent about it.
+    // Deliberately no badge back for what is still unread: the user has seen
+    // the list, and the bell keeps the count. Only a new arrival — which clears
+    // [NotificationStore.badgeHidden] — brings the card back.
     _syncNotificationBadges();
   }
 

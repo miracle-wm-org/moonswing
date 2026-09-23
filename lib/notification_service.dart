@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'app_info.dart' show disposeAppEntries, launchApp, loadAppById;
 import 'config_store.dart';
 import 'dbus_service_object.dart';
 
@@ -17,6 +18,7 @@ class NotificationItem {
     required this.expireTimeout,
     required this.arrivedAt,
     this.read = false,
+    this.desktopEntry = '',
   });
 
   final int id;
@@ -31,6 +33,13 @@ class NotificationItem {
   final int expireTimeout;
 
   final DateTime arrivedAt;
+
+  /// The sender's `desktop-entry` hint — the desktop file id of the
+  /// application it came from, without `.desktop` — or empty when it sent none.
+  ///
+  /// What clicking the notification falls back to launching when the sender
+  /// offered no `default` action: see [NotificationStore.activate].
+  final String desktopEntry;
 
   /// Whether the user has acknowledged this one.
   ///
@@ -54,6 +63,7 @@ class NotificationItem {
     int? expireTimeout,
     DateTime? arrivedAt,
     bool? read,
+    String? desktopEntry,
   }) {
     return NotificationItem(
       id: id ?? this.id,
@@ -64,6 +74,7 @@ class NotificationItem {
       expireTimeout: expireTimeout ?? this.expireTimeout,
       arrivedAt: arrivedAt ?? this.arrivedAt,
       read: read ?? this.read,
+      desktopEntry: desktopEntry ?? this.desktopEntry,
     );
   }
 }
@@ -141,10 +152,12 @@ class NotificationStore extends ChangeNotifier {
     if (moved) notifyListeners();
   }
 
-  /// Whether the user has closed the floating card without reading anything.
+  /// Whether the floating card has been sent away without anything being read.
   ///
-  /// The card's X, and deliberately not [markAllRead]: closing the card is
-  /// "not now", not "I have seen these". Every notification stays on the list
+  /// Two things set it: the pointer crossing the card and leaving without a
+  /// tap, and the notification panel being opened (by the card or the bell).
+  /// Deliberately not [markAllRead]: either is "seen, not now", not "I have
+  /// dealt with these". Every notification stays on the list
   /// *unread* — the bell keeps its count, and opening the panel finds them all
   /// still waiting — and only the card in the corner of the screen goes away.
   /// The next arrival clears it, because a card closed over the old messages
@@ -391,6 +404,68 @@ class NotificationStore extends ChangeNotifier {
     dismiss(id);
   }
 
+  /// What clicking a notification in the panel does: the thing the
+  /// notification is *about*.
+  ///
+  /// The sender's `default` action when it offered one — the spec's name for
+  /// "the notification itself was clicked", which is how a chat client knows to
+  /// raise the conversation — and otherwise the application its
+  /// `desktop-entry` hint names, launched (a running single-instance
+  /// application treats that as "come to the front"). Either way the
+  /// notification has been acted on, so it leaves the list, as an action
+  /// button's does.
+  ///
+  /// With neither there is nothing to open, so it is only marked read and
+  /// false is returned, which the panel reads as "stay open".
+  bool activate(int id) {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index == -1) return false;
+    final item = _items[index];
+    if (_hasDefaultAction(item)) {
+      invokeAction(id, 'default');
+      return true;
+    }
+    if (item.desktopEntry.isNotEmpty && appLauncher(item.desktopEntry)) {
+      dismiss(id);
+      return true;
+    }
+    markRead(id);
+    return false;
+  }
+
+  static bool _hasDefaultAction(NotificationItem item) {
+    for (var i = 0; i + 1 < item.actions.length; i += 2) {
+      if (item.actions[i] == 'default') return true;
+    }
+    return false;
+  }
+
+  /// Launches a desktop file id, answering whether one was found. Injectable
+  /// because the real one goes through GIO, which no test may depend on.
+  @visibleForTesting
+  bool Function(String desktopEntry) appLauncher = _launchDesktopEntry;
+
+  static bool _launchDesktopEntry(String desktopEntry) {
+    // The spec says the hint carries no `.desktop` suffix; not every sender
+    // has read it.
+    final id = desktopEntry.endsWith('.desktop')
+        ? desktopEntry.substring(0, desktopEntry.length - '.desktop'.length)
+        : desktopEntry;
+    try {
+      final entry = loadAppById(id);
+      if (entry == null) return false;
+      try {
+        launchApp(entry.appInfo);
+      } finally {
+        disposeAppEntries([entry]);
+      }
+      return true;
+    } catch (error) {
+      debugPrint('Could not launch $desktopEntry for a notification: $error');
+      return false;
+    }
+  }
+
   void dismissAll() {
     for (final t in _expireTimers.values) {
       t.cancel();
@@ -462,7 +537,7 @@ class NotificationServer extends DBusServiceObject {
         .children
         .map((v) => (v as DBusString).value)
         .toList();
-    // values[6] = hints a{sv} (ignored)
+    final desktopEntry = _desktopEntryHint(values[6]);
     final expireMs = (values[7] as DBusInt32).value;
 
     // Reuse replacesId if it refers to an existing notification.
@@ -481,10 +556,25 @@ class NotificationServer extends DBusServiceObject {
       actions: actions,
       expireTimeout: expireMs,
       arrivedAt: DateTime.now(),
+      desktopEntry: desktopEntry,
     );
 
     _store.addOrReplace(item);
     return DBusMethodSuccessResponse([DBusUint32(assignedId)]);
+  }
+
+  /// The `desktop-entry` hint out of Notify's `a{sv}`, or empty. A hint of the
+  /// wrong type costs that hint, never the notification.
+  static String _desktopEntryHint(DBusValue hints) {
+    if (hints is! DBusDict) return '';
+    for (final entry in hints.children.entries) {
+      final key = entry.key;
+      if (key is! DBusString || key.value != 'desktop-entry') continue;
+      var value = entry.value;
+      if (value is DBusVariant) value = value.value;
+      return value is DBusString ? value.value : '';
+    }
+    return '';
   }
 
   Future<DBusMethodResponse> _handleCloseNotification(
