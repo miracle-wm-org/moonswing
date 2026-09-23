@@ -105,7 +105,7 @@ without `==` the notifier behind `LiveConfigScope` could never refuse one.
 | `modules/` | Bar modules — one file per `[modules.<key>]` strip |
 | `desktop/` | Desktop grid: layout maths, store, surface, icons, menus, `widgets/` |
 | `overlay/` | The settings/calendar/system overlay, the shared form controls, the file picker |
-| `miracle_config/` | The compositor's own configuration: store, evdev key table, enum labels |
+| `miracle_config/` | The compositor's own configuration: store, keysym key table, enum labels |
 | `theme/` | `ThemeConfig`, `ThemeStore`, `ThemeProvider`, built-in themes, tokens, fonts |
 | `launcher/`, `emoji/` | The two search overlays: index, pure ranking, controller, card |
 | `weather/`, `moon/`, `media/`, `fortune/`, `tux/`, `clock/` | Data layers behind a bar module and/or desktop widget |

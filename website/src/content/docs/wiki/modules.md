@@ -77,6 +77,6 @@ Two hazards the package documents and the pane has to respect: an unset keymap m
 its options touched (the C library dereferences it unchecked and aborts), and the key-repeat
 settings are dropped by a save unless a keymap is set.
 
-`miracle_config/` is otherwise Flutter-free — the evdev table, the enum labels and the colour
+`miracle_config/` is otherwise Flutter-free — the keysym table, the enum labels and the colour
 conversion are plain Dart, because that is what `test/miracle_config_test.dart` can reach on a
 machine with no compositor.

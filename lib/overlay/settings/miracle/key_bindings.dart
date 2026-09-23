@@ -6,8 +6,9 @@
 // custom binding runs a string, an override picks one of miracle's fifty
 // built-in commands.
 //
-// The key is an evdev code, which is why `miracle_key_codes.dart` exists: a
-// binding is stored as the number 19 and has to be edited as "R".
+// The key is an xkb keysym, which is why `miracle_key_codes.dart` exists: a
+// binding is stored as the number 0x1008ff13 and has to be edited as "Volume
+// up" — or found by typing the `XF86AudioRaiseVolume` its config spells.
 
 import 'package:flutter/widgets.dart';
 
@@ -27,17 +28,30 @@ import 'package:moonswing/theme/tokens.dart';
 /// the C struct has no "unset" — and a key nobody meant is easier to notice and
 /// change than a code of 0, which no keyboard produces and which reads as a
 /// binding that simply does not work.
-const int _kNewBindingKey = 30; // KEY_A
+const int _kNewBindingKey = 0x61; // XKB_KEY_a
 
-/// The dropdown items for the whole evdev table, built once.
+/// The dropdown items for the whole keysym table, built once.
 ///
-/// Five hundred rows, each carrying its `KEY_*` name as the detail so the
-/// filter can match either spelling. Lazy, like every other table in this
+/// Seven hundred rows, each carrying its xkb name as the detail so the filter
+/// can match either spelling — "volume" or `XF86AudioRaiseVolume`. Lazy, like every other table in this
 /// shell: a user who never opens this page builds none of it.
 final List<SettingsDropdownItem<int>> _keyItems = [
   for (final key in kMiracleKeys)
-    SettingsDropdownItem(value: key.code, label: key.label, detail: key.name),
+    SettingsDropdownItem(value: key.keysym, label: key.label, detail: key.name),
 ];
+
+/// [_keyItems], plus a row for [keysym] when the table does not carry it.
+///
+/// A binding authored against a key this table has never heard of would
+/// otherwise show "—" in its own picker; with the row it shows what it is and
+/// can be put back after a look at the alternatives.
+List<SettingsDropdownItem<int>> _keyItemsWith(int keysym) {
+  if (miracleKeyForKeysym(keysym) != null) return _keyItems;
+  return [
+    ..._keyItems,
+    SettingsDropdownItem(value: keysym, label: miracleKeyLabel(keysym)),
+  ];
+}
 
 final List<SettingsDropdownItem<KeyboardAction>> _actionItems = [
   for (final action in KeyboardAction.values)
@@ -167,7 +181,7 @@ class MiracleKeyBindingsSection extends StatelessWidget {
         miracleKeyLabel(binding.key),
       ),
       modifiers: binding.modifiers,
-      keyCode: binding.key,
+      keysym: binding.key,
       action: binding.action,
       onModifiers: (next) =>
           _editCustom(index, (binding) => binding.copyWith(modifiers: next)),
@@ -203,7 +217,7 @@ class MiracleKeyBindingsSection extends StatelessWidget {
         miracleKeyLabel(override.key),
       ),
       modifiers: override.modifiers,
-      keyCode: override.key,
+      keysym: override.key,
       action: override.action,
       onModifiers: (next) => _editOverride(
         index,
@@ -281,7 +295,7 @@ class _BindingCard extends StatelessWidget {
     super.key,
     required this.shortcut,
     required this.modifiers,
-    required this.keyCode,
+    required this.keysym,
     required this.action,
     required this.target,
     required this.onModifiers,
@@ -294,7 +308,7 @@ class _BindingCard extends StatelessWidget {
 
   final String shortcut;
   final Set<Modifier> modifiers;
-  final int keyCode;
+  final int keysym;
   final KeyboardAction action;
 
   /// What the binding does — a command field, or a built-in command picker.
@@ -338,8 +352,8 @@ class _BindingCard extends StatelessWidget {
                 child: _LabelledControl(
                   label: 'Key',
                   child: SettingsDropdown<int>(
-                    items: _keyItems,
-                    selected: keyCode,
+                    items: _keyItemsWith(keysym),
+                    selected: keysym,
                     onSelected: onKey,
                   ),
                 ),

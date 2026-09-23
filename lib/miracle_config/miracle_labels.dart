@@ -258,10 +258,10 @@ const String kDefaultReloadShortcut = 'Action Key + Shift + R';
 /// this is the other half, and it is read off the configuration rather than
 /// hard-coded because the user may have rebound it. [overrides] is
 /// `MiracleConfig.builtInKeyCommandOverrides`; [keyLabel] resolves an override's
-/// evdev code, which is `miracleKeyLabel` at every call site that is not a test.
+/// keysym, which is `miracleKeyLabel` at every call site that is not a test.
 String reloadShortcutLabel(
   List<KeyCommandOverride> overrides,
-  String Function(int code) keyLabel,
+  String Function(int keysym) keyLabel,
 ) {
   for (final override in overrides) {
     if (override.command != BuiltInKeyCommand.reloadConfig) continue;

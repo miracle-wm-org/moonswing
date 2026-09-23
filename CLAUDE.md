@@ -158,7 +158,7 @@ none of them is how the Shell pane works.
 Two hazards the package documents and the pane has to respect: an unset keymap
 must never have its options touched (the C library dereferences it unchecked and
 aborts), and the key-repeat settings are dropped by a save unless a keymap is
-set. `miracle_config/` is otherwise Flutter-free — the evdev table, the enum
+set. `miracle_config/` is otherwise Flutter-free — the keysym table, the enum
 labels and the colour conversion are plain Dart, because they are what
 `test/miracle_config_test.dart` can reach on a machine with no compositor.
 
@@ -258,7 +258,7 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `modules/` | Bar modules — one file per `[modules.<key>]` strip |
 | `desktop/` | Desktop grid: layout maths, store, surface, icons, menus, `widgets/` |
 | `overlay/` | The settings/calendar/system overlay, `settings/controls.dart`, the file picker |
-| `miracle_config/` | The compositor's own configuration: the store behind `overlay/settings/miracle/`, the evdev key table, enum labels |
+| `miracle_config/` | The compositor's own configuration: the store behind `overlay/settings/miracle/`, the keysym key table, enum labels |
 | `theme/` | `ThemeConfig`, `ThemeStore`, `ThemeProvider`, built-in themes, tokens, fonts |
 | `launcher/`, `emoji/` | The two search overlays: index, pure ranking, controller, card |
 | `weather/`, `moon/`, `media/`, `fortune/`, `tux/`, `clock/` | Data layers behind a bar module and/or desktop widget: store + pure model + painters |
