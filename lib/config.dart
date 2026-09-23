@@ -496,6 +496,20 @@ const ShortcutSpec kDefaultSwitchWindowsBack =
 const ShortcutSpec kDefaultPowerButton =
     ShortcutSpec(modifiers: 0, keysym: 0x1008ff2a);
 
+/// Super+Z: show the scratchpad, or hide it again if it is showing.
+///
+/// A letter rather than sway's `minus`, because miracle already binds
+/// Super+Minus and Super+Underscore (Super+Shift+Minus) to the magnifier.
+const ShortcutSpec kDefaultToggleScratchpad =
+    ShortcutSpec(modifiers: 0x800, keysym: 0x7a);
+
+/// Super+Shift+Z: stash the focused window on the scratchpad. The shifted
+/// keysym (`Z`, not `z`) for [kDefaultOpenEmoji]'s reason, and
+/// [kDefaultToggleScratchpad]'s neighbour on the same key for
+/// [kDefaultOpenPowerMenu]'s.
+const ShortcutSpec kDefaultMoveToScratchpad =
+    ShortcutSpec(modifiers: 0x808, keysym: 0x5a);
+
 /// The compositor-level shortcuts the shell registers at start-up.
 ///
 /// A null field means the shortcut is *disabled* (the user wrote `""`), which is
@@ -550,6 +564,16 @@ class ShortcutsConfig {
   /// modifier set is held, so the compositor cannot derive one from the other.
   final ShortcutSpec? switchWindowsBack;
 
+  /// Shows the scratchpad, or hides it (Super+Z by default) — the scratchpad
+  /// module's own click. What the key reaches is miracle's `scratchpad show`,
+  /// so a shell with no IPC connection does nothing with it.
+  final ShortcutSpec? toggleScratchpad;
+
+  /// Stashes the focused window on the scratchpad (Super+Shift+Z by default).
+  /// "Focused" is miracle's, not the shell's: a panel never takes the keyboard,
+  /// so the window the user was typing in is still the one selected.
+  final ShortcutSpec? moveToScratchpad;
+
   const ShortcutsConfig({
     this.openSettings = kDefaultOpenSettings,
     this.openLauncher = kDefaultOpenLauncher,
@@ -561,6 +585,8 @@ class ShortcutsConfig {
     this.powerButton = kDefaultPowerButton,
     this.switchWindows = kDefaultSwitchWindows,
     this.switchWindowsBack = kDefaultSwitchWindowsBack,
+    this.toggleScratchpad = kDefaultToggleScratchpad,
+    this.moveToScratchpad = kDefaultMoveToScratchpad,
   });
 
   factory ShortcutsConfig.fromMap(Map<String, dynamic>? map) {
@@ -578,6 +604,10 @@ class ShortcutsConfig {
       switchWindows: _read(map, 'switch_windows', kDefaultSwitchWindows),
       switchWindowsBack:
           _read(map, 'switch_windows_back', kDefaultSwitchWindowsBack),
+      toggleScratchpad:
+          _read(map, 'toggle_scratchpad', kDefaultToggleScratchpad),
+      moveToScratchpad:
+          _read(map, 'move_to_scratchpad', kDefaultMoveToScratchpad),
     );
   }
 
@@ -618,7 +648,9 @@ class ShortcutsConfig {
           other.recordScreen == recordScreen &&
           other.powerButton == powerButton &&
           other.switchWindows == switchWindows &&
-          other.switchWindowsBack == switchWindowsBack;
+          other.switchWindowsBack == switchWindowsBack &&
+          other.toggleScratchpad == toggleScratchpad &&
+          other.moveToScratchpad == moveToScratchpad;
 
   @override
   int get hashCode => Object.hash(
@@ -632,6 +664,8 @@ class ShortcutsConfig {
         powerButton,
         switchWindows,
         switchWindowsBack,
+        toggleScratchpad,
+        moveToScratchpad,
       );
 }
 

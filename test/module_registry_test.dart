@@ -12,6 +12,7 @@ import 'package:moonswing/modules/media_player.dart';
 import 'package:moonswing/modules/network.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/modules/screen_recorder.dart';
+import 'package:moonswing/modules/scratchpad.dart';
 import 'package:moonswing/modules/screenshot.dart';
 import 'package:moonswing/modules/sound_control.dart';
 import 'package:moonswing/modules/system.dart';
@@ -44,6 +45,7 @@ void main() {
       keyboardLayoutModule,
       keybindsModule,
       githubModule,
+      scratchpadModule,
     ];
     for (final module in modules) {
       Module.register(module);
@@ -67,6 +69,7 @@ void main() {
       'keyboard_layout',
       'keybinds',
       'github',
+      'scratchpad',
     ];
     for (final key in expected) {
       expect(Module.lookup(key), isNotNull, reason: key);

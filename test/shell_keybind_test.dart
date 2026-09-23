@@ -45,7 +45,7 @@ void main() {
       // registered by the shell but missing here would be one a person can
       // press and never find written down.
       const config = ShortcutsConfig();
-      expect(ShellShortcut.values.length, 10);
+      expect(ShellShortcut.values.length, 12);
       expect(
         ShellShortcut.openLauncher.specIn(config),
         parseShortcut('super+d'),
@@ -83,6 +83,14 @@ void main() {
         parseShortcut('super+print'),
       );
       expect(
+        ShellShortcut.toggleScratchpad.specIn(config),
+        parseShortcut('super+z'),
+      );
+      expect(
+        ShellShortcut.moveToScratchpad.specIn(config),
+        parseShortcut('super+shift+z'),
+      );
+      expect(
         ShellShortcut.powerButton.specIn(config),
         parseShortcut('poweroff'),
       );
@@ -106,6 +114,8 @@ void main() {
       expect(shortcutLabel(kDefaultOpenSettings), 'Super + S');
       expect(shortcutLabel(kDefaultScreenshotArea), 'Print');
       expect(shortcutLabel(kDefaultRecordScreen), 'Super + Print');
+      expect(shortcutLabel(kDefaultToggleScratchpad), 'Super + Z');
+      expect(shortcutLabel(kDefaultMoveToScratchpad), 'Shift + Super + Z');
       expect(shortcutLabel(kDefaultOpenEmoji), 'Ctrl + Shift + E');
       expect(shortcutLabel(kDefaultSwitchWindows), 'Alt + Tab');
       // `ISO_Left_Tab` is what Shift+Tab resolves to, and still the Tab key to

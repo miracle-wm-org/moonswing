@@ -82,6 +82,16 @@ enum ShellShortcut {
     configKey: 'record_screen',
     defaultSpec: kDefaultRecordScreen,
   ),
+  toggleScratchpad(
+    label: 'Show or hide the scratchpad',
+    configKey: 'toggle_scratchpad',
+    defaultSpec: kDefaultToggleScratchpad,
+  ),
+  moveToScratchpad(
+    label: 'Move the focused window to the scratchpad',
+    configKey: 'move_to_scratchpad',
+    defaultSpec: kDefaultMoveToScratchpad,
+  ),
   powerButton(
     label: 'The power button',
     // Not "power off": what the press *does* is `[power] key_action`, which is
@@ -121,6 +131,8 @@ enum ShellShortcut {
     ShellShortcut.switchWindowsBack => config.switchWindowsBack,
     ShellShortcut.screenshotArea => config.screenshotArea,
     ShellShortcut.recordScreen => config.recordScreen,
+    ShellShortcut.toggleScratchpad => config.toggleScratchpad,
+    ShellShortcut.moveToScratchpad => config.moveToScratchpad,
     ShellShortcut.powerButton => config.powerButton,
   };
 }

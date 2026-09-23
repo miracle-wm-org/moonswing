@@ -17,6 +17,8 @@ void main() {
       expect(parseShortcut('print'), kDefaultScreenshotArea);
       expect(parseShortcut('super+print'), kDefaultRecordScreen);
       expect(parseShortcut('poweroff'), kDefaultPowerButton);
+      expect(parseShortcut('super+z'), kDefaultToggleScratchpad);
+      expect(parseShortcut('shift+super+z'), kDefaultMoveToScratchpad);
     });
 
     // The machine's own power button is an ordinary key to the compositor:

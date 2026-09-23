@@ -72,7 +72,7 @@ layer = "top"
 [panels.top.layout]
 left = ["workspaces"]
 center = ["clock"]
-right = ["screenshot", "screen_recorder", "sound_control", "system_tray", "battery", "weather", "keybinds", "keyboard_layout", "system"]
+right = ["screenshot", "screen_recorder", "sound_control", "system_tray", "battery", "weather", "scratchpad", "keybinds", "keyboard_layout", "system"]
 
 [panels.bottom]
 height = 32
@@ -192,6 +192,10 @@ switch_windows_back = "alt+shift+tab"
 # on. Press the recording shortcut again to stop it.
 screenshot_area = "print"
 record_screen = "super+print"
+# The window manager's scratchpad: show or hide what is on it, and stash the
+# window you are in there.
+toggle_scratchpad = "super+z"
+move_to_scratchpad = "shift+super+z"
 # The machine's own power button. Clear it (or set [power] key_action = "none")
 # to hand the key back to systemd-logind.
 power_button = "poweroff"

@@ -36,6 +36,7 @@ import 'package:moonswing/modules/network.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/modules/screen_recorder.dart';
 import 'package:moonswing/modules/screenshot.dart';
+import 'package:moonswing/modules/scratchpad.dart';
 import 'package:moonswing/modules/system.dart';
 import 'package:moonswing/modules/system_monitor.dart';
 import 'package:moonswing/modules/system_tray.dart';
@@ -50,6 +51,7 @@ import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
 import 'package:moonswing/keybinds/keybind_cheatsheet_overlay.dart';
 import 'package:moonswing/keybinds/keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
+import 'package:moonswing/scratchpad/scratchpad_store.dart';
 import 'package:moonswing/launcher/app_index.dart';
 import 'package:moonswing/launcher/app_search.dart';
 import 'package:moonswing/launcher/launcher_controller.dart';
@@ -147,6 +149,7 @@ void main() async {
   Module.register(keyboardLayoutModule);
   Module.register(keybindsModule);
   Module.register(githubModule);
+  Module.register(scratchpadModule);
 
   // The desktop grid's own registry, populated the same way: `[[desktop.widgets]]`
   // names a type, and lookup happens at render time. See
@@ -196,6 +199,11 @@ void main() async {
   // below are registered from, so an edit can be told apart from what the
   // keyboard actually does until the shell is restarted.
   startShellKeybindService(store, registered: appConfig.shortcuts);
+
+  // And again for the scratchpad, whose two shortcuts are global and so have
+  // no `MiracleScope` over them either — the bar button goes through the same
+  // store, so a toggle from either is one toggle.
+  startScratchpadService(miracle);
 
   // The same connection again, for the one capture that has nobody to ask: the
   // recording shortcut records the screen holding miracle's focused workspace,

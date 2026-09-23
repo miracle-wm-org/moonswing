@@ -15,6 +15,8 @@ void main() {
       expect(config.recordScreen, kDefaultRecordScreen);
       expect(config.switchWindows, kDefaultSwitchWindows);
       expect(config.switchWindowsBack, kDefaultSwitchWindowsBack);
+      expect(config.toggleScratchpad, kDefaultToggleScratchpad);
+      expect(config.moveToScratchpad, kDefaultMoveToScratchpad);
     });
 
     test('an absent key keeps its default', () {
@@ -28,6 +30,29 @@ void main() {
       expect(config.recordScreen, kDefaultRecordScreen);
       expect(config.switchWindows, kDefaultSwitchWindows);
       expect(config.switchWindowsBack, kDefaultSwitchWindowsBack);
+      expect(config.toggleScratchpad, kDefaultToggleScratchpad);
+      expect(config.moveToScratchpad, kDefaultMoveToScratchpad);
+    });
+
+    test('the scratchpad keys read, disable and degrade like the rest', () {
+      expect(
+        ShortcutsConfig.fromMap({'toggle_scratchpad': 'super+grave'})
+            .toggleScratchpad,
+        parseShortcut('super+grave'),
+      );
+      expect(
+        ShortcutsConfig.fromMap({'move_to_scratchpad': ''}).moveToScratchpad,
+        isNull,
+      );
+      expect(
+        ShortcutsConfig.fromMap({'move_to_scratchpad': 42}).moveToScratchpad,
+        kDefaultMoveToScratchpad,
+      );
+      expect(
+        ShortcutsConfig.fromMap({'toggle_scratchpad': 'super+nonsense'})
+            .toggleScratchpad,
+        kDefaultToggleScratchpad,
+      );
     });
 
     test('the switcher keys read, disable and degrade like the rest', () {

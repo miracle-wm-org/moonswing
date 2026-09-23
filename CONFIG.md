@@ -97,6 +97,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"notifications"` - Notification bell and the notification panel
 - `"clock"` - Date and time
 - `"dock"` - Application launcher dock
+- `"scratchpad"` - Shows or hides the window manager's scratchpad (requires Miracle WM)
 
 A module omitted from all sections of all panels is disabled entirely. You can place any module in any section and in any order. The same module can appear in multiple panels.
 
@@ -587,6 +588,23 @@ There is deliberately no shutter for a **recording**. A recording announces
 itself by the readout in the bar for as long as it runs, and a camera click at
 the end of one would be describing a photograph nobody took.
 
+### Scratchpad
+
+The note in the bar is the window manager's scratchpad: a place to stash a
+window off every workspace and call it back over whatever you are doing. A
+click shows what is on the scratchpad, centred on the screen you are on, or
+hides it again. Hovering it names the two [shortcuts](#shortcuts) that go with
+it — `toggle_scratchpad`, which does what the click does, and
+`move_to_scratchpad`, which stashes the window you are in. That half has no
+button, because clicking the bar is not the window you meant to stash.
+
+The module has no settings of its own. It shows no count of what is stashed,
+because the window manager does not report one: a stashed window is taken out
+of its window tree altogether. Every stashed window is shown and hidden together.
+
+If the shell cannot reach the window manager, the icon dims and its label says
+why; the next click tries again.
+
 ## Shortcuts
 
 The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are registered with the compositor (Mir's `ext-input-trigger` protocols), so they fire no matter which window has focus.
@@ -602,6 +620,8 @@ switch_windows = "alt+tab"
 switch_windows_back = "alt+shift+tab"
 screenshot_area = "print"
 record_screen = "super+print"
+toggle_scratchpad = "super+z"
+move_to_scratchpad = "shift+super+z"
 power_button = "poweroff"
 ```
 
@@ -616,6 +636,8 @@ power_button = "poweroff"
 | `switch_windows_back`  | string | `"alt+shift+tab"`    | The same switcher, moving backwards |
 | `screenshot_area`      | string | `"print"`            | Drag out an area and screenshot it — the screenshot module's own **Select an area** |
 | `record_screen`        | string | `"super+print"`      | Starts recording the screen you are on; press it again to stop |
+| `toggle_scratchpad`    | string | `"super+z"`          | Shows what is on the window manager's [scratchpad](#scratchpad), or hides it — the scratchpad module's own click |
+| `move_to_scratchpad`   | string | `"shift+super+z"`    | Moves the focused window to the scratchpad |
 | `power_button`         | string | `"poweroff"`         | The machine's own power button — what it *does* is [`[power]`](#power-button) |
 
 `record_screen` records the whole of the output holding the focused workspace, and needs no aim: nothing is put on screen first, so the recording opens on the desktop as it already is. On a shell that is not connected to the window manager — and so cannot tell which screen that is — it falls back to asking you to click the screen to record, which is what the recorder module's own **Select a screen** does.
