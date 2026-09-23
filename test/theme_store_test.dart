@@ -178,6 +178,49 @@ void main() {
     config.dispose();
   });
 
+  test('rename changes a user theme\'s display name and keeps its file',
+      () async {
+    final (themes, config) = await open();
+    final slug = themes.create('Mine')!;
+
+    themes.rename('  Evening  ');
+    await themes.flush();
+
+    expect(themes.activeName, slug);
+    expect(config.get<String>(['theme']), slug);
+    expect(themes.themes.firstWhere((t) => t.slug == slug).displayName,
+        'Evening');
+    final map = (await TomlDocument.load('$themesDir/$slug.toml')).toMap();
+    expect(map['name'], 'Evening');
+
+    // A blank name is refused rather than written.
+    themes.rename('   ');
+    expect(themes.themes.firstWhere((t) => t.slug == slug).displayName,
+        'Evening');
+
+    themes.dispose();
+    config.dispose();
+  });
+
+  test('renaming a built-in forks it under the new name', () async {
+    final (themes, config) = await open();
+    themes.select('dracula');
+    final shipped = await File('$themesDir/dracula.toml').readAsString();
+
+    themes.rename('Night Owl');
+    await themes.flush();
+
+    expect(themes.activeName, 'night-owl');
+    expect(themes.activeIsBuiltIn, isFalse);
+    expect(themes.theme.accent, const Color(0xFFBD93F9));
+    expect(themes.themes.firstWhere((t) => t.slug == 'night-owl').displayName,
+        'Night Owl');
+    expect(await File('$themesDir/dracula.toml').readAsString(), shipped);
+
+    themes.dispose();
+    config.dispose();
+  });
+
   test('delete removes a user theme and refuses a built-in', () async {
     final (themes, config) = await open();
     final slug = themes.create('Mine')!;

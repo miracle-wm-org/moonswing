@@ -188,10 +188,21 @@ class ThemeStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Renames the active theme's display name (not its filename).
+  /// Renames the active theme's display name (not its filename, which is what
+  /// `config.toml` names and so stays put).
+  ///
+  /// A built-in is read-only, so renaming one forks it *under the new name* —
+  /// the copy is slugged from what the user typed rather than from
+  /// "Dracula (custom)". A blank name, or one equal to the current name, is a
+  /// no-op.
   void rename(String displayName) {
     final trimmed = displayName.trim();
     if (trimmed.isEmpty) return;
+    if (activeIsBuiltIn) {
+      create(trimmed);
+      return;
+    }
+    if (_themes[_activeName]?.displayName == trimmed) return;
     edit('name', trimmed);
   }
 

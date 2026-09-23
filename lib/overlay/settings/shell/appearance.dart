@@ -144,6 +144,18 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   const SizedBox(height: 12),
                 ],
                 SettingsRow.field(
+                  SettingsCatalog.themeName,
+                  control: SettingsCommitField(
+                    // Keyed on the theme so switching starts a fresh edit
+                    // rather than carrying one across themes.
+                    key: ValueKey('name-$active'),
+                    width: 180,
+                    initial: displayName,
+                    accepts: (v) => v.trim().isNotEmpty,
+                    onCommitted: _themes.rename,
+                  ),
+                ),
+                SettingsRow.field(
                   SettingsCatalog.font,
                   // Unlike the keyed fields below, the font control renders
                   // its current value on every build, so it follows the store
