@@ -101,6 +101,16 @@ abstract final class SettingsCatalog {
     ],
   );
 
+  static final themeName = shellField(
+    'theme.name',
+    'Name',
+    section: 'Appearance',
+    description:
+        'What the active theme is called in the picker. Renaming a shipped '
+        'theme saves a copy of it under the new name.',
+    tags: const ['rename', 'title', 'label', 'theme'],
+  );
+
   static final font = shellField(
     'theme.font',
     'Font',
@@ -1879,6 +1889,7 @@ abstract final class SettingsCatalog {
   /// file imports a widget and the whole index stays testable without one.
   static final List<SettingsField> all = [
     themePicker,
+    themeName,
     font,
     fontSize,
     panelGradient,
