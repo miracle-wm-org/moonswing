@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
@@ -72,6 +73,11 @@ const Size kNotificationBadgeWindowSize = Size(
   kNotificationBadgeHeight + 2 * kNotificationBadgeShadowInset,
 );
 
+/// How far the close button sits in from the card's top-right corner. Tighter
+/// than the card's own padding, so the button's box can reach the corner
+/// without pushing the three lines of text any narrower than they have to be.
+const double kNotificationBadgeCloseInset = 4;
+
 /// How long the card takes to arrive.
 const Duration kNotificationBadgeEnter = Duration(milliseconds: 420);
 
@@ -113,7 +119,10 @@ String notificationBadgeLabel(int count) => count > 99 ? '99+' : '$count';
 ///   prevent. The card's *presence* is the standing signal; motion is reserved
 ///   for the moment something changes.
 /// - **The card is the whole box.** [HoverRegion] emits the opaque detector, so
-///   the rectangle is the hover box and the tap box alike.
+///   the rectangle is the hover box and the tap box alike — all but the X in
+///   its corner, which closes the card without reading anything: the list and
+///   the bell keep every notification, unread, and the next arrival brings the
+///   card back.
 class NotificationBadge extends StatefulWidget {
   const NotificationBadge({super.key, required this.onTap});
 
@@ -259,16 +268,40 @@ class _NotificationBadgeState extends State<NotificationBadge>
           // Built outside the builder: the card measures two paragraphs, and
           // re-shaping them on every frame of a bounce is exactly what the
           // repaint rules say to hand in unchanged instead.
-          child: HoverRegion(
-            // Tap-down, not tap: `PopupDismissArea`'s ancestor `Listener`
-            // fires before any descendant recognizer, so every popup toggle
-            // in the shell opens on the down edge and is guarded there.
-            onTapDown: (_) => widget.onTap(),
-            builder: (context, hovered) => _BadgeCard(
-              theme: theme,
-              hovered: hovered,
-              child: content,
-            ),
+          child: Stack(
+            children: [
+              HoverRegion(
+                // Tap-down, not tap: `PopupDismissArea`'s ancestor `Listener`
+                // fires before any descendant recognizer, so every popup
+                // toggle in the shell opens on the down edge and is guarded
+                // there.
+                onTapDown: (_) => widget.onTap(),
+                builder: (context, hovered) => _BadgeCard(
+                  theme: theme,
+                  hovered: hovered,
+                  child: content,
+                ),
+              ),
+              // A sibling over the card rather than a child inside its
+              // detector. Nested, the card's tap-down would fire on any press
+              // on the X held past the tap deadline, opening the panel the user
+              // was closing the card to avoid; as the top of the `Stack`, the
+              // X's opaque box is where hit-testing stops.
+              //
+              // It hides the card and nothing else: see
+              // [NotificationStore.hideBadge].
+              Positioned(
+                top: kNotificationBadgeCloseInset,
+                right: kNotificationBadgeCloseInset,
+                child: SettingsIconButton(
+                  icon: FontAwesomeIcons.xmark,
+                  box: ShellSizes.minTapTarget,
+                  size: ShellFontSizes.label,
+                  color: theme.popupForeground.withValues(alpha: 0.55),
+                  onTap: store.hideBadge,
+                ),
+              ),
+            ],
           ),
           builder: (context, child) => Transform.translate(
             offset: Offset(
@@ -360,6 +393,10 @@ class _BadgeCard extends StatelessWidget {
 /// single line the card has room for. A constant: it is read on every build.
 final RegExp _whitespace = RegExp(r'\s+');
 
+/// How far the close button reaches in past the card's right padding (14).
+const double _kCloseClearance =
+    ShellSizes.minTapTarget + kNotificationBadgeCloseInset - 14;
+
 /// What the card says: the bell and its count, then what arrived.
 class _BadgeContent extends StatelessWidget {
   const _BadgeContent({
@@ -432,6 +469,8 @@ class _BadgeContent extends StatelessWidget {
               ],
             ),
         ),
+        // Keeps the text clear of the close button over the card's corner.
+        const SizedBox(width: _kCloseClearance),
       ],
     );
   }

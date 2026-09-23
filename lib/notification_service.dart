@@ -141,6 +141,25 @@ class NotificationStore extends ChangeNotifier {
     if (moved) notifyListeners();
   }
 
+  /// Whether the user has closed the floating card without reading anything.
+  ///
+  /// The card's X, and deliberately not [markAllRead]: closing the card is
+  /// "not now", not "I have seen these". Every notification stays on the list
+  /// *unread* — the bell keeps its count, and opening the panel finds them all
+  /// still waiting — and only the card in the corner of the screen goes away.
+  /// The next arrival clears it, because a card closed over the old messages
+  /// said nothing about a new one.
+  bool get badgeHidden => _badgeHidden;
+  bool _badgeHidden = false;
+
+  /// Takes the floating card down until something new arrives. See
+  /// [badgeHidden]. A no-op when it is already down.
+  void hideBadge() {
+    if (_badgeHidden) return;
+    _badgeHidden = true;
+    notifyListeners();
+  }
+
   /// Marks one item acknowledged. A no-op for an id that is not on the list or
   /// is already read.
   void markRead(int id) {
@@ -346,6 +365,9 @@ class NotificationStore extends ChangeNotifier {
     } else {
       _items.insert(0, item);
     }
+    // An unread arrival brings a closed card back — a replacement included,
+    // since that arrives unread for the reason [NotificationItem.read] gives.
+    if (!item.read) _badgeHidden = false;
 
     if (item.expireTimeout > 0) {
       _expireTimers[item.id] = Timer(
@@ -375,6 +397,8 @@ class NotificationStore extends ChangeNotifier {
     }
     _expireTimers.clear();
     _items.clear();
+    // Nothing left for a closed card to be closed over.
+    _badgeHidden = false;
     notifyListeners();
   }
 }
