@@ -23,6 +23,10 @@ class MiracleGapsSection extends StatelessWidget {
       slivers: [
         SliverSettingsSection(
           label: 'Gaps',
+          info:
+              'Inner gaps sit between windows, outer gaps between windows and '
+              'the screen edge. In pixels, measured before the panels reserve '
+              'their own space.',
           children: [
             _pixels(
               SettingsCatalog.miracleInnerGapsX,
@@ -43,11 +47,6 @@ class MiracleGapsSection extends StatelessWidget {
               SettingsCatalog.miracleOuterGapsY,
               select: (config) => config.outerGapsY,
               apply: (config, value) => config.outerGapsY = value,
-            ),
-            const SettingsHint(
-              'Inner gaps sit between two windows; outer gaps sit between the '
-              'windows and the screen edge. Both are in pixels, and both are '
-              'measured before the panels reserve their own space.',
             ),
           ],
         ),
@@ -83,10 +82,6 @@ class MiracleGapsSection extends StatelessWidget {
               SettingsCatalog.miracleBorderColor,
               select: (config) => config.border.color,
               apply: (config, colour) => config.border.color = colour,
-            ),
-            const SettingsHint(
-              'A thickness of 0 draws no border at all, which is what the '
-              'colours above then have nothing to paint.',
             ),
           ],
         ),

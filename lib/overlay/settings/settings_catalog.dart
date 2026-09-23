@@ -1369,7 +1369,7 @@ abstract final class SettingsCatalog {
     section: 'Mouse',
     description:
         'How strongly pointer movement is accelerated, from -1 '
-        '(slowest) through 0 to 1.',
+        '(slowest) through 0 (the device\'s own speed) to 1.',
     tags: const ['acceleration', 'sensitivity', 'speed', 'pointer', 'bias'],
   );
 
@@ -1379,7 +1379,7 @@ abstract final class SettingsCatalog {
     section: 'Mouse',
     description:
         'A multiplier on how far one notch of the wheel scrolls up or '
-        'down.',
+        'down. 1 leaves the device alone.',
     tags: const ['scroll', 'wheel', 'speed', 'vertical', 'multiplier'],
   );
 
@@ -1389,7 +1389,7 @@ abstract final class SettingsCatalog {
     section: 'Mouse',
     description:
         'A multiplier on how far one notch of horizontal scrolling '
-        'moves.',
+        'moves. 1 leaves the device alone.',
     tags: const ['scroll', 'wheel', 'speed', 'horizontal', 'multiplier'],
   );
 
@@ -1428,7 +1428,8 @@ abstract final class SettingsCatalog {
     'Drag modifiers',
     section: 'Mouse',
     description:
-        'The modifiers that must be held down before a drag starts.',
+        'The modifiers that must all be held down before a drag starts. '
+        'With none chosen, a bare drag on a window moves it.',
     tags: const ['drag', 'modifier', 'super', 'alt', 'ctrl', 'shift', 'move'],
   );
 
@@ -1498,7 +1499,7 @@ abstract final class SettingsCatalog {
     section: 'Touchpad',
     description:
         'How strongly touchpad movement is accelerated, from -1 '
-        '(slowest) through 0 to 1.',
+        '(slowest) through 0 (the device\'s own speed) to 1.',
     tags: const ['acceleration', 'sensitivity', 'speed', 'pointer', 'bias'],
   );
 
@@ -1508,7 +1509,7 @@ abstract final class SettingsCatalog {
     section: 'Touchpad',
     description:
         'A multiplier on how far a vertical scroll gesture moves the '
-        'page.',
+        'page. 1 leaves the device alone.',
     tags: const ['scroll', 'speed', 'vertical', 'multiplier', 'gesture'],
   );
 
@@ -1518,7 +1519,7 @@ abstract final class SettingsCatalog {
     section: 'Touchpad',
     description:
         'A multiplier on how far a horizontal scroll gesture moves the '
-        'page.',
+        'page. 1 leaves the device alone.',
     tags: const ['scroll', 'speed', 'horizontal', 'multiplier', 'gesture'],
   );
 
@@ -1559,8 +1560,8 @@ abstract final class SettingsCatalog {
     'XKB options',
     section: 'Keyboard',
     description:
-        'Extra XKB options applied on top of the layout, e.g. '
-        '`caps:swapescape` or `compose:ralt`.',
+        'Extra XKB options applied on top of the layout — the strings '
+        'setxkbmap takes, e.g. `caps:swapescape` or `compose:ralt`.',
     tags: const [
       'xkb', 'option', 'caps', 'escape', 'compose', 'terminate',
       'swap',

@@ -452,35 +452,44 @@ class _MiracleCategoryView extends StatelessWidget {
           // the pane, so a builder at this level would rebuild every row of the
           // category for one digit typed into one of them. Each control
           // subscribes to the value it renders; see [MiracleValue].
-          child: CustomScrollView(
-            scrollCacheExtent: jumping
-                ? const ScrollCacheExtent.pixels(1e6)
-                : const ScrollCacheExtent.pixels(600),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                // Keyed on the store's revision, which is what makes Reset
-                // work. Every text field on these pages seeds its controller
-                // once and then ignores its widget's `initial` — so a Reset
-                // that replaced the configuration under a live form would
-                // leave every field showing the value the user had just
-                // discarded. Re-keying discards the form and rebuilds it from
-                // the configuration that is actually loaded.
-                //
-                // Selected rather than listened to: the revision moves on a
-                // reset and on a list gaining or losing an element, not on a
-                // keystroke, so this does not undo the per-value subscriptions
-                // the rows below are built on.
-                sliver: StoreSelector<int>(
-                  listenable: store,
-                  selector: () => store.structureRevision,
-                  builder: (context, revision) => KeyedSubtree(
-                    key: ValueKey(revision),
-                    child: category.build(store),
+          //
+          // Roomy, with each row's catalogue description behind an info
+          // icon: a category here is a long column of near-identical numbers,
+          // which is only scannable with the explanations out from between
+          // the rows and some air around each one.
+          child: SettingsPaneStyle(
+            roomy: true,
+            fieldInfo: true,
+            child: CustomScrollView(
+              scrollCacheExtent: jumping
+                  ? const ScrollCacheExtent.pixels(1e6)
+                  : const ScrollCacheExtent.pixels(600),
+              slivers: [
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                  // Keyed on the store's revision, which is what makes Reset
+                  // work. Every text field on these pages seeds its controller
+                  // once and then ignores its widget's `initial` — so a Reset
+                  // that replaced the configuration under a live form would
+                  // leave every field showing the value the user had just
+                  // discarded. Re-keying discards the form and rebuilds it from
+                  // the configuration that is actually loaded.
+                  //
+                  // Selected rather than listened to: the revision moves on a
+                  // reset and on a list gaining or losing an element, not on a
+                  // keystroke, so this does not undo the per-value subscriptions
+                  // the rows below are built on.
+                  sliver: StoreSelector<int>(
+                    listenable: store,
+                    selector: () => store.structureRevision,
+                    builder: (context, revision) => KeyedSubtree(
+                      key: ValueKey(revision),
+                      child: category.build(store),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],

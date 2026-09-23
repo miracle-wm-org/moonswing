@@ -145,6 +145,7 @@ class SettingsSection extends StatelessWidget {
     required this.label,
     required this.children,
     this.trailing,
+    this.info,
   });
 
   final String label;
@@ -155,12 +156,15 @@ class SettingsSection extends StatelessWidget {
   /// whose whole body *is* the collection.
   final Widget? trailing;
 
+  /// What the section is for, behind a [SettingsInfoTip] beside its label.
+  final String? info;
+
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SettingsSectionHeading(label: label, trailing: trailing),
+        SettingsSectionHeading(label: label, trailing: trailing, info: info),
         const SizedBox(height: 8),
         ...children,
       ],
@@ -173,18 +177,37 @@ class SettingsSection extends StatelessWidget {
 /// Extracted so a section's label cannot render one way in the box form and
 /// another in the sliver form.
 class SettingsSectionHeading extends StatelessWidget {
-  const SettingsSectionHeading({super.key, required this.label, this.trailing});
+  const SettingsSectionHeading({
+    super.key,
+    required this.label,
+    this.trailing,
+    this.info,
+  });
 
   final String label;
   final Widget? trailing;
+  final String? info;
 
   @override
   Widget build(BuildContext context) {
+    final info = this.info;
+    final Widget heading = info == null
+        ? SettingsSectionLabel(label)
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: SettingsSectionLabel(label)),
+              const SizedBox(width: 6),
+              SettingsInfoTip(info),
+            ],
+          );
     final trailing = this.trailing;
-    if (trailing == null) return SettingsSectionLabel(label);
+    if (trailing == null) return heading;
     return Row(
       children: [
-        Expanded(child: SettingsSectionLabel(label)),
+        Expanded(
+          child: Align(alignment: Alignment.centerLeft, child: heading),
+        ),
         const SizedBox(width: 12),
         trailing,
       ],
@@ -210,6 +233,7 @@ class SliverSettingsSection extends StatelessWidget {
     required this.label,
     required this.children,
     this.trailing,
+    this.info,
   });
 
   final String label;
@@ -220,13 +244,32 @@ class SliverSettingsSection extends StatelessWidget {
 
   final Widget? trailing;
 
+  /// See [SettingsSection.info].
+  final String? info;
+
   @override
-  Widget build(BuildContext context) => SliverMainAxisGroup(
+  Widget build(BuildContext context) {
+    final group = _group();
+    // A roomy pane stacks its sections straight on top of one another, so the
+    // gap between them is the section's own: trailing, so the first heading
+    // stays level with the page's top padding.
+    if (!SettingsPaneStyle.of(context).roomy) return group;
+    return SliverPadding(
+      padding: const EdgeInsets.only(bottom: 20),
+      sliver: group,
+    );
+  }
+
+  Widget _group() => SliverMainAxisGroup(
     slivers: [
       SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.only(bottom: 8),
-          child: SettingsSectionHeading(label: label, trailing: trailing),
+          child: SettingsSectionHeading(
+            label: label,
+            trailing: trailing,
+            info: info,
+          ),
         ),
       ),
       // `SliverList.list`, not `.builder`: these children are declarative tables
@@ -326,6 +369,247 @@ class SettingsHint extends StatelessWidget {
   }
 }
 
+/// How a settings pane spaces its rows, and whether a catalogued row explains
+/// itself.
+///
+/// The default is the dense layout every Shell page is built for. A pane made
+/// of long runs of near-identical rows — Window Manager, where a category is a
+/// dozen numbers in a column — asks for [roomy] instead, and moves what used to
+/// be paragraphs of [SettingsHint] under the rows into a [SettingsInfoTip]
+/// beside each label ([fieldInfo]), so the rows sit further apart and the page
+/// still ends up shorter.
+///
+/// Read by [SettingsRow], [SettingsListRow] and [SliverSettingsSection], so a
+/// pane sets it once at the top rather than threading a flag through every
+/// call site.
+class SettingsPaneStyle extends InheritedWidget {
+  const SettingsPaneStyle({
+    super.key,
+    this.roomy = false,
+    this.fieldInfo = false,
+    required super.child,
+  });
+
+  /// Wider row padding, a wider gap between list cards and between sections.
+  final bool roomy;
+
+  /// Whether [SettingsRow.field] shows its [SettingsField.description] behind a
+  /// [SettingsInfoTip]. The description is written for the search results
+  /// anyway, so a row that shows it is documented exactly once.
+  final bool fieldInfo;
+
+  static const SettingsPaneStyle _dense = SettingsPaneStyle(
+    child: SizedBox.shrink(),
+  );
+
+  static SettingsPaneStyle of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<SettingsPaneStyle>() ?? _dense;
+
+  @override
+  bool updateShouldNotify(SettingsPaneStyle oldWidget) =>
+      roomy != oldWidget.roomy || fieldInfo != oldWidget.fieldInfo;
+}
+
+/// The widest a [SettingsInfoTip] card grows before its text wraps.
+const double kSettingsInfoTipMaxWidth = 300;
+
+/// A small "i" that explains the thing beside it while the pointer is over it.
+///
+/// For the prose a form does not need in order to be *used*, only understood —
+/// units, ranges, what miracle does with a value on load. Kept out of the row
+/// so a page is its settings rather than its footnotes.
+///
+/// The card floats in the **root** overlay, like [AnchoredSearchDropdown]'s, so
+/// the nested category [Navigator] cannot clip it, and it is wrapped in
+/// [IgnorePointer]: a card that took the pointer would fire this icon's exit the
+/// moment it appeared, and flicker. A tap toggles it too, for a pointer that
+/// never hovers.
+///
+/// It is its own [RepaintBoundary], so it is safe in a section heading as well
+/// as inside a [SettingsRow].
+class SettingsInfoTip extends StatefulWidget {
+  const SettingsInfoTip(this.message, {super.key});
+
+  final String message;
+
+  @override
+  State<SettingsInfoTip> createState() => _SettingsInfoTipState();
+}
+
+class _SettingsInfoTipState extends State<SettingsInfoTip> {
+  OverlayEntry? _entry;
+
+  @override
+  void didUpdateWidget(SettingsInfoTip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.message != oldWidget.message) _entry?.markNeedsBuild();
+  }
+
+  @override
+  void dispose() {
+    _entry?.remove();
+    _entry = null;
+    super.dispose();
+  }
+
+  void _toggle() => _entry == null ? _show() : _hide();
+
+  void _show() {
+    if (_entry != null || !mounted) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final icon = context.findRenderObject();
+    final overlayBox = overlay?.context.findRenderObject();
+    if (overlay == null ||
+        icon is! RenderBox ||
+        !icon.hasSize ||
+        !icon.attached ||
+        overlayBox is! RenderBox) {
+      return;
+    }
+    final anchor =
+        icon.localToGlobal(Offset.zero, ancestor: overlayBox) & icon.size;
+    // Resolved against the icon's context, not the overlay's: the root overlay
+    // sits above the theme and the font-size scaler, and the tip should read
+    // like the page it explains.
+    final theme = ThemeScope.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    final entry = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomSingleChildLayout(
+                delegate: _InfoTipLayout(anchor),
+                child: Directionality(
+                  textDirection: direction,
+                  child: _InfoTipCard(
+                    message: widget.message,
+                    theme: theme,
+                    scaler: scaler,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    _entry = entry;
+    overlay.insert(entry);
+  }
+
+  void _hide() {
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return RepaintBoundary(
+      child: HoverRegion(
+        cursor: SystemMouseCursors.help,
+        onEnter: _show,
+        onExit: _hide,
+        onTap: _toggle,
+        builder: (context, hovered) => SizedBox.square(
+          dimension: ShellSizes.iconButtonDense,
+          child: Center(
+            child: FaIcon(
+              FontAwesomeIcons.circleInfo,
+              size: ShellFontSizes.caption,
+              color: hovered
+                  ? theme.accentText
+                  : theme.popupForeground.withValues(alpha: 0.35),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoTipCard extends StatelessWidget {
+  const _InfoTipCard({
+    required this.message,
+    required this.theme,
+    required this.scaler,
+  });
+
+  final String message;
+  final ThemeConfig theme;
+  final TextScaler scaler;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    decoration: BoxDecoration(
+      // Opaque whatever the theme's alpha: this is prose, read over a form.
+      color: theme.popupBackground.withValues(alpha: 1),
+      borderRadius: BorderRadius.circular(ShellRadii.control),
+      border: Border.all(color: theme.divider),
+      boxShadow: const [
+        BoxShadow(
+          color: Color(0x40000000),
+          blurRadius: 12,
+          offset: Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Text(
+      message,
+      textScaler: scaler,
+      style: TextStyle(
+        fontSize: ShellFontSizes.secondary,
+        fontFamily: theme.fontFamily,
+        height: 1.4,
+        color: theme.popupForeground.withValues(alpha: 0.9),
+      ),
+    ),
+  );
+}
+
+/// Hangs the card under the icon, starting just left of it, and keeps it on
+/// screen: slid left off the right edge, flipped above when there is no room
+/// below.
+class _InfoTipLayout extends SingleChildLayoutDelegate {
+  const _InfoTipLayout(this.anchor);
+
+  final Rect anchor;
+
+  static const double _gap = 4;
+  static const double _margin = 8;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints(
+        maxWidth: math.max(
+          0,
+          math.min(
+            kSettingsInfoTipMaxWidth,
+            constraints.maxWidth - 2 * _margin,
+          ),
+        ),
+        maxHeight: math.max(0, constraints.maxHeight - 2 * _margin),
+      );
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final maxX = math.max(_margin, size.width - childSize.width - _margin);
+    final x = (anchor.left - 6).clamp(_margin, maxX);
+    final below = anchor.bottom + _gap;
+    final above = anchor.top - _gap - childSize.height;
+    final fitsBelow = below + childSize.height <= size.height - _margin;
+    final y = fitsBelow || above < _margin ? below : above;
+    return Offset(x, y);
+  }
+
+  @override
+  bool shouldRelayout(_InfoTipLayout oldDelegate) =>
+      anchor != oldDelegate.anchor;
+}
+
 /// A labelled form row: the label on the left, the [control] on the right.
 ///
 /// It carries a [RepaintBoundary], and that is load-bearing. A settings page
@@ -354,7 +638,8 @@ class SettingsRow extends StatelessWidget {
     required this.control,
     this.alignTop = false,
     this.searchId,
-  });
+    this.info,
+  }) : description = null;
 
   /// The row for a catalogued [SettingsField].
   ///
@@ -368,12 +653,21 @@ class SettingsRow extends StatelessWidget {
     super.key,
     required this.control,
     this.alignTop = false,
+    this.info,
   }) : label = field.label,
-       searchId = field.id;
+       searchId = field.id,
+       description = field.description;
 
   final String label;
   final Widget control;
   final bool alignTop;
+
+  /// Behind a [SettingsInfoTip] beside the label. Wins over [description].
+  final String? info;
+
+  /// The catalogued field's description, shown as [info] would be where the
+  /// pane asks for it — see [SettingsPaneStyle.fieldInfo].
+  final String? description;
 
   /// [SettingsField.id], for a row the settings search can jump to. Null for a
   /// row that is not in the catalogue — a device in a list, a per-item control.
@@ -382,7 +676,22 @@ class SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final style = SettingsPaneStyle.of(context);
     final searchId = this.searchId;
+    final description = this.description;
+    final info =
+        this.info ??
+        (style.fieldInfo && description != null && description.isNotEmpty
+            ? description
+            : null);
+    final text = Text(
+      label,
+      style: TextStyle(
+        fontSize: 13,
+        fontFamily: theme.fontFamily,
+        color: theme.popupForeground.withValues(alpha: 0.85),
+      ),
+    );
     return RepaintBoundary(
       child: _SettingsRowHighlight(
         // Null at every row the catalogue does not name, where the widget is a
@@ -390,7 +699,7 @@ class SettingsRow extends StatelessWidget {
         // `UrgencyFlash`'s rule, for a flash that fires once per search jump.
         searchId: searchId,
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
+          padding: EdgeInsets.symmetric(vertical: style.roomy ? 10 : 6),
           child: Row(
             crossAxisAlignment: alignTop
                 ? CrossAxisAlignment.start
@@ -399,14 +708,15 @@ class SettingsRow extends StatelessWidget {
               Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(top: alignTop ? 10 : 0),
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontFamily: theme.fontFamily,
-                      color: theme.popupForeground.withValues(alpha: 0.85),
-                    ),
-                  ),
+                  child: info == null
+                      ? text
+                      : Row(
+                          children: [
+                            Flexible(child: text),
+                            const SizedBox(width: 6),
+                            SettingsInfoTip(info),
+                          ],
+                        ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -3141,10 +3451,13 @@ class SettingsListRow extends StatelessWidget {
     final onMoveUp = this.onMoveUp;
     final onMoveDown = this.onMoveDown;
     final onRemove = this.onRemove;
+    final roomy = SettingsPaneStyle.of(context).roomy;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: EdgeInsets.only(bottom: roomy ? 10 : 4),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+        padding: roomy
+            ? const EdgeInsets.fromLTRB(14, 12, 6, 12)
+            : const EdgeInsets.fromLTRB(10, 6, 4, 6),
         decoration: BoxDecoration(
           color: theme.controlSurface,
           borderRadius: BorderRadius.circular(ShellRadii.control),

@@ -58,13 +58,8 @@ class MiracleKeyboardSection extends StatelessWidget {
               store: store,
               select: (config) => config.keymap.isSet,
               fallback: false,
-              builder: (context, isSet) => isSet
-                  ? _layoutRows(context)
-                  : const SettingsHint(
-                      'miracle is leaving the keyboard layout to the system. '
-                      'Turn this on to have the compositor apply one of its '
-                      'own to every keyboard.',
-                    ),
+              builder: (context, isSet) =>
+                  isSet ? _layoutRows(context) : const SizedBox.shrink(),
             ),
           ],
         ),
@@ -104,18 +99,17 @@ class MiracleKeyboardSection extends StatelessWidget {
             // A real trap, and invisible without saying so: miracle writes its
             // keyboard block only when a keymap is configured, so a repeat rate
             // set with the layout switched off is silently dropped by the save.
+            // Which is why this one stays on the page rather than behind an
+            // info icon — it is a warning, not an explanation.
             MiracleValue<bool>(
               store: store,
               select: (config) => config.keymap.isSet,
               fallback: false,
-              builder: (context, isSet) => SettingsHint(
-                isSet
-                    ? 'The delay is in milliseconds; the rate is in characters '
-                          'a second.'
-                    : 'miracle writes its keyboard settings only alongside a '
-                          'layout, so these two are dropped when you save '
-                          'unless the layout above is switched on.',
-              ),
+              builder: (context, isSet) => isSet
+                  ? const SizedBox.shrink()
+                  : const SettingsHint(
+                      'Not saved unless “Set the keyboard layout” is on.',
+                    ),
             ),
           ],
         ),
@@ -187,11 +181,6 @@ class MiracleKeyboardSection extends StatelessWidget {
               }),
             ),
           ),
-        ),
-        const SettingsHint(
-          'The layout is an XKB code — us, de, fr — and the variant is one of '
-          "that layout's, such as dvorak or intl. Options are the same strings "
-          'setxkbmap takes, e.g. caps:swapescape.',
         ),
       ],
     );
