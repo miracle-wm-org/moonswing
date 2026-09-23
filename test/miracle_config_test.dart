@@ -29,30 +29,51 @@ import 'package:moonswing/overlay/settings/miracle.dart';
 import 'package:moonswing/scopes.dart';
 
 void main() {
-  group('evdev key table', () {
-    test('is one row per code, ascending', () {
-      final codes = [for (final key in kMiracleKeys) key.code];
-      expect(codes.toSet(), hasLength(codes.length));
-      final sorted = [...codes]..sort();
-      expect(codes, sorted);
+  group('keysym key table', () {
+    test('is one row per keysym, ascending', () {
+      final keysyms = [for (final key in kMiracleKeys) key.keysym];
+      expect(keysyms.toSet(), hasLength(keysyms.length));
+      final sorted = [...keysyms]..sort();
+      expect(keysyms, sorted);
     });
 
-    // Spot checks against `input-event-codes.h`. A shifted table would still
+    // Spot checks against `xkbcommon-keysyms.h`. A shifted table would still
     // look plausible everywhere — every label would simply name the key next
     // to the right one — so the anchors have to be spelled out.
-    test('the anchors are where the kernel puts them', () {
-      expect(miracleKeyForCode(1)?.name, 'KEY_ESC');
-      expect(miracleKeyForCode(19)?.name, 'KEY_R');
-      expect(miracleKeyForCode(28)?.name, 'KEY_ENTER');
-      expect(miracleKeyForCode(57)?.name, 'KEY_SPACE');
-      expect(miracleKeyForCode(59)?.name, 'KEY_F1');
-      expect(miracleKeyForCode(125)?.name, 'KEY_LEFTMETA');
+    test('the anchors are where xkb puts them', () {
+      expect(miracleKeyForKeysym(0x61)?.name, 'a');
+      expect(miracleKeyForKeysym(0x51)?.name, 'Q');
+      expect(miracleKeyForKeysym(0x21)?.name, 'exclam');
+      expect(miracleKeyForKeysym(0xff0d)?.name, 'Return');
+      expect(miracleKeyForKeysym(0xff1b)?.name, 'Escape');
+      expect(miracleKeyForKeysym(0xffbe)?.name, 'F1');
+      expect(miracleKeyForKeysym(0xffeb)?.name, 'Super_L');
+      expect(miracleKeyForKeysym(0xfe20)?.name, 'ISO_Left_Tab');
+    });
+
+    // The reason the table is keysyms at all: the keys a laptop prints a
+    // picture on are spelled this way in every window manager's documentation,
+    // and in miracle's `config.yaml`.
+    test('the media and brightness keys are there under their X11 names', () {
+      final byName = {for (final key in kMiracleKeys) key.name: key};
+      expect(byName['XF86AudioRaiseVolume']?.keysym, 0x1008ff13);
+      expect(byName['XF86AudioLowerVolume']?.keysym, 0x1008ff11);
+      expect(byName['XF86AudioMute']?.keysym, 0x1008ff12);
+      expect(byName['XF86AudioMicMute']?.keysym, 0x1008ffb2);
+      expect(byName['XF86AudioPlay']?.keysym, 0x1008ff14);
+      expect(byName['XF86AudioNext']?.keysym, 0x1008ff17);
+      expect(byName['XF86AudioPrev']?.keysym, 0x1008ff16);
+      expect(byName['XF86MonBrightnessUp']?.keysym, 0x1008ff02);
+      expect(byName['XF86MonBrightnessDown']?.keysym, 0x1008ff03);
+      expect(byName['XF86PowerOff']?.keysym, 0x1008ff2a);
+      expect(byName['Print']?.keysym, 0xff61);
     });
 
     test('every row says what it is, and says it once', () {
       final labels = <String, String>{};
       for (final key in kMiracleKeys) {
-        expect(key.name, startsWith('KEY_'));
+        expect(key.name, isNotEmpty);
+        expect(key.name, isNot(startsWith('0x')));
         expect(key.label, isNotEmpty);
         expect(
           labels.containsKey(key.label),
@@ -65,12 +86,20 @@ void main() {
       }
     });
 
-    // A configuration written against a newer kernel, or a vendor key. The
-    // binding stays editable and, crucially, stays saveable as authored.
-    test('a code the table does not name still has a label', () {
-      expect(miracleKeyForCode(99999), isNull);
-      expect(miracleKeyLabel(99999), 'Key code 99999');
-      expect(miracleKeyLabel(19), 'R');
+    // Shift is already one of the shortcut's modifiers.
+    test('a shifted letter reads as the letter inside a shortcut', () {
+      expect(miracleKeyLabel(0x51), 'Q');
+      expect(miracleKeyLabel(0x71), 'Q');
+      expect(miracleKeyForKeysym(0x51)?.label, isNot('Q'));
+    });
+
+    // A character from a layout the table was not generated from. The binding
+    // stays editable and, crucially, stays saveable as authored.
+    test('a keysym the table does not name still has a label', () {
+      expect(miracleKeyForKeysym(0x6c1), isNull);
+      expect(miracleKeyLabel(0x6c1), 'Keysym 0x6c1');
+      expect(miracleKeyLabel(0x72), 'R');
+      expect(miracleKeyLabel(0x1008ff13), 'Volume up');
     });
   });
 
@@ -115,7 +144,7 @@ void main() {
       expect(
         reloadShortcutLabel(const [
           KeyCommandOverride(
-            key: 59, // KEY_F1
+            key: 0xffbe, // XKB_KEY_F1
             command: BuiltInKeyCommand.reloadConfig,
             modifiers: {Modifier.ctrl, Modifier.alt},
           ),
@@ -128,7 +157,7 @@ void main() {
       expect(
         reloadShortcutLabel(const [
           KeyCommandOverride(
-            key: 59,
+            key: 0xffbe,
             command: BuiltInKeyCommand.fullscreen,
             modifiers: {Modifier.ctrl},
           ),

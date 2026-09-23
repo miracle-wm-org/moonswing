@@ -1100,7 +1100,7 @@ class SettingsDropdown<T> extends StatelessWidget {
       // Matched against the [SettingsDropdownItem.detail] as well as the
       // label, because the detail is often the *unambiguous* spelling of the
       // row: a monitor's mode is marked "preferred" there, and a key binding's
-      // key carries its `KEY_LEFTBRACE` beside a label reading "Left bracket
+      // key carries its `bracketleft` beside a label reading "Left bracket
       // ([)". Somebody who knows the exact name types that one.
       filter: (query) {
         final q = query.trim().toLowerCase();
