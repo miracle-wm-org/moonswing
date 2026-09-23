@@ -34,6 +34,8 @@ ShortcutsConfig _only({
       powerButton: null,
       switchWindows: null,
       switchWindowsBack: null,
+      toggleScratchpad: null,
+      moveToScratchpad: null,
     );
 
 void main() {
@@ -228,6 +230,8 @@ void main() {
         'moonswing.switch-windows-back',
         'moonswing.screenshot-area',
         'moonswing.record-screen',
+        'moonswing.toggle-scratchpad',
+        'moonswing.move-to-scratchpad',
         kPowerButtonShortcut,
       });
     });

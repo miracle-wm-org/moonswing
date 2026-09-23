@@ -13,6 +13,7 @@ import 'package:moonswing/notification_panel_controller.dart';
 import 'package:moonswing/power/power_controller.dart';
 import 'package:moonswing/power/power_menu_controller.dart';
 import 'package:moonswing/power/power_service.dart';
+import 'package:moonswing/scratchpad/scratchpad_store.dart';
 import 'package:moonswing/switcher/switcher_controller.dart';
 import 'package:wayland/wayland.dart';
 
@@ -134,6 +135,21 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
       'moonswing.switch-windows-back',
       config.switchWindowsBack,
       () => WindowSwitcherController.instance.cycle(forward: false),
+      null,
+    ),
+    // Both straight to miracle's IPC through the one store the bar button
+    // uses. Not awaited: a global shortcut has nobody to report to, and the
+    // store records a failure where the button's label can show it.
+    (
+      'moonswing.toggle-scratchpad',
+      config.toggleScratchpad,
+      () => unawaited(ScratchpadStore.instance.toggle()),
+      null,
+    ),
+    (
+      'moonswing.move-to-scratchpad',
+      config.moveToScratchpad,
+      () => unawaited(ScratchpadStore.instance.moveFocusedWindow()),
       null,
     ),
     (

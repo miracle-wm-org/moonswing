@@ -40,6 +40,8 @@ void main() {
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.shortcuts.switchWindows, kDefaultSwitchWindows);
       expect(config.shortcuts.switchWindowsBack, kDefaultSwitchWindowsBack);
+      expect(config.shortcuts.toggleScratchpad, kDefaultToggleScratchpad);
+      expect(config.shortcuts.moveToScratchpad, kDefaultMoveToScratchpad);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);
@@ -76,6 +78,7 @@ void main() {
         'system_tray',
         'battery',
         'weather',
+        'scratchpad',
         'keybinds',
         'keyboard_layout',
         'system',
@@ -124,6 +127,8 @@ void main() {
       expect(config.shortcuts.powerButton, kDefaultPowerButton);
       expect(config.shortcuts.switchWindows, kDefaultSwitchWindows);
       expect(config.shortcuts.switchWindowsBack, kDefaultSwitchWindowsBack);
+      expect(config.shortcuts.toggleScratchpad, kDefaultToggleScratchpad);
+      expect(config.shortcuts.moveToScratchpad, kDefaultMoveToScratchpad);
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);

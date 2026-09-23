@@ -215,10 +215,10 @@ void main() {
     testWidgets('draws the keys as caps', (tester) async {
       await pump(tester);
       // Every compositor row in the fixture carries Super, the header names it
-      // as the Action Key, and five of the shell's own defaults are on it too
-      // — the launcher, settings, the notification panel, the power menu
-      // and the recorder.
-      expect(find.text('Super'), findsNWidgets(9));
+      // as the Action Key, and seven of the shell's own defaults are on it too
+      // — the launcher, settings, the notification panel, the power menu,
+      // the recorder and both halves of the scratchpad.
+      expect(find.text('Super'), findsNWidgets(11));
       expect(find.text('Q'), findsOneWidget);
       expect(find.text('Action Key'), findsOneWidget);
       // Enter is drawn as its glyph, so its label is not on screen.
@@ -262,6 +262,10 @@ void main() {
       source
         ..failure = null
         ..result = _keybinds;
+      // Below the shell's own rows, which are drawn either way — and there
+      // are enough of those now to push it past the bottom of the sheet.
+      await tester.ensureVisible(find.text('Retry'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
 

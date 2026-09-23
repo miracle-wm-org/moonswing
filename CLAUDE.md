@@ -270,6 +270,7 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `screencast/` | The ScreenCast portal backend, capture sessions, the consent picker |
 | `polkit/`, `power/`, `lock/` | Authentication agent, power-key policy and menu, session lock |
 | `native/`, `wayland_ffi/`, `pipewire/` | dlopen plumbing, libwayland bindings, libpipewire + SPA |
+| `scratchpad/` | The window manager's scratchpad: the one store the bar button and both `[shortcuts]` keys send miracle's `scratchpad show` / `move scratchpad` through. No count or shown state — miracle keeps stashed windows out of `GET_TREE` |
 | `switcher/` | Alt+Tab: the open-window list over `ext-foreign-toplevel-list`, its recency order, the overlay and the switch itself |
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
 | `keybinds/` | The cheat sheet behind the bar's keyboard icon: miracle's own bindings over `GET_KEYBINDS` and the shell's own `[shortcuts]`, the pure models that turn either into key caps, their two stores, the key-press capture and the overlay |
