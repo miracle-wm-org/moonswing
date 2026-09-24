@@ -708,7 +708,7 @@ class _MediaProgressBarState extends State<MediaProgressBar>
               children: [
                 Positioned.fill(
                   child: ColoredBox(
-                    color: theme.divider.withValues(alpha: 0.6),
+                    color: theme.divider.atMostAlpha(0.6),
                   ),
                 ),
                 if (progress != null)

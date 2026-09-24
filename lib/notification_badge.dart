@@ -398,7 +398,7 @@ class _BadgeCard extends StatelessWidget {
     // into `base` rather than layered over it because this surface has to
     // stay opaque over the wallpaper.
     final fill = hovered
-        ? Color.alphaBlend(theme.surfaceHover.withValues(alpha: 0.16), base)
+        ? Color.alphaBlend(theme.surfaceHover.atMostAlpha(0.16), base)
         : base;
 
     return Container(

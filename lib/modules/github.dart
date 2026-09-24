@@ -671,7 +671,7 @@ class _NotificationRow extends StatelessWidget {
       child: HoverRegion(
         onTap: onOpen,
         builder: (context, hovered) => Container(
-          color: hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null,
+          color: hovered ? theme.surfaceHover.atMostAlpha(0.16) : null,
           padding: const EdgeInsets.fromLTRB(14, 9, 8, 9),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

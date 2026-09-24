@@ -612,7 +612,7 @@ class _RemoveBadgeState extends State<_RemoveBadge> {
           decoration: BoxDecoration(
             color: _hovered ? kErrorColor : const Color(0xCC000000),
             shape: BoxShape.circle,
-            border: Border.all(color: theme.divider.withValues(alpha: 0.6)),
+            border: Border.all(color: theme.divider.atMostAlpha(0.6)),
           ),
           alignment: Alignment.center,
           child: const FaIcon(

@@ -38,7 +38,7 @@ class BarButton extends StatelessWidget {
       builder: (context, hovered) => Container(
         decoration: BoxDecoration(
           color: (hovered || active)
-              ? theme.surfaceHover.withValues(alpha: 0.16)
+              ? theme.surfaceHover.atMostAlpha(0.16)
               : null,
           borderRadius: BorderRadius.circular(ShellRadii.barButton),
         ),

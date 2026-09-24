@@ -832,7 +832,7 @@ class NotificationSilenceRow extends StatelessWidget {
         // wins the arena as the deeper one, so a tap on it toggles once.
         onTap: store.toggleSilenced,
         builder: (context, hovered) => Container(
-          color: hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null,
+          color: hovered ? theme.surfaceHover.atMostAlpha(0.16) : null,
           padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
           child: Row(
             children: [
@@ -950,7 +950,7 @@ class NotificationSoundRow extends StatelessWidget {
       // along it: the button is the discoverable half, not the only half.
       onTap: () => sound.playNow(force: true),
       builder: (context, hovered) => Container(
-        color: hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null,
+        color: hovered ? theme.surfaceHover.atMostAlpha(0.16) : null,
         padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
         child: Row(
           children: [
@@ -1199,10 +1199,10 @@ class _NotificationCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: hovered
               ? Color.alphaBlend(
-                  theme.surfaceHover.withValues(alpha: 0.16),
-                  theme.workspaceBackground.withValues(alpha: 0.5),
+                  theme.surfaceHover.atMostAlpha(0.16),
+                  theme.workspaceBackground.atMostAlpha(0.5),
                 )
-              : theme.workspaceBackground.withValues(alpha: 0.5),
+              : theme.workspaceBackground.atMostAlpha(0.5),
           borderRadius: BorderRadius.circular(ShellRadii.card),
           // An unread card is ringed in the badge colour rather than tinted: the
           // body text on it is the thing the user came to read, and a wash under

@@ -7,6 +7,7 @@ import 'package:moonswing/app_info.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_actions.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// One cell of the desktop grid: an icon over its label, with the selection
 /// chrome.
@@ -57,9 +58,9 @@ class DesktopIconTile extends StatelessWidget {
           // Selection is a fill *and* a border, so it reads on a busy
           // wallpaper where either alone could disappear.
           color: selected
-              ? theme.surfacePressed.withValues(alpha: 0.55)
+              ? theme.surfacePressed.atMostAlpha(0.55)
               : hovered
-                  ? theme.surfaceHover.withValues(alpha: 0.28)
+                  ? theme.surfaceHover.atMostAlpha(0.28)
                   : null,
           border: Border.all(
             color: selected ? theme.accent : const Color(0x00000000),
@@ -210,7 +211,7 @@ class _DesktopRenameFieldState extends State<DesktopRenameField> {
     final theme = ThemeScope.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: theme.surfacePressed.withValues(alpha: 0.55),
+        color: theme.surfacePressed.atMostAlpha(0.55),
         border: Border.all(color: theme.accent, width: 1),
         borderRadius: BorderRadius.circular(8),
       ),
