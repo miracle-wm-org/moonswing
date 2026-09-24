@@ -480,11 +480,16 @@ class _ColumnView extends StatelessWidget {
       onAcceptWithDetails: (details) => store.move(details.data, column),
       builder: (context, candidates, _) {
         final hovering = candidates.isNotEmpty;
+        // Half the theme's control tint, *scaled* from its own alpha: a
+        // translucent `control_surface` (glassy's is 15% white) replaced with
+        // 0.5 would paint the column half-white — a light grey under white
+        // text. An opaque theme's alpha is 1, so for it the two agree.
+        final fill = theme.controlSurface;
         return Container(
           decoration: BoxDecoration(
             color: hovering
                 ? theme.accent.withValues(alpha: 0.10)
-                : theme.controlSurface.withValues(alpha: 0.5),
+                : fill.withValues(alpha: fill.a * 0.5),
             borderRadius: BorderRadius.circular(ShellRadii.card),
             border: Border.all(color: hovering ? theme.accent : theme.divider),
           ),
@@ -671,12 +676,14 @@ class _CardChrome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    // Scaled, not replaced, for the column's reason.
+    final hover = theme.surfaceHover;
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
         color: hovered
             ? Color.alphaBlend(
-                theme.surfaceHover.withValues(alpha: 0.5),
+                hover.withValues(alpha: hover.a * 0.5),
                 opaquePopupFill(theme),
               )
             : opaquePopupFill(theme),
