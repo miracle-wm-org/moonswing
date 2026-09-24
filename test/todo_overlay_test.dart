@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +45,7 @@ void main() {
     WidgetTester tester,
     List<TodoItem> items, {
     bool inMemory = false,
+    ValueChanged<String>? onOpenLink,
   }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
@@ -61,6 +63,7 @@ void main() {
           closingNotifier: closing,
           onClosed: () => closed++,
           store: store,
+          onOpenLink: onOpenLink ?? (_) {},
         ),
       ),
     );
@@ -189,6 +192,48 @@ void main() {
     expect(find.text('Created in Inbox'), findsOneWidget);
     expect(find.text('Inbox → In Progress'), findsOneWidget);
     expect(find.text('22 Sep 2026, 08:05'), findsWidgets);
+  });
+
+  testWidgets('a link in a card opens its address, not the card', (
+    tester,
+  ) async {
+    final opened = <String>[];
+    await pump(tester, [
+      TodoItem(
+        id: 'a',
+        title: 'Read https://example.com/title',
+        body: 'Notes at www.example.org/notes.',
+        column: TodoColumn.inbox,
+        created: DateTime(2026, 9, 20, 10),
+      ),
+    ], onOpenLink: opened.add);
+
+    // Taps the middle of the character at [offset] in [text].
+    Future<void> tapCharacter(String text, int offset) async {
+      final paragraph = tester.renderObject<RenderParagraph>(
+        find.text(text, findRichText: true),
+      );
+      final box = paragraph
+          .getBoxesForSelection(
+            TextSelection(baseOffset: offset, extentOffset: offset + 1),
+          )
+          .single;
+      await tester.tapAt(paragraph.localToGlobal(box.toRect().center));
+      await tester.pumpAndSettle();
+    }
+
+    await tapCharacter('Read https://example.com/title', 12);
+    await tapCharacter('Notes at www.example.org/notes.', 12);
+    expect(opened, [
+      'https://example.com/title',
+      'https://www.example.org/notes',
+    ]);
+    expect(find.text('Edit item'), findsNothing);
+
+    // The words before the link still open the card.
+    await tapCharacter('Read https://example.com/title', 1);
+    expect(find.text('Edit item'), findsOneWidget);
+    expect(opened, hasLength(2));
   });
 
   testWidgets('Escape closes the editor, then the board', (tester) async {

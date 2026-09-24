@@ -1,6 +1,8 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_store.dart';
@@ -46,6 +48,39 @@ void main() {
       expect(_runs(highlightMatches('plain', ['zzz'], hit: _hit)), [
         ('plain', false),
       ]);
+    });
+
+    test('draws a link, highlighted or not, with its recognizer', () {
+      const link = TextStyle(decoration: TextDecoration.underline);
+      final recognizer = TapGestureRecognizer();
+      addTearDown(recognizer.dispose);
+      const text = 'Open https://example.com today';
+      final spans = highlightMatches(
+        text,
+        ['example'],
+        hit: _hit,
+        links: findLinks(text),
+        link: link,
+        recognizerFor: (_) => recognizer,
+      );
+      expect(
+        [
+          for (final span in spans)
+            (
+              span.text,
+              span.style?.fontWeight == FontWeight.bold,
+              span.style?.decoration == TextDecoration.underline,
+              span.recognizer != null,
+            ),
+        ],
+        [
+          ('Open ', false, false, false),
+          ('https://', false, true, true),
+          ('example', true, true, true),
+          ('.com', false, true, true),
+          (' today', false, false, false),
+        ],
+      );
     });
   });
 
