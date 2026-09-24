@@ -195,7 +195,8 @@ const String _glassy = '''
 # The effect comes from alpha, not from blur: a layer-shell surface is
 # transparent and the compositor owns everything beneath it, so Flutter cannot
 # blur the desktop. Surfaces are white-alpha rather than opaque greys so they
-# tint whatever is behind them instead of covering it.
+# tint whatever is behind them instead of covering it (control_surface aside —
+# see there).
 #
 # popup_background keeps a high alpha on purpose — a popup has to stay legible
 # over a light wallpaper, where a fully translucent card would not.
@@ -211,7 +212,12 @@ surface_pressed      = "#4DFFFFFF"
 workspace_background = "#33101318"
 popup_background     = "#B0141821"
 popup_foreground     = "#F5F7FA"
-control_surface      = "#26FFFFFF"
+# The one surface that is black-alpha rather than white. Controls — inputs,
+# cards, tiles — nest inside one another, and a translucent tint adds up once
+# per layer: at #26FFFFFF a dropdown inside a binding card in Settings came out
+# a mid grey under white text. Dark, a nested control sinks a little further
+# into the card instead of lighting up; the divider rim still gives it an edge.
+control_surface      = "#33000000"
 slider_track         = "#40FFFFFF"
 muted                = "#99EAF0F8"
 divider              = "#26FFFFFF"

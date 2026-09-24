@@ -1217,7 +1217,7 @@ class _TreeRow extends StatelessWidget {
       builder: (context, hovered) => Container(
         color: isCurrent
             ? theme.accent.withValues(alpha: 0.22)
-            : (hovered ? theme.surfaceHover.withValues(alpha: 0.16) : null),
+            : (hovered ? theme.surfaceHover.atMostAlpha(0.16) : null),
         padding: EdgeInsets.only(
           left: 10.0 + depth * 16,
           right: 10,
@@ -1477,7 +1477,7 @@ class _FileRow extends StatelessWidget {
           color: selected
               ? theme.accent.withValues(alpha: 0.22)
               : (hovered
-                  ? theme.surfaceHover.withValues(alpha: 0.16)
+                  ? theme.surfaceHover.atMostAlpha(0.16)
                   : const Color(0x00000000)),
         ),
         child: Row(

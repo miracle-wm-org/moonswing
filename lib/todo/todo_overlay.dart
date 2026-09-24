@@ -484,7 +484,7 @@ class _ColumnView extends StatelessWidget {
           decoration: BoxDecoration(
             color: hovering
                 ? theme.accent.withValues(alpha: 0.10)
-                : theme.controlSurface.withValues(alpha: 0.5),
+                : theme.controlSurface.atMostAlpha(0.5),
             borderRadius: BorderRadius.circular(ShellRadii.card),
             border: Border.all(color: hovering ? theme.accent : theme.divider),
           ),
@@ -676,7 +676,7 @@ class _CardChrome extends StatelessWidget {
       decoration: BoxDecoration(
         color: hovered
             ? Color.alphaBlend(
-                theme.surfaceHover.withValues(alpha: 0.5),
+                theme.surfaceHover.atMostAlpha(0.5),
                 opaquePopupFill(theme),
               )
             : opaquePopupFill(theme),

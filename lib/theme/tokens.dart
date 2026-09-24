@@ -134,3 +134,19 @@ abstract final class ShellSizes {
   /// [minTapTarget] only where the row's height forces it.
   static const double iconButtonDense = 18;
 }
+
+/// Fading a *theme* colour, which may already be translucent.
+///
+/// `color.withValues(alpha: x)` replaces the alpha, which is only a fade for an
+/// opaque colour. glassy's surfaces are white-alpha — `control_surface` was
+/// `#26FFFFFF` — so replacing its 15% with 0.5 painted a todo column half-white:
+/// a light grey under white text, and brighter than the tint it was meant to
+/// tone down. Every call site reducing a theme surface's alpha goes through here.
+extension ThemeColorAlpha on Color {
+  /// This colour at [alpha], or at its own alpha if that is already lower.
+  ///
+  /// Identical to `withValues(alpha:)` for an opaque colour, and never makes a
+  /// translucent one *more* opaque than the theme spelled it.
+  Color atMostAlpha(double alpha) =>
+      a <= alpha ? this : withValues(alpha: alpha);
+}
