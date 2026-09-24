@@ -441,18 +441,14 @@ const ShortcutSpec kDefaultOpenLauncher =
 const ShortcutSpec kDefaultOpenEmoji =
     ShortcutSpec(modifiers: 0x108, keysym: 0x45);
 
-/// Super+E, the notification panel.
+/// Super+N, the notification panel.
 const ShortcutSpec kDefaultOpenNotifications =
-    ShortcutSpec(modifiers: 0x800, keysym: 0x65);
+    ShortcutSpec(modifiers: 0x800, keysym: 0x6e);
 
 /// Super+Shift+E, the power menu. The shifted keysym (`E`, not `e`) is what
 /// Mir matches on once Shift is held — see [parseShortcut] — and it is spelled
 /// numerically for [kDefaultOpenSettings]'s reason;
 /// `test/shortcut_parse_test.dart` asserts the two agree.
-///
-/// Shift apart, this is `open_notifications`' combination, and deliberately so:
-/// the two are neighbours on the same key. A trigger fires only when *exactly*
-/// the registered modifiers are held, so the compositor tells them apart.
 const ShortcutSpec kDefaultOpenPowerMenu =
     ShortcutSpec(modifiers: 0x808, keysym: 0x45);
 
@@ -528,7 +524,7 @@ class ShortcutsConfig {
   /// The emoji picker (Ctrl+Shift+E by default).
   final ShortcutSpec? openEmoji;
 
-  /// The notification panel (Super+E by default). A toggle, exactly as the
+  /// The notification panel (Super+N by default). A toggle, exactly as the
   /// bell module's own click is: the root owns the one panel and decides.
   final ShortcutSpec? openNotifications;
 

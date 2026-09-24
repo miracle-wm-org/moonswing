@@ -10,7 +10,7 @@ void main() {
       expect(parseShortcut('super+s'), kDefaultOpenSettings);
       expect(parseShortcut('super+d'), kDefaultOpenLauncher);
       expect(parseShortcut('ctrl+shift+e'), kDefaultOpenEmoji);
-      expect(parseShortcut('super+e'), kDefaultOpenNotifications);
+      expect(parseShortcut('super+n'), kDefaultOpenNotifications);
       expect(parseShortcut('super+shift+e'), kDefaultOpenPowerMenu);
       expect(parseShortcut('alt+tab'), kDefaultSwitchWindows);
       expect(parseShortcut('alt+shift+tab'), kDefaultSwitchWindowsBack);
@@ -141,7 +141,7 @@ void main() {
       expect(formatShortcut(kDefaultOpenSettings), 'super+s');
       expect(formatShortcut(kDefaultOpenLauncher), 'super+d');
       expect(formatShortcut(kDefaultOpenEmoji), 'ctrl+shift+e');
-      expect(formatShortcut(kDefaultOpenNotifications), 'super+e');
+      expect(formatShortcut(kDefaultOpenNotifications), 'super+n');
       // Spelled in the canonical modifier order, which puts Super last; the
       // parser reads `super+shift+e` as the very same combination.
       expect(formatShortcut(kDefaultOpenPowerMenu), 'shift+super+e');

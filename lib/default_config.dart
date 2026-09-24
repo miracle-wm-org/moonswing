@@ -181,7 +181,7 @@ blur_sigma = 18.0
 open_settings = "super+s"
 open_launcher = "super+d"
 open_emoji = "ctrl+shift+e"
-open_notifications = "super+e"
+open_notifications = "super+n"
 # The power menu — shut down, restart, suspend, lock or log out.
 open_power_menu = "shift+super+e"
 # The window switcher. Hold Alt, press Tab to move through the open windows,

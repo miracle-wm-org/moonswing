@@ -60,7 +60,7 @@ void main() {
       );
       expect(
         ShellShortcut.openNotifications.specIn(config),
-        parseShortcut('super+e'),
+        parseShortcut('super+n'),
       );
       expect(
         ShellShortcut.openPowerMenu.specIn(config),
