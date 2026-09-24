@@ -105,9 +105,13 @@ class PaCard {
 }
 
 class PaModule {
-  const PaModule({required this.index, required this.name});
+  const PaModule({required this.index, required this.name, this.argument = ''});
   final int index;
   final String name;
+
+  /// The argument string the module was loaded with — how a module this shell
+  /// loaded is told apart from an identical one the user loaded themselves.
+  final String argument;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +231,13 @@ class _ConnectedEvent {
 
 late PulseAudioBindings _pa;
 
+/// `pa_stream_connect_record` with its flags as the C bitmask they are. The
+/// generated binding takes a single `pa_stream_flags` enum member, so it cannot
+/// express `PEAK_DETECT | ADJUST_LATENCY`, which is the whole point of the meter.
+late int Function(
+        Pointer<pa_stream>, Pointer<Char>, Pointer<pa_buffer_attr>, int)
+    _connectRecord;
+
 class _PaIsolate {
   _PaIsolate._(
     this.port,
@@ -269,7 +280,13 @@ class _PaIsolate {
   // ---------------------------------------------------------------------------
 
   static void entry(SendPort port) {
-    _pa = PulseAudioBindings(DynamicLibrary.open('libpulse.so.0'));
+    final lib = DynamicLibrary.open('libpulse.so.0');
+    _pa = PulseAudioBindings(lib);
+    _connectRecord = lib.lookupFunction<
+        Int Function(Pointer<pa_stream>, Pointer<Char>,
+            Pointer<pa_buffer_attr>, UnsignedInt),
+        int Function(Pointer<pa_stream>, Pointer<Char>,
+            Pointer<pa_buffer_attr>, int)>('pa_stream_connect_record');
 
     final loop = _pa.pa_mainloop_new();
     final api = _pa.pa_mainloop_get_api(loop);
@@ -1117,8 +1134,10 @@ class _PaIsolate {
     final id = ud.cast<Int>().value;
     final s = info.ref;
     final mName = s.name.address != 0 ? s.name.cast<Utf8>().toDartString() : '';
+    final mArg =
+        s.argument.address != 0 ? s.argument.cast<Utf8>().toDartString() : '';
     (_inst!.accum[id] as List<PaModule>)
-        .add(PaModule(index: s.index, name: mName));
+        .add(PaModule(index: s.index, name: mName, argument: mArg));
   }
 
   static void _loadModule(int id, String name, String args) {
@@ -1155,13 +1174,26 @@ class _PaIsolate {
   // Level metering via pa_stream
   // ---------------------------------------------------------------------------
 
+  /// Meter updates per second. With `PA_STREAM_PEAK_DETECT` the server resamples
+  /// the source down to this rate by taking the peak of each window, so one
+  /// float arrives per update and nothing between two readings is missed.
+  static const int _meterRate = 30;
+
+  /// Starts a peak-detecting record stream on [sourceName] — pavucontrol's
+  /// recipe.
+  ///
+  /// The buffer attributes are the half that matters. With none, the server
+  /// picks its default record fragment — two seconds under PulseAudio — and
+  /// the read callback fires once per fragment, so the meter moved once every
+  /// couple of seconds and showed the RMS of all of it. A fragment of one
+  /// sample plus `ADJUST_LATENCY` asks for every reading as it is made.
   static void _startLevelMeter(int id, String sourceName) {
     _stopLevelMeter(id); // stop any previous meter
 
     using((Arena a) {
       final pSpec = a<pa_sample_spec>();
-      pSpec.ref.formatAsInt = PA_SAMPLE_S16LE;
-      pSpec.ref.rate = 4000;
+      pSpec.ref.formatAsInt = PA_SAMPLE_FLOAT32LE;
+      pSpec.ref.rate = _meterRate;
       pSpec.ref.channels = 1;
 
       final stream = _pa.pa_stream_new(_inst!.ctx,
@@ -1174,11 +1206,24 @@ class _PaIsolate {
       _pa.pa_stream_set_read_callback(
           stream, Pointer.fromFunction(_onStreamRead), nullptr);
 
-      final ret = _pa.pa_stream_connect_record(
+      // (uint32_t) -1 is "server default" for every field but fragsize.
+      const unset = 0xFFFFFFFF;
+      final pAttr = a<pa_buffer_attr>();
+      pAttr.ref
+        ..maxlength = unset
+        ..tlength = unset
+        ..prebuf = unset
+        ..minreq = unset
+        ..fragsize = sizeOf<Float>();
+
+      // DONT_MOVE: the meter is of the source the page names; if that source
+      // goes away the stream should die with it rather than be moved onto
+      // another device and meter that under the old name.
+      final ret = _connectRecord(
           stream,
           sourceName.toNativeUtf8(allocator: a).cast(),
-          nullptr,
-          pa_stream_flags.PA_STREAM_NOFLAGS);
+          pAttr,
+          PA_STREAM_PEAK_DETECT | PA_STREAM_ADJUST_LATENCY | PA_STREAM_DONT_MOVE);
 
       if (ret < 0) {
         _pa.pa_stream_unref(stream);
@@ -1198,27 +1243,30 @@ class _PaIsolate {
     final ppData = calloc<Pointer<Void>>();
     final pNbytes = calloc<Size>();
 
-    _pa.pa_stream_peek(stream, ppData, pNbytes);
-
-    final dataPtr = ppData.value;
-    final byteCount = pNbytes.value;
-    final sampleCount = byteCount ~/ 2;
-
-    double level = 0.0;
-    if (dataPtr.address != 0 && sampleCount > 0) {
-      final samples = dataPtr.cast<Int16>().asTypedList(sampleCount);
-      double sumSq = 0.0;
-      for (final s in samples) {
-        sumSq += s * s;
+    // Drain everything queued: a late turn of the driver can find several
+    // readings waiting, and only the loudest of them is worth a frame.
+    var level = -1.0;
+    while (_pa.pa_stream_readable_size(stream) > 0) {
+      if (_pa.pa_stream_peek(stream, ppData, pNbytes) < 0) break;
+      final byteCount = pNbytes.value;
+      if (byteCount == 0) break; // nothing buffered after all; nothing to drop
+      final dataPtr = ppData.value;
+      // A null pointer with a length is a hole: dropped, not read.
+      if (dataPtr.address != 0) {
+        final samples =
+            dataPtr.cast<Float>().asTypedList(byteCount ~/ sizeOf<Float>());
+        for (final v in samples) {
+          final peak = v.abs();
+          if (peak > level) level = peak;
+        }
       }
-      level = math.sqrt(sumSq / sampleCount) / 32768.0;
+      _pa.pa_stream_drop(stream);
     }
-
-    _pa.pa_stream_drop(stream);
 
     calloc.free(ppData);
     calloc.free(pNbytes);
 
+    if (level < 0) return;
     _inst!.port.send(_LevelEvent(level.clamp(0.0, 1.0)));
   }
 

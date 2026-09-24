@@ -32,11 +32,19 @@ class _InputTabState extends State<InputTab> {
   String _defaultSourceName = '';
   double _volume = 0.0;
   bool _muted = false;
-  double _level = 0.0;
+  // A notifier, not state: it moves thirty times a second, and only the meter
+  // listens — a `setState` per reading rebuilt the whole page.
+  final ValueNotifier<double> _level = ValueNotifier(0.0);
   bool _noiseSuppAvailable = false;
   bool _noiseSuppEnabled = false;
   bool _togglingNoiseSupp = false;
   bool _loading = true;
+
+  /// The loopback behind "Hear microphone", or null while it is off. The page
+  /// owns it: leaving the page turns it off.
+  int? _monitorIndex;
+  bool _togglingMonitor = false;
+  bool _monitorFailed = false;
   String? _error;
   StreamSubscription<PaSource>? _sourceChangedSub;
   StreamSubscription<int>? _sourceRemovedSub;
@@ -64,6 +72,9 @@ class _InputTabState extends State<InputTab> {
     _reconnectedSub = widget.client.onReconnected.listen((_) {
       _levelSub?.cancel();
       _levelSub = null;
+      // The loopback was a module of the server that died, so it is gone too;
+      // the switch must not claim otherwise.
+      if (mounted) setState(() => _monitorIndex = null);
       _load();
     });
   }
@@ -73,7 +84,16 @@ class _InputTabState extends State<InputTab> {
     _sourceChangedSub?.cancel();
     _sourceRemovedSub?.cancel();
     _reconnectedSub?.cancel();
-    _stopMeter();
+    // Not `_stopMeter`, whose reset would repaint a meter being torn down.
+    _levelSub?.cancel();
+    widget.client.stopLevelMeter();
+    _level.dispose();
+    // Nobody is left on the page to switch it off, and a module outlives the
+    // client that loaded it.
+    final monitor = _monitorIndex;
+    if (monitor != null) {
+      widget.client.unloadModule(monitor).catchError((_) {});
+    }
     super.dispose();
   }
 
@@ -83,6 +103,11 @@ class _InputTabState extends State<InputTab> {
       final sources = await widget.client.getSourceList();
       final noiseSuppEnabled =
           await isModuleLoaded(widget.client, 'module-ladspa-source');
+      // A monitor left behind by a shell that died with it on. Skipped while a
+      // toggle is in flight, whose index is not yet known and would be swept.
+      if (!_togglingMonitor) {
+        await unloadMicMonitors(widget.client, keep: _monitorIndex);
+      }
       if (!mounted) return;
       final filtered =
           sources.where((s) => !s.name.endsWith('.monitor')).toList();
@@ -124,6 +149,7 @@ class _InputTabState extends State<InputTab> {
       await widget.client.setDefaultSource(name);
       if (mounted) setState(() => _defaultSourceName = name);
       _startMeter();
+      await _restartMonitor();
     } catch (_) {}
   }
 
@@ -140,7 +166,7 @@ class _InputTabState extends State<InputTab> {
     if (_defaultSourceName.isEmpty) return;
     final levelStream = widget.client.startLevelMeter(_defaultSourceName);
     _levelSub = levelStream.listen((level) {
-      if (mounted) setState(() => _level = level);
+      if (mounted) _level.value = level;
     });
   }
 
@@ -148,7 +174,58 @@ class _InputTabState extends State<InputTab> {
     _levelSub?.cancel();
     _levelSub = null;
     widget.client.stopLevelMeter();
-    if (mounted) setState(() => _level = 0.0);
+    if (mounted) _level.value = 0.0;
+  }
+
+  Future<void> _toggleMonitor() async {
+    if (_togglingMonitor) return;
+    setState(() => _togglingMonitor = true);
+    try {
+      if (_monitorIndex != null) {
+        await _stopMonitor();
+      } else {
+        await _startMonitor();
+      }
+    } catch (_) {
+      if (mounted) setState(() => _monitorFailed = true);
+    }
+    if (mounted) setState(() => _togglingMonitor = false);
+  }
+
+  Future<void> _startMonitor() async {
+    if (_defaultSourceName.isEmpty) return;
+    final idx = await loadMicMonitor(widget.client, _defaultSourceName);
+    if (!mounted) {
+      // The page closed while the server was answering; dispose saw no index.
+      if (idx != null) widget.client.unloadModule(idx).catchError((_) {});
+      return;
+    }
+    setState(() {
+      _monitorIndex = idx;
+      _monitorFailed = idx == null;
+    });
+  }
+
+  Future<void> _stopMonitor() async {
+    final idx = _monitorIndex;
+    if (idx == null) return;
+    setState(() => _monitorIndex = null);
+    await widget.client.unloadModule(idx);
+  }
+
+  /// Moves a running monitor onto the current source. A loopback cannot be
+  /// retargeted, so it is replaced.
+  Future<void> _restartMonitor() async {
+    if (_monitorIndex == null || _togglingMonitor) return;
+    _togglingMonitor = true;
+    try {
+      await _stopMonitor();
+      await _startMonitor();
+    } catch (_) {
+      if (mounted) setState(() => _monitorFailed = true);
+    }
+    _togglingMonitor = false;
+    if (mounted) setState(() {});
   }
 
   Future<void> _toggleNoiseSupp() async {
@@ -174,6 +251,11 @@ class _InputTabState extends State<InputTab> {
       final enabled =
           await isModuleLoaded(widget.client, 'module-ladspa-source');
       if (mounted) setState(() => _noiseSuppEnabled = enabled);
+      // The default source just changed under the page. Re-reading it points
+      // the meter at it, and the monitor follows, so hearing yourself with
+      // suppression on is hearing what the call hears.
+      await _load();
+      await _restartMonitor();
     } catch (_) {}
     if (mounted) setState(() => _togglingNoiseSupp = false);
   }
@@ -279,6 +361,23 @@ class _InputTabState extends State<InputTab> {
         const SettingsSectionLabel('Input Level'),
         const SizedBox(height: 8),
         LevelMeter(level: _level),
+        const SizedBox(height: 12),
+        SettingsRow(
+          label: 'Hear microphone',
+          info: 'Plays this input through your default output, as others '
+              'would hear it. Use headphones: through speakers it will feed '
+              'back. Turns off when you leave this page.',
+          control: _togglingMonitor
+              ? const LoadingIndicator(size: 18)
+              : SettingsToggle(
+                  value: _monitorIndex != null,
+                  onChanged: (_) => _toggleMonitor(),
+                ),
+        ),
+        if (_monitorFailed)
+          const SettingsHint(
+              'Could not start the monitor: the sound server refused to '
+              'load module-loopback.'),
         const SizedBox(height: 20),
         const SettingsSectionLabel('Noise Suppression'),
         const SizedBox(height: 8),
