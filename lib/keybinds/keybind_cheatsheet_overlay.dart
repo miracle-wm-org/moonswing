@@ -43,6 +43,12 @@ import 'package:moonswing/theme/tokens.dart';
 /// glanceable sheet cannot afford.
 const double kCheatsheetMaxWidth = 940;
 
+/// The tallest the card is allowed to get; past it the rows scroll.
+///
+/// Left to the output's height alone the sheet ran nearly floor to ceiling on
+/// a tall display, which reads as a page rather than a glance.
+const double kCheatsheetMaxHeight = 620;
+
 /// Below this the card drops to a single column — a rotated or small display,
 /// where two columns would be two ellipsised ones.
 const double kCheatsheetTwoColumnWidth = 640;
@@ -183,6 +189,7 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(
                   maxWidth: kCheatsheetMaxWidth,
+                  maxHeight: kCheatsheetMaxHeight,
                 ),
                 child: PopupCard(
                   padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
