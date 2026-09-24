@@ -27,6 +27,7 @@ import 'package:moonswing/modules/battery.dart';
 import 'package:moonswing/modules/dock.dart';
 import 'package:moonswing/modules/github.dart';
 import 'package:moonswing/modules/keybinds.dart';
+import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/modules/keyboard_layout.dart';
 import 'package:moonswing/modules/launcher.dart';
 import 'package:moonswing/modules/sound_control.dart';
@@ -51,6 +52,9 @@ import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
 import 'package:moonswing/keybinds/keybind_cheatsheet_overlay.dart';
 import 'package:moonswing/keybinds/keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
+import 'package:moonswing/todo/todo_controller.dart';
+import 'package:moonswing/todo/todo_overlay.dart';
+import 'package:moonswing/todo/todo_store.dart';
 import 'package:moonswing/scratchpad/scratchpad_store.dart';
 import 'package:moonswing/launcher/app_index.dart';
 import 'package:moonswing/launcher/app_search.dart';
@@ -150,6 +154,7 @@ void main() async {
   Module.register(keybindsModule);
   Module.register(githubModule);
   Module.register(scratchpadModule);
+  Module.register(todoModule);
 
   // The desktop grid's own registry, populated the same way: `[[desktop.widgets]]`
   // names a type, and lookup happens at render time. See
@@ -274,6 +279,13 @@ void _startShellServices({
   services.run(ShellService.miracle, miracle.connect);
 
   services.run(ShellService.notifications, startNotificationService);
+
+  // Reads the todo board, makes today's copies of anything recurring and posts
+  // what is due today — the reminder a login is meant to bring. After the
+  // notification service so the reminder lands in a list the daemon owns. Not
+  // a `ShellService`, [startKeybindService]'s reason: no panel waits on it,
+  // and a board file that will not read is the board's to say.
+  startTodoService();
   services.run(ShellService.tray, startStatusNotifierService);
 
   // Watches the default sink/source and the backlight so the on-screen
@@ -518,7 +530,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// clicks. One per monitor; tapping any opens the one panel, on that monitor.
   final Map<String, LayershellWindowController> _badges = {};
 
-  /// Nine of the ten root-owned overlays — the full-screen ones; the
+  /// Ten of the eleven root-owned overlays — the full-screen ones; the
   /// notification panel is the exception. Each [_OverlayWindow] carries the
   /// controller, its [PopupCoordinator] registration and the closing notifier.
   ///
@@ -537,6 +549,11 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// policy like the emoji picker: it is a thing to read, it owes nobody an
   /// answer, and anything wanting the screen may displace it.
   final _OverlayWindow _keybinds = _OverlayWindow();
+
+  /// The todo board, opened by the bar's checklist icon on the output that
+  /// icon is on. A menu policy like the cheat sheet's: everything on it is
+  /// saved as it happens, so anything wanting the screen may displace it.
+  final _OverlayWindow _todo = _OverlayWindow();
   final _OverlayWindow _screencastPicker = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -564,7 +581,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// request would otherwise render into the window the old one is leaving.
   PolkitAuthSession? _polkitSession;
 
-  /// The notification panel — the tenth root-owned overlay, and the only one
+  /// The notification panel — the eleventh root-owned overlay, and the only one
   /// that is not full-screen. The bell and the badge share no widget ancestry,
   /// so both ask the root instead. `late final` because it brings its own
   /// window, a column down one output edge.
@@ -708,6 +725,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       (LauncherController.instance, _onLauncherTriggered),
       (EmojiPickerController.instance, _onEmojiPickerTriggered),
       (KeybindCheatsheetController.instance, _onKeybindsTriggered),
+      (TodoController.instance, _onTodoTriggered),
       (PowerController.instance, _onPowerKeyPressed),
       (PowerMenuController.instance, _onPowerMenuToggled),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
@@ -1565,6 +1583,38 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     _destroyAfterFrame([removed]);
   }
 
+  /// The bar's todo button was pressed. Toggles the way the cheat sheet does.
+  void _onTodoTriggered() {
+    if (!mounted) return;
+    if (_todo.isOpen) {
+      _todo.closing.value = true;
+      return;
+    }
+    // The output the click came from, by connector — which is also how
+    // [_surfaces] is keyed. Not found (outputs still being enumerated, a GDK
+    // that reports no connector) falls back to no monitor at all, and the
+    // compositor puts the board on the focused output: where the click was.
+    final output = TodoController.instance.output;
+    final monitor = output == null || output.isEmpty
+        ? null
+        : (_surfaces[output]?.monitor ??
+              _surfaces.values
+                  .where((s) => s.monitor.connector == output)
+                  .firstOrNull
+                  ?.monitor);
+    _todo.open(monitor: monitor?.gdkMonitor);
+    _refreshWindows();
+  }
+
+  /// Called by [TodoOverlay] once its fade-out has finished.
+  void _onTodoClosed() {
+    if (!mounted) return;
+    final removed = _todo.take();
+    if (removed == null) return;
+    _refreshWindows();
+    _destroyAfterFrame([removed]);
+  }
+
   /// Opens the settings overlay as a single full-monitor layer-shell window on
   /// the first connected monitor, on the overlay layer with `onDemand` keyboard
   /// focus so its text fields and Escape-to-close work.
@@ -2034,6 +2084,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       _appChooser,
       _emojiPicker,
       _keybinds,
+      _todo,
       _screencastPicker,
       _filePicker,
       _powerMenu,
@@ -2415,6 +2466,17 @@ class _MoonswingRootState extends State<MoonswingRoot> {
             ),
           ),
         ),
+      // The todo board, beside the cheat sheet and for the same reason.
+      if (_todo.controller case final board?)
+        (
+          controller: board,
+          builder: (_) => _windowChrome(
+            TodoOverlay(
+              closingNotifier: _todo.closing,
+              onClosed: _onTodoClosed,
+            ),
+          ),
+        ),
       // The screen-share consent picker, open only while an application's portal
       // request is waiting on an answer. Single window like the launcher, so it
       // lives outside the per-monitor loop.
@@ -2679,7 +2741,7 @@ class _OverlayWindow {
 
   /// Builds the native window for the monitor [open] was asked for.
   ///
-  /// Null is the full-screen backdrop eight of these nine want; the notification
+  /// Null is the full-screen backdrop all but one of these want; the notification
   /// panel supplies its own. What [_OverlayWindow] owns is the bookkeeping, which
   /// does not care what shape the surface is.
   final LayershellWindowController Function(

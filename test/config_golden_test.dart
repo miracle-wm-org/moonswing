@@ -78,6 +78,7 @@ void main() {
         'system_tray',
         'battery',
         'weather',
+        'todo',
         'scratchpad',
         'keybinds',
         'keyboard_layout',

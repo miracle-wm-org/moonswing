@@ -98,6 +98,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"clock"` - Date and time
 - `"dock"` - Application launcher dock
 - `"scratchpad"` - Shows or hides the window manager's scratchpad (requires Miracle WM)
+- `"todo"` - The todo board, with a count of what is due today
 
 A module omitted from all sections of all panels is disabled entirely. You can place any module in any section and in any order. The same module can appear in multiple panels.
 
@@ -604,6 +605,33 @@ of its window tree altogether. Every stashed window is shown and hidden together
 
 If the shell cannot reach the window manager, the icon dims and its label says
 why; the next click tries again.
+
+### Todo
+
+The checklist icon opens the todo board on the screen whose bar you clicked. It
+is a board of five columns — **Inbox**, **Todo**, **In Progress**, **Finished**
+and **Abandoned** — and a card is moved between them by dragging it. The **+**
+at the top of a column adds a card there; clicking a card opens it to edit its
+title, details, column, due date and repetition, and to read its history. Every
+time a card changes column, the date and time is recorded in that history.
+
+When the shell starts, and again at each midnight, it posts one notification
+listing what is due that day, followed by anything still open from an earlier
+day. The number beside the icon counts the same things. Finished and abandoned
+cards are never counted.
+
+A card can **repeat** every so many days, weeks or months, starting on a day you
+choose. On each scheduled day a copy of it is added to the top of **Todo**, due
+that day, and the repetition moves to the copy — so the newest copy is the one
+to edit or delete to change or stop it. A monthly card started on the 31st
+lands on the last day of shorter months and goes back to the 31st after them.
+If the shell was not running on a scheduled day, one copy is made when it next
+starts, for the most recent day missed.
+
+The board is kept in `~/.local/share/moonswing/todo.json` (or under
+`$XDG_DATA_HOME`), not in `config.toml`, and saved as you go. If that file
+cannot be read, the board says why and refuses to save anything over it until
+it can. The module has no settings of its own.
 
 ## Shortcuts
 
