@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
 
+import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
@@ -79,17 +81,70 @@ class TodoBoardSearch extends ChangeNotifier {
 ///
 /// Substring matching, the same rule as the search itself (see [entryMatches]),
 /// so what lights up on a card is exactly why it is showing.
+///
+/// Each of [links] is drawn in [link] as well, and carries the recognizer
+/// [recognizerFor] answers for it, so a highlighted part of an address is
+/// still part of the address and still opens it.
 List<TextSpan> highlightMatches(
   String text,
   List<String> terms, {
   required TextStyle hit,
+  List<TodoLink> links = const [],
+  TextStyle? link,
+  GestureRecognizer? Function(TodoLink link)? recognizerFor,
 }) {
-  if (terms.isEmpty || text.isEmpty) return [TextSpan(text: text)];
+  final ranges = _matchRanges(text, terms);
+  if (ranges.isEmpty && links.isEmpty) return [TextSpan(text: text)];
+  // Every place the style can change, then one span per stretch between two.
+  final cuts = <int>{0, text.length};
+  for (final (start, end) in ranges) {
+    cuts
+      ..add(start)
+      ..add(end);
+  }
+  for (final l in links) {
+    cuts
+      ..add(l.start)
+      ..add(l.end);
+  }
+  final sorted = cuts.toList()..sort();
+  final spans = <TextSpan>[];
+  for (var i = 0; i + 1 < sorted.length; i++) {
+    final start = sorted[i];
+    final end = sorted[i + 1];
+    if (start >= end) continue;
+    final lit = ranges.any((r) => r.$1 <= start && end <= r.$2);
+    TodoLink? inside;
+    for (final l in links) {
+      if (l.start <= start && end <= l.end) {
+        inside = l;
+        break;
+      }
+    }
+    TextStyle? style = lit ? hit : null;
+    if (inside != null && link != null) {
+      style = style == null ? link : style.merge(link);
+    }
+    spans.add(
+      TextSpan(
+        text: text.substring(start, end),
+        style: style,
+        recognizer: inside == null ? null : recognizerFor?.call(inside),
+      ),
+    );
+  }
+  return spans;
+}
+
+/// Where [terms] occur in [text], ignoring case, merged into disjoint runs in
+/// order.
+List<(int, int)> _matchRanges(String text, List<String> terms) {
+  if (terms.isEmpty || text.isEmpty) return const [];
   final lower = text.toLowerCase();
   // Only when lower-casing kept every offset in place: a few characters (the
   // Turkish dotted İ) grow when lowered, and ranges found in the lowered copy
   // would then land on the wrong letters of the original.
-  if (lower.length != text.length) return [TextSpan(text: text)];
+  if (lower.length != text.length) return const [];
   final ranges = <(int, int)>[];
   for (final term in terms) {
     final needle = term.toLowerCase();
@@ -102,7 +157,7 @@ List<TextSpan> highlightMatches(
       from = at + 1;
     }
   }
-  if (ranges.isEmpty) return [TextSpan(text: text)];
+  if (ranges.isEmpty) return const [];
   ranges.sort((a, b) => a.$1.compareTo(b.$1));
   final merged = <(int, int)>[];
   for (final range in ranges) {
@@ -113,15 +168,5 @@ List<TextSpan> highlightMatches(
       merged.add(range);
     }
   }
-  final spans = <TextSpan>[];
-  var cursor = 0;
-  for (final (start, end) in merged) {
-    if (start > cursor) {
-      spans.add(TextSpan(text: text.substring(cursor, start)));
-    }
-    spans.add(TextSpan(text: text.substring(start, end), style: hit));
-    cursor = end;
-  }
-  if (cursor < text.length) spans.add(TextSpan(text: text.substring(cursor)));
-  return spans;
+  return merged;
 }

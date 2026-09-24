@@ -7,10 +7,12 @@
 // panel, the search field, the columns, the cards, drag and drop between them,
 // and the editor that creates and changes one.
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/app_info.dart' show openUriWithDefault;
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -20,6 +22,7 @@ import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_store.dart';
@@ -65,6 +68,7 @@ class TodoOverlay extends StatefulWidget {
     required this.closingNotifier,
     required this.onClosed,
     this.store,
+    this.onOpenLink = _openLink,
   });
 
   final ValueNotifier<bool> closingNotifier;
@@ -73,6 +77,12 @@ class TodoOverlay extends StatefulWidget {
   /// Defaults to the singleton; a widget test passes one over a temporary
   /// directory.
   final TodoStore? store;
+
+  /// What a click on a link in a card's title or body does with its address.
+  /// The browser by default; a widget test records it instead.
+  final ValueChanged<String> onOpenLink;
+
+  static void _openLink(String url) => openUriWithDefault(url);
 
   @override
   State<TodoOverlay> createState() => _TodoOverlayState();
@@ -121,6 +131,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
               searchField: _buildSearchField(context),
               editing: _editing,
               onClose: _requestClose,
+              onOpenLink: widget.onOpenLink,
             ),
           );
         },
@@ -226,6 +237,7 @@ class _TodoPanel extends StatelessWidget {
     required this.searchField,
     required this.editing,
     required this.onClose,
+    required this.onOpenLink,
   });
 
   final TodoStore store;
@@ -239,6 +251,7 @@ class _TodoPanel extends StatelessWidget {
   final Widget searchField;
   final ValueNotifier<_EditRequest?> editing;
   final VoidCallback onClose;
+  final ValueChanged<String> onOpenLink;
 
   @override
   Widget build(BuildContext context) {
@@ -347,6 +360,7 @@ class _TodoPanel extends StatelessWidget {
                             store: store,
                             onEdit: (id) =>
                                 editing.value = _EditRequest.edit(id),
+                            onOpenLink: onOpenLink,
                             onAdd: () =>
                                 editing.value = _EditRequest.create(column),
                           ),
@@ -451,6 +465,7 @@ class _ColumnView extends StatelessWidget {
     required this.terms,
     required this.store,
     required this.onEdit,
+    required this.onOpenLink,
     required this.onAdd,
   });
 
@@ -466,6 +481,7 @@ class _ColumnView extends StatelessWidget {
   final List<String> terms;
   final TodoStore store;
   final ValueChanged<String> onEdit;
+  final ValueChanged<String> onOpenLink;
   final VoidCallback onAdd;
 
   @override
@@ -566,6 +582,7 @@ class _ColumnView extends StatelessWidget {
                                 width: constraints.maxWidth - 16,
                                 store: store,
                                 onEdit: onEdit,
+                                onOpenLink: onOpenLink,
                               ),
                             );
                           },
@@ -588,6 +605,7 @@ class _DraggableCard extends StatelessWidget {
     required this.width,
     required this.store,
     required this.onEdit,
+    required this.onOpenLink,
   });
 
   final TodoItem item;
@@ -595,11 +613,17 @@ class _DraggableCard extends StatelessWidget {
   final double width;
   final TodoStore store;
   final ValueChanged<String> onEdit;
+  final ValueChanged<String> onOpenLink;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final face = _CardFace(item: item, today: store.now, terms: terms);
+    final face = _CardFace(
+      item: item,
+      today: store.now,
+      terms: terms,
+      onOpenLink: onOpenLink,
+    );
     final card = HoverRegion(
       onTap: () => onEdit(item.id),
       builder: (context, hovered) => _CardChrome(hovered: hovered, child: face),
@@ -699,30 +723,79 @@ class _CardChrome extends StatelessWidget {
 
 /// What a card shows: the title, the start of the body, and a line of facts —
 /// when it is due, how it repeats, and when it arrived in this column.
-class _CardFace extends StatelessWidget {
+///
+/// A web address in the title or body is a link: clicking it opens the address
+/// and not the card, because the text's recognizer sits deeper than the card's
+/// and so wins the tap.
+class _CardFace extends StatefulWidget {
   const _CardFace({
     required this.item,
     required this.today,
+    required this.onOpenLink,
     this.terms = const [],
   });
 
   final TodoItem item;
   final DateTime today;
+  final ValueChanged<String> onOpenLink;
 
   /// What the search matched, drawn highlighted.
   final List<String> terms;
 
   @override
+  State<_CardFace> createState() => _CardFaceState();
+}
+
+class _CardFaceState extends State<_CardFace> {
+  /// One recognizer per address on the card, kept across builds and disposed
+  /// once the address is gone, since a [TextSpan] does not own its recognizer.
+  final Map<String, TapGestureRecognizer> _recognizers = {};
+
+  TapGestureRecognizer _recognizerFor(TodoLink link) =>
+      _recognizers.putIfAbsent(
+        link.url,
+        () => TapGestureRecognizer()..onTap = () => widget.onOpenLink(link.url),
+      );
+
+  /// Disposes the recognizers of addresses no longer in [links].
+  void _forgetAllBut(Iterable<TodoLink> links) {
+    final keep = {for (final link in links) link.url};
+    _recognizers.removeWhere((url, recognizer) {
+      if (keep.contains(url)) return false;
+      recognizer.dispose();
+      return true;
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final recognizer in _recognizers.values) {
+      recognizer.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+    final terms = widget.terms;
     final theme = ThemeScope.of(context);
     final dim = theme.popupForeground.withValues(alpha: 0.6);
     final due = item.due;
     final recurrence = item.recurrence;
     final title = item.title.trim();
     final body = item.body.trim();
+    final titleLinks = findLinks(title);
+    final bodyLinks = findLinks(body);
+    _forgetAllBut([...titleLinks, ...bodyLinks]);
     final hit = TextStyle(
       backgroundColor: theme.accent.withValues(alpha: 0.35),
       color: theme.popupForeground,
+    );
+    final link = TextStyle(
+      color: theme.accent,
+      decoration: TextDecoration.underline,
+      decorationColor: theme.accent,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -732,7 +805,14 @@ class _CardFace extends StatelessWidget {
           TextSpan(
             children: title.isEmpty
                 ? [const TextSpan(text: 'Untitled')]
-                : highlightMatches(title, terms, hit: hit),
+                : highlightMatches(
+                    title,
+                    terms,
+                    hit: hit,
+                    links: titleLinks,
+                    link: link,
+                    recognizerFor: _recognizerFor,
+                  ),
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -745,7 +825,16 @@ class _CardFace extends StatelessWidget {
         if (body.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text.rich(
-            TextSpan(children: highlightMatches(body, terms, hit: hit)),
+            TextSpan(
+              children: highlightMatches(
+                body,
+                terms,
+                hit: hit,
+                links: bodyLinks,
+                link: link,
+                recognizerFor: _recognizerFor,
+              ),
+            ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: ShellFontSizes.secondary, color: dim),
@@ -757,7 +846,8 @@ class _CardFace extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            if (due != null) _DueChip(item: item, due: due, today: today),
+            if (due != null)
+              _DueChip(item: item, due: due, today: widget.today),
             if (recurrence != null)
               _Fact(
                 icon: FontAwesomeIcons.repeat,
