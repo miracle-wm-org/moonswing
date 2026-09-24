@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:moonswing/scopes.dart';
 
@@ -5,24 +6,31 @@ import 'package:moonswing/scopes.dart';
 // LevelMeter
 // ---------------------------------------------------------------------------
 
+/// A horizontal peak meter.
+///
+/// [level] is a listenable rather than a value because it moves thirty times a
+/// second: the painter repaints off it directly, inside its own boundary, so a
+/// reading repaints this bar and not the page around it.
 class LevelMeter extends StatelessWidget {
   const LevelMeter({super.key, required this.level});
 
-  final double level;
+  final ValueListenable<double> level;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return SizedBox(
-      height: 8,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: CustomPaint(
-          size: const Size(double.infinity, 8),
-          painter: _LevelMeterPainter(
-            level: level,
-            trackColor: theme.sliderTrack,
-            accentColor: theme.accent,
+    return RepaintBoundary(
+      child: SizedBox(
+        height: 8,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: CustomPaint(
+            size: const Size(double.infinity, 8),
+            painter: _LevelMeterPainter(
+              level: level,
+              trackColor: theme.sliderTrack,
+              accentColor: theme.accent,
+            ),
           ),
         ),
       ),
@@ -31,13 +39,13 @@ class LevelMeter extends StatelessWidget {
 }
 
 class _LevelMeterPainter extends CustomPainter {
-  const _LevelMeterPainter({
+  _LevelMeterPainter({
     required this.level,
     required this.trackColor,
     required this.accentColor,
-  });
+  }) : super(repaint: level);
 
-  final double level;
+  final ValueListenable<double> level;
   final Color trackColor;
   final Color accentColor;
 
@@ -48,6 +56,7 @@ class _LevelMeterPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height),
         Paint()..color = trackColor);
+    final level = this.level.value;
     if (level <= 0) return;
     final fillW = (level * size.width).clamp(0.0, size.width);
     const z1 = 0.80, z2 = 0.95;
@@ -73,7 +82,7 @@ class _LevelMeterPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_LevelMeterPainter old) =>
-      old.level != level ||
+      !identical(old.level, level) ||
       old.trackColor != trackColor ||
       old.accentColor != accentColor;
 }
