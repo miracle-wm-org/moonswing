@@ -4,28 +4,37 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 
 /// How long a burst of edits waits before the board is written. A drag is one
 /// write; so is a flurry of moves across the board.
 const Duration kTodoWriteDebounce = Duration(milliseconds: 300);
 
-/// The todo board: every item, in board order, and the file it lives in.
+/// The todo board — every item, in board order — and the notes kept beside
+/// it, over the SQLite database they live in.
 ///
 /// The singleton-[ChangeNotifier] shape, because the bar button on every
-/// monitor and the overlay are separate FlutterViews that all read it.
+/// monitor and the overlay are separate FlutterViews that all read it. The
+/// board is held in memory, because every surface reads it synchronously; the
+/// database ([TodoDatabase]) is where it is kept and what [search] asks.
 ///
-/// Four things a change here has to keep true:
+/// Five things a change here has to keep true:
 ///
 ///  * **User data, not configuration.** The board is in
-///    `$XDG_DATA_HOME/moonswing/todo.json`, never `config.toml`: it is written
+///    `$XDG_DATA_HOME/moonswing/notes.db`, never `config.toml`: it is written
 ///    on every drag, and a config file is hand-edited and pasted into bug
-///    reports. Written atomically (temp file, then rename), so a crash
-///    mid-write leaves yesterday's board rather than half of today's.
-///  * **A file it could not read is never written over.** A board that failed
-///    to parse is shown as an error with a retry, and every edit is refused
-///    until a read succeeds — the alternative is replacing somebody's list with
-///    the empty one this store started from.
+///    reports. Each write is one transaction of only the rows that changed, so
+///    a crash mid-write leaves the last board rather than half of this one. A
+///    board saved as `todo.json` before the database is imported once and the
+///    file renamed to `todo.json.imported`, never deleted.
+///  * **A database it could not read is never written into.** A board that
+///    failed to open or read — or an old `todo.json` that failed to parse — is
+///    shown as an error with a retry, and every edit is refused until a read
+///    succeeds; the alternative is replacing somebody's list with the empty one
+///    this store started from.
+///  * **A search sees the edit just made.** Writes are debounced, so [search]
+///    writes anything pending before it asks the index.
 ///  * **The day turns over on a timer, and only when it matters.** Recurring
 ///    items make their copies and the reminder is posted at start-up and then
 ///    at each local midnight — but the midnight timer exists only while there
@@ -51,22 +60,32 @@ class TodoStore extends ChangeNotifier {
   /// invariants), so call [flush] and [startOfDay] instead.
   ///
   /// [items] starts it already loaded with that board, and no file read — a
-  /// widget test's fake clock never completes real I/O.
+  /// widget test's fake clock never completes real I/O. [inMemory] puts it
+  /// over an in-memory database (seeded with [items]) rather than none, for a
+  /// test that searches through the real index; SQLite is synchronous, so that
+  /// is fake-clock-safe too.
   @visibleForTesting
   factory TodoStore.forTesting({
     String? directory,
     DateTime Function()? now,
     List<TodoItem>? items,
+    List<NoteItem>? notes,
+    bool inMemory = false,
   }) {
     final store = TodoStore._(
       directory: directory,
       now: now,
       autoTimers: false,
     );
-    if (items != null) {
+    if (items != null || notes != null) {
       store
-        .._items = List.unmodifiable(items)
+        .._items = List.unmodifiable(items ?? const <TodoItem>[])
+        .._notes = List.unmodifiable(notes ?? const <NoteItem>[])
         .._loaded = true;
+    }
+    if (inMemory) {
+      store._db = TodoDatabase.openInMemory();
+      store._writeNow();
     }
     return store;
   }
@@ -81,6 +100,7 @@ class TodoStore extends ChangeNotifier {
   void Function(String summary, String body)? onReminder;
 
   List<TodoItem> _items = const [];
+  List<NoteItem> _notes = const [];
   bool _loaded = false;
   bool _loading = false;
   String? _loadError;
@@ -88,8 +108,17 @@ class TodoStore extends ChangeNotifier {
   bool _started = false;
   Timer? _writeTimer;
   Timer? _midnight;
-  Future<void> _writing = Future.value();
   int _idCounter = 0;
+
+  /// Null until the first [load] opens it, and again after a failed open, so
+  /// [retry] reopens.
+  TodoDatabase? _db;
+
+  /// What the database holds, as of the last write that landed: the diff
+  /// between these and the board is the next write.
+  Map<String, TodoItem> _savedItems = const {};
+  Map<String, int> _savedOrder = const {};
+  Map<String, NoteItem> _savedNotes = const {};
 
   /// The board file's directory. Resolved per call, so a test that sets
   /// `XDG_DATA_HOME` is not defeated by a value cached at start-up.
@@ -102,12 +131,19 @@ class TodoStore extends ChangeNotifier {
     return '${env['HOME'] ?? '.'}/.local/share/moonswing';
   }
 
-  String get path => '$directory/todo.json';
+  /// The database.
+  String get path => '$directory/notes.db';
+
+  /// Where the board was kept before the database, read once to import it.
+  String get legacyPath => '$directory/todo.json';
 
   /// Every item, in board order.
   List<TodoItem> get items => _items;
 
-  /// Whether the file has been read — successfully or not. Until then the
+  /// Every note, most recently edited first.
+  List<NoteItem> get notes => _notes;
+
+  /// Whether the database has been read — successfully or not. Until then the
   /// overlay shows a loader rather than an empty board it would be lying about.
   bool get loaded => _loaded;
 
@@ -115,7 +151,7 @@ class TodoStore extends ChangeNotifier {
   String? get loadError => _loadError;
 
   /// Why the last write did not land, or null. The board on screen is still the
-  /// user's; it is the file that is behind.
+  /// user's; it is the database that is behind.
   String? get writeError => _writeError;
 
   /// Whether edits are accepted: the file has been read, and read cleanly.
@@ -136,6 +172,13 @@ class TodoStore extends ChangeNotifier {
     return null;
   }
 
+  NoteItem? note(String id) {
+    for (final note in _notes) {
+      if (note.id == id) return note;
+    }
+    return null;
+  }
+
   /// Open items due today or earlier — what the bar button counts.
   int get dueCount {
     final today = _now();
@@ -151,18 +194,19 @@ class TodoStore extends ChangeNotifier {
     startOfDay();
   }
 
-  /// Reads the board file. A missing file is an empty board; an unreadable one
-  /// is [loadError], and the board on screen is left as it was.
+  /// Opens and reads the database, importing an old `todo.json` the first
+  /// time. A missing database is an empty board; an unreadable one is
+  /// [loadError], and the board on screen is left as it was.
   Future<void> load() async {
     if (_loading) return;
     _loading = true;
     try {
-      final file = File(path);
-      if (!await file.exists()) {
-        _items = const [];
-      } else {
-        _items = List.unmodifiable(decodeTodoFile(await file.readAsString()));
-      }
+      final db = _db ??= await _open();
+      await _importLegacy(db);
+      final board = db.readAll();
+      _items = List.unmodifiable(board.todos);
+      _notes = List.unmodifiable(board.notes);
+      _markSaved();
       _loadError = null;
     } on TodoFormatException catch (e) {
       _loadError = e.message;
@@ -176,7 +220,31 @@ class TodoStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Reads the file again after a failure, and — if it now reads — runs the
+  Future<TodoDatabase> _open() async {
+    await Directory(directory).create(recursive: true);
+    return TodoDatabase.open(path);
+  }
+
+  /// Imports the board a shell from before the database saved as `todo.json`,
+  /// once. The file is renamed rather than deleted, and the database records
+  /// the import, so a file put back is not imported twice. One that will not
+  /// parse throws, which refuses edits exactly as an unreadable board always
+  /// has — an empty board with the old one sitting unread beside it is how the
+  /// old one gets forgotten.
+  Future<void> _importLegacy(TodoDatabase db) async {
+    if (db.importedJson) return;
+    final file = File(legacyPath);
+    if (!await file.exists()) return;
+    final items = decodeTodoFile(await file.readAsString());
+    db.importJson(items, at: _now());
+    try {
+      await file.rename('$legacyPath.imported');
+    } catch (_) {
+      // Harmless: the import is recorded in the database either way.
+    }
+  }
+
+  /// Reads the database again after a failure, and — if it now reads — runs the
   /// start of the day that failure skipped.
   Future<void> retry() async {
     final wasBroken = _loadError != null;
@@ -319,9 +387,86 @@ class TodoStore extends ChangeNotifier {
     ]);
   }
 
+  /// Creates a note and returns its id, or null when the store is not
+  /// [editable]. Notes share the board's database and its search index, and
+  /// have no column: they are text to be found again, not work to be done.
+  String? addNote({String title = '', required String body}) {
+    if (!editable) return null;
+    final now = _now();
+    final note = NoteItem(
+      id: _newId(),
+      title: title,
+      body: body,
+      created: now,
+      updated: now,
+    );
+    _commitNotes([note, ..._notes]);
+    return note.id;
+  }
+
+  /// Replaces a note's text; the note moves to the front, as the most
+  /// recently edited. Unchanged text is not a write.
+  void updateNote(String id, {required String title, required String body}) {
+    final current = note(id);
+    if (!editable || current == null) return;
+    if (current.title == title && current.body == body) return;
+    final edited = current.copyWith(title: title, body: body, updated: _now());
+    _commitNotes([
+      edited,
+      for (final n in _notes)
+        if (n.id != id) n,
+    ]);
+  }
+
+  void deleteNote(String id) {
+    if (!editable || note(id) == null) return;
+    _commitNotes([
+      for (final n in _notes)
+        if (n.id != id) n,
+    ]);
+  }
+
+  /// What matches [query] — cards and notes, or only [kind] — best first.
+  ///
+  /// Every whitespace-separated term has to appear somewhere in the title or
+  /// body, in any case; see [TodoDatabase.search]. With no database to ask (a
+  /// test's store, or one whose last write failed and so is behind the board)
+  /// the same rule is applied to what is in memory, in board order.
+  List<SearchHit> search(String query, {EntryKind? kind}) {
+    final terms = searchTerms(query);
+    if (terms.isEmpty) return const [];
+    // Whatever is pending goes first — a diff, so with nothing pending it
+    // costs a comparison and no write.
+    _writeNow();
+    final db = _db;
+    if (db != null && editable && _writeError == null) {
+      try {
+        return db.search(query, kind: kind);
+      } catch (_) {
+        // The index is a way of asking, not the only one: fall through.
+      }
+    }
+    return [
+      if (kind != EntryKind.note)
+        for (final i in _items)
+          if (entryMatches(i.title, i.body, terms))
+            (id: i.id, kind: EntryKind.todo),
+      if (kind != EntryKind.todo)
+        for (final n in _notes)
+          if (entryMatches(n.title, n.body, terms))
+            (id: n.id, kind: EntryKind.note),
+    ];
+  }
+
   void _commit(List<TodoItem> next) {
     _items = List.unmodifiable(next);
     _armMidnight();
+    _scheduleWrite();
+    notifyListeners();
+  }
+
+  void _commitNotes(List<NoteItem> next) {
+    _notes = List.unmodifiable(next);
     _scheduleWrite();
     notifyListeners();
   }
@@ -335,30 +480,71 @@ class TodoStore extends ChangeNotifier {
     });
   }
 
-  /// Writes the board now. Writes are chained, so two flushes cannot race each
-  /// other's rename.
+  /// Writes the board now. A `Future` for the callers that await it; SQLite
+  /// is synchronous, so the write has landed (or failed) when this returns.
   Future<void> flush() {
-    _writeTimer?.cancel();
-    _writeTimer = null;
-    if (!editable) return _writing;
-    final contents = encodeTodoFile(_items);
-    return _writing = _writing.then((_) => _write(contents));
+    _writeNow();
+    return Future.value();
   }
 
-  Future<void> _write(String contents) async {
+  /// Writes what changed since the last write that landed, in one transaction.
+  /// A write that fails leaves the saved snapshot where it was, so the next
+  /// one carries this one's changes too.
+  void _writeNow() {
+    _writeTimer?.cancel();
+    _writeTimer = null;
+    final db = _db;
+    if (!editable || db == null) return;
     String? error;
-    try {
-      await Directory(directory).create(recursive: true);
-      final tmp = File('$path.tmp');
-      await tmp.writeAsString(contents, flush: true);
-      await tmp.rename(path);
-      error = null;
-    } catch (e) {
-      error = 'Could not save $path: $e';
+    final changes = _diff();
+    if (!changes.isEmpty) {
+      try {
+        db.apply(changes, at: _now());
+        _markSaved();
+      } catch (e) {
+        error = 'Could not save $path: $e';
+      }
     }
     if (error == _writeError) return;
     _writeError = error;
     notifyListeners();
+  }
+
+  TodoChanges _diff() {
+    final todos = <({TodoItem item, int position})>[];
+    final positions = <({String id, int position})>[];
+    final notes = <NoteItem>[];
+    final live = <String>{};
+    for (var i = 0; i < _items.length; i++) {
+      final item = _items[i];
+      live.add(item.id);
+      if (_savedItems[item.id] != item) {
+        todos.add((item: item, position: i));
+      } else if (_savedOrder[item.id] != i) {
+        positions.add((id: item.id, position: i));
+      }
+    }
+    for (final note in _notes) {
+      live.add(note.id);
+      if (_savedNotes[note.id] != note) notes.add(note);
+    }
+    return TodoChanges(
+      todos: todos,
+      positions: positions,
+      notes: notes,
+      deletes: [
+        for (final id in _savedItems.keys)
+          if (!live.contains(id)) id,
+        for (final id in _savedNotes.keys)
+          if (!live.contains(id)) id,
+      ],
+    );
+  }
+
+  void _markSaved() {
+    _savedItems = {for (final i in _items) i.id: i};
+    _savedOrder = {for (var i = 0; i < _items.length; i++) _items[i].id: i};
+    _savedNotes = {for (final n in _notes) n.id: n};
   }
 
   /// One timer, to just past the next local midnight, and only while the
@@ -389,16 +575,20 @@ class TodoStore extends ChangeNotifier {
 
   @override
   void dispose() {
+    // A pending edit is written rather than dropped.
+    if (_writeTimer != null) _writeNow();
     _writeTimer?.cancel();
     _midnight?.cancel();
+    _db?.close();
+    _db = null;
     super.dispose();
   }
 }
 
 /// Reads the board and runs the start of the day: today's recurring copies,
 /// then the reminder of what is due. Not a `ShellService` — there is nothing a
-/// panel waits on, and a board file that will not read is the overlay's to
-/// say, not a start-up failure.
+/// panel waits on, and a board that will not read is the overlay's to say, not
+/// a start-up failure.
 void startTodoService() => unawaited(TodoStore.instance.start());
 
 /// Posts the start-of-day reminder to the shell's own notification list.

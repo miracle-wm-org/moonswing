@@ -423,11 +423,94 @@ bool _listEquals<T>(List<T> a, List<T> b) {
   return true;
 }
 
-/// The file format's version. Written, and checked only to refuse a *newer*
-/// file — a board saved by a later shell is not one this one may overwrite.
+/// What a row in the store is: a card on the board, or a free-standing note.
+///
+/// Both live in the one table and the one search index, so a search from
+/// anywhere finds either; only a [todo] has a column, a due date or a history.
+enum EntryKind {
+  todo('todo'),
+  note('note');
+
+  const EntryKind(this.wireName);
+
+  /// How the kind is spelled in the database. Never [name], for
+  /// [TodoColumn.wireName]'s reason.
+  final String wireName;
+
+  static EntryKind? fromWire(Object? value) {
+    for (final kind in values) {
+      if (kind.wireName == value) return kind;
+    }
+    return null;
+  }
+}
+
+/// A raw note: text to be found again later, with no column and no date.
+class NoteItem {
+  const NoteItem({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.created,
+    required this.updated,
+  });
+
+  /// Unique across notes *and* todos — they share the store's id space.
+  final String id;
+  final String title;
+  final String body;
+
+  /// Local wall-clock times.
+  final DateTime created;
+  final DateTime updated;
+
+  NoteItem copyWith({String? title, String? body, DateTime? updated}) =>
+      NoteItem(
+        id: id,
+        title: title ?? this.title,
+        body: body ?? this.body,
+        created: created,
+        updated: updated ?? this.updated,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is NoteItem &&
+      other.id == id &&
+      other.title == title &&
+      other.body == body &&
+      other.created == created &&
+      other.updated == updated;
+
+  @override
+  int get hashCode => Object.hash(id, title, body, created, updated);
+}
+
+/// One thing a search found.
+typedef SearchHit = ({String id, EntryKind kind});
+
+/// The words of a search [query]: split on whitespace, blanks dropped.
+///
+/// Every term has to appear, anywhere and in any case, in an entry's title or
+/// body — the rule both the database's index and [entryMatches] apply, so the
+/// highlight on a card never disagrees with the reason it was shown.
+List<String> searchTerms(String query) => [
+  for (final term in query.trim().split(RegExp(r'\s+')))
+    if (term.isNotEmpty) term,
+];
+
+/// Whether every one of [terms] appears in [title] or [body], ignoring case.
+bool entryMatches(String title, String body, List<String> terms) {
+  final haystack = '${title.toLowerCase()}\n${body.toLowerCase()}';
+  return terms.every((term) => haystack.contains(term.toLowerCase()));
+}
+
+/// The JSON file format's version — the board's format before it moved to
+/// SQLite (see `todo_database.dart`), now read once to import an old board.
+/// Checked only to refuse a *newer* file.
 const int kTodoFileVersion = 1;
 
-/// Why a board file could not be read.
+/// Why the board — the old file, or the database — could not be read.
 class TodoFormatException implements Exception {
   const TodoFormatException(this.message);
   final String message;

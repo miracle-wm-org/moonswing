@@ -628,10 +628,20 @@ lands on the last day of shorter months and goes back to the 31st after them.
 If the shell was not running on a scheduled day, one copy is made when it next
 starts, for the most recent day missed.
 
-The board is kept in `~/.local/share/moonswing/todo.json` (or under
-`$XDG_DATA_HOME`), not in `config.toml`, and saved as you go. If that file
-cannot be read, the board says why and refuses to save anything over it until
-it can. The module has no settings of its own.
+The search field at the top of the board filters every column down to the
+cards that match, and highlights what matched. It looks for any piece of text —
+the middle of a word counts, and case does not — in a card's title and details;
+with several words, a card has to contain all of them. **Ctrl+F** returns to the
+field, and **Escape** clears it before it closes the board.
+
+The board is kept in an SQLite database, `~/.local/share/moonswing/notes.db`
+(or under `$XDG_DATA_HOME`), not in `config.toml`, and saved as you go. It needs
+the SQLite library, which nearly every system already has (`libsqlite3-0` on
+Debian and Ubuntu, `sqlite-libs` on Fedora). A board saved by an older version
+of the shell as `todo.json` is imported the first time, and the file is renamed
+to `todo.json.imported` rather than deleted. If the board cannot be read, it
+says why and refuses to save anything over it until it can. The module has no
+settings of its own.
 
 ## Shortcuts
 

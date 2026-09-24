@@ -260,4 +260,18 @@ void main() {
       );
     });
   });
+
+  group('search terms', () {
+    test('split on any whitespace, blanks dropped', () {
+      expect(searchTerms('  fix\tthe   bug \n'), ['fix', 'the', 'bug']);
+      expect(searchTerms('   '), isEmpty);
+    });
+
+    test('every term, anywhere, in any case', () {
+      final terms = searchTerms('LUE suspend');
+      expect(entryMatches('Bluetooth', 'fails after suspend', terms), isTrue);
+      expect(entryMatches('Bluetooth', 'fails', terms), isFalse);
+      expect(entryMatches('', '', const []), isTrue);
+    });
+  });
 }
