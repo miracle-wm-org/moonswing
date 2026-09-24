@@ -7,12 +7,9 @@
 // board looks like.
 
 import 'dart:convert';
-import 'dart:ffi' as ffi;
 
-import 'package:sqlite3/open.dart';
 import 'package:sqlite3/sqlite3.dart';
 
-import 'package:moonswing/native/ffi_util.dart';
 import 'package:moonswing/todo/todo_model.dart';
 
 /// The schema's version, kept in `PRAGMA user_version`. Checked only to refuse
@@ -20,40 +17,33 @@ import 'package:moonswing/todo/todo_model.dart';
 /// into.
 const int kTodoSchemaVersion = 1;
 
-/// Said when no SQLite could be loaded. Names the package, never a package
-/// manager.
-const String kNoSqliteMessage =
-    'SQLite is not installed. The todo board needs the libsqlite3 library '
-    '(the libsqlite3-0 package on Debian and Ubuntu, sqlite-libs on Fedora).';
+/// The oldest SQLite with FTS5's `trigram` tokenizer, as
+/// `sqlite3_libversion_number` spells it.
+const int kMinSqliteVersion = 3034000;
+
+/// Refuses a SQLite too old for the index.
+///
+/// The shell ships its own (package:sqlite3's build hook puts it in the
+/// bundle's `lib/`), but it is found by *name* — the embedder `dlopen`s
+/// `libsqlite3.so` and lets the loader search — and `LD_LIBRARY_PATH` is
+/// searched before the bundle. The snap's own entries come first, so there it
+/// cannot happen; a plain install run with a `LD_LIBRARY_PATH` holding some
+/// other `libsqlite3.so` gets that one instead, and this says so rather than
+/// failing on the index with a message about tokenizers.
+void _checkLibrary() {
+  final version = sqlite3.version;
+  if (version.versionNumber >= kMinSqliteVersion) return;
+  throw TodoFormatException(
+    'The SQLite library loaded is ${version.libVersion}, and the todo board '
+    'needs 3.34 or newer. The shell ships its own; an older libsqlite3.so '
+    'found first on LD_LIBRARY_PATH is the usual reason it was not used.',
+  );
+}
 
 /// The `meta` key recording that an old `todo.json` has been imported, so that
 /// a file left behind (or put back) is not imported a second time over the
 /// board it became.
 const String _kImportedJsonKey = 'imported_todo_json';
-
-bool _libraryChosen = false;
-
-/// Points package:sqlite3 at the host's library.
-///
-/// Its own default is `libsqlite3.so`, which is the `-dev` package's symlink
-/// and absent on most machines; the runtime package ships only the versioned
-/// soname. Nothing is bundled — every distribution has SQLite, and the snap is
-/// classic, so the host's is on the loader path. A library that will not load
-/// is thrown from the first open, and thrown again by the next (`sqlite3` is a
-/// `late final` whose failed initialiser re-runs), so a retry after installing
-/// it works without a restart.
-void _useHostLibrary() {
-  if (_libraryChosen) return;
-  _libraryChosen = true;
-  open.overrideFor(OperatingSystem.linux, () {
-    final ffi.DynamicLibrary? library = openFirstLibrary(const [
-      'libsqlite3.so.0',
-      'libsqlite3.so',
-    ]);
-    if (library == null) throw const TodoFormatException(kNoSqliteMessage);
-    return library;
-  });
-}
 
 /// What one write changes: rows to insert or replace, rows whose only change
 /// is their place on the board, and rows to delete.
@@ -113,11 +103,11 @@ class TodoDatabase {
   /// Opens (creating if need be) the database at [path].
   ///
   /// Throws [TodoFormatException] for anything that means "do not write here":
-  /// a file that is not a database, a schema from a newer shell, a SQLite
-  /// without FTS5, or no SQLite at all. Nothing is written before the file has
+  /// a file that is not a database, a schema from a newer shell, or a SQLite
+  /// too old for the index (see [_checkLibrary]). Nothing is written before the file has
   /// been read and found to be ours.
   static TodoDatabase open(String path) {
-    _useHostLibrary();
+    _checkLibrary();
     final Database db;
     try {
       db = sqlite3.open(path);
@@ -129,7 +119,7 @@ class TodoDatabase {
 
   /// An empty database in memory, for tests.
   static TodoDatabase openInMemory() {
-    _useHostLibrary();
+    _checkLibrary();
     return _prepare(sqlite3.openInMemory(), 'The in-memory database');
   }
 
@@ -163,7 +153,7 @@ class TodoDatabase {
       }
       return TodoDatabase._(db);
     } catch (_) {
-      db.dispose();
+      db.close();
       rethrow;
     }
   }
@@ -265,7 +255,7 @@ class TodoDatabase {
             delete.execute([id]);
           }
         } finally {
-          delete.dispose();
+          delete.close();
         }
       }
       if (changes.todos.isNotEmpty) {
@@ -275,7 +265,7 @@ class TodoDatabase {
             upsert.execute(_todoParameters(item, position, updated));
           }
         } finally {
-          upsert.dispose();
+          upsert.close();
         }
       }
       if (changes.positions.isNotEmpty) {
@@ -287,7 +277,7 @@ class TodoDatabase {
             place.execute([position, id]);
           }
         } finally {
-          place.dispose();
+          place.close();
         }
       }
       if (changes.notes.isNotEmpty) {
@@ -303,7 +293,7 @@ class TodoDatabase {
             ]);
           }
         } finally {
-          upsert.dispose();
+          upsert.close();
         }
       }
     });
@@ -336,7 +326,7 @@ class TodoDatabase {
           insert.execute(_todoParameters(items[i], start + i, updated));
         }
       } finally {
-        insert.dispose();
+        insert.close();
       }
       _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
         _kImportedJsonKey,
@@ -399,7 +389,7 @@ class TodoDatabase {
     ];
   }
 
-  void close() => _db.dispose();
+  void close() => _db.close();
 }
 
 const String _kInsertTodo = '''

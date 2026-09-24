@@ -635,9 +635,8 @@ with several words, a card has to contain all of them. **Ctrl+F** returns to the
 field, and **Escape** clears it before it closes the board.
 
 The board is kept in an SQLite database, `~/.local/share/moonswing/notes.db`
-(or under `$XDG_DATA_HOME`), not in `config.toml`, and saved as you go. It needs
-the SQLite library, which nearly every system already has (`libsqlite3-0` on
-Debian and Ubuntu, `sqlite-libs` on Fedora). A board saved by an older version
+(or under `$XDG_DATA_HOME`), not in `config.toml`, and saved as you go.  SQLite comes
+with the shell, so nothing needs installing. A board saved by an older version
 of the shell as `todo.json` is imported the first time, and the file is renamed
 to `todo.json.imported` rather than deleted. If the board cannot be read, it
 says why and refuses to save anything over it until it can. The module has no
