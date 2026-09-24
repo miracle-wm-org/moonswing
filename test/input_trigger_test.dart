@@ -279,14 +279,14 @@ void main() {
       expect(launcher.keysym, 0x64);
     });
 
-    test('the notification shortcut is Super+E and toggles the panel', () {
+    test('the notification shortcut is Super+N and toggles the panel', () {
       final panel = named(inputShortcutsFor(const ShortcutsConfig()),
           'moonswing.open-notifications');
 
       expect(panel.modifiers, InputTriggerModifiers.meta);
-      expect(panel.keysym, 0x65);
+      expect(panel.keysym, 0x6e);
 
-      // Super+E and Ctrl+Shift+E sit next to each other in the table and both
+      // Super+N and Ctrl+Shift+E sit next to each other in the table and both
       // are a bare `toggle`, so a copy-paste would open the wrong surface.
       final before = NotificationPanelController.instance.signalCount;
       final emojiBefore = EmojiPickerController.instance.signalCount;

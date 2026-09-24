@@ -614,7 +614,7 @@ The `[shortcuts]` section binds the shell's global keyboard shortcuts. These are
 open_settings = "super+s"
 open_launcher = "super+d"
 open_emoji = "ctrl+shift+e"
-open_notifications = "super+e"
+open_notifications = "super+n"
 open_power_menu = "shift+super+e"
 switch_windows = "alt+tab"
 switch_windows_back = "alt+shift+tab"
@@ -630,7 +630,7 @@ power_button = "poweroff"
 | `open_settings`        | string | `"super+s"`          | Opens (and closes) the settings overlay        |
 | `open_launcher`        | string | `"super+d"`          | Opens (and closes) the application launcher    |
 | `open_emoji`           | string | `"ctrl+shift+e"`     | Opens (and closes) the [emoji picker](#emoji-picker) |
-| `open_notifications`   | string | `"super+e"`          | Opens (and closes) the [notification panel](#notifications) |
+| `open_notifications`   | string | `"super+n"`          | Opens (and closes) the [notification panel](#notifications) |
 | `open_power_menu`      | string | `"shift+super+e"`    | Opens (and closes) the [power menu](#power-button) — shut down, restart, suspend, lock or log out |
 | `switch_windows`       | string | `"alt+tab"`          | Opens the [window switcher](#the-window-switcher) and moves forward through it |
 | `switch_windows_back`  | string | `"alt+shift+tab"`    | The same switcher, moving backwards |
@@ -1494,7 +1494,7 @@ icon_size = 24
 [shortcuts]
 open_settings = "super+s"
 open_launcher = "super+d"
-open_notifications = "super+e"
+open_notifications = "super+n"
 screenshot_area = "print"
 record_screen = "super+print"
 power_button = "poweroff"
