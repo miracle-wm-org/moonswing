@@ -40,11 +40,19 @@ void main() {
 
   tearDown(() => closing.dispose());
 
-  Future<TodoStore> pump(WidgetTester tester, List<TodoItem> items) async {
+  Future<TodoStore> pump(
+    WidgetTester tester,
+    List<TodoItem> items, {
+    bool inMemory = false,
+  }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-    final store = TodoStore.forTesting(items: items, now: () => now);
+    final store = TodoStore.forTesting(
+      items: items,
+      now: () => now,
+      inMemory: inMemory,
+    );
     addTearDown(store.dispose);
     await tester.pumpWidget(
       ThemeScope(
@@ -93,7 +101,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('New item'), findsOneWidget);
 
-    await tester.enterText(find.byType(EditableText).first, 'Write report');
+    // The editor's title field; the first EditableText is the board's search.
+    await tester.enterText(find.byType(EditableText).at(1), 'Write report');
     await tester.pump();
     await tester.tap(find.text('Tomorrow'));
     await tester.pump();
@@ -197,6 +206,87 @@ void main() {
     await tester.pumpAndSettle();
     expect(closing.value, isTrue);
     expect(closed, 1);
+  });
+
+  Finder searchField() => find.byType(EditableText).first;
+
+  testWidgets('searching filters every column down to the matches', (
+    tester,
+  ) async {
+    await pump(tester, [
+      _item('a', TodoColumn.inbox),
+      _item('b', TodoColumn.todo).copyWith(title: 'Fix the Bluetooth bug'),
+      _item('c', TodoColumn.finished),
+    ], inMemory: true);
+    expect(find.text('Card a'), findsOneWidget);
+
+    // The middle of a word, in the wrong case.
+    await tester.enterText(searchField(), 'LUETOO');
+    await tester.pumpAndSettle();
+    expect(find.text('Card a'), findsNothing);
+    expect(find.text('Fix the Bluetooth bug'), findsOneWidget);
+    expect(find.text('Card c'), findsNothing);
+    expect(find.text('1 match'), findsOneWidget);
+    expect(
+      find.text('No matches'),
+      findsNWidgets(TodoColumn.values.length - 1),
+    );
+
+    // Every body says "Body of".
+    await tester.enterText(searchField(), 'ody of');
+    await tester.pumpAndSettle();
+    expect(find.text('3 matches'), findsOneWidget);
+
+    await tester.enterText(searchField(), 'nothing like this');
+    await tester.pumpAndSettle();
+    expect(find.text('Fix the Bluetooth bug'), findsNothing);
+    // Every column, and the count in the header.
+    expect(
+      find.text('No matches'),
+      findsNWidgets(TodoColumn.values.length + 1),
+    );
+  });
+
+  testWidgets('a card edited while searching joins the results', (
+    tester,
+  ) async {
+    final store = await pump(tester, [
+      _item('a', TodoColumn.inbox),
+      _item('b', TodoColumn.inbox),
+    ], inMemory: true);
+    await tester.enterText(searchField(), 'dentist');
+    await tester.pumpAndSettle();
+    expect(find.text('Card a'), findsNothing);
+
+    store.update(
+      'a',
+      title: 'Card a',
+      body: 'Ring the dentist',
+      column: TodoColumn.inbox,
+      due: null,
+      recurrence: null,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Card a'), findsOneWidget);
+    expect(find.text('Card b'), findsNothing);
+  });
+
+  testWidgets('Escape clears the search before it closes the board', (
+    tester,
+  ) async {
+    await pump(tester, [_item('a', TodoColumn.inbox)]);
+    await tester.enterText(searchField(), 'zzz');
+    await tester.pumpAndSettle();
+    expect(find.text('Card a'), findsNothing);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Card a'), findsOneWidget);
+    expect(closing.value, isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(closing.value, isTrue);
   });
 
   testWidgets('a repeating item shows when its next copy comes', (

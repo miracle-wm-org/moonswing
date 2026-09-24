@@ -1,10 +1,11 @@
 // The todo board: five columns of cards over a scrim, in its own full-screen
 // layer-shell window on the output whose bar was clicked.
 //
-// It reads nothing itself. [TodoStore] owns the file, the history of moves and
-// the day turning over; `todo_model.dart` owns every date rule. This file is the
-// panel, the columns, the cards, drag and drop between them, and the editor
-// that creates and changes one.
+// It reads nothing itself. [TodoStore] owns the database, the history of moves
+// and the day turning over; `todo_model.dart` owns every date rule, and
+// [TodoBoardSearch] what the search field leaves showing. This file is the
+// panel, the search field, the columns, the cards, drag and drop between them,
+// and the editor that creates and changes one.
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -14,11 +15,13 @@ import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
+import 'package:moonswing/overlay_search_field.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/todo/todo_model.dart';
+import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
 /// How much of the output the board takes. Most of it: five columns of cards
@@ -32,6 +35,9 @@ const double kTodoCardGap = 8;
 
 /// The editor card's width.
 const double kTodoEditorWidth = 540;
+
+/// The search field's width in the header.
+const double kTodoSearchWidth = 320;
 
 /// The board's panel size for an overlay surface of [available] logical pixels.
 Size todoPanelSize(Size available) => Size(
@@ -76,6 +82,15 @@ class _TodoOverlayState extends State<TodoOverlay> {
   late final TodoStore _store = widget.store ?? TodoStore.instance;
   final FocusNode _focusNode = FocusNode(debugLabel: 'todo board');
 
+  /// The search field's, owned here so the key handler can read and clear it.
+  final TextEditingController _searchText = TextEditingController();
+  final FocusNode _searchFocus = FocusNode(debugLabel: 'todo search');
+  late final TodoBoardSearch _search = TodoBoardSearch(_store);
+
+  /// What the board rebuilds on. Merged once, here: a merge built in `build`
+  /// would re-subscribe on every rebuild.
+  late final Listenable _board = Listenable.merge([_store, _search]);
+
   /// The open editor, or null. A notifier rather than state on this widget, so
   /// opening the editor rebuilds the editor layer and not five columns of
   /// cards.
@@ -101,6 +116,9 @@ class _TodoOverlayState extends State<TodoOverlay> {
             height: size.height,
             child: _TodoPanel(
               store: _store,
+              board: _board,
+              search: _search,
+              searchField: _buildSearchField(context),
               editing: _editing,
               onClose: _requestClose,
             ),
@@ -112,9 +130,58 @@ class _TodoOverlayState extends State<TodoOverlay> {
 
   void _requestClose() => widget.closingNotifier.value = true;
 
+  Widget _buildSearchField(BuildContext context) => SizedBox(
+    width: kTodoSearchWidth,
+    child: OverlaySearchField(
+      controller: _searchText,
+      focusNode: _searchFocus,
+      theme: ThemeScope.of(context),
+      hint: 'Search todos',
+      onChanged: (value) => _search.query = value,
+    ),
+  );
+
+  void _clearSearch() {
+    _searchText.clear();
+    _search.clear();
+  }
+
+  void _focusSearch() {
+    _searchFocus.requestFocus();
+    _searchText.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: _searchText.text.length,
+    );
+  }
+
+  void _onKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return;
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.keyF &&
+        HardwareKeyboard.instance.isControlPressed &&
+        _editing.value == null) {
+      _focusSearch();
+      return;
+    }
+    if (key != LogicalKeyboardKey.escape) return;
+    // Escape backs out one layer at a time: the editor, then the search, then
+    // the board.
+    if (_editing.value != null) {
+      _editing.value = null;
+      _searchFocus.requestFocus();
+    } else if (_searchText.text.isNotEmpty) {
+      _clearSearch();
+    } else {
+      _requestClose();
+    }
+  }
+
   @override
   void dispose() {
     _focusNode.dispose();
+    _searchFocus.dispose();
+    _searchText.dispose();
+    _search.dispose();
     _editing.dispose();
     super.dispose();
   }
@@ -133,23 +200,11 @@ class _TodoOverlayState extends State<TodoOverlay> {
             fontSize: ShellFontSizes.body,
             color: theme.popupForeground,
           ),
+          // Hears every key the fields inside let through. Not autofocused:
+          // the search field is, so the board opens ready to be searched.
           child: KeyboardListener(
             focusNode: _focusNode,
-            autofocus: true,
-            onKeyEvent: (event) {
-              if (event is! KeyDownEvent ||
-                  event.logicalKey != LogicalKeyboardKey.escape) {
-                return;
-              }
-              // Escape backs out one layer at a time: the editor first, then
-              // the board.
-              if (_editing.value != null) {
-                _editing.value = null;
-                _focusNode.requestFocus();
-              } else {
-                _requestClose();
-              }
-            },
+            onKeyEvent: _onKey,
             // Opaque popups, for the settings overlay's reason: the editor's
             // dropdowns float over dense text.
             child: OpaquePopupScope(
@@ -166,11 +221,22 @@ class _TodoOverlayState extends State<TodoOverlay> {
 class _TodoPanel extends StatelessWidget {
   const _TodoPanel({
     required this.store,
+    required this.board,
+    required this.search,
+    required this.searchField,
     required this.editing,
     required this.onClose,
   });
 
   final TodoStore store;
+
+  /// [store] and [search] together.
+  final Listenable board;
+  final TodoBoardSearch search;
+
+  /// Built by the overlay, which owns its controller and focus; handed in
+  /// unchanged so a board rebuild does not rebuild the field.
+  final Widget searchField;
   final ValueNotifier<_EditRequest?> editing;
   final VoidCallback onClose;
 
@@ -196,7 +262,7 @@ class _TodoPanel extends StatelessWidget {
             children: [
               Positioned.fill(
                 child: ListenableBuilder(
-                  listenable: store,
+                  listenable: board,
                   builder: (context, _) => _buildBoard(context, theme),
                 ),
               ),
@@ -228,7 +294,7 @@ class _TodoPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(onClose: onClose),
+        _Header(onClose: onClose, search: search, searchField: searchField),
         Container(height: 1, color: theme.divider),
         if (loadError != null)
           Padding(
@@ -272,7 +338,12 @@ class _TodoPanel extends StatelessWidget {
                         Expanded(
                           child: _ColumnView(
                             column: column,
-                            items: store.itemsIn(column),
+                            items: [
+                              for (final item in store.itemsIn(column))
+                                if (search.shows(item.id)) item,
+                            ],
+                            filtered: search.active,
+                            terms: search.terms,
                             store: store,
                             onEdit: (id) =>
                                 editing.value = _EditRequest.edit(id),
@@ -291,9 +362,15 @@ class _TodoPanel extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onClose});
+  const _Header({
+    required this.onClose,
+    required this.search,
+    required this.searchField,
+  });
 
   final VoidCallback onClose;
+  final TodoBoardSearch search;
+  final Widget searchField;
 
   @override
   Widget build(BuildContext context) {
@@ -318,6 +395,18 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
+          if (search.active) ...[
+            Text(
+              _describeMatches(search.matches?.length ?? 0),
+              style: TextStyle(
+                fontSize: ShellFontSizes.secondary,
+                color: theme.popupForeground.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          searchField,
+          const SizedBox(width: 8),
           HoverRegion(
             onTap: onClose,
             builder: (context, hovered) => Container(
@@ -346,19 +435,35 @@ class _Header extends StatelessWidget {
   }
 }
 
+String _describeMatches(int count) => switch (count) {
+  0 => 'No matches',
+  1 => '1 match',
+  _ => '$count matches',
+};
+
 /// One column: its heading, its add button, and its cards — and the drop
 /// target for the space below the last card.
 class _ColumnView extends StatelessWidget {
   const _ColumnView({
     required this.column,
     required this.items,
+    required this.filtered,
+    required this.terms,
     required this.store,
     required this.onEdit,
     required this.onAdd,
   });
 
   final TodoColumn column;
+
+  /// The cards shown: every card in the column, or those the search matched.
   final List<TodoItem> items;
+
+  /// Whether a search is hiding some of the column.
+  final bool filtered;
+
+  /// What to highlight on each card.
+  final List<String> terms;
   final TodoStore store;
   final ValueChanged<String> onEdit;
   final VoidCallback onAdd;
@@ -425,7 +530,11 @@ class _ColumnView extends StatelessWidget {
                 child: items.isEmpty
                     ? Center(
                         child: Text(
-                          editable ? 'Drop a card here' : '',
+                          filtered
+                              ? 'No matches'
+                              : editable
+                              ? 'Drop a card here'
+                              : '',
                           style: TextStyle(
                             fontSize: ShellFontSizes.secondary,
                             color: theme.popupForeground.withValues(
@@ -453,6 +562,7 @@ class _ColumnView extends StatelessWidget {
                               ),
                               child: _DraggableCard(
                                 item: item,
+                                terms: terms,
                                 width: constraints.maxWidth - 16,
                                 store: store,
                                 onEdit: onEdit,
@@ -474,12 +584,14 @@ class _ColumnView extends StatelessWidget {
 class _DraggableCard extends StatelessWidget {
   const _DraggableCard({
     required this.item,
+    required this.terms,
     required this.width,
     required this.store,
     required this.onEdit,
   });
 
   final TodoItem item;
+  final List<String> terms;
   final double width;
   final TodoStore store;
   final ValueChanged<String> onEdit;
@@ -487,7 +599,7 @@ class _DraggableCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final face = _CardFace(item: item, today: store.now);
+    final face = _CardFace(item: item, today: store.now, terms: terms);
     final card = HoverRegion(
       onTap: () => onEdit(item.id),
       builder: (context, hovered) => _CardChrome(hovered: hovered, child: face),
@@ -588,10 +700,17 @@ class _CardChrome extends StatelessWidget {
 /// What a card shows: the title, the start of the body, and a line of facts —
 /// when it is due, how it repeats, and when it arrived in this column.
 class _CardFace extends StatelessWidget {
-  const _CardFace({required this.item, required this.today});
+  const _CardFace({
+    required this.item,
+    required this.today,
+    this.terms = const [],
+  });
 
   final TodoItem item;
   final DateTime today;
+
+  /// What the search matched, drawn highlighted.
+  final List<String> terms;
 
   @override
   Widget build(BuildContext context) {
@@ -600,12 +719,21 @@ class _CardFace extends StatelessWidget {
     final due = item.due;
     final recurrence = item.recurrence;
     final title = item.title.trim();
+    final body = item.body.trim();
+    final hit = TextStyle(
+      backgroundColor: theme.accent.withValues(alpha: 0.35),
+      color: theme.popupForeground,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          title.isEmpty ? 'Untitled' : title,
+        Text.rich(
+          TextSpan(
+            children: title.isEmpty
+                ? [const TextSpan(text: 'Untitled')]
+                : highlightMatches(title, terms, hit: hit),
+          ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -614,10 +742,10 @@ class _CardFace extends StatelessWidget {
             color: title.isEmpty ? dim : theme.popupForeground,
           ),
         ),
-        if (item.body.trim().isNotEmpty) ...[
+        if (body.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Text(
-            item.body.trim(),
+          Text.rich(
+            TextSpan(children: highlightMatches(body, terms, hit: hit)),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: ShellFontSizes.secondary, color: dim),

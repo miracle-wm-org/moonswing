@@ -24,7 +24,8 @@ void main() {
     if (dir.existsSync()) dir.deleteSync(recursive: true);
   });
 
-  File file() => File('${dir.path}/todo.json');
+  File legacy() => File('${dir.path}/todo.json');
+  File database() => File('${dir.path}/notes.db');
 
   test('a missing file is an empty, editable board', () async {
     await store.load();
@@ -110,8 +111,7 @@ void main() {
     await store.load();
     store.add(TodoColumn.todo, title: 'Saved', due: DateTime(2026, 9, 30, 13));
     await store.flush();
-    expect(file().existsSync(), isTrue);
-    expect(File('${file().path}.tmp').existsSync(), isFalse);
+    expect(database().existsSync(), isTrue);
 
     final again = TodoStore.forTesting(directory: dir.path, now: () => now);
     addTearDown(again.dispose);
@@ -120,21 +120,134 @@ void main() {
     expect(again.items.single.due, DateTime(2026, 9, 30));
   });
 
-  test('a file that will not read is never written over', () async {
-    file().writeAsStringSync('{"items": [ broken');
+  test('a board moves, reorders and deletes across a reopen', () async {
+    await store.load();
+    final a = store.add(TodoColumn.inbox, title: 'A')!;
+    final b = store.add(TodoColumn.inbox, title: 'B')!;
+    final c = store.add(TodoColumn.todo, title: 'C', body: 'notes')!;
+    await store.flush();
+    store.move(a, TodoColumn.inbox, beforeId: b);
+    store.move(c, TodoColumn.finished);
+    store.delete(b);
+    await store.flush();
+
+    final again = TodoStore.forTesting(directory: dir.path, now: () => now);
+    addTearDown(again.dispose);
+    await again.load();
+    expect(again.items, store.items);
+    expect(again.itemsIn(TodoColumn.inbox).map((i) => i.id), [a]);
+    expect(again.item(c)!.history, hasLength(2));
+  });
+
+  test('an old todo.json is imported once and kept', () async {
+    final old = [
+      TodoItem(
+        id: 'old-1',
+        title: 'From the file',
+        body: 'imported',
+        column: TodoColumn.todo,
+        created: DateTime(2026, 9, 1, 8),
+        due: DateTime(2026, 9, 30),
+        history: [
+          TodoMove(
+            from: null,
+            to: TodoColumn.todo,
+            at: DateTime(2026, 9, 1, 8),
+          ),
+        ],
+      ),
+    ];
+    legacy().writeAsStringSync(encodeTodoFile(old));
+    await store.load();
+    expect(store.items, old);
+    expect(legacy().existsSync(), isFalse);
+    expect(File('${legacy().path}.imported').existsSync(), isTrue);
+
+    // Put back, it is not imported a second time over the board it became.
+    store.delete('old-1');
+    await store.flush();
+    legacy().writeAsStringSync(encodeTodoFile(old));
+    final again = TodoStore.forTesting(directory: dir.path, now: () => now);
+    addTearDown(again.dispose);
+    await again.load();
+    expect(again.items, isEmpty);
+  });
+
+  test('a todo.json that will not read is never imported over', () async {
+    legacy().writeAsStringSync('{"items": [ broken');
     await store.load();
     expect(store.loaded, isTrue);
     expect(store.loadError, isNotNull);
     expect(store.editable, isFalse);
     expect(store.add(TodoColumn.inbox, title: 'Lost'), isNull);
     await store.flush();
-    expect(file().readAsStringSync(), '{"items": [ broken');
+    expect(legacy().readAsStringSync(), '{"items": [ broken');
 
     // Mended by hand; a retry picks it up and the board is editable again.
-    file().writeAsStringSync('{"version": 1, "items": []}');
+    legacy().writeAsStringSync('{"version": 1, "items": []}');
     await store.retry();
     expect(store.loadError, isNull);
     expect(store.editable, isTrue);
+  });
+
+  test('a database that will not read is never written into', () async {
+    final garbage = List<int>.generate(4096, (i) => i % 251);
+    database().writeAsBytesSync(garbage);
+    await store.load();
+    expect(store.loadError, isNotNull);
+    expect(store.editable, isFalse);
+    expect(store.add(TodoColumn.inbox, title: 'Lost'), isNull);
+    await store.flush();
+    expect(database().readAsBytesSync(), garbage);
+
+    database().deleteSync();
+    await store.retry();
+    expect(store.loadError, isNull);
+    expect(store.editable, isTrue);
+  });
+
+  test('search finds any part of a card, including an unsaved edit', () async {
+    await store.load();
+    final bt = store.add(
+      TodoColumn.inbox,
+      title: 'Fix the Bluetooth bug',
+      body: 'Pairing fails after suspend',
+    )!;
+    await store.flush();
+    final groceries = store.add(TodoColumn.todo, title: 'Groceries')!;
+    // Not flushed: the search writes it first.
+    expect(store.search('luetoo').map((h) => h.id), [bt]);
+    expect(store.search('SUSPEND bug').map((h) => h.id), [bt]);
+    expect(store.search('ocer').map((h) => h.id), [groceries]);
+    expect(store.search('bluetooth groceries'), isEmpty);
+    expect(store.search('   '), isEmpty);
+  });
+
+  test('notes are kept beside the board and searched with it', () async {
+    await store.load();
+    final todo = store.add(TodoColumn.inbox, title: 'Call about wifi')!;
+    final note = store.addNote(body: 'wifi password is hunter2')!;
+    expect(store.notes.single.body, 'wifi password is hunter2');
+    expect(store.search('wifi').map((h) => (h.id, h.kind)).toSet(), {
+      (todo, EntryKind.todo),
+      (note, EntryKind.note),
+    });
+    expect(store.search('wifi', kind: EntryKind.note).single.id, note);
+
+    now = DateTime(2026, 9, 24, 10);
+    store.updateNote(note, title: 'Router', body: 'guest network is open');
+    await store.flush();
+    final again = TodoStore.forTesting(directory: dir.path, now: () => now);
+    addTearDown(again.dispose);
+    await again.load();
+    expect(again.notes, store.notes);
+    expect(again.notes.single.updated, now);
+    expect(again.search('hunter'), isEmpty);
+    expect(again.search('guest').single.kind, EntryKind.note);
+
+    again.deleteNote(note);
+    expect(again.search('guest'), isEmpty);
+    expect(again.notes, isEmpty);
   });
 
   test('the start of the day spawns recurring copies and reminds', () async {

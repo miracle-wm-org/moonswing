@@ -149,6 +149,13 @@ parts:
       # too so the whole graphics + display stack comes from the host.
       - -usr/lib/*/libwayland*
       - -usr/lib/*/libdrm*
+      # The shell's SQLite is the bundle's own lib/libsqlite3.so (package:sqlite3's
+      # build hook), which the embedder dlopens by that bare name — so the
+      # loader walks LD_LIBRARY_PATH, where the triplet dir above comes before
+      # $SNAP/lib. A runtime libsqlite3-0 only ships the .so.0 and cannot
+      # shadow it; the unversioned dev link, should a -dev package ever be
+      # staged, would. Keep it out so the snap always loads its own.
+      - -usr/lib/*/libsqlite3.so
 
   # The lock screen dlopens libgtk-session-lock.so.0 (packages/ext_session_lock/
   # lib/src/gtk_session_lock.dart) and silently does nothing when it is absent.
