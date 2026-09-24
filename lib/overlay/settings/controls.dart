@@ -1611,6 +1611,8 @@ class SettingsTextField extends StatefulWidget {
     this.autofocus = false,
     this.leading,
     this.trailing,
+    this.maxLines = 1,
+    this.minLines,
   });
 
   /// The text the field starts with. Ignored when [controller] is supplied —
@@ -1648,6 +1650,14 @@ class SettingsTextField extends StatefulWidget {
 
   /// Drawn inside the border, after the text.
   final Widget? trailing;
+
+  /// How tall the field may grow, in lines; null grows without limit. Anything
+  /// but 1 is a multi-line field, where Enter is a newline rather than
+  /// [onSubmitted] — the todo editor's body.
+  final int? maxLines;
+
+  /// How tall a multi-line field is before anything is typed into it.
+  final int? minLines;
 
   @override
   _SettingsTextFieldState createState() => _SettingsTextFieldState();
@@ -1722,7 +1732,9 @@ class _SettingsTextFieldState extends State<SettingsTextField>
                 builder: (context, value, _) => value.text.isNotEmpty
                     ? const SizedBox.shrink()
                     : Align(
-                        alignment: Alignment.centerLeft,
+                        alignment: widget.maxLines == 1
+                            ? Alignment.centerLeft
+                            : Alignment.topLeft,
                         child: Text(
                           widget.hint!,
                           maxLines: 1,
@@ -1752,6 +1764,14 @@ class _SettingsTextFieldState extends State<SettingsTextField>
           backgroundCursorColor: theme.divider,
           selectionColor: theme.accent.withValues(alpha: 0.4),
           inputFormatters: widget.inputFormatters,
+          maxLines: widget.maxLines,
+          minLines: widget.minLines,
+          keyboardType: widget.maxLines == 1
+              ? TextInputType.text
+              : TextInputType.multiline,
+          textInputAction: widget.maxLines == 1
+              ? null
+              : TextInputAction.newline,
           onChanged: (v) => widget.onChanged(v),
           onSubmitted: widget.onSubmitted,
         ),

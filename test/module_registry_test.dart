@@ -18,6 +18,7 @@ import 'package:moonswing/modules/sound_control.dart';
 import 'package:moonswing/modules/system.dart';
 import 'package:moonswing/modules/system_monitor.dart';
 import 'package:moonswing/modules/system_tray.dart';
+import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/modules/weather.dart';
 import 'package:moonswing/modules/workspaces.dart';
 
@@ -46,6 +47,7 @@ void main() {
       keybindsModule,
       githubModule,
       scratchpadModule,
+      todoModule,
     ];
     for (final module in modules) {
       Module.register(module);
@@ -70,6 +72,7 @@ void main() {
       'keybinds',
       'github',
       'scratchpad',
+      'todo',
     ];
     for (final key in expected) {
       expect(Module.lookup(key), isNotNull, reason: key);

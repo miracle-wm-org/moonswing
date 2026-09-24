@@ -265,6 +265,7 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `github/` | The GitHub inbox: the device-flow sign-in, the token file, the polled notification list |
 | `system/` | UI-free `/proc`,`/sys` sampling; `overlay/system/` is its tab |
 | `timers/` | Countdowns and stopwatches: pure format, store, the alarm a finished one rings, shared widgets |
+| `todo/` | The todo board: the pure model (columns, move history, recurrence arithmetic, the file format), the store behind `~/.local/share/moonswing/todo.json` that makes recurring copies and posts the due-today reminder at start-up and each midnight, the controller carrying the clicked output, and the overlay |
 | `osd/` | The volume/brightness card, its store and its sources |
 | `capture/` | Screenshots and recording: targets, selection, ffmpeg, store, the shutter sound |
 | `screencast/` | The ScreenCast portal backend, capture sessions, the consent picker |

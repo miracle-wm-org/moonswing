@@ -72,7 +72,7 @@ layer = "top"
 [panels.top.layout]
 left = ["workspaces"]
 center = ["clock"]
-right = ["screenshot", "screen_recorder", "sound_control", "system_tray", "battery", "weather", "scratchpad", "keybinds", "keyboard_layout", "system"]
+right = ["screenshot", "screen_recorder", "sound_control", "system_tray", "battery", "weather", "todo", "scratchpad", "keybinds", "keyboard_layout", "system"]
 
 [panels.bottom]
 height = 32
