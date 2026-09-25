@@ -615,6 +615,12 @@ at the top of a column adds a card there; clicking a card opens it to edit its
 title, details, column, due date and repetition, and to read its history. Every
 time a card changes column, the date and time is recorded in that history.
 
+Overdue cards sit at the top of **Inbox**, **Todo** and **In Progress**, above
+the rest, which keep the order you dragged them into. **Finished** shows what
+was finished today; everything finished earlier is folded under the day it was
+finished, and **Abandoned** folds every day, today's included. Click a day to
+open or close it. While you search, every day holding a match is open.
+
 When the shell starts, and again at each midnight, it posts one notification
 listing what is due that day, followed by anything still open from an earlier
 day. The number beside the icon counts the same things. Finished and abandoned

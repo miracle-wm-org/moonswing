@@ -8,6 +8,7 @@
 // and the editor that creates and changes one. The backups card over it is
 // `todo_backup_panel.dart`.
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -24,6 +25,7 @@ import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
+import 'package:moonswing/todo/todo_layout.dart';
 import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_remote_backup.dart';
@@ -113,6 +115,9 @@ class _TodoOverlayState extends State<TodoOverlay> {
   /// would re-subscribe on every rebuild.
   late final Listenable _board = Listenable.merge([_store, _search]);
 
+  /// Which of Finished's and Abandoned's day groups are open.
+  late final _DayFoldsNotifier _folds = _DayFoldsNotifier(_search);
+
   /// The open editor, or null. A notifier rather than state on this widget, so
   /// opening the editor rebuilds the editor layer and not five columns of
   /// cards.
@@ -140,6 +145,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
               store: _store,
               board: _board,
               search: _search,
+              folds: _folds,
               searchField: _buildSearchField(context),
               editing: _editing,
               remote: _remote,
@@ -210,6 +216,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
     _focusNode.dispose();
     _searchFocus.dispose();
     _searchText.dispose();
+    _folds.dispose();
     _search.dispose();
     _editing.dispose();
     _backups.dispose();
@@ -253,6 +260,7 @@ class _TodoPanel extends StatelessWidget {
     required this.store,
     required this.board,
     required this.search,
+    required this.folds,
     required this.searchField,
     required this.editing,
     required this.remote,
@@ -268,6 +276,7 @@ class _TodoPanel extends StatelessWidget {
   /// [store] and [search] together.
   final Listenable board;
   final TodoBoardSearch search;
+  final _DayFoldsNotifier folds;
 
   /// Built by the overlay, which owns its controller and focus; handed in
   /// unchanged so a board rebuild does not rebuild the field.
@@ -425,6 +434,7 @@ class _TodoPanel extends StatelessWidget {
                             ],
                             filtered: search.active,
                             terms: search.terms,
+                            folds: folds,
                             store: store,
                             onEdit: (id) =>
                                 editing.value = _EditRequest.edit(id),
@@ -560,6 +570,7 @@ class _ColumnView extends StatelessWidget {
     required this.items,
     required this.filtered,
     required this.terms,
+    required this.folds,
     required this.store,
     required this.onEdit,
     required this.onOpenLink,
@@ -568,7 +579,8 @@ class _ColumnView extends StatelessWidget {
 
   final TodoColumn column;
 
-  /// The cards shown: every card in the column, or those the search matched.
+  /// The cards shown: every card in the column, or those the search matched,
+  /// in the store's order. [layoutColumn] decides how they are drawn.
   final List<TodoItem> items;
 
   /// Whether a search is hiding some of the column.
@@ -576,6 +588,7 @@ class _ColumnView extends StatelessWidget {
 
   /// What to highlight on each card.
   final List<String> terms;
+  final _DayFoldsNotifier folds;
   final TodoStore store;
   final ValueChanged<String> onEdit;
   final ValueChanged<String> onOpenLink;
@@ -656,40 +669,190 @@ class _ColumnView extends StatelessWidget {
                           ),
                         ),
                       )
-                    : LayoutBuilder(
-                        builder: (context, constraints) => ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(
-                            8,
-                            kTodoCardGap,
-                            8,
-                            // Room under the last card to drop onto.
-                            48,
-                          ),
-                          itemCount: items.length,
-                          itemBuilder: (context, index) {
-                            final item = items[index];
-                            return Padding(
-                              key: ValueKey(item.id),
-                              padding: const EdgeInsets.only(
-                                bottom: kTodoCardGap,
-                              ),
-                              child: _DraggableCard(
-                                item: item,
-                                terms: terms,
-                                width: constraints.maxWidth - 16,
-                                store: store,
-                                onEdit: onEdit,
-                                onOpenLink: onOpenLink,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                    : _buildList(context),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildList(BuildContext context) {
+    final layout = layoutColumn(column, items, store.now);
+    return LayoutBuilder(
+      builder: (context, constraints) => ListenableBuilder(
+        // Only a column with day groups listens: folding one rebuilds that
+        // column's rows, not the board.
+        listenable: layout.days.isEmpty ? _never : folds,
+        builder: (context, _) {
+          final rows = <Object>[
+            ...layout.loose,
+            for (final group in layout.days) ...[
+              group,
+              if (folds.isOpen(column, group.day, searching: filtered))
+                ...group.items,
+            ],
+          ];
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(
+              8,
+              kTodoCardGap,
+              8,
+              // Room under the last card to drop onto.
+              48,
+            ),
+            itemCount: rows.length,
+            itemBuilder: (context, index) => switch (rows[index]) {
+              final TodoDayGroup group => Padding(
+                key: ValueKey(group.day),
+                padding: const EdgeInsets.only(bottom: kTodoCardGap),
+                child: _DayHeading(
+                  day: group.day,
+                  today: store.now,
+                  count: group.items.length,
+                  open: folds.isOpen(column, group.day, searching: filtered),
+                  onTap: () =>
+                      folds.toggle(column, group.day, searching: filtered),
+                ),
+              ),
+              final TodoItem item => Padding(
+                key: ValueKey(item.id),
+                padding: const EdgeInsets.only(bottom: kTodoCardGap),
+                child: _DraggableCard(
+                  item: item,
+                  terms: terms,
+                  width: constraints.maxWidth - 16,
+                  store: store,
+                  onEdit: onEdit,
+                  onOpenLink: onOpenLink,
+                ),
+              ),
+              _ => const SizedBox.shrink(),
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A listenable that never fires, for a column with nothing to fold.
+const Listenable _never = _Never();
+
+class _Never implements Listenable {
+  const _Never();
+  @override
+  void addListener(VoidCallback listener) {}
+  @override
+  void removeListener(VoidCallback listener) {}
+}
+
+/// [TodoDayFolds] for the board: notifies when a group is flipped, and forgets
+/// what was flipped by hand whenever the search's words change.
+class _DayFoldsNotifier extends ChangeNotifier {
+  _DayFoldsNotifier(this._search) : _terms = _search.terms {
+    _search.addListener(_onSearch);
+  }
+
+  final TodoBoardSearch _search;
+  final TodoDayFolds _folds = TodoDayFolds();
+  List<String> _terms;
+
+  bool isOpen(TodoColumn column, DateTime day, {required bool searching}) =>
+      _folds.isOpen(column, day, searching: searching);
+
+  void toggle(TodoColumn column, DateTime day, {required bool searching}) {
+    _folds.toggle(column, day, searching: searching);
+    notifyListeners();
+  }
+
+  /// The search notifies when its words change and when a store edit moves
+  /// its matches; only the first is a new search.
+  void _onSearch() {
+    final terms = _search.terms;
+    if (listEquals(terms, _terms)) return;
+    _terms = terms;
+    if (_folds.reset()) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _search.removeListener(_onSearch);
+    super.dispose();
+  }
+}
+
+/// The heading of one day's cards in Finished or Abandoned: the day, how many
+/// cards it holds, and a chevron saying whether they are showing. A click
+/// folds or unfolds it.
+class _DayHeading extends StatelessWidget {
+  const _DayHeading({
+    required this.day,
+    required this.today,
+    required this.count,
+    required this.open,
+    required this.onTap,
+  });
+
+  final DateTime day;
+  final DateTime today;
+  final int count;
+  final bool open;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final dim = theme.popupForeground.withValues(alpha: 0.6);
+    // Its own layer, for a card's reason: the hover tint repaints the heading.
+    return RepaintBoundary(
+      child: HoverRegion(
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          constraints: const BoxConstraints(
+            minHeight: ShellSizes.minTapTarget + 4,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: hovered ? theme.surfaceHover : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 14,
+                child: FaIcon(
+                  open
+                      ? FontAwesomeIcons.chevronDown
+                      : FontAwesomeIcons.chevronRight,
+                  size: ShellFontSizes.caption,
+                  color: dim,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  describeDueDate(day, today),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.secondary,
+                    fontWeight: FontWeight.w600,
+                    color: theme.popupForeground.withValues(
+                      alpha: hovered ? 0.9 : 0.75,
+                    ),
+                  ),
+                ),
+              ),
+              Text(
+                '$count',
+                style: TextStyle(fontSize: ShellFontSizes.caption, color: dim),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
