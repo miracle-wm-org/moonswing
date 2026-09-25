@@ -8,6 +8,7 @@ import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/todo/todo_backup.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
+import 'package:moonswing/todo/todo_standup.dart';
 
 /// How long a burst of edits waits before the board is written. A drag is one
 /// write; so is a flurry of moves across the board.
@@ -128,6 +129,7 @@ class TodoStore extends ChangeNotifier {
   String? _loadError;
   String? _writeError;
   bool _started = false;
+  DateTime? _lastStandup;
   Timer? _writeTimer;
   Timer? _midnight;
   int _idCounter = 0;
@@ -249,6 +251,30 @@ class TodoStore extends ChangeNotifier {
     return _items.where((i) => i.isDueBy(today)).length;
   }
 
+  /// When the last standup summary was taken, or null before the first.
+  DateTime? get lastStandup => _lastStandup;
+
+  /// The standup summary of the board since [lastStandup] (see
+  /// [standupReport]), and records now as the next one's starting point.
+  /// Null while the board is not [editable]: a board that did not read has
+  /// nothing true to report.
+  ///
+  /// The instant is kept in the database's `meta` table, so it survives a
+  /// restart; a failure to write it costs only that, and the summary is still
+  /// returned; only a restart would then count from the earlier summary.
+  String? takeStandup() {
+    if (!editable) return null;
+    final now = _now();
+    final report = standupReport(_items, since: _lastStandup, now: now);
+    _lastStandup = now;
+    try {
+      _db?.recordStandup(now);
+    } on SqliteException catch (e) {
+      debugPrint('todo: could not record the standup time: ${e.message}');
+    }
+    return report;
+  }
+
   /// Reads the board, makes today's recurring copies and posts the reminder.
   /// What `main()` calls once; later calls are no-ops.
   Future<void> start() async {
@@ -289,6 +315,7 @@ class TodoStore extends ChangeNotifier {
       }
       _items = List.unmodifiable(board.todos);
       _notes = List.unmodifiable(board.notes);
+      _lastStandup = db.standupAt;
       _markSaved();
       _loadError = null;
     } on TodoFormatException catch (e) {

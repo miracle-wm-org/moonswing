@@ -45,6 +45,10 @@ void _checkLibrary() {
 /// board it became.
 const String _kImportedJsonKey = 'imported_todo_json';
 
+/// The `meta` key holding when the last standup summary was taken, which the
+/// next one counts from. UTC, ISO 8601.
+const String _kStandupKey = 'standup_at';
+
 /// SQLite's primary result codes for a file that is damaged, or is not a
 /// database at all.
 const int _kSqliteCorrupt = 11;
@@ -332,6 +336,24 @@ class TodoDatabase {
         }
       }
     });
+  }
+
+  /// When the last standup summary was taken, or null before the first.
+  DateTime? get standupAt {
+    final rows = _db.select('SELECT value FROM meta WHERE key = ?', [
+      _kStandupKey,
+    ]);
+    if (rows.isEmpty) return null;
+    final value = rows.single['value'];
+    return value is String ? DateTime.tryParse(value)?.toLocal() : null;
+  }
+
+  /// Records [at] as when the last standup summary was taken.
+  void recordStandup(DateTime at) {
+    _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
+      _kStandupKey,
+      at.toUtc().toIso8601String(),
+    ]);
   }
 
   /// Whether an old `todo.json` has already been imported.
