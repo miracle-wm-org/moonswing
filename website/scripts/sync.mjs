@@ -90,6 +90,14 @@ const PAGES = [
     ],
   },
   {
+    slug: 'google',
+    title: 'Google account',
+    description:
+      'Signing in to Google under Settings › Accounts, its events in the ' +
+      'calendar, and meetings on the todo board.',
+    sections: ['Google Account'],
+  },
+  {
     slug: 'full-example',
     title: 'Full example',
     description: 'One config.toml exercising every section.',

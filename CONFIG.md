@@ -1435,7 +1435,7 @@ The lock screen starts as a clock, date, and the account name over the wallpaper
 
 ## Calendar
 
-The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time — there is no account integration, so nothing is fetched over the network and no credentials are needed.
+The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. A Google account's events appear only once one is signed in under Settings › Accounts; see Google Account.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -1462,6 +1462,52 @@ zone = "Europe/London"
 [[calendar.world_clocks]]
 zone = "Asia/Tokyo"
 label = "HQ"
+```
+
+## Google Account
+
+Settings › **Accounts** signs the shell in to one Google account, which any part of the shell can then use. Two parts do today: the Calendar tab shows the account's events, and the todo board can hold today's meetings.
+
+**The account itself is not in this file.** The OAuth client you create and the grant Google hands back are stored together in `~/.local/state/moonswing/google-account.json` (mode 0600, in a 0700 directory). `config.toml` is the file people paste into bug reports, and a refresh token is a standing grant to read your calendar. Sign-in asks for `calendar.readonly` and nothing else.
+
+### Creating the OAuth client
+
+The shell does not ship a client of its own, so you need a *Desktop app* OAuth client, which is free and takes a few minutes:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a project (or pick one).
+2. **APIs & Services › Library**: enable the **Google Calendar API**.
+3. **APIs & Services › OAuth consent screen**: choose *External*, fill in the required names, and add your own address under **Test users**.
+4. **APIs & Services › Credentials › Create credentials › OAuth client ID**: application type **Desktop app**.
+5. Paste the client ID and secret into Settings › Accounts, then press **Sign in with Google**.
+
+The shell opens the consent page in your browser and listens on `127.0.0.1` on a random port for Google to send the browser back. The exchange is protected with PKCE. A consent screen left in *Testing* issues grants that expire after seven days. When yours expires, the Accounts page says so and **Sign in** gets it back. Publishing the consent screen (you can do so without verification when you are its only user) removes the limit.
+
+### `[google]`
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is the account's main calendar. Settings › Accounts lists the account's calendars with a switch each. |
+| `show_in_calendar` | bool | `true` | Mark days with events in the Calendar tab and list the selected day's events under the month, each with a **Join** button when it has a meeting link. |
+| `todo_sync` | bool | `false` | Put each of today's timed events on the todo board as a card (see below). |
+| `refresh_minutes` | int | `5` | How often events are read again while something is showing them (1–60). Nothing is fetched while nothing shows them. |
+
+### Meetings on the todo board
+
+With `todo_sync` on, each timed event today gets a card holding its time, its join link (Meet, a conference link, or a URL in the location) and a link to the event. The card moves on its own: **Todo** until the meeting starts, **In Progress** while it runs, **Finished** once it ends. Each move is recorded at the meeting's own start and end time, even when the shell catches up after a suspend.
+
+- **A card you move is yours.** After you drag a card to another column, the sync stops moving it. It still keeps the card's time and link up to date.
+- **An edit you make stays.** The sync rewrites a card's title or body only while it is still the text the sync wrote.
+- **A deleted card stays deleted.** The shell remembers the event and does not put it back.
+- **A meeting that disappears from today's calendar** (cancelled, declined, or moved to another day) moves its card to **Abandoned** rather than deleting it.
+
+All-day events stay in the Calendar tab and never become cards.
+
+```toml
+[google]
+calendars = ["primary", "team@group.calendar.google.com"]
+show_in_calendar = true
+todo_sync = true
+refresh_minutes = 5
 ```
 
 ## Notifications

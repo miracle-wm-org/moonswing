@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
@@ -262,6 +263,64 @@ void main() {
       addTearDown(second.close);
       expect(second.readAll().todos.single.title, 'Kept');
       expect([for (final h in second.search('kep')) h.id], ['a']);
+    });
+
+    test('a schema-1 board is brought forward with every row kept', () {
+      final path = '${dir.path}/notes.db';
+      // The first schema, as the shell before calendar cards wrote it.
+      final old = sqlite3.open(path);
+      old.execute('''
+        CREATE TABLE entries(
+          seq INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE,
+          kind TEXT NOT NULL CHECK (kind IN ('todo', 'note')),
+          position INTEGER NOT NULL DEFAULT 0,
+          title TEXT NOT NULL DEFAULT '', body TEXT NOT NULL DEFAULT '',
+          board_column TEXT, created TEXT NOT NULL, updated TEXT NOT NULL,
+          due TEXT, recurrence TEXT, history TEXT NOT NULL DEFAULT '[]')''');
+      old.execute('CREATE INDEX entries_order ON entries(kind, position)');
+      old.execute('''
+        CREATE VIRTUAL TABLE entries_fts USING fts5(
+          title, body, content = 'entries', content_rowid = 'seq',
+          tokenize = 'trigram')''');
+      old.execute('''
+        CREATE TRIGGER entries_ai AFTER INSERT ON entries BEGIN
+          INSERT INTO entries_fts(rowid, title, body)
+            VALUES (new.seq, new.title, new.body);
+        END''');
+      old.execute('CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      old.execute(
+        "INSERT INTO entries(id, kind, title, board_column, created, updated) "
+        "VALUES ('old', 'todo', 'Before the upgrade', 'todo', "
+        "'2026-09-20T10:00:00.000Z', '2026-09-20T10:00:00.000Z')",
+      );
+      old.userVersion = 1;
+      old.close();
+
+      final db = TodoDatabase.open(path);
+      final card = db.readAll().todos.single;
+      expect(card.title, 'Before the upgrade');
+      expect(card.external, isNull);
+
+      final synced = _item('meeting', title: 'Standup').copyWith(
+        external: TodoExternal(
+          source: TodoExternal.googleCalendar,
+          key: 'primary/abc',
+          title: 'Standup',
+          start: DateTime(2026, 9, 25, 10),
+          end: DateTime(2026, 9, 25, 10, 30),
+          link: 'https://meet.google.com/abc',
+        ),
+      );
+      db.apply(_board([card, synced]), at: at);
+      db.recordDismissedCalendarKeys(['primary/gone']);
+      db.close();
+
+      final reopened = TodoDatabase.open(path);
+      addTearDown(reopened.close);
+      final todos = reopened.readAll().todos;
+      expect(todos.map((t) => t.id), ['old', 'meeting']);
+      expect(todos.last.external, synced.external);
+      expect(reopened.dismissedCalendarKeys, {'primary/gone'});
     });
   });
 

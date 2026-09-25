@@ -12,10 +12,13 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'package:moonswing/todo/todo_model.dart';
 
-/// The schema's version, kept in `PRAGMA user_version`. Checked only to refuse
-/// a *newer* database — one a later shell wrote is not one this one may write
-/// into.
-const int kTodoSchemaVersion = 1;
+/// The schema's version, kept in `PRAGMA user_version`. A *newer* database is
+/// refused — one a later shell wrote is not one this one may write into — and
+/// an older one is brought forward by [_migrate].
+///
+///  1. The board.
+///  2. `entries.external`: the calendar event a card mirrors.
+const int kTodoSchemaVersion = 2;
 
 /// The oldest SQLite with FTS5's `trigram` tokenizer, as
 /// `sqlite3_libversion_number` spells it.
@@ -48,6 +51,10 @@ const String _kImportedJsonKey = 'imported_todo_json';
 /// The `meta` key holding when the last standup summary was taken, which the
 /// next one counts from. UTC, ISO 8601.
 const String _kStandupKey = 'standup_at';
+
+/// The `meta` key holding the calendar events whose cards the user deleted, so
+/// the calendar sync does not put them straight back. A JSON list of keys.
+const String _kDismissedCalendarKey = 'calendar_dismissed';
 
 /// SQLite's primary result codes for a file that is damaged, or is not a
 /// database at all.
@@ -174,7 +181,11 @@ class TodoDatabase {
         // the failure this has to survive.
         db.execute('PRAGMA journal_mode = WAL');
         db.execute('PRAGMA synchronous = NORMAL');
-        if (version < kTodoSchemaVersion) _createSchema(db);
+        if (version == 0) {
+          _createSchema(db);
+        } else if (version < kTodoSchemaVersion) {
+          _migrate(db, version);
+        }
         // A header that reads is not a board that does: a torn page further
         // in only shows when something reads it, which for the index may be
         // the first search. `quick_check` walks every page, once, at start-up
@@ -212,7 +223,8 @@ class TodoDatabase {
           updated      TEXT NOT NULL,
           due          TEXT,
           recurrence   TEXT,
-          history      TEXT NOT NULL DEFAULT '[]'
+          history      TEXT NOT NULL DEFAULT '[]',
+          external     TEXT
         )''');
       db.execute('CREATE INDEX entries_order ON entries(kind, position)');
       // `trigram`, not the default word tokenizer: "any string" includes the
@@ -243,6 +255,17 @@ class TodoDatabase {
       db.execute(
         'CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
       );
+      db.userVersion = kTodoSchemaVersion;
+    });
+  }
+
+  /// Brings a database written by an older shell forward, one version at a
+  /// time, in one transaction: a failure leaves it exactly as it was.
+  static void _migrate(Database db, int from) {
+    _transactionOn(db, () {
+      if (from < 2) {
+        db.execute('ALTER TABLE entries ADD COLUMN external TEXT');
+      }
       db.userVersion = kTodoSchemaVersion;
     });
   }
@@ -353,6 +376,29 @@ class TodoDatabase {
     _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
       _kStandupKey,
       at.toUtc().toIso8601String(),
+    ]);
+  }
+
+  /// The calendar events whose cards the user deleted.
+  Set<String> get dismissedCalendarKeys {
+    final rows = _db.select('SELECT value FROM meta WHERE key = ?', [
+      _kDismissedCalendarKey,
+    ]);
+    if (rows.isEmpty) return <String>{};
+    final value = rows.single['value'];
+    final decoded = value is String ? _decodeJson(value) : null;
+    return {
+      if (decoded is List)
+        for (final key in decoded)
+          if (key is String) key,
+    };
+  }
+
+  /// Records [keys] as [dismissedCalendarKeys].
+  void recordDismissedCalendarKeys(Iterable<String> keys) {
+    _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
+      _kDismissedCalendarKey,
+      jsonEncode(keys.toList()),
     ]);
   }
 
@@ -493,8 +539,8 @@ class TodoDatabase {
 const String _kInsertTodo = '''
   INSERT INTO entries(
     id, kind, position, title, body, board_column,
-    created, updated, due, recurrence, history)
-  VALUES (?, 'todo', ?, ?, ?, ?, ?, ?, ?, ?, ?)''';
+    created, updated, due, recurrence, history, external)
+  VALUES (?, 'todo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''';
 
 const String _kUpsertTodo =
     '''
@@ -508,7 +554,8 @@ const String _kUpsertTodo =
     updated = excluded.updated,
     due = excluded.due,
     recurrence = excluded.recurrence,
-    history = excluded.history''';
+    history = excluded.history,
+    external = excluded.external''';
 
 const String _kUpsertNote = '''
   INSERT INTO entries(id, kind, title, body, created, updated)
@@ -534,6 +581,7 @@ List<Object?> _todoParameters(TodoItem item, int position, String updated) {
     json['due'],
     item.recurrence == null ? null : jsonEncode(json['recurrence']),
     jsonEncode(json['history']),
+    item.external == null ? null : jsonEncode(json['external']),
   ];
 }
 
@@ -549,6 +597,7 @@ TodoItem? _todoFromRow(Row row) => TodoItem.fromJson({
   'due': row['due'],
   'recurrence': _decodeJson(row['recurrence']),
   'history': _decodeJson(row['history']),
+  'external': _decodeJson(row['external']),
 });
 
 NoteItem? _noteFromRow(Row row) {

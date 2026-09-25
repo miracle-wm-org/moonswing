@@ -9,6 +9,7 @@ import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/underline_tabs.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/overlay/calendar/calendar_tab.dart';
+import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/overlay/settings/audio.dart';
 import 'package:moonswing/overlay/settings/bluetooth.dart';
 import 'package:moonswing/overlay/settings/display.dart';
@@ -445,6 +446,8 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         return MiracleSettingsPage(
           initialCategory: widget.route?.miracleCategory,
         );
+      case 'accounts':
+        return const AccountsSettingsPage();
       case 'shell':
         return ShellSettingsPage(initialCategory: widget.route?.shellCategory);
       default:
@@ -510,6 +513,12 @@ class _SettingsSidebar extends StatelessWidget {
               label: 'Window Manager',
               selected: selectedCategory == 'miracle',
               onTap: () => onCategorySelected('miracle'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.circleUser,
+              label: 'Accounts',
+              selected: selectedCategory == 'accounts',
+              onTap: () => onCategorySelected('accounts'),
             ),
             _SidebarItem(
               icon: FontAwesomeIcons.gear,

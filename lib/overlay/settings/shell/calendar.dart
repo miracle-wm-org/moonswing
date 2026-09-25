@@ -4,8 +4,8 @@ import 'package:moonswing/config_store.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 
-/// The Calendar tab's own settings. The tab is a local month grid — there is no
-/// account integration — so this is presentation only.
+/// The Calendar tab's own settings: presentation only. Whether it shows a Google
+/// account's events is under Settings › Accounts.
 class CalendarSection extends StatelessWidget {
   const CalendarSection({super.key, required this.store});
 

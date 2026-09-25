@@ -283,6 +283,135 @@ class TodoMove {
   int get hashCode => Object.hash(from, to, at);
 }
 
+/// Where a card came from, when it came from somewhere other than the user: a
+/// calendar event the Google sync keeps on the board.
+///
+/// It records what the sync last wrote — the title, the times, the links — so
+/// the next sync can tell a field the user has edited from one it wrote itself
+/// and leave the user's edit alone. [manual] is set the first time the user
+/// moves the card between columns. From then on the column is the user's and
+/// the sync stops moving it.
+class TodoExternal {
+  const TodoExternal({
+    required this.source,
+    required this.key,
+    required this.title,
+    required this.start,
+    required this.end,
+    this.link,
+    this.url,
+    this.manual = false,
+  });
+
+  /// [source] for a Google Calendar event.
+  static const String googleCalendar = 'gcal';
+
+  /// Which sync owns the card, e.g. [googleCalendar].
+  final String source;
+
+  /// The event's identity within [source]: `<calendar id>/<event id>`.
+  final String key;
+
+  /// The title the sync last wrote.
+  final String title;
+
+  /// Local wall-clock times.
+  final DateTime start;
+  final DateTime end;
+
+  /// Where to join it (a Meet or Zoom link), if anywhere.
+  final String? link;
+
+  /// The event's own page.
+  final String? url;
+
+  /// The user has moved the card, so the sync no longer does.
+  final bool manual;
+
+  static const Object _keep = Object();
+
+  TodoExternal copyWith({
+    String? title,
+    DateTime? start,
+    DateTime? end,
+    Object? link = _keep,
+    Object? url = _keep,
+    bool? manual,
+  }) => TodoExternal(
+    source: source,
+    key: key,
+    title: title ?? this.title,
+    start: start ?? this.start,
+    end: end ?? this.end,
+    link: identical(link, _keep) ? this.link : link as String?,
+    url: identical(url, _keep) ? this.url : url as String?,
+    manual: manual ?? this.manual,
+  );
+
+  Map<String, Object?> toJson() => {
+    'source': source,
+    'key': key,
+    'title': title,
+    'start': start.toUtc().toIso8601String(),
+    'end': end.toUtc().toIso8601String(),
+    if (link != null) 'link': link,
+    if (url != null) 'url': url,
+    if (manual) 'manual': true,
+  };
+
+  /// Null for a record missing its source, key or times. The card itself is
+  /// kept; it simply stops being synced.
+  static TodoExternal? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final source = json['source'];
+    final key = json['key'];
+    final start = json['start'] is String
+        ? DateTime.tryParse(json['start'] as String)?.toLocal()
+        : null;
+    final end = json['end'] is String
+        ? DateTime.tryParse(json['end'] as String)?.toLocal()
+        : null;
+    if (source is! String ||
+        source.isEmpty ||
+        key is! String ||
+        key.isEmpty ||
+        start == null ||
+        end == null) {
+      return null;
+    }
+    String? text(String name) =>
+        json[name] is String && (json[name] as String).isNotEmpty
+        ? json[name] as String
+        : null;
+    return TodoExternal(
+      source: source,
+      key: key,
+      title: text('title') ?? '',
+      start: start,
+      end: end,
+      link: text('link'),
+      url: text('url'),
+      manual: json['manual'] == true,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is TodoExternal &&
+      other.source == source &&
+      other.key == key &&
+      other.title == title &&
+      other.start == start &&
+      other.end == end &&
+      other.link == link &&
+      other.url == url &&
+      other.manual == manual;
+
+  @override
+  int get hashCode =>
+      Object.hash(source, key, title, start, end, link, url, manual);
+}
+
 /// One card on the board.
 class TodoItem {
   const TodoItem({
@@ -294,6 +423,7 @@ class TodoItem {
     this.due,
     this.recurrence,
     this.history = const [],
+    this.external,
   });
 
   /// Stable for the life of the item, and unique within the file.
@@ -315,6 +445,9 @@ class TodoItem {
   /// was created in.
   final List<TodoMove> history;
 
+  /// The calendar event this card mirrors, if it is one. See [TodoExternal].
+  final TodoExternal? external;
+
   /// When it arrived in the column it is in now.
   DateTime get movedAt => history.isEmpty ? created : history.last.at;
 
@@ -335,6 +468,7 @@ class TodoItem {
     Object? due = _keep,
     Object? recurrence = _keep,
     List<TodoMove>? history,
+    Object? external = _keep,
   }) => TodoItem(
     id: id,
     title: title ?? this.title,
@@ -346,6 +480,9 @@ class TodoItem {
         ? this.recurrence
         : recurrence as TodoRecurrence?,
     history: history ?? this.history,
+    external: identical(external, _keep)
+        ? this.external
+        : external as TodoExternal?,
   );
 
   Map<String, Object?> toJson() => {
@@ -357,6 +494,7 @@ class TodoItem {
     if (due != null) 'due': formatDate(due!),
     if (recurrence != null) 'recurrence': recurrence!.toJson(),
     'history': [for (final move in history) move.toJson()],
+    if (external != null) 'external': external!.toJson(),
   };
 
   /// Null for a row that cannot be an item at all: no id, or a column the board
@@ -386,6 +524,7 @@ class TodoItem {
       due: json['due'] is String ? parseDate(json['due'] as String) : null,
       recurrence: TodoRecurrence.fromJson(json['recurrence']),
       history: history,
+      external: TodoExternal.fromJson(json['external']),
     );
   }
 
@@ -399,7 +538,8 @@ class TodoItem {
       other.created == created &&
       other.due == due &&
       other.recurrence == recurrence &&
-      _listEquals(other.history, history);
+      _listEquals(other.history, history) &&
+      other.external == external;
 
   @override
   int get hashCode => Object.hash(
@@ -411,6 +551,7 @@ class TodoItem {
     due,
     recurrence,
     Object.hashAll(history),
+    external,
   );
 }
 

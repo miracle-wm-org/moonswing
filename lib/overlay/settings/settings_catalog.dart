@@ -59,6 +59,21 @@ SettingsField _pane(
   tags: tags,
 );
 
+/// A row on the Accounts pane.
+SettingsField _accountsField(
+  String id,
+  String label, {
+  required String description,
+  List<String> tags = const <String>[],
+}) => SettingsField(
+  id: id,
+  label: label,
+  section: 'Accounts',
+  route: const SettingsRoute(category: 'accounts'),
+  description: description,
+  tags: tags,
+);
+
 /// A Shell category with no single row to land on — the collections.
 SettingsField _shellPane(
   String section,
@@ -1043,6 +1058,68 @@ abstract final class SettingsCatalog {
   );
 
   // -------------------------------------------------------------------------
+  // Accounts
+  // -------------------------------------------------------------------------
+
+  static final googleAccount = _pane(
+    'accounts',
+    'Accounts',
+    'Google account',
+    description:
+        'Sign in to Google once for the whole shell, so its calendar shows '
+        'your events and the todo board your meetings.',
+    tags: const ['google', 'gmail', 'sign in', 'login', 'oauth', 'account'],
+  );
+
+  static final googleClientId = _accountsField(
+    'google.client_id',
+    'Client ID',
+    description:
+        'The OAuth client the sign-in runs as: a "Desktop app" client you '
+        'create in Google Cloud Console.',
+    tags: const ['oauth', 'google cloud', 'credentials', 'client'],
+  );
+
+  static final googleClientSecret = _accountsField(
+    'google.client_secret',
+    'Client secret',
+    description: "The secret Google Cloud Console shows beside the client's ID.",
+    tags: const ['oauth', 'credentials', 'client'],
+  );
+
+  static final googleCalendars = _accountsField(
+    'google.calendars',
+    'Calendars',
+    description: 'Which of the account\'s calendars the shell reads.',
+    tags: const ['google', 'calendar', 'events', 'shared'],
+  );
+
+  static final googleShowInCalendar = _accountsField(
+    'google.show_in_calendar',
+    'Show events in the calendar',
+    description:
+        'Mark days with events in the Calendar tab and list the selected '
+        'day\'s events beside the month.',
+    tags: const ['google', 'events', 'agenda', 'meetings'],
+  );
+
+  static final googleTodoSync = _accountsField(
+    'google.todo_sync',
+    "Put today's meetings on the todo board",
+    description:
+        'Each timed event today becomes a card with its join link, and moves '
+        'from Todo to In Progress to Finished as the meeting comes and goes.',
+    tags: const ['google', 'todo', 'kanban', 'meetings', 'board', 'sync'],
+  );
+
+  static final googleRefreshMinutes = _accountsField(
+    'google.refresh_minutes',
+    'Refresh every (minutes)',
+    description: 'How often events are read again while something shows them.',
+    tags: const ['google', 'poll', 'interval', 'sync'],
+  );
+
+  // -------------------------------------------------------------------------
   // The hardware panes
   //
   // Lists of what the machine has rather than tables of named fields, so these
@@ -1932,6 +2009,13 @@ abstract final class SettingsCatalog {
     powerKeyAction,
     powerInhibitLogind,
     calendarWeekStart,
+    googleAccount,
+    googleClientId,
+    googleClientSecret,
+    googleCalendars,
+    googleShowInCalendar,
+    googleTodoSync,
+    googleRefreshMinutes,
     ..._hardware,
     ...miracleFields,
   ];

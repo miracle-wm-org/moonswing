@@ -21,7 +21,7 @@ class SettingsRoute {
   final String tab;
 
   /// One of the settings sidebar ids: `network`, `bluetooth`, `display`,
-  /// `audio`, `keyboard`, `miracle`, `shell`.
+  /// `audio`, `keyboard`, `miracle`, `accounts`, `shell`.
   final String category;
 
   /// A `_ShellCategory.title` inside the Shell pane, e.g. `Background`. Null
