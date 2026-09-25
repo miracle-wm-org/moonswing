@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -153,5 +154,76 @@ void main() {
     );
     final roomy = tester.getSize(find.byType(SettingsRow)).height;
     expect(roomy, greaterThan(dense));
+  });
+
+  group('SettingsTooltip', () {
+    Widget button(VoidCallback onTap) => SettingsIconButton(
+      icon: FontAwesomeIcons.plus,
+      onTap: onTap,
+      tooltip: 'Add a card',
+    );
+
+    testWidgets('speaks only once the pointer has rested, and not after', (
+      tester,
+    ) async {
+      await _pump(tester, button(() {}));
+      final gesture = await _hover(tester, find.byType(SettingsIconButton));
+      expect(find.text('Add a card'), findsNothing);
+
+      await tester.pump(kSettingsTooltipDelay);
+      expect(find.text('Add a card'), findsOneWidget);
+      final text = tester.widget<Text>(find.text('Add a card'));
+      expect(text.style?.fontFamily, _kFamily);
+
+      await gesture.moveTo(const Offset(490, 590));
+      await tester.pump(kSettingsTooltipDelay);
+      expect(find.text('Add a card'), findsNothing);
+    });
+
+    testWidgets('a press hides it and still reaches the button', (
+      tester,
+    ) async {
+      var taps = 0;
+      await _pump(tester, button(() => taps++));
+      final gesture = await _hover(tester, find.byType(SettingsIconButton));
+      await tester.pump(kSettingsTooltipDelay);
+      expect(find.text('Add a card'), findsOneWidget);
+
+      await gesture.down(tester.getCenter(find.byType(SettingsIconButton)));
+      await tester.pump();
+      expect(find.text('Add a card'), findsNothing);
+      await gesture.up();
+      await tester.pump(kSettingsTooltipDelay);
+      expect(taps, 1);
+      expect(find.text('Add a card'), findsNothing);
+    });
+
+    testWidgets('an exit before the delay cancels it', (tester) async {
+      await _pump(tester, button(() {}));
+      final gesture = await _hover(tester, find.byType(SettingsIconButton));
+      await gesture.moveTo(const Offset(490, 590));
+      await tester.pump(kSettingsTooltipDelay * 2);
+      expect(find.text('Add a card'), findsNothing);
+    });
+
+    testWidgets('the tip goes with the button', (tester) async {
+      await _pump(tester, button(() {}));
+      await _hover(tester, find.byType(SettingsIconButton));
+      await tester.pump(kSettingsTooltipDelay);
+      expect(find.text('Add a card'), findsOneWidget);
+      await _pump(tester, const SizedBox());
+      await tester.pump();
+      expect(find.text('Add a card'), findsNothing);
+    });
+
+    testWidgets('no message shows nothing', (tester) async {
+      await _pump(
+        tester,
+        SettingsIconButton(icon: FontAwesomeIcons.plus, onTap: () {}),
+      );
+      await _hover(tester, find.byType(SettingsIconButton));
+      await tester.pump(kSettingsTooltipDelay);
+      expect(find.byType(IgnorePointer), findsNothing);
+    });
   });
 }
