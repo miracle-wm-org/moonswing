@@ -147,8 +147,8 @@ void main() {
   testWidgets('a card dropped on another card lands above it', (tester) async {
     final store = await pump(tester, [
       _item('a', TodoColumn.inbox),
-      _item('b', TodoColumn.finished),
-      _item('c', TodoColumn.finished),
+      _item('b', TodoColumn.todo),
+      _item('c', TodoColumn.todo),
     ]);
     final gesture = await tester.startGesture(
       tester.getCenter(find.text('Card a')),
@@ -161,7 +161,7 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(store.itemsIn(TodoColumn.finished).map((i) => i.id), [
+    expect(store.itemsIn(TodoColumn.todo).map((i) => i.id), [
       'b',
       'a',
       'c',
@@ -380,6 +380,89 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(closing.value, isTrue);
+  });
+
+  testWidgets('overdue cards sit at the top of an open column', (tester) async {
+    await pump(tester, [
+      _item('a', TodoColumn.todo),
+      _item('b', TodoColumn.todo, due: DateTime(2026, 9, 22)),
+    ]);
+    expect(
+      tester.getTopLeft(find.text('Card b')).dy,
+      lessThan(tester.getTopLeft(find.text('Card a')).dy),
+    );
+  });
+
+  testWidgets('Finished folds earlier days away; a click opens one', (
+    tester,
+  ) async {
+    TodoItem finished(String id, DateTime at) => _item(
+      id,
+      TodoColumn.finished,
+      history: [TodoMove(from: null, to: TodoColumn.finished, at: at)],
+    );
+    await pump(tester, [
+      finished('today', DateTime(2026, 9, 24, 9)),
+      finished('yesterday', DateTime(2026, 9, 23, 9)),
+      finished('older', DateTime(2026, 9, 20, 9)),
+    ]);
+    expect(find.text('Card today'), findsOneWidget);
+    expect(find.text('Card yesterday'), findsNothing);
+    expect(find.text('Card older'), findsNothing);
+    expect(find.text('Yesterday'), findsOneWidget);
+    expect(find.text('20 Sep 2026'), findsOneWidget);
+
+    await tester.tap(find.text('Yesterday'));
+    await tester.pumpAndSettle();
+    expect(find.text('Card yesterday'), findsOneWidget);
+    expect(find.text('Card older'), findsNothing);
+
+    await tester.tap(find.text('Yesterday'));
+    await tester.pumpAndSettle();
+    expect(find.text('Card yesterday'), findsNothing);
+  });
+
+  testWidgets('Abandoned folds every day, today too', (tester) async {
+    await pump(tester, [
+      _item(
+        'a',
+        TodoColumn.abandoned,
+        history: [
+          TodoMove(
+            from: null,
+            to: TodoColumn.abandoned,
+            at: DateTime(2026, 9, 24, 9),
+          ),
+        ],
+      ),
+    ]);
+    expect(find.text('Card a'), findsNothing);
+    await tester.tap(find.text('Today'));
+    await tester.pumpAndSettle();
+    expect(find.text('Card a'), findsOneWidget);
+  });
+
+  testWidgets('a search opens the folded day holding a match', (tester) async {
+    await pump(tester, [
+      _item('a', TodoColumn.finished).copyWith(title: 'Renew passport'),
+      _item('b', TodoColumn.finished),
+    ], inMemory: true);
+    expect(find.text('Renew passport'), findsNothing);
+
+    // Closed by hand first: a search still opens it.
+    await tester.tap(find.text('20 Sep 2026'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('20 Sep 2026'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(searchField(), 'passport');
+    await tester.pumpAndSettle();
+    expect(find.text('Renew passport'), findsOneWidget);
+    expect(find.text('Card b'), findsNothing);
+
+    await tester.enterText(searchField(), '');
+    await tester.pumpAndSettle();
+    expect(find.text('Renew passport'), findsNothing);
   });
 
   testWidgets('a repeating item shows when its next copy comes', (
