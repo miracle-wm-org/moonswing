@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_controller.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_overlay.dart';
@@ -251,6 +252,53 @@ void main() {
     await tester.pumpAndSettle();
     expect(closing.value, isTrue);
     expect(closed, 1);
+  });
+
+  testWidgets('the board says where its backup is, and opens Backups', (
+    tester,
+  ) async {
+    final store = await pump(tester, [_item('a', TodoColumn.inbox)]);
+    final footer = find.textContaining('Backed up to ');
+    expect(footer, findsOneWidget);
+    final path = displayPath(store.backupPath);
+    expect(tester.widget<Text>(footer).data, contains(path));
+
+    await tester.tap(find.text('Backups…'));
+    await tester.pumpAndSettle();
+    expect(find.text('Backup file'), findsOneWidget);
+    expect(find.text(path), findsOneWidget);
+    expect(find.text('Keep a copy somewhere else'), findsOneWidget);
+    expect(find.textContaining('git init'), findsOneWidget);
+    expect(find.text('Backup servers'), findsOneWidget);
+    expect(find.text('No backup servers yet.'), findsOneWidget);
+
+    // The server form opens from the add button, and checks its address.
+    await tester.tap(find.text('Add server'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(EditableText).at(2),
+      'ftp://nas.example/',
+    );
+    await tester.pump();
+    expect(find.textContaining('has to start with https://'), findsOneWidget);
+    await tester.enterText(
+      find.byType(EditableText).at(2),
+      'http://nas.example/dav/',
+    );
+    await tester.pump();
+    expect(
+      find.text('Saved as http://nas.example/dav/moonswing-todo.json'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('unencrypted'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Escape backs out of Backups before it closes the board.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Backup file'), findsNothing);
+    expect(closing.value, isFalse);
   });
 
   Finder searchField() => find.byType(EditableText).first;

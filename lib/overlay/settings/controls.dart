@@ -1613,6 +1613,7 @@ class SettingsTextField extends StatefulWidget {
     this.trailing,
     this.maxLines = 1,
     this.minLines,
+    this.obscureText = false,
   });
 
   /// The text the field starts with. Ignored when [controller] is supplied —
@@ -1658,6 +1659,9 @@ class SettingsTextField extends StatefulWidget {
 
   /// How tall a multi-line field is before anything is typed into it.
   final int? minLines;
+
+  /// Draws the text as dots — a password. Single-line only.
+  final bool obscureText;
 
   @override
   _SettingsTextFieldState createState() => _SettingsTextFieldState();
@@ -1764,8 +1768,9 @@ class _SettingsTextFieldState extends State<SettingsTextField>
           backgroundCursorColor: theme.divider,
           selectionColor: theme.accent.withValues(alpha: 0.4),
           inputFormatters: widget.inputFormatters,
-          maxLines: widget.maxLines,
+          maxLines: widget.obscureText ? 1 : widget.maxLines,
           minLines: widget.minLines,
+          obscureText: widget.obscureText,
           keyboardType: widget.maxLines == 1
               ? TextInputType.text
               : TextInputType.multiline,

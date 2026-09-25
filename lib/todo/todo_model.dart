@@ -473,6 +473,33 @@ class NoteItem {
         updated: updated ?? this.updated,
       );
 
+  Map<String, Object?> toJson() => {
+    'id': id,
+    if (title.isNotEmpty) 'title': title,
+    'body': body,
+    'created': created.toUtc().toIso8601String(),
+    'updated': updated.toUtc().toIso8601String(),
+  };
+
+  /// Null for a row with no id; anything less costs the one field, as
+  /// [TodoItem.fromJson] does.
+  static NoteItem? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final id = json['id'];
+    if (id is! String || id.isEmpty) return null;
+    DateTime? moment(Object? value) =>
+        value is String ? DateTime.tryParse(value)?.toLocal() : null;
+    final created =
+        moment(json['created']) ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return NoteItem(
+      id: id,
+      title: json['title'] is String ? json['title'] as String : '',
+      body: json['body'] is String ? json['body'] as String : '',
+      created: created,
+      updated: moment(json['updated']) ?? created,
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       other is NoteItem &&

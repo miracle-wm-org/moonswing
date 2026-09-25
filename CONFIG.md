@@ -640,7 +640,56 @@ with the shell, so nothing needs installing. A board saved by an older version
 of the shell as `todo.json` is imported the first time, and the file is renamed
 to `todo.json.imported` rather than deleted. If the board cannot be read, it
 says why and refuses to save anything over it until it can. The module has no
-settings of its own.
+settings in `config.toml`.
+
+#### Backups
+
+Every change is also written to a plain JSON backup,
+`~/.local/share/moonswing/backup/todo-backup.json`, and the line along the
+bottom of the board says where it is. If `notes.db` is missing when the shell
+starts, the board is restored from that file; if it is damaged, it is renamed
+to `notes.db.damaged-<time>` — never deleted — and rebuilt from the file. Either
+way the board says so, since anything changed after the backup was last written
+is not on it. A database written by a newer version of the shell is not
+damaged, and is left alone.
+
+A backup on the same disk goes when the disk does, so keep a copy of that file
+somewhere else. Its folder holds nothing else, which makes it easy to keep in
+Git:
+
+```sh
+cd ~/.local/share/moonswing/backup
+git init
+git add todo-backup.json
+git commit -m "Todo backup"
+```
+
+The file is rewritten only when the board changes, pretty-printed with cards in
+board order and notes in the order they were made, so each commit is exactly
+what changed. Replacing the file with a symlink into a repository you already
+keep works too: it is written through the link.
+
+**Backups…** at the bottom of the board (or the cloud icon beside the search
+field) also lists **backup servers**, which the shell sends the backup file to
+itself. Any WebDAV folder works — Nextcloud, ownCloud, most NAS boxes, and many
+hosted file services — as does any address that accepts an HTTP `PUT` and
+answers a `GET`. Give it a folder address such as
+`https://cloud.example.com/remote.php/dav/files/me/Backups/` and the board is
+saved there as `moonswing-todo.json`; an address ending in `.json` is used as
+the file itself. Each server is sent the board every hour, every six hours or
+once a day — but only when it has changed since the last copy — and, unless
+turned off, also keeps a copy named for each day
+(`moonswing-todo-2026-09-25.json`), so an emptied board is not the only copy on
+the server. A failed upload is shown in red and tried again after 15 minutes.
+Add as many servers as you like; **Restore…** replaces the board with a
+server's copy, after saving the current board beside the backup file. **Restore
+from this file…** does the same from the local backup, for when you have put
+back an older one.
+
+Server addresses, user names and passwords are kept in
+`~/.local/state/moonswing/todo-backup-servers.json` (or under
+`$XDG_STATE_HOME`), readable only by you, rather than in `config.toml`. Use an
+app password where the server offers one, and `https://`.
 
 ## Shortcuts
 

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:moonswing/todo/todo_backup.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
@@ -26,6 +27,12 @@ void main() {
 
   File legacy() => File('${dir.path}/todo.json');
   File database() => File('${dir.path}/notes.db');
+  File backup() => File('${dir.path}/backup/todo-backup.json');
+
+  /// A second store over the same directory, as the next start of the shell.
+  /// Assigned to `store`, so the tear-down disposes it.
+  TodoStore reopen() =>
+      TodoStore.forTesting(directory: dir.path, now: () => now);
 
   test('a missing file is an empty, editable board', () async {
     await store.load();
@@ -290,5 +297,175 @@ void main() {
     store.add(TodoColumn.inbox, title: 'Undated');
     store.startOfDay();
     expect(reminders, isEmpty);
+  });
+
+  group('backups', () {
+    test('every write that lands is mirrored to the backup file', () async {
+      await store.load();
+      await store.flush();
+      expect(store.backupPath, backup().path);
+      expect(decodeTodoBackup(backup().readAsStringSync()).isEmpty, isTrue);
+
+      final id = store.add(TodoColumn.inbox, title: 'Kept twice')!;
+      store.addNote(body: 'A note too');
+      await store.flush();
+      final saved = decodeTodoBackup(backup().readAsStringSync());
+      expect(saved.items.single.id, id);
+      expect(saved.notes.single.body, 'A note too');
+      expect(store.backupSaved, now);
+      expect(store.backupError, isNull);
+    });
+
+    test('a missing database is restored from the backup', () async {
+      await store.load();
+      store.add(TodoColumn.todo, title: 'Survivor');
+      store.addNote(body: 'Also me');
+      await store.flush();
+      store.dispose();
+      database().deleteSync();
+
+      store = reopen();
+      await store.load();
+      expect(store.editable, isTrue);
+      expect(store.items.single.title, 'Survivor');
+      expect(store.notes.single.body, 'Also me');
+      expect(store.recoveryNotice, contains('was missing'));
+      store.dismissRecoveryNotice();
+      expect(store.recoveryNotice, isNull);
+
+      // And it is the database now, not only the screen.
+      store.dispose();
+      store = reopen();
+      await store.load();
+      expect(store.items.single.title, 'Survivor');
+      expect(store.recoveryNotice, isNull);
+    });
+
+    test(
+      'a damaged database is set aside and rebuilt from the backup',
+      () async {
+        await store.load();
+        store.add(TodoColumn.todo, title: 'Survivor');
+        await store.flush();
+        store.dispose();
+        final garbage = List<int>.generate(4096, (i) => i % 251);
+        database().writeAsBytesSync(garbage);
+
+        store = reopen();
+        await store.load();
+        expect(store.loadError, isNull);
+        expect(store.editable, isTrue);
+        expect(store.items.single.title, 'Survivor');
+        expect(store.recoveryNotice, contains('damaged'));
+        // Kept, never deleted.
+        final aside = dir
+            .listSync()
+            .whereType<File>()
+            .where((f) => f.path.contains('notes.db.damaged-'))
+            .toList();
+        expect(aside, hasLength(1));
+        expect(aside.single.readAsBytesSync(), garbage);
+      },
+    );
+
+    test('a board that did not read is never written to the backup', () async {
+      await store.load();
+      store.add(TodoColumn.todo, title: 'Precious');
+      await store.flush();
+      final before = backup().readAsStringSync();
+      store.dispose();
+
+      // A database from a newer shell is not damaged, so it is not rebuilt.
+      database().deleteSync();
+      final newer = reopen();
+      await newer.load();
+      await newer.flush();
+      newer.dispose();
+      // Bump the schema by hand.
+      final raw = database().readAsBytesSync();
+      // `user_version` is the big-endian int at offset 60 of the header.
+      raw[60] = 0;
+      raw[61] = 0;
+      raw[62] = 0;
+      raw[63] = 99;
+      database().writeAsBytesSync(raw);
+      backup().writeAsStringSync(before);
+
+      store = reopen();
+      await store.load();
+      expect(store.loadError, contains('newer version'));
+      expect(store.backupContents, isNull);
+      await store.flush();
+      expect(backup().readAsStringSync(), before);
+      expect(dir.listSync().where((f) => f.path.contains('damaged')), isEmpty);
+    });
+
+    test(
+      'a restore replaces the board and keeps the one it replaced',
+      () async {
+        await store.load();
+        store.add(TodoColumn.todo, title: 'Current');
+        await store.flush();
+
+        final kept = await store.restore(
+          TodoBackup(
+            items: [
+              TodoItem(
+                id: 'r1',
+                title: 'Restored',
+                body: '',
+                column: TodoColumn.inbox,
+                created: now,
+              ),
+            ],
+            notes: const [],
+          ),
+        );
+        expect(store.items.single.title, 'Restored');
+        expect(kept, isNotNull);
+        expect(
+          decodeTodoBackup(File(kept!).readAsStringSync()).items.single.title,
+          'Current',
+        );
+        expect(
+          decodeTodoBackup(backup().readAsStringSync()).items.single.title,
+          'Restored',
+        );
+
+        store.dispose();
+        store = reopen();
+        await store.load();
+        expect(store.items.single.title, 'Restored');
+      },
+    );
+
+    test('a damaged database with no backup can be restored by hand', () async {
+      final garbage = List<int>.generate(4096, (i) => i % 251);
+      database().writeAsBytesSync(garbage);
+      await store.load();
+      expect(store.loadError, contains('no backup'));
+      expect(store.editable, isFalse);
+
+      await store.restore(
+        TodoBackup(
+          items: [
+            TodoItem(
+              id: 'r1',
+              title: 'From a server',
+              body: '',
+              column: TodoColumn.inbox,
+              created: now,
+            ),
+          ],
+          notes: const [],
+        ),
+      );
+      expect(store.editable, isTrue);
+      expect(store.items.single.title, 'From a server');
+      expect(
+        dir.listSync().where((f) => f.path.contains('notes.db.damaged-')),
+        hasLength(1),
+      );
+    });
   });
 }

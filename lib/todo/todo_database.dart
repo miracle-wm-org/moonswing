@@ -45,6 +45,27 @@ void _checkLibrary() {
 /// board it became.
 const String _kImportedJsonKey = 'imported_todo_json';
 
+/// SQLite's primary result codes for a file that is damaged, or is not a
+/// database at all.
+const int _kSqliteCorrupt = 11;
+const int _kSqliteNotADatabase = 26;
+
+/// Whether [e] says the file itself is damaged — as opposed to locked, full,
+/// read-only or from a newer shell, none of which a rebuild would mend.
+bool isDamage(SqliteException e) {
+  final code = e.resultCode & 0xff;
+  return code == _kSqliteCorrupt || code == _kSqliteNotADatabase;
+}
+
+/// The database file is damaged: not a database, or one whose pages do not
+/// check out. Unlike every other [TodoFormatException] this one may be
+/// recovered from — the store sets the file aside and rebuilds the board from
+/// its backup — because nothing in the file can be trusted to be written into
+/// anyway.
+class TodoDatabaseDamaged extends TodoFormatException {
+  const TodoDatabaseDamaged(super.message);
+}
+
 /// What one write changes: rows to insert or replace, rows whose only change
 /// is their place on the board, and rows to delete.
 class TodoChanges {
@@ -131,9 +152,11 @@ class TodoDatabase {
         // where a file that is not a database says so.
         version = db.userVersion;
       } on SqliteException catch (e) {
-        throw TodoFormatException(
-          '$label is not a database the shell can read: ${e.message}',
-        );
+        final message =
+            '$label is not a database the shell can read: ${e.message}';
+        throw isDamage(e)
+            ? TodoDatabaseDamaged(message)
+            : TodoFormatException(message);
       }
       if (version > kTodoSchemaVersion) {
         throw TodoFormatException(
@@ -148,8 +171,20 @@ class TodoDatabase {
         db.execute('PRAGMA journal_mode = WAL');
         db.execute('PRAGMA synchronous = NORMAL');
         if (version < kTodoSchemaVersion) _createSchema(db);
+        // A header that reads is not a board that does: a torn page further
+        // in only shows when something reads it, which for the index may be
+        // the first search. `quick_check` walks every page, once, at start-up
+        // — milliseconds for somebody's notes.
+        final check = db.select('PRAGMA quick_check(1)');
+        final verdict = check.isEmpty ? 'ok' : check.first.values.first;
+        if (verdict != 'ok') {
+          throw TodoDatabaseDamaged('$label is damaged: $verdict');
+        }
       } on SqliteException catch (e) {
-        throw TodoFormatException('$label could not be set up: ${e.message}');
+        final message = '$label could not be set up: ${e.message}';
+        throw isDamage(e)
+            ? TodoDatabaseDamaged(message)
+            : TodoFormatException(message);
       }
       return TodoDatabase._(db);
     } catch (_) {
@@ -327,6 +362,47 @@ class TodoDatabase {
         }
       } finally {
         insert.close();
+      }
+      _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
+        _kImportedJsonKey,
+        updated,
+      ]);
+    });
+  }
+
+  /// Replaces everything in the database with [items] (in board order) and
+  /// [notes], in one transaction — a restore from a backup. Also records the
+  /// old `todo.json` as imported: the backup is newer than any file left over
+  /// from before the database.
+  void replaceAll(
+    List<TodoItem> items,
+    List<NoteItem> notes, {
+    required DateTime at,
+  }) {
+    final updated = at.toUtc().toIso8601String();
+    _transaction(() {
+      _db.execute('DELETE FROM entries');
+      final insert = _db.prepare(_kUpsertTodo);
+      try {
+        for (var i = 0; i < items.length; i++) {
+          insert.execute(_todoParameters(items[i], i, updated));
+        }
+      } finally {
+        insert.close();
+      }
+      final note = _db.prepare(_kUpsertNote);
+      try {
+        for (final n in notes) {
+          note.execute([
+            n.id,
+            n.title,
+            n.body,
+            n.created.toUtc().toIso8601String(),
+            n.updated.toUtc().toIso8601String(),
+          ]);
+        }
+      } finally {
+        note.close();
       }
       _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
         _kImportedJsonKey,

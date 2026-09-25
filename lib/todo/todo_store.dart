@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:sqlite3/sqlite3.dart' show SqliteException;
 
 import 'package:moonswing/notification_service.dart';
+import 'package:moonswing/todo/todo_backup.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 
@@ -19,7 +21,7 @@ const Duration kTodoWriteDebounce = Duration(milliseconds: 300);
 /// board is held in memory, because every surface reads it synchronously; the
 /// database ([TodoDatabase]) is where it is kept and what [search] asks.
 ///
-/// Five things a change here has to keep true:
+/// Six things a change here has to keep true:
 ///
 ///  * **User data, not configuration.** The board is in
 ///    `$XDG_DATA_HOME/moonswing/notes.db`, never `config.toml`: it is written
@@ -40,6 +42,14 @@ const Duration kTodoWriteDebounce = Duration(milliseconds: 300);
 ///    at each local midnight — but the midnight timer exists only while there
 ///    is a recurring or dated open item for it to act on, so a shell with no
 ///    board wakes for this never.
+///  * **The database is never the only copy.** Every write that lands is
+///    mirrored to [backupPath], a JSON file in a directory of its own (so it
+///    can be a Git repository without the database in it). A database that is
+///    missing is restored from that file; one that is *damaged* is renamed
+///    aside — never deleted — and rebuilt from it. Nothing else is: a
+///    database from a newer shell, or one the loader cannot open for want of
+///    a library, is not damaged and is left alone. The file is written only
+///    from a board that read cleanly, so a failed read never empties it.
 ///  * **Every move is recorded.** A change of column appends a [TodoMove] with
 ///    the wall-clock time; nothing else does, so reordering within a column is
 ///    not history.
@@ -48,9 +58,11 @@ class TodoStore extends ChangeNotifier {
     String? directory,
     DateTime Function()? now,
     bool autoTimers = true,
+    bool backups = true,
   }) : _directory = directory,
        _now = now ?? DateTime.now,
-       _autoTimers = autoTimers;
+       _autoTimers = autoTimers,
+       _backups = backups;
 
   static final TodoStore instance = TodoStore._()
     ..onReminder = postTodoReminder;
@@ -76,6 +88,9 @@ class TodoStore extends ChangeNotifier {
       directory: directory,
       now: now,
       autoTimers: false,
+      // Only over a directory the test owns: a store with none would mirror
+      // its board into the real data directory.
+      backups: directory != null,
     );
     if (items != null || notes != null) {
       store
@@ -93,6 +108,13 @@ class TodoStore extends ChangeNotifier {
   final String? _directory;
   final DateTime Function() _now;
   final bool _autoTimers;
+  final bool _backups;
+
+  /// Called with the backup file's contents each time a backup write succeeds
+  /// — after every write that lands, and once after the board is read. The
+  /// backup servers
+  /// (`todo_remote_backup.dart`) listen here.
+  void Function(String contents)? onBackupWritten;
 
   /// Called with the reminder the start of each day produces. Injectable so a
   /// test never posts into the shell's notification list; the singleton wires
@@ -120,6 +142,19 @@ class TodoStore extends ChangeNotifier {
   Map<String, int> _savedOrder = const {};
   Map<String, NoteItem> _savedNotes = const {};
 
+  late final TodoBackupFile _backupFile = TodoBackupFile(backupPath);
+
+  /// Backup writes, one after another: each waits for the last, so an older
+  /// board can never land after a newer one.
+  Future<void> _backupChain = Future.value();
+  String? _backupError;
+  DateTime? _backupSaved;
+  String? _recoveryNotice;
+
+  /// Set when the database was found damaged and could not be rebuilt — there
+  /// was no backup to rebuild it from. [restore] may then set it aside.
+  bool _damaged = false;
+
   /// The board file's directory. Resolved per call, so a test that sets
   /// `XDG_DATA_HOME` is not defeated by a value cached at start-up.
   String get directory {
@@ -136,6 +171,35 @@ class TodoStore extends ChangeNotifier {
 
   /// Where the board was kept before the database, read once to import it.
   String get legacyPath => '$directory/todo.json';
+
+  /// The backup file, which every write that lands is mirrored to.
+  String get backupPath =>
+      '${todoBackupDirectory(directory)}/$kTodoBackupFileName';
+
+  /// Why the last backup write failed, or null.
+  String? get backupError => _backupError;
+
+  /// When the backup file was last known to match the board, or null before
+  /// the first write.
+  DateTime? get backupSaved => _backupSaved;
+
+  /// What happened to the database on the way in — rebuilt from the backup,
+  /// or restored because it was missing — or null. Shown until dismissed,
+  /// because a board that quietly came back from a backup is a board that may
+  /// be missing the last few changes, and the user is the one who knows.
+  String? get recoveryNotice => _recoveryNotice;
+
+  void dismissRecoveryNotice() {
+    if (_recoveryNotice == null) return;
+    _recoveryNotice = null;
+    notifyListeners();
+  }
+
+  /// The backup file's contents for the board as it stands, or null while the
+  /// board is not [editable] — a board that did not read is never backed up,
+  /// here or anywhere else.
+  String? get backupContents =>
+      editable ? encodeTodoBackup(_items, _notes) : null;
 
   /// Every item, in board order.
   List<TodoItem> get items => _items;
@@ -195,15 +259,34 @@ class TodoStore extends ChangeNotifier {
   }
 
   /// Opens and reads the database, importing an old `todo.json` the first
-  /// time. A missing database is an empty board; an unreadable one is
-  /// [loadError], and the board on screen is left as it was.
+  /// time. A missing database is restored from the backup file when there is
+  /// one, and is otherwise an empty board; a damaged one is rebuilt from the
+  /// backup file; any other failure is [loadError], and the board on screen is
+  /// left as it was.
   Future<void> load() async {
     if (_loading) return;
     _loading = true;
     try {
-      final db = _db ??= await _open();
+      var db = _db;
+      if (db == null) {
+        final existed = await File(path).exists();
+        try {
+          db = _db = await _open();
+          _damaged = false;
+          if (!existed) await _restoreMissing(db);
+        } on TodoDatabaseDamaged catch (e) {
+          db = _db = await _rebuild(e.message);
+        }
+      }
       await _importLegacy(db);
-      final board = db.readAll();
+      ({List<TodoItem> todos, List<NoteItem> notes}) board;
+      try {
+        board = db.readAll();
+      } on SqliteException catch (e) {
+        if (!isDamage(e)) rethrow;
+        db = _db = await _rebuild('$path is damaged: ${e.message}');
+        board = db.readAll();
+      }
       _items = List.unmodifiable(board.todos);
       _notes = List.unmodifiable(board.notes);
       _markSaved();
@@ -216,6 +299,9 @@ class TodoStore extends ChangeNotifier {
       _loading = false;
       _loaded = true;
     }
+    // Mirrors a board that read (and only one that did — this checks) to the
+    // backup file: a first write, or none at all when the file matches.
+    _queueBackup();
     _armMidnight();
     notifyListeners();
   }
@@ -223,6 +309,177 @@ class TodoStore extends ChangeNotifier {
   Future<TodoDatabase> _open() async {
     await Directory(directory).create(recursive: true);
     return TodoDatabase.open(path);
+  }
+
+  /// A database that was not there is filled from the backup file, if there
+  /// is one with anything in it: the database was deleted, or this is a new
+  /// machine with the backup put back from wherever the user keeps it.
+  Future<void> _restoreMissing(TodoDatabase db) async {
+    final ({TodoBackup backup, DateTime saved})? saved;
+    try {
+      saved = await _backupFile.read();
+    } on TodoFormatException catch (e) {
+      // Not a board: the database stays empty and the file is left as it is
+      // until the first edit rewrites it — by which time the user has been
+      // told.
+      _recoveryNotice =
+          '$path was missing, and the backup at $backupPath could not be '
+          'read to restore it: ${e.message}';
+      return;
+    }
+    if (saved == null || saved.backup.isEmpty) return;
+    db.replaceAll(saved.backup.items, saved.backup.notes, at: _now());
+    _recoveryNotice =
+        '$path was missing, so the board was restored from the backup saved '
+        '${_describeMoment(saved.saved)} (${saved.backup.summary}).';
+  }
+
+  /// Sets the damaged database aside and builds a new one from the backup
+  /// file. Throws [TodoFormatException] — the board stays unreadable, and
+  /// nothing is renamed — when there is no backup to build from.
+  Future<TodoDatabase> _rebuild(String reason) async {
+    _db?.close();
+    _db = null;
+    final ({TodoBackup backup, DateTime saved})? saved;
+    try {
+      saved = await _backupFile.read();
+    } on TodoFormatException catch (e) {
+      _damaged = true;
+      throw TodoFormatException(
+        '$reason\nThe backup at $backupPath could not be read either: '
+        '${e.message}',
+      );
+    }
+    if (saved == null) {
+      _damaged = true;
+      throw TodoFormatException(
+        '$reason\nThere is no backup at $backupPath to rebuild it from.',
+      );
+    }
+    final aside = await _setAside();
+    final db = await _open();
+    db.replaceAll(saved.backup.items, saved.backup.notes, at: _now());
+    _damaged = false;
+    _recoveryNotice =
+        'The database could not be read ($reason). It was rebuilt from the '
+        'backup saved ${_describeMoment(saved.saved)} '
+        '(${saved.backup.summary}), and the damaged file was kept as $aside.';
+    return db;
+  }
+
+  /// Renames the database — and its write-ahead log and shared memory, which
+  /// belong to it — out of the way, and returns where it went. Never a delete:
+  /// a damaged database may still hold something worth recovering by hand.
+  Future<String> _setAside() async {
+    final stamp = _now().toUtc().toIso8601String().replaceAll(
+      RegExp(r'[:.]'),
+      '-',
+    );
+    final aside = '$path.damaged-$stamp';
+    for (final suffix in ['', '-wal', '-shm']) {
+      final file = File('$path$suffix');
+      if (await file.exists()) await file.rename('$aside$suffix');
+    }
+    return aside;
+  }
+
+  /// Replaces the whole board with [backup] — a restore from a backup server,
+  /// or from the backup file after the user put an older one back.
+  ///
+  /// The board being replaced is saved first, beside the backup file, as
+  /// `todo-before-restore-<time>.json`, and that path is returned (null when
+  /// the board was empty). Works on a board that did not read only when the
+  /// reason was damage: a database from a newer shell is not this one's to
+  /// replace. Throws [TodoFormatException] when it cannot be done.
+  Future<String?> restore(TodoBackup backup) async {
+    if (!editable && !_damaged) {
+      throw TodoFormatException(
+        _loadError ?? 'The board has not been read yet.',
+      );
+    }
+    _writeNow();
+    String? kept;
+    if (editable && (_items.isNotEmpty || _notes.isNotEmpty)) {
+      final stamp = _now().toUtc().toIso8601String().replaceAll(
+        RegExp(r'[:.]'),
+        '-',
+      );
+      kept =
+          '${todoBackupDirectory(directory)}/todo-before-restore-$stamp.json';
+      try {
+        await TodoBackupFile(kept).write(encodeTodoBackup(_items, _notes));
+      } on FileSystemException catch (e) {
+        throw TodoFormatException(
+          'The board was not replaced, because a copy of it could not be '
+          'saved first: ${e.message}',
+        );
+      }
+    }
+    var db = _db;
+    if (db == null && _damaged) {
+      try {
+        await _setAside();
+        db = _db = await _open();
+      } on TodoFormatException {
+        rethrow;
+      } catch (e) {
+        throw TodoFormatException('Could not make a new database: $e');
+      }
+    }
+    try {
+      // No database and not damaged is a test's store, held in memory only.
+      db?.replaceAll(backup.items, backup.notes, at: _now());
+    } catch (e) {
+      throw TodoFormatException('Could not write the restored board: $e');
+    }
+    _damaged = false;
+    _items = List.unmodifiable(backup.items);
+    _notes = List.unmodifiable(backup.notes);
+    _markSaved();
+    _loadError = null;
+    _writeError = null;
+    _recoveryNotice = null;
+    _loaded = true;
+    _queueBackup();
+    _armMidnight();
+    notifyListeners();
+    await _backupChain;
+    return kept;
+  }
+
+  /// The backup file as it is on disk — for a restore from it, after the user
+  /// has put back a copy they kept.
+  Future<({TodoBackup backup, DateTime saved})?> readBackupFile() =>
+      _backupFile.read();
+
+  /// Mirrors the board to the backup file, after whatever backup write is
+  /// already under way.
+  void _queueBackup() {
+    if (!_backups || !editable) return;
+    final contents = encodeTodoBackup(_items, _notes);
+    _backupChain = _backupChain.then((_) => _writeBackup(contents));
+  }
+
+  Future<void> _writeBackup(String contents) async {
+    String? error;
+    var wrote = false;
+    try {
+      wrote = await _backupFile.write(contents);
+      if (wrote) {
+        _backupSaved = _now();
+      } else {
+        _backupSaved ??= await _backupFile.lastModified();
+      }
+    } catch (e) {
+      error = 'Could not write the backup to $backupPath: $e';
+    }
+    final changed = error != _backupError || wrote;
+    _backupError = error;
+    // Unchanged contents too: the first write after start-up is usually an
+    // unchanged file, and a server that was not sent the last board before a
+    // restart is still owed it. The listener compares digests itself.
+    if (error == null) onBackupWritten?.call(contents);
+    if (changed && !_disposed) notifyListeners();
   }
 
   /// Imports the board a shell from before the database saved as `todo.json`,
@@ -481,10 +738,11 @@ class TodoStore extends ChangeNotifier {
   }
 
   /// Writes the board now. A `Future` for the callers that await it; SQLite
-  /// is synchronous, so the write has landed (or failed) when this returns.
+  /// is synchronous, so the database write has landed (or failed) when this
+  /// is called, and the backup file's when it completes.
   Future<void> flush() {
     _writeNow();
-    return Future.value();
+    return _backupChain;
   }
 
   /// Writes what changed since the last write that landed, in one transaction.
@@ -501,6 +759,7 @@ class TodoStore extends ChangeNotifier {
       try {
         db.apply(changes, at: _now());
         _markSaved();
+        _queueBackup();
       } catch (e) {
         error = 'Could not save $path: $e';
       }
@@ -573,8 +832,11 @@ class TodoStore extends ChangeNotifier {
     });
   }
 
+  bool _disposed = false;
+
   @override
   void dispose() {
+    _disposed = true;
     // A pending edit is written rather than dropped.
     if (_writeTimer != null) _writeNow();
     _writeTimer?.cancel();
@@ -583,6 +845,13 @@ class TodoStore extends ChangeNotifier {
     _db = null;
     super.dispose();
   }
+}
+
+/// "at 14:05 on 2026-09-24", for the recovery notice.
+String _describeMoment(DateTime moment) {
+  final local = moment.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return 'at ${two(local.hour)}:${two(local.minute)} on ${formatDate(local)}';
 }
 
 /// Reads the board and runs the start of the day: today's recurring copies,

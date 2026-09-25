@@ -5,7 +5,8 @@
 // and the day turning over; `todo_model.dart` owns every date rule, and
 // [TodoBoardSearch] what the search field leaves showing. This file is the
 // panel, the search field, the columns, the cards, drag and drop between them,
-// and the editor that creates and changes one.
+// and the editor that creates and changes one. The backups card over it is
+// `todo_backup_panel.dart`.
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -22,8 +23,10 @@ import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
+import 'package:moonswing/todo/todo_remote_backup.dart';
 import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
@@ -68,6 +71,7 @@ class TodoOverlay extends StatefulWidget {
     required this.closingNotifier,
     required this.onClosed,
     this.store,
+    this.remote,
     this.onOpenLink = _openLink,
   });
 
@@ -77,6 +81,9 @@ class TodoOverlay extends StatefulWidget {
   /// Defaults to the singleton; a widget test passes one over a temporary
   /// directory.
   final TodoStore? store;
+
+  /// The backup servers. Defaults to the singleton.
+  final TodoRemoteBackup? remote;
 
   /// What a click on a link in a card's title or body does with its address.
   /// The browser by default; a widget test records it instead.
@@ -90,6 +97,11 @@ class TodoOverlay extends StatefulWidget {
 
 class _TodoOverlayState extends State<TodoOverlay> {
   late final TodoStore _store = widget.store ?? TodoStore.instance;
+  late final TodoRemoteBackup _remote =
+      widget.remote ?? TodoRemoteBackup.instance;
+
+  /// Whether the backups card is open. A notifier for [_editing]'s reason.
+  final ValueNotifier<bool> _backups = ValueNotifier(false);
   final FocusNode _focusNode = FocusNode(debugLabel: 'todo board');
 
   /// The search field's, owned here so the key handler can read and clear it.
@@ -116,7 +128,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
       // A click on the scrim closes the board — it holds nothing unsaved —
       // but not while the editor is open, which does.
       onBackdropTap: () {
-        if (_editing.value == null) _requestClose();
+        if (_editing.value == null && !_backups.value) _requestClose();
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -130,6 +142,8 @@ class _TodoOverlayState extends State<TodoOverlay> {
               search: _search,
               searchField: _buildSearchField(context),
               editing: _editing,
+              remote: _remote,
+              backups: _backups,
               onClose: _requestClose,
               onOpenLink: widget.onOpenLink,
             ),
@@ -170,7 +184,8 @@ class _TodoOverlayState extends State<TodoOverlay> {
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.keyF &&
         HardwareKeyboard.instance.isControlPressed &&
-        _editing.value == null) {
+        _editing.value == null &&
+        !_backups.value) {
       _focusSearch();
       return;
     }
@@ -179,6 +194,9 @@ class _TodoOverlayState extends State<TodoOverlay> {
     // the board.
     if (_editing.value != null) {
       _editing.value = null;
+      _searchFocus.requestFocus();
+    } else if (_backups.value) {
+      _backups.value = false;
       _searchFocus.requestFocus();
     } else if (_searchText.text.isNotEmpty) {
       _clearSearch();
@@ -194,6 +212,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
     _searchText.dispose();
     _search.dispose();
     _editing.dispose();
+    _backups.dispose();
     super.dispose();
   }
 
@@ -236,11 +255,15 @@ class _TodoPanel extends StatelessWidget {
     required this.search,
     required this.searchField,
     required this.editing,
+    required this.remote,
+    required this.backups,
     required this.onClose,
     required this.onOpenLink,
   });
 
   final TodoStore store;
+  final TodoRemoteBackup remote;
+  final ValueNotifier<bool> backups;
 
   /// [store] and [search] together.
   final Listenable board;
@@ -294,6 +317,18 @@ class _TodoPanel extends StatelessWidget {
                         ),
                 ),
               ),
+              Positioned.fill(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: backups,
+                  builder: (context, open, _) => !open
+                      ? const SizedBox.shrink()
+                      : TodoBackupLayer(
+                          store: store,
+                          remote: remote,
+                          onDone: () => backups.value = false,
+                        ),
+                ),
+              ),
             ],
           ),
         ),
@@ -307,7 +342,12 @@ class _TodoPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _Header(onClose: onClose, search: search, searchField: searchField),
+        _Header(
+          onClose: onClose,
+          onBackups: () => backups.value = true,
+          search: search,
+          searchField: searchField,
+        ),
         Container(height: 1, color: theme.divider),
         if (loadError != null)
           Padding(
@@ -316,11 +356,39 @@ class _TodoPanel extends StatelessWidget {
               title: 'The todo list could not be read',
               message:
                   '$loadError\nNothing will be saved over it until it reads '
-                  'cleanly.',
+                  'cleanly. Its backup file is '
+                  '${displayPath(store.backupPath)}; a backup server can '
+                  'restore it from Backups.',
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SettingsActionButton(
+                    label: 'Backups…',
+                    compact: true,
+                    onTap: () => backups.value = true,
+                  ),
+                  const SizedBox(width: 8),
+                  SettingsActionButton(
+                    label: 'Retry',
+                    compact: true,
+                    onTap: store.retry,
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (store.recoveryNotice case final notice?)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: SettingsBanner(
+              title: 'The board was restored from its backup',
+              message:
+                  '$notice\nAnything changed after that backup was written is '
+                  'not on the board.',
               action: SettingsActionButton(
-                label: 'Retry',
+                label: 'OK',
                 compact: true,
-                onTap: store.retry,
+                onTap: store.dismissRecoveryNotice,
               ),
             ),
           )
@@ -370,6 +438,12 @@ class _TodoPanel extends StatelessWidget {
                   ),
                 ),
         ),
+        Container(height: 1, color: theme.divider),
+        TodoBackupFooter(
+          store: store,
+          remote: remote,
+          onOpen: () => backups.value = true,
+        ),
       ],
     );
   }
@@ -378,11 +452,13 @@ class _TodoPanel extends StatelessWidget {
 class _Header extends StatelessWidget {
   const _Header({
     required this.onClose,
+    required this.onBackups,
     required this.search,
     required this.searchField,
   });
 
   final VoidCallback onClose;
+  final VoidCallback onBackups;
   final TodoBoardSearch search;
   final Widget searchField;
 
@@ -421,6 +497,27 @@ class _Header extends StatelessWidget {
           ],
           searchField,
           const SizedBox(width: 8),
+          HoverRegion(
+            onTap: onBackups,
+            builder: (context, hovered) => Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(ShellRadii.control),
+                color: hovered ? theme.surfaceHover : const Color(0x00000000),
+              ),
+              child: Center(
+                child: FaIcon(
+                  FontAwesomeIcons.cloudArrowUp,
+                  size: ShellFontSizes.body,
+                  color: theme.popupForeground.withValues(
+                    alpha: hovered ? 0.9 : 0.6,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
           HoverRegion(
             onTap: onClose,
             builder: (context, hovered) => Container(
