@@ -16,6 +16,12 @@
 //    the reason on screen, rather than every consumer showing its own retry
 //    that can only fail.
 //
+// Every sign-in runs as the project's own OAuth client (`google_client.dart`),
+// so there is nothing for the user to set up first. A grant saved under any
+// other client — the user's own, from before the shell shipped one, or a client
+// the project has since rotated away from — cannot be refreshed with this one,
+// and is revoked and dropped on load with a message saying why.
+//
 // A consumer such as `GoogleCalendarStore` listens here for the account coming
 // and going, and asks [withAccessToken] for each request.
 
@@ -26,12 +32,14 @@ import 'package:flutter/foundation.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/google/google_account_file.dart';
 import 'package:moonswing/google/google_api.dart';
+import 'package:moonswing/google/google_client.dart';
 import 'package:moonswing/google/google_oauth.dart';
 
 /// How far along the account is.
 enum GoogleAuthStage {
-  /// No OAuth client yet. Settings asks for its ID and secret.
-  needsClient,
+  /// This build carries no OAuth client (`google_client.dart` was blanked),
+  /// so there is no sign-in to offer.
+  unavailable,
 
   /// A client, but no grant. Settings offers **Sign in**.
   signedOut,
@@ -51,32 +59,47 @@ class GoogleAccountStore extends ChangeNotifier {
     GoogleAccountFile? file,
     bool Function(String url)? opener,
     DateTime Function()? now,
+    String clientId = kGoogleClientId,
+    String clientSecret = kGoogleClientSecret,
   }) : _client = client ?? const HttpGoogleClient(),
        _file = file ?? const GoogleAccountFile(),
        _open = opener ?? openUriWithDefault,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now,
+       _clientId = clientId,
+       _clientSecret = clientSecret;
 
   static final GoogleAccountStore instance = GoogleAccountStore._();
 
   /// A detached store for tests: an injected client, a file under a temporary
-  /// directory, and an opener that stands in for the browser.
+  /// directory, an opener that stands in for the browser, and OAuth client
+  /// credentials that are not the shipped ones.
   @visibleForTesting
   factory GoogleAccountStore.forTesting({
     required GoogleClient client,
     required GoogleAccountFile file,
     bool Function(String url)? opener,
     DateTime Function()? now,
+    String clientId = 'id',
+    String clientSecret = 'secret',
   }) => GoogleAccountStore._(
     client: client,
     file: file,
     opener: opener ?? (_) => true,
     now: now,
+    clientId: clientId,
+    clientSecret: clientSecret,
   );
 
   final GoogleClient _client;
   final GoogleAccountFile _file;
   final bool Function(String url) _open;
   final DateTime Function() _now;
+
+  /// The OAuth client every sign-in and refresh runs as.
+  final String _clientId;
+  final String _clientSecret;
+
+  bool get _hasClient => _clientId.isNotEmpty && _clientSecret.isNotEmpty;
 
   /// The client [GoogleCalendarStore] and other consumers make their requests
   /// through, so a test that fakes one fakes both.
@@ -86,19 +109,13 @@ class GoogleAccountStore extends ChangeNotifier {
 
   GoogleAccountData _data = const GoogleAccountData();
 
-  GoogleAuthStage _stage = GoogleAuthStage.needsClient;
+  GoogleAuthStage _stage = GoogleAuthStage.unavailable;
   GoogleAuthStage get stage => _stage;
 
   bool get signedIn => _stage == GoogleAuthStage.signedIn;
 
   /// The signed-in address. Empty when it is not known yet.
   String get email => _data.email;
-
-  /// The client ID in use, for the settings field.
-  String get clientId => _data.clientId;
-
-  /// Whether a secret is saved. The secret itself is never shown back.
-  bool get hasClientSecret => _data.clientSecret.isNotEmpty;
 
   /// The consent page, while [stage] is [GoogleAuthStage.awaitingBrowser], so
   /// settings can offer to open it again.
@@ -122,8 +139,6 @@ class GoogleAccountStore extends ChangeNotifier {
   String get _signature => [
     _stage.name,
     _data.email,
-    _data.clientId,
-    _data.clientSecret.isNotEmpty,
     _authUrl ?? '',
     _error,
     _exchanging,
@@ -140,7 +155,7 @@ class GoogleAccountStore extends ChangeNotifier {
   }
 
   GoogleAuthStage _restingStage() {
-    if (!_data.hasClient) return GoogleAuthStage.needsClient;
+    if (!_hasClient) return GoogleAuthStage.unavailable;
     return _data.refreshToken == null
         ? GoogleAuthStage.signedOut
         : GoogleAuthStage.signedIn;
@@ -155,39 +170,30 @@ class GoogleAccountStore extends ChangeNotifier {
   Future<void> load() => _loading ??= _load();
 
   Future<void> _load() async {
-    final data = await _file.read();
-    // A sign-in or a client edit that raced the read wins.
+    var data = await _file.read();
+    String? orphan;
+    if (data.refreshToken != null &&
+        data.clientId.isNotEmpty &&
+        data.clientId != _clientId) {
+      // Issued to another client: ours would be refused refreshing it.
+      orphan = data.refreshToken;
+      data = data.signedOut();
+    }
+    // A sign-in that raced the read wins.
     if (!_loaded && _data == const GoogleAccountData()) {
       _data = data;
       _stage = _restingStage();
+      if (orphan != null) {
+        _error =
+            'Google sign-in now uses Moonswing\'s own app. Sign in again to '
+            'reconnect your account.';
+      }
     }
     _loaded = true;
     _publish();
-  }
-
-  // --- the client ----------------------------------------------------------
-
-  /// Saves the OAuth client. Either half may be given alone, since settings
-  /// commits the two fields separately.
-  ///
-  /// A grant belongs to the client that asked for it, so changing the client
-  /// while signed in signs out: the old refresh token would be refused.
-  Future<void> setClient({String? id, String? secret}) async {
-    await load();
-    final nextId = id?.trim() ?? _data.clientId;
-    final nextSecret = secret?.trim() ?? _data.clientSecret;
-    if (nextId == _data.clientId && nextSecret == _data.clientSecret) return;
-    final old = _data;
-    if (_stage == GoogleAuthStage.awaitingBrowser) cancelSignIn();
-    _data = GoogleAccountData(clientId: nextId, clientSecret: nextSecret);
-    _access = null;
-    _error = '';
-    _stage = _restingStage();
-    _publish();
-    if (old.refreshToken case final token?) unawaited(_revoke(token));
-    if (!await _file.write(_data)) {
-      _error = 'The client could not be saved';
-      _publish();
+    if (orphan != null) {
+      unawaited(_revoke(orphan));
+      await _file.write(_data);
     }
   }
 
@@ -208,7 +214,6 @@ class GoogleAccountStore extends ChangeNotifier {
     await load();
     if (_stage != GoogleAuthStage.signedOut) return;
     final generation = ++_generation;
-    final data = _data;
     _stage = GoogleAuthStage.awaitingBrowser;
     _error = '';
     _publish();
@@ -216,7 +221,7 @@ class GoogleAccountStore extends ChangeNotifier {
     GoogleLoopbackSession? session;
     try {
       session = await GoogleLoopbackSession.start(
-        clientId: data.clientId,
+        clientId: _clientId,
         scope: kGoogleCalendarScope,
       );
       if (generation != _generation) {
@@ -234,8 +239,8 @@ class GoogleAccountStore extends ChangeNotifier {
       _publish();
 
       final tokens = await _client.exchangeCode(
-        clientId: data.clientId,
-        clientSecret: data.clientSecret,
+        clientId: _clientId,
+        clientSecret: _clientSecret,
         code: code,
         codeVerifier: session.codeVerifier,
         redirectUri: session.redirectUri,
@@ -250,8 +255,7 @@ class GoogleAccountStore extends ChangeNotifier {
       if (generation != _generation) return;
 
       _data = GoogleAccountData(
-        clientId: data.clientId,
-        clientSecret: data.clientSecret,
+        clientId: _clientId,
         refreshToken: refresh,
         email: email,
       );
@@ -322,8 +326,7 @@ class GoogleAccountStore extends ChangeNotifier {
     _publish();
   }
 
-  /// Signs out: the grant is revoked at Google and forgotten here. The client
-  /// stays, so signing back in is one click.
+  /// Signs out: the grant is revoked at Google and forgotten here.
   Future<void> signOut() async {
     cancelSignIn();
     final token = _data.refreshToken;
@@ -367,16 +370,15 @@ class GoogleAccountStore extends ChangeNotifier {
   }
 
   Future<String> _refresh() async {
-    final data = _data;
-    final refresh = data.refreshToken;
+    final refresh = _data.refreshToken;
     if (refresh == null) {
       throw const GoogleException('Not signed in to Google');
     }
     final generation = _generation;
     try {
       final tokens = await _client.refreshAccessToken(
-        clientId: data.clientId,
-        clientSecret: data.clientSecret,
+        clientId: _clientId,
+        clientSecret: _clientSecret,
         refreshToken: refresh,
       );
       if (generation == _generation) _access = tokens;

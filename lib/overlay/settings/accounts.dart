@@ -1,8 +1,9 @@
 // Settings › Accounts: the Google account the whole shell signs in with once.
 //
-// The account is not config. The client and the grant live in the XDG state
-// directory (`google/google_account_file.dart`) and go through
-// `GoogleAccountStore`. What the shell *does* with the account is ordinary
+// The account is not config. The sign-in runs as the project's own OAuth client
+// (`google/google_client.dart`), so there is nothing to set up before it, and
+// the grant it earns lives in the XDG state directory
+// (`google/google_account_file.dart`), behind `GoogleAccountStore`. What the shell *does* with the account is ordinary
 // `[google]` config and goes through `ConfigStore` like every other row.
 
 import 'package:flutter/widgets.dart';
@@ -16,16 +17,6 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
-
-/// What the "how do I get a client" tip says. Kept in one place: it is the one
-/// step a user cannot skip, and the wiki page repeats it at length.
-const String _kClientHelp =
-    'Google needs an OAuth client to show its consent screen. In Google Cloud '
-    'Console: create a project, enable the Google Calendar API, set up the '
-    'OAuth consent screen (External, and add yourself as a test user), then '
-    'create credentials › OAuth client ID › Desktop app, and paste its ID and '
-    'secret here. The secret is stored beside the sign-in, in '
-    '~/.local/state/moonswing, never in config.toml.';
 
 class AccountsSettingsPage extends StatefulWidget {
   const AccountsSettingsPage({
@@ -125,7 +116,7 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
   }
 }
 
-/// The client, the sign-in, and whatever went wrong with either.
+/// The sign-in, and whatever went wrong with it.
 class _GoogleAccountSection extends StatelessWidget {
   const _GoogleAccountSection({required this.account});
 
@@ -139,8 +130,13 @@ class _GoogleAccountSection extends StatelessWidget {
       label: 'Google',
       info:
           'One sign-in for the whole shell. The Calendar tab shows its '
-          'events, and the todo board can hold its meetings. The shell asks '
-          'for read-only access to your calendars and nothing else.',
+          'events, and the todo board can hold its meetings. Signing in opens '
+          "Moonswing's Google app in your browser and asks for read-only "
+          'access to your calendars, nothing else. The app is not verified '
+          'by Google yet, so the consent page warns about it: choose '
+          'Advanced, then Go to Moonswing. Your calendar goes straight from '
+          'Google to this computer; the sign-in is kept in '
+          '~/.local/state/moonswing, and Sign out revokes it.',
       children: [
         if (error.isNotEmpty) ...[
           SettingsBanner(
@@ -155,39 +151,15 @@ class _GoogleAccountSection extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         _status(context, stage),
-        const SizedBox(height: 8),
-        SettingsRow.field(
-          SettingsCatalog.googleClientId,
-          info: _kClientHelp,
-          control: SettingsCommitField(
-            initial: account.clientId,
-            width: 280,
-            hint: '….apps.googleusercontent.com',
-            onCommitted: (text) => account.setClient(id: text),
-          ),
-        ),
-        SettingsRow.field(
-          SettingsCatalog.googleClientSecret,
-          control: SettingsCommitField(
-            // Never shown back once saved; an empty commit keeps the saved one.
-            initial: '',
-            width: 280,
-            hint: account.hasClientSecret ? 'Saved — paste to replace' : '',
-            onCommitted: (text) {
-              if (text.trim().isNotEmpty) account.setClient(secret: text);
-            },
-          ),
-        ),
       ],
     );
   }
 
   Widget _status(BuildContext context, GoogleAuthStage stage) {
     switch (stage) {
-      case GoogleAuthStage.needsClient:
+      case GoogleAuthStage.unavailable:
         return const SettingsHint(
-          'Paste an OAuth client ID and secret below to connect a Google '
-          'account.',
+          'This build of Moonswing has no Google sign-in configured.',
         );
       case GoogleAuthStage.signedOut:
         return SettingsRow(
@@ -200,7 +172,7 @@ class _GoogleAccountSection extends StatelessWidget {
           ),
         );
       case GoogleAuthStage.awaitingBrowser:
-        return SettingsRow(
+        final waiting = SettingsRow(
           label: account.busy
               ? 'Finishing the sign-in…'
               : 'Waiting for you to finish in the browser…',
@@ -221,6 +193,20 @@ class _GoogleAccountSection extends StatelessWidget {
               ),
             ],
           ),
+        );
+        // Said where the user is looking when Google says it, rather than
+        // only behind the section's info tip: a warning page nobody expected
+        // reads as a reason to stop.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            waiting,
+            const SizedBox(height: 4),
+            const SettingsHint(
+              'Google will warn that Moonswing has not been verified yet. '
+              'Choose Advanced, then Go to Moonswing, to continue.',
+            ),
+          ],
         );
       case GoogleAuthStage.signedIn:
         final email = account.email;

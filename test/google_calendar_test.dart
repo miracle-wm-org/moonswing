@@ -47,11 +47,7 @@ void main() {
     tempDir = Directory.systemTemp.createTempSync('moonswing-google-cal');
     final file = GoogleAccountFile(directory: tempDir.path);
     await file.write(
-      const GoogleAccountData(
-        clientId: 'id',
-        clientSecret: 'secret',
-        refreshToken: 'r',
-      ),
+      const GoogleAccountData(clientId: 'id', refreshToken: 'r'),
     );
     client = FakeGoogleClient();
     account = GoogleAccountStore.forTesting(client: client, file: file);

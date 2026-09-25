@@ -77,7 +77,7 @@ void main() {
   }
 
   group('Settings › Accounts', () {
-    testWidgets('asks for a client before anything else', (tester) async {
+    testWidgets('signed out: one button, and nothing to paste', (tester) async {
       final account = await accountWith(tester, const GoogleAccountData());
       final calendar = GoogleCalendarStore.forTesting(account: account);
       await tester.pumpWidget(
@@ -90,10 +90,39 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.textContaining('Paste an OAuth client ID'), findsOneWidget);
-      expect(find.text('Client ID'), findsOneWidget);
-      expect(find.text('Sign in with Google'), findsNothing);
+      expect(find.text('Sign in with Google'), findsOneWidget);
+      expect(find.text('Client ID'), findsNothing);
+      expect(find.text('Client secret'), findsNothing);
       expect(find.text('Calendars'), findsNothing);
+    });
+
+    testWidgets('a build with no client says so', (tester) async {
+      final account = await tester.runAsync(() async {
+        final store = GoogleAccountStore.forTesting(
+          client: client,
+          file: GoogleAccountFile(directory: '${tempDir.path}/state'),
+          clientId: '',
+          clientSecret: '',
+        );
+        await store.load();
+        return store;
+      });
+      final calendar = GoogleCalendarStore.forTesting(account: account!);
+      await tester.pumpWidget(
+        _host(
+          AccountsSettingsPage(
+            account: account,
+            calendar: calendar,
+            config: await config(tester, ''),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('no Google sign-in configured'),
+        findsOneWidget,
+      );
+      expect(find.text('Sign in with Google'), findsNothing);
     });
 
     testWidgets('signed in: who, which calendars, and what for', (
@@ -103,7 +132,6 @@ void main() {
         tester,
         const GoogleAccountData(
           clientId: 'id',
-          clientSecret: 'secret',
           refreshToken: 'r',
           email: 'me@example.com',
         ),
@@ -156,11 +184,7 @@ void main() {
     testWidgets('lists the day, with a Join for a call', (tester) async {
       final account = await accountWith(
         tester,
-        const GoogleAccountData(
-          clientId: 'id',
-          clientSecret: 'secret',
-          refreshToken: 'r',
-        ),
+        const GoogleAccountData(clientId: 'id', refreshToken: 'r'),
       );
       final day = DateTime(2026, 9, 25);
       client.events = {

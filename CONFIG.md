@@ -1468,19 +1468,18 @@ label = "HQ"
 
 Settings › **Accounts** signs the shell in to one Google account, which any part of the shell can then use. Two parts do today: the Calendar tab shows the account's events, and the todo board can hold today's meetings.
 
-**The account itself is not in this file.** The OAuth client you create and the grant Google hands back are stored together in `~/.local/state/moonswing/google-account.json` (mode 0600, in a 0700 directory). `config.toml` is the file people paste into bug reports, and a refresh token is a standing grant to read your calendar. Sign-in asks for `calendar.readonly` and nothing else.
+**The account itself is not in this file.** The grant Google hands back is stored in `~/.local/state/moonswing/google-account.json` (mode 0600, in a 0700 directory). `config.toml` is the file people paste into bug reports, and a refresh token is a standing grant to read your calendar. Sign-in asks for `calendar.readonly` and nothing else.
 
-### Creating the OAuth client
+### Signing in
 
-The shell does not ship a client of its own, so you need a *Desktop app* OAuth client, which is free and takes a few minutes:
+There is nothing to set up. Open Settings › Accounts and press **Sign in with Google**. The shell opens Google's consent page in your browser, running as Moonswing's own Google app. It listens on `127.0.0.1` on a random port for Google to send the browser back, and protects the exchange with PKCE.
 
-1. In [Google Cloud Console](https://console.cloud.google.com/), create a project (or pick one).
-2. **APIs & Services › Library**: enable the **Google Calendar API**.
-3. **APIs & Services › OAuth consent screen**: choose *External*, fill in the required names, and add your own address under **Test users**.
-4. **APIs & Services › Credentials › Create credentials › OAuth client ID**: application type **Desktop app**.
-5. Paste the client ID and secret into Settings › Accounts, then press **Sign in with Google**.
+- **Google will say the app is unverified.** Moonswing's Google app has not been through Google's verification yet. To continue, choose **Advanced**, then **Go to Moonswing (unsafe)**. The consent screen then lists the one permission asked for: to see your calendars.
+- **Until the app is verified, Google limits it to 100 users.** If sign-in fails with a message about the app's user cap, that limit has been reached.
+- **Your calendar goes straight from Google to your computer.** The project runs no server, so nothing passes through or is stored anywhere but your own machine. See the [privacy policy](https://miracle-wm-org.github.io/moonswing/privacy/).
+- **Sign out** revokes the grant at Google and deletes it from disk. You can also revoke it from [your Google account's third-party connections](https://myaccount.google.com/connections).
 
-The shell opens the consent page in your browser and listens on `127.0.0.1` on a random port for Google to send the browser back. The exchange is protected with PKCE. A consent screen left in *Testing* issues grants that expire after seven days. When yours expires, the Accounts page says so and **Sign in** gets it back. Publishing the consent screen (you can do so without verification when you are its only user) removes the limit.
+Earlier builds had you create your own OAuth client. A sign-in made that way cannot carry over. The Accounts page says so once, forgets it, and **Sign in with Google** reconnects you.
 
 ### `[google]`
 

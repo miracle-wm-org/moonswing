@@ -1,14 +1,19 @@
-// Where the Google account lives between sessions: the user's OAuth client and
-// the refresh token it was granted.
+// Where the Google account lives between sessions: the grant Google handed back
+// and the address it belongs to.
 //
 // Not in `config.toml`, for `github_token_store.dart`'s reasons — that file is
 // hand-edited, pasted into bug reports and world-readable, and a refresh token
-// is a standing grant to read somebody's calendar. The client ID and secret go
-// here too, beside the grant they belong to: a refresh token is bound to the
-// client that asked for it, so the two are only ever valid together, and a
-// shared dotfile should carry neither. The file is
+// is a standing grant to read somebody's calendar. The file is
 // `~/.local/state/moonswing/google-account.json`, in a directory narrowed to
 // 0700 before it is written, and itself 0600.
+//
+// The OAuth client is the project's own (`google_client.dart`) and is not
+// saved. Only its ID is, beside the grant, as the record of which client that
+// grant was issued to: a refresh token is bound to its client, so one saved
+// under any other — a client the user once pasted in themselves, or one the
+// project has since rotated away from — can never be refreshed and is dropped
+// on load. Files written before the shell shipped its own client also carry a
+// `client_secret`; it is ignored, and gone at the next write.
 //
 // Flutter-free, so the store above it stays testable off a temporary directory.
 
@@ -21,13 +26,12 @@ import 'package:moonswing/native/libc.dart';
 class GoogleAccountData {
   const GoogleAccountData({
     this.clientId = '',
-    this.clientSecret = '',
     this.refreshToken,
     this.email = '',
   });
 
+  /// The client [refreshToken] was issued to. Empty when unknown.
   final String clientId;
-  final String clientSecret;
 
   /// Null while signed out.
   final String? refreshToken;
@@ -35,14 +39,12 @@ class GoogleAccountData {
   /// The signed-in address, for the settings row. Empty when unknown.
   final String email;
 
-  bool get hasClient => clientId.isNotEmpty && clientSecret.isNotEmpty;
-
-  GoogleAccountData signedOut() =>
-      GoogleAccountData(clientId: clientId, clientSecret: clientSecret);
+  /// Drops the grant. The client it was issued to goes with it, since there
+  /// is nothing left for it to describe.
+  GoogleAccountData signedOut() => const GoogleAccountData();
 
   Map<String, Object?> toJson() => {
-    'client_id': clientId,
-    'client_secret': clientSecret,
+    if (clientId.isNotEmpty) 'client_id': clientId,
     if (refreshToken != null) 'refresh_token': refreshToken,
     if (email.isNotEmpty) 'email': email,
   };
@@ -55,7 +57,6 @@ class GoogleAccountData {
     final refresh = text('refresh_token');
     return GoogleAccountData(
       clientId: text('client_id'),
-      clientSecret: text('client_secret'),
       refreshToken: refresh.isEmpty ? null : refresh,
       email: text('email'),
     );
@@ -65,12 +66,11 @@ class GoogleAccountData {
   bool operator ==(Object other) =>
       other is GoogleAccountData &&
       other.clientId == clientId &&
-      other.clientSecret == clientSecret &&
       other.refreshToken == refreshToken &&
       other.email == email;
 
   @override
-  int get hashCode => Object.hash(clientId, clientSecret, refreshToken, email);
+  int get hashCode => Object.hash(clientId, refreshToken, email);
 }
 
 /// Reads, writes and clears the saved account.
