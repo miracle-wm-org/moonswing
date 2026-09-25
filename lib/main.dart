@@ -54,6 +54,7 @@ import 'package:moonswing/keybinds/keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
 import 'package:moonswing/todo/todo_controller.dart';
 import 'package:moonswing/todo/todo_overlay.dart';
+import 'package:moonswing/todo/todo_remote_backup.dart';
 import 'package:moonswing/todo/todo_store.dart';
 import 'package:moonswing/scratchpad/scratchpad_store.dart';
 import 'package:moonswing/launcher/app_index.dart';
@@ -284,8 +285,11 @@ void _startShellServices({
   // what is due today — the reminder a login is meant to bring. After the
   // notification service so the reminder lands in a list the daemon owns. Not
   // a `ShellService`, [startKeybindService]'s reason: no panel waits on it,
-  // and a board file that will not read is the board's to say.
+  // and a board file that will not read is the board's to say. The backup
+  // servers come after it: they send the board it reads, and arm no timer at
+  // all when none is configured.
   startTodoService();
+  startTodoRemoteBackup();
   services.run(ShellService.tray, startStatusNotifierService);
 
   // Watches the default sink/source and the backlight so the on-screen
