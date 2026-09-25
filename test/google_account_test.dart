@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/google/google_account_file.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_api.dart';
+import 'package:moonswing/google/google_client.dart';
 
 import 'google_fakes.dart';
 
@@ -54,7 +55,6 @@ void main() {
     test('round-trips, and is readable by nobody else', () async {
       const data = GoogleAccountData(
         clientId: 'id',
-        clientSecret: 'secret',
         refreshToken: 'r',
         email: 'me@example.com',
       );
@@ -86,27 +86,60 @@ void main() {
         );
         final data = await file.read();
         expect(data.clientId, 'id');
-        expect(data.clientSecret, isEmpty);
         expect(data.refreshToken, isNull);
-        expect(data.hasClient, isFalse);
       },
     );
+
+    test('a secret saved by an older shell is dropped on rewrite', () async {
+      Directory(file.directory).createSync(recursive: true);
+      File(file.path).writeAsStringSync(
+        jsonEncode({
+          'client_id': 'id',
+          'client_secret': 'theirs',
+          'refresh_token': 'r',
+        }),
+      );
+      final data = await file.read();
+      expect(data, const GoogleAccountData(clientId: 'id', refreshToken: 'r'));
+      await file.write(data);
+      expect(File(file.path).readAsStringSync(), isNot(contains('secret')));
+    });
   });
 
   group('GoogleAccountStore', () {
-    test('asks for a client first, then offers the sign-in', () async {
+    test('offers the sign-in straight away', () async {
       final store = GoogleAccountStore.forTesting(
         client: FakeGoogleClient(),
         file: file,
       );
       await store.load();
-      expect(store.stage, GoogleAuthStage.needsClient);
-      await store.setClient(id: 'id');
-      expect(store.stage, GoogleAuthStage.needsClient);
-      await store.setClient(secret: 'secret');
       expect(store.stage, GoogleAuthStage.signedOut);
-      expect(store.hasClientSecret, isTrue);
-      expect((await file.read()).clientId, 'id');
+      expect(store.error, isEmpty);
+    });
+
+    test('a build with no client has no sign-in to offer', () async {
+      final store = GoogleAccountStore.forTesting(
+        client: FakeGoogleClient(),
+        file: file,
+        clientId: '',
+        clientSecret: '',
+      );
+      await store.load();
+      expect(store.stage, GoogleAuthStage.unavailable);
+      await store.signIn();
+      expect(store.stage, GoogleAuthStage.unavailable);
+    });
+
+    test('the shipped client is the default', () async {
+      final store = GoogleAccountStore.forTesting(
+        client: FakeGoogleClient(),
+        file: file,
+        clientId: kGoogleClientId,
+        clientSecret: kGoogleClientSecret,
+      );
+      await store.load();
+      expect(kGoogleClientId, endsWith('.apps.googleusercontent.com'));
+      expect(store.stage, GoogleAuthStage.signedOut);
     });
 
     test(
@@ -118,9 +151,13 @@ void main() {
           file: file,
           opener: browserThatConsents('4/code'),
         );
-        await store.setClient(id: 'id', secret: 'secret');
         unawaited(store.signIn());
         await untilStage(store, GoogleAuthStage.signedIn);
+        // The stage moves before the grant is written; the exchange is over
+        // once it has landed.
+        for (var i = 0; i < 200 && store.busy; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
 
         expect(client.exchanges, 1);
         expect(client.lastRedirectUri, startsWith('http://127.0.0.1:'));
@@ -128,6 +165,7 @@ void main() {
         expect(store.error, isEmpty);
         final saved = await file.read();
         expect(saved.refreshToken, 'refresh-for-4/code');
+        expect(saved.clientId, 'id', reason: 'the client the grant is for');
         expect(saved.email, 'me@example.com');
 
         // A new store over the same file comes up signed in.
@@ -142,7 +180,6 @@ void main() {
         client: FakeGoogleClient(),
         file: file,
       );
-      await store.setClient(id: 'id', secret: 'secret');
       unawaited(store.signIn());
       await untilStage(store, GoogleAuthStage.awaitingBrowser);
       store.cancelSignIn();
@@ -158,11 +195,7 @@ void main() {
         var now = DateTime(2026, 9, 25, 9);
         final client = FakeGoogleClient(now: () => now);
         await file.write(
-          const GoogleAccountData(
-            clientId: 'id',
-            clientSecret: 'secret',
-            refreshToken: 'r',
-          ),
+          const GoogleAccountData(clientId: 'id', refreshToken: 'r'),
         );
         final store = GoogleAccountStore.forTesting(
           client: client,
@@ -196,11 +229,7 @@ void main() {
     test('a 401 gets one fresh token and one retry', () async {
       final client = FakeGoogleClient();
       await file.write(
-        const GoogleAccountData(
-          clientId: 'id',
-          clientSecret: 'secret',
-          refreshToken: 'r',
-        ),
+        const GoogleAccountData(clientId: 'id', refreshToken: 'r'),
       );
       final store = GoogleAccountStore.forTesting(client: client, file: file);
       client.unauthorizedEvents = 1;
@@ -217,15 +246,11 @@ void main() {
       expect(store.signedIn, isTrue);
     });
 
-    test('a dead grant signs out, says why, and keeps the client', () async {
+    test('a dead grant signs out and says why', () async {
       final client = FakeGoogleClient()
         ..refreshError = const GoogleAuthException('revoked');
       await file.write(
-        const GoogleAccountData(
-          clientId: 'id',
-          clientSecret: 'secret',
-          refreshToken: 'r',
-        ),
+        const GoogleAccountData(clientId: 'id', refreshToken: 'r'),
       );
       final store = GoogleAccountStore.forTesting(client: client, file: file);
       await expectLater(
@@ -234,9 +259,7 @@ void main() {
       );
       expect(store.stage, GoogleAuthStage.signedOut);
       expect(store.error, 'revoked');
-      final saved = await file.read();
-      expect(saved.refreshToken, isNull);
-      expect(saved.clientId, 'id');
+      expect((await file.read()).refreshToken, isNull);
     });
 
     test('signing out revokes the grant and forgets it', () async {
@@ -244,7 +267,6 @@ void main() {
       await file.write(
         const GoogleAccountData(
           clientId: 'id',
-          clientSecret: 'secret',
           refreshToken: 'r',
           email: 'me@example.com',
         ),
@@ -259,21 +281,35 @@ void main() {
       expect((await file.read()).refreshToken, isNull);
     });
 
-    test('a new client drops a grant the old one was given', () async {
+    test(
+      'a grant from another client is revoked and dropped, saying why',
+      () async {
+        final client = FakeGoogleClient();
+        await file.write(
+          const GoogleAccountData(
+            clientId: 'their-own',
+            refreshToken: 'r',
+            email: 'me@example.com',
+          ),
+        );
+        final store = GoogleAccountStore.forTesting(client: client, file: file);
+        await store.load();
+        expect(store.stage, GoogleAuthStage.signedOut);
+        expect(store.email, isEmpty);
+        expect(store.error, contains("Moonswing's own app"));
+        expect(await file.read(), const GoogleAccountData());
+        await Future<void>.delayed(Duration.zero);
+        expect(client.revoked, ['r']);
+      },
+    );
+
+    test('a grant saved with no client recorded is kept', () async {
       final client = FakeGoogleClient();
-      await file.write(
-        const GoogleAccountData(
-          clientId: 'id',
-          clientSecret: 'secret',
-          refreshToken: 'r',
-        ),
-      );
+      await file.write(const GoogleAccountData(refreshToken: 'r'));
       final store = GoogleAccountStore.forTesting(client: client, file: file);
-      await store.setClient(id: 'other');
-      expect(store.stage, GoogleAuthStage.signedOut);
-      expect((await file.read()).refreshToken, isNull);
-      await Future<void>.delayed(Duration.zero);
-      expect(client.revoked, ['r']);
+      await store.load();
+      expect(store.stage, GoogleAuthStage.signedIn);
+      expect(client.revoked, isEmpty);
     });
   });
 }

@@ -1068,23 +1068,7 @@ abstract final class SettingsCatalog {
     description:
         'Sign in to Google once for the whole shell, so its calendar shows '
         'your events and the todo board your meetings.',
-    tags: const ['google', 'gmail', 'sign in', 'login', 'oauth', 'account'],
-  );
-
-  static final googleClientId = _accountsField(
-    'google.client_id',
-    'Client ID',
-    description:
-        'The OAuth client the sign-in runs as: a "Desktop app" client you '
-        'create in Google Cloud Console.',
-    tags: const ['oauth', 'google cloud', 'credentials', 'client'],
-  );
-
-  static final googleClientSecret = _accountsField(
-    'google.client_secret',
-    'Client secret',
-    description: "The secret Google Cloud Console shows beside the client's ID.",
-    tags: const ['oauth', 'credentials', 'client'],
+    tags: const ['google', 'gmail', 'sign in', 'login', 'account', 'calendar'],
   );
 
   static final googleCalendars = _accountsField(
@@ -2010,8 +1994,6 @@ abstract final class SettingsCatalog {
     powerInhibitLogind,
     calendarWeekStart,
     googleAccount,
-    googleClientId,
-    googleClientSecret,
     googleCalendars,
     googleShowInCalendar,
     googleTodoSync,
