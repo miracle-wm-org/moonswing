@@ -2,6 +2,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/modules/todo.dart';
@@ -161,11 +162,7 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
 
-    expect(store.itemsIn(TodoColumn.todo).map((i) => i.id), [
-      'b',
-      'a',
-      'c',
-    ]);
+    expect(store.itemsIn(TodoColumn.todo).map((i) => i.id), ['b', 'a', 'c']);
   });
 
   testWidgets('clicking a card opens it with its history', (tester) async {
@@ -299,6 +296,46 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Backup file'), findsNothing);
     expect(closing.value, isFalse);
+  });
+
+  testWidgets('the standup button shows a summary since the last one', (
+    tester,
+  ) async {
+    final store = await pump(tester, [
+      _item(
+        'done',
+        TodoColumn.finished,
+        history: [TodoMove(from: null, to: TodoColumn.finished, at: now)],
+      ),
+      _item('doing', TodoColumn.inProgress),
+      _item('next', TodoColumn.todo),
+    ]);
+    final button = find.byWidgetPredicate(
+      (w) => w is FaIcon && w.icon == FontAwesomeIcons.bullhorn.data,
+    );
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(find.text('Standup'), findsOneWidget);
+    final report = tester.widget<Text>(find.textContaining('Standup — ')).data!;
+    expect(report, contains('Done:\n• Card done'));
+    expect(report, contains('In progress:\n• Card doing'));
+    expect(report, contains('To do:\n• Card next'));
+    expect(store.lastStandup, now);
+
+    // Escape closes the summary before it closes the board.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Standup'), findsNothing);
+    expect(closing.value, isFalse);
+
+    // The next one counts from the first: nothing new has been finished.
+    now = now.add(const Duration(hours: 1));
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.textContaining('Standup — ')).data,
+      contains('Done:\n• Nothing finished'),
+    );
   });
 
   Finder searchField() => find.byType(EditableText).first;

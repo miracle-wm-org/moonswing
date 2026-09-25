@@ -30,6 +30,7 @@ import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_remote_backup.dart';
 import 'package:moonswing/todo/todo_search.dart';
+import 'package:moonswing/todo/todo_standup_panel.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
 /// How much of the output the board takes. Most of it: five columns of cards
@@ -104,6 +105,9 @@ class _TodoOverlayState extends State<TodoOverlay> {
 
   /// Whether the backups card is open. A notifier for [_editing]'s reason.
   final ValueNotifier<bool> _backups = ValueNotifier(false);
+
+  /// The standup summary on show, or null when its card is closed.
+  final ValueNotifier<String?> _standup = ValueNotifier(null);
   final FocusNode _focusNode = FocusNode(debugLabel: 'todo board');
 
   /// The search field's, owned here so the key handler can read and clear it.
@@ -133,7 +137,11 @@ class _TodoOverlayState extends State<TodoOverlay> {
       // A click on the scrim closes the board — it holds nothing unsaved —
       // but not while the editor is open, which does.
       onBackdropTap: () {
-        if (_editing.value == null && !_backups.value) _requestClose();
+        if (_editing.value == null &&
+            !_backups.value &&
+            _standup.value == null) {
+          _requestClose();
+        }
       },
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -150,6 +158,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
               editing: _editing,
               remote: _remote,
               backups: _backups,
+              standup: _standup,
               onClose: _requestClose,
               onOpenLink: widget.onOpenLink,
             ),
@@ -191,7 +200,8 @@ class _TodoOverlayState extends State<TodoOverlay> {
     if (key == LogicalKeyboardKey.keyF &&
         HardwareKeyboard.instance.isControlPressed &&
         _editing.value == null &&
-        !_backups.value) {
+        !_backups.value &&
+        _standup.value == null) {
       _focusSearch();
       return;
     }
@@ -203,6 +213,9 @@ class _TodoOverlayState extends State<TodoOverlay> {
       _searchFocus.requestFocus();
     } else if (_backups.value) {
       _backups.value = false;
+      _searchFocus.requestFocus();
+    } else if (_standup.value != null) {
+      _standup.value = null;
       _searchFocus.requestFocus();
     } else if (_searchText.text.isNotEmpty) {
       _clearSearch();
@@ -220,6 +233,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
     _search.dispose();
     _editing.dispose();
     _backups.dispose();
+    _standup.dispose();
     super.dispose();
   }
 
@@ -265,6 +279,7 @@ class _TodoPanel extends StatelessWidget {
     required this.editing,
     required this.remote,
     required this.backups,
+    required this.standup,
     required this.onClose,
     required this.onOpenLink,
   });
@@ -272,6 +287,7 @@ class _TodoPanel extends StatelessWidget {
   final TodoStore store;
   final TodoRemoteBackup remote;
   final ValueNotifier<bool> backups;
+  final ValueNotifier<String?> standup;
 
   /// [store] and [search] together.
   final Listenable board;
@@ -338,6 +354,17 @@ class _TodoPanel extends StatelessWidget {
                         ),
                 ),
               ),
+              Positioned.fill(
+                child: ValueListenableBuilder<String?>(
+                  valueListenable: standup,
+                  builder: (context, report, _) => report == null
+                      ? const SizedBox.shrink()
+                      : TodoStandupLayer(
+                          report: report,
+                          onDone: () => standup.value = null,
+                        ),
+                ),
+              ),
             ],
           ),
         ),
@@ -354,6 +381,13 @@ class _TodoPanel extends StatelessWidget {
         _Header(
           onClose: onClose,
           onBackups: () => backups.value = true,
+          // Disabled while the board did not read: it has nothing true to say.
+          onStandup: store.editable
+              ? () {
+                  final report = store.takeStandup();
+                  if (report != null) standup.value = report;
+                }
+              : null,
           search: search,
           searchField: searchField,
         ),
@@ -463,12 +497,14 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.onClose,
     required this.onBackups,
+    required this.onStandup,
     required this.search,
     required this.searchField,
   });
 
   final VoidCallback onClose;
   final VoidCallback onBackups;
+  final VoidCallback? onStandup;
   final TodoBoardSearch search;
   final Widget searchField;
 
@@ -507,6 +543,29 @@ class _Header extends StatelessWidget {
           ],
           searchField,
           const SizedBox(width: 8),
+          if (onStandup case final onStandup?) ...[
+            HoverRegion(
+              onTap: onStandup,
+              builder: (context, hovered) => Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(ShellRadii.control),
+                  color: hovered ? theme.surfaceHover : const Color(0x00000000),
+                ),
+                child: Center(
+                  child: FaIcon(
+                    FontAwesomeIcons.bullhorn,
+                    size: ShellFontSizes.body,
+                    color: theme.popupForeground.withValues(
+                      alpha: hovered ? 0.9 : 0.6,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
           HoverRegion(
             onTap: onBackups,
             builder: (context, hovered) => Container(
