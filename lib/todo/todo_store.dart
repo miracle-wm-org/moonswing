@@ -131,6 +131,7 @@ class TodoStore extends ChangeNotifier {
   String? _writeError;
   bool _started = false;
   DateTime? _lastStandup;
+  List<StandupSummary> _standups = const [];
   Timer? _writeTimer;
   Timer? _midnight;
   int _idCounter = 0;
@@ -255,25 +256,53 @@ class TodoStore extends ChangeNotifier {
   /// When the last standup summary was taken, or null before the first.
   DateTime? get lastStandup => _lastStandup;
 
-  /// The standup summary of the board since [lastStandup] (see
-  /// [standupReport]), and records now as the next one's starting point.
-  /// Null while the board is not [editable]: a board that did not read has
-  /// nothing true to report.
+  /// Every standup summary taken, newest first.
   ///
-  /// The instant is kept in the database's `meta` table, so it survives a
-  /// restart; a failure to write it costs only that, and the summary is still
-  /// returned; only a restart would then count from the earlier summary.
-  String? takeStandup() {
+  /// Not announced to listeners, like [takeStandup] and
+  /// [invalidateLatestStandup]: nothing on the board renders them, and the
+  /// card that does reads them when it acts.
+  List<StandupSummary> get standups => _standups;
+
+  /// The standup summary of the board since [lastStandup] (see
+  /// [standupReport]), kept at the head of [standups], with now recorded as
+  /// the next one's starting point. Null while the board is not [editable]: a
+  /// board that did not read has nothing true to report.
+  ///
+  /// Both are kept in the database, so they survive a restart; a failure to
+  /// write them costs only that, and the summary is still returned; only a
+  /// restart would then count from the earlier summary.
+  StandupSummary? takeStandup() {
     if (!editable) return null;
     final now = _now();
-    final report = standupReport(_items, since: _lastStandup, now: now);
+    final summary = StandupSummary(
+      takenAt: now,
+      since: _lastStandup,
+      report: standupReport(_items, since: _lastStandup, now: now),
+    );
     _lastStandup = now;
+    _standups = List.unmodifiable([summary, ..._standups]);
     try {
-      _db?.recordStandup(now);
+      _db?.recordStandup(summary);
     } on SqliteException catch (e) {
-      debugPrint('todo: could not record the standup time: ${e.message}');
+      debugPrint('todo: could not record the standup: ${e.message}');
     }
-    return report;
+    return summary;
+  }
+
+  /// Forgets the newest of [standups] and goes back to counting from where it
+  /// counted from, so the next summary taken covers everything it did. Returns
+  /// false, changing nothing, when there is none or the board is not
+  /// [editable].
+  bool invalidateLatestStandup() {
+    if (!editable || _standups.isEmpty) return false;
+    _lastStandup = _standups.first.since;
+    _standups = List.unmodifiable(_standups.skip(1));
+    try {
+      _db?.invalidateLatestStandup();
+    } on SqliteException catch (e) {
+      debugPrint('todo: could not invalidate the standup: ${e.message}');
+    }
+    return true;
   }
 
   /// Reads the board, makes today's recurring copies and posts the reminder.
@@ -317,6 +346,7 @@ class TodoStore extends ChangeNotifier {
       _items = List.unmodifiable(board.todos);
       _notes = List.unmodifiable(board.notes);
       _lastStandup = db.standupAt;
+      _standups = List.unmodifiable(db.standups);
       _dismissedCalendarKeys = db.dismissedCalendarKeys;
       _markSaved();
       _loadError = null;

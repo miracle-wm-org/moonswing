@@ -5,6 +5,7 @@ import 'package:sqlite3/sqlite3.dart';
 
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
+import 'package:moonswing/todo/todo_standup.dart';
 
 TodoItem _item(
   String id, {
@@ -287,7 +288,9 @@ void main() {
           INSERT INTO entries_fts(rowid, title, body)
             VALUES (new.seq, new.title, new.body);
         END''');
-      old.execute('CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+      old.execute(
+        'CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
+      );
       old.execute(
         "INSERT INTO entries(id, kind, title, board_column, created, updated) "
         "VALUES ('old', 'todo', 'Before the upgrade', 'todo', "
@@ -322,6 +325,44 @@ void main() {
       expect(todos.last.external, synced.external);
       expect(reopened.dismissedCalendarKeys, {'primary/gone'});
     });
+
+    test(
+      'an upgraded database keeps its standup time and starts a history',
+      () {
+        final path = '${dir.path}/notes.db';
+        final old = TodoDatabase.open(path);
+        old.close();
+        // Back to schema 2 by hand: no standups table, one recorded instant.
+        final raw = sqlite3.open(path);
+        raw.execute('DROP TABLE standups');
+        raw.execute(
+          "INSERT INTO meta(key, value) VALUES "
+          "('standup_at', '2026-09-24T09:00:00.000Z')",
+        );
+        raw.userVersion = 2;
+        raw.close();
+
+        final db = TodoDatabase.open(path);
+        addTearDown(db.close);
+        expect(db.standupAt, DateTime.utc(2026, 9, 24, 9).toLocal());
+        expect(db.standups, isEmpty);
+        // Nothing kept to invalidate: the recorded instant stays.
+        db.invalidateLatestStandup();
+        expect(db.standupAt, DateTime.utc(2026, 9, 24, 9).toLocal());
+
+        final summary = StandupSummary(
+          takenAt: DateTime.utc(2026, 9, 25, 9).toLocal(),
+          since: db.standupAt,
+          report: 'Standup',
+        );
+        db.recordStandup(summary);
+        expect(db.standups, [summary]);
+        expect(db.standupAt, summary.takenAt);
+        db.invalidateLatestStandup();
+        expect(db.standups, isEmpty);
+        expect(db.standupAt, DateTime.utc(2026, 9, 24, 9).toLocal());
+      },
+    );
   });
 
   group('query building', () {
