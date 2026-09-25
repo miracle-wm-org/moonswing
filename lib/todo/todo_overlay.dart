@@ -1172,6 +1172,8 @@ class _CardFaceState extends State<_CardFace> {
                 icon: FontAwesomeIcons.repeat,
                 label: recurrence.describe(),
               ),
+            if (item.external?.link case final join? when item.column.isOpen)
+              _JoinChip(onTap: () => widget.onOpenLink(join)),
             _Fact(
               icon: FontAwesomeIcons.clock,
               label: formatMoment(item.movedAt),
@@ -1207,6 +1209,39 @@ class _DueChip extends StatelessWidget {
       icon: FontAwesomeIcons.calendarDay,
       label: describeDueDate(due, today),
       color: color,
+    );
+  }
+}
+
+/// A calendar card's way into the meeting: the link is in the body too, but a
+/// meeting about to start wants a target bigger than a line of underlined text.
+class _JoinChip extends StatelessWidget {
+  const _JoinChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final chip = _Fact(
+      icon: FontAwesomeIcons.video,
+      label: 'Join',
+      color: theme.accentText,
+    );
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        constraints: const BoxConstraints(minHeight: ShellSizes.minTapTarget),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: hovered
+              ? theme.surfaceHover
+              : theme.accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+        ),
+        alignment: Alignment.center,
+        child: chip,
+      ),
     );
   }
 }

@@ -3,8 +3,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/app_info.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/google/google_calendar_store.dart';
+import 'package:moonswing/overlay/calendar/calendar_agenda.dart';
 import 'package:moonswing/overlay/calendar/clock_column.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
 import 'package:moonswing/overlay/calendar/time_zones.dart';
@@ -22,10 +25,15 @@ import 'package:moonswing/timers/timer_widgets.dart';
 /// [active] flag and the store seam and nothing else, because what it starts
 /// outlives the overlay and is rendered in the bar.
 ///
-/// There is no account integration — the grid is local date arithmetic only, so
-/// the tab needs no network, no credentials and no start-up service. The world
-/// clocks are read from and written straight back to [ConfigStore]: one consumer
-/// in one window, and adding and removing *are* the persisted events.
+/// The grid itself is local date arithmetic. When a Google account is signed in
+/// under Settings › Accounts and `[google] show_in_calendar` is on, the tab also
+/// holds a [GoogleCalendarStore] lease on the month on screen: days with events
+/// get a dot and the selected day's events are listed under the month. The lease
+/// exists only while the tab is [active], so a closed overlay fetches nothing.
+///
+/// The world clocks are read from and written straight back to [ConfigStore]:
+/// one consumer in one window, and adding and removing *are* the persisted
+/// events.
 class CalendarTab extends StatefulWidget {
   const CalendarTab({
     super.key,
@@ -35,6 +43,9 @@ class CalendarTab extends StatefulWidget {
     this.onWorldClocksChanged,
     this.clock = const SystemClockSource(),
     this.timers,
+    this.google,
+    this.showGoogleEvents,
+    this.openUrl,
   });
 
   /// Whether this is the tab the user is looking at.
@@ -63,6 +74,16 @@ class CalendarTab extends StatefulWidget {
   /// store with no ticker behind it.
   final TimersStore? timers;
 
+  /// Where the events come from, or null for the singleton. Injected by tests.
+  final GoogleCalendarStore? google;
+
+  /// Whether to show the account's events, or null to read
+  /// `[google] show_in_calendar` from [ConfigStore].
+  final bool? showGoogleEvents;
+
+  /// Opens an event's page or join link, or null for the default browser.
+  final bool Function(String url)? openUrl;
+
   @override
   _CalendarTabState createState() => _CalendarTabState();
 }
@@ -71,12 +92,73 @@ class _CalendarTabState extends State<CalendarTab> {
   late DateTime _visibleMonth;
   late DateTime _selectedDay;
 
+  late final GoogleCalendarStore _google =
+      widget.google ?? GoogleCalendarStore.instance;
+  GoogleCalendarLease? _lease;
+
   @override
   void initState() {
     super.initState();
     final today = DateTime.now();
     _selectedDay = dayKey(today);
     _visibleMonth = DateTime(today.year, today.month, 1);
+    _google.account.addListener(_syncLease);
+    _syncLease();
+  }
+
+  @override
+  void didUpdateWidget(CalendarTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncLease();
+  }
+
+  @override
+  void dispose() {
+    _google.account.removeListener(_syncLease);
+    _lease?.release();
+    _lease = null;
+    super.dispose();
+  }
+
+  /// Whether the tab's config is injected rather than read from [ConfigStore].
+  bool get _injected => widget.weekStart != null && widget.worldClocks != null;
+
+  bool get _showEvents {
+    final injected = widget.showGoogleEvents;
+    if (injected != null) return injected;
+    // A test that injected the rest and said nothing about events gets none,
+    // and never reaches the singleton config.
+    if (_injected) return false;
+    return ConfigStore.instance.get<bool>(['google', 'show_in_calendar']) ??
+        true;
+  }
+
+  /// Whether the events half of the tab is on screen.
+  bool get _eventsVisible => _showEvents && _google.account.signedIn;
+
+  /// Takes, moves or drops the lease on the month on screen. The window is the
+  /// grid's, leading and trailing days included, since those carry dots too.
+  void _syncLease() {
+    final wanted = widget.active && _eventsVisible;
+    if (!wanted) {
+      _lease?.release();
+      _lease = null;
+      return;
+    }
+    final grid = buildMonthGrid(
+      _visibleMonth.year,
+      _visibleMonth.month,
+      weekStart: _weekStart,
+    );
+    final from = grid.days.first;
+    final last = grid.days.last;
+    final to = DateTime(last.year, last.month, last.day + 1);
+    final lease = _lease;
+    if (lease == null) {
+      _lease = _google.acquire(from, to);
+    } else {
+      lease.update(from, to);
+    }
   }
 
   int get _weekStart {
@@ -87,6 +169,7 @@ class _CalendarTabState extends State<CalendarTab> {
 
   void _goToMonth(DateTime month) {
     setState(() => _visibleMonth = DateTime(month.year, month.month, 1));
+    _syncLease();
   }
 
   void _goToToday() {
@@ -95,6 +178,7 @@ class _CalendarTabState extends State<CalendarTab> {
       _selectedDay = dayKey(today);
       _visibleMonth = DateTime(today.year, today.month, 1);
     });
+    _syncLease();
   }
 
   List<WorldClock> get _worldClocks =>
@@ -138,13 +222,16 @@ class _CalendarTabState extends State<CalendarTab> {
   void _removeWorldClock(String zone) {
     final current = _worldClocks;
     if (!current.any((clock) => clock.zone == zone)) return;
-    _writeWorldClocks(
-      current.where((clock) => clock.zone != zone).toList(),
-    );
+    _writeWorldClocks(current.where((clock) => clock.zone != zone).toList());
   }
 
   Widget _buildPane(BuildContext context) {
     final theme = ThemeScope.of(context);
+    // The config this pane rebuilds on may have switched the events on or off,
+    // or moved the week start and with it the grid's first day. The lease only
+    // schedules its work, so taking it from here notifies nobody mid-build.
+    _syncLease();
+    final events = _eventsVisible;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -158,6 +245,8 @@ class _CalendarTabState extends State<CalendarTab> {
             onMonthChanged: _goToMonth,
             onDaySelected: (day) => setState(() => _selectedDay = day),
             onToday: _goToToday,
+            events: events ? _google : null,
+            openUrl: widget.openUrl ?? openUriWithDefault,
           ),
         ),
         Container(width: 1, color: theme.divider),
@@ -186,15 +275,18 @@ class _CalendarTabState extends State<CalendarTab> {
     // cannot change, and touching the singleton would throw in a widget test
     // that never called initShared(). Both seams have to be injected for that
     // to hold — a test that passes only one still reaches the store.
-    if (widget.weekStart != null && widget.worldClocks != null) {
-      return _buildPane(context);
+    if (_injected) {
+      return ListenableBuilder(
+        listenable: _google.account,
+        builder: (context, _) => _buildPane(context),
+      );
     }
 
     // Changing "Week starts on" in the settings tab must re-lay the grid while
     // the overlay stays open, and an added clock must appear on the same frame,
     // so this listens rather than snapshotting.
     return ListenableBuilder(
-      listenable: ConfigStore.instance,
+      listenable: Listenable.merge([ConfigStore.instance, _google.account]),
       builder: (context, _) => _buildPane(context),
     );
   }
@@ -212,6 +304,8 @@ class _MonthPane extends StatelessWidget {
     required this.onMonthChanged,
     required this.onDaySelected,
     required this.onToday,
+    required this.events,
+    required this.openUrl,
   });
 
   final DateTime visibleMonth;
@@ -221,9 +315,15 @@ class _MonthPane extends StatelessWidget {
   final ValueChanged<DateTime> onDaySelected;
   final VoidCallback onToday;
 
+  /// The account's events, or null when they are not shown.
+  final GoogleCalendarStore? events;
+
+  final bool Function(String url) openUrl;
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final events = this.events;
     final grid = buildMonthGrid(
       visibleMonth.year,
       visibleMonth.month,
@@ -271,25 +371,34 @@ class _MonthPane extends StatelessWidget {
                     child: Row(
                       children: [
                         for (var weekday = 0; weekday < 7; weekday++)
-                          Builder(builder: (context) {
-                            final index = week * 7 + weekday;
-                            final day = grid.days[index];
-                            return Expanded(
-                              child: _DayCell(
-                                day: day,
-                                inMonth: grid.isInMonth(index),
-                                isToday: day == today,
-                                isSelected: day == selectedDay,
-                                onTap: () => onDaySelected(day),
-                              ),
-                            );
-                          }),
+                          Builder(
+                            builder: (context) {
+                              final index = week * 7 + weekday;
+                              final day = grid.days[index];
+                              return Expanded(
+                                child: _DayCell(
+                                  day: day,
+                                  inMonth: grid.isInMonth(index),
+                                  isToday: day == today,
+                                  isSelected: day == selectedDay,
+                                  onTap: () => onDaySelected(day),
+                                  events: events,
+                                ),
+                              );
+                            },
+                          ),
                       ],
                     ),
                   ),
               ],
             ),
           ),
+          if (events != null) ...[
+            const SizedBox(height: 12),
+            Container(height: 1, color: theme.divider),
+            const SizedBox(height: 8),
+            CalendarAgenda(store: events, day: selectedDay, onOpen: openUrl),
+          ],
         ],
       ),
     );
@@ -390,6 +499,7 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.onTap,
+    this.events,
   });
 
   final DateTime day;
@@ -397,6 +507,9 @@ class _DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final VoidCallback onTap;
+
+  /// Where the event dot reads from, or null for no dot.
+  final GoogleCalendarStore? events;
 
   @override
   Widget build(BuildContext context) {
@@ -410,18 +523,35 @@ class _DayCell extends StatelessWidget {
 
     // Everything below here that the pointer cannot change, resolved once per
     // rebuild of the cell rather than once per pointer move.
-    final label = Center(
-      child: Text(
-        '${day.day}',
-        style: TextStyle(
-          fontSize: ShellFontSizes.label,
-          fontFamily: theme.fontFamily,
-          color: foreground,
-          fontWeight:
-              isToday || isSelected ? FontWeight.w600 : FontWeight.normal,
-        ),
+    final number = Text(
+      '${day.day}',
+      style: TextStyle(
+        fontSize: ShellFontSizes.label,
+        fontFamily: theme.fontFamily,
+        color: foreground,
+        fontWeight: isToday || isSelected ? FontWeight.w600 : FontWeight.normal,
       ),
     );
+    final events = this.events;
+    final label = events == null
+        ? Center(child: number)
+        : Stack(
+            children: [
+              Center(child: number),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 4,
+                child: Center(
+                  child: CalendarEventDot(
+                    store: events,
+                    day: day,
+                    color: isSelected ? foreground : theme.accent,
+                  ),
+                ),
+              ),
+            ],
+          );
     final border = isToday && !isSelected
         ? Border.all(color: theme.accent, width: 1.5)
         : null;

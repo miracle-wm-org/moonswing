@@ -15,6 +15,7 @@ import 'package:toml/toml.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/default_config.dart';
 import 'package:moonswing/desktop/desktop_config.dart';
+import 'package:moonswing/google/google_config.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/polkit/polkit_config.dart';
@@ -254,9 +255,8 @@ class WorldClock {
   int get hashCode => Object.hash(zone, label);
 }
 
-/// The `[calendar]` section. The calendar is a local month grid with no account
-/// integration, so this is only the grid's own presentation plus the clocks
-/// shown beside it.
+/// The `[calendar]` section: the month grid's own presentation plus the clocks
+/// shown beside it. The Google events it can also show are `[google]`'s.
 class CalendarConfig {
   /// A [DateTime] weekday constant: [DateTime.sunday] or [DateTime.monday].
   final int weekStart;
@@ -693,6 +693,10 @@ class AppConfig {
   /// "no polkit config".
   final PolkitConfig polkit;
 
+  /// What the shell does with the Google account (Settings › Accounts). Never
+  /// null; the account itself is not config, see `google_account_file.dart`.
+  final GoogleConfig google;
+
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
@@ -705,6 +709,7 @@ class AppConfig {
     this.screenshare = const ScreenshareConfig(),
     this.power = const PowerConfig(),
     this.polkit = const PolkitConfig(),
+    this.google = const GoogleConfig(),
   });
 
   /// Resolves the absolute path to `config.toml`, honouring
@@ -793,6 +798,7 @@ class AppConfig {
       screenshare: ScreenshareConfig.fromMap(map.tableOrNull('screenshare')),
       power: PowerConfig.fromMap(map.tableOrNull('power')),
       polkit: PolkitConfig.fromMap(map.tableOrNull('polkit')),
+      google: GoogleConfig.fromMap(map.tableOrNull('google')),
     );
   }
 
@@ -810,7 +816,8 @@ class AppConfig {
           other.shortcuts == shortcuts &&
           other.screenshare == screenshare &&
           other.power == power &&
-          other.polkit == polkit;
+          other.polkit == polkit &&
+          other.google == google;
 
   /// Hashed on the panel count alone: equal maps have equal
   /// lengths, and two maps that are equal can still iterate in
@@ -829,5 +836,6 @@ class AppConfig {
         screenshare,
         power,
         polkit,
+        google,
       );
 }

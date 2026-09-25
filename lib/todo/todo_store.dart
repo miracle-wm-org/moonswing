@@ -6,6 +6,7 @@ import 'package:sqlite3/sqlite3.dart' show SqliteException;
 
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/todo/todo_backup.dart';
+import 'package:moonswing/todo/todo_calendar_sync.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_standup.dart';
@@ -316,6 +317,7 @@ class TodoStore extends ChangeNotifier {
       _items = List.unmodifiable(board.todos);
       _notes = List.unmodifiable(board.notes);
       _lastStandup = db.standupAt;
+      _dismissedCalendarKeys = db.dismissedCalendarKeys;
       _markSaved();
       _loadError = null;
     } on TodoFormatException catch (e) {
@@ -637,6 +639,9 @@ class TodoStore extends ChangeNotifier {
               ...current.history,
               TodoMove(from: current.column, to: column, at: _now()),
             ],
+            // A calendar card the user has moved is theirs from now on: the
+            // sync stops following the clock for it.
+            external: current.external?.copyWith(manual: true),
           );
     final next = [
       for (final i in _items)
@@ -664,11 +669,54 @@ class TodoStore extends ChangeNotifier {
   }
 
   void delete(String id) {
-    if (!editable || item(id) == null) return;
+    final current = item(id);
+    if (!editable || current == null) return;
+    if (current.external case final e?) _dismissCalendarKey(e.key);
     _commit([
       for (final i in _items)
         if (i.id != id) i,
     ]);
+  }
+
+  // --- calendar cards -----------------------------------------------------
+
+  /// The calendar events whose cards the user deleted, so the sync does not put
+  /// them straight back. Kept in the database's `meta` table.
+  Set<String> _dismissedCalendarKeys = <String>{};
+
+  /// How many dismissals are remembered. A meeting is only ever re-made on
+  /// the day it happens, so the recent ones are all that matter.
+  static const int _kMaxDismissed = 200;
+
+  void _dismissCalendarKey(String key) {
+    final keys = [..._dismissedCalendarKeys.where((k) => k != key), key];
+    _dismissedCalendarKeys = keys
+        .skip(keys.length > _kMaxDismissed ? keys.length - _kMaxDismissed : 0)
+        .toSet();
+    try {
+      _db?.recordDismissedCalendarKeys(_dismissedCalendarKeys);
+    } on SqliteException catch (e) {
+      debugPrint('todo: could not record a dismissed event: ${e.message}');
+    }
+  }
+
+  /// Brings the board's calendar cards in line with [sources], the synced
+  /// calendars' timed events on [day] (see [syncCalendarCards]). A no-op
+  /// while the board is not [editable], and not a write when nothing moved.
+  void applyCalendarSync(
+    List<CalendarCardSource> sources, {
+    required DateTime day,
+  }) {
+    if (!editable) return;
+    final next = syncCalendarCards(
+      _items,
+      sources,
+      day: day,
+      now: _now(),
+      newId: _newId,
+      dismissed: _dismissedCalendarKeys,
+    );
+    if (next != null) _commit(next);
   }
 
   /// Creates a note and returns its id, or null when the store is not

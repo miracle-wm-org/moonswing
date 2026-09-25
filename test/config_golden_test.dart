@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/google/google_config.dart';
 import 'package:moonswing/theme/builtin_themes.dart';
 
 /// Pins today's parse behaviour so the config refactor (the shared TomlReader,
@@ -52,6 +53,14 @@ void main() {
       // agent is the only default that leaves those actions working.
       expect(config.polkit.enabled, isTrue);
       expect(config.polkit.maxAttempts, 3);
+      // Signing in is a deliberate act under Settings › Accounts; the section
+      // only says what a signed-in account is used for. Putting meetings on
+      // the board is opt-in, since it writes into somebody's todo list.
+      expect(config.google, const GoogleConfig());
+      expect(config.google.calendars, ['primary']);
+      expect(config.google.showInCalendar, isTrue);
+      expect(config.google.todoSync, isFalse);
+      expect(config.google.refreshMinutes, 5);
     });
   });
 
@@ -174,6 +183,30 @@ void main() {
       expect(config.osd.enabled, isTrue);
       expect(config.osd.margin, 40);
       expect(config.calendar.weekStart, DateTime.sunday);
+    });
+
+    test('[google] degrades per key and clamps its interval', () {
+      final config = AppConfig.fromMap({
+        'google': {
+          'calendars': ['primary', 7, ' team@group.calendar.google.com ', ''],
+          'show_in_calendar': 'no',
+          'todo_sync': true,
+          'refresh_minutes': 0.5,
+        },
+      });
+      expect(config.google.calendars, [
+        'primary',
+        'team@group.calendar.google.com',
+      ]);
+      expect(config.google.showInCalendar, isTrue);
+      expect(config.google.todoSync, isTrue);
+      expect(config.google.refreshMinutes, GoogleConfig.minRefreshMinutes);
+      expect(
+        AppConfig.fromMap({
+          'google': {'refresh_minutes': 1e9},
+        }).google.refreshMinutes,
+        GoogleConfig.maxRefreshMinutes,
+      );
     });
 
     test('a wrongly-typed table costs that table alone', () {

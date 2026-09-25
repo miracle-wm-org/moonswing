@@ -46,6 +46,7 @@ import 'package:moonswing/modules/workspaces.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/emoji/emoji_controller.dart';
 import 'package:moonswing/emoji/emoji_picker_overlay.dart';
+import 'package:moonswing/google/google_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_store.dart';
 import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
@@ -290,6 +291,10 @@ void _startShellServices({
   // all when none is configured.
   startTodoService();
   startTodoRemoteBackup();
+  // The Google account under Settings › Accounts: reads the saved grant and
+  // starts the todo board's calendar sync if `[google] todo_sync` asks for it.
+  // After the board, whose cards it keeps.
+  startGoogleService();
   services.run(ShellService.tray, startStatusNotifierService);
 
   // Watches the default sink/source and the backlight so the on-screen
