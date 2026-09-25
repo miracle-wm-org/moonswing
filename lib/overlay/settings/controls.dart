@@ -570,13 +570,14 @@ class _InfoTipCard extends StatelessWidget {
   );
 }
 
-/// Hangs the card under the icon, starting just left of it, and keeps it on
-/// screen: slid left off the right edge, flipped above when there is no room
-/// below.
+/// Hangs the card under the icon, starting just left of it (or centred under
+/// it, with [centered]), and keeps it on screen: slid left off the right edge,
+/// flipped above when there is no room below.
 class _InfoTipLayout extends SingleChildLayoutDelegate {
-  const _InfoTipLayout(this.anchor);
+  const _InfoTipLayout(this.anchor, {this.centered = false});
 
   final Rect anchor;
+  final bool centered;
 
   static const double _gap = 4;
   static const double _margin = 8;
@@ -597,7 +598,9 @@ class _InfoTipLayout extends SingleChildLayoutDelegate {
   @override
   Offset getPositionForChild(Size size, Size childSize) {
     final maxX = math.max(_margin, size.width - childSize.width - _margin);
-    final x = (anchor.left - 6).clamp(_margin, maxX);
+    final x =
+        (centered ? anchor.center.dx - childSize.width / 2 : anchor.left - 6)
+            .clamp(_margin, maxX);
     final below = anchor.bottom + _gap;
     final above = anchor.top - _gap - childSize.height;
     final fitsBelow = below + childSize.height <= size.height - _margin;
@@ -607,7 +610,126 @@ class _InfoTipLayout extends SingleChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_InfoTipLayout oldDelegate) =>
-      anchor != oldDelegate.anchor;
+      anchor != oldDelegate.anchor || centered != oldDelegate.centered;
+}
+
+/// How long the pointer rests on a [SettingsTooltip]'s child before it speaks.
+const Duration kSettingsTooltipDelay = Duration(milliseconds: 500);
+
+/// Names what [child] does once the pointer has rested on it for
+/// [kSettingsTooltipDelay] — for an icon-only button whose glyph alone does not
+/// say it.
+///
+/// The card is [SettingsInfoTip]'s, floated the same way (root overlay,
+/// [IgnorePointer]) but centred under the child. It listens without taking
+/// part: a [MouseRegion] that is not opaque and a [Listener] that only hears
+/// the pointer go down, so the child's own hover and tap are untouched. A press
+/// hides it and it stays hidden until the pointer leaves, because a label over
+/// what the click just opened is in the way. [message] null wraps nothing.
+class SettingsTooltip extends StatefulWidget {
+  const SettingsTooltip({
+    super.key,
+    required this.message,
+    required this.child,
+  });
+
+  final String? message;
+  final Widget child;
+
+  @override
+  State<SettingsTooltip> createState() => _SettingsTooltipState();
+}
+
+class _SettingsTooltipState extends State<SettingsTooltip> {
+  OverlayEntry? _entry;
+  Timer? _delay;
+
+  @override
+  void didUpdateWidget(SettingsTooltip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.message == null) {
+      _hide();
+    } else if (widget.message != oldWidget.message) {
+      _entry?.markNeedsBuild();
+    }
+  }
+
+  @override
+  void dispose() {
+    _hide();
+    super.dispose();
+  }
+
+  void _arm() {
+    _delay?.cancel();
+    _delay = Timer(kSettingsTooltipDelay, _show);
+  }
+
+  void _show() {
+    _delay = null;
+    final message = widget.message;
+    if (_entry != null || !mounted || message == null) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    final box = context.findRenderObject();
+    final overlayBox = overlay?.context.findRenderObject();
+    if (overlay == null ||
+        box is! RenderBox ||
+        !box.hasSize ||
+        !box.attached ||
+        overlayBox is! RenderBox) {
+      return;
+    }
+    final anchor =
+        box.localToGlobal(Offset.zero, ancestor: overlayBox) & box.size;
+    final theme = ThemeScope.of(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+    final entry = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomSingleChildLayout(
+                delegate: _InfoTipLayout(anchor, centered: true),
+                child: Directionality(
+                  textDirection: direction,
+                  child: _InfoTipCard(
+                    message: widget.message ?? message,
+                    theme: theme,
+                    scaler: scaler,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    _entry = entry;
+    overlay.insert(entry);
+  }
+
+  void _hide() {
+    _delay?.cancel();
+    _delay = null;
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.message == null) return widget.child;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _hide(),
+      child: MouseRegion(
+        opaque: false,
+        onEnter: (_) => _arm(),
+        onExit: (_) => _hide(),
+        child: widget.child,
+      ),
+    );
+  }
 }
 
 /// A labelled form row: the label on the left, the [control] on the right.
@@ -2086,11 +2208,16 @@ class SettingsIconButton extends StatelessWidget {
     this.color,
     this.hoverColor,
     this.enabled = true,
+    this.tooltip,
   });
 
   final FaIconData icon;
   final VoidCallback onTap;
   final double size;
+
+  /// What the button does, shown on hover — see [SettingsTooltip]. An icon
+  /// alone rarely says.
+  final String? tooltip;
 
   /// The tap target. [ShellSizes.iconButtonDense] for a row whose height
   /// cannot spare the full box.
@@ -2103,18 +2230,21 @@ class SettingsIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return HoverRegion(
-      enabled: enabled,
-      onTap: onTap,
-      builder: (context, hovered) => SizedBox.square(
-        dimension: box,
-        child: Center(
-          child: FaIcon(
-            icon,
-            size: size,
-            color: hovered
-                ? (hoverColor ?? theme.accentText)
-                : (color ?? theme.popupForeground.withValues(alpha: 0.6)),
+    return SettingsTooltip(
+      message: tooltip,
+      child: HoverRegion(
+        enabled: enabled,
+        onTap: onTap,
+        builder: (context, hovered) => SizedBox.square(
+          dimension: box,
+          child: Center(
+            child: FaIcon(
+              icon,
+              size: size,
+              color: hovered
+                  ? (hoverColor ?? theme.accentText)
+                  : (color ?? theme.popupForeground.withValues(alpha: 0.6)),
+            ),
           ),
         ),
       ),

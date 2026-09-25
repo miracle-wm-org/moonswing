@@ -544,72 +544,77 @@ class _Header extends StatelessWidget {
           searchField,
           const SizedBox(width: 8),
           if (onStandup case final onStandup?) ...[
-            HoverRegion(
+            _HeaderButton(
+              tooltip:
+                  'Standup summary: what was finished, started and still to '
+                  'do since the last one',
               onTap: onStandup,
-              builder: (context, hovered) => Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(ShellRadii.control),
-                  color: hovered ? theme.surfaceHover : const Color(0x00000000),
-                ),
-                child: Center(
-                  child: FaIcon(
-                    FontAwesomeIcons.bullhorn,
-                    size: ShellFontSizes.body,
-                    color: theme.popupForeground.withValues(
-                      alpha: hovered ? 0.9 : 0.6,
-                    ),
-                  ),
-                ),
+              builder: (color) => FaIcon(
+                FontAwesomeIcons.bullhorn,
+                size: ShellFontSizes.body,
+                color: color,
               ),
             ),
             const SizedBox(width: 4),
           ],
-          HoverRegion(
+          _HeaderButton(
+            tooltip: 'Backups',
             onTap: onBackups,
-            builder: (context, hovered) => Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(ShellRadii.control),
-                color: hovered ? theme.surfaceHover : const Color(0x00000000),
-              ),
-              child: Center(
-                child: FaIcon(
-                  FontAwesomeIcons.cloudArrowUp,
-                  size: ShellFontSizes.body,
-                  color: theme.popupForeground.withValues(
-                    alpha: hovered ? 0.9 : 0.6,
-                  ),
-                ),
-              ),
+            builder: (color) => FaIcon(
+              FontAwesomeIcons.cloudArrowUp,
+              size: ShellFontSizes.body,
+              color: color,
             ),
           ),
           const SizedBox(width: 4),
-          HoverRegion(
+          _HeaderButton(
+            tooltip: 'Close',
             onTap: onClose,
-            builder: (context, hovered) => Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(ShellRadii.control),
-                color: hovered ? theme.surfaceHover : const Color(0x00000000),
-              ),
-              child: Center(
-                child: Text(
-                  '✕',
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.title,
-                    color: theme.popupForeground.withValues(
-                      alpha: hovered ? 0.9 : 0.6,
-                    ),
-                  ),
-                ),
-              ),
+            builder: (color) => Text(
+              '✕',
+              style: TextStyle(fontSize: ShellFontSizes.title, color: color),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// One of the header's icon-only buttons, named on hover.
+class _HeaderButton extends StatelessWidget {
+  const _HeaderButton({
+    required this.tooltip,
+    required this.onTap,
+    required this.builder,
+  });
+
+  final String tooltip;
+  final VoidCallback onTap;
+
+  /// The glyph, in the colour the hover state gives it.
+  final Widget Function(Color color) builder;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return SettingsTooltip(
+      message: tooltip,
+      child: HoverRegion(
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+            color: hovered ? theme.surfaceHover : const Color(0x00000000),
+          ),
+          child: Center(
+            child: builder(
+              theme.popupForeground.withValues(alpha: hovered ? 0.9 : 0.6),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -706,6 +711,7 @@ class _ColumnView extends StatelessWidget {
                       icon: FontAwesomeIcons.plus,
                       enabled: editable,
                       onTap: onAdd,
+                      tooltip: 'Add a card to ${column.label}',
                     ),
                   ],
                 ),
@@ -1228,19 +1234,22 @@ class _JoinChip extends StatelessWidget {
       label: 'Join',
       color: theme.accentText,
     );
-    return HoverRegion(
-      onTap: onTap,
-      builder: (context, hovered) => Container(
-        constraints: const BoxConstraints(minHeight: ShellSizes.minTapTarget),
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        decoration: BoxDecoration(
-          color: hovered
-              ? theme.surfaceHover
-              : theme.accent.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(ShellRadii.control),
+    return SettingsTooltip(
+      message: 'Join the meeting',
+      child: HoverRegion(
+        onTap: onTap,
+        builder: (context, hovered) => Container(
+          constraints: const BoxConstraints(minHeight: ShellSizes.minTapTarget),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          decoration: BoxDecoration(
+            color: hovered
+                ? theme.surfaceHover
+                : theme.accent.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+          ),
+          alignment: Alignment.center,
+          child: chip,
         ),
-        alignment: Alignment.center,
-        child: chip,
       ),
     );
   }
