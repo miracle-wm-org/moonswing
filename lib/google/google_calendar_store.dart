@@ -7,6 +7,14 @@
 // fetches the span covering every live window, so two consumers are still one
 // request per calendar per interval.
 //
+// Every signed-in account is read. `[google] calendars` names calendars by id,
+// which Google keeps unique across accounts, plus `primary` for every
+// account's own; each id is read through the first account whose calendar list
+// holds it, so a calendar shared with two of them is read once.
+//
+// **Each calendar is fetched on its own and fails on its own.** One that
+// answers an error — deleted, unshared, or unreachable — costs that calendar's
+// events and puts its name beside the reason, never the other calendars'.
 // It keeps the last good answer on screen through a failed refresh, with the
 // reason beside it, and notifies only when something a surface renders has
 // moved.
@@ -54,7 +62,7 @@ class GoogleCalendarStore extends ChangeNotifier {
     : _account = account ?? GoogleAccountStore.instance,
       _autoTimers = autoTimers {
     _account.addListener(_onAccount);
-    _wasSignedIn = _account.signedIn;
+    _accountIds = _account.accounts.map((a) => a.id).join('\n');
   }
 
   static final GoogleCalendarStore instance = GoogleCalendarStore._();
@@ -119,10 +127,16 @@ class GoogleCalendarStore extends ChangeNotifier {
     return _events
         .where((e) => !e.cancelled && e.overlapsDay(midnight))
         .toList()
-      ..sort((a, b) {
-        if (a.allDay != b.allDay) return a.allDay ? -1 : 1;
-        return a.start.compareTo(b.start);
-      });
+      ..sort(compareForDay);
+  }
+
+  /// All-day (and multi-day) events first, then by start, then the longer
+  /// first, so a day's bars read in the order a calendar lists them.
+  static int compareForDay(GoogleEvent a, GoogleEvent b) {
+    if (a.allDay != b.allDay) return a.allDay ? -1 : 1;
+    final byStart = a.start.compareTo(b.start);
+    if (byStart != 0) return byStart;
+    return b.end.compareTo(a.end);
   }
 
   /// Whether the local day [day] has any event, for the month grid's markers.
@@ -131,25 +145,50 @@ class GoogleCalendarStore extends ChangeNotifier {
     return _events.any((e) => !e.cancelled && e.overlapsDay(midnight));
   }
 
-  List<GoogleCalendar> _calendars = const [];
+  final Map<String, List<GoogleCalendar>> _calendars = {};
 
-  /// The account's calendar list, once [loadCalendars] has answered.
-  List<GoogleCalendar> get calendars => _calendars;
+  /// Each account's calendar list, by account id, once read.
+  List<GoogleCalendar> calendarsOf(String accountId) =>
+      _calendars[accountId] ?? const [];
+
+  /// Whether [accountId]'s calendar list has been read.
+  bool hasCalendarsOf(String accountId) => _calendars.containsKey(accountId);
+
+  /// The calendar [event] was read from, once its account's list is known.
+  GoogleCalendar? calendarOf(GoogleEvent event) {
+    for (final c in calendarsOf(event.account)) {
+      if (event.calendarId == 'primary'
+          ? c.primary
+          : c.id == event.calendarId) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  /// `#rrggbb` to draw [event] in: its own colour, else its calendar's. Null
+  /// when neither is known, for the theme's accent.
+  String? colorOf(GoogleEvent event) => event.color ?? calendarOf(event)?.color;
 
   bool _loading = false;
 
   /// True while a fetch is in flight with nothing yet on screen.
   bool get loading => _loading;
 
-  String _error = '';
+  List<String> _errors = const [];
 
-  /// Why the last fetch failed, or empty.
-  String get error => _error;
+  /// Why calendars failed on the last fetch, one line per calendar. Empty
+  /// when every calendar answered.
+  List<String> get errors => _errors;
 
-  String _calendarsError = '';
+  /// [errors] as one line, or empty.
+  String get error => _errors.join('\n');
 
-  /// Why the calendar list could not be read, or empty.
-  String get calendarsError => _calendarsError;
+  final Map<String, String> _calendarsErrors = {};
+
+  /// Why [accountId]'s calendar list could not be read, or empty.
+  String calendarsErrorOf(String accountId) =>
+      _calendarsErrors[accountId] ?? '';
 
   /// The span the last *successful* fetch answered for.
   ({DateTime from, DateTime to})? _fetched;
@@ -171,9 +210,7 @@ class GoogleCalendarStore extends ChangeNotifier {
       ..write('|')
       ..write(_loading)
       ..write('|')
-      ..write(_error)
-      ..write('|')
-      ..write(_calendarsError)
+      ..write(error)
       ..write('|')
       ..write(_fetched?.from)
       ..write(_fetched?.to);
@@ -181,19 +218,26 @@ class GoogleCalendarStore extends ChangeNotifier {
       buffer
         ..write('|')
         ..write(e.key)
-        ..write(e.summary)
-        ..write(e.start)
-        ..write(e.end)
-        ..write(e.cancelled)
-        ..write(e.meetingLink)
-        ..write(e.htmlLink);
+        ..write(e.hashCode);
     }
-    for (final c in _calendars) {
+    for (final entry in _calendars.entries) {
       buffer
         ..write('|')
-        ..write(c.id)
-        ..write(c.summary)
-        ..write(c.color);
+        ..write(entry.key)
+        ..write(_calendarsErrors[entry.key]);
+      for (final c in entry.value) {
+        buffer
+          ..write(',')
+          ..write(c.id)
+          ..write(c.summary)
+          ..write(c.color);
+      }
+    }
+    for (final entry in _calendarsErrors.entries) {
+      buffer
+        ..write('|!')
+        ..write(entry.key)
+        ..write(entry.value);
     }
     return buffer.toString();
   }
@@ -207,25 +251,30 @@ class GoogleCalendarStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- the account ---------------------------------------------------------
+  // --- the accounts --------------------------------------------------------
 
-  bool _wasSignedIn = false;
+  String _accountIds = '';
 
   void _onAccount() {
-    final signedIn = _account.signedIn;
-    if (signedIn == _wasSignedIn) return;
-    _wasSignedIn = signedIn;
-    if (signedIn) {
-      if (_leases.isNotEmpty) unawaited(refresh());
-    } else {
-      // Nothing of the old account stays on screen.
+    final ids = _account.accounts.map((a) => a.id).join('\n');
+    if (ids == _accountIds) {
+      _publish();
+      return;
+    }
+    _accountIds = ids;
+    final live = ids.isEmpty ? const <String>{} : ids.split('\n').toSet();
+    // Nothing of an account that has gone stays on screen.
+    _calendars.removeWhere((id, _) => !live.contains(id));
+    _calendarsErrors.removeWhere((id, _) => !live.contains(id));
+    _byCalendar.removeWhere((key, _) => !live.contains(key.account));
+    _rebuildEvents();
+    _fetched = null;
+    if (live.isEmpty) {
       _stopTimer();
-      _events = const [];
-      _calendars = const [];
-      _fetched = null;
-      _error = '';
-      _calendarsError = '';
+      _errors = const [];
       _loading = false;
+    } else if (_leases.isNotEmpty) {
+      unawaited(refresh());
     }
     _publish();
   }
@@ -283,6 +332,21 @@ class GoogleCalendarStore extends ChangeNotifier {
   bool _fetchInFlight = false;
   bool _refetch = false;
 
+  /// The last good answer per calendar read, so one that fails keeps its
+  /// events on screen while the others move on.
+  final Map<({String account, String calendar}), List<GoogleEvent>>
+  _byCalendar = {};
+
+  void _rebuildEvents() {
+    final seen = <String>{};
+    final events = <GoogleEvent>[
+      for (final list in _byCalendar.values)
+        for (final e in list)
+          if (seen.add(e.key)) e,
+    ]..sort((a, b) => a.start.compareTo(b.start));
+    _events = List.unmodifiable(events);
+  }
+
   void _armTimer() {
     _timer?.cancel();
     _timer = null;
@@ -298,6 +362,60 @@ class GoogleCalendarStore extends ChangeNotifier {
     _timer = null;
   }
 
+  /// Which calendar each account reads, in account order: `primary` for an
+  /// account whose own calendar is selected (under either spelling), then the
+  /// selected calendars its list holds that no earlier account has claimed.
+  ///
+  /// A selected id no list holds — typed into `config.toml` by hand, a public
+  /// calendar nobody subscribed to — is asked of every account whose list
+  /// could not be read, since it may be the one holding it, or else of the
+  /// first account: a readable calendar then shows, and one that is gone says
+  /// so by name.
+  @visibleForTesting
+  List<({GoogleAccount account, String calendar, String name})> plan() {
+    final selected = _config.calendars;
+    final claimed = <String>{};
+    final jobs = <({GoogleAccount account, String calendar, String name})>[];
+    final unlisted = <GoogleAccount>[];
+    for (final account in _account.accounts) {
+      final list = _calendars[account.id];
+      if (list == null) {
+        unlisted.add(account);
+        if (selected.contains('primary') ||
+            (account.email.isNotEmpty && selected.contains(account.email))) {
+          claimed.add(account.email);
+          jobs.add((
+            account: account,
+            calendar: 'primary',
+            name: account.label,
+          ));
+        }
+        continue;
+      }
+      for (final c in list) {
+        final on =
+            selected.contains(c.id) ||
+            (c.primary && selected.contains('primary'));
+        if (!on || !claimed.add(c.id)) continue;
+        jobs.add((
+          account: account,
+          calendar: c.primary ? 'primary' : c.id,
+          name: c.summary,
+        ));
+      }
+    }
+    final accounts = _account.accounts;
+    for (final id in selected) {
+      if (id == 'primary' || claimed.contains(id) || accounts.isEmpty) {
+        continue;
+      }
+      for (final account in unlisted.isEmpty ? [accounts.first] : unlisted) {
+        jobs.add((account: account, calendar: id, name: id));
+      }
+    }
+    return jobs;
+  }
+
   /// Fetches the leased span now. Public because a failure offers a retry: a
   /// network comes back and the shell cannot see it happen.
   Future<void> refresh() async {
@@ -309,37 +427,44 @@ class GoogleCalendarStore extends ChangeNotifier {
       return;
     }
     _fetchInFlight = true;
-    if (_fetched == null) _loading = true;
+    if (_fetched == null && _events.isEmpty) _loading = true;
     _publish();
-    final calendars = _config.calendars;
+    final config = _config;
+    final accountIds = _accountIds;
     try {
-      final events = <GoogleEvent>[];
-      for (final id in calendars) {
-        events.addAll(
-          await _account.withAccessToken(
-            (token) => _account.client.listEvents(
-              accessToken: token,
-              calendarId: id,
-              from: wanted.from,
-              to: wanted.to,
-            ),
-          ),
-        );
-      }
+      // A calendar list is what says which account holds a calendar and what
+      // colour it is, so an account's is read before its first fetch.
+      await Future.wait([
+        for (final a in _account.accounts)
+          if (!_calendars.containsKey(a.id)) _loadCalendarsOf(a),
+      ]);
+      final jobs = plan();
+      final results = await Future.wait([
+        for (final job in jobs) _fetchOne(job, wanted.from, wanted.to),
+      ]);
       // Answered for a question since changed: the next fetch is the one.
-      if (!listEquals(calendars, _config.calendars) || !_account.signedIn) {
+      if (config != _config || accountIds != _accountIds) {
         _refetch = true;
       } else {
-        events.sort((a, b) => a.start.compareTo(b.start));
-        _events = List.unmodifiable(events);
-        _fetched = wanted;
-        _error = '';
+        final errors = <String>[];
+        final live = <({String account, String calendar})>{};
+        for (var i = 0; i < jobs.length; i++) {
+          final job = jobs[i];
+          final key = (account: job.account.id, calendar: job.calendar);
+          live.add(key);
+          final result = results[i];
+          if (result.events case final events?) {
+            _byCalendar[key] = events;
+          } else {
+            final named = jobs.length > 1 || _account.accounts.length > 1;
+            errors.add(named ? '${job.name}: ${result.error}' : result.error!);
+          }
+        }
+        _byCalendar.removeWhere((key, _) => !live.contains(key));
+        _rebuildEvents();
+        _errors = List.unmodifiable(errors);
+        if (errors.isEmpty) _fetched = wanted;
       }
-    } on GoogleException catch (e) {
-      _error = e.message;
-    } catch (e) {
-      _error = 'Google Calendar unavailable';
-      debugPrint('google: calendar fetch failed: $e');
     } finally {
       _fetchInFlight = false;
       _loading = false;
@@ -353,30 +478,75 @@ class GoogleCalendarStore extends ChangeNotifier {
     }
   }
 
-  bool _calendarsInFlight = false;
+  Future<({List<GoogleEvent>? events, String? error})> _fetchOne(
+    ({GoogleAccount account, String calendar, String name}) job,
+    DateTime from,
+    DateTime to,
+  ) async {
+    try {
+      final events = await _account.withAccessToken(
+        job.account.id,
+        (token) => _account.client.listEvents(
+          accessToken: token,
+          calendarId: job.calendar,
+          from: from,
+          to: to,
+        ),
+      );
+      return (
+        events: [for (final e in events) e.withAccount(job.account.id)],
+        error: null,
+      );
+    } on GoogleException catch (e) {
+      return (events: null, error: e.message);
+    } catch (e) {
+      debugPrint('google: calendar fetch failed: $e');
+      return (events: null, error: 'Google Calendar unavailable');
+    }
+  }
 
-  /// Reads the account's calendar list, for the settings page's choice of
-  /// which calendars to show.
+  final Set<String> _calendarsInFlight = {};
+
+  /// Reads every account's calendar list, for the settings page's choice of
+  /// which calendars to show. A list that changed which calendars are read
+  /// refetches the events.
   Future<void> loadCalendars() async {
-    if (_calendarsInFlight || !_account.signedIn) return;
-    _calendarsInFlight = true;
+    String planned() =>
+        [for (final j in plan()) '${j.account.id}/${j.calendar}'].join('\n');
+    final before = planned();
+    await Future.wait([for (final a in _account.accounts) _loadCalendarsOf(a)]);
+    if (planned() != before && _leases.isNotEmpty && _account.signedIn) {
+      _fetched = null;
+      unawaited(refresh());
+    }
+  }
+
+  Future<void> _loadCalendarsOf(GoogleAccount account) async {
+    if (!_calendarsInFlight.add(account.id)) return;
     try {
       final calendars = await _account.withAccessToken(
+        account.id,
         _account.client.listCalendars,
       );
       calendars.sort((a, b) {
         if (a.primary != b.primary) return a.primary ? -1 : 1;
         return a.summary.toLowerCase().compareTo(b.summary.toLowerCase());
       });
-      _calendars = List.unmodifiable(calendars);
-      _calendarsError = '';
+      if (_account.accounts.contains(account)) {
+        _calendars[account.id] = List.unmodifiable(calendars);
+        _calendarsErrors.remove(account.id);
+      }
     } on GoogleException catch (e) {
-      _calendarsError = e.message;
+      if (_account.accounts.contains(account)) {
+        _calendarsErrors[account.id] = e.message;
+      }
     } catch (e) {
-      _calendarsError = 'Could not read the calendar list';
+      if (_account.accounts.contains(account)) {
+        _calendarsErrors[account.id] = 'Could not read the calendar list';
+      }
       debugPrint('google: calendar list failed: $e');
     } finally {
-      _calendarsInFlight = false;
+      _calendarsInFlight.remove(account.id);
       _publish();
     }
   }

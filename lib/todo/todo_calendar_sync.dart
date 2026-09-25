@@ -33,10 +33,16 @@ class CalendarCardSource {
     required this.end,
     this.link,
     this.url,
+    this.legacyKey,
   });
 
   /// Stable per occurrence: `<calendar id>/<event id>`.
   final String key;
+
+  /// What an earlier build keyed the same occurrence as, when that differs. A
+  /// card found under it is adopted and re-keyed, rather than abandoned while
+  /// a duplicate is made beside it.
+  final String? legacyKey;
   final String title;
 
   /// Local wall-clock times; [end] is exclusive.
@@ -122,6 +128,7 @@ List<TodoItem>? syncCalendarCards(
     for (final s in sources)
       if (_overlapsDay(s.start, s.end, day)) s.key: s,
   };
+  final wantedLegacy = {for (final s in wanted.values) ?s.legacyKey};
 
   var next = [...items];
   var changed = false;
@@ -143,9 +150,15 @@ List<TodoItem>? syncCalendarCards(
     ..sort((a, b) => b.start.compareTo(a.start));
   for (final source in ordered) {
     final target = calendarColumnAt(source.start, source.end, now);
-    final existing = byKey[source.key];
+    final legacy = source.legacyKey;
+    final existing =
+        byKey[source.key] ??
+        (legacy == null || wanted.containsKey(legacy) ? null : byKey[legacy]);
     if (existing == null) {
-      if (dismissed.contains(source.key)) continue;
+      if (dismissed.contains(source.key) ||
+          (legacy != null && dismissed.contains(legacy))) {
+        continue;
+      }
       _insertAtTop(
         next,
         TodoItem(
@@ -172,6 +185,7 @@ List<TodoItem>? syncCalendarCards(
 
     final was = existing.external!;
     final external = was.copyWith(
+      key: source.key,
       title: source.title,
       start: source.start,
       end: source.end,
@@ -199,6 +213,7 @@ List<TodoItem>? syncCalendarCards(
     final item = entry.value;
     final e = item.external!;
     if (wanted.containsKey(entry.key) ||
+        wantedLegacy.contains(entry.key) ||
         e.manual ||
         !item.column.isOpen ||
         !_overlapsDay(e.start, e.end, day)) {

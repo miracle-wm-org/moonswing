@@ -74,9 +74,11 @@ class GoogleLoopbackSession {
       'state': state,
       // Offline plus a forced consent screen is what guarantees a refresh
       // token: Google sends one only on a consent, and a second sign-in with
-      // the same client would otherwise come back without it.
+      // the same client would otherwise come back without it. The account
+      // chooser is what lets a second account be added: without it a browser
+      // already signed in to Google skips straight to the one it knows.
       'access_type': 'offline',
-      'prompt': 'consent',
+      'prompt': 'consent select_account',
     }).toString();
     final session = GoogleLoopbackSession._(
       server,

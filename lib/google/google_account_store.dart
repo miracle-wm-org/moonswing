@@ -1,20 +1,23 @@
-// The Google account for the whole shell: one sign-in under Settings › Accounts
-// that any module or widget can use.
+// The Google accounts for the whole shell: the sign-ins under Settings ›
+// Accounts that any module or widget can use. There may be several — a work
+// and a personal calendar side by side — and every consumer reads all of them.
 //
 // It owns the three things every consumer would otherwise repeat:
 //
 //  * **The sign-in**, a state machine with a socket in it (see
 //    `google_oauth.dart`): open the browser, wait for the redirect, trade the
 //    code for tokens. A settings page that owned it would lose it the moment
-//    the overlay closed.
-//  * **The access token.** It lives for an hour. [withAccessToken] refreshes it
-//    shortly before it expires, and one refresh is shared by every caller that
-//    asks at once. A 401 from an API is answered with one fresh token and one
-//    retry before it counts as the grant being gone.
+//    the overlay closed. A sign-in *adds* an account; signing in again as an
+//    account already here replaces its grant rather than listing it twice.
+//  * **The access tokens**, one per account. Each lives for an hour.
+//    [withAccessToken] refreshes it shortly before it expires, and one refresh
+//    is shared by every caller that asks at once. A 401 from an API is
+//    answered with one fresh token and one retry before it counts as the
+//    grant being gone.
 //  * **The failure that changes state.** A dead grant (revoked, expired, or
-//    issued to a client since replaced) returns the account to signed out with
-//    the reason on screen, rather than every consumer showing its own retry
-//    that can only fail.
+//    issued to a client since replaced) removes that account, with the reason
+//    on screen, rather than every consumer showing its own retry that can only
+//    fail. The other accounts are untouched.
 //
 // Every sign-in runs as the project's own OAuth client (`google_client.dart`),
 // so there is nothing for the user to set up first. A grant saved under any
@@ -22,11 +25,13 @@
 // the project has since rotated away from — cannot be refreshed with this one,
 // and is revoked and dropped on load with a message saying why.
 //
-// A consumer such as `GoogleCalendarStore` listens here for the account coming
+// A consumer such as `GoogleCalendarStore` listens here for accounts coming
 // and going, and asks [withAccessToken] for each request.
 
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:moonswing/app_info.dart';
@@ -41,15 +46,59 @@ enum GoogleAuthStage {
   /// so there is no sign-in to offer.
   unavailable,
 
-  /// A client, but no grant. Settings offers **Sign in**.
+  /// A client, but no account. Settings offers **Sign in**.
   signedOut,
 
   /// The consent page is open in the browser and the shell is waiting for it
-  /// to redirect back.
+  /// to redirect back. Accounts already signed in stay usable meanwhile.
   awaitingBrowser,
 
-  /// There is a grant; consumers may make requests.
+  /// At least one account; consumers may make requests.
   signedIn,
+}
+
+/// One signed-in account, as consumers see it.
+class GoogleAccount {
+  const GoogleAccount({required this.id, required this.email});
+
+  /// Stable for as long as the account is signed in: the address, or when
+  /// Google did not say it, a digest of the grant (never the grant itself,
+  /// since the id ends up in event keys the todo board stores).
+  final String id;
+
+  /// Empty when unknown.
+  final String email;
+
+  /// What the account is called on screen.
+  String get label => email.isEmpty ? 'Google account' : email;
+
+  @override
+  bool operator ==(Object other) =>
+      other is GoogleAccount && other.id == id && other.email == email;
+
+  @override
+  int get hashCode => Object.hash(id, email);
+}
+
+/// An account's mutable half: the saved grant and the token minted from it.
+class _Account {
+  _Account(this.data);
+
+  GoogleAccountData data;
+  GoogleTokens? access;
+  Future<String>? refreshing;
+
+  /// Bumped when the account is removed, so a request in flight for it cannot
+  /// act on an account that is gone.
+  int generation = 0;
+
+  String get id {
+    if (data.email.isNotEmpty) return data.email;
+    final digest = sha256.convert(utf8.encode(data.refreshToken ?? ''));
+    return 'google-${digest.toString().substring(0, 12)}';
+  }
+
+  GoogleAccount get public => GoogleAccount(id: id, email: data.email);
 }
 
 /// The account, its sign-in, and the access token behind every request.
@@ -107,15 +156,32 @@ class GoogleAccountStore extends ChangeNotifier {
 
   // --- published state -----------------------------------------------------
 
-  GoogleAccountData _data = const GoogleAccountData();
+  final List<_Account> _accounts = [];
 
-  GoogleAuthStage _stage = GoogleAuthStage.unavailable;
-  GoogleAuthStage get stage => _stage;
+  /// Every signed-in account, in the order they were added.
+  List<GoogleAccount> get accounts =>
+      List.unmodifiable(_accounts.map((a) => a.public));
 
-  bool get signedIn => _stage == GoogleAuthStage.signedIn;
+  _Account? _find(String id) {
+    for (final a in _accounts) {
+      if (a.id == id) return a;
+    }
+    return null;
+  }
 
-  /// The signed-in address. Empty when it is not known yet.
-  String get email => _data.email;
+  bool _signingIn = false;
+
+  GoogleAuthStage get stage {
+    if (!_hasClient) return GoogleAuthStage.unavailable;
+    if (_signingIn) return GoogleAuthStage.awaitingBrowser;
+    return _accounts.isEmpty
+        ? GoogleAuthStage.signedOut
+        : GoogleAuthStage.signedIn;
+  }
+
+  /// Whether any account is signed in, a sign-in of another in progress or
+  /// not.
+  bool get signedIn => _hasClient && _accounts.isNotEmpty;
 
   /// The consent page, while [stage] is [GoogleAuthStage.awaitingBrowser], so
   /// settings can offer to open it again.
@@ -130,15 +196,15 @@ class GoogleAccountStore extends ChangeNotifier {
   bool _exchanging = false;
   bool _loaded = false;
 
-  /// Whether the saved account has been read.
+  /// Whether the saved accounts have been read.
   bool get loaded => _loaded;
 
   /// True while the code is being traded for tokens.
   bool get busy => _exchanging;
 
   String get _signature => [
-    _stage.name,
-    _data.email,
+    stage.name,
+    for (final a in _accounts) a.id,
     _authUrl ?? '',
     _error,
     _exchanging,
@@ -154,67 +220,70 @@ class GoogleAccountStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  GoogleAuthStage _restingStage() {
-    if (!_hasClient) return GoogleAuthStage.unavailable;
-    return _data.refreshToken == null
-        ? GoogleAuthStage.signedOut
-        : GoogleAuthStage.signedIn;
-  }
+  Future<bool> _save() => _file.write([for (final a in _accounts) a.data]);
 
   // --- loading -------------------------------------------------------------
 
   Future<void>? _loading;
 
-  /// Reads the saved account. Idempotent; the start-up task calls it and a
+  /// Reads the saved accounts. Idempotent; the start-up task calls it and a
   /// consumer that got there first simply awaits the same read.
   Future<void> load() => _loading ??= _load();
 
   Future<void> _load() async {
-    var data = await _file.read();
-    String? orphan;
-    if (data.refreshToken != null &&
-        data.clientId.isNotEmpty &&
-        data.clientId != _clientId) {
-      // Issued to another client: ours would be refused refreshing it.
-      orphan = data.refreshToken;
-      data = data.signedOut();
-    }
-    // A sign-in that raced the read wins.
-    if (!_loaded && _data == const GoogleAccountData()) {
-      _data = data;
-      _stage = _restingStage();
-      if (orphan != null) {
-        _error =
-            'Google sign-in now uses Moonswing\'s own app. Sign in again to '
-            'reconnect your account.';
+    final saved = await _file.read();
+    final orphans = <String>[];
+    final kept = <GoogleAccountData>[];
+    for (final data in saved) {
+      if (data.clientId.isNotEmpty && data.clientId != _clientId) {
+        // Issued to another client: ours would be refused refreshing it.
+        orphans.add(data.refreshToken!);
+      } else {
+        kept.add(data);
       }
+    }
+    // A sign-in that raced the read comes after what was saved.
+    final raced = [..._accounts];
+    _accounts
+      ..clear()
+      ..addAll(kept.map(_Account.new));
+    for (final a in raced) {
+      _accounts.removeWhere((k) => k.id == a.id);
+      _accounts.add(a);
+    }
+    if (orphans.isNotEmpty) {
+      _error =
+          'Google sign-in now uses Moonswing\'s own app. Sign in again to '
+          'reconnect your account.';
     }
     _loaded = true;
     _publish();
-    if (orphan != null) {
-      unawaited(_revoke(orphan));
-      await _file.write(_data);
+    if (orphans.isNotEmpty || raced.isNotEmpty) {
+      for (final token in orphans) {
+        unawaited(_revoke(token));
+      }
+      await _save();
     }
   }
 
   // --- the sign-in ---------------------------------------------------------
 
-  /// Bumped by [cancelSignIn] and [signOut]; a sign-in compares it after every
-  /// await and gives up when it has moved, so a cancelled one cannot finish a
-  /// minute later and sign the user in anyway.
+  /// Bumped by [cancelSignIn]; a sign-in compares it after every await and
+  /// gives up when it has moved, so a cancelled one cannot finish a minute
+  /// later and sign the user in anyway.
   int _generation = 0;
   GoogleLoopbackSession? _session;
 
-  /// Runs the sign-in: open the consent page, wait for the browser to come
-  /// back, trade the code, save the grant.
+  /// Runs a sign-in, adding the account it lands on: open the consent page,
+  /// wait for the browser to come back, trade the code, save the grant.
   ///
   /// Not meant to be awaited by a widget. It runs for as long as the user
   /// takes, which is why its progress is published as [stage].
   Future<void> signIn() async {
     await load();
-    if (_stage != GoogleAuthStage.signedOut) return;
+    if (!_hasClient || _signingIn) return;
     final generation = ++_generation;
-    _stage = GoogleAuthStage.awaitingBrowser;
+    _signingIn = true;
     _error = '';
     _publish();
 
@@ -250,36 +319,43 @@ class GoogleAccountStore extends ChangeNotifier {
       if (refresh == null) {
         throw const GoogleException('Google sent no refresh token');
       }
-      _access = tokens;
       final email = await _fetchEmail(tokens.accessToken);
       if (generation != _generation) return;
 
-      _data = GoogleAccountData(
-        clientId: _clientId,
-        refreshToken: refresh,
-        email: email,
-      );
-      _stage = GoogleAuthStage.signedIn;
-      if (!await _file.write(_data)) {
+      final account = _Account(
+        GoogleAccountData(
+          clientId: _clientId,
+          refreshToken: refresh,
+          email: email,
+        ),
+      )..access = tokens;
+      // Signing in again as an account already here replaces its grant. The
+      // old one is not revoked: a revocation reaches the whole grant, which
+      // for the same client and user now includes the new token.
+      final at = _accounts.indexWhere((a) => a.id == account.id);
+      if (at < 0) {
+        _accounts.add(account);
+      } else {
+        _accounts[at].generation++;
+        _accounts[at] = account;
+      }
+      _signingIn = false;
+      if (!await _save()) {
         _error = 'Signed in, but the sign-in could not be saved';
       }
     } on GoogleSignInAborted catch (e) {
       if (generation != _generation) return;
-      _stage = _restingStage();
       _error = e.message == 'Cancelled' ? '' : e.message;
     } on GoogleException catch (e) {
       if (generation != _generation) return;
-      _access = null;
-      _stage = _restingStage();
       _error = e.message;
     } catch (e) {
       if (generation != _generation) return;
-      _access = null;
-      _stage = _restingStage();
       _error = 'Could not start the sign-in';
       debugPrint('google: sign-in failed: $e');
     } finally {
       if (generation == _generation) {
+        _signingIn = false;
         _exchanging = false;
         _authUrl = null;
         _session = null;
@@ -315,29 +391,30 @@ class GoogleAccountStore extends ChangeNotifier {
 
   /// Abandons a sign-in in progress.
   void cancelSignIn() {
-    if (_stage != GoogleAuthStage.awaitingBrowser) return;
+    if (!_signingIn) return;
     _generation++;
     final session = _session;
     _session = null;
     _authUrl = null;
     _exchanging = false;
+    _signingIn = false;
     if (session != null) unawaited(session.close());
-    _stage = _restingStage();
     _publish();
   }
 
-  /// Signs out: the grant is revoked at Google and forgotten here.
-  Future<void> signOut() async {
-    cancelSignIn();
-    final token = _data.refreshToken;
-    _generation++;
-    _data = _data.signedOut();
-    _access = null;
+  /// Signs [id] out: its grant is revoked at Google and forgotten here. The
+  /// other accounts stay signed in.
+  Future<void> signOut(String id) async {
+    final account = _find(id);
+    if (account == null) return;
+    _accounts.remove(account);
+    account.generation++;
+    account.access = null;
     _error = '';
-    _stage = _restingStage();
     _publish();
+    final token = account.data.refreshToken;
     if (token != null) unawaited(_revoke(token));
-    if (!await _file.write(_data)) {
+    if (!await _save()) {
       _error = 'Signed out, but the saved sign-in could not be removed';
       _publish();
     }
@@ -351,74 +428,82 @@ class GoogleAccountStore extends ChangeNotifier {
     }
   }
 
-  // --- the access token ----------------------------------------------------
-
-  GoogleTokens? _access;
-  Future<String>? _refreshing;
+  // --- the access tokens ---------------------------------------------------
 
   /// How long before expiry a token is replaced, so a request never leaves
   /// with one about to lapse in flight.
   static const Duration _kExpiryMargin = Duration(seconds: 60);
 
-  Future<String> _accessToken() {
-    final access = _access;
+  Future<String> _accessToken(_Account account) {
+    final access = account.access;
     if (access != null &&
         access.expiresAt.isAfter(_now().add(_kExpiryMargin))) {
       return Future.value(access.accessToken);
     }
-    return _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
+    return account.refreshing ??= _refresh(
+      account,
+    ).whenComplete(() => account.refreshing = null);
   }
 
-  Future<String> _refresh() async {
-    final refresh = _data.refreshToken;
+  Future<String> _refresh(_Account account) async {
+    final refresh = account.data.refreshToken;
     if (refresh == null) {
       throw const GoogleException('Not signed in to Google');
     }
-    final generation = _generation;
+    final generation = account.generation;
     try {
       final tokens = await _client.refreshAccessToken(
         clientId: _clientId,
         clientSecret: _clientSecret,
         refreshToken: refresh,
       );
-      if (generation == _generation) _access = tokens;
+      if (generation == account.generation) account.access = tokens;
       return tokens.accessToken;
     } on GoogleAuthException catch (e) {
-      if (generation == _generation) await _expire(e.message);
+      if (generation == account.generation) await _expire(account, e.message);
       rethrow;
     }
   }
 
-  /// The grant is gone. Back to signed out, with the reason on screen.
-  Future<void> _expire(String message) async {
-    _generation++;
-    _data = _data.signedOut();
-    _access = null;
-    _stage = _restingStage();
-    _error = message;
+  /// [account]'s grant is gone. It is removed, with the reason on screen.
+  Future<void> _expire(_Account account, String message) async {
+    if (!_accounts.remove(account)) return;
+    account.generation++;
+    account.access = null;
+    _error = account.data.email.isEmpty
+        ? message
+        : '${account.data.email}: $message';
     _publish();
-    await _file.write(_data);
+    await _save();
   }
 
-  /// Runs [request] with a current access token.
+  /// Runs [request] with a current access token for the account [id].
   ///
   /// A [GoogleAuthException] from the request, which is a 401, is answered with
   /// one fresh token and one retry, since a token can be revoked before its
   /// hour is up. A second one means the grant itself is gone: the account
   /// signs out and the exception goes on to the caller.
-  Future<T> withAccessToken<T>(Future<T> Function(String token) request) async {
+  Future<T> withAccessToken<T>(
+    String id,
+    Future<T> Function(String token) request,
+  ) async {
     await load();
-    if (!signedIn) throw const GoogleException('Not signed in to Google');
-    final generation = _generation;
+    final account = _find(id);
+    if (account == null) {
+      throw const GoogleException('Not signed in to Google');
+    }
+    final generation = account.generation;
     try {
-      return await request(await _accessToken());
+      return await request(await _accessToken(account));
     } on GoogleAuthException {
-      if (generation != _generation || !signedIn) rethrow;
-      _access = null;
+      if (generation != account.generation) rethrow;
+      account.access = null;
       try {
-        return await request(await _accessToken());
+        return await request(await _accessToken(account));
       } on GoogleAuthException catch (e) {
-        if (generation == _generation && signedIn) await _expire(e.message);
+        if (generation == account.generation) {
+          await _expire(account, e.message);
+        }
         rethrow;
       }
     }

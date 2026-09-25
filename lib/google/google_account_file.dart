@@ -1,5 +1,5 @@
-// Where the Google account lives between sessions: the grant Google handed back
-// and the address it belongs to.
+// Where the Google accounts live between sessions: for each, the grant Google
+// handed back and the address it belongs to.
 //
 // Not in `config.toml`, for `github_token_store.dart`'s reasons — that file is
 // hand-edited, pasted into bug reports and world-readable, and a refresh token
@@ -14,6 +14,10 @@
 // project has since rotated away from — can never be refreshed and is dropped
 // on load. Files written before the shell shipped its own client also carry a
 // `client_secret`; it is ignored, and gone at the next write.
+//
+// The file is `{"accounts": [ … ]}`, one entry per signed-in account in the
+// order they were added. A file from a build that held one account is that one
+// entry's object at the top level, and is read as a list of one.
 //
 // Flutter-free, so the store above it stays testable off a temporary directory.
 
@@ -38,10 +42,6 @@ class GoogleAccountData {
 
   /// The signed-in address, for the settings row. Empty when unknown.
   final String email;
-
-  /// Drops the grant. The client it was issued to goes with it, since there
-  /// is nothing left for it to describe.
-  GoogleAccountData signedOut() => const GoogleAccountData();
 
   Map<String, Object?> toJson() => {
     if (clientId.isNotEmpty) 'client_id': clientId,
@@ -92,22 +92,39 @@ class GoogleAccountFile {
     return '$home/.local/state/moonswing';
   }
 
-  /// The saved account, or an empty one. Never throws: an unreadable file and
+  /// The saved accounts, possibly none. Never throws: an unreadable file and
   /// no file are the same thing to everything above this, and the settings
   /// page is the answer to both.
-  Future<GoogleAccountData> read() async {
+  Future<List<GoogleAccountData>> read() async {
     try {
       final file = File(path);
-      if (!await file.exists()) return const GoogleAccountData();
-      return GoogleAccountData.fromJson(jsonDecode(await file.readAsString()));
+      if (!await file.exists()) return const [];
+      return parseAccounts(jsonDecode(await file.readAsString()));
     } catch (_) {
-      return const GoogleAccountData();
+      return const [];
     }
   }
 
-  /// Saves [data]. Returns whether it landed; a false answer is not fatal —
-  /// the session keeps what it holds — but the caller says so.
-  Future<bool> write(GoogleAccountData data) async {
+  /// The accounts in a decoded file. A bad entry, or one with no grant, costs
+  /// that entry.
+  static List<GoogleAccountData> parseAccounts(Object? json) {
+    final entries = switch (json) {
+      {'accounts': final List<Object?> list} => list,
+      // One account at the top level: the single-account format.
+      Map() => [json],
+      _ => const <Object?>[],
+    };
+    return [
+      for (final entry in entries)
+        if (GoogleAccountData.fromJson(entry) case final data
+            when data.refreshToken != null)
+          data,
+    ];
+  }
+
+  /// Saves [accounts]. Returns whether it landed; a false answer is not
+  /// fatal — the session keeps what it holds — but the caller says so.
+  Future<bool> write(List<GoogleAccountData> accounts) async {
     try {
       final dir = Directory(directory);
       if (!await dir.exists()) await dir.create(recursive: true);
@@ -118,7 +135,13 @@ class GoogleAccountFile {
       // Created empty and narrowed before anything secret is written into it.
       if (!await file.exists()) await file.create();
       chmodPath(path, 0x180); // 0600
-      await file.writeAsString('${jsonEncode(data.toJson())}\n', flush: true);
+      final json = {
+        'accounts': [
+          for (final a in accounts)
+            if (a.refreshToken != null) a.toJson(),
+        ],
+      };
+      await file.writeAsString('${jsonEncode(json)}\n', flush: true);
       return true;
     } catch (_) {
       return false;

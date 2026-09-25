@@ -1,4 +1,5 @@
-// Settings › Accounts: the Google account the whole shell signs in with once.
+// Settings › Accounts: the Google accounts the whole shell signs in with once.
+// Any number can be added; everything that reads Google reads all of them.
 //
 // The account is not config. The sign-in runs as the project's own OAuth client
 // (`google/google_client.dart`), so there is nothing to set up before it, and
@@ -44,23 +45,26 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
       widget._calendar ?? GoogleCalendarStore.instance;
   late final ConfigStore _config = widget._config ?? ConfigStore.instance;
 
-  bool _wasSignedIn = false;
+  String _accountIds = '';
 
   @override
   void initState() {
     super.initState();
     _account.load();
     _account.addListener(_onAccount);
-    _wasSignedIn = _account.signedIn;
-    if (_wasSignedIn) _calendar.loadCalendars();
+    _accountIds = _ids();
+    if (_account.signedIn) _calendar.loadCalendars();
   }
 
-  /// The calendar list is read when the page opens signed in, and again the
-  /// moment a sign-in on this page lands.
+  String _ids() => _account.accounts.map((a) => a.id).join('\n');
+
+  /// The calendar lists are read when the page opens signed in, and again the
+  /// moment an account is added on this page.
   void _onAccount() {
-    final signedIn = _account.signedIn;
-    if (signedIn && !_wasSignedIn) _calendar.loadCalendars();
-    _wasSignedIn = signedIn;
+    final ids = _ids();
+    if (ids == _accountIds) return;
+    _accountIds = ids;
+    if (_account.signedIn) _calendar.loadCalendars();
   }
 
   @override
@@ -100,6 +104,7 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
                   if (_account.signedIn) ...[
                     const SizedBox(height: 20),
                     _GoogleCalendarsSection(
+                      account: _account,
                       calendar: _calendar,
                       config: _config,
                     ),
@@ -116,7 +121,7 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
   }
 }
 
-/// The sign-in, and whatever went wrong with it.
+/// The accounts, the sign-in that adds one, and whatever went wrong.
 class _GoogleAccountSection extends StatelessWidget {
   const _GoogleAccountSection({required this.account});
 
@@ -126,17 +131,23 @@ class _GoogleAccountSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final stage = account.stage;
     final error = account.error;
+    final accounts = account.accounts;
     return SettingsSection(
       label: 'Google',
       info:
-          'One sign-in for the whole shell. The Calendar tab shows its '
-          'events, and the todo board can hold its meetings. Signing in opens '
-          "Moonswing's Google app in your browser and asks for read-only "
-          'access to your calendars, nothing else. The app is not verified '
-          'by Google yet, so the consent page warns about it: choose '
-          'Advanced, then Go to Moonswing. Your calendar goes straight from '
-          'Google to this computer; the sign-in is kept in '
-          '~/.local/state/moonswing, and Sign out revokes it.',
+          'Sign in once for the whole shell, with as many accounts as you '
+          'like. The Calendar tab shows all of their events, and the todo '
+          "board can hold their meetings. Signing in opens Moonswing's Google "
+          'app in your browser and asks for read-only access to your '
+          'calendars, nothing else. The app is not verified by Google yet, so '
+          'the consent page warns about it: choose Advanced, then Go to '
+          'Moonswing. Your calendar goes straight from Google to this '
+          'computer; the sign-ins are kept in ~/.local/state/moonswing, and '
+          'Sign out revokes one.',
+      // An add button goes at the top right of the collection it adds to.
+      trailing: stage == GoogleAuthStage.signedIn
+          ? SettingsAddButton(label: 'Add account', onTap: account.signIn)
+          : null,
       children: [
         if (error.isNotEmpty) ...[
           SettingsBanner(
@@ -150,12 +161,21 @@ class _GoogleAccountSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        _status(context, stage),
+        for (final a in accounts)
+          SettingsRow(
+            label: a.email.isEmpty ? 'Signed in' : a.email,
+            control: SettingsActionButton(
+              label: 'Sign out',
+              compact: true,
+              onTap: () => account.signOut(a.id),
+            ),
+          ),
+        ?_status(context, stage),
       ],
     );
   }
 
-  Widget _status(BuildContext context, GoogleAuthStage stage) {
+  Widget? _status(BuildContext context, GoogleAuthStage stage) {
     switch (stage) {
       case GoogleAuthStage.unavailable:
         return const SettingsHint(
@@ -209,23 +229,20 @@ class _GoogleAccountSection extends StatelessWidget {
           ],
         );
       case GoogleAuthStage.signedIn:
-        final email = account.email;
-        return SettingsRow(
-          label: email.isEmpty ? 'Signed in' : 'Signed in as $email',
-          control: SettingsActionButton(
-            label: 'Sign out',
-            compact: true,
-            onTap: account.signOut,
-          ),
-        );
+        return null;
     }
   }
 }
 
-/// Which of the account's calendars are read.
+/// Which calendars are read, account by account.
 class _GoogleCalendarsSection extends StatelessWidget {
-  const _GoogleCalendarsSection({required this.calendar, required this.config});
+  const _GoogleCalendarsSection({
+    required this.account,
+    required this.calendar,
+    required this.config,
+  });
 
+  final GoogleAccountStore account;
   final GoogleCalendarStore calendar;
   final ConfigStore config;
 
@@ -233,20 +250,29 @@ class _GoogleCalendarsSection extends StatelessWidget {
     config.get<Map<String, dynamic>>(['google']),
   ).calendars;
 
-  /// `primary` is Google's alias for the account's main calendar and is what
-  /// the default config says, so a primary calendar counts as selected under
-  /// either spelling.
-  static bool _isSelected(GoogleCalendar c, List<String> selected) =>
-      selected.contains(c.id) || (c.primary && selected.contains('primary'));
+  /// Every account's own calendar, by id — its list's primary, or its address
+  /// while the list is unread.
+  List<String> _primaries() => [
+    for (final a in account.accounts)
+      calendar
+              .calendarsOf(a.id)
+              .where((c) => c.primary)
+              .map((c) => c.id)
+              .firstOrNull ??
+          a.email,
+  ]..removeWhere((id) => id.isEmpty);
 
   void _toggle(GoogleCalendar c, bool on) {
-    final selected = _selected();
-    final next = [
-      for (final id in selected)
-        if (id != c.id && !(c.primary && id == 'primary')) id,
-      if (on) c.primary ? 'primary' : c.id,
-    ];
-    config.set(['google', 'calendars'], next);
+    config.set(
+      ['google', 'calendars'],
+      toggleCalendar(
+        _selected(),
+        id: c.id,
+        primary: c.primary,
+        on: on,
+        primaries: _primaries(),
+      ),
+    );
   }
 
   @override
@@ -254,7 +280,8 @@ class _GoogleCalendarsSection extends StatelessWidget {
     return ListenableBuilder(
       listenable: calendar,
       builder: (context, _) {
-        final calendars = calendar.calendars;
+        final accounts = account.accounts;
+        final several = accounts.length > 1;
         return SettingsSection(
           label: SettingsCatalog.googleCalendars.label,
           info: SettingsCatalog.googleCalendars.description,
@@ -263,36 +290,46 @@ class _GoogleCalendarsSection extends StatelessWidget {
             onTap: calendar.loadCalendars,
           ),
           children: [
-            if (calendar.calendarsError.isNotEmpty)
-              SettingsBanner(
-                title: 'Could not read your calendars',
-                message: calendar.calendarsError,
-                action: SettingsActionButton(
-                  label: 'Retry',
-                  compact: true,
-                  onTap: calendar.loadCalendars,
-                ),
-              )
-            else if (calendars.isEmpty)
-              const SettingsHint('Reading your calendars…'),
-            for (final c in calendars)
-              SettingsRow(
-                label: c.primary ? '${c.summary} (primary)' : c.summary,
-                // Per row and on a bool, not on the section: ConfigStore
-                // notifies on every keystroke anywhere in settings.
-                control: StoreSelector<bool>(
-                  listenable: config,
-                  selector: () => _isSelected(c, _selected()),
-                  builder: (context, on) => SettingsToggle(
-                    value: on,
-                    onChanged: (v) => _toggle(c, v),
-                  ),
-                ),
-              ),
+            for (final a in accounts) ...[
+              if (several) SettingsSubLabel(a.label),
+              ..._accountRows(a),
+            ],
           ],
         );
       },
     );
+  }
+
+  List<Widget> _accountRows(GoogleAccount a) {
+    final calendars = calendar.calendarsOf(a.id);
+    final error = calendar.calendarsErrorOf(a.id);
+    return [
+      if (error.isNotEmpty)
+        SettingsBanner(
+          title: 'Could not read the calendars of ${a.label}',
+          message: error,
+          action: SettingsActionButton(
+            label: 'Retry',
+            compact: true,
+            onTap: calendar.loadCalendars,
+          ),
+        )
+      else if (!calendar.hasCalendarsOf(a.id))
+        const SettingsHint('Reading your calendars…'),
+      for (final c in calendars)
+        SettingsRow(
+          label: c.primary ? '${c.summary} (primary)' : c.summary,
+          // Per row and on a bool, not on the section: ConfigStore notifies
+          // on every keystroke anywhere in settings.
+          control: StoreSelector<bool>(
+            listenable: config,
+            selector: () =>
+                isCalendarSelected(_selected(), id: c.id, primary: c.primary),
+            builder: (context, on) =>
+                SettingsToggle(value: on, onChanged: (v) => _toggle(c, v)),
+          ),
+        ),
+    ];
   }
 }
 

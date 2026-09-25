@@ -1,6 +1,6 @@
 // Today's meetings on the todo board.
 //
-// While `[google] todo_sync` is on and the account is signed in, this holds a
+// While `[google] todo_sync` is on and an account is signed in, this holds a
 // calendar lease on *today* and hands the day's timed events to
 // `TodoStore.applyCalendarSync`, which does the arithmetic
 // (`todo_calendar_sync.dart`). It re-applies when the calendar answers, when
@@ -92,6 +92,7 @@ class GoogleTodoSync {
 
   static CalendarCardSource _source(GoogleEvent e) => CalendarCardSource(
     key: e.key,
+    legacyKey: e.legacyKey,
     title: e.summary,
     start: e.start,
     end: e.end,
@@ -110,9 +111,15 @@ class GoogleTodoSync {
     if (lease.from != day) {
       lease.update(day, tomorrow);
     }
+    // One card per meeting: an invitation sent to two of the accounts read
+    // arrives once through each, under the same iCalendar UID.
+    final meetings = <String>{};
     final sources = [
       for (final e in _calendar.eventsOn(day))
-        if (!e.allDay) _source(e),
+        if (!e.allDay &&
+            (e.iCalUid == null ||
+                meetings.add('${e.iCalUid}@${e.start.toIso8601String()}')))
+          _source(e),
     ];
     // Only a whole answer for today may abandon a card whose event is missing.
     if (_calendar.covers(day, tomorrow)) {

@@ -48,7 +48,7 @@ void main() {
     expect(params['code_challenge'], pkceChallenge(session.codeVerifier));
     expect(params['code_challenge_method'], 'S256');
     expect(params['access_type'], 'offline');
-    expect(params['prompt'], 'consent');
+    expect(params['prompt'], 'consent select_account');
     expect(params['scope'], kGoogleCalendarScope);
     expect(params['state'], session.state);
     expect(session.codeVerifier.length, greaterThanOrEqualTo(43));

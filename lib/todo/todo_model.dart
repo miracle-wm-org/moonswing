@@ -331,6 +331,7 @@ class TodoExternal {
   static const Object _keep = Object();
 
   TodoExternal copyWith({
+    String? key,
     String? title,
     DateTime? start,
     DateTime? end,
@@ -339,7 +340,7 @@ class TodoExternal {
     bool? manual,
   }) => TodoExternal(
     source: source,
-    key: key,
+    key: key ?? this.key,
     title: title ?? this.title,
     start: start ?? this.start,
     end: end ?? this.end,

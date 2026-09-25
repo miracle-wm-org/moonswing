@@ -17,7 +17,9 @@ class GoogleConfig {
   });
 
   /// The calendar ids read, as the calendar list spells them. `primary` is
-  /// Google's own alias for the account's main calendar.
+  /// Google's own alias for an account's main calendar, and here means every
+  /// signed-in account's. Calendar ids are unique across accounts (a primary
+  /// calendar's id is the account's address), so one list serves them all.
   final List<String> calendars;
 
   /// Whether the Calendar tab shows the account's events.
@@ -77,4 +79,56 @@ bool _listEquals(List<String> a, List<String> b) {
     if (a[i] != b[i]) return false;
   }
   return true;
+}
+
+/// Whether the calendar [id] is read under [selected]; [primary] says it is
+/// its account's own calendar, which `primary` selects too.
+bool isCalendarSelected(
+  List<String> selected, {
+  required String id,
+  required bool primary,
+}) => selected.contains(id) || (primary && selected.contains('primary'));
+
+/// [selected] with the calendar [id] switched [on] or off.
+///
+/// [primaries] are the ids of every signed-in account's own calendar. Turning
+/// one of them off while `primary` stands for all of them spells the others
+/// out; turning the last of them back on folds them into `primary` again, so a
+/// config written with one account keeps reading as it did.
+List<String> toggleCalendar(
+  List<String> selected, {
+  required String id,
+  required bool primary,
+  required bool on,
+  required List<String> primaries,
+}) {
+  var next = [...selected];
+  if (primary && !on && next.contains('primary')) {
+    final at = next.indexOf('primary');
+    next
+      ..removeAt(at)
+      ..insertAll(at, [
+        for (final p in primaries)
+          if (p != id && !next.contains(p)) p,
+      ]);
+  }
+  next.remove(id);
+  if (on && !isCalendarSelected(next, id: id, primary: primary)) {
+    next.add(id);
+  }
+  if (primary &&
+      primaries.isNotEmpty &&
+      !next.contains('primary') &&
+      primaries.every(next.contains)) {
+    final folded = <String>[];
+    for (final c in next) {
+      if (!primaries.contains(c)) {
+        folded.add(c);
+      } else if (!folded.contains('primary')) {
+        folded.add('primary');
+      }
+    }
+    next = folded;
+  }
+  return next;
 }
