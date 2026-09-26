@@ -19,6 +19,10 @@ import 'package:moonswing/overlay/calendar/calendar_tab.dart';
 import 'package:moonswing/timers/timer_store.dart';
 import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_highlight.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart';
+import 'package:moonswing/overlay/settings/shell/calendar.dart';
 import 'package:moonswing/scopes.dart';
 
 import 'github_fakes.dart';
@@ -98,22 +102,16 @@ void main() {
   group('Settings › Accounts', () {
     testWidgets('signed out: one button, and nothing to paste', (tester) async {
       final account = await accountWith(tester, const []);
-      final calendar = GoogleCalendarStore.forTesting(account: account);
       await tester.pumpWidget(
         _host(
-          AccountsSettingsPage(
-            github: githubSignedOut(),
-            account: account,
-            calendar: calendar,
-            config: await config(tester, ''),
-          ),
+          AccountsSettingsPage(github: githubSignedOut(), account: account),
         ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Sign in with Google'), findsOneWidget);
       expect(find.text('Client ID'), findsNothing);
       expect(find.text('Client secret'), findsNothing);
-      expect(find.text('Calendars'), findsNothing);
+      expect(find.text('Calendar settings'), findsNothing);
     });
 
     testWidgets('a build with no client says so', (tester) async {
@@ -127,15 +125,9 @@ void main() {
         await store.load();
         return store;
       });
-      final calendar = GoogleCalendarStore.forTesting(account: account!);
       await tester.pumpWidget(
         _host(
-          AccountsSettingsPage(
-            github: githubSignedOut(),
-            account: account,
-            calendar: calendar,
-            config: await config(tester, ''),
-          ),
+          AccountsSettingsPage(github: githubSignedOut(), account: account!),
         ),
       );
       await tester.pumpAndSettle();
@@ -146,7 +138,101 @@ void main() {
       expect(find.text('Sign in with Google'), findsNothing);
     });
 
-    testWidgets('signed in: who, which calendars, and what for', (
+    testWidgets('signed in: who, and a link to the calendar settings', (
+      tester,
+    ) async {
+      final account = await accountWith(tester, const [
+        GoogleAccountData(
+          clientId: 'id',
+          refreshToken: 'r',
+          email: 'me@example.com',
+        ),
+      ]);
+      final jumps = <SettingsField>[];
+      await tester.pumpWidget(
+        _host(
+          SettingsHighlightScope(
+            controller: SettingsHighlightController(),
+            onJump: jumps.add,
+            child: AccountsSettingsPage(
+              github: githubSignedOut(),
+              account: account,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('me@example.com'), findsOneWidget);
+      expect(find.text('Sign out'), findsOneWidget);
+      expect(find.text('Add account'), findsOneWidget);
+      // The calendars themselves are Shell › Calendar's, not this page's.
+      expect(find.byType(SettingsToggle), findsNothing);
+      expect(find.text('Me (primary)'), findsNothing);
+
+      await tester.tap(find.text('Calendar settings'));
+      await tester.pump();
+      expect(jumps, [SettingsCatalog.googleCalendars]);
+      expect(jumps.single.route.category, 'shell');
+      expect(jumps.single.route.shellCategory, 'Calendar');
+    });
+  });
+
+  group('Settings › Shell › Calendar', () {
+    Future<void> pumpPane(
+      WidgetTester tester, {
+      required GoogleAccountStore account,
+      required GoogleCalendarStore calendar,
+      required ConfigStore config,
+      void Function(SettingsField)? onJump,
+    }) async {
+      await tester.pumpWidget(
+        _host(
+          SettingsHighlightScope(
+            controller: SettingsHighlightController(),
+            onJump: onJump,
+            child: CustomScrollView(
+              slivers: [
+                CalendarSection(
+                  store: config,
+                  account: account,
+                  calendar: calendar,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      // The account was loaded in the real zone, so what awaits it finishes
+      // there too.
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('signed out: the week start, and a link to Accounts', (
+      tester,
+    ) async {
+      final account = await accountWith(tester, const []);
+      final jumps = <SettingsField>[];
+      await pumpPane(
+        tester,
+        account: account,
+        calendar: GoogleCalendarStore.forTesting(account: account),
+        config: await config(tester, ''),
+        onJump: jumps.add,
+      );
+
+      expect(find.text('Week starts on'), findsOneWidget);
+      expect(find.byType(SettingsToggle), findsNothing);
+      await tester.tap(find.text('Link an account in Accounts'));
+      await tester.pump();
+      expect(jumps, [SettingsCatalog.googleAccount]);
+      expect(jumps.single.route.category, 'accounts');
+    });
+
+    testWidgets('signed in: the account, its calendars, and what for', (
       tester,
     ) async {
       final account = await accountWith(tester, const [
@@ -158,26 +244,15 @@ void main() {
       ]);
       final calendar = GoogleCalendarStore.forTesting(account: account);
       final store = await config(tester, '');
-      await tester.pumpWidget(
-        _host(
-          AccountsSettingsPage(
-            github: githubSignedOut(),
-            account: account,
-            calendar: calendar,
-            config: store,
-          ),
-        ),
+      await pumpPane(
+        tester,
+        account: account,
+        calendar: calendar,
+        config: store,
       );
-      // The account was loaded in the real zone, so what awaits it finishes
-      // there too.
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
-      await tester.pumpAndSettle();
 
-      expect(find.text('me@example.com'), findsOneWidget);
-      expect(find.text('Sign out'), findsOneWidget);
-      expect(find.text('Add account'), findsOneWidget);
+      // Headed by the account, in the section label's capitals.
+      expect(find.text('ME@EXAMPLE.COM'), findsOneWidget);
       expect(find.text('Me (primary)'), findsOneWidget);
       expect(find.text('Team'), findsOneWidget);
       expect(
@@ -201,7 +276,7 @@ void main() {
       await tester.runAsync(store.flush);
     });
 
-    testWidgets('two accounts: each its own calendars, one list of ids', (
+    testWidgets('two accounts: a section each, one list of ids', (
       tester,
     ) async {
       final account = await accountWith(tester, const [
@@ -226,22 +301,17 @@ void main() {
       };
       final calendar = GoogleCalendarStore.forTesting(account: account);
       final store = await config(tester, '');
-      await tester.pumpWidget(
-        _host(
-          AccountsSettingsPage(
-            github: githubSignedOut(),
-            account: account,
-            calendar: calendar,
-            config: store,
-          ),
-        ),
+      await pumpPane(
+        tester,
+        account: account,
+        calendar: calendar,
+        config: store,
       );
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(milliseconds: 20)),
-      );
-      await tester.pumpAndSettle();
 
-      expect(find.text('Sign out'), findsNWidgets(2));
+      // One section per account, headed by its address.
+      expect(find.text('ME@EXAMPLE.COM'), findsOneWidget);
+      expect(find.text('ME@WORK.EXAMPLE'), findsOneWidget);
+      expect(find.text('Reload'), findsNWidgets(2));
       expect(find.text('Me (primary)'), findsOneWidget);
       expect(find.text('Work (primary)'), findsOneWidget);
 

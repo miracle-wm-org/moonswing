@@ -213,7 +213,7 @@ const List<_ShellCategory> _shellCategories = [
   ),
   _ShellCategory(
     title: 'Calendar',
-    subtitle: 'Month grid',
+    subtitle: 'Month grid and Google calendars',
     icon: FontAwesomeIcons.calendarDays,
     build: _buildCalendar,
   ),
