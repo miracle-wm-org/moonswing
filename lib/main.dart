@@ -26,6 +26,7 @@ import 'package:moonswing/module.dart';
 import 'package:moonswing/monitor_watcher.dart';
 import 'package:moonswing/modules/battery.dart';
 import 'package:moonswing/modules/dock.dart';
+import 'package:moonswing/modules/claude.dart';
 import 'package:moonswing/modules/github.dart';
 import 'package:moonswing/modules/keybinds.dart';
 import 'package:moonswing/modules/todo.dart';
@@ -47,6 +48,7 @@ import 'package:moonswing/modules/workspaces.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/emoji/emoji_controller.dart';
 import 'package:moonswing/emoji/emoji_picker_overlay.dart';
+import 'package:moonswing/claude/claude_account_store.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_service.dart';
@@ -157,6 +159,7 @@ void main() async {
   Module.register(keyboardLayoutModule);
   Module.register(keybindsModule);
   Module.register(githubModule);
+  Module.register(claudeModule);
   Module.register(scratchpadModule);
   Module.register(todoModule);
 
@@ -300,6 +303,8 @@ void _startShellServices({
   // The GitHub account, likewise: a file read and no network until a consumer
   // takes a lease, so Settings › Accounts opens knowing whether it is linked.
   unawaited(GithubAccountStore.instance.load());
+  // And the Claude API key: one file read, no request until a question.
+  unawaited(ClaudeAccountStore.instance.load());
   services.run(ShellService.tray, startStatusNotifierService);
 
   // Watches the default sink/source and the backlight so the on-screen

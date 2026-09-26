@@ -8,7 +8,8 @@
 //
 // Arithmetic rather than image assets, for the reason `pubspec.yaml` has no
 // `assets:` section: nothing in the shell resolves paths relative to the
-// bundle. Google's G is four arcs and a bar; GitHub's mark is Font Awesome's.
+// bundle. Google's G is four arcs and a bar; GitHub's and Claude's marks are
+// Font Awesome's.
 
 import 'dart:math' as math;
 
@@ -23,7 +24,8 @@ import 'package:moonswing/theme/tokens.dart';
 /// A service Settings › Accounts can link.
 enum AccountBrand {
   google('Google'),
-  github('GitHub');
+  github('GitHub'),
+  claude('Claude');
 
   const AccountBrand(this.label);
 
@@ -58,6 +60,16 @@ abstract final class GithubColors {
 
   /// A hairline round the dark tile, so it holds its edge on a dark theme.
   static const Color outline = Color(0x2EFFFFFF);
+}
+
+/// Claude's brand colours: the terracotta spark on the warm off-white Anthropic
+/// sets its own pages on.
+abstract final class ClaudeColors {
+  static const Color canvas = Color(0xFFFAF9F5);
+  static const Color mark = Color(0xFFD97757);
+
+  /// The hairline round the light tile, so it holds its edge on a light theme.
+  static const Color outline = Color(0xFFE3DACC);
 }
 
 /// [brand]'s mark on its own tile, [size] pixels square.
@@ -95,6 +107,21 @@ class BrandMark extends StatelessWidget {
           FontAwesomeIcons.github,
           size: size * 0.62,
           color: GithubColors.mark,
+        ),
+      ),
+      AccountBrand.claude => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: ClaudeColors.canvas,
+          borderRadius: radius,
+          border: Border.all(color: ClaudeColors.outline),
+        ),
+        alignment: Alignment.center,
+        child: FaIcon(
+          FontAwesomeIcons.claude,
+          size: size * 0.6,
+          color: ClaudeColors.mark,
         ),
       ),
     };

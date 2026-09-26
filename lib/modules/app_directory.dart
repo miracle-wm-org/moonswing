@@ -61,7 +61,7 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
       // The search field is an [EditableText] on an `xdg_popup` child of the
       // panel, which inherits the panel's keyboard interactivity — and every
       // panel is `none`, so without this the field comes up and cannot be
-      // typed into. This is the one bar popup in the shell that types.
+      // typed into. The Claude module's popup is the other bar popup that types.
       needsKeyboard: true,
       child: ThemeProvider(
         child: _AppDirectory(
