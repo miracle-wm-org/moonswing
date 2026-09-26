@@ -106,8 +106,8 @@ class _TodoOverlayState extends State<TodoOverlay> {
   /// Whether the backups card is open. A notifier for [_editing]'s reason.
   final ValueNotifier<bool> _backups = ValueNotifier(false);
 
-  /// The standup summary on show, or null when its card is closed.
-  final ValueNotifier<String?> _standup = ValueNotifier(null);
+  /// Whether the standup card is open. A notifier for [_editing]'s reason.
+  final ValueNotifier<bool> _standup = ValueNotifier(false);
   final FocusNode _focusNode = FocusNode(debugLabel: 'todo board');
 
   /// The search field's, owned here so the key handler can read and clear it.
@@ -137,9 +137,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
       // A click on the scrim closes the board — it holds nothing unsaved —
       // but not while the editor is open, which does.
       onBackdropTap: () {
-        if (_editing.value == null &&
-            !_backups.value &&
-            _standup.value == null) {
+        if (_editing.value == null && !_backups.value && !_standup.value) {
           _requestClose();
         }
       },
@@ -201,7 +199,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
         HardwareKeyboard.instance.isControlPressed &&
         _editing.value == null &&
         !_backups.value &&
-        _standup.value == null) {
+        !_standup.value) {
       _focusSearch();
       return;
     }
@@ -214,8 +212,8 @@ class _TodoOverlayState extends State<TodoOverlay> {
     } else if (_backups.value) {
       _backups.value = false;
       _searchFocus.requestFocus();
-    } else if (_standup.value != null) {
-      _standup.value = null;
+    } else if (_standup.value) {
+      _standup.value = false;
       _searchFocus.requestFocus();
     } else if (_searchText.text.isNotEmpty) {
       _clearSearch();
@@ -287,7 +285,7 @@ class _TodoPanel extends StatelessWidget {
   final TodoStore store;
   final TodoRemoteBackup remote;
   final ValueNotifier<bool> backups;
-  final ValueNotifier<String?> standup;
+  final ValueNotifier<bool> standup;
 
   /// [store] and [search] together.
   final Listenable board;
@@ -355,13 +353,13 @@ class _TodoPanel extends StatelessWidget {
                 ),
               ),
               Positioned.fill(
-                child: ValueListenableBuilder<String?>(
+                child: ValueListenableBuilder<bool>(
                   valueListenable: standup,
-                  builder: (context, report, _) => report == null
+                  builder: (context, open, _) => !open
                       ? const SizedBox.shrink()
                       : TodoStandupLayer(
-                          report: report,
-                          onDone: () => standup.value = null,
+                          store: store,
+                          onDone: () => standup.value = false,
                         ),
                 ),
               ),
@@ -384,8 +382,7 @@ class _TodoPanel extends StatelessWidget {
           // Disabled while the board did not read: it has nothing true to say.
           onStandup: store.editable
               ? () {
-                  final report = store.takeStandup();
-                  if (report != null) standup.value = report;
+                  if (store.takeStandup() != null) standup.value = true;
                 }
               : null,
           search: search,
@@ -547,7 +544,7 @@ class _Header extends StatelessWidget {
             _HeaderButton(
               tooltip:
                   'Standup summary: what was finished, started and still to '
-                  'do since the last one',
+                  'do since the last one, and the ones before it',
               onTap: onStandup,
               builder: (color) => FaIcon(
                 FontAwesomeIcons.bullhorn,

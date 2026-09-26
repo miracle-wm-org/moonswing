@@ -1,5 +1,6 @@
 // The standup summary: what was finished, what is under way and what is still
-// to do, since the last time the summary was taken.
+// to do, since the last time the summary was taken — and the summaries taken
+// before it, kept so an old one can still be copied.
 //
 // Flutter-free and I/O-free, for `test/todo_standup_test.dart`. Nothing here is
 // clever — the board already records when every card changed column
@@ -11,6 +12,35 @@ import 'package:moonswing/todo/todo_model.dart';
 /// How far back the first summary looks, when there is no earlier one to
 /// measure from: a day, the gap between two standups.
 const Duration kStandupFirstWindow = Duration(days: 1);
+
+/// One standup summary as it was taken: the text, when, and the instant it
+/// counted from — which is what the next summary goes back to counting from
+/// when this one is invalidated.
+class StandupSummary {
+  const StandupSummary({
+    required this.takenAt,
+    required this.since,
+    required this.report,
+  });
+
+  final DateTime takenAt;
+
+  /// The previous summary's [takenAt], or null for a first summary (which
+  /// looked back [kStandupFirstWindow]).
+  final DateTime? since;
+
+  final String report;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StandupSummary &&
+      other.takenAt == takenAt &&
+      other.since == since &&
+      other.report == report;
+
+  @override
+  int get hashCode => Object.hash(takenAt, since, report);
+}
 
 /// The standup summary for [items] at [now], counting activity after [since]
 /// (or [kStandupFirstWindow] before [now] when there has been no summary yet).

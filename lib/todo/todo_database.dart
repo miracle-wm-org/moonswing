@@ -11,6 +11,7 @@ import 'dart:convert';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'package:moonswing/todo/todo_model.dart';
+import 'package:moonswing/todo/todo_standup.dart';
 
 /// The schema's version, kept in `PRAGMA user_version`. A *newer* database is
 /// refused — one a later shell wrote is not one this one may write into — and
@@ -18,7 +19,9 @@ import 'package:moonswing/todo/todo_model.dart';
 ///
 ///  1. The board.
 ///  2. `entries.external`: the calendar event a card mirrors.
-const int kTodoSchemaVersion = 2;
+///  3. `standups`: every standup summary taken, so an old one can be copied
+///     again and the latest invalidated.
+const int kTodoSchemaVersion = 3;
 
 /// The oldest SQLite with FTS5's `trigram` tokenizer, as
 /// `sqlite3_libversion_number` spells it.
@@ -49,7 +52,9 @@ void _checkLibrary() {
 const String _kImportedJsonKey = 'imported_todo_json';
 
 /// The `meta` key holding when the last standup summary was taken, which the
-/// next one counts from. UTC, ISO 8601.
+/// next one counts from. UTC, ISO 8601. Kept apart from the `standups` table,
+/// which a database from before schema 3 has no rows in for the instant it
+/// already recorded.
 const String _kStandupKey = 'standup_at';
 
 /// The `meta` key holding the calendar events whose cards the user deleted, so
@@ -255,6 +260,7 @@ class TodoDatabase {
       db.execute(
         'CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
       );
+      _createStandups(db);
       db.userVersion = kTodoSchemaVersion;
     });
   }
@@ -266,8 +272,19 @@ class TodoDatabase {
       if (from < 2) {
         db.execute('ALTER TABLE entries ADD COLUMN external TEXT');
       }
+      if (from < 3) _createStandups(db);
       db.userVersion = kTodoSchemaVersion;
     });
+  }
+
+  static void _createStandups(Database db) {
+    db.execute('''
+      CREATE TABLE standups(
+        seq      INTEGER PRIMARY KEY,
+        taken_at TEXT NOT NULL,
+        since    TEXT,
+        report   TEXT NOT NULL
+      )''');
   }
 
   static void _transactionOn(Database db, void Function() body) {
@@ -371,12 +388,70 @@ class TodoDatabase {
     return value is String ? DateTime.tryParse(value)?.toLocal() : null;
   }
 
-  /// Records [at] as when the last standup summary was taken.
-  void recordStandup(DateTime at) {
-    _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
-      _kStandupKey,
-      at.toUtc().toIso8601String(),
-    ]);
+  /// Every standup summary taken, newest first. A row whose times do not
+  /// parse costs that row.
+  List<StandupSummary> get standups => [
+    for (final row in _db.select(
+      'SELECT taken_at, since, report FROM standups ORDER BY seq DESC',
+    ))
+      ?_standupFromRow(row),
+  ];
+
+  static StandupSummary? _standupFromRow(Row row) {
+    final takenAt = row['taken_at'];
+    final since = row['since'];
+    final report = row['report'];
+    if (takenAt is! String || report is! String) return null;
+    final taken = DateTime.tryParse(takenAt)?.toLocal();
+    if (taken == null) return null;
+    return StandupSummary(
+      takenAt: taken,
+      since: since is String ? DateTime.tryParse(since)?.toLocal() : null,
+      report: report,
+    );
+  }
+
+  /// Keeps [summary] and records its [StandupSummary.takenAt] as when the last
+  /// standup summary was taken, together.
+  void recordStandup(StandupSummary summary) {
+    _transaction(() {
+      _db.execute(
+        'INSERT INTO standups(taken_at, since, report) VALUES (?, ?, ?)',
+        [
+          summary.takenAt.toUtc().toIso8601String(),
+          summary.since?.toUtc().toIso8601String(),
+          summary.report,
+        ],
+      );
+      _setStandupAt(summary.takenAt);
+    });
+  }
+
+  /// Forgets the newest summary and sets [standupAt] back to the instant it
+  /// counted from, so the next one covers what it did. Does nothing when there
+  /// is no summary kept.
+  void invalidateLatestStandup() {
+    _transaction(() {
+      final rows = _db.select(
+        'SELECT seq, since FROM standups ORDER BY seq DESC LIMIT 1',
+      );
+      if (rows.isEmpty) return;
+      final row = rows.single;
+      _db.execute('DELETE FROM standups WHERE seq = ?', [row['seq']]);
+      final since = row['since'];
+      _setStandupAt(since is String ? DateTime.tryParse(since) : null);
+    });
+  }
+
+  void _setStandupAt(DateTime? at) {
+    if (at == null) {
+      _db.execute('DELETE FROM meta WHERE key = ?', [_kStandupKey]);
+    } else {
+      _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
+        _kStandupKey,
+        at.toUtc().toIso8601String(),
+      ]);
+    }
   }
 
   /// The calendar events whose cards the user deleted.

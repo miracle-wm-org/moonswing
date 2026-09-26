@@ -336,6 +336,40 @@ void main() {
       tester.widget<Text>(find.textContaining('Standup — ')).data,
       contains('Done:\n• Nothing finished'),
     );
+
+    // Both are listed; picking the older one shows it, and hides Invalidate,
+    // which only ever applies to the latest.
+    expect(store.standups, hasLength(2));
+    expect(find.text('Latest'), findsOneWidget);
+    expect(find.text('Invalidate'), findsOneWidget);
+    await tester.tap(find.text('Today at 12:00'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.textContaining('Standup — ')).data,
+      contains('Done:\n• Card done'),
+    );
+    expect(find.text('Invalidate'), findsNothing);
+
+    // Invalidating the latest drops it and counts from the first again, so the
+    // next summary reports the finished card once more.
+    await tester.tap(find.text('Today at 13:00'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Invalidate'));
+    await tester.pumpAndSettle();
+    expect(store.standups, hasLength(1));
+    expect(store.lastStandup, DateTime(2026, 9, 24, 12));
+    expect(find.text('Latest'), findsNothing);
+    expect(find.textContaining('count from today at 12:00'), findsOneWidget);
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+
+    now = now.add(const Duration(hours: 1));
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.textContaining('Standup — ')).data,
+      contains('Since today at 12:00.'),
+    );
   });
 
   Finder searchField() => find.byType(EditableText).first;
