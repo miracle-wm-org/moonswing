@@ -1,19 +1,31 @@
-// Settings › Accounts: the Google accounts the whole shell signs in with once.
-// Any number can be added; everything that reads Google reads all of them.
+// Settings › Accounts: the services the whole shell signs in to once — any
+// number of Google accounts, and a GitHub account — each on a card in the
+// service's own colours, saying whether it is linked, as whom, and what in the
+// shell reads it.
 //
-// The account is not config. The sign-in runs as the project's own OAuth client
-// (`google/google_client.dart`), so there is nothing to set up before it, and
-// the grant it earns lives in the XDG state directory
-// (`google/google_account_file.dart`), behind `GoogleAccountStore`. What the shell *does* with the account is ordinary
-// `[google]` config and goes through `ConfigStore` like every other row.
+// An account is not config. Each sign-in runs as the project's own OAuth app,
+// so there is nothing to set up before it, and the grant it earns lives in the
+// XDG state directory behind `GoogleAccountStore` / `GithubAccountStore`. The
+// stores come from `AccountsScope`, the same ones every module and desktop
+// widget reads, so a sign-in here is the one they all use. What the shell
+// *does* with an account is ordinary config — `[google]` here, and
+// `[modules.github]` on the module's own page — and goes through `ConfigStore`
+// like every other row.
 
 import 'package:flutter/widgets.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/accounts/accounts_scope.dart';
+import 'package:moonswing/accounts/brand_marks.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
+import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_api.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
 import 'package:moonswing/google/google_config.dart';
+import 'package:moonswing/overlay/settings/accounts/account_card.dart';
+import 'package:moonswing/overlay/settings/accounts/github_account.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/scopes.dart';
@@ -24,15 +36,24 @@ class AccountsSettingsPage extends StatefulWidget {
     super.key,
     GoogleAccountStore? account,
     GoogleCalendarStore? calendar,
+    GithubAccountStore? github,
     ConfigStore? config,
+    this.copy = copyTextToClipboard,
   }) : _account = account,
        _calendar = calendar,
+       _github = github,
        _config = config;
 
-  /// Injected by widget tests, so nothing here touches the network.
+  /// Injected by widget tests, so nothing here touches the network. Null reads
+  /// the [AccountsScope].
   final GoogleAccountStore? _account;
   final GoogleCalendarStore? _calendar;
+  final GithubAccountStore? _github;
   final ConfigStore? _config;
+
+  /// How the GitHub sign-in code reaches the clipboard; tests must not fork
+  /// `wl-copy`.
+  final Future<ClipboardResult> Function(String text) copy;
 
   @override
   State<AccountsSettingsPage> createState() => _AccountsSettingsPageState();
@@ -40,9 +61,11 @@ class AccountsSettingsPage extends StatefulWidget {
 
 class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
   late final GoogleAccountStore _account =
-      widget._account ?? GoogleAccountStore.instance;
+      widget._account ?? AccountsScope.googleOf(context);
   late final GoogleCalendarStore _calendar =
-      widget._calendar ?? GoogleCalendarStore.instance;
+      widget._calendar ?? AccountsScope.googleCalendarOf(context);
+  late final GithubAccountStore _github =
+      widget._github ?? AccountsScope.githubOf(context);
   late final ConfigStore _config = widget._config ?? ConfigStore.instance;
 
   String _accountIds = '';
@@ -51,6 +74,7 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
   void initState() {
     super.initState();
     _account.load();
+    _github.load();
     _account.addListener(_onAccount);
     _accountIds = _ids();
     if (_account.signedIn) _calendar.loadCalendars();
@@ -81,38 +105,62 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-          child: Text(
-            'Accounts',
-            style: TextStyle(
-              fontSize: ShellFontSizes.title,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground,
-              fontWeight: FontWeight.w600,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Accounts',
+                style: TextStyle(
+                  fontSize: ShellFontSizes.title,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Link a service once, and every module and desktop widget '
+                'that reads it uses the same sign-in.',
+                style: TextStyle(
+                  fontSize: ShellFontSizes.secondary,
+                  fontFamily: theme.fontFamily,
+                  color: theme.popupForeground.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
           ),
         ),
         Container(height: 1, color: theme.divider),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: ListenableBuilder(
-              listenable: _account,
-              builder: (context, _) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _GoogleAccountSection(account: _account),
-                  if (_account.signedIn) ...[
-                    const SizedBox(height: 20),
-                    _GoogleCalendarsSection(
-                      account: _account,
-                      calendar: _calendar,
-                      config: _config,
-                    ),
-                    const SizedBox(height: 20),
-                    _GoogleUseSection(config: _config),
-                  ],
-                ],
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Google's settings hang off its card, so the card and what
+                // it unlocks rebuild together; GitHub's card listens alone.
+                ListenableBuilder(
+                  listenable: _account,
+                  builder: (context, _) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _GoogleAccountCard(account: _account),
+                      if (_account.signedIn) ...[
+                        const SizedBox(height: 20),
+                        _GoogleCalendarsSection(
+                          account: _account,
+                          calendar: _calendar,
+                          config: _config,
+                        ),
+                        const SizedBox(height: 20),
+                        _GoogleUseSection(config: _config),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+                GithubAccountCard(account: _github, copy: widget.copy),
+              ],
             ),
           ),
         ),
@@ -121,9 +169,10 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
   }
 }
 
-/// The accounts, the sign-in that adds one, and whatever went wrong.
-class _GoogleAccountSection extends StatelessWidget {
-  const _GoogleAccountSection({required this.account});
+/// The Google card: the accounts, the sign-in that adds one, and whatever went
+/// wrong.
+class _GoogleAccountCard extends StatelessWidget {
+  const _GoogleAccountCard({required this.account});
 
   final GoogleAccountStore account;
 
@@ -132,8 +181,18 @@ class _GoogleAccountSection extends StatelessWidget {
     final stage = account.stage;
     final error = account.error;
     final accounts = account.accounts;
-    return SettingsSection(
-      label: 'Google',
+    return AccountProviderCard(
+      brand: AccountBrand.google,
+      tagline: 'Calendars, events and meetings',
+      state: switch (stage) {
+        GoogleAuthStage.signedIn => AccountLinkState.linked,
+        // Adding a second account while one is signed in is still linked.
+        GoogleAuthStage.awaitingBrowser when accounts.isNotEmpty =>
+          AccountLinkState.linked,
+        GoogleAuthStage.awaitingBrowser => AccountLinkState.pending,
+        GoogleAuthStage.signedOut ||
+        GoogleAuthStage.unavailable => AccountLinkState.none,
+      },
       info:
           'Sign in once for the whole shell, with as many accounts as you '
           'like. The Calendar tab shows all of their events, and the todo '
@@ -148,6 +207,10 @@ class _GoogleAccountSection extends StatelessWidget {
       trailing: stage == GoogleAuthStage.signedIn
           ? SettingsAddButton(label: 'Add account', onTap: account.signIn)
           : null,
+      usedBy: const [
+        (FontAwesomeIcons.calendarDays, 'Calendar tab'),
+        (FontAwesomeIcons.tableColumns, 'Todo board'),
+      ],
       children: [
         if (error.isNotEmpty) ...[
           SettingsBanner(
@@ -162,13 +225,16 @@ class _GoogleAccountSection extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         for (final a in accounts)
-          SettingsRow(
-            label: a.email.isEmpty ? 'Signed in' : a.email,
-            control: SettingsActionButton(
-              label: 'Sign out',
-              compact: true,
-              onTap: () => account.signOut(a.id),
-            ),
+          AccountIdentityRow(
+            name: a.email.isEmpty ? 'Signed in' : a.email,
+            detail: 'Read-only calendar access',
+            actions: [
+              SettingsActionButton(
+                label: 'Sign out',
+                compact: true,
+                onTap: () => account.signOut(a.id),
+              ),
+            ],
           ),
         ?_status(context, stage),
       ],
@@ -182,14 +248,17 @@ class _GoogleAccountSection extends StatelessWidget {
           'This build of Moonswing has no Google sign-in configured.',
         );
       case GoogleAuthStage.signedOut:
-        return SettingsRow(
-          label: 'Not signed in',
-          control: SettingsActionButton(
-            label: 'Sign in with Google',
-            primary: true,
-            compact: true,
-            onTap: account.signIn,
-          ),
+        return Row(
+          children: [
+            const Expanded(
+              child: AccountBlurb(
+                'Your browser opens at Google, where you choose an account '
+                'and allow read-only access to its calendars.',
+              ),
+            ),
+            const SizedBox(width: 16),
+            BrandSignInButton(AccountBrand.google, onTap: account.signIn),
+          ],
         );
       case GoogleAuthStage.awaitingBrowser:
         final waiting = SettingsRow(
@@ -215,11 +284,12 @@ class _GoogleAccountSection extends StatelessWidget {
           ),
         );
         // Said where the user is looking when Google says it, rather than
-        // only behind the section's info tip: a warning page nobody expected
+        // only behind the card's info tip: a warning page nobody expected
         // reads as a reason to stop.
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (account.accounts.isNotEmpty) const SizedBox(height: 8),
             waiting,
             const SizedBox(height: 4),
             const SettingsHint(

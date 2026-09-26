@@ -1,18 +1,20 @@
 // The bar's GitHub strip: the mark, an unread count, and the notification
 // inbox behind a click.
 //
-// Everything that is not rendering — the sign-in, the token, the poll, the two
-// writes that mark a thread read — is `lib/github/`, one store for the machine
-// and leased, so two bars are one poll rather than two. What is left here is the
-// button, the card, and the three states the card has to be able to be: signed
-// out, half-way through a sign-in, and showing a list.
+// Everything that is not rendering — the poll and the two writes that mark a
+// thread read — is `lib/github/`, one store for the machine and leased, so two
+// bars are one poll rather than two. The sign-in is not here at all: it is
+// Settings › Accounts', the one GitHub linkage every module shares, and a card
+// with no account behind it sends the user there. What is left here is the
+// button, and the card.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/accounts/accounts_scope.dart';
+import 'package:moonswing/accounts/brand_marks.dart';
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
-import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_config.dart';
 import 'package:moonswing/github/github_store.dart';
@@ -20,6 +22,7 @@ import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -49,13 +52,11 @@ const double kGithubPopupHeight = 460;
 
 /// The bar module.
 class GithubNotifications extends StatefulWidget {
-  // Not const: the default store is the process-wide singleton, which a const
-  // constructor cannot reach.
-  GithubNotifications({super.key, GithubStore? store, this.showCount = true})
-      : store = store ?? GithubStore.instance;
+  const GithubNotifications({super.key, this.store, this.showCount = true});
 
   /// Injected by tests, which seed a store rather than reaching the network.
-  final GithubStore store;
+  /// Null reads the [AccountsScope], which is the shell's one inbox.
+  final GithubStore? store;
 
   /// `[modules.github] show_count`.
   final bool showCount;
@@ -66,28 +67,35 @@ class GithubNotifications extends StatefulWidget {
 
 class _GithubNotificationsState extends State<GithubNotifications>
     with PopupHost<GithubNotifications> {
+  late GithubStore _store = _resolve();
+
+  GithubStore _resolve() =>
+      widget.store ?? AccountsScope.githubNotificationsOf(context);
+
   @override
   void initState() {
     super.initState();
-    widget.store.acquire();
-    widget.store.addListener(_onChanged);
+    _store
+      ..acquire()
+      ..addListener(_onChanged);
   }
 
   @override
   void didUpdateWidget(GithubNotifications oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.store == widget.store) return;
-    oldWidget.store
+    final next = _resolve();
+    if (next == _store) return;
+    _store
       ..removeListener(_onChanged)
       ..release();
-    widget.store
+    _store = next
       ..acquire()
       ..addListener(_onChanged);
   }
 
   @override
   void dispose() {
-    widget.store
+    _store
       ..removeListener(_onChanged)
       ..release();
     closePopup();
@@ -114,7 +122,7 @@ class _GithubNotificationsState extends State<GithubNotifications>
         maxHeight: kGithubPopupHeight,
       ),
       child: ThemeProvider(
-        child: GithubPopup(store: widget.store),
+        child: GithubPopup(store: _store, onClose: closePopup),
       ),
     );
   }
@@ -122,7 +130,7 @@ class _GithubNotificationsState extends State<GithubNotifications>
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final store = widget.store;
+    final store = _store;
     final signedIn = store.stage == GithubAuthStage.signedIn;
     final count = store.unreadCount;
 
@@ -162,19 +170,34 @@ class _GithubNotificationsState extends State<GithubNotifications>
 ///
 /// Takes the store rather than a snapshot of it: a popup built from values read
 /// at open time is frozen for as long as it is up, and this one has a poll
-/// behind it and a sign-in that completes while the user is looking at it.
+/// behind it and a sign-in in Settings that completes while it is open.
 class GithubPopup extends StatelessWidget {
   const GithubPopup({
     super.key,
     required this.store,
-    this.copy = copyTextToClipboard,
+    this.onClose,
+    this.openAccounts,
   });
 
   final GithubStore store;
 
-  /// How the user code reaches the clipboard. Injected by tests, which must not
-  /// fork `wl-copy`.
-  final Future<ClipboardResult> Function(String text) copy;
+  /// Closes the popup — after a button that sends the user to Settings, whose
+  /// overlay the card would otherwise sit on top of.
+  final VoidCallback? onClose;
+
+  /// Opens Settings › Accounts. Injected by tests; the default asks the root
+  /// through [SettingsController].
+  final VoidCallback? openAccounts;
+
+  void _openAccounts() {
+    final open = openAccounts;
+    if (open != null) {
+      open();
+    } else {
+      SettingsController.instance.open(SettingsRoute.accounts);
+    }
+    onClose?.call();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -197,9 +220,19 @@ class GithubPopup extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(store: store, theme: theme),
+                _Header(
+                  store: store,
+                  theme: theme,
+                  onAccounts: _openAccounts,
+                ),
                 Container(height: 1, color: theme.divider),
-                Expanded(child: _Body(store: store, theme: theme, copy: copy)),
+                Expanded(
+                  child: _Body(
+                    store: store,
+                    theme: theme,
+                    onAccounts: _openAccounts,
+                  ),
+                ),
               ],
             ),
           ),
@@ -212,10 +245,15 @@ class GithubPopup extends StatelessWidget {
 /// The card's top strip: who is signed in, and the actions that act on the
 /// whole list.
 class _Header extends StatelessWidget {
-  const _Header({required this.store, required this.theme});
+  const _Header({
+    required this.store,
+    required this.theme,
+    required this.onAccounts,
+  });
 
   final GithubStore store;
   final ThemeConfig theme;
+  final VoidCallback onAccounts;
 
   @override
   Widget build(BuildContext context) {
@@ -225,12 +263,8 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       child: Row(
         children: [
-          FaIcon(
-            FontAwesomeIcons.github,
-            size: ShellFontSizes.label,
-            color: theme.popupForeground,
-          ),
-          const SizedBox(width: 8),
+          const BrandMark(AccountBrand.github, size: 22),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               // The login when `/user` has answered, the count when it has not
@@ -249,17 +283,23 @@ class _Header extends StatelessWidget {
             if (unread > 0)
               SettingsIconButton(
                 icon: FontAwesomeIcons.checkDouble,
+                tooltip: 'Mark all read',
                 onTap: store.markAllRead,
                 enabled: !store.busy,
               ),
             SettingsIconButton(
               icon: FontAwesomeIcons.rotate,
+              tooltip: 'Refresh',
               onTap: store.refresh,
               enabled: !store.busy,
             ),
+            // The account is Settings' to manage — signing out here would sign
+            // every other GitHub consumer out with it, from a place that does
+            // not say so.
             SettingsIconButton(
-              icon: FontAwesomeIcons.rightFromBracket,
-              onTap: store.signOut,
+              icon: FontAwesomeIcons.userGear,
+              tooltip: 'Account settings',
+              onTap: onAccounts,
             ),
           ],
         ],
@@ -268,27 +308,26 @@ class _Header extends StatelessWidget {
   }
 }
 
-/// Whichever of the card's three states applies.
+/// Whichever of the card's states applies.
 class _Body extends StatelessWidget {
-  const _Body({required this.store, required this.theme, required this.copy});
+  const _Body({
+    required this.store,
+    required this.theme,
+    required this.onAccounts,
+  });
 
   final GithubStore store;
   final ThemeConfig theme;
-  final Future<ClipboardResult> Function(String text) copy;
+  final VoidCallback onAccounts;
 
   @override
   Widget build(BuildContext context) {
-    switch (store.stage) {
-      case GithubAuthStage.signedOut:
-        return _ShortBody(child: _SignedOut(store: store, theme: theme));
-      case GithubAuthStage.requestingCode:
-      case GithubAuthStage.awaitingAuthorization:
-        return _ShortBody(
-          child: _DeviceCode(store: store, theme: theme, copy: copy),
-        );
-      case GithubAuthStage.signedIn:
-        return _Inbox(store: store, theme: theme);
+    if (store.stage == GithubAuthStage.signedIn) {
+      return _Inbox(store: store, theme: theme);
     }
+    return _ShortBody(
+      child: _SignedOut(store: store, theme: theme, onAccounts: onAccounts),
+    );
   }
 }
 
@@ -326,23 +365,36 @@ class _ShortBody extends StatelessWidget {
   }
 }
 
-/// The sign-in invitation, and where a failed sign-in reports back to.
+/// No account yet: where to link one, and why the last one went away.
+///
+/// The sign-in itself is not here. It is Settings › Accounts', where every
+/// module reading GitHub shares it; this card says so and takes the user there.
 class _SignedOut extends StatelessWidget {
-  const _SignedOut({required this.store, required this.theme});
+  const _SignedOut({
+    required this.store,
+    required this.theme,
+    required this.onAccounts,
+  });
 
   final GithubStore store;
   final ThemeConfig theme;
+  final VoidCallback onAccounts;
 
   @override
   Widget build(BuildContext context) {
+    final pending = store.stage != GithubAuthStage.signedOut;
+    final error = store.account.error;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      padding: const EdgeInsets.fromLTRB(22, 18, 22, 18),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Center(child: BrandMark(AccountBrand.github, size: 48)),
+          const SizedBox(height: 14),
           Text(
-            'Sign in to GitHub',
+            pending ? 'Finishing the sign-in' : 'Connect GitHub',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: ShellFontSizes.title,
               fontWeight: FontWeight.w600,
@@ -351,196 +403,30 @@ class _SignedOut extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            // Said before the button rather than after it: the user is about to
-            // be sent to a browser, and what will happen there is the one thing
-            // worth knowing first.
-            'A code appears here and a browser opens at github.com, where you '
-            'type it in. Your password never reaches the shell.',
+            pending
+                ? 'Type the code shown in Settings › Accounts in at '
+                      'github.com, and your notifications appear here.'
+                : 'Sign in once under Settings › Accounts, and your '
+                      'notifications appear here.',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: ShellFontSizes.secondary,
               height: 1.45,
               color: theme.popupForeground.withValues(alpha: 0.65),
             ),
           ),
-          if (store.error.isNotEmpty) ...[
+          if (error.isNotEmpty) ...[
             const SizedBox(height: 10),
-            _ErrorLine(message: store.error),
+            _ErrorLine(message: error, center: true),
           ],
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           SettingsActionButton(
-            label: 'Sign in with GitHub',
+            label: pending ? 'Show the code' : 'Open Accounts settings',
+            icon: FontAwesomeIcons.userGear,
             primary: true,
-            loading: store.busy,
-            onTap: store.signIn,
+            onTap: onAccounts,
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// The user's half of the device flow: the code, and the two ways to get it to
-/// GitHub.
-class _DeviceCode extends StatelessWidget {
-  const _DeviceCode({
-    required this.store,
-    required this.theme,
-    required this.copy,
-  });
-
-  final GithubStore store;
-  final ThemeConfig theme;
-  final Future<ClipboardResult> Function(String text) copy;
-
-  @override
-  Widget build(BuildContext context) {
-    final code = store.deviceCode;
-    if (code == null) {
-      return Padding(
-        padding: const EdgeInsets.all(28),
-        child: Center(child: LoadingIndicator(color: theme.popupForeground)),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Enter this code at ${_shortUri(code.verificationUri)}',
-            style: TextStyle(
-              fontSize: ShellFontSizes.secondary,
-              color: theme.popupForeground.withValues(alpha: 0.65),
-            ),
-          ),
-          const SizedBox(height: 12),
-          _UserCode(code: code.userCode, theme: theme, copy: copy),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: SettingsActionButton(
-                  label: 'Open GitHub',
-                  primary: true,
-                  onTap: () => store.openVerificationPage(),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SettingsActionButton(
-                  label: 'Cancel',
-                  onTap: store.cancelSignIn,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            'Waiting for you to authorise the shell…',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              color: theme.popupForeground.withValues(alpha: 0.5),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// `github.com/login/device` — the URL without its scheme, which is what a
-  /// person reads out to themselves while typing it.
-  static String _shortUri(String uri) {
-    final parsed = Uri.tryParse(uri);
-    if (parsed == null || !parsed.hasAuthority) return uri;
-    return '${parsed.host}${parsed.path}';
-  }
-}
-
-/// The code itself: eight characters, spaced, and click-to-copy.
-///
-/// Through `wl-copy` rather than Flutter's own `Clipboard`, for the reason
-/// `emoji/emoji_clipboard.dart` documents: a Wayland client cannot take the
-/// selection without a seat and a serial, and every surface the shell owns is a
-/// layer-shell one. `Clipboard.setData` from here is a silent no-op.
-class _UserCode extends StatefulWidget {
-  const _UserCode({
-    required this.code,
-    required this.theme,
-    required this.copy,
-  });
-
-  final String code;
-  final ThemeConfig theme;
-  final Future<ClipboardResult> Function(String text) copy;
-
-  @override
-  State<_UserCode> createState() => _UserCodeState();
-}
-
-class _UserCodeState extends State<_UserCode> {
-  ClipboardResult? _result;
-
-  Future<void> _copy() async {
-    final result = await widget.copy(widget.code);
-    if (mounted) setState(() => _result = result);
-  }
-
-  /// The line under the code, which is where a failed copy is reported: the
-  /// card is still on screen, so it says so itself rather than through a
-  /// notification the user would have to leave the sign-in to read. A missing
-  /// helper names the *package*, never a package manager.
-  String get _hint => switch (_result) {
-        null => 'Click to copy',
-        ClipboardResult.copied => 'Copied',
-        ClipboardResult.unavailable =>
-          'Install $kClipboardPackage to copy it, or type it in',
-        ClipboardResult.failed => '$kClipboardCommand could not copy it',
-      };
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = widget.theme;
-    return RepaintBoundary(
-      child: HoverRegion(
-        onTap: _copy,
-        builder: (context, hovered) => Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: hovered ? theme.surfaceHover : theme.controlSurface,
-            borderRadius: BorderRadius.circular(ShellRadii.control),
-          ),
-          child: Column(
-            children: [
-              Text(
-                widget.code,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.heading,
-                  fontWeight: FontWeight.w700,
-                  // The one place in the shell that sets a family the theme did
-                  // not choose: this is a string to be transcribed character by
-                  // character, and a proportional face makes O and 0 the same
-                  // picture.
-                  fontFamily: 'monospace',
-                  letterSpacing: 4,
-                  color: theme.popupForeground,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _hint,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.caption,
-                  color: _result == ClipboardResult.copied ||
-                          _result == null
-                      ? theme.popupForeground.withValues(alpha: 0.5)
-                      : kErrorColor,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -761,14 +647,16 @@ class _NotificationRow extends StatelessWidget {
 }
 
 class _ErrorLine extends StatelessWidget {
-  const _ErrorLine({required this.message});
+  const _ErrorLine({required this.message, this.center = false});
 
   final String message;
+  final bool center;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       message,
+      textAlign: center ? TextAlign.center : null,
       style: const TextStyle(
         fontSize: ShellFontSizes.caption,
         color: kErrorColor,

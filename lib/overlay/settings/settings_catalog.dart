@@ -1080,6 +1080,26 @@ abstract final class SettingsCatalog {
     ],
   );
 
+  static final githubAccount = _pane(
+    'accounts',
+    'Accounts',
+    'GitHub account',
+    description:
+        'Sign in to GitHub once for the whole shell, so its notification '
+        'inbox — and anything else that reads GitHub — uses the one account.',
+    tags: const [
+      'github',
+      'git',
+      'sign in',
+      'login',
+      'account',
+      'accounts',
+      'token',
+      'notifications',
+      'device code',
+    ],
+  );
+
   static final googleCalendars = _accountsField(
     'google.calendars',
     'Calendars',
@@ -2003,6 +2023,7 @@ abstract final class SettingsCatalog {
     powerInhibitLogind,
     calendarWeekStart,
     googleAccount,
+    githubAccount,
     googleCalendars,
     googleShowInCalendar,
     googleTodoSync,

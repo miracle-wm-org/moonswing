@@ -366,17 +366,22 @@ left = ["github"]
 
 #### Signing in
 
-The first click offers a **Sign in with GitHub** button. Pressing it starts the
-same *device flow* `gh auth login` uses: the shell asks GitHub for an eight
-character code, shows it, and opens github.com/login/device in your browser. You
-type the code in there, authorise the app, and the shell takes it from there —
-your password is never typed into the shell and never reaches it.
+The GitHub account is linked once for the whole shell, under Settings ›
+**Accounts** — the module's popup, while signed out, has a button that goes
+there. **Sign in with GitHub** on the GitHub card starts the same *device flow*
+`gh auth login` uses: the shell asks GitHub for an eight character code, shows
+it on the card, and opens github.com/login/device in your browser. You type the
+code in there, authorise the app, and the shell takes it from there — your
+password is never typed into the shell and never reaches it. Closing the
+settings half-way through loses nothing: the code stays on the card until it
+expires. Anything else in the shell that reads GitHub uses the same account.
 
 The access token is written to `~/.local/state/moonswing/github-token`
-(mode 0600, in a directory created 0700), not into `config.toml`. **Sign out** in
-the popup's header deletes it. That signs this machine out; it does not revoke
+(mode 0600, in a directory created 0700), not into `config.toml`. **Sign out** on
+the Accounts card deletes it. That signs this machine out; it does not revoke
 the authorisation, which is done from
-[Settings › Applications](https://github.com/settings/applications) on github.com.
+[Settings › Applications](https://github.com/settings/applications) on github.com
+— the key button beside **Sign out** opens that page.
 
 The consent screen says **GitHub CLI**, because `client_id` defaults to that
 tool's public client id — a client id is public by construction, and borrowing
