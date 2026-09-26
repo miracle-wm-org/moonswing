@@ -1,0 +1,26 @@
+# Stands in for `audioplayers_linux` so that the shell's Linux build does not
+# compile a GStreamer plugin nothing in it plays through. See the
+# `dependency_overrides:` entry in the root pubspec.yaml for why.
+#
+# A *Dart* plugin rather than a plain package: `audioplayers` names
+# `audioplayers_linux` as its endorsed Linux implementation, and the tool warns
+# on every `pub get` when that package is not a plugin. `dartPluginClass` makes
+# it one with no native half, so there is still nothing to compile or link.
+name: audioplayers_linux
+description: "A no-op stand-in for audioplayers_linux: no native plugin, no GStreamer."
+version: 4.3.0
+publish_to: none
+
+environment:
+  sdk: ^3.6.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    implements: audioplayers
+    platforms:
+      linux:
+        dartPluginClass: AudioplayersLinuxNone
