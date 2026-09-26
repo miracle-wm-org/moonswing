@@ -83,6 +83,66 @@ void main() {
     });
   });
 
+  group('event details', () {
+    test('description, location, colour, attachments and links', () {
+      final e = GoogleEvent.fromJson({
+        'id': 'x',
+        'iCalUID': 'uid@google.com',
+        'start': {'dateTime': '2026-09-25T10:00:00Z'},
+        'end': {'dateTime': '2026-09-25T10:30:00Z'},
+        'colorId': '11',
+        'location': ' Room 4 ',
+        'hangoutLink': 'https://meet.google.com/abc-defg-hij',
+        'conferenceData': {
+          'conferenceSolution': {'name': 'Google Meet'},
+        },
+        'description':
+            'Agenda:<br><ul><li>Plan &amp; review</li></ul>'
+            '<a href="https://docs.google.com/document/d/1">the doc</a> '
+            'and https://example.com/page.',
+        'attachments': [
+          {'fileUrl': 'https://drive.google.com/file/d/2', 'title': 'Slides'},
+          {'fileUrl': 'not a url'},
+        ],
+      }, 'primary')!;
+      expect(e.description, contains('• Plan & review'));
+      expect(e.description, isNot(contains('<')));
+      expect(e.location, 'Room 4');
+      expect(e.color, '#d50000');
+      expect(e.iCalUid, 'uid@google.com');
+      expect(e.meetingName, 'Google Meet');
+      expect(e.attachments, [
+        const GoogleLink(
+          label: 'Slides',
+          url: 'https://drive.google.com/file/d/2',
+        ),
+      ]);
+      expect(e.links.map((l) => (l.label, l.url)), [
+        ('Slides', 'https://drive.google.com/file/d/2'),
+        ('Google Doc', 'https://docs.google.com/document/d/1'),
+        ('example.com', 'https://example.com/page'),
+      ]);
+    });
+
+    test('a primary calendar is keyed by its account', () {
+      final e = GoogleEvent.fromJson({
+        'id': 'x',
+        'start': {'date': '2026-09-25'},
+      }, 'primary')!;
+      expect(e.key, 'primary/x');
+      expect(e.legacyKey, isNull);
+      final read = e.withAccount('me@example.com');
+      expect(read.key, 'me@example.com/x');
+      expect(read.legacyKey, 'primary/x');
+      final shared = GoogleEvent.fromJson({
+        'id': 'y',
+        'start': {'date': '2026-09-25'},
+      }, 'team')!.withAccount('me@example.com');
+      expect(shared.key, 'team/y');
+      expect(shared.legacyKey, isNull);
+    });
+  });
+
   group('meetingLinkOf', () {
     test('prefers Meet, then a video entry point, then the location', () {
       expect(
@@ -249,6 +309,27 @@ void main() {
               .having((e) => e.message, 'message', contains('not been used')),
         ),
       );
+    });
+
+    test('a calendar id is encoded once, not twice', () async {
+      const id = 'en.usa#holiday@group.v.calendar.google.com';
+      late Uri seen;
+      final client = HttpGoogleClient(
+        httpClient: MockClient((request) async {
+          seen = request.url;
+          return http.Response(jsonEncode({'items': []}), 200);
+        }),
+      );
+      await client.listEvents(
+        accessToken: 't',
+        calendarId: id,
+        from: DateTime(2026, 9, 1),
+        to: DateTime(2026, 10, 1),
+      );
+      // Encoded twice, `@` went out as `%2540`, and Google answered 404 for
+      // every calendar but `primary`.
+      expect(seen.toString(), isNot(contains('%25')));
+      expect(seen.pathSegments, ['calendar', 'v3', 'calendars', id, 'events']);
     });
   });
 }

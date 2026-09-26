@@ -192,7 +192,7 @@ void main() {
           'Displays and resolution',
           'Sound output and input',
           'Keyboard layout',
-          'Google account',
+          'Google accounts',
           // The Window Manager pane's collections: a list of key bindings or
           // of startup applications is not a row anything can scroll to.
           'Animated events',

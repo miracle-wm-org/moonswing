@@ -197,4 +197,26 @@ void main() {
     expect(nextCalendarBoundary(sources, at(11)), at(14));
     expect(nextCalendarBoundary(sources, at(15)), isNull);
   });
+
+  test('a card made under the old key is adopted, not duplicated', () {
+    final old = sync(const [], [meeting('a')], at(8))!;
+    expect(old.single.external!.key, 'primary/a');
+    final renamed = CalendarCardSource(
+      key: 'me@example.com/a',
+      legacyKey: 'primary/a',
+      title: 'Standup',
+      start: at(10),
+      end: at(10, 30),
+      link: 'https://meet.google.com/abc',
+      url: 'https://calendar.google.com/event?eid=a',
+    );
+    final board = sync(old, [renamed], at(9))!;
+    expect(board, hasLength(1));
+    expect(board.single.id, old.single.id);
+    expect(board.single.column, TodoColumn.todo, reason: 'not abandoned');
+    expect(board.single.external!.key, 'me@example.com/a');
+
+    // A deletion recorded under the old key still holds.
+    expect(sync(const [], [renamed], at(9), dismissed: {'primary/a'}), isNull);
+  });
 }

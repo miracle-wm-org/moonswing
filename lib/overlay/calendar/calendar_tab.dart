@@ -1,14 +1,21 @@
 // ignore_for_file: library_private_types_in_public_api
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart';
+import 'package:moonswing/clock/minute_clock_store.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/google/google_api.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
-import 'package:moonswing/overlay/calendar/calendar_agenda.dart';
+import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/calendar/calendar_events.dart';
 import 'package:moonswing/overlay/calendar/clock_column.dart';
+import 'package:moonswing/overlay/calendar/event_details.dart';
+import 'package:moonswing/overlay/calendar/event_layout.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
 import 'package:moonswing/overlay/calendar/time_zones.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -27,9 +34,11 @@ import 'package:moonswing/timers/timer_widgets.dart';
 ///
 /// The grid itself is local date arithmetic. When a Google account is signed in
 /// under Settings › Accounts and `[google] show_in_calendar` is on, the tab also
-/// holds a [GoogleCalendarStore] lease on the month on screen: days with events
-/// get a dot and the selected day's events are listed under the month. The lease
-/// exists only while the tab is [active], so a closed overlay fetches nothing.
+/// holds a [GoogleCalendarStore] lease on the span on screen and draws the
+/// events *on* the calendar: bars in each day of the month, and a Week and a
+/// Day view where a timed event is a box as long as the meeting. Clicking one
+/// opens its details. The lease exists only while the tab is [active], so a
+/// closed overlay fetches nothing.
 ///
 /// The world clocks are read from and written straight back to [ConfigStore]:
 /// one consumer in one window, and adding and removing *are* the persisted
@@ -46,6 +55,7 @@ class CalendarTab extends StatefulWidget {
     this.google,
     this.showGoogleEvents,
     this.openUrl,
+    this.minuteClock,
   });
 
   /// Whether this is the tab the user is looking at.
@@ -84,13 +94,21 @@ class CalendarTab extends StatefulWidget {
   /// Opens an event's page or join link, or null for the default browser.
   final bool Function(String url)? openUrl;
 
+  /// Where the week and day views' line marking now reads the time, or null
+  /// for the shell's. Injected by tests.
+  final MinuteClockStore? minuteClock;
+
   @override
   _CalendarTabState createState() => _CalendarTabState();
 }
 
+/// How much of the calendar is on screen at once.
+enum CalendarView { month, week, day }
+
 class _CalendarTabState extends State<CalendarTab> {
   late DateTime _visibleMonth;
   late DateTime _selectedDay;
+  CalendarView _view = CalendarView.month;
 
   late final GoogleCalendarStore _google =
       widget.google ?? GoogleCalendarStore.instance;
@@ -136,8 +154,10 @@ class _CalendarTabState extends State<CalendarTab> {
   /// Whether the events half of the tab is on screen.
   bool get _eventsVisible => _showEvents && _google.account.signedIn;
 
-  /// Takes, moves or drops the lease on the month on screen. The window is the
-  /// grid's, leading and trailing days included, since those carry dots too.
+  /// Takes, moves or drops the lease on the span on screen. For the month it
+  /// is the grid's, leading and trailing days included, since those carry
+  /// bars too. For a week or a day it is that week *and* its month's grid, so
+  /// stepping through the days of a month fetches nothing new.
   void _syncLease() {
     final wanted = widget.active && _eventsVisible;
     if (!wanted) {
@@ -150,8 +170,13 @@ class _CalendarTabState extends State<CalendarTab> {
       _visibleMonth.month,
       weekStart: _weekStart,
     );
-    final from = grid.days.first;
-    final last = grid.days.last;
+    var from = grid.days.first;
+    var last = grid.days.last;
+    if (_view != CalendarView.month) {
+      final week = weekOf(_selectedDay, _weekStart);
+      if (week.first.isBefore(from)) from = week.first;
+      if (week.last.isAfter(last)) last = week.last;
+    }
     final to = DateTime(last.year, last.month, last.day + 1);
     final lease = _lease;
     if (lease == null) {
@@ -172,13 +197,58 @@ class _CalendarTabState extends State<CalendarTab> {
     _syncLease();
   }
 
-  void _goToToday() {
-    final today = DateTime.now();
+  void _goToToday() => _goToDay(DateTime.now());
+
+  /// Selects [day] and brings its month along, staying in the current view.
+  void _goToDay(DateTime day, {CalendarView? view}) {
     setState(() {
-      _selectedDay = dayKey(today);
-      _visibleMonth = DateTime(today.year, today.month, 1);
+      _selectedDay = dayKey(day);
+      _visibleMonth = DateTime(day.year, day.month, 1);
+      if (view != null) _view = view;
     });
     _syncLease();
+  }
+
+  /// The chevrons: a month, a week or a day at a time.
+  void _step(int delta) {
+    switch (_view) {
+      case CalendarView.month:
+        _goToMonth(addMonths(_visibleMonth, delta));
+      case CalendarView.week:
+        _goToDay(
+          DateTime(
+            _selectedDay.year,
+            _selectedDay.month,
+            _selectedDay.day + 7 * delta,
+          ),
+        );
+      case CalendarView.day:
+        _goToDay(
+          DateTime(
+            _selectedDay.year,
+            _selectedDay.month,
+            _selectedDay.day + delta,
+          ),
+        );
+    }
+  }
+
+  void _setView(CalendarView view) {
+    if (view == _view) return;
+    // Leaving the month for a week or a day lands on the selected day, and
+    // coming back shows the month it is in.
+    _goToDay(_selectedDay, view: view);
+  }
+
+  void _openEvent(BuildContext context, GoogleEvent event) {
+    unawaited(
+      showEventDetails(
+        context,
+        event: event,
+        store: _google,
+        openUrl: widget.openUrl ?? openUriWithDefault,
+      ),
+    );
   }
 
   List<WorldClock> get _worldClocks =>
@@ -232,21 +302,28 @@ class _CalendarTabState extends State<CalendarTab> {
     // schedules its work, so taking it from here notifies nobody mid-build.
     _syncLease();
     final events = _eventsVisible;
+    // A week or a day of nothing is a blank page: without events on screen
+    // there is only the month.
+    final view = events ? _view : CalendarView.month;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // The month keeps the whole of its side now that the timers have moved
         // under the clocks, so the grid's six rows are as tall as the tab is.
         Expanded(
-          child: _MonthPane(
+          child: _CalendarPane(
+            view: view,
             visibleMonth: _visibleMonth,
             selectedDay: _selectedDay,
             weekStart: _weekStart,
-            onMonthChanged: _goToMonth,
+            onStep: _step,
             onDaySelected: (day) => setState(() => _selectedDay = day),
             onToday: _goToToday,
+            onView: _setView,
+            onOpenDay: (day) => _goToDay(day, view: CalendarView.day),
+            onEvent: (event) => _openEvent(context, event),
             events: events ? _google : null,
-            openUrl: widget.openUrl ?? openUriWithDefault,
+            minuteClock: widget.minuteClock,
           ),
         ),
         Container(width: 1, color: theme.divider),
@@ -293,146 +370,264 @@ class _CalendarTabState extends State<CalendarTab> {
 }
 
 // ---------------------------------------------------------------------------
-// Month grid
+// The calendar: a header, then the month grid or the time grid
 // ---------------------------------------------------------------------------
 
-class _MonthPane extends StatelessWidget {
-  const _MonthPane({
+class _CalendarPane extends StatelessWidget {
+  const _CalendarPane({
+    required this.view,
     required this.visibleMonth,
     required this.selectedDay,
     required this.weekStart,
-    required this.onMonthChanged,
+    required this.onStep,
     required this.onDaySelected,
     required this.onToday,
+    required this.onView,
+    required this.onOpenDay,
+    required this.onEvent,
     required this.events,
-    required this.openUrl,
+    required this.minuteClock,
   });
 
+  final CalendarView view;
   final DateTime visibleMonth;
   final DateTime selectedDay;
   final int weekStart;
-  final ValueChanged<DateTime> onMonthChanged;
+  final ValueChanged<int> onStep;
   final ValueChanged<DateTime> onDaySelected;
   final VoidCallback onToday;
+  final ValueChanged<CalendarView> onView;
+  final ValueChanged<DateTime> onOpenDay;
+  final EventTap onEvent;
 
   /// The account's events, or null when they are not shown.
   final GoogleCalendarStore? events;
 
-  final bool Function(String url) openUrl;
+  final MinuteClockStore? minuteClock;
+
+  String get _title => switch (view) {
+    CalendarView.month =>
+      '${monthNames[visibleMonth.month - 1]} ${visibleMonth.year}',
+    CalendarView.week => weekRangeLabel(weekOf(selectedDay, weekStart)),
+    CalendarView.day =>
+      '${weekdayNames[selectedDay.weekday % 7].substring(0, 3)} '
+          '${selectedDay.day} ${monthAbbrev[selectedDay.month - 1]} '
+          '${selectedDay.year}',
+  };
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     final events = this.events;
-    final grid = buildMonthGrid(
-      visibleMonth.year,
-      visibleMonth.month,
-      weekStart: weekStart,
-    );
-    final today = dayKey(DateTime.now());
+    final Widget body = switch (view) {
+      CalendarView.month => _MonthGrid(
+        visibleMonth: visibleMonth,
+        selectedDay: selectedDay,
+        weekStart: weekStart,
+        onDaySelected: onDaySelected,
+        onOpenDay: onOpenDay,
+        onEvent: onEvent,
+        events: events,
+      ),
+      CalendarView.week => CalendarTimeGrid(
+        // Keyed on the view, so each keeps its own scroll position and the
+        // week and the day are not one grid re-laid.
+        key: const ValueKey('week'),
+        store: events!,
+        days: weekOf(selectedDay, weekStart),
+        onEvent: onEvent,
+        onDay: onOpenDay,
+        clock: minuteClock,
+      ),
+      CalendarView.day => CalendarTimeGrid(
+        key: const ValueKey('day'),
+        store: events!,
+        days: [selectedDay],
+        onEvent: onEvent,
+        clock: minuteClock,
+      ),
+    };
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _MonthHeader(
-            month: visibleMonth,
-            onPrevious: () => onMonthChanged(addMonths(visibleMonth, -1)),
-            onNext: () => onMonthChanged(addMonths(visibleMonth, 1)),
+          _CalendarHeader(
+            title: _title,
+            view: events == null ? null : view,
+            events: events,
+            onPrevious: () => onStep(-1),
+            onNext: () => onStep(1),
             onToday: onToday,
+            onView: onView,
           ),
+          if (events != null) _EventsError(store: events),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              for (var i = 0; i < 7; i++)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      weekdayInitials[(weekStart + i) % 7],
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.secondary,
-                        fontFamily: theme.fontFamily,
-                        color: theme.popupForeground.withValues(alpha: 0.6),
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Expanded(
-            child: Column(
-              children: [
-                for (var week = 0; week < 6; week++)
-                  Expanded(
-                    child: Row(
-                      children: [
-                        for (var weekday = 0; weekday < 7; weekday++)
-                          Builder(
-                            builder: (context) {
-                              final index = week * 7 + weekday;
-                              final day = grid.days[index];
-                              return Expanded(
-                                child: _DayCell(
-                                  day: day,
-                                  inMonth: grid.isInMonth(index),
-                                  isToday: day == today,
-                                  isSelected: day == selectedDay,
-                                  onTap: () => onDaySelected(day),
-                                  events: events,
-                                ),
-                              );
-                            },
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (events != null) ...[
-            const SizedBox(height: 12),
-            Container(height: 1, color: theme.divider),
-            const SizedBox(height: 8),
-            CalendarAgenda(store: events, day: selectedDay, onOpen: openUrl),
-          ],
+          Expanded(child: body),
         ],
       ),
     );
   }
 }
 
-class _MonthHeader extends StatelessWidget {
-  const _MonthHeader({
-    required this.month,
-    required this.onPrevious,
-    required this.onNext,
-    required this.onToday,
+class _MonthGrid extends StatelessWidget {
+  const _MonthGrid({
+    required this.visibleMonth,
+    required this.selectedDay,
+    required this.weekStart,
+    required this.onDaySelected,
+    required this.onOpenDay,
+    required this.onEvent,
+    required this.events,
   });
 
-  final DateTime month;
-  final VoidCallback onPrevious;
-  final VoidCallback onNext;
-  final VoidCallback onToday;
+  final DateTime visibleMonth;
+  final DateTime selectedDay;
+  final int weekStart;
+  final ValueChanged<DateTime> onDaySelected;
+  final ValueChanged<DateTime> onOpenDay;
+  final EventTap onEvent;
+  final GoogleCalendarStore? events;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return Row(
+    final grid = buildMonthGrid(
+      visibleMonth.year,
+      visibleMonth.month,
+      weekStart: weekStart,
+    );
+    final today = dayKey(DateTime.now());
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          '${monthNames[month.month - 1]} ${month.year}',
-          style: TextStyle(
-            fontSize: ShellFontSizes.heading,
-            fontFamily: theme.fontFamily,
-            color: theme.popupForeground,
-            fontWeight: FontWeight.w600,
+        Row(
+          children: [
+            for (var i = 0; i < 7; i++)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    events == null
+                        ? weekdayInitials[(weekStart + i) % 7]
+                        : weekdayNames[(weekStart + i) % 7]
+                              .substring(0, 3)
+                              .toUpperCase(),
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.secondary,
+                      fontFamily: theme.fontFamily,
+                      color: theme.popupForeground.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: Column(
+            children: [
+              for (var week = 0; week < 6; week++)
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (var weekday = 0; weekday < 7; weekday++)
+                        Builder(
+                          builder: (context) {
+                            final index = week * 7 + weekday;
+                            final day = grid.days[index];
+                            return Expanded(
+                              child: _DayCell(
+                                day: day,
+                                inMonth: grid.isInMonth(index),
+                                isToday: day == today,
+                                isSelected: day == selectedDay,
+                                onTap: () => onDaySelected(day),
+                                events: events,
+                                onOpenDay: onOpenDay,
+                                onEvent: onEvent,
+                              ),
+                            );
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _CalendarHeader extends StatelessWidget {
+  const _CalendarHeader({
+    required this.title,
+    required this.view,
+    required this.events,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onToday,
+    required this.onView,
+  });
+
+  final String title;
+
+  /// Null when there is no choice of view: no events, so only the month.
+  final CalendarView? view;
+  final GoogleCalendarStore? events;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onToday;
+  final ValueChanged<CalendarView> onView;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final view = this.view;
+    final events = this.events;
+    return Row(
+      children: [
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            softWrap: false,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: ShellFontSizes.heading,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        if (events != null)
+          // Only while nothing is on screen yet: a refresh behind events
+          // already shown is not worth a spinner.
+          StoreSelector<bool>(
+            listenable: events,
+            selector: () => events.loading,
+            builder: (context, loading) => loading
+                ? const Padding(
+                    padding: EdgeInsets.only(left: 10),
+                    child: LoadingIndicator(size: 14),
+                  )
+                : const SizedBox.shrink(),
+          ),
         const Spacer(),
+        if (view != null) ...[
+          const SizedBox(width: 12),
+          SettingsSegmented(
+            options: [for (final v in CalendarView.values) v.name],
+            value: view.name,
+            onChanged: (name) => onView(CalendarView.values.byName(name)),
+          ),
+          const SizedBox(width: 12),
+        ],
         _TodayButton(onTap: onToday),
         const SizedBox(width: 4),
         SettingsIconButton(
@@ -446,6 +641,57 @@ class _MonthHeader extends StatelessWidget {
           onTap: onNext,
         ),
       ],
+    );
+  }
+}
+
+/// Why calendars could not be read, with a retry. The last good events stay
+/// on screen underneath.
+class _EventsError extends StatelessWidget {
+  const _EventsError({required this.store});
+
+  final GoogleCalendarStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return StoreSelector<String>(
+      listenable: store,
+      selector: () => store.error,
+      builder: (context, error) {
+        if (error.isEmpty) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              const FaIcon(
+                FontAwesomeIcons.triangleExclamation,
+                size: 11,
+                color: kErrorColor,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  error,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.secondary,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground.withValues(alpha: 0.8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SettingsActionButton(
+                label: 'Retry',
+                compact: true,
+                onTap: store.refresh,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -499,6 +745,8 @@ class _DayCell extends StatelessWidget {
     required this.isToday,
     required this.isSelected,
     required this.onTap,
+    required this.onOpenDay,
+    required this.onEvent,
     this.events,
   });
 
@@ -507,8 +755,10 @@ class _DayCell extends StatelessWidget {
   final bool isToday;
   final bool isSelected;
   final VoidCallback onTap;
+  final ValueChanged<DateTime> onOpenDay;
+  final EventTap onEvent;
 
-  /// Where the event dot reads from, or null for no dot.
+  /// Where the event bars read from, or null for a plain day number.
   final GoogleCalendarStore? events;
 
   @override
@@ -533,24 +783,26 @@ class _DayCell extends StatelessWidget {
       ),
     );
     final events = this.events;
+    // With events, the number moves to the top of the cell and the day's bars
+    // fill the rest; each bar is its own tap target over the cell's.
     final label = events == null
         ? Center(child: number)
-        : Stack(
-            children: [
-              Center(child: number),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 4,
-                child: Center(
-                  child: CalendarEventDot(
+        : Padding(
+            padding: const EdgeInsets.fromLTRB(3, 2, 3, 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(height: 20, child: Center(child: number)),
+                Expanded(
+                  child: MonthDayEvents(
                     store: events,
                     day: day,
-                    color: isSelected ? foreground : theme.accent,
+                    onEvent: onEvent,
+                    onMore: onOpenDay,
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
     final border = isToday && !isSelected
         ? Border.all(color: theme.accent, width: 1.5)
@@ -565,7 +817,11 @@ class _DayCell extends StatelessWidget {
         builder: (context, hovered) {
           final Color background;
           if (isSelected) {
-            background = theme.accent;
+            // A full accent fill would sit under the bars' own colours, so a
+            // cell with events is tinted instead.
+            background = events == null
+                ? theme.accent
+                : theme.accent.withValues(alpha: hovered ? 0.4 : 0.28);
           } else if (hovered) {
             background = theme.surfaceHover;
           } else {

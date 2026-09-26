@@ -1064,17 +1064,26 @@ abstract final class SettingsCatalog {
   static final googleAccount = _pane(
     'accounts',
     'Accounts',
-    'Google account',
+    'Google accounts',
     description:
-        'Sign in to Google once for the whole shell, so its calendar shows '
-        'your events and the todo board your meetings.',
-    tags: const ['google', 'gmail', 'sign in', 'login', 'account', 'calendar'],
+        'Sign in to one or more Google accounts for the whole shell, so its '
+        'calendar shows your events and the todo board your meetings.',
+    tags: const [
+      'google',
+      'gmail',
+      'sign in',
+      'login',
+      'account',
+      'accounts',
+      'add account',
+      'calendar',
+    ],
   );
 
   static final googleCalendars = _accountsField(
     'google.calendars',
     'Calendars',
-    description: 'Which of the account\'s calendars the shell reads.',
+    description: 'Which of each account\'s calendars the shell reads.',
     tags: const ['google', 'calendar', 'events', 'shared'],
   );
 
@@ -1082,9 +1091,9 @@ abstract final class SettingsCatalog {
     'google.show_in_calendar',
     'Show events in the calendar',
     description:
-        'Mark days with events in the Calendar tab and list the selected '
-        'day\'s events beside the month.',
-    tags: const ['google', 'events', 'agenda', 'meetings'],
+        'Draw your events on the Calendar tab, with Month, Week and Day '
+        'views; click one for its details and join link.',
+    tags: const ['google', 'events', 'agenda', 'meetings', 'week', 'day'],
   );
 
   static final googleTodoSync = _accountsField(

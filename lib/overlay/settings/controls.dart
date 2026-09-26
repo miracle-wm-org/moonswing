@@ -1197,6 +1197,7 @@ class SettingsActionButton extends StatelessWidget {
     this.loading = false,
     this.enabled = true,
     this.compact = false,
+    this.icon,
   });
 
   final String label;
@@ -1205,10 +1206,28 @@ class SettingsActionButton extends StatelessWidget {
   final bool loading;
   final bool enabled;
 
+  /// A glyph before the label, for a row of actions that each go somewhere
+  /// different (join a call, open a document) and read faster by shape.
+  final FaIconData? icon;
+
   /// The dense inline form used beside a list row (the bluetooth pane's
   /// Connect/Disconnect): tighter padding, the secondary font size, and sized to
   /// its label rather than stretched under a form.
   final bool compact;
+
+  /// [text] behind [icon], when there is one.
+  Widget _labelled(Widget text, Color color) {
+    final icon = this.icon;
+    if (icon == null) return text;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FaIcon(icon, size: ShellFontSizes.secondary, color: color),
+        const SizedBox(width: 6),
+        Flexible(child: text),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1239,15 +1258,18 @@ class SettingsActionButton extends StatelessWidget {
           child: Center(
             child: loading
                 ? const LoadingIndicator(size: 14)
-                : Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: compact
-                          ? ShellFontSizes.secondary
-                          : ShellFontSizes.body,
-                      fontFamily: theme.fontFamily,
-                      color: primary ? kOnAccent : theme.popupForeground,
+                : _labelled(
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: compact
+                            ? ShellFontSizes.secondary
+                            : ShellFontSizes.body,
+                        fontFamily: theme.fontFamily,
+                        color: primary ? kOnAccent : theme.popupForeground,
+                      ),
                     ),
+                    primary ? kOnAccent : theme.popupForeground,
                   ),
           ),
         );

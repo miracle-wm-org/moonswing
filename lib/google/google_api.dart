@@ -121,6 +121,22 @@ class GoogleCalendar {
   int get hashCode => Object.hash(id, summary, primary, color);
 }
 
+/// A titled link on an event: an attachment, or a web address found in its
+/// description or location.
+class GoogleLink {
+  const GoogleLink({required this.label, required this.url});
+
+  final String label;
+  final String url;
+
+  @override
+  bool operator ==(Object other) =>
+      other is GoogleLink && other.label == label && other.url == url;
+
+  @override
+  int get hashCode => Object.hash(label, url);
+}
+
 /// One occurrence of an event. `singleEvents=true` expands a recurring event
 /// into instances, each with an id of its own.
 class GoogleEvent {
@@ -130,14 +146,29 @@ class GoogleEvent {
     required this.summary,
     required this.start,
     required this.end,
+    this.account = '',
     this.allDay = false,
     this.cancelled = false,
     this.htmlLink,
     this.meetingLink,
+    this.meetingName,
+    this.description,
+    this.location,
+    this.color,
+    this.iCalUid,
+    this.attachments = const [],
+    this.descriptionLinks = const [],
   });
 
   final String id;
+
+  /// The calendar as it was asked for: `primary`, or the calendar's own id.
   final String calendarId;
+
+  /// The signed-in account it was read through, or empty when unknown. Set by
+  /// the store, since the API answers per calendar and not per account.
+  final String account;
+
   final String summary;
 
   /// Local wall-clock time. For an all-day event, midnight of its first day.
@@ -156,8 +187,67 @@ class GoogleEvent {
   /// location. Null for an event that is not a call.
   final String? meetingLink;
 
-  /// Unique across every calendar the shell reads.
-  String get key => '$calendarId/$id';
+  /// What [meetingLink] is, as conference data names it ("Google Meet",
+  /// "Zoom Meeting"), or null when it does not say.
+  final String? meetingName;
+
+  /// The description as plain text: Google stores what its own editor wrote,
+  /// which is HTML.
+  final String? description;
+
+  final String? location;
+
+  /// `#rrggbb` from the event's own colour, or null for the calendar's.
+  final String? color;
+
+  /// The same meeting's id in every calendar it was sent to, so an invitation
+  /// read through two accounts can be recognised as one meeting.
+  final String? iCalUid;
+
+  /// Files attached in Google Calendar (usually Drive documents).
+  final List<GoogleLink> attachments;
+
+  /// The anchors' addresses in an HTML description, which its plain text
+  /// loses: a link's text need not be its address.
+  final List<String> descriptionLinks;
+
+  /// Unique across every calendar of every account the shell reads.
+  ///
+  /// A primary calendar asked for as `primary` is keyed by the account, which
+  /// is also the primary calendar's real id, so either spelling of the same
+  /// calendar gives the same key.
+  String get key => '${_calendarKey()}/$id';
+
+  String _calendarKey() =>
+      calendarId == 'primary' && account.isNotEmpty ? account : calendarId;
+
+  /// The key a single-account build gave the same occurrence: a primary
+  /// calendar was keyed as `primary`. Null when that is [key] already.
+  String? get legacyKey {
+    final legacy = '$calendarId/$id';
+    return legacy == key ? null : legacy;
+  }
+
+  /// Every other link worth offering beside [meetingLink] and [htmlLink]:
+  /// attachments, then web addresses in the location and the description.
+  List<GoogleLink> get links {
+    final seen = <String>{?meetingLink, ?htmlLink};
+    final out = <GoogleLink>[];
+    void add(GoogleLink link) {
+      if (seen.add(link.url)) out.add(link);
+    }
+
+    attachments.forEach(add);
+    for (final url in descriptionLinks) {
+      add(GoogleLink(label: linkLabel(url), url: url));
+    }
+    for (final text in [?location, ?description]) {
+      for (final url in findWebUrls(text)) {
+        add(GoogleLink(label: linkLabel(url), url: url));
+      }
+    }
+    return out;
+  }
 
   /// Whether any of it falls on the local day starting at [day] (midnight).
   bool overlapsDay(DateTime day) {
@@ -166,6 +256,27 @@ class GoogleEvent {
         // A zero-length event at the day's midnight still belongs to it.
         (start == end && !start.isBefore(day) && start.isBefore(next));
   }
+
+  /// This occurrence read through [account].
+  GoogleEvent withAccount(String account) => GoogleEvent(
+    id: id,
+    calendarId: calendarId,
+    summary: summary,
+    start: start,
+    end: end,
+    account: account,
+    allDay: allDay,
+    cancelled: cancelled,
+    htmlLink: htmlLink,
+    meetingLink: meetingLink,
+    meetingName: meetingName,
+    description: description,
+    location: location,
+    color: color,
+    iCalUid: iCalUid,
+    attachments: attachments,
+    descriptionLinks: descriptionLinks,
+  );
 
   /// Parses one `events.list` item. Null for a row that cannot be an event: no
   /// id, or no start the shell can place.
@@ -178,6 +289,10 @@ class GoogleEvent {
     final end = _parseWhen(json['end']);
     final summary = json['summary'];
     final html = json['htmlLink'];
+    final description = json['description'];
+    final location = json['location'];
+    final uid = json['iCalUID'];
+    final plain = description is String ? plainTextOf(description) : '';
     return GoogleEvent(
       id: id,
       calendarId: calendarId,
@@ -191,6 +306,19 @@ class GoogleEvent {
       cancelled: json['status'] == 'cancelled',
       htmlLink: html is String && _isWebUrl(html) ? html : null,
       meetingLink: meetingLinkOf(json),
+      meetingName: _meetingNameOf(json),
+      // Links are read off the HTML, where an anchor's address can differ
+      // from its text; the text shown is the plain version.
+      description: plain.isEmpty ? null : plain,
+      location: location is String && location.trim().isNotEmpty
+          ? location.trim()
+          : null,
+      color: googleEventColors[json['colorId']],
+      iCalUid: uid is String && uid.isNotEmpty ? uid : null,
+      attachments: _attachmentsOf(json['attachments']),
+      descriptionLinks: description is String
+          ? _hrefsOf(description).toSet().toList()
+          : const [],
     );
   }
 
@@ -199,18 +327,27 @@ class GoogleEvent {
       other is GoogleEvent &&
       other.id == id &&
       other.calendarId == calendarId &&
+      other.account == account &&
       other.summary == summary &&
       other.start == start &&
       other.end == end &&
       other.allDay == allDay &&
       other.cancelled == cancelled &&
       other.htmlLink == htmlLink &&
-      other.meetingLink == meetingLink;
+      other.meetingLink == meetingLink &&
+      other.meetingName == meetingName &&
+      other.description == description &&
+      other.location == location &&
+      other.color == color &&
+      other.iCalUid == iCalUid &&
+      _listEquals(other.attachments, attachments) &&
+      _listEquals(other.descriptionLinks, descriptionLinks);
 
   @override
   int get hashCode => Object.hash(
     id,
     calendarId,
+    account,
     summary,
     start,
     end,
@@ -218,8 +355,142 @@ class GoogleEvent {
     cancelled,
     htmlLink,
     meetingLink,
+    meetingName,
+    description,
+    location,
+    color,
+    iCalUid,
+    Object.hashAll(attachments),
+    Object.hashAll(descriptionLinks),
   );
 }
+
+bool _listEquals<T>(List<T> a, List<T> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// Google Calendar's event palette, by `colorId`. Fixed by Google (the
+/// `colors` endpoint answers the same table to every account), so it is a
+/// constant rather than a request.
+const Map<Object?, String> googleEventColors = {
+  '1': '#7986cb', // Lavender
+  '2': '#33b679', // Sage
+  '3': '#8e24aa', // Grape
+  '4': '#e67c73', // Flamingo
+  '5': '#f6bf26', // Banana
+  '6': '#f4511e', // Tangerine
+  '7': '#039be5', // Peacock
+  '8': '#616161', // Graphite
+  '9': '#3f51b5', // Blueberry
+  '10': '#0b8043', // Basil
+  '11': '#d50000', // Tomato
+};
+
+/// The attachments' titles and addresses; a bad row costs that row.
+List<GoogleLink> _attachmentsOf(Object? json) => [
+  if (json is List)
+    for (final item in json)
+      if (item is Map &&
+          item['fileUrl'] is String &&
+          _isWebUrl(item['fileUrl'] as String))
+        GoogleLink(
+          label: item['title'] is String && (item['title'] as String).isNotEmpty
+              ? item['title'] as String
+              : linkLabel(item['fileUrl'] as String),
+          url: item['fileUrl'] as String,
+        ),
+];
+
+/// The name conference data gives the call, e.g. "Google Meet".
+String? _meetingNameOf(Map<dynamic, dynamic> json) {
+  if (json['conferenceData'] case {
+    'conferenceSolution': {'name': final String name},
+  } when name.trim().isNotEmpty) {
+    return name.trim();
+  }
+  final hangout = json['hangoutLink'];
+  if (hangout is String && _isWebUrl(hangout)) return 'Google Meet';
+  return null;
+}
+
+/// The `href`s of the anchors in an HTML description.
+Iterable<String> _hrefsOf(String html) sync* {
+  for (final m in RegExp(
+    r"""<a\s[^>]*href\s*=\s*["']([^"']+)["']""",
+    caseSensitive: false,
+  ).allMatches(html)) {
+    final url = _decodeEntities(m.group(1)!);
+    if (_isWebUrl(url)) yield url;
+  }
+}
+
+/// Web addresses in plain text, trailing punctuation left off.
+Iterable<String> findWebUrls(String text) sync* {
+  for (final m in RegExp(r'https?://[^\s<>"]+').allMatches(text)) {
+    final url = m.group(0)!.replaceFirst(RegExp(r'[.,;:!?)\]]+$'), '');
+    if (_isWebUrl(url)) yield url;
+  }
+}
+
+/// A short name for [url]'s button: what the address is, where the shell can
+/// tell, else its host.
+String linkLabel(String url) {
+  final uri = Uri.tryParse(url);
+  final host = uri?.host.toLowerCase() ?? '';
+  if (host == 'meet.google.com') return 'Google Meet';
+  if (host.endsWith('zoom.us')) return 'Zoom';
+  if (host == 'teams.microsoft.com' || host == 'teams.live.com') {
+    return 'Microsoft Teams';
+  }
+  if (host == 'docs.google.com') {
+    final kind = uri!.pathSegments.isEmpty ? '' : uri.pathSegments.first;
+    return switch (kind) {
+      'document' => 'Google Doc',
+      'spreadsheets' => 'Google Sheet',
+      'presentation' => 'Google Slides',
+      'forms' => 'Google Form',
+      _ => 'Google Docs',
+    };
+  }
+  if (host == 'drive.google.com') return 'Google Drive';
+  return host.startsWith('www.') ? host.substring(4) : host;
+}
+
+/// An event description as plain text. Google's editor writes HTML — `<br>`,
+/// `<b>`, anchors, lists — while one created over the API or by another client
+/// is usually plain text already; both come out as readable lines.
+String plainTextOf(String html) {
+  var text = html
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'</(p|div|li|h\d)>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<li[^>]*>', caseSensitive: false), '• ')
+      .replaceAll(RegExp(r'<[^>]+>'), '');
+  text = _decodeEntities(text)
+      .replaceAll('\r\n', '\n')
+      .replaceAll(RegExp(r'[ \t]+\n'), '\n')
+      .replaceAll(RegExp(r'\n{3,}'), '\n\n');
+  return text.trim();
+}
+
+String _decodeEntities(String text) => text
+    .replaceAll('&nbsp;', ' ')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&quot;', '"')
+    .replaceAll('&#39;', "'")
+    .replaceAll('&apos;', "'")
+    .replaceAllMapped(RegExp(r'&#(\d+);'), (m) {
+      final code = int.tryParse(m.group(1)!);
+      return code == null || code > 0x10FFFF
+          ? m.group(0)!
+          : String.fromCharCode(code);
+    })
+    // Last, so an escaped entity (`&amp;lt;`) decodes once.
+    .replaceAll('&amp;', '&');
 
 /// Where to join an event, in the order Google's own UI prefers: the Meet link,
 /// then a video entry point from conference data (Zoom, Teams and the rest put
@@ -278,6 +549,19 @@ bool _isWebUrl(String value) {
   }
   return null;
 }
+
+/// An `events.list` address for [calendarId].
+///
+/// Built from path *segments*, which are encoded once. `Uri.https` takes an
+/// unencoded path and encodes it itself, so a calendar id encoded first went
+/// out as `%2540` for its `@` — every calendar but `primary` then answered 404,
+/// "Not Found", while `primary`, with nothing to encode, kept working.
+Uri eventsUrl(String calendarId, Map<String, String> query) => Uri(
+  scheme: 'https',
+  host: 'www.googleapis.com',
+  pathSegments: ['calendar', 'v3', 'calendars', calendarId, 'events'],
+  queryParameters: query,
+);
 
 /// The seam the stores talk through. One implementation talks to Google;
 /// tests supply their own.
@@ -480,19 +764,15 @@ class HttpGoogleClient implements GoogleClient {
     final events = <GoogleEvent>[];
     String? pageToken;
     for (var page = 0; page < _maxPages; page++) {
-      final url = Uri.https(
-        'www.googleapis.com',
-        '/calendar/v3/calendars/${Uri.encodeComponent(calendarId)}/events',
-        {
-          'timeMin': from.toUtc().toIso8601String(),
-          'timeMax': to.toUtc().toIso8601String(),
-          'singleEvents': 'true',
-          'orderBy': 'startTime',
-          'showDeleted': 'true',
-          'maxResults': '250',
-          'pageToken': ?pageToken,
-        },
-      );
+      final url = eventsUrl(calendarId, {
+        'timeMin': from.toUtc().toIso8601String(),
+        'timeMax': to.toUtc().toIso8601String(),
+        'singleEvents': 'true',
+        'orderBy': 'startTime',
+        'showDeleted': 'true',
+        'maxResults': '250',
+        'pageToken': ?pageToken,
+      });
       final response = await _get(url, accessToken);
       if (response.statusCode != 200) _failApi(url, response);
       final json = _decode(response);

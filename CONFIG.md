@@ -1435,11 +1435,21 @@ The lock screen starts as a clock, date, and the account name over the wallpaper
 
 ## Calendar
 
-The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. A Google account's events appear only once one is signed in under Settings › Accounts; see Google Account.
+The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Google Calendar events appear only once an account is signed in under Settings › Accounts; see Google Account.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `week_start` | string | `"sunday"` | First column of the month grid: `"sunday"` or `"monday"`. |
+| `week_start` | string | `"sunday"` | First column of the month grid and the week view: `"sunday"` or `"monday"`. |
+
+### Events on the calendar
+
+With a Google account signed in, events are drawn on the calendar itself. Each day of the month holds a bar per event, as many as the cell has room for, then **+N more**, which opens that day. An all-day or multi-day event is a filled banner in its calendar's colour; a timed one is a dot, its start time and its title.
+
+**Month**, **Week** and **Day** above the grid switch the view. Week and Day are a time grid: each timed event is a box as tall as the meeting is long, events that overlap share the column, all-day events sit in a strip across the top, and a line marks the current time. They open scrolled to the working day. In Week, clicking a day's name opens that day. The chevrons step by a month, a week or a day.
+
+Clicking any event opens its details: when, which calendar (and account), where, and the description. The buttons under it go where the event links: **Join** for a Google Meet, Zoom or Teams call, **Open in Google Calendar**, and one per attachment or link in the description.
+
+If a calendar cannot be read, its name and Google's reason appear above the grid with **Retry**. The other calendars' events stay on screen.
 
 ### World Clocks
 
@@ -1466,9 +1476,9 @@ label = "HQ"
 
 ## Google Account
 
-Settings › **Accounts** signs the shell in to one Google account, which any part of the shell can then use. Two parts do today: the Calendar tab shows the account's events, and the todo board can hold today's meetings.
+Settings › **Accounts** signs the shell in to Google accounts, which any part of the shell can then use. Add as many as you like, such as a work and a personal one. Everything reads all of them. Two parts do today: the Calendar tab shows the accounts' events, and the todo board can hold today's meetings.
 
-**The account itself is not in this file.** The grant Google hands back is stored in `~/.local/state/moonswing/google-account.json` (mode 0600, in a 0700 directory). `config.toml` is the file people paste into bug reports, and a refresh token is a standing grant to read your calendar. Sign-in asks for `calendar.readonly` and nothing else.
+**The accounts themselves are not in this file.** The grants Google hands back are stored in `~/.local/state/moonswing/google-account.json` (mode 0600, in a 0700 directory). `config.toml` is the file people paste into bug reports, and a refresh token is a standing grant to read your calendar. Sign-in asks for `calendar.readonly` and nothing else.
 
 ### Signing in
 
@@ -1477,7 +1487,8 @@ There is nothing to set up. Open Settings › Accounts and press **Sign in with 
 - **Google will say the app is unverified.** Moonswing's Google app has not been through Google's verification yet. To continue, choose **Advanced**, then **Go to Moonswing (unsafe)**. The consent screen then lists the one permission asked for: to see your calendars.
 - **Until the app is verified, Google limits it to 100 users.** If sign-in fails with a message about the app's user cap, that limit has been reached.
 - **Your calendar goes straight from Google to your computer.** The project runs no server, so nothing passes through or is stored anywhere but your own machine. See the [privacy policy](https://miracle-wm-org.github.io/moonswing/privacy/).
-- **Sign out** revokes the grant at Google and deletes it from disk. You can also revoke it from [your Google account's third-party connections](https://myaccount.google.com/connections).
+- **Add account** signs in another account. Google shows its account chooser so you can pick a different one. Signing in again as an account that is already there replaces its sign-in rather than listing it twice.
+- **Sign out** revokes that account's grant at Google and deletes it from disk. The other accounts stay signed in. You can also revoke a grant from [your Google account's third-party connections](https://myaccount.google.com/connections).
 
 Earlier builds had you create your own OAuth client. A sign-in made that way cannot carry over. The Accounts page says so once, forgets it, and **Sign in with Google** reconnects you.
 
@@ -1485,8 +1496,8 @@ Earlier builds had you create your own OAuth client. A sign-in made that way can
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is the account's main calendar. Settings › Accounts lists the account's calendars with a switch each. |
-| `show_in_calendar` | bool | `true` | Mark days with events in the Calendar tab and list the selected day's events under the month, each with a **Join** button when it has a meeting link. |
+| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is every signed-in account's main calendar. Settings › Accounts lists each account's calendars with a switch each. |
+| `show_in_calendar` | bool | `true` | Draw the accounts' events on the Calendar tab, and offer its Week and Day views. |
 | `todo_sync` | bool | `false` | Put each of today's timed events on the todo board as a card (see below). |
 | `refresh_minutes` | int | `5` | How often events are read again while something is showing them (1–60). Nothing is fetched while nothing shows them. |
 
@@ -1499,7 +1510,13 @@ With `todo_sync` on, each timed event today gets a card holding its time, its jo
 - **A deleted card stays deleted.** The shell remembers the event and does not put it back.
 - **A meeting that disappears from today's calendar** (cancelled, declined, or moved to another day) moves its card to **Abandoned** rather than deleting it.
 
-All-day events stay in the Calendar tab and never become cards.
+All-day events stay in the Calendar tab and never become cards. A meeting you are invited to on two of your accounts makes one card, not two.
+
+### Calendars across accounts
+
+Calendar ids are unique across Google accounts (a main calendar's id is the account's address), so one `calendars` list covers every account. Each id is read through the first account whose calendar list holds it, so a calendar shared with two of your accounts is read once. An id no account lists, such as a public calendar you typed in by hand, is read through the first account.
+
+Switching one account's main calendar off in Settings while `primary` is on writes the other accounts' addresses in its place. Switching it back on folds them into `primary` again.
 
 ```toml
 [google]
