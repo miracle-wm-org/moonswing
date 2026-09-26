@@ -18,6 +18,7 @@ import 'package:moonswing/desktop/desktop_config.dart';
 import 'package:moonswing/google/google_config.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/module.dart';
+import 'package:moonswing/osd/volume_sound.dart';
 import 'package:moonswing/polkit/polkit_config.dart';
 import 'package:moonswing/power/power_config.dart';
 import 'package:moonswing/theme/theme_config.dart';
@@ -293,7 +294,7 @@ class CalendarConfig {
 }
 
 /// The on-screen indicator shown when volume, microphone volume, or screen
-/// brightness changes.
+/// brightness changes, and the sound a volume change makes.
 class OsdConfig {
   final bool enabled;
 
@@ -303,10 +304,20 @@ class OsdConfig {
   /// Distance from the bottom edge of the screen, in logical pixels.
   final int margin;
 
+  /// What plays when the default output's volume or mute moves: a shipped
+  /// voice, a sound-theme name, a path, or `none`. See
+  /// `lib/osd/volume_sound.dart`.
+  final String volumeSound;
+
+  /// How loud [volumeSound] is, 0 to 1, relative to the output's own level.
+  final double volumeSoundVolume;
+
   const OsdConfig({
     this.enabled = true,
     this.hideDelayMs = 1500,
     this.margin = 96,
+    this.volumeSound = kDefaultVolumeSound,
+    this.volumeSoundVolume = kDefaultVolumeSoundVolume,
   });
 
   factory OsdConfig.fromMap(Map<String, dynamic>? map) {
@@ -316,8 +327,19 @@ class OsdConfig {
       // A zero delay would hide the indicator before it finished fading in.
       hideDelayMs: map.intOr('hide_delay_ms', 1500, min: 100),
       margin: map.intOr('margin', 96),
+      volumeSound: map.stringOr('volume_sound', kDefaultVolumeSound),
+      volumeSoundVolume: map.doubleOr(
+        'volume_sound_volume',
+        kDefaultVolumeSoundVolume,
+        min: 0.0,
+        max: 1.0,
+      ),
     );
   }
+
+  /// What [VolumeSoundStore] is configured with.
+  VolumeSoundConfig get volumeSoundConfig =>
+      VolumeSoundConfig(sound: volumeSound, volume: volumeSoundVolume);
 
   @override
   bool operator ==(Object other) =>
@@ -325,10 +347,18 @@ class OsdConfig {
       other is OsdConfig &&
           other.enabled == enabled &&
           other.hideDelayMs == hideDelayMs &&
-          other.margin == margin;
+          other.margin == margin &&
+          other.volumeSound == volumeSound &&
+          other.volumeSoundVolume == volumeSoundVolume;
 
   @override
-  int get hashCode => Object.hash(enabled, hideDelayMs, margin);
+  int get hashCode => Object.hash(
+        enabled,
+        hideDelayMs,
+        margin,
+        volumeSound,
+        volumeSoundVolume,
+      );
 }
 
 /// Screen sharing — the shell's xdg-desktop-portal ScreenCast backend.

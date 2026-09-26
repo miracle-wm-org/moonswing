@@ -1602,7 +1602,7 @@ silenced = false
 
 ## On-Screen Indicator
 
-The `[osd]` section configures the indicator that appears when the volume, microphone volume, or screen brightness changes — an icon for what changed plus a bar for its current level, floating above the bottom edge of every monitor. It fades out once the changes stop.
+The `[osd]` section configures the indicator that appears when the volume, microphone volume, or screen brightness changes, and the sound a volume change makes. The indicator is an icon for what changed plus a bar for its current level, floating above the bottom edge of every monitor. It fades out once the changes stop.
 
 The shell only *watches* these values; it does not bind the keys. Whatever already applies the change (your compositor's media-key bindings, or the shell's own volume slider) keeps doing so, and the indicator follows. Brightness is read from `/sys/class/backlight`, so machines without a panel backlight simply never see the sun indicator.
 
@@ -1611,12 +1611,27 @@ The shell only *watches* these values; it does not bind the keys. Whatever alrea
 | `enabled` | boolean | `true` | Whether to show the indicator at all. |
 | `hide_delay_ms` | integer | `1500` | How long the indicator stays up after the last change. Clamped to a minimum of 100. |
 | `margin` | integer | `96` | Distance from the bottom edge of the screen, in pixels. |
+| `volume_sound` | string | `"pop"` | What plays when the output volume changes or is unmuted. See below. |
+| `volume_sound_volume` | float | `0.6` | How loud that sound is, from 0 to 1. Clamped to that range. |
+
+A volume change also makes a small sound, played through the output that just changed — so you hear the new level before any music does. A mute is silent; the unmute that follows is not. A volume key held down ticks at most about eight times a second rather than buzzing. The sound works with `enabled = false` too: switching the card off leaves it playing.
+
+`volume_sound` takes the same spellings as every other sound key:
+
+- **A shipped sound** — `pop` (a short, soft tone; the default), `tick` (a dry click) or `blip` (a brighter tone that carries over music). They are synthesised by the shell itself, so they are always there and are free software under the shell's own licence.
+- **A sound-theme name** — looked up in the `sounds/` directories of your XDG data dirs. `audio-volume-change` is the stock sound from `sound-theme-freedesktop`, if you would rather hear what other desktops play.
+- **A path** to an audio file of your own; `~/` is expanded.
+- **`none`** (or `off`, `silent`) for no sound.
+
+A name that finds nothing is not treated as silence: Settings › Shell › Volume Sound says what is wrong, and its play button previews the sound. Both keys are live, but if the indicator *and* the sound were both off when the shell started, nothing is watching the volume until it is restarted.
 
 ```toml
 [osd]
 enabled = true
 hide_delay_ms = 1500
 margin = 96
+volume_sound = "pop"
+volume_sound_volume = 0.6
 ```
 
 ## Screen Sharing

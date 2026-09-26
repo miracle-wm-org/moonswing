@@ -37,6 +37,7 @@ const _shellCategories = {
   'Desktop',
   'Lock Screen',
   'Power Button',
+  'Volume Sound',
   'Calendar',
 };
 
