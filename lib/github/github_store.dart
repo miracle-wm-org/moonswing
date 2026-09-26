@@ -6,10 +6,11 @@
 // two. The requests exist only while something holds a lease — an idle shell
 // with the module off its panels never touches the network.
 //
-// It also owns the sign-in, because the device flow is a *state machine with a
-// timer in it* rather than a dialog: ask for a code, show it, poll until the
-// user has typed it into a browser, save the token. A widget that owned that
-// would lose it the moment its popup closed.
+// The account is not here. The sign-in, the token and a rejected token's
+// sign-out are `GithubAccountStore`'s, behind Settings › Accounts, so that any
+// module or desktop widget reading GitHub shares the one linkage; this store
+// listens there for the account coming and going and asks it for the token per
+// request.
 //
 // It has no widgets of its own, and the one import that is not `dart:` or
 // `ChangeNotifier` is `app_info.dart`: a click opens a page through GIO's
@@ -22,60 +23,49 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'package:moonswing/app_info.dart';
+import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_config.dart';
-import 'package:moonswing/github/github_token_store.dart';
 
-/// How far along the sign-in is.
-enum GithubAuthStage {
-  /// No token. The popup offers a **Sign in** button.
-  signedOut,
+export 'package:moonswing/github/github_account_store.dart'
+    show GithubAccountStore, GithubAuthStage;
 
-  /// Asking GitHub for a user code.
-  requestingCode,
-
-  /// The code is on screen and the shell is polling for the user to type it in
-  /// at github.com/login/device.
-  awaitingAuthorization,
-
-  /// There is a token; the list is what the popup shows.
-  signedIn,
-}
-
-/// The notification list, the sign-in, and the poll behind both.
+/// The notification list, and the poll behind it.
 class GithubStore extends ChangeNotifier {
   GithubStore._({
-    GithubClient? client,
-    GithubTokenStore? tokens,
+    GithubAccountStore? account,
     bool Function(String url)? opener,
-  })  : _client = client ?? const HttpGithubClient(),
-        _tokens = tokens ?? const GithubTokenStore(),
-        _open = opener ?? openUriWithDefault;
+  })  : account = account ?? GithubAccountStore.instance,
+        _open = opener ?? openUriWithDefault {
+    _token = this.account.token;
+    this.account.addListener(_onAccount);
+  }
 
   static final GithubStore instance = GithubStore._();
 
-  /// A detached store for tests: an injected client, a token file under a
-  /// temporary directory, and an opener that records rather than launching a
-  /// browser. Nothing here opens a socket unless [client] does.
+  /// A detached store for tests: an injected account (itself holding a fake
+  /// client and a token file under a temporary directory), and an opener that
+  /// records rather than launching a browser.
   @visibleForTesting
   factory GithubStore.forTesting({
-    required GithubClient client,
-    required GithubTokenStore tokens,
+    required GithubAccountStore account,
     bool Function(String url)? opener,
     GithubConfig config = const GithubConfig(),
   }) {
     final store = GithubStore._(
-      client: client,
-      tokens: tokens,
+      account: account,
       opener: opener ?? (_) => true,
     );
     store._config = config;
     return store;
   }
 
-  final GithubClient _client;
-  final GithubTokenStore _tokens;
+  /// The account every request is made as. Public so a surface showing this
+  /// store's list can say whose it is without a second lookup.
+  final GithubAccountStore account;
   final bool Function(String url) _open;
+
+  GithubClient get _client => account.client;
 
   // --- configuration -------------------------------------------------------
 
@@ -92,6 +82,9 @@ class GithubStore extends ChangeNotifier {
     final previous = _config;
     if (previous == config) return;
     _config = config;
+    // The account's half of `[modules.github]`: which OAuth app the next
+    // sign-in runs against, and what it asks for.
+    account.configure(clientId: config.clientId, scopes: config.scopes);
 
     final relist = config.participatingOnly != previous.participatingOnly ||
         config.includeRead != previous.includeRead;
@@ -112,19 +105,13 @@ class GithubStore extends ChangeNotifier {
 
   // --- published state -----------------------------------------------------
 
-  GithubAuthStage _stage = GithubAuthStage.signedOut;
-  GithubAuthStage get stage => _stage;
-
-  /// The code the user types, while [stage] is
-  /// [GithubAuthStage.awaitingAuthorization]. Null otherwise.
-  GithubDeviceCode? _deviceCode;
-  GithubDeviceCode? get deviceCode => _deviceCode;
+  /// How far along the account's sign-in is — [account]'s, repeated here so a
+  /// surface listening to this store alone renders the right state.
+  GithubAuthStage get stage => account.stage;
 
   /// The signed-in account, once `/user` has answered. Empty before that, and
-  /// the header simply says "GitHub" until it lands — a login is a nicety and
-  /// must not gate the list on a second request.
-  String _login = '';
-  String get login => _login;
+  /// the header simply says "GitHub" until it lands.
+  String get login => account.login;
 
   List<GithubNotification> _items = const [];
 
@@ -146,13 +133,9 @@ class GithubStore extends ChangeNotifier {
   String _error = '';
   String get error => _error;
 
-  /// True while a refresh, a mark-read or the sign-in's first request is in
-  /// flight — what the popup's spinner and disabled buttons read.
-  bool get busy =>
-      _loading ||
-      _fetchInFlight ||
-      _writesInFlight > 0 ||
-      _stage == GithubAuthStage.requestingCode;
+  /// True while a refresh or a mark-read is in flight — what the popup's
+  /// spinner and disabled buttons read.
+  bool get busy => _loading || _fetchInFlight || _writesInFlight > 0;
 
   DateTime? _updatedAt;
 
@@ -172,17 +155,17 @@ class GithubStore extends ChangeNotifier {
   /// redraw what is already on screen.
   String get _signature {
     final buffer = StringBuffer()
-      ..write(_stage.name)
+      ..write(stage.name)
       ..write('|')
-      ..write(_login)
+      ..write(login)
+      ..write('|')
+      ..write(account.error)
       ..write('|')
       ..write(_error)
       ..write('|')
       ..write(_loading)
       ..write('|')
-      ..write(busy)
-      ..write('|')
-      ..write(_deviceCode?.userCode ?? '');
+      ..write(busy);
     for (final item in _items) {
       buffer
         ..write('|')
@@ -217,8 +200,9 @@ class GithubStore extends ChangeNotifier {
   bool _fetchInFlight = false;
   int _writesInFlight = 0;
 
-  /// The token, once read off disk or granted by a sign-in. Held in memory so
-  /// every request is not a file read.
+  /// The token the list on screen was fetched with. Compared with [account]'s
+  /// on every change there, so a list fetched as one account is never shown as
+  /// the next, and a sign-in landing while a bar holds a lease fetches at once.
   String? _token;
 
   /// The previous page's `Last-Modified`, echoed back as `If-Modified-Since`.
@@ -231,15 +215,6 @@ class GithubStore extends ChangeNotifier {
   /// number is a floor it enforces, not a suggestion.
   int? _serverInterval;
 
-  /// Bumped by [signOut] and [cancelSignIn]; the device-flow loop compares it
-  /// and gives up when it has moved. A cancelled sign-in must not finish half
-  /// a minute later and log the user in anyway.
-  int _signInGeneration = 0;
-
-  /// Guards the one-time token read, which is async: two panels acquiring in
-  /// the same turn must not both read the file and both start a poll.
-  Future<void>? _loadingToken;
-
   /// Take a lease. The first one loads the saved token and, if there is one,
   /// fetches immediately rather than making the first consumer wait an interval.
   void acquire() {
@@ -251,9 +226,6 @@ class GithubStore extends ChangeNotifier {
     if (_leases > 0) _leases--;
     if (_leases > 0) return;
     _stopTimer();
-    // A sign-in the user walked away from: the module is off the bar and
-    // nothing can show the code any more, so the poll must not outlive it.
-    if (_stage != GithubAuthStage.signedIn) cancelSignIn();
   }
 
   @visibleForTesting
@@ -263,24 +235,33 @@ class GithubStore extends ChangeNotifier {
   bool get polling => _timer != null;
 
   Future<void> _start() async {
-    await _loadToken();
+    await account.load();
     if (_leases == 0 || _token == null) return;
     // The timer is armed by the fetch itself, from its `finally` — including
-    // when this one is a no-op because a `configure` got there first.
+    // when this one is a no-op because the account landing got there first.
     await refresh();
   }
 
-  Future<void> _loadToken() {
-    if (_token != null) return Future.value();
-    return _loadingToken ??= _tokens.read().then((token) {
-      _loadingToken = null;
-      if (token == null || _token != null) return;
+  /// The account came, went, or changed.
+  ///
+  /// A different token is a different inbox: what was fetched under the old
+  /// one goes, and with a lease held the new one is read at once rather than an
+  /// interval later — a sign-in finished in Settings shows up in the bar the
+  /// moment it lands.
+  void _onAccount() {
+    final token = account.token;
+    if (token != _token) {
       _token = token;
-      _stage = GithubAuthStage.signedIn;
-      _loading = true;
-      _publish();
-      unawaited(_fetchLogin());
-    });
+      _items = const [];
+      _lastModified = null;
+      _serverInterval = null;
+      _updatedAt = null;
+      _error = '';
+      _loading = false;
+      _stopTimer();
+      if (token != null && _leases > 0) unawaited(refresh());
+    }
+    _publish();
   }
 
   /// The interval to wait before the next poll: the configured cadence, or the
@@ -319,14 +300,22 @@ class GithubStore extends ChangeNotifier {
     _fetchInFlight = true;
     // A loader, but only with nothing to show: a refresh behind a list that is
     // already up would replace it with a spinner for no reason.
-    if (_items.isEmpty) _loading = true;
+    if (_items.isEmpty && !_loading) {
+      _loading = true;
+      _publish();
+    }
     try {
-      final page = await _client.fetchNotifications(
-        token: token,
-        lastModified: _lastModified,
-        participating: _config.participatingOnly,
-        includeRead: _config.includeRead,
+      final page = await account.withToken(
+        (token) => _client.fetchNotifications(
+          token: token,
+          lastModified: _lastModified,
+          participating: _config.participatingOnly,
+          includeRead: _config.includeRead,
+        ),
       );
+      // Signed out, or in as somebody else, while it was in flight: this is
+      // an answer about an inbox that is no longer the one on screen.
+      if (_token != token) return;
       _serverInterval = page.pollInterval ?? _serverInterval;
       _lastModified = page.lastModified ?? _lastModified;
       _updatedAt = DateTime.now();
@@ -336,42 +325,25 @@ class GithubStore extends ChangeNotifier {
       // listens to this, and a notify a minute for a list nobody touched is the
       // wakeup an idle shell exists to avoid.
       if (!page.notModified) _items = page.items;
-    } on GithubAuthException catch (e) {
-      // The token is gone rather than the network: drop it and go back to
-      // signed out, or the popup would offer a retry that can only fail.
-      await _forgetToken();
-      _error = e.message;
+    } on GithubAuthException {
+      // The token is gone rather than the network. The account has already
+      // signed out, with the reason, and [_onAccount] has emptied the list —
+      // a retry here could only fail.
     } on GithubException catch (e) {
       // The last list stays on screen through a failed refresh, with the reason
       // under it — a five-minute-old list beats an empty card.
-      _error = e.message;
+      if (_token == token) _error = e.message;
     } catch (e) {
-      _error = 'GitHub unavailable';
+      if (_token == token) _error = 'GitHub unavailable';
       debugPrint('github: $e');
     } finally {
-      _loading = false;
+      if (_token == token) _loading = false;
       _fetchInFlight = false;
       _publish();
       // Re-armed from here rather than from a periodic timer, so a slow request
       // cannot stack the next one on top of it, and so the server's revised
       // interval takes effect immediately.
       if (_leases > 0 && _token != null) _armTimer();
-    }
-  }
-
-  Future<void> _fetchLogin() async {
-    final token = _token;
-    if (token == null) return;
-    try {
-      final login = await _client.fetchLogin(token);
-      if (login.isEmpty || login == _login || _token != token) return;
-      _login = login;
-      _publish();
-    } on GithubAuthException {
-      // Handled where it matters — the notification fetch running beside this
-      // hits the same wall and is what drops the token.
-    } catch (e) {
-      debugPrint('github: could not read the account name: $e');
     }
   }
 
@@ -396,20 +368,6 @@ class GithubStore extends ChangeNotifier {
     _publish();
   }
 
-  /// Opens the page the user types their code into.
-  ///
-  /// Also called for them the moment the code arrives — which is what
-  /// `gh auth login` does — so the button beside the code is a second chance
-  /// rather than the only one. A browser that will not open is said out loud:
-  /// the code on screen is useless without one.
-  void openVerificationPage() {
-    final code = _deviceCode;
-    if (code == null) return;
-    if (_open(code.verificationUri)) return;
-    _error = 'Could not open a browser. Go to ${code.verificationUri}';
-    _publish();
-  }
-
   /// Marks one thread read, on the server and here.
   ///
   /// The row dims the moment it is asked, not when the server answers: the
@@ -426,13 +384,14 @@ class GithubStore extends ChangeNotifier {
     _publish();
     _writesInFlight++;
     try {
-      await _client.markThreadRead(token: token, id: item.id);
+      await account.withToken(
+        (token) => _client.markThreadRead(token: token, id: item.id),
+      );
       // The unread thread is gone from the server's default list, so the
       // cached validator no longer describes what a fetch would return.
       _lastModified = null;
-    } on GithubAuthException catch (e) {
-      await _forgetToken();
-      _error = e.message;
+    } on GithubAuthException {
+      // Signed out by the account; the list went with it.
     } on GithubException catch (e) {
       _items = previous;
       _error = e.message;
@@ -459,11 +418,12 @@ class GithubStore extends ChangeNotifier {
     _publish();
     _writesInFlight++;
     try {
-      await _client.markAllRead(token: token, lastReadAt: _updatedAt);
+      await account.withToken(
+        (token) => _client.markAllRead(token: token, lastReadAt: _updatedAt),
+      );
       _lastModified = null;
-    } on GithubAuthException catch (e) {
-      await _forgetToken();
-      _error = e.message;
+    } on GithubAuthException {
+      // Signed out by the account; the list went with it.
     } on GithubException catch (e) {
       _items = previous;
       _error = e.message;
@@ -493,157 +453,9 @@ class GithubStore extends ChangeNotifier {
         url: item.url,
       );
 
-  // --- the sign-in ---------------------------------------------------------
-
-  /// Runs the device flow: ask for a code, publish it for the popup to show,
-  /// then poll until the user has typed it in at github.com.
-  ///
-  /// Awaitable but not meant to be awaited by a widget — it runs for as long as
-  /// the user takes, which is the whole point of publishing the code as state.
-  Future<void> signIn() async {
-    if (_stage == GithubAuthStage.requestingCode ||
-        _stage == GithubAuthStage.awaitingAuthorization ||
-        _stage == GithubAuthStage.signedIn) {
-      return;
-    }
-    final generation = ++_signInGeneration;
-    _stage = GithubAuthStage.requestingCode;
-    _error = '';
-    _publish();
-
-    final GithubDeviceCode code;
-    try {
-      code = await _client.requestDeviceCode(
-        clientId: _config.clientId,
-        scopes: _config.scopes,
-      );
-    } on GithubException catch (e) {
-      _failSignIn(generation, e.message);
-      return;
-    } catch (e) {
-      debugPrint('github: $e');
-      _failSignIn(generation, 'Could not reach GitHub');
-      return;
-    }
-    if (generation != _signInGeneration) return;
-
-    _deviceCode = code;
-    _stage = GithubAuthStage.awaitingAuthorization;
-    _publish();
-    // The code is published first: the browser is about to take the focus, and
-    // the card behind it must already say what to type into it.
-    openVerificationPage();
-    await _pollForToken(code, generation);
-  }
-
-  /// The poll loop, at the interval GitHub asked for and no faster: `slow_down`
-  /// is the API saying it will start refusing otherwise, and the spec's answer
-  /// is five more seconds per occurrence.
-  Future<void> _pollForToken(GithubDeviceCode code, int generation) async {
-    var interval = Duration(seconds: code.interval);
-    final deadline = DateTime.now().add(Duration(seconds: code.expiresIn));
-
-    while (generation == _signInGeneration) {
-      await Future<void>.delayed(interval);
-      if (generation != _signInGeneration) return;
-      if (DateTime.now().isAfter(deadline)) {
-        _failSignIn(generation, 'The sign-in code expired. Try again.');
-        return;
-      }
-
-      final GithubTokenResult result;
-      try {
-        result = await _client.pollAccessToken(
-          clientId: _config.clientId,
-          deviceCode: code.deviceCode,
-        );
-      } on GithubException catch (e) {
-        _failSignIn(generation, e.message);
-        return;
-      } catch (e) {
-        debugPrint('github: $e');
-        _failSignIn(generation, 'Could not reach GitHub');
-        return;
-      }
-      if (generation != _signInGeneration) return;
-
-      switch (result) {
-        case GithubTokenPending(slowDown: final slowDown):
-          if (slowDown) interval += const Duration(seconds: 5);
-        case GithubTokenGranted(token: final token):
-          await _completeSignIn(token, generation);
-          return;
-      }
-    }
-  }
-
-  Future<void> _completeSignIn(String token, int generation) async {
-    final saved = await _tokens.write(token);
-    if (generation != _signInGeneration) return;
-    _token = token;
-    _deviceCode = null;
-    _stage = GithubAuthStage.signedIn;
-    _loading = true;
-    // A token that could not be saved still signs this session in: the user did
-    // the work, and losing it at the next start-up is better than losing it now.
-    // It is not silent, because the sign-in will not have stuck.
-    _error = saved ? '' : 'Signed in, but the token could not be saved';
-    _publish();
-    unawaited(_fetchLogin());
-    await refresh();
-    if (_leases > 0) _armTimer();
-  }
-
-  void _failSignIn(int generation, String message) {
-    if (generation != _signInGeneration) return;
-    _stage = GithubAuthStage.signedOut;
-    _deviceCode = null;
-    _error = message;
-    _publish();
-  }
-
-  /// Abandons a sign-in in progress. The poll loop notices on its next turn.
-  void cancelSignIn() {
-    if (_stage != GithubAuthStage.requestingCode &&
-        _stage != GithubAuthStage.awaitingAuthorization) {
-      return;
-    }
-    _signInGeneration++;
-    _stage = GithubAuthStage.signedOut;
-    _deviceCode = null;
-    _publish();
-  }
-
-  /// Forgets the token and everything it fetched.
-  ///
-  /// It does *not* revoke the grant — only github.com can do that, under
-  /// Settings › Applications — so the popup says so rather than implying the
-  /// authorisation is gone.
-  Future<void> signOut() async {
-    _stopTimer();
-    await _forgetToken();
-    _error = '';
-    _publish();
-  }
-
-  /// The half of a sign-out that a rejected token triggers as well: drop it,
-  /// forget the list, and stop polling for something that can only fail.
-  Future<void> _forgetToken() async {
-    _signInGeneration++;
-    _stopTimer();
-    _token = null;
-    _login = '';
-    _items = const [];
-    _lastModified = null;
-    _serverInterval = null;
-    _updatedAt = null;
-    _loading = false;
-    _deviceCode = null;
-    _stage = GithubAuthStage.signedOut;
-    await _tokens.clear();
-  }
-
   /// Seeds a store for a widget test, with no client and no timer behind it.
+  /// The account half — [stage], [login], [deviceCode] — is seeded into
+  /// [account], which is where it lives.
   @visibleForTesting
   void seed({
     GithubAuthStage stage = GithubAuthStage.signedIn,
@@ -654,13 +466,17 @@ class GithubStore extends ChangeNotifier {
     GithubDeviceCode? deviceCode,
     String token = 'seeded-token',
   }) {
-    _stage = stage;
+    // Test-only on both ends: this method is itself @visibleForTesting.
+    // ignore: invalid_use_of_visible_for_testing_member
+    account.seed(
+      stage: stage,
+      login: login,
+      deviceCode: deviceCode,
+      token: token,
+    );
     _items = items;
-    _login = login;
     _error = error;
     _loading = loading;
-    _deviceCode = deviceCode;
-    _token = stage == GithubAuthStage.signedIn ? token : null;
     if (items.isNotEmpty) _updatedAt = DateTime.now();
     _publish();
   }
@@ -668,7 +484,7 @@ class GithubStore extends ChangeNotifier {
   @override
   void dispose() {
     _stopTimer();
-    _signInGeneration++;
+    account.removeListener(_onAccount);
     super.dispose();
   }
 }

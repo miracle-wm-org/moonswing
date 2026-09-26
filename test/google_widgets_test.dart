@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/github/github_account_store.dart';
+import 'package:moonswing/github/github_token_store.dart';
 import 'package:moonswing/google/google_account_file.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_api.dart';
@@ -19,6 +21,7 @@ import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 
+import 'github_fakes.dart';
 import 'google_fakes.dart';
 
 Widget _host(Widget child, {Key? key}) => Directionality(
@@ -71,6 +74,17 @@ void main() {
     return account!;
   }
 
+  /// The GitHub card is on the same page; signed out and offline, so these
+  /// tests see only Google's rows and never read a real token file.
+  GithubAccountStore githubSignedOut() {
+    final github = GithubAccountStore.forTesting(
+      client: FakeGithubClient(),
+      tokens: GithubTokenStore(directory: '${tempDir.path}/github'),
+    )..seed(stage: GithubAuthStage.signedOut);
+    addTearDown(github.dispose);
+    return github;
+  }
+
   Future<ConfigStore> config(WidgetTester tester, String contents) async {
     final store = await tester.runAsync(() async {
       final path = '${tempDir.path}/config.toml';
@@ -88,6 +102,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           AccountsSettingsPage(
+            github: githubSignedOut(),
             account: account,
             calendar: calendar,
             config: await config(tester, ''),
@@ -116,6 +131,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           AccountsSettingsPage(
+            github: githubSignedOut(),
             account: account,
             calendar: calendar,
             config: await config(tester, ''),
@@ -145,6 +161,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           AccountsSettingsPage(
+            github: githubSignedOut(),
             account: account,
             calendar: calendar,
             config: store,
@@ -212,6 +229,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           AccountsSettingsPage(
+            github: githubSignedOut(),
             account: account,
             calendar: calendar,
             config: store,

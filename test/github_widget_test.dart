@@ -2,13 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/config.dart';
-import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/github/github_token_store.dart';
 import 'package:moonswing/modules/github.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 
 import 'github_fakes.dart';
@@ -18,8 +20,12 @@ void main() {
   late Directory tempDir;
   late GithubTokenStore tokens;
   late List<String> opened;
+  late int accountsOpened;
+  late int closed;
 
   setUp(() {
+    accountsOpened = 0;
+    closed = 0;
     tempDir = Directory.systemTemp.createTempSync('moonswing-github-widget');
     tokens = GithubTokenStore(directory: tempDir.path);
     opened = [];
@@ -37,11 +43,15 @@ void main() {
     bool loading = false,
     GithubDeviceCode? deviceCode,
   }) {
-    final store = GithubStore.forTesting(
+    final account = GithubAccountStore.forTesting(
       // The same list the store is seeded with, so the refresh a bar strip's
       // lease kicks off reproduces what is on screen rather than emptying it.
       client: FakeGithubClient(pages: [GithubNotificationPage(items: items)]),
       tokens: tokens,
+    );
+    addTearDown(account.dispose);
+    final store = GithubStore.forTesting(
+      account: account,
       opener: (url) {
         opened.add(url);
         return true;
@@ -62,11 +72,7 @@ void main() {
   /// Popup content lays out under its own FlutterView, so nothing above it
   /// supplies a [Directionality] — a card that assumed one renders here and
   /// throws in the shell.
-  Future<void> pumpPopup(
-    WidgetTester tester,
-    GithubStore store, {
-    Future<ClipboardResult> Function(String text)? copy,
-  }) async {
+  Future<void> pumpPopup(WidgetTester tester, GithubStore store) async {
     await tester.pumpWidget(
       ThemeScope(
         theme: const ThemeConfig(),
@@ -83,7 +89,8 @@ void main() {
             ),
             child: GithubPopup(
               store: store,
-              copy: copy ?? (_) async => ClipboardResult.copied,
+              openAccounts: () => accountsOpened++,
+              onClose: () => closed++,
             ),
           ),
         ),
@@ -131,6 +138,27 @@ void main() {
       expect(find.text('1'), findsNothing);
     });
 
+    testWidgets('reads the inbox off the AccountsScope', (tester) async {
+      final store = seeded(items: [testNotification()]);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ThemeScope(
+            theme: const ThemeConfig(),
+            child: AccountsScope(
+              githubNotifications: store,
+              child: const Center(child: GithubNotifications()),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('1'), findsOneWidget);
+      expect(store.leaseCount, 1, reason: "the scope's store, not a singleton");
+    });
+
     testWidgets('releases its lease when it leaves the bar', (tester) async {
       final store = seeded();
       await pumpBar(tester, store);
@@ -160,53 +188,37 @@ void main() {
       );
     });
 
-    testWidgets('offers a sign-in when there is no account', (tester) async {
+    testWidgets('with no account, sends the user to Settings › Accounts',
+        (tester) async {
       final store = seeded(stage: GithubAuthStage.signedOut);
 
       await pumpPopup(tester, store);
 
-      expect(find.text('Sign in with GitHub'), findsOneWidget);
-      expect(find.textContaining('password never reaches'), findsOneWidget);
+      // The sign-in is not the popup's: every module reading GitHub shares the
+      // one Settings makes.
+      expect(find.text('Sign in with GitHub'), findsNothing);
+      expect(find.text('Connect GitHub'), findsOneWidget);
+
+      await tester.tap(find.text('Open Accounts settings'));
+      await tester.pumpAndSettle();
+      expect(accountsOpened, 1);
+      expect(closed, 1, reason: 'the card must not sit over the settings');
     });
 
-    testWidgets('shows the code to type, and copies it on a click',
-        (tester) async {
-      final copied = <String>[];
-      final store = seeded(
-        stage: GithubAuthStage.awaitingAuthorization,
-        deviceCode: const GithubDeviceCode(
-          deviceCode: 'dc',
-          userCode: 'ABCD-1234',
-          verificationUri: 'https://github.com/login/device',
-          interval: 5,
-          expiresIn: 900,
-        ),
+    testWidgets('says why the account went away', (tester) async {
+      final store = seeded(stage: GithubAuthStage.signedOut);
+      // ignore: invalid_use_of_visible_for_testing_member
+      store.account.seed(
+        stage: GithubAuthStage.signedOut,
+        error: 'token revoked',
       );
 
-      await pumpPopup(tester, store, copy: (text) async {
-        copied.add(text);
-        return ClipboardResult.copied;
-      });
+      await pumpPopup(tester, store);
 
-      expect(find.text('ABCD-1234'), findsOneWidget);
-      expect(
-        find.text('Enter this code at github.com/login/device'),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.text('ABCD-1234'));
-      await tester.pumpAndSettle();
-      expect(copied, ['ABCD-1234']);
-      expect(find.text('Copied'), findsOneWidget);
-
-      // And the second chance at the browser, for a user whose default handler
-      // did not come up the first time.
-      await tester.tap(find.text('Open GitHub'));
-      await tester.pumpAndSettle();
-      expect(opened, ['https://github.com/login/device']);
+      expect(find.text('token revoked'), findsOneWidget);
     });
 
-    testWidgets('a clipboard that is not installed says which package to get',
+    testWidgets('a sign-in under way points at the code in Settings',
         (tester) async {
       final store = seeded(
         stage: GithubAuthStage.awaitingAuthorization,
@@ -219,18 +231,30 @@ void main() {
         ),
       );
 
-      await pumpPopup(
-        tester,
-        store,
-        copy: (_) async => ClipboardResult.unavailable,
+      await pumpPopup(tester, store);
+
+      expect(find.text('Finishing the sign-in'), findsOneWidget);
+      await tester.tap(find.text('Show the code'));
+      await tester.pumpAndSettle();
+      expect(accountsOpened, 1);
+    });
+
+    testWidgets('the header manages the account in Settings, not here',
+        (tester) async {
+      final store = seeded(login: 'octocat');
+
+      await pumpPopup(tester, store);
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SettingsIconButton && w.icon == FontAwesomeIcons.userGear,
+        ),
       );
-      await tester.tap(find.text('ABCD-1234'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Install wl-clipboard to copy it, or type it in'),
-        findsOneWidget,
-      );
+      expect(accountsOpened, 1);
+      expect(store.stage, GithubAuthStage.signedIn,
+          reason: 'nothing here signs the shell out of GitHub');
     });
 
     testWidgets('an empty inbox says so rather than showing nothing',

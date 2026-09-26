@@ -82,7 +82,8 @@ including the Limited Use requirements.
 ## Other network features
 
 Some parts of the shell fetch data only when you turn them on. For example, the weather
-module queries a weather service, and the GitHub module signs in to GitHub. They also talk
+module queries a weather service, and the GitHub module reads the account linked under
+Settings › Accounts. They also talk
 to those services directly from your computer, and nothing passes through the project.
 
 ## Changes

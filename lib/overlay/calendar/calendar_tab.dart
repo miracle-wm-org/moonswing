@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/clock/minute_clock_store.dart';
 import 'package:moonswing/config.dart';
@@ -84,7 +85,8 @@ class CalendarTab extends StatefulWidget {
   /// store with no ticker behind it.
   final TimersStore? timers;
 
-  /// Where the events come from, or null for the singleton. Injected by tests.
+  /// Where the events come from, or null for the [AccountsScope]'s. Injected
+  /// by tests.
   final GoogleCalendarStore? google;
 
   /// Whether to show the account's events, or null to read
@@ -111,7 +113,7 @@ class _CalendarTabState extends State<CalendarTab> {
   CalendarView _view = CalendarView.month;
 
   late final GoogleCalendarStore _google =
-      widget.google ?? GoogleCalendarStore.instance;
+      widget.google ?? AccountsScope.googleCalendarOf(context);
   GoogleCalendarLease? _lease;
 
   @override

@@ -53,6 +53,11 @@ class SettingsRoute {
   /// an input source is the former.
   static const SettingsRoute keyboard = SettingsRoute(category: 'keyboard');
 
+  /// Where anything that needs an account linked goes — the GitHub popup's
+  /// "Open Accounts settings", and any module or widget signed out of the
+  /// service it reads.
+  static const SettingsRoute accounts = SettingsRoute(category: 'accounts');
+
   /// Where anything offering to configure the *compositor* goes.
   static const SettingsRoute windowManager = SettingsRoute(category: 'miracle');
 

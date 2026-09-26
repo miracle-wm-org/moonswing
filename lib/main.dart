@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 // `layer_shell` re-exports WindowManager / WindowRegistry / WindowEntry but not
 // this, and there is nowhere else to reach it from.
 import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
+import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/app_scope.dart';
 import 'package:moonswing/capture/capture_store.dart';
@@ -46,6 +47,7 @@ import 'package:moonswing/modules/workspaces.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/emoji/emoji_controller.dart';
 import 'package:moonswing/emoji/emoji_picker_overlay.dart';
+import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_store.dart';
@@ -295,6 +297,9 @@ void _startShellServices({
   // starts the todo board's calendar sync if `[google] todo_sync` asks for it.
   // After the board, whose cards it keeps.
   startGoogleService();
+  // The GitHub account, likewise: a file read and no network until a consumer
+  // takes a lease, so Settings › Accounts opens knowing whether it is linked.
+  unawaited(GithubAccountStore.instance.load());
   services.run(ShellService.tray, startStatusNotifierService);
 
   // Watches the default sink/source and the backlight so the on-screen
@@ -2123,10 +2128,15 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       services: widget.services,
       child: LiveConfigProvider(
         config: _liveConfig,
-        // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
-        // font family every window's text should inherit.
-        child: ThemeProvider(
-          child: ShellTextRoot(child: _maybeExcludeSemantics(child)),
+        // The linked accounts, so any module or desktop widget reads the one
+        // sign-in Settings › Accounts made. Fixed stores: it never rebuilds
+        // a consumer.
+        child: AccountsScope.shell(
+          // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
+          // font family every window's text should inherit.
+          child: ThemeProvider(
+            child: ShellTextRoot(child: _maybeExcludeSemantics(child)),
+          ),
         ),
       ),
     ),

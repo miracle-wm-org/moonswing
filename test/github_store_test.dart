@@ -9,9 +9,10 @@ import 'package:moonswing/github/github_token_store.dart';
 
 import 'github_fakes.dart';
 
-/// The store: the lease, the poll, the sign-in state machine, and the writes
-/// that mark a thread read. Every one of these drives a real store through a
-/// fake client and a token file under a temporary directory.
+/// The inbox: the lease, the poll, the writes that mark a thread read, and how
+/// it follows the account it reads as. Every one of these drives a real store
+/// over a real [GithubAccountStore], through a fake client and a token file
+/// under a temporary directory. The sign-in itself is `github_account_test`'s.
 void main() {
   late Directory tempDir;
   late GithubTokenStore tokens;
@@ -31,15 +32,23 @@ void main() {
     FakeGithubClient client, {
     GithubConfig config = const GithubConfig(),
   }) {
-    final store = GithubStore.forTesting(
+    final account = GithubAccountStore.forTesting(
       client: client,
       tokens: tokens,
+      opener: (url) {
+        opened.add(url);
+        return true;
+      },
+    );
+    final store = GithubStore.forTesting(
+      account: account,
       config: config,
       opener: (url) {
         opened.add(url);
         return true;
       },
     );
+    addTearDown(account.dispose);
     addTearDown(store.dispose);
     return store;
   }
@@ -176,7 +185,10 @@ void main() {
       await store.refresh();
 
       expect(store.stage, GithubAuthStage.signedOut);
-      expect(store.error, 'token revoked');
+      expect(store.account.error, 'token revoked',
+          reason: 'said once, by the account every consumer shares');
+      expect(store.error, isEmpty, reason: 'not a retry that can only fail');
+      expect(store.items, isEmpty);
       expect(store.polling, isFalse, reason: 'nothing left to poll with');
       expect(await tokens.read(), isNull);
     });
@@ -287,107 +299,46 @@ void main() {
     });
   });
 
-  group('the sign-in', () {
-    test('publishes the code, opens the browser, and finishes with a token',
+  group('the account', () {
+    test('a sign-in landing while a bar holds a lease fetches at once',
         () async {
-      final client = FakeGithubClient(
-        tokenResults: [
-          const GithubTokenPending(),
-          const GithubTokenGranted('gho_new'),
-        ],
-        pages: [
-          GithubNotificationPage(items: [testNotification()]),
-        ],
-      );
+      final client = FakeGithubClient(pages: [
+        GithubNotificationPage(items: [testNotification()]),
+      ]);
       final store = storeWith(client);
       store.acquire();
       await settle();
+      expect(client.fetchCalls, 0);
 
-      final signIn = store.signIn();
-      // One turn: enough for the device code to land and be published, not
-      // enough for the poll to have answered.
-      await Future<void>.delayed(Duration.zero);
-      expect(store.stage, GithubAuthStage.awaitingAuthorization);
-      expect(store.deviceCode?.userCode, 'ABCD-1234');
-      expect(opened, ['https://github.com/login/device'],
-          reason: 'the browser is opened for the user, as `gh` does');
+      // The sign-in is Settings' — the store only hears about it.
+      await store.account.signIn();
+      await settleUntil(() => !store.loading && store.items.isNotEmpty);
 
-      await signIn;
+      expect(store.stage, GithubAuthStage.signedIn);
+      expect(client.fetchCalls, 1);
+      expect(store.items, hasLength(1));
+      expect(store.polling, isTrue);
+    });
+
+    test('a sign-in with nobody holding a lease fetches nothing', () async {
+      final client = FakeGithubClient();
+      final store = storeWith(client);
+
+      await store.account.signIn();
       await settle();
 
       expect(store.stage, GithubAuthStage.signedIn);
-      expect(store.deviceCode, isNull);
-      expect(client.tokenCalls, 2, reason: 'the first answer was pending');
-      expect(await tokens.read(), 'gho_new', reason: 'and it was saved');
-      expect(store.items, hasLength(1));
-      expect(store.login, 'octocat');
+      expect(client.fetchCalls, 0, reason: 'an idle shell polls for nothing');
     });
 
-    test('a cancelled sign-in does not log the user in afterwards', () async {
-      final client = FakeGithubClient(
-        tokenResults: [const GithubTokenPending()],
-      );
-      final store = storeWith(client);
-      store.acquire();
-      await settle();
-
-      final signIn = store.signIn();
-      await Future<void>.delayed(Duration.zero);
-      expect(store.stage, GithubAuthStage.awaitingAuthorization);
-
-      store.cancelSignIn();
-      // Whatever the poll does from here — including handing back a token —
-      // must not sign anybody in.
-      client.tokenResults = [const GithubTokenGranted('gho_late')];
-      await signIn;
-      await settle();
-
-      expect(store.stage, GithubAuthStage.signedOut);
-      expect(store.deviceCode, isNull);
-      expect(await tokens.read(), isNull);
-    });
-
-    test('a refused sign-in reports why and offers the button again', () async {
-      final client = FakeGithubClient()
-        ..failDeviceCodeWith =
-            const GithubException('Device flow is not enabled for this app');
-      final store = storeWith(client);
-
-      await store.signIn();
-
-      expect(store.stage, GithubAuthStage.signedOut);
-      expect(store.error, 'Device flow is not enabled for this app');
-    });
-
-    test('an expired code ends the sign-in rather than polling forever',
-        () async {
-      final client = FakeGithubClient(
-        tokenResults: [const GithubTokenPending()],
-      )..deviceCode = const GithubDeviceCode(
-          deviceCode: 'dc',
-          userCode: 'ABCD-1234',
-          verificationUri: 'https://github.com/login/device',
-          interval: 0,
-          // Already expired by the time the first poll comes around.
-          expiresIn: -1,
-        );
-      final store = storeWith(client);
-
-      await store.signIn();
-
-      expect(store.stage, GithubAuthStage.signedOut);
-      expect(store.error, contains('expired'));
-      expect(client.tokenCalls, 0);
-    });
-
-    test('signing out drops the token, the list and the poll', () async {
+    test('signing out drops the list and the poll', () async {
       final client = FakeGithubClient(pages: [
         GithubNotificationPage(items: [testNotification()]),
       ]);
       final store = await signedInStore(client);
       expect(store.items, isNotEmpty);
 
-      await store.signOut();
+      await store.account.signOut();
 
       expect(store.stage, GithubAuthStage.signedOut);
       expect(store.items, isEmpty);
