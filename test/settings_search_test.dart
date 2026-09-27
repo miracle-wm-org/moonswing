@@ -196,6 +196,8 @@ void main() {
           'Google accounts',
           'GitHub account',
           'Claude account',
+          // One section per linked Google account, titled by its address.
+          'Google calendars',
           // The Window Manager pane's collections: a list of key bindings or
           // of startup applications is not a row anything can scroll to.
           'Animated events',
@@ -208,7 +210,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(20));
+      expect(unhighlightable, hasLength(21));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

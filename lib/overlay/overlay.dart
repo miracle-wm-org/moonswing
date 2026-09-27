@@ -281,6 +281,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
             // sibling of the pane it sends the user to.
             child: SettingsHighlightScope(
               controller: _highlight,
+              onJump: _jumpToSetting,
               child: OpaquePopupScope(
                 child: Overlay(initialEntries: [_panelEntry]),
               ),

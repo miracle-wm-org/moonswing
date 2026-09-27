@@ -12,6 +12,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/overlay/settings/settings_search.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 
 /// How long a target waits to be claimed before it is dropped.
 ///
@@ -107,8 +108,14 @@ class SettingsHighlightScope
   const SettingsHighlightScope({
     super.key,
     required SettingsHighlightController controller,
+    this.onJump,
     required super.child,
   }) : super(notifier: controller);
+
+  /// The overlay's own "take me to that field" — the same move a picked search
+  /// result makes, so a link from one pane to another switches the sidebar and
+  /// pushes the Shell category in place rather than reopening the overlay.
+  final ValueChanged<SettingsField>? onJump;
 
   /// The controller, or null outside a settings overlay — which is what a page
   /// pumped alone in a widget test is, and why every read of this is
@@ -121,4 +128,20 @@ class SettingsHighlightScope
   /// controller itself and must not rebuild with the pane.
   static SettingsHighlightController? readOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<SettingsHighlightScope>()?.notifier;
+}
+
+/// Takes the settings overlay to [field] — a link from one pane to another.
+///
+/// Inside an open overlay this is the search bar's jump, so nothing fades. With
+/// no overlay above [context] (a page pumped alone in a test, or a surface
+/// outside settings) it asks the shell to open one at [field]'s route instead.
+void openSettingsAt(BuildContext context, SettingsField field) {
+  final jump = context
+      .getInheritedWidgetOfExactType<SettingsHighlightScope>()
+      ?.onJump;
+  if (jump != null) {
+    jump(field);
+    return;
+  }
+  SettingsController.instance.open(field.route);
 }

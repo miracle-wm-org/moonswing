@@ -8,9 +8,9 @@
 // XDG state directory behind `GoogleAccountStore` / `GithubAccountStore`. The
 // stores come from `AccountsScope`, the same ones every module and desktop
 // widget reads, so a sign-in here is the one they all use. What the shell
-// *does* with an account is ordinary config — `[google]` here, and
-// `[modules.github]` on the module's own page — and goes through `ConfigStore`
-// like every other row.
+// *does* with an account is ordinary config on the page of whatever reads it —
+// `[google]` under Shell › Calendar, `[modules.github]` on the module's own
+// page — and each card links there.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -18,18 +18,15 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/brand_marks.dart';
 import 'package:moonswing/claude/claude_account_store.dart';
-import 'package:moonswing/config_store.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
-import 'package:moonswing/google/google_api.dart';
-import 'package:moonswing/google/google_calendar_store.dart';
-import 'package:moonswing/google/google_config.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
 import 'package:moonswing/overlay/settings/accounts/claude_account.dart';
 import 'package:moonswing/overlay/settings/accounts/github_account.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_highlight.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
@@ -37,24 +34,18 @@ class AccountsSettingsPage extends StatefulWidget {
   const AccountsSettingsPage({
     super.key,
     GoogleAccountStore? account,
-    GoogleCalendarStore? calendar,
     GithubAccountStore? github,
     ClaudeAccountStore? claude,
-    ConfigStore? config,
     this.copy = copyTextToClipboard,
   }) : _account = account,
-       _calendar = calendar,
        _github = github,
-       _claude = claude,
-       _config = config;
+       _claude = claude;
 
   /// Injected by widget tests, so nothing here touches the network. Null reads
   /// the [AccountsScope].
   final GoogleAccountStore? _account;
-  final GoogleCalendarStore? _calendar;
   final GithubAccountStore? _github;
   final ClaudeAccountStore? _claude;
-  final ConfigStore? _config;
 
   /// How the GitHub sign-in code reaches the clipboard; tests must not fork
   /// `wl-copy`.
@@ -67,15 +58,10 @@ class AccountsSettingsPage extends StatefulWidget {
 class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
   late final GoogleAccountStore _account =
       widget._account ?? AccountsScope.googleOf(context);
-  late final GoogleCalendarStore _calendar =
-      widget._calendar ?? AccountsScope.googleCalendarOf(context);
   late final GithubAccountStore _github =
       widget._github ?? AccountsScope.githubOf(context);
   late final ClaudeAccountStore _claude =
       widget._claude ?? AccountsScope.claudeOf(context);
-  late final ConfigStore _config = widget._config ?? ConfigStore.instance;
-
-  String _accountIds = '';
 
   @override
   void initState() {
@@ -83,26 +69,6 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
     _account.load();
     _github.load();
     _claude.load();
-    _account.addListener(_onAccount);
-    _accountIds = _ids();
-    if (_account.signedIn) _calendar.loadCalendars();
-  }
-
-  String _ids() => _account.accounts.map((a) => a.id).join('\n');
-
-  /// The calendar lists are read when the page opens signed in, and again the
-  /// moment an account is added on this page.
-  void _onAccount() {
-    final ids = _ids();
-    if (ids == _accountIds) return;
-    _accountIds = ids;
-    if (_account.signedIn) _calendar.loadCalendars();
-  }
-
-  @override
-  void dispose() {
-    _account.removeListener(_onAccount);
-    super.dispose();
   }
 
   @override
@@ -145,26 +111,10 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Google's settings hang off its card, so the card and what
-                // it unlocks rebuild together; GitHub's card listens alone.
                 ListenableBuilder(
                   listenable: _account,
-                  builder: (context, _) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
+                  builder: (context, _) =>
                       _GoogleAccountCard(account: _account),
-                      if (_account.signedIn) ...[
-                        const SizedBox(height: 20),
-                        _GoogleCalendarsSection(
-                          account: _account,
-                          calendar: _calendar,
-                          config: _config,
-                        ),
-                        const SizedBox(height: 20),
-                        _GoogleUseSection(config: _config),
-                      ],
-                    ],
-                  ),
                 ),
                 const SizedBox(height: 28),
                 GithubAccountCard(account: _github, copy: widget.copy),
@@ -206,7 +156,8 @@ class _GoogleAccountCard extends StatelessWidget {
       info:
           'Sign in once for the whole shell, with as many accounts as you '
           'like. The Calendar tab shows all of their events, and the todo '
-          "board can hold their meetings. Signing in opens Moonswing's Google "
+          'board can hold their meetings; which calendars, and what for, is '
+          "under Shell › Calendar. Signing in opens Moonswing's Google "
           'app in your browser and asks for read-only access to your '
           'calendars, nothing else. The app is not verified by Google yet, so '
           'the consent page warns about it: choose Advanced, then Go to '
@@ -247,6 +198,27 @@ class _GoogleAccountCard extends StatelessWidget {
             ],
           ),
         ?_status(context, stage),
+        if (accounts.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Expanded(
+                child: AccountBlurb(
+                  'Which calendars are read, and what they are used for, is '
+                  'set with the rest of the calendar.',
+                ),
+              ),
+              const SizedBox(width: 16),
+              SettingsActionButton(
+                label: 'Calendar settings',
+                icon: FontAwesomeIcons.calendarDays,
+                compact: true,
+                onTap: () =>
+                    openSettingsAt(context, SettingsCatalog.googleCalendars),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -311,165 +283,5 @@ class _GoogleAccountCard extends StatelessWidget {
       case GoogleAuthStage.signedIn:
         return null;
     }
-  }
-}
-
-/// Which calendars are read, account by account.
-class _GoogleCalendarsSection extends StatelessWidget {
-  const _GoogleCalendarsSection({
-    required this.account,
-    required this.calendar,
-    required this.config,
-  });
-
-  final GoogleAccountStore account;
-  final GoogleCalendarStore calendar;
-  final ConfigStore config;
-
-  List<String> _selected() => GoogleConfig.fromMap(
-    config.get<Map<String, dynamic>>(['google']),
-  ).calendars;
-
-  /// Every account's own calendar, by id — its list's primary, or its address
-  /// while the list is unread.
-  List<String> _primaries() => [
-    for (final a in account.accounts)
-      calendar
-              .calendarsOf(a.id)
-              .where((c) => c.primary)
-              .map((c) => c.id)
-              .firstOrNull ??
-          a.email,
-  ]..removeWhere((id) => id.isEmpty);
-
-  void _toggle(GoogleCalendar c, bool on) {
-    config.set(
-      ['google', 'calendars'],
-      toggleCalendar(
-        _selected(),
-        id: c.id,
-        primary: c.primary,
-        on: on,
-        primaries: _primaries(),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: calendar,
-      builder: (context, _) {
-        final accounts = account.accounts;
-        final several = accounts.length > 1;
-        return SettingsSection(
-          label: SettingsCatalog.googleCalendars.label,
-          info: SettingsCatalog.googleCalendars.description,
-          trailing: SettingsRescanButton(
-            label: 'Reload',
-            onTap: calendar.loadCalendars,
-          ),
-          children: [
-            for (final a in accounts) ...[
-              if (several) SettingsSubLabel(a.label),
-              ..._accountRows(a),
-            ],
-          ],
-        );
-      },
-    );
-  }
-
-  List<Widget> _accountRows(GoogleAccount a) {
-    final calendars = calendar.calendarsOf(a.id);
-    final error = calendar.calendarsErrorOf(a.id);
-    return [
-      if (error.isNotEmpty)
-        SettingsBanner(
-          title: 'Could not read the calendars of ${a.label}',
-          message: error,
-          action: SettingsActionButton(
-            label: 'Retry',
-            compact: true,
-            onTap: calendar.loadCalendars,
-          ),
-        )
-      else if (!calendar.hasCalendarsOf(a.id))
-        const SettingsHint('Reading your calendars…'),
-      for (final c in calendars)
-        SettingsRow(
-          label: c.primary ? '${c.summary} (primary)' : c.summary,
-          // Per row and on a bool, not on the section: ConfigStore notifies
-          // on every keystroke anywhere in settings.
-          control: StoreSelector<bool>(
-            listenable: config,
-            selector: () =>
-                isCalendarSelected(_selected(), id: c.id, primary: c.primary),
-            builder: (context, on) =>
-                SettingsToggle(value: on, onChanged: (v) => _toggle(c, v)),
-          ),
-        ),
-    ];
-  }
-}
-
-/// What the account is used for.
-class _GoogleUseSection extends StatelessWidget {
-  const _GoogleUseSection({required this.config});
-
-  final ConfigStore config;
-
-  @override
-  Widget build(BuildContext context) {
-    return SettingsSection(
-      label: 'Use it for',
-      children: [
-        SettingsRow.field(
-          SettingsCatalog.googleShowInCalendar,
-          info: SettingsCatalog.googleShowInCalendar.description,
-          control: ConfigValue<bool>(
-            store: config,
-            path: const ['google', 'show_in_calendar'],
-            fallback: true,
-            builder: (context, value) => SettingsToggle(
-              value: value!,
-              onChanged: (v) => config.set(['google', 'show_in_calendar'], v),
-            ),
-          ),
-        ),
-        SettingsRow.field(
-          SettingsCatalog.googleTodoSync,
-          info: SettingsCatalog.googleTodoSync.description,
-          control: ConfigValue<bool>(
-            store: config,
-            path: const ['google', 'todo_sync'],
-            fallback: false,
-            builder: (context, value) => SettingsToggle(
-              value: value!,
-              onChanged: (v) => config.set(['google', 'todo_sync'], v),
-            ),
-          ),
-        ),
-        SettingsRow.field(
-          SettingsCatalog.googleRefreshMinutes,
-          control: ConfigValue<num>(
-            store: config,
-            path: const ['google', 'refresh_minutes'],
-            fallback: 5,
-            builder: (context, value) => SettingsNumberField(
-              value: value!,
-              isInt: true,
-              onChanged: (v) => config.set(
-                ['google', 'refresh_minutes'],
-                v.toInt().clamp(
-                  GoogleConfig.minRefreshMinutes,
-                  GoogleConfig.maxRefreshMinutes,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 }

@@ -1490,7 +1490,7 @@ The lock screen starts as a clock, date, and the account name over the wallpaper
 
 ## Calendar
 
-The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Google Calendar events appear only once an account is signed in under Settings › Accounts; see Google Account.
+The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Google Calendar events appear only once an account is signed in under Settings › Accounts; see Google Account. Settings › Shell › Calendar holds both this section and, per signed-in account, which of its calendars are read.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -1544,6 +1544,7 @@ There is nothing to set up. Open Settings › Accounts and press **Sign in with 
 - **Your calendar goes straight from Google to your computer.** The project runs no server, so nothing passes through or is stored anywhere but your own machine. See the [privacy policy](https://miracle-wm-org.github.io/moonswing/privacy/).
 - **Add account** signs in another account. Google shows its account chooser so you can pick a different one. Signing in again as an account that is already there replaces its sign-in rather than listing it twice.
 - **Sign out** revokes that account's grant at Google and deletes it from disk. The other accounts stay signed in. You can also revoke a grant from [your Google account's third-party connections](https://myaccount.google.com/connections).
+- **Calendar settings** takes you to Settings › Shell › Calendar, where the rest of this section is set: which of each account's calendars are read, and what they are used for.
 
 Earlier builds had you create your own OAuth client. A sign-in made that way cannot carry over. The Accounts page says so once, forgets it, and **Sign in with Google** reconnects you.
 
@@ -1551,7 +1552,7 @@ Earlier builds had you create your own OAuth client. A sign-in made that way can
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is every signed-in account's main calendar. Settings › Accounts lists each account's calendars with a switch each. |
+| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is every signed-in account's main calendar. Settings › Shell › Calendar lists each signed-in account's calendars under its own heading, with a switch each. |
 | `show_in_calendar` | bool | `true` | Draw the accounts' events on the Calendar tab, and offer its Week and Day views. |
 | `todo_sync` | bool | `false` | Put each of today's timed events on the todo board as a card (see below). |
 | `refresh_minutes` | int | `5` | How often events are read again while something is showing them (1–60). Nothing is fetched while nothing shows them. |
@@ -1571,7 +1572,7 @@ All-day events stay in the Calendar tab and never become cards. A meeting you ar
 
 Calendar ids are unique across Google accounts (a main calendar's id is the account's address), so one `calendars` list covers every account. Each id is read through the first account whose calendar list holds it, so a calendar shared with two of your accounts is read once. An id no account lists, such as a public calendar you typed in by hand, is read through the first account.
 
-Switching one account's main calendar off in Settings while `primary` is on writes the other accounts' addresses in its place. Switching it back on folds them into `primary` again.
+Switching one account's main calendar off in Settings › Shell › Calendar while `primary` is on writes the other accounts' addresses in its place. Switching it back on folds them into `primary` again.
 
 ```toml
 [google]
