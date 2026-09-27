@@ -194,7 +194,6 @@ void main() {
           'Keyboard layout',
           'Google accounts',
           'GitHub account',
-          'Claude account',
           // The Window Manager pane's collections: a list of key bindings or
           // of startup applications is not a row anything can scroll to.
           'Animated events',
@@ -207,7 +206,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(20));
+      expect(unhighlightable, hasLength(19));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

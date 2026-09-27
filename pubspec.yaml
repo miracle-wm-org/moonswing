@@ -93,14 +93,6 @@ dependencies:
   media_kit_video: ^1.2.5
   media_kit_libs_linux: ^1.0.4
   ubuntu_session: ^0.0.4
-  # Flutter's generative-UI framework, behind the Claude module's "build me a
-  # UI" answers (lib/claude/). The shell uses its A2UI engine — the message
-  # parser, the surface controller, the data model and the `Surface` widget —
-  # and none of its widgets: every component Claude can ask for is drawn by the
-  # shell's own catalogue (lib/claude/claude_catalog.dart) in the theme's
-  # palette, because genui's basic catalogue is Material and this shell has
-  # none. Its audio item is why `audioplayers_linux` is overridden below.
-  genui: ^0.10.3
 
 dev_dependencies:
   flutter_test:
@@ -109,18 +101,6 @@ dev_dependencies:
   # test/wl_interfaces_test.dart diffs the hand-written Wayland interface
   # tables against the protocol XMLs in protocol/.
   xml: ^6.5.0
-
-# genui depends on `audioplayers` for one catalogue item (an audio player) the
-# shell never offers Claude, and `audioplayers_linux` is a native plugin that
-# links GStreamer. Left alone it would make `libgstreamer1.0-dev` a build
-# dependency and GStreamer a DT_NEEDED of the bundle — one more library the snap
-# would have to decide whether to stage — for a widget that can never be
-# rendered. The stand-in has the same name and version and no plugin, so
-# nothing is compiled and nothing is linked. Drop it the day genui stops
-# depending on audioplayers.
-dependency_overrides:
-  audioplayers_linux:
-    path: packages/audioplayers_linux_none
 
 flutter:
   uses-material-design: true

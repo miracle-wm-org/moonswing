@@ -5,8 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/brand_marks.dart';
-import 'package:moonswing/claude/claude_account_store.dart';
-import 'package:moonswing/claude/claude_key_store.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_api.dart';
@@ -19,7 +17,6 @@ import 'package:moonswing/overlay/settings/accounts/github_account.dart';
 import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/scopes.dart';
 
-import 'claude_fakes.dart';
 import 'github_fakes.dart';
 import 'google_fakes.dart';
 
@@ -245,11 +242,6 @@ void main() {
       addTearDown(googleAccount!.dispose);
       final calendar = GoogleCalendarStore.forTesting(account: googleAccount);
       final account = github(FakeGithubClient())..seed(login: 'octocat');
-      final claude = ClaudeAccountStore.forTesting(
-        client: FakeClaudeClient(),
-        keys: ClaudeKeyStore(directory: '${tempDir.path}/claude'),
-      )..seed(stage: ClaudeAuthStage.signedOut);
-      addTearDown(claude.dispose);
 
       await tester.pumpWidget(
         _host(
@@ -257,7 +249,6 @@ void main() {
             google: googleAccount,
             googleCalendar: calendar,
             github: account,
-            claude: claude,
             child: const AccountsSettingsPage(),
           ),
         ),
@@ -268,7 +259,7 @@ void main() {
       expect(find.text('Google'), findsOneWidget);
       expect(find.text('Sign in with Google'), findsOneWidget);
       expect(find.text('octocat'), findsOneWidget);
-      expect(find.byType(BrandMark), findsNWidgets(3));
+      expect(find.byType(BrandMark), findsNWidgets(2));
     });
   });
 

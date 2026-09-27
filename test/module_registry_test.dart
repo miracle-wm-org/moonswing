@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/module.dart';
 import 'package:moonswing/modules/battery.dart';
-import 'package:moonswing/modules/claude.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/modules/dock.dart';
 import 'package:moonswing/modules/github.dart';
@@ -47,7 +46,6 @@ void main() {
       keyboardLayoutModule,
       keybindsModule,
       githubModule,
-      claudeModule,
       scratchpadModule,
       todoModule,
     ];
@@ -73,7 +71,6 @@ void main() {
       'keyboard_layout',
       'keybinds',
       'github',
-      'claude',
       'scratchpad',
       'todo',
     ];

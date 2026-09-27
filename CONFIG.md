@@ -422,56 +422,6 @@ Copying the sign-in code needs `wl-copy` (the `wl-clipboard` package), as the
 emoji picker does; without it the code can still be typed out by hand, and the
 card says so.
 
-### Claude
-
-An AI mark on the bar, and a popup to ask Claude things in. Most questions get
-a short text answer; when a form, a checklist or a few controls would help more
-than a paragraph — or you ask for one — Claude builds a small UI right in the
-answer, with Flutter's [GenUI](https://pub.dev/packages/genui), drawn in your
-theme. Fill it in and press its button, and what you entered goes back to
-Claude as the next turn. The conversation lives until **New conversation**, so
-closing the popup mid-answer loses nothing; the mark fills in while an answer
-is on its way.
-
-```toml
-[modules.claude]
-model = "claude-opus-5"
-effort = "medium"
-generate_ui = true
-```
-
-| Key           | Type   | Default           | Description                                                                                          |
-| ------------- | ------ | ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `model`       | string | `"claude-opus-5"` | The model questions go to, by API id                                                                 |
-| `effort`      | string | `"medium"`        | How hard it thinks before answering: `low`, `medium`, `high`, `xhigh` or `max`. Higher is slower and costs more |
-| `generate_ui` | bool   | `true`            | Let Claude answer with a generated UI. Off, every answer is text and each question costs fewer tokens |
-
-The module is not in the default layout. Add `"claude"` to a panel's layout:
-
-```toml
-[panels.top.layout]
-right = ["claude"]
-```
-
-#### Linking an API key
-
-The module needs a **Claude API key**, linked once for the whole shell under
-Settings › **Accounts** — the popup, while nothing is linked, has a button that
-goes there. Make a key in the [Claude Console](https://console.anthropic.com/settings/keys),
-paste it into the Claude card and press **Link**; the shell checks it with the
-API (a read of the model list, which costs nothing) before keeping it. Usage is
-billed to that Console account, per question.
-
-A claude.ai **Pro or Max subscription cannot be used** here: Anthropic lets a
-subscription sign in to its own apps, not to other programs, and what a program
-may use is an API key. The two are billed separately.
-
-The key is written to `~/.local/state/moonswing/anthropic-api-key` (mode 0600,
-in a directory created 0700), never into `config.toml`. **Unlink** deletes it
-from this machine; revoking it is done in the Console, which the key button
-beside **Unlink** opens. A key the API stops accepting — deleted in the Console,
-say — unlinks itself, and the card says why.
-
 ### Notifications
 
 A bell that shakes and shows a count when a notification arrives, and opens the

@@ -765,27 +765,6 @@ abstract final class SettingsCatalog {
     const ['github', 'notifications', 'read', 'open', 'browser'],
   );
 
-  static final claudeModel = _module(
-    'modules.claude.model',
-    'Model',
-    'The Claude model questions go to, by its API id.',
-    const ['claude', 'ai', 'model', 'opus', 'sonnet', 'haiku', 'anthropic'],
-  );
-  static final claudeEffort = _module(
-    'modules.claude.effort',
-    'Effort',
-    'How hard Claude thinks before answering. Higher is slower and costs '
-        'more; low suits quick questions.',
-    const ['claude', 'ai', 'effort', 'thinking', 'speed', 'cost'],
-  );
-  static final claudeGenerateUi = _module(
-    'modules.claude.generate_ui',
-    'Generate UI',
-    'Lets Claude answer with a small generated interface — a form, a '
-        'checklist, a few controls — when that helps more than text.',
-    const ['claude', 'ai', 'genui', 'generative', 'ui', 'interface', 'form'],
-  );
-
   static final recorderDirectory = _module(
     'modules.screen_recorder.directory',
     'Save to',
@@ -1118,26 +1097,6 @@ abstract final class SettingsCatalog {
       'token',
       'notifications',
       'device code',
-    ],
-  );
-
-  static final claudeAccount = _pane(
-    'accounts',
-    'Accounts',
-    'Claude account',
-    description:
-        'Link a Claude API key once for the whole shell, so the Claude module '
-        'can answer questions and build small UIs.',
-    tags: const [
-      'claude',
-      'anthropic',
-      'ai',
-      'assistant',
-      'api key',
-      'key',
-      'account',
-      'accounts',
-      'console',
     ],
   );
 
@@ -2065,7 +2024,6 @@ abstract final class SettingsCatalog {
     calendarWeekStart,
     googleAccount,
     githubAccount,
-    claudeAccount,
     googleCalendars,
     googleShowInCalendar,
     googleTodoSync,
@@ -2193,9 +2151,6 @@ abstract final class SettingsCatalog {
     recorderFps,
     recorderQuality,
     recorderShowCursor,
-    claudeModel,
-    claudeEffort,
-    claudeGenerateUi,
   ];
 
   /// [all], folded to lower case once.

@@ -1,5 +1,5 @@
 // Settings › Accounts: the services the whole shell signs in to once — any
-// number of Google accounts, a GitHub account and a Claude API key — each on a card in the
+// number of Google accounts and a GitHub account — each on a card in the
 // service's own colours, saying whether it is linked, as whom, and what in the
 // shell reads it.
 //
@@ -17,7 +17,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/brand_marks.dart';
-import 'package:moonswing/claude/claude_account_store.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_account_store.dart';
@@ -26,7 +25,6 @@ import 'package:moonswing/google/google_api.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
 import 'package:moonswing/google/google_config.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
-import 'package:moonswing/overlay/settings/accounts/claude_account.dart';
 import 'package:moonswing/overlay/settings/accounts/github_account.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -39,13 +37,11 @@ class AccountsSettingsPage extends StatefulWidget {
     GoogleAccountStore? account,
     GoogleCalendarStore? calendar,
     GithubAccountStore? github,
-    ClaudeAccountStore? claude,
     ConfigStore? config,
     this.copy = copyTextToClipboard,
   }) : _account = account,
        _calendar = calendar,
        _github = github,
-       _claude = claude,
        _config = config;
 
   /// Injected by widget tests, so nothing here touches the network. Null reads
@@ -53,7 +49,6 @@ class AccountsSettingsPage extends StatefulWidget {
   final GoogleAccountStore? _account;
   final GoogleCalendarStore? _calendar;
   final GithubAccountStore? _github;
-  final ClaudeAccountStore? _claude;
   final ConfigStore? _config;
 
   /// How the GitHub sign-in code reaches the clipboard; tests must not fork
@@ -71,8 +66,6 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
       widget._calendar ?? AccountsScope.googleCalendarOf(context);
   late final GithubAccountStore _github =
       widget._github ?? AccountsScope.githubOf(context);
-  late final ClaudeAccountStore _claude =
-      widget._claude ?? AccountsScope.claudeOf(context);
   late final ConfigStore _config = widget._config ?? ConfigStore.instance;
 
   String _accountIds = '';
@@ -82,7 +75,6 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
     super.initState();
     _account.load();
     _github.load();
-    _claude.load();
     _account.addListener(_onAccount);
     _accountIds = _ids();
     if (_account.signedIn) _calendar.loadCalendars();
@@ -168,8 +160,6 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
                 ),
                 const SizedBox(height: 28),
                 GithubAccountCard(account: _github, copy: widget.copy),
-                const SizedBox(height: 28),
-                ClaudeAccountCard(account: _claude),
               ],
             ),
           ),
