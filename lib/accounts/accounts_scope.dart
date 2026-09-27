@@ -8,7 +8,6 @@
 //   github.withToken((token) => ...);
 //   final calendar = AccountsScope.googleCalendarOf(context);
 //   final lease = calendar.acquire(from, to);
-//   final claude = AccountsScope.claudeOf(context);    // ClaudeAccountStore
 //
 // The scope hands out *stores*, not snapshots: each is a `ChangeNotifier` with
 // its own leases, and a consumer listens to the one it reads (a
@@ -26,8 +25,6 @@
 
 import 'package:flutter/widgets.dart';
 
-import 'package:moonswing/claude/claude_account_store.dart';
-import 'package:moonswing/claude/claude_chat_store.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
@@ -40,8 +37,6 @@ class AccountsScope extends InheritedWidget {
     this.googleCalendar,
     this.github,
     this.githubNotifications,
-    this.claude,
-    this.claudeChat,
     required super.child,
   });
 
@@ -50,9 +45,7 @@ class AccountsScope extends InheritedWidget {
     : google = GoogleAccountStore.instance,
       googleCalendar = GoogleCalendarStore.instance,
       github = GithubAccountStore.instance,
-      githubNotifications = GithubStore.instance,
-      claude = ClaudeAccountStore.instance,
-      claudeChat = ClaudeChatStore.instance;
+      githubNotifications = GithubStore.instance;
 
   /// The Google accounts — any number — and the access token behind each.
   /// Null falls through to [GoogleAccountStore.instance].
@@ -66,12 +59,6 @@ class AccountsScope extends InheritedWidget {
 
   /// The GitHub notification inbox, polled under a lease.
   final GithubStore? githubNotifications;
-
-  /// The Claude API key behind every question.
-  final ClaudeAccountStore? claude;
-
-  /// The one conversation with Claude, and the UI it has generated.
-  final ClaudeChatStore? claudeChat;
 
   static AccountsScope? _scope(BuildContext context) =>
       context.getInheritedWidgetOfExactType<AccountsScope>();
@@ -94,21 +81,10 @@ class AccountsScope extends InheritedWidget {
   static GithubStore githubNotificationsOf(BuildContext context) =>
       _scope(context)?.githubNotifications ?? GithubStore.instance;
 
-  /// The Claude account: [ClaudeAccountStore.signedIn], the key check, and
-  /// [ClaudeAccountStore.withKey] for a request of a module's own.
-  static ClaudeAccountStore claudeOf(BuildContext context) =>
-      _scope(context)?.claude ?? ClaudeAccountStore.instance;
-
-  /// The conversation the Claude module shows.
-  static ClaudeChatStore claudeChatOf(BuildContext context) =>
-      _scope(context)?.claudeChat ?? ClaudeChatStore.instance;
-
   @override
   bool updateShouldNotify(AccountsScope old) =>
       google != old.google ||
       googleCalendar != old.googleCalendar ||
       github != old.github ||
-      githubNotifications != old.githubNotifications ||
-      claude != old.claude ||
-      claudeChat != old.claudeChat;
+      githubNotifications != old.githubNotifications;
 }

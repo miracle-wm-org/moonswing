@@ -195,7 +195,6 @@ void main() {
           'Keyboard layout',
           'Google accounts',
           'GitHub account',
-          'Claude account',
           // One section per linked Google account, titled by its address.
           'Google calendars',
           // The Window Manager pane's collections: a list of key bindings or
@@ -210,7 +209,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(21));
+      expect(unhighlightable, hasLength(20));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

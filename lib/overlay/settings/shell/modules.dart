@@ -11,9 +11,6 @@ import 'package:moonswing/capture/capture_sound.dart'
     show kDefaultShutterVolume, kShutterSoundHint;
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/modules/battery.dart' show BatteryConfig;
-import 'package:moonswing/claude/claude_api.dart'
-    show kClaudeDefaultModel, kClaudeEfforts;
-import 'package:moonswing/modules/claude.dart' show ClaudeConfig;
 import 'package:moonswing/modules/clock.dart' show ClockConfig;
 import 'package:moonswing/modules/dock.dart' show DockConfig;
 import 'package:moonswing/modules/github.dart' show GithubConfig;
@@ -325,24 +322,6 @@ final List<_ModuleGroup> _moduleGroups = [
     // preference: one is an OAuth app the user registered and the other is
     // what that app may do, and both are typed once into `config.toml` by
     // somebody who has read what they mean.
-  ]),
-  _ModuleGroup('Claude', [
-    // Free-typed, with the default as the placeholder: models arrive faster
-    // than the shell is released, and the API's own error names one it will
-    // not serve.
-    _ModuleSetting.text(
-      SettingsCatalog.claudeModel,
-      addHint: kClaudeDefaultModel,
-    ),
-    _ModuleSetting.segmented(
-      SettingsCatalog.claudeEffort,
-      options: kClaudeEfforts,
-      defaultValue: const ClaudeConfig().effort,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.claudeGenerateUi,
-      defaultValue: const ClaudeConfig().generateUi,
-    ),
   ]),
   _ModuleGroup('Screenshot', [
     _ModuleSetting.text(
