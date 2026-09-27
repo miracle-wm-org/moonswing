@@ -1023,6 +1023,35 @@ abstract final class SettingsCatalog {
     description: 'Puts the account’s name above the password field.',
     tags: const ['lock', 'username', 'account', 'user', 'privacy'],
   );
+  static final osdVolumeSound = shellField(
+    'osd.volume_sound',
+    'Volume change sound',
+    section: 'Volume Sound',
+    description:
+        'What plays when the output volume changes or is unmuted: a shipped '
+        'sound, a sound-theme name, a path, or none.',
+    tags: const [
+      'volume',
+      'sound',
+      'feedback',
+      'beep',
+      'pop',
+      'click',
+      'audio',
+      'silent',
+    ],
+  );
+
+  static final osdVolumeSoundVolume = shellField(
+    'osd.volume_sound_volume',
+    'Volume change sound level',
+    section: 'Volume Sound',
+    description:
+        'How loud the volume change sound is, from 0 to 1, relative to the '
+        'output it plays through.',
+    tags: const ['volume', 'sound', 'feedback', 'loud', 'quiet'],
+  );
+
   static final lockBlurSigma = shellField(
     'lock.blur_sigma',
     'Blur when unlocking',
@@ -2060,6 +2089,8 @@ abstract final class SettingsCatalog {
     lockFit,
     lockShowUsername,
     lockBlurSigma,
+    osdVolumeSound,
+    osdVolumeSoundVolume,
     powerKeyAction,
     powerInhibitLogind,
     calendarWeekStart,
