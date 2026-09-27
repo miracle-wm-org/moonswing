@@ -59,21 +59,6 @@ SettingsField _pane(
   tags: tags,
 );
 
-/// A row on the Accounts pane.
-SettingsField _accountsField(
-  String id,
-  String label, {
-  required String description,
-  List<String> tags = const <String>[],
-}) => SettingsField(
-  id: id,
-  label: label,
-  section: 'Accounts',
-  route: const SettingsRoute(category: 'accounts'),
-  description: description,
-  tags: tags,
-);
-
 /// A Shell category with no single row to land on — the collections.
 SettingsField _shellPane(
   String section,
@@ -1002,6 +987,35 @@ abstract final class SettingsCatalog {
     description: 'Puts the account’s name above the password field.',
     tags: const ['lock', 'username', 'account', 'user', 'privacy'],
   );
+  static final osdVolumeSound = shellField(
+    'osd.volume_sound',
+    'Volume change sound',
+    section: 'Volume Sound',
+    description:
+        'What plays when the output volume changes or is unmuted: a shipped '
+        'sound, a sound-theme name, a path, or none.',
+    tags: const [
+      'volume',
+      'sound',
+      'feedback',
+      'beep',
+      'pop',
+      'click',
+      'audio',
+      'silent',
+    ],
+  );
+
+  static final osdVolumeSoundVolume = shellField(
+    'osd.volume_sound_volume',
+    'Volume change sound level',
+    section: 'Volume Sound',
+    description:
+        'How loud the volume change sound is, from 0 to 1, relative to the '
+        'output it plays through.',
+    tags: const ['volume', 'sound', 'feedback', 'loud', 'quiet'],
+  );
+
   static final lockBlurSigma = shellField(
     'lock.blur_sigma',
     'Blur when unlocking',
@@ -1057,6 +1071,46 @@ abstract final class SettingsCatalog {
     tags: const ['calendar', 'week', 'sunday', 'monday', 'month', 'date'],
   );
 
+  // A linked Google account's calendars, which live beside the month grid
+  // rather than on Accounts: the account is signed in there once, and what the
+  // shell does with it is ordinary config.
+
+  static final googleCalendars = _shellPane(
+    'Calendar',
+    'Google calendars',
+    description:
+        "Which of each linked Google account's calendars the shell reads.",
+    tags: const ['google', 'calendar', 'calendars', 'events', 'shared'],
+  );
+
+  static final googleShowInCalendar = shellField(
+    'google.show_in_calendar',
+    'Show events in the calendar',
+    section: 'Calendar',
+    description:
+        'Draw your events on the Calendar tab, with Month, Week and Day '
+        'views; click one for its details and join link.',
+    tags: const ['google', 'events', 'agenda', 'meetings', 'week', 'day'],
+  );
+
+  static final googleTodoSync = shellField(
+    'google.todo_sync',
+    "Put today's meetings on the todo board",
+    section: 'Calendar',
+    description:
+        'Each timed event today becomes a card with its join link, and moves '
+        'from Todo to In Progress to Finished as the meeting comes and goes.',
+    tags: const ['google', 'todo', 'kanban', 'meetings', 'board', 'sync'],
+  );
+
+  static final googleRefreshMinutes = shellField(
+    'google.refresh_minutes',
+    'Refresh every (minutes)',
+    section: 'Calendar',
+    description: 'How often events are read again while something shows them.',
+    tags: const ['google', 'poll', 'interval', 'sync'],
+  );
+
   // -------------------------------------------------------------------------
   // Accounts
   // -------------------------------------------------------------------------
@@ -1098,38 +1152,6 @@ abstract final class SettingsCatalog {
       'notifications',
       'device code',
     ],
-  );
-
-  static final googleCalendars = _accountsField(
-    'google.calendars',
-    'Calendars',
-    description: 'Which of each account\'s calendars the shell reads.',
-    tags: const ['google', 'calendar', 'events', 'shared'],
-  );
-
-  static final googleShowInCalendar = _accountsField(
-    'google.show_in_calendar',
-    'Show events in the calendar',
-    description:
-        'Draw your events on the Calendar tab, with Month, Week and Day '
-        'views; click one for its details and join link.',
-    tags: const ['google', 'events', 'agenda', 'meetings', 'week', 'day'],
-  );
-
-  static final googleTodoSync = _accountsField(
-    'google.todo_sync',
-    "Put today's meetings on the todo board",
-    description:
-        'Each timed event today becomes a card with its join link, and moves '
-        'from Todo to In Progress to Finished as the meeting comes and goes.',
-    tags: const ['google', 'todo', 'kanban', 'meetings', 'board', 'sync'],
-  );
-
-  static final googleRefreshMinutes = _accountsField(
-    'google.refresh_minutes',
-    'Refresh every (minutes)',
-    description: 'How often events are read again while something shows them.',
-    tags: const ['google', 'poll', 'interval', 'sync'],
   );
 
   // -------------------------------------------------------------------------
@@ -2019,15 +2041,17 @@ abstract final class SettingsCatalog {
     lockFit,
     lockShowUsername,
     lockBlurSigma,
+    osdVolumeSound,
+    osdVolumeSoundVolume,
     powerKeyAction,
     powerInhibitLogind,
     calendarWeekStart,
-    googleAccount,
-    githubAccount,
     googleCalendars,
     googleShowInCalendar,
     googleTodoSync,
     googleRefreshMinutes,
+    googleAccount,
+    githubAccount,
     ..._hardware,
     ...miracleFields,
   ];

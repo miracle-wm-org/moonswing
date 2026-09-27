@@ -37,6 +37,7 @@ const _shellCategories = {
   'Desktop',
   'Lock Screen',
   'Power Button',
+  'Volume Sound',
   'Calendar',
 };
 
@@ -194,6 +195,8 @@ void main() {
           'Keyboard layout',
           'Google accounts',
           'GitHub account',
+          // One section per linked Google account, titled by its address.
+          'Google calendars',
           // The Window Manager pane's collections: a list of key bindings or
           // of startup applications is not a row anything can scroll to.
           'Animated events',
@@ -206,7 +209,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(19));
+      expect(unhighlightable, hasLength(20));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

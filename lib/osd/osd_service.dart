@@ -3,27 +3,35 @@ import 'package:moonswing/config.dart';
 import 'package:moonswing/osd/brightness_monitor.dart';
 import 'package:moonswing/osd/osd_audio_tracker.dart';
 import 'package:moonswing/osd/osd_store.dart';
+import 'package:moonswing/osd/volume_sound.dart';
 import 'package:moonswing/pulse_client.dart';
 
 /// Feeds [OsdStore] from the things the indicator reports on: the default
-/// PulseAudio sink and source, and the display backlight.
+/// PulseAudio sink and source, and the display backlight — and plays
+/// [VolumeSoundStore]'s sound off the same sink events.
 ///
 /// The shell only *observes* here — whatever already applies the change keeps
 /// doing so.
 ///
-/// The indicator being off in `config.toml` is a graceful decline. A PulseAudio
-/// client that cannot come up throws, and `ShellServices.run` records the service
-/// as failed. A missing backlight stays soft on purpose: an empty
-/// `/sys/class/backlight` is the normal state of every desktop machine.
+/// The indicator and the sound both being off in `config.toml` is a graceful
+/// decline; either one alone still needs the PulseAudio half, so the sound
+/// keeps working with the card switched off. A PulseAudio client that cannot
+/// come up throws, and `ShellServices.run` records the service as failed. A
+/// missing backlight stays soft on purpose: an empty `/sys/class/backlight` is
+/// the normal state of every desktop machine.
 Future<void> startOsdService(OsdConfig config) async {
-  if (!config.enabled) {
-    debugPrint('OSD disabled in config; indicator not started');
+  // Configured before the decline, so the settings pane's preview plays what
+  // the file says even on a shell that is not watching the volume.
+  VolumeSoundStore.instance.configure(config.volumeSoundConfig);
+  if (!config.enabled && !config.volumeSoundConfig.enabled) {
+    debugPrint('OSD and volume sound disabled in config; not started');
     return;
   }
-  OsdStore.instance.hideDelay = Duration(milliseconds: config.hideDelayMs);
-
-  _startBrightness();
-  await _startAudio();
+  if (config.enabled) {
+    OsdStore.instance.hideDelay = Duration(milliseconds: config.hideDelayMs);
+    _startBrightness();
+  }
+  await _startAudio(showIndicator: config.enabled);
 }
 
 /// No backlight, or no udev to watch it with, is a decline, never a failure —
@@ -44,7 +52,10 @@ void _startBrightness() {
 /// volume indicator. The `refreshDefaults` guard below is different: it is
 /// runtime resilience against a query failing mid-session, after the
 /// subscription (the part that matters) is already live.
-Future<void> _startAudio() async {
+///
+/// [showIndicator] false is the card switched off with the sound left on: the
+/// events are still followed, and only [VolumeSoundStore] hears about them.
+Future<void> _startAudio({required bool showIndicator}) async {
   final client = PulseClient();
   await client.initialize();
 
@@ -82,14 +93,24 @@ Future<void> _startAudio() async {
   // the events are simply dropped.
   client.onSinkChanged.listen((sink) {
     if (!tracker.observeSink(sink)) return;
-    OsdStore.instance.show(OsdKind.volume, sink.volume, muted: sink.mute);
+    if (showIndicator) {
+      OsdStore.instance.show(OsdKind.volume, sink.volume, muted: sink.mute);
+    }
+    // The sound plays through this very sink, so a change that leaves it muted
+    // would play into nothing; the unmute that follows is the one to hear. The
+    // tracker's filter is what keeps this from answering our own playback: a
+    // stream connecting emits a sink event, but moves neither volume nor mute.
+    if (!sink.mute) VolumeSoundStore.instance.playNow();
   });
 
-  client.onSourceChanged.listen((source) {
-    if (!tracker.observeSource(source)) return;
-    OsdStore.instance
-        .show(OsdKind.microphone, source.volume, muted: source.mute);
-  });
+  // The microphone makes no sound: it is not what anybody is listening to.
+  if (showIndicator) {
+    client.onSourceChanged.listen((source) {
+      if (!tracker.observeSource(source)) return;
+      OsdStore.instance
+          .show(OsdKind.microphone, source.volume, muted: source.mute);
+    });
+  }
 
   // A default device moving is reported on PulseAudio's *server* facility and
   // nowhere else: neither the device being left nor the one being adopted emits

@@ -1440,7 +1440,7 @@ The lock screen starts as a clock, date, and the account name over the wallpaper
 
 ## Calendar
 
-The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Google Calendar events appear only once an account is signed in under Settings › Accounts; see Google Account.
+The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Google Calendar events appear only once an account is signed in under Settings › Accounts; see Google Account. Settings › Shell › Calendar holds both this section and, per signed-in account, which of its calendars are read.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -1494,6 +1494,7 @@ There is nothing to set up. Open Settings › Accounts and press **Sign in with 
 - **Your calendar goes straight from Google to your computer.** The project runs no server, so nothing passes through or is stored anywhere but your own machine. See the [privacy policy](https://miracle-wm-org.github.io/moonswing/privacy/).
 - **Add account** signs in another account. Google shows its account chooser so you can pick a different one. Signing in again as an account that is already there replaces its sign-in rather than listing it twice.
 - **Sign out** revokes that account's grant at Google and deletes it from disk. The other accounts stay signed in. You can also revoke a grant from [your Google account's third-party connections](https://myaccount.google.com/connections).
+- **Calendar settings** takes you to Settings › Shell › Calendar, where the rest of this section is set: which of each account's calendars are read, and what they are used for.
 
 Earlier builds had you create your own OAuth client. A sign-in made that way cannot carry over. The Accounts page says so once, forgets it, and **Sign in with Google** reconnects you.
 
@@ -1501,7 +1502,7 @@ Earlier builds had you create your own OAuth client. A sign-in made that way can
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is every signed-in account's main calendar. Settings › Accounts lists each account's calendars with a switch each. |
+| `calendars` | array of strings | `["primary"]` | Calendar ids to read. `primary` is every signed-in account's main calendar. Settings › Shell › Calendar lists each signed-in account's calendars under its own heading, with a switch each. |
 | `show_in_calendar` | bool | `true` | Draw the accounts' events on the Calendar tab, and offer its Week and Day views. |
 | `todo_sync` | bool | `false` | Put each of today's timed events on the todo board as a card (see below). |
 | `refresh_minutes` | int | `5` | How often events are read again while something is showing them (1–60). Nothing is fetched while nothing shows them. |
@@ -1521,7 +1522,7 @@ All-day events stay in the Calendar tab and never become cards. A meeting you ar
 
 Calendar ids are unique across Google accounts (a main calendar's id is the account's address), so one `calendars` list covers every account. Each id is read through the first account whose calendar list holds it, so a calendar shared with two of your accounts is read once. An id no account lists, such as a public calendar you typed in by hand, is read through the first account.
 
-Switching one account's main calendar off in Settings while `primary` is on writes the other accounts' addresses in its place. Switching it back on folds them into `primary` again.
+Switching one account's main calendar off in Settings › Shell › Calendar while `primary` is on writes the other accounts' addresses in its place. Switching it back on folds them into `primary` again.
 
 ```toml
 [google]
@@ -1552,7 +1553,7 @@ silenced = false
 
 ## On-Screen Indicator
 
-The `[osd]` section configures the indicator that appears when the volume, microphone volume, or screen brightness changes — an icon for what changed plus a bar for its current level, floating above the bottom edge of every monitor. It fades out once the changes stop.
+The `[osd]` section configures the indicator that appears when the volume, microphone volume, or screen brightness changes, and the sound a volume change makes. The indicator is an icon for what changed plus a bar for its current level, floating above the bottom edge of every monitor. It fades out once the changes stop.
 
 The shell only *watches* these values; it does not bind the keys. Whatever already applies the change (your compositor's media-key bindings, or the shell's own volume slider) keeps doing so, and the indicator follows. Brightness is read from `/sys/class/backlight`, so machines without a panel backlight simply never see the sun indicator.
 
@@ -1561,12 +1562,27 @@ The shell only *watches* these values; it does not bind the keys. Whatever alrea
 | `enabled` | boolean | `true` | Whether to show the indicator at all. |
 | `hide_delay_ms` | integer | `1500` | How long the indicator stays up after the last change. Clamped to a minimum of 100. |
 | `margin` | integer | `96` | Distance from the bottom edge of the screen, in pixels. |
+| `volume_sound` | string | `"pop"` | What plays when the output volume changes or is unmuted. See below. |
+| `volume_sound_volume` | float | `0.6` | How loud that sound is, from 0 to 1. Clamped to that range. |
+
+A volume change also makes a small sound, played through the output that just changed — so you hear the new level before any music does. A mute is silent; the unmute that follows is not. A volume key held down ticks at most about eight times a second rather than buzzing. The sound works with `enabled = false` too: switching the card off leaves it playing.
+
+`volume_sound` takes the same spellings as every other sound key:
+
+- **A shipped sound** — `pop` (a short, soft tone; the default), `tick` (a dry click) or `blip` (a brighter tone that carries over music). They are synthesised by the shell itself, so they are always there and are free software under the shell's own licence.
+- **A sound-theme name** — looked up in the `sounds/` directories of your XDG data dirs. `audio-volume-change` is the stock sound from `sound-theme-freedesktop`, if you would rather hear what other desktops play.
+- **A path** to an audio file of your own; `~/` is expanded.
+- **`none`** (or `off`, `silent`) for no sound.
+
+A name that finds nothing is not treated as silence: Settings › Shell › Volume Sound says what is wrong, and its play button previews the sound. Both keys are live, but if the indicator *and* the sound were both off when the shell started, nothing is watching the volume until it is restarted.
 
 ```toml
 [osd]
 enabled = true
 hide_delay_ms = 1500
 margin = 96
+volume_sound = "pop"
+volume_sound_volume = 0.6
 ```
 
 ## Screen Sharing

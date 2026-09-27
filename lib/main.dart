@@ -74,6 +74,7 @@ import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/osd/osd.dart';
 import 'package:moonswing/osd/osd_service.dart';
 import 'package:moonswing/osd/osd_store.dart';
+import 'package:moonswing/osd/volume_sound.dart';
 import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup.dart';
@@ -2008,6 +2009,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // wait for a restart. The service compares before acting, so this costs
     // nothing on keystrokes that changed something else.
     PowerKeyService.instance.setConfig(next.power);
+    // So does the volume sound: it plays from a PulseAudio handler, not a
+    // widget, and a changed sound is heard on the next key press. `configure`
+    // compares first, as `setConfig` does.
+    VolumeSoundStore.instance.configure(next.osd.volumeSoundConfig);
   }
 
   /// Re-floats the bars when the active theme's margin changes.

@@ -15,6 +15,7 @@ import 'package:moonswing/overlay/settings/shell/lock.dart';
 import 'package:moonswing/overlay/settings/shell/modules.dart';
 import 'package:moonswing/overlay/settings/shell/panels.dart';
 import 'package:moonswing/overlay/settings/shell/power.dart';
+import 'package:moonswing/overlay/settings/shell/volume_sound.dart';
 
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
@@ -212,8 +213,14 @@ const List<_ShellCategory> _shellCategories = [
     build: _buildPower,
   ),
   _ShellCategory(
+    title: 'Volume Sound',
+    subtitle: 'What a volume change sounds like',
+    icon: FontAwesomeIcons.volumeHigh,
+    build: _buildVolumeSound,
+  ),
+  _ShellCategory(
     title: 'Calendar',
-    subtitle: 'Month grid',
+    subtitle: 'Month grid and Google calendars',
     icon: FontAwesomeIcons.calendarDays,
     build: _buildCalendar,
   ),
@@ -226,6 +233,8 @@ Widget _buildBackground(ConfigStore store) => BackgroundSection(store: store);
 Widget _buildDesktop(ConfigStore store) => DesktopSection(store: store);
 Widget _buildLock(ConfigStore store) => LockSection(store: store);
 Widget _buildPower(ConfigStore store) => PowerSection(store: store);
+Widget _buildVolumeSound(ConfigStore store) =>
+    VolumeSoundSection(store: store);
 Widget _buildCalendar(ConfigStore store) => CalendarSection(store: store);
 
 /// Landing view: the "Moonswing" header plus a tappable row per category.
