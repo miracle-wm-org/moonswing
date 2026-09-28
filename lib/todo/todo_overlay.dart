@@ -1382,6 +1382,9 @@ class _TodoEditorState extends State<_TodoEditor> {
   late final TextEditingController _title = TextEditingController(
     text: widget.existing?.title ?? '',
   );
+
+  /// The title's, so the editor can hand it the keyboard as it opens.
+  final FocusNode _titleFocus = FocusNode(debugLabel: 'todo title');
   late final TextEditingController _body = TextEditingController(
     text: widget.existing?.body ?? '',
   );
@@ -1412,6 +1415,12 @@ class _TodoEditorState extends State<_TodoEditor> {
     for (final controller in [_due, _every, _start]) {
       controller.addListener(_onDraftChanged);
     }
+    // Asked for, not `autofocus`: that only takes an empty focus scope, and the
+    // board's search field already holds this one, so the title would open
+    // unfocused and the first keystrokes would go to the search.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _titleFocus.requestFocus();
+    });
   }
 
   void _onDraftChanged() {
@@ -1423,6 +1432,7 @@ class _TodoEditorState extends State<_TodoEditor> {
     for (final c in [_title, _body, _due, _every, _start]) {
       c.dispose();
     }
+    _titleFocus.dispose();
     super.dispose();
   }
 
@@ -1558,7 +1568,7 @@ class _TodoEditorState extends State<_TodoEditor> {
             const _Label('Title'),
             SettingsTextField(
               controller: _title,
-              autofocus: true,
+              focusNode: _titleFocus,
               hint: 'What needs doing',
               onChanged: (_) {},
               onSubmitted: (_) => _save(),

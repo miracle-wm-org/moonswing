@@ -106,6 +106,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('New item'), findsOneWidget);
 
+    // The title has the keyboard at once, though the board's search field
+    // held it when the editor opened.
+    final title = tester.widget<EditableText>(find.byType(EditableText).at(1));
+    expect(title.focusNode.hasPrimaryFocus, isTrue);
+
     // The editor's title field; the first EditableText is the board's search.
     await tester.enterText(find.byType(EditableText).at(1), 'Write report');
     await tester.pump();
