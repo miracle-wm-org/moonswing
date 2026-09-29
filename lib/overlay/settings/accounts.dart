@@ -1,11 +1,13 @@
 // Settings › Accounts: the services the whole shell signs in to once — any
-// number of Google accounts and a GitHub account — each on a card in the
+// number of Google accounts, a GitHub account and a CalDAV server — each on a
+// card in the
 // service's own colours, saying whether it is linked, as whom, and what in the
 // shell reads it.
 //
-// An account is not config. Each sign-in runs as the project's own OAuth app,
+// An account is not config. Each OAuth sign-in runs as the project's own app,
 // so there is nothing to set up before it, and the grant it earns lives in the
-// XDG state directory behind `GoogleAccountStore` / `GithubAccountStore`. The
+// XDG state directory behind `GoogleAccountStore` / `GithubAccountStore`; the
+// CalDAV password lives there too, behind `CalDavAccountStore`. The
 // stores come from `AccountsScope`, the same ones every module and desktop
 // widget reads, so a sign-in here is the one they all use. What the shell
 // *does* with an account is ordinary config on the page of whatever reads it —
@@ -17,10 +19,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/brand_marks.dart';
+import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
+import 'package:moonswing/overlay/settings/accounts/caldav_account.dart';
 import 'package:moonswing/overlay/settings/accounts/github_account.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -33,14 +37,17 @@ class AccountsSettingsPage extends StatefulWidget {
     super.key,
     GoogleAccountStore? account,
     GithubAccountStore? github,
+    CalDavAccountStore? caldav,
     this.copy = copyTextToClipboard,
   }) : _account = account,
-       _github = github;
+       _github = github,
+       _caldav = caldav;
 
   /// Injected by widget tests, so nothing here touches the network. Null reads
   /// the [AccountsScope].
   final GoogleAccountStore? _account;
   final GithubAccountStore? _github;
+  final CalDavAccountStore? _caldav;
 
   /// How the GitHub sign-in code reaches the clipboard; tests must not fork
   /// `wl-copy`.
@@ -55,12 +62,15 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
       widget._account ?? AccountsScope.googleOf(context);
   late final GithubAccountStore _github =
       widget._github ?? AccountsScope.githubOf(context);
+  late final CalDavAccountStore _caldav =
+      widget._caldav ?? AccountsScope.caldavOf(context);
 
   @override
   void initState() {
     super.initState();
     _account.load();
     _github.load();
+    _caldav.load();
   }
 
   @override
@@ -110,6 +120,8 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
                 ),
                 const SizedBox(height: 28),
                 GithubAccountCard(account: _github, copy: widget.copy),
+                const SizedBox(height: 28),
+                CalDavAccountCard(account: _caldav),
               ],
             ),
           ),

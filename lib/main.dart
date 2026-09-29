@@ -57,7 +57,7 @@ import 'package:moonswing/keybinds/keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
 import 'package:moonswing/todo/todo_controller.dart';
 import 'package:moonswing/todo/todo_overlay.dart';
-import 'package:moonswing/todo/todo_remote_backup.dart';
+import 'package:moonswing/todo/todo_caldav_sync.dart';
 import 'package:moonswing/todo/todo_store.dart';
 import 'package:moonswing/scratchpad/scratchpad_store.dart';
 import 'package:moonswing/launcher/app_index.dart';
@@ -289,11 +289,11 @@ void _startShellServices({
   // what is due today — the reminder a login is meant to bring. After the
   // notification service so the reminder lands in a list the daemon owns. Not
   // a `ShellService`, [startKeybindService]'s reason: no panel waits on it,
-  // and a board file that will not read is the board's to say. The backup
-  // servers come after it: they send the board it reads, and arm no timer at
-  // all when none is configured.
+  // and a board file that will not read is the board's to say. The task-list
+  // sync comes after it: it sends the board it reads, and arms no timer at all
+  // while no list is linked.
   startTodoService();
-  startTodoRemoteBackup();
+  startTodoCalDavSync();
   // The Google account under Settings › Accounts: reads the saved grant and
   // starts the todo board's calendar sync if `[google] todo_sync` asks for it.
   // After the board, whose cards it keeps.

@@ -140,11 +140,4 @@ void main() {
       expect(saved!.backup.items.single.id, 'a');
     });
   });
-
-  test('the digest is 64-bit FNV-1a', () {
-    // The published test vectors.
-    expect(todoBackupDigest(''), 'cbf29ce484222325');
-    expect(todoBackupDigest('a'), 'af63dc4c8601ec8c');
-    expect(todoBackupDigest('foobar'), '85944171f73967e8');
-  });
 }

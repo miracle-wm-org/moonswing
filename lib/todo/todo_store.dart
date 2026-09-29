@@ -7,6 +7,7 @@ import 'package:sqlite3/sqlite3.dart' show SqliteException;
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/todo/todo_backup.dart';
 import 'package:moonswing/todo/todo_calendar_sync.dart';
+import 'package:moonswing/todo/todo_caldav_map.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_standup.dart';
@@ -112,11 +113,9 @@ class TodoStore extends ChangeNotifier {
   final bool _autoTimers;
   final bool _backups;
 
-  /// Called with the backup file's contents each time a backup write succeeds
-  /// — after every write that lands, and once after the board is read. The
-  /// backup servers
-  /// (`todo_remote_backup.dart`) listen here.
-  void Function(String contents)? onBackupWritten;
+  /// Called after every write of the board that lands — what the task-list
+  /// sync (`todo_caldav_sync.dart`) sends on from.
+  VoidCallback? onBoardWritten;
 
   /// Called with the reminder the start of each day produces. Injectable so a
   /// test never posts into the shell's notification list; the singleton wires
@@ -348,6 +347,8 @@ class TodoStore extends ChangeNotifier {
       _lastStandup = db.standupAt;
       _standups = List.unmodifiable(db.standups);
       _dismissedCalendarKeys = db.dismissedCalendarKeys;
+      _remoteLink = db.remoteLink;
+      _tombstones = List.unmodifiable(db.tombstones);
       _markSaved();
       _loadError = null;
     } on TodoFormatException catch (e) {
@@ -442,8 +443,8 @@ class TodoStore extends ChangeNotifier {
     return aside;
   }
 
-  /// Replaces the whole board with [backup] — a restore from a backup server,
-  /// or from the backup file after the user put an older one back.
+  /// Replaces the whole board with [backup] — a restore from the backup file
+  /// after the user put an older one back.
   ///
   /// The board being replaced is saved first, beside the backup file, as
   /// `todo-before-restore-<time>.json`, and that path is returned (null when
@@ -457,23 +458,7 @@ class TodoStore extends ChangeNotifier {
       );
     }
     _writeNow();
-    String? kept;
-    if (editable && (_items.isNotEmpty || _notes.isNotEmpty)) {
-      final stamp = _now().toUtc().toIso8601String().replaceAll(
-        RegExp(r'[:.]'),
-        '-',
-      );
-      kept =
-          '${todoBackupDirectory(directory)}/todo-before-restore-$stamp.json';
-      try {
-        await TodoBackupFile(kept).write(encodeTodoBackup(_items, _notes));
-      } on FileSystemException catch (e) {
-        throw TodoFormatException(
-          'The board was not replaced, because a copy of it could not be '
-          'saved first: ${e.message}',
-        );
-      }
-    }
+    final kept = await _keepBeforeReplacing();
     var db = _db;
     if (db == null && _damaged) {
       try {
@@ -506,6 +491,30 @@ class TodoStore extends ChangeNotifier {
     return kept;
   }
 
+  /// Saves the board as it is beside the backup file, as
+  /// `todo-before-restore-<time>.json`, before something replaces it, and
+  /// returns where — or null when there was nothing to keep. Throws
+  /// [TodoFormatException] when the copy could not be made, so nothing is
+  /// replaced without one.
+  Future<String?> _keepBeforeReplacing() async {
+    if (!editable || (_items.isEmpty && _notes.isEmpty)) return null;
+    final stamp = _now().toUtc().toIso8601String().replaceAll(
+      RegExp(r'[:.]'),
+      '-',
+    );
+    final kept =
+        '${todoBackupDirectory(directory)}/todo-before-restore-$stamp.json';
+    try {
+      await TodoBackupFile(kept).write(encodeTodoBackup(_items, _notes));
+    } on FileSystemException catch (e) {
+      throw TodoFormatException(
+        'The board was not replaced, because a copy of it could not be '
+        'saved first: ${e.message}',
+      );
+    }
+    return kept;
+  }
+
   /// The backup file as it is on disk — for a restore from it, after the user
   /// has put back a copy they kept.
   Future<({TodoBackup backup, DateTime saved})?> readBackupFile() =>
@@ -534,10 +543,6 @@ class TodoStore extends ChangeNotifier {
     }
     final changed = error != _backupError || wrote;
     _backupError = error;
-    // Unchanged contents too: the first write after start-up is usually an
-    // unchanged file, and a server that was not sent the last board before a
-    // restart is still owed it. The listener compares digests itself.
-    if (error == null) onBackupWritten?.call(contents);
     if (changed && !_disposed) notifyListeners();
   }
 
@@ -702,6 +707,9 @@ class TodoStore extends ChangeNotifier {
     final current = item(id);
     if (!editable || current == null) return;
     if (current.external case final e?) _dismissCalendarKey(e.key);
+    if (current.remote case final r? when _remoteLink != null) {
+      _addTombstone((href: r.href, etag: r.etag));
+    }
     _commit([
       for (final i in _items)
         if (i.id != id) i,
@@ -747,6 +755,156 @@ class TodoStore extends ChangeNotifier {
       dismissed: _dismissedCalendarKeys,
     );
     if (next != null) _commit(next);
+  }
+
+  // --- the synced task list ----------------------------------------------
+
+  TodoRemoteLink? _remoteLink;
+  List<TodoTombstone> _tombstones = const [];
+
+  /// The CalDAV task list the board syncs with, or null. Kept in the database,
+  /// with the board, because the cards' [TodoRemote] records mean something
+  /// only against it.
+  TodoRemoteLink? get remoteLink => _remoteLink;
+
+  /// Tasks deleted here whose delete the server has not had yet.
+  List<TodoTombstone> get tombstones => _tombstones;
+
+  /// A fresh card id, for a card a sync makes.
+  String newCardId() => _newId();
+
+  /// Links the board to [link], or unlinks it when null. Either way every
+  /// card forgets the task it was — a record means something only against the
+  /// list it came from — and the owed deletes are dropped.
+  ///
+  /// With [replaceLocal], every card that would be synced is removed first,
+  /// so the board becomes the list; the board as it was is saved beside the
+  /// backup file, and that path returned, as a restore does. Throws
+  /// [TodoFormatException] when the board is not [editable] or that copy
+  /// could not be made.
+  Future<String?> linkRemote(
+    TodoRemoteLink? link, {
+    bool replaceLocal = false,
+  }) async {
+    if (!editable) {
+      throw TodoFormatException(
+        _loadError ?? 'The board has not been read yet.',
+      );
+    }
+    _writeNow();
+    final kept = replaceLocal ? await _keepBeforeReplacing() : null;
+    final next = [
+      for (final i in _items)
+        if (!(replaceLocal && isSyncedCard(i)))
+          i.remote == null ? i : i.copyWith(remote: null),
+    ];
+    _remoteLink = link;
+    _tombstones = const [];
+    try {
+      _db?.recordRemoteLink(link);
+      _db?.clearTombstones();
+    } on SqliteException catch (e) {
+      debugPrint('todo: could not record the task list: ${e.message}');
+    }
+    if (listEquals(next, _items)) {
+      notifyListeners();
+    } else {
+      _commit(next);
+    }
+    return kept;
+  }
+
+  /// Records how far the last sync of [remoteLink] got. Not announced:
+  /// nothing on the board renders it.
+  void recordChangeToken(String? token) {
+    final link = _remoteLink;
+    if (link == null || link.changeToken == token) return;
+    _remoteLink = link.copyWith(changeToken: token);
+    try {
+      _db?.recordRemoteLink(_remoteLink);
+    } on SqliteException catch (e) {
+      debugPrint('todo: could not record the sync: ${e.message}');
+    }
+  }
+
+  void _addTombstone(TodoTombstone tombstone) {
+    _tombstones = List.unmodifiable([
+      for (final t in _tombstones)
+        if (t.href != tombstone.href) t,
+      tombstone,
+    ]);
+    try {
+      _db?.recordTombstones(add: [tombstone]);
+    } on SqliteException catch (e) {
+      debugPrint('todo: could not record a deleted task: ${e.message}');
+    }
+  }
+
+  /// Drops the tombstones for [hrefs]: the server has had the delete, or has
+  /// a newer version the delete should not win over.
+  void forgetTombstones(Iterable<String> hrefs) {
+    final gone = hrefs.toSet();
+    if (gone.isEmpty) return;
+    _tombstones = List.unmodifiable(
+      _tombstones.where((t) => !gone.contains(t.href)),
+    );
+    try {
+      _db?.recordTombstones(remove: gone);
+    } on SqliteException catch (e) {
+      debugPrint('todo: could not record a sent delete: ${e.message}');
+    }
+  }
+
+  /// Records that the server now has card [id] as [record], whatever has
+  /// happened to the card's fields since the write was sent — a field edited
+  /// meanwhile simply differs from [record] and goes on the next sync. A card
+  /// deleted meanwhile is owed a delete of the task just written.
+  void recordRemote(String id, TodoRemote record) {
+    if (!editable) return;
+    final current = item(id);
+    if (current == null) {
+      if (_remoteLink != null) {
+        _addTombstone((href: record.href, etag: record.etag));
+      }
+      return;
+    }
+    if (current.remote == record) return;
+    _commit([
+      for (final i in _items) i.id == id ? i.copyWith(remote: record) : i,
+    ]);
+  }
+
+  /// Applies what a pull found (see [planPull]). A card is only replaced or
+  /// removed if it is still the version the plan was made from: an edit made
+  /// while the server was answering wins, and is merged on the next sync.
+  /// A card whose column changed goes to the top of its new column, the way
+  /// a move from the editor does.
+  void applyRemotePull(TodoPull pull) {
+    if (!editable || pull.isEmpty) return;
+    var next = [..._items];
+    for (final (:was, next: replacement) in pull.changed) {
+      final at = next.indexWhere((i) => i.id == was.id);
+      if (at < 0 || next[at] != was) continue;
+      if (replacement.column == was.column) {
+        next[at] = replacement;
+        continue;
+      }
+      next.removeAt(at);
+      final first = next.indexWhere((i) => i.column == replacement.column);
+      next.insert(first < 0 ? next.length : first, replacement);
+    }
+    final removed = {for (final r in pull.removed) r.id: r};
+    next = [
+      for (final i in next)
+        if (removed[i.id] != i) i,
+    ];
+    for (final card in pull.added) {
+      if (next.any((i) => i.id == card.id)) continue;
+      final first = next.indexWhere((i) => i.column == card.column);
+      next.insert(first < 0 ? next.length : first, card);
+    }
+    if (listEquals(next, _items)) return;
+    _commit(next);
   }
 
   /// Creates a note and returns its id, or null when the store is not
@@ -865,6 +1023,7 @@ class TodoStore extends ChangeNotifier {
         db.apply(changes, at: _now());
         _markSaved();
         _queueBackup();
+        onBoardWritten?.call();
       } catch (e) {
         error = 'Could not save $path: $e';
       }

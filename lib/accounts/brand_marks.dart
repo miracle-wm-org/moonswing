@@ -9,7 +9,10 @@
 // Arithmetic rather than image assets, for the reason `pubspec.yaml` has no
 // `assets:` section: nothing in the shell resolves paths relative to the
 // bundle. Google's G is four arcs and a bar; GitHub's mark is Font
-// Awesome's.
+// Awesome's. CalDAV is an open protocol with no brand of its own, so its tile
+// is a plain calendar in a neutral slate — the one mark here that is not
+// somebody's livery, and which is never a sign-in *button*, since there is no
+// page of anybody's that it opens.
 
 import 'dart:math' as math;
 
@@ -24,7 +27,8 @@ import 'package:moonswing/theme/tokens.dart';
 /// A service Settings › Accounts can link.
 enum AccountBrand {
   google('Google'),
-  github('GitHub');
+  github('GitHub'),
+  caldav('CalDAV');
 
   const AccountBrand(this.label);
 
@@ -58,6 +62,13 @@ abstract final class GithubColors {
   static const Color canvasHover = Color(0xFF32383F);
 
   /// A hairline round the dark tile, so it holds its edge on a dark theme.
+  static const Color outline = Color(0x2EFFFFFF);
+}
+
+/// The CalDAV tile's colours: not a brand, a neutral that reads on any theme.
+abstract final class CalDavColors {
+  static const Color canvas = Color(0xFF3D5A6C);
+  static const Color mark = Color(0xFFFFFFFF);
   static const Color outline = Color(0x2EFFFFFF);
 }
 
@@ -96,6 +107,21 @@ class BrandMark extends StatelessWidget {
           FontAwesomeIcons.github,
           size: size * 0.62,
           color: GithubColors.mark,
+        ),
+      ),
+      AccountBrand.caldav => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: CalDavColors.canvas,
+          borderRadius: radius,
+          border: Border.all(color: CalDavColors.outline),
+        ),
+        alignment: Alignment.center,
+        child: FaIcon(
+          FontAwesomeIcons.calendarCheck,
+          size: size * 0.5,
+          color: CalDavColors.mark,
         ),
       ),
     };

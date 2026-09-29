@@ -55,8 +55,8 @@ On your computer:
 - **Events** are held in memory while something is showing them, and are not written to
   disk.
 - **Meeting cards** you chose to put on the todo board are saved with the rest of your
-  board in `~/.local/share/moonswing/notes.db`. If you configured a backup server for the
-  board, they go wherever you pointed it.
+  board in `~/.local/share/moonswing/notes.db`, and in the board's backup file beside it.
+  They are never sent to a task list the board syncs with.
 
 ### Sharing
 

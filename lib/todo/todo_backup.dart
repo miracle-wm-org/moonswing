@@ -3,9 +3,8 @@
 //
 // The database is the board; this is the copy that survives it. The store
 // rewrites it after every write that lands, and reads it back when the
-// database is missing or damaged. It is also what a backup server is sent
-// (`todo_remote_backup.dart`) and what a restore reads, so there is one format
-// for all three.
+// database is missing or damaged. It is also what a restore reads, so there is
+// one format for both.
 //
 // Written to be kept in Git: pretty-printed, one field per line, cards in board
 // order and notes in the order they were made, with no timestamp of its own —
@@ -205,18 +204,4 @@ class TodoBackupFile {
       return null;
     }
   }
-}
-
-/// A 64-bit FNV-1a digest of [text]'s UTF-8, as hex: how a backup server's
-/// record says what it was last sent, across restarts, without keeping the
-/// board itself in the record.
-String todoBackupDigest(String text) {
-  // The shell only runs on the VM, whose `int` is 64-bit and wraps on
-  // overflow — which is exactly FNV's arithmetic mod 2^64.
-  var hash = 0xcbf29ce484222325;
-  for (final byte in utf8.encode(text)) {
-    hash = (hash ^ byte) * 0x100000001b3;
-  }
-  String half(int value) => value.toRadixString(16).padLeft(8, '0');
-  return '${half(hash >>> 32)}${half(hash & 0xffffffff)}';
 }

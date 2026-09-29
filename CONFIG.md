@@ -691,26 +691,56 @@ what changed. Replacing the file with a symlink into a repository you already
 keep works too: it is written through the link.
 
 **Backups…** at the bottom of the board (or the cloud icon beside the search
-field) also lists **backup servers**, which the shell sends the backup file to
-itself. Any WebDAV folder works — Nextcloud, ownCloud, most NAS boxes, and many
-hosted file services — as does any address that accepts an HTTP `PUT` and
-answers a `GET`. Give it a folder address such as
-`https://cloud.example.com/remote.php/dav/files/me/Backups/` and the board is
-saved there as `moonswing-todo.json`; an address ending in `.json` is used as
-the file itself. Each server is sent the board every hour, every six hours or
-once a day — but only when it has changed since the last copy — and, unless
-turned off, also keeps a copy named for each day
-(`moonswing-todo-2026-09-25.json`), so an emptied board is not the only copy on
-the server. A failed upload is shown in red and tried again after 15 minutes.
-Add as many servers as you like; **Restore…** replaces the board with a
-server's copy, after saving the current board beside the backup file. **Restore
-from this file…** does the same from the local backup, for when you have put
-back an older one.
+field) shows where the file is, and **Restore from this file…** replaces the
+board with it — for when you have put back an older one — after saving the
+current board beside it.
 
-Server addresses, user names and passwords are kept in
-`~/.local/state/moonswing/todo-backup-servers.json` (or under
-`$XDG_STATE_HOME`), readable only by you, rather than in `config.toml`. Use an
-app password where the server offers one, and `https://`.
+#### Task list sync
+
+The board can be kept in step with a task list on a CalDAV server — Radicale,
+Baïkal, Nextcloud, ownCloud, Fastmail, iCloud and the like — so a phone
+(DAVx⁵ with jtx Board or Tasks.org) or another computer (Thunderbird,
+Evolution) can read and change the same cards. The board itself stays where it
+is: the database above is still what is on screen, it works offline, search
+still covers every card and note, and the backup file is still written.
+
+Sign in once under **Settings › Accounts › CalDAV** with the server's address
+(or the address of one task list), your user name and a password — an app
+password, where the server offers them. The shell asks the server for your task
+lists before keeping anything, so a wrong address or password is said there and
+then. The address and password are kept in
+`~/.local/state/moonswing/caldav-account.json` (or under `$XDG_STATE_HOME`),
+readable only by you, not in `config.toml`.
+
+Then open **Backups…** on the board, pick a list and **Link**. Linking
+*merges*: every card is sent to the list and every task on it comes to the
+board. With the switch beside it turned on it *replaces* the board instead —
+the cards are removed and the list's tasks take their place, after the board is
+saved beside the backup file as a restore does. **Unlink** stops the syncing
+and leaves both sides as they are.
+
+What a task list holds of a card is its title, its notes, its column, its due
+day and a simple repeat. The columns are the task's status — Todo is
+*needs action*, In Progress *in process*, Finished *completed* and Abandoned
+*cancelled*; an Inbox card is *needs action* with a marker other apps keep and
+ignore. A repeat of every so many days, weeks, months or years goes both ways;
+anything more (say, every Monday and Wednesday) is left on the server as it
+is, and the card does not repeat on the board. The move history and the order
+within a column stay on this machine, and everything a task has that a card
+does not — alarms, categories, another app's own fields — stays on the server
+untouched: only the fields that changed are written back. Meetings the Google
+calendar sync put on the board are never sent.
+
+The board syncs a few seconds after you change it, when you open it, when you
+press **Sync now**, and every five minutes while a list is linked — nothing at
+all when none is. A card changed on both sides since the last sync keeps each
+side's change where they touched different fields; where both changed the same
+field, the server's version is kept and the board lists the cards it happened
+to. A task deleted on the server takes its card with it, unless the card was
+changed here since, in which case it is sent back as a new task; a card deleted
+here is deleted there, unless the task was changed there since. A server that
+cannot be reached is shown in red along the bottom of the board, and nothing is
+lost: whatever did not get through goes on the next sync that does.
 
 ## Shortcuts
 

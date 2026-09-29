@@ -1,10 +1,10 @@
-// The todo board's backups: where the backup file is and how to keep it
-// somewhere safer, and the backup servers it is sent to.
+// The todo board's backup and sync: where the backup file is, how to keep it
+// somewhere safer, restoring from it — and the CalDAV task list the board is
+// kept in step with.
 //
 // It owns no state of its own worth keeping. [TodoStore] writes the file and
-// restores from it; [TodoRemoteBackup] owns the servers, their schedule and
-// their results. This is the card over the board that shows both, and the form
-// that adds or changes a server.
+// restores from it, and [TodoCalDavSync] owns the link and its runs; this is
+// the card over the board that shows both.
 
 import 'dart:io';
 
@@ -19,9 +19,10 @@ import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/caldav/caldav_client.dart';
 import 'package:moonswing/todo/todo_backup.dart';
+import 'package:moonswing/todo/todo_caldav_sync.dart';
 import 'package:moonswing/todo/todo_model.dart';
-import 'package:moonswing/todo/todo_remote_backup.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
 /// The backups card's width.
@@ -60,36 +61,33 @@ class TodoBackupFooter extends StatelessWidget {
   const TodoBackupFooter({
     super.key,
     required this.store,
-    required this.remote,
+    required this.sync,
     required this.onOpen,
   });
 
   final TodoStore store;
-  final TodoRemoteBackup remote;
+  final TodoCalDavSync sync;
   final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return ListenableBuilder(
-      listenable: Listenable.merge([store, remote]),
+      listenable: Listenable.merge([store, sync]),
       builder: (context, _) {
         final error = store.backupError;
-        final failing = remote.anyFailing;
-        final servers = remote.servers.where((s) => s.enabled).length;
-        final text = StringBuffer()
-          ..write(
-            error != null
-                ? 'The backup file could not be written'
-                : 'Backed up to ${displayPath(store.backupPath)}',
-          );
-        if (servers > 0) {
+        final link = sync.link;
+        final failing = link != null && sync.error != null;
+        final text = StringBuffer(
+          error != null
+              ? 'The backup file could not be written'
+              : 'Backed up to ${displayPath(store.backupPath)}',
+        );
+        if (link != null) {
           text.write(
             failing
-                ? ' · a backup server could not be reached'
-                : servers == 1
-                ? ' · and 1 server'
-                : ' · and $servers servers',
+                ? ' · ${link.name} could not be synced'
+                : ' · synced with ${link.name}',
           );
         }
         final warn = error != null || failing;
@@ -148,15 +146,19 @@ class TodoBackupLayer extends StatelessWidget {
   const TodoBackupLayer({
     super.key,
     required this.store,
-    required this.remote,
+    required this.sync,
     required this.onDone,
+    required this.onOpenAccounts,
     this.copy = copyTextToClipboard,
     this.openFolder = _openFolder,
   });
 
   final TodoStore store;
-  final TodoRemoteBackup remote;
+  final TodoCalDavSync sync;
   final VoidCallback onDone;
+
+  /// Opens Settings › Accounts, where a CalDAV server is signed in to.
+  final VoidCallback onOpenAccounts;
 
   /// How "Copy path" copies; a test records instead of forking `wl-copy`.
   final Future<ClipboardResult> Function(String text) copy;
@@ -171,8 +173,8 @@ class TodoBackupLayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return GestureDetector(
-      // Absorbs clicks meant for the board underneath; not a dismiss, because
-      // the server form may hold a draft.
+      // Absorbs clicks meant for the board underneath; not a dismiss, which is
+      // Done's alone.
       behavior: HitTestBehavior.opaque,
       onTap: () {},
       child: ColoredBox(
@@ -192,8 +194,9 @@ class TodoBackupLayer extends StatelessWidget {
               ),
               child: _BackupCard(
                 store: store,
-                remote: remote,
+                sync: sync,
                 onDone: onDone,
+                onOpenAccounts: onOpenAccounts,
                 copy: copy,
                 openFolder: openFolder,
               ),
@@ -208,15 +211,17 @@ class TodoBackupLayer extends StatelessWidget {
 class _BackupCard extends StatefulWidget {
   const _BackupCard({
     required this.store,
-    required this.remote,
+    required this.sync,
     required this.onDone,
+    required this.onOpenAccounts,
     required this.copy,
     required this.openFolder,
   });
 
   final TodoStore store;
-  final TodoRemoteBackup remote;
+  final TodoCalDavSync sync;
   final VoidCallback onDone;
+  final VoidCallback onOpenAccounts;
   final Future<ClipboardResult> Function(String text) copy;
   final bool Function(String directory) openFolder;
 
@@ -224,19 +229,23 @@ class _BackupCard extends StatefulWidget {
   State<_BackupCard> createState() => _BackupCardState();
 }
 
-/// Which server the form is open for: a new one, or an existing id.
-typedef _Editing = ({String? id});
-
 class _BackupCardState extends State<_BackupCard> {
-  _Editing? _editing;
-
-  /// The outcome of the last thing the user asked for — a copy, a restore, a
-  /// backup now — said where they asked for it.
+  /// The outcome of the last thing the user asked for — a copy, a restore —
+  /// said where they asked for it.
   String? _message;
   bool _messageIsError = false;
   bool _restoring = false;
 
-  late final Listenable _both = Listenable.merge([widget.store, widget.remote]);
+  /// The task list picked to link to, and whether linking replaces the board.
+  CalDavCollection? _chosen;
+  bool _replaceBoard = false;
+  bool _linking = false;
+
+  late final Listenable _all = Listenable.merge([
+    widget.store,
+    widget.sync,
+    widget.sync.accounts,
+  ]);
 
   void _say(String message, {bool error = false}) {
     if (!mounted) return;
@@ -324,23 +333,6 @@ class _BackupCardState extends State<_BackupCard> {
     return saved.backup;
   }, from: 'file');
 
-  Future<void> _backUpNow(BackupServer server) async {
-    final error = await widget.remote.backUpNow(server.id);
-    _say(error ?? 'Sent the board to ${server.label}.', error: error != null);
-  }
-
-  Future<void> _remove(BackupServer server) async {
-    final confirmed = await showSettingsConfirm(
-      context,
-      title: 'Remove ${server.label}?',
-      message:
-          'The board will no longer be sent there. Backups already on the '
-          'server are left where they are.',
-      confirmLabel: 'Remove',
-    );
-    if (confirmed) await widget.remote.remove(server.id);
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
@@ -352,7 +344,7 @@ class _BackupCardState extends State<_BackupCard> {
         boxShadow: [BoxShadow(color: theme.popupShadowColor, blurRadius: 24)],
       ),
       child: ListenableBuilder(
-        listenable: _both,
+        listenable: _all,
         builder: (context, _) => SingleChildScrollView(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -394,12 +386,291 @@ class _BackupCardState extends State<_BackupCard> {
               const SizedBox(height: 16),
               ..._buildFileSection(theme),
               const SizedBox(height: 22),
-              ..._buildServerSection(theme),
+              ..._buildSyncSection(theme),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _link(CalDavCollection list) async {
+    if (_replaceBoard) {
+      final confirmed = await showSettingsConfirm(
+        context,
+        title: 'Replace the board with ${list.name}?',
+        message:
+            'Every card on the board is removed — except meetings from the '
+            'calendar, which are never synced — and the tasks on '
+            '${list.name} take their place.',
+        warning:
+            'The board as it is now is saved beside the backup file first, so '
+            'this can be undone by restoring that.',
+        confirmLabel: 'Replace',
+      );
+      if (!confirmed || !mounted) return;
+    }
+    setState(() => _linking = true);
+    try {
+      final kept = await widget.sync.linkTo(list, replaceLocal: _replaceBoard);
+      final error = widget.sync.error;
+      _say(
+        error ??
+            'Linked to ${list.name}.'
+                '${kept == null ? '' : ' The board it replaced was saved as ${displayPath(kept)}.'}',
+        error: error != null,
+      );
+    } on TodoFormatException catch (e) {
+      _say(e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _linking = false);
+    }
+  }
+
+  Future<void> _unlink() async {
+    final link = widget.sync.link;
+    if (link == null) return;
+    final confirmed = await showSettingsConfirm(
+      context,
+      title: 'Stop syncing with ${link.name}?',
+      message:
+          'The cards stay on the board and the tasks stay on the server; '
+          'they simply stop following each other.',
+      confirmLabel: 'Unlink',
+    );
+    if (confirmed) await widget.sync.unlink();
+  }
+
+  List<Widget> _buildSyncSection(ThemeConfig theme) {
+    final sync = widget.sync;
+    final accounts = sync.accounts;
+    final link = sync.link;
+    final muted = theme.popupForeground.withValues(alpha: 0.7);
+    final intro = Text(
+      'Keep the board in step with a task list on a CalDAV server, so a phone '
+      'or another computer can read and change the same cards. Meetings from '
+      'the calendar stay on this board only.',
+      style: TextStyle(fontSize: ShellFontSizes.secondary, color: muted),
+    );
+    if (link != null) {
+      final error = sync.error;
+      final success = sync.lastSuccess;
+      final status = sync.running
+          ? 'Syncing…'
+          : error ??
+                (success == null
+                    ? 'Not synced yet.'
+                    : 'Last synced ${describeBackupMoment(success, widget.store.now)}.');
+      return [
+        const _Heading('Task list'),
+        intro,
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.popupBackground,
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+            border: Border.all(
+              color: error != null
+                  ? kErrorColor.withValues(alpha: 0.5)
+                  : theme.divider,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  FaIcon(
+                    FontAwesomeIcons.listCheck,
+                    size: ShellFontSizes.caption,
+                    color: _parseColor(link.color) ?? theme.accentText,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      link.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                link.url,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.secondary,
+                  color: theme.popupForeground.withValues(alpha: 0.6),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                status,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.secondary,
+                  color: error != null && !sync.running
+                      ? kErrorColor
+                      : theme.popupForeground.withValues(alpha: 0.75),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  SettingsActionButton(
+                    label: 'Sync now',
+                    compact: true,
+                    loading: sync.running,
+                    onTap: () => sync.syncNow(),
+                  ),
+                  if (accounts.account == null)
+                    SettingsActionButton(
+                      label: 'Sign in…',
+                      compact: true,
+                      onTap: widget.onOpenAccounts,
+                    ),
+                  SettingsActionButton(
+                    label: 'Unlink',
+                    compact: true,
+                    enabled: !sync.running,
+                    onTap: _unlink,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (sync.conflicts.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          SettingsBanner(
+            title: 'Changed in both places',
+            message:
+                'These cards were changed here and on the server at once. '
+                "The server's version of each field was kept:\n"
+                '${sync.conflicts.map((c) => '• $c').join('\n')}',
+            action: SettingsActionButton(
+              label: 'Dismiss',
+              compact: true,
+              onTap: sync.dismissConflicts,
+            ),
+          ),
+        ],
+      ];
+    }
+    final account = accounts.account;
+    if (account == null) {
+      return [
+        const _Heading('Task list'),
+        intro,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            const Expanded(
+              child: SettingsHint('No CalDAV server is signed in to.'),
+            ),
+            const SizedBox(width: 8),
+            SettingsActionButton(
+              label: 'Set up in Settings…',
+              compact: true,
+              onTap: widget.onOpenAccounts,
+            ),
+          ],
+        ),
+      ];
+    }
+    final lists = accounts.taskLists;
+    final chosen = lists.contains(_chosen)
+        ? _chosen
+        : (lists.isEmpty ? null : lists.first);
+    return [
+      const _Heading('Task list'),
+      intro,
+      const SizedBox(height: 10),
+      if (accounts.error.isNotEmpty) ...[
+        Text(
+          accounts.error,
+          style: const TextStyle(
+            fontSize: ShellFontSizes.secondary,
+            color: kErrorColor,
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+      if (lists.isEmpty)
+        Row(
+          children: [
+            Expanded(
+              child: SettingsHint('No task lists found on ${account.label}.'),
+            ),
+            const SizedBox(width: 8),
+            SettingsActionButton(
+              label: 'Look again',
+              compact: true,
+              loading: accounts.busy,
+              onTap: accounts.refreshTaskLists,
+            ),
+          ],
+        )
+      else ...[
+        Row(
+          children: [
+            Expanded(
+              child: SettingsDropdown<CalDavCollection>(
+                items: [
+                  for (final l in lists)
+                    SettingsDropdownItem(value: l, label: l.name),
+                ],
+                selected: chosen,
+                onSelected: (l) => setState(() => _chosen = l),
+              ),
+            ),
+            const SizedBox(width: 8),
+            SettingsActionButton(
+              label: 'Link',
+              primary: true,
+              compact: true,
+              loading: _linking,
+              enabled: chosen != null && !_linking,
+              onTap: () => _link(chosen!),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                _replaceBoard
+                    ? 'Replace the board with the list: its cards are removed '
+                          'and the tasks take their place.'
+                    : 'Merge: every card goes to the list, and every task on '
+                          'it comes to the board.',
+                style: TextStyle(
+                  fontSize: ShellFontSizes.secondary,
+                  color: muted,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SettingsToggle(
+              value: _replaceBoard,
+              onChanged: (v) => setState(() => _replaceBoard = v),
+            ),
+          ],
+        ),
+      ],
+    ];
+  }
+
+  static Color? _parseColor(String? hex) {
+    final match = RegExp(r'^#([0-9a-f]{6})$').firstMatch(hex ?? '');
+    if (match == null) return null;
+    return Color(0xFF000000 | int.parse(match[1]!, radix: 16));
   }
 
   List<Widget> _buildFileSection(ThemeConfig theme) {
@@ -493,8 +764,7 @@ class _BackupCardState extends State<_BackupCard> {
             Text(
               'Commit again whenever you like — by hand, or from a timer. '
               'The file changes only when the board does, so each commit is '
-              'exactly what changed. Or add a backup server below and the '
-              'shell sends it for you.',
+              'exactly what changed.',
               style: TextStyle(
                 fontSize: ShellFontSizes.secondary,
                 color: muted,
@@ -505,91 +775,18 @@ class _BackupCardState extends State<_BackupCard> {
       ),
     ];
   }
-
-  List<Widget> _buildServerSection(ThemeConfig theme) {
-    final remote = widget.remote;
-    final editing = _editing;
-    final muted = theme.popupForeground.withValues(alpha: 0.7);
-    return [
-      Row(
-        children: [
-          const Expanded(child: _Heading('Backup servers', bottom: 0)),
-          if (editing == null)
-            SettingsAddButton(
-              label: 'Add server',
-              onTap: () => setState(() => _editing = (id: null)),
-            ),
-        ],
-      ),
-      const SizedBox(height: 6),
-      Text(
-        'The backup file is sent to each server when the board has changed, '
-        'at most as often as you choose. Any WebDAV folder works — '
-        'Nextcloud, ownCloud, most NAS boxes, many hosted file services — '
-        'as does any address that accepts an HTTP PUT. Passwords are kept '
-        'in ${displayPath(remote.path)}, readable only by you.',
-        style: TextStyle(fontSize: ShellFontSizes.secondary, color: muted),
-      ),
-      if (remote.fileError != null) ...[
-        const SizedBox(height: 8),
-        Text(
-          remote.fileError!,
-          style: const TextStyle(
-            fontSize: ShellFontSizes.secondary,
-            color: kErrorColor,
-          ),
-        ),
-      ],
-      const SizedBox(height: 10),
-      if (editing != null && editing.id == null)
-        _ServerForm(
-          key: const ValueKey('new server'),
-          remote: remote,
-          existing: null,
-          onDone: () => setState(() => _editing = null),
-        ),
-      if (remote.servers.isEmpty && editing == null)
-        const SettingsHint('No backup servers yet.'),
-      for (final server in remote.servers)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: editing?.id == server.id
-              ? _ServerForm(
-                  key: ValueKey('edit ${server.id}'),
-                  remote: remote,
-                  existing: server,
-                  onDone: () => setState(() => _editing = null),
-                )
-              : _ServerRow(
-                  server: server,
-                  status: remote.status(server.id),
-                  busy: remote.busy(server.id) || _restoring,
-                  now: widget.store.now,
-                  onToggle: (on) => remote.update(server.copyWith(enabled: on)),
-                  onBackUp: () => _backUpNow(server),
-                  onRestore: () => _restore(
-                    () => remote.fetch(server.id),
-                    from: 'on ${server.label}',
-                  ),
-                  onEdit: () => setState(() => _editing = (id: server.id)),
-                  onRemove: () => _remove(server),
-                ),
-        ),
-    ];
-  }
 }
 
 class _Heading extends StatelessWidget {
-  const _Heading(this.text, {this.bottom = 6});
+  const _Heading(this.text);
 
   final String text;
-  final double bottom;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Text(
         text,
         style: TextStyle(
@@ -624,406 +821,6 @@ class _CodeBox extends StatelessWidget {
           fontFamily: 'monospace',
           fontSize: ShellFontSizes.secondary,
           color: theme.popupForeground,
-        ),
-      ),
-    );
-  }
-}
-
-/// One server: what it is, how its last attempt went, and what can be done
-/// with it.
-class _ServerRow extends StatelessWidget {
-  const _ServerRow({
-    required this.server,
-    required this.status,
-    required this.busy,
-    required this.now,
-    required this.onToggle,
-    required this.onBackUp,
-    required this.onRestore,
-    required this.onEdit,
-    required this.onRemove,
-  });
-
-  final BackupServer server;
-  final BackupServerStatus status;
-  final bool busy;
-  final DateTime now;
-  final ValueChanged<bool> onToggle;
-  final VoidCallback onBackUp;
-  final VoidCallback onRestore;
-  final VoidCallback onEdit;
-  final VoidCallback onRemove;
-
-  String get _statusLine {
-    if (!server.enabled) return 'Paused.';
-    final error = status.lastError;
-    if (error != null) return error;
-    final success = status.lastSuccess;
-    final when = success == null
-        ? 'Not backed up yet'
-        : 'Last backed up ${describeBackupMoment(success, now)}';
-    return '$when · ${server.frequency.label.toLowerCase()} when the board '
-        'changes.';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final failing = server.enabled && status.lastError != null;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.popupBackground,
-        borderRadius: BorderRadius.circular(ShellRadii.control),
-        border: Border.all(
-          color: failing ? kErrorColor.withValues(alpha: 0.5) : theme.divider,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              FaIcon(
-                FontAwesomeIcons.server,
-                size: ShellFontSizes.caption,
-                color: theme.accentText,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  server.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              SettingsToggle(value: server.enabled, onChanged: onToggle),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            server.fileUri?.toString() ?? server.url,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: ShellFontSizes.secondary,
-              color: theme.popupForeground.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _statusLine,
-            style: TextStyle(
-              fontSize: ShellFontSizes.secondary,
-              color: failing
-                  ? kErrorColor
-                  : theme.popupForeground.withValues(alpha: 0.75),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              SettingsActionButton(
-                label: 'Back up now',
-                compact: true,
-                loading: busy,
-                onTap: onBackUp,
-              ),
-              SettingsActionButton(
-                label: 'Restore…',
-                compact: true,
-                enabled: !busy,
-                onTap: onRestore,
-              ),
-              SettingsActionButton(label: 'Edit', compact: true, onTap: onEdit),
-              SettingsActionButton(
-                label: 'Remove',
-                compact: true,
-                onTap: onRemove,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Adds a server, or changes one. Nothing is saved until Save.
-class _ServerForm extends StatefulWidget {
-  const _ServerForm({
-    super.key,
-    required this.remote,
-    required this.existing,
-    required this.onDone,
-  });
-
-  final TodoRemoteBackup remote;
-  final BackupServer? existing;
-  final VoidCallback onDone;
-
-  @override
-  State<_ServerForm> createState() => _ServerFormState();
-}
-
-class _ServerFormState extends State<_ServerForm> {
-  late final TextEditingController _name = TextEditingController(
-    text: widget.existing?.name ?? '',
-  );
-  late final TextEditingController _url = TextEditingController(
-    text: widget.existing?.url ?? '',
-  );
-  late final TextEditingController _user = TextEditingController(
-    text: widget.existing?.username ?? '',
-  );
-  late final TextEditingController _password = TextEditingController(
-    text: widget.existing?.password ?? '',
-  );
-  late BackupFrequency _frequency =
-      widget.existing?.frequency ?? BackupFrequency.hourly;
-  late bool _keepDaily = widget.existing?.keepDaily ?? true;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _url.addListener(_onUrlChanged);
-  }
-
-  void _onUrlChanged() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    for (final c in [_name, _url, _user, _password]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
-  String? get _error {
-    final url = _url.text.trim();
-    if (url.isEmpty) return null;
-    if (remoteBackupFileUri(url) == null) {
-      return 'The address has to start with https:// (or http://).';
-    }
-    return null;
-  }
-
-  bool get _valid => _url.text.trim().isNotEmpty && _error == null && !_saving;
-
-  Future<void> _save() async {
-    if (!_valid) return;
-    setState(() => _saving = true);
-    final existing = widget.existing;
-    if (existing == null) {
-      await widget.remote.add(
-        name: _name.text,
-        url: _url.text,
-        username: _user.text,
-        password: _password.text,
-        frequency: _frequency,
-        keepDaily: _keepDaily,
-      );
-    } else {
-      await widget.remote.update(
-        existing.copyWith(
-          name: _name.text.trim(),
-          url: _url.text.trim(),
-          username: _user.text,
-          password: _password.text,
-          frequency: _frequency,
-          keepDaily: _keepDaily,
-        ),
-      );
-    }
-    if (mounted) widget.onDone();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final error = _error;
-    final target = remoteBackupFileUri(_url.text);
-    final muted = theme.popupForeground.withValues(alpha: 0.65);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: theme.popupBackground,
-        borderRadius: BorderRadius.circular(ShellRadii.control),
-        border: Border.all(color: theme.accent),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const _FieldLabel('Name'),
-          SettingsTextField(
-            controller: _name,
-            hint: 'Home NAS',
-            onChanged: (_) {},
-          ),
-          const SizedBox(height: 10),
-          const _FieldLabel('Folder address'),
-          SettingsTextField(
-            controller: _url,
-            autofocus: widget.existing == null,
-            hint: 'https://cloud.example.com/remote.php/dav/files/me/Backups/',
-            onChanged: (_) {},
-          ),
-          const SizedBox(height: 4),
-          Text(
-            error ??
-                (target == null
-                    ? 'A WebDAV folder; the board is saved in it as '
-                          '$kRemoteBackupFileName. An address ending in .json '
-                          'is used as the file itself.'
-                    : 'Saved as $target'),
-            style: TextStyle(
-              fontSize: ShellFontSizes.secondary,
-              color: error != null ? kErrorColor : muted,
-            ),
-          ),
-          if (remoteBackupIsInsecure(_url.text)) ...[
-            const SizedBox(height: 4),
-            const Text(
-              'An http:// address sends the password and the board '
-              'unencrypted. Use https:// unless the server is on a network '
-              'you trust.',
-              style: TextStyle(
-                fontSize: ShellFontSizes.secondary,
-                color: kErrorColor,
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _FieldLabel('User name'),
-                    SettingsTextField(controller: _user, onChanged: (_) {}),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _FieldLabel('Password'),
-                    SettingsTextField(
-                      controller: _password,
-                      obscureText: true,
-                      hint: 'An app password, ideally',
-                      onChanged: (_) {},
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          const _FieldLabel('How often'),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SizedBox(
-              width: 200,
-              child: SettingsDropdown<BackupFrequency>(
-                items: [
-                  for (final f in BackupFrequency.values)
-                    SettingsDropdownItem(value: f, label: f.label),
-                ],
-                selected: _frequency,
-                onSelected: (f) => setState(() => _frequency = f),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Only when the board has changed since the last copy was sent.',
-            style: TextStyle(fontSize: ShellFontSizes.secondary, color: muted),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _FieldLabel('Keep a copy for each day', bottom: 2),
-                    Text(
-                      'Also saves moonswing-todo-YYYY-MM-DD.json, so a board '
-                      'emptied by mistake is not the only copy there.',
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.secondary,
-                        color: muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              SettingsToggle(
-                value: _keepDaily,
-                onChanged: (v) => setState(() => _keepDaily = v),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              const Spacer(),
-              SizedBox(
-                width: 90,
-                child: SettingsActionButton(
-                  label: 'Cancel',
-                  onTap: widget.onDone,
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 90,
-                child: SettingsActionButton(
-                  label: 'Save',
-                  primary: true,
-                  enabled: _valid,
-                  loading: _saving,
-                  onTap: _save,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FieldLabel extends StatelessWidget {
-  const _FieldLabel(this.text, {this.bottom = 6});
-
-  final String text;
-  final double bottom;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottom),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: ShellFontSizes.secondary,
-          fontWeight: FontWeight.w600,
-          color: theme.popupForeground.withValues(alpha: 0.75),
         ),
       ),
     );

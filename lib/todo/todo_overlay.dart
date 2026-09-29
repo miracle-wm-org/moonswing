@@ -18,6 +18,7 @@ import 'package:moonswing/app_info.dart' show openUriWithDefault;
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/overlay_search_field.dart';
 import 'package:moonswing/popup_surface.dart';
@@ -25,10 +26,10 @@ import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
+import 'package:moonswing/todo/todo_caldav_sync.dart';
 import 'package:moonswing/todo/todo_layout.dart';
 import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
-import 'package:moonswing/todo/todo_remote_backup.dart';
 import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_standup_panel.dart';
 import 'package:moonswing/todo/todo_store.dart';
@@ -74,7 +75,8 @@ class TodoOverlay extends StatefulWidget {
     required this.closingNotifier,
     required this.onClosed,
     this.store,
-    this.remote,
+    this.sync,
+    this.onOpenAccounts,
     this.onOpenLink = _openLink,
   });
 
@@ -85,8 +87,12 @@ class TodoOverlay extends StatefulWidget {
   /// directory.
   final TodoStore? store;
 
-  /// The backup servers. Defaults to the singleton.
-  final TodoRemoteBackup? remote;
+  /// The task-list sync. Defaults to the singleton.
+  final TodoCalDavSync? sync;
+
+  /// Opens Settings › Accounts. Injected by tests; the default asks the root
+  /// through [SettingsController].
+  final VoidCallback? onOpenAccounts;
 
   /// What a click on a link in a card's title or body does with its address.
   /// The browser by default; a widget test records it instead.
@@ -100,8 +106,25 @@ class TodoOverlay extends StatefulWidget {
 
 class _TodoOverlayState extends State<TodoOverlay> {
   late final TodoStore _store = widget.store ?? TodoStore.instance;
-  late final TodoRemoteBackup _remote =
-      widget.remote ?? TodoRemoteBackup.instance;
+  late final TodoCalDavSync _sync = widget.sync ?? TodoCalDavSync.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    // Opening the board is when somebody is about to read it: whatever
+    // changed on the phone since the last poll is fetched now.
+    _sync.syncIfStale();
+  }
+
+  void _openAccounts() {
+    final open = widget.onOpenAccounts;
+    if (open != null) {
+      open();
+    } else {
+      SettingsController.instance.open(SettingsRoute.accounts);
+    }
+    _requestClose();
+  }
 
   /// Whether the backups card is open. A notifier for [_editing]'s reason.
   final ValueNotifier<bool> _backups = ValueNotifier(false);
@@ -154,9 +177,10 @@ class _TodoOverlayState extends State<TodoOverlay> {
               folds: _folds,
               searchField: _buildSearchField(context),
               editing: _editing,
-              remote: _remote,
               backups: _backups,
               standup: _standup,
+              sync: _sync,
+              onOpenAccounts: _openAccounts,
               onClose: _requestClose,
               onOpenLink: widget.onOpenLink,
             ),
@@ -275,17 +299,19 @@ class _TodoPanel extends StatelessWidget {
     required this.folds,
     required this.searchField,
     required this.editing,
-    required this.remote,
     required this.backups,
     required this.standup,
+    required this.sync,
+    required this.onOpenAccounts,
     required this.onClose,
     required this.onOpenLink,
   });
 
   final TodoStore store;
-  final TodoRemoteBackup remote;
   final ValueNotifier<bool> backups;
   final ValueNotifier<bool> standup;
+  final TodoCalDavSync sync;
+  final VoidCallback onOpenAccounts;
 
   /// [store] and [search] together.
   final Listenable board;
@@ -347,8 +373,9 @@ class _TodoPanel extends StatelessWidget {
                       ? const SizedBox.shrink()
                       : TodoBackupLayer(
                           store: store,
-                          remote: remote,
+                          sync: sync,
                           onDone: () => backups.value = false,
+                          onOpenAccounts: onOpenAccounts,
                         ),
                 ),
               ),
@@ -393,8 +420,8 @@ class _TodoPanel extends StatelessWidget {
               message:
                   '$loadError\nNothing will be saved over it until it reads '
                   'cleanly. Its backup file is '
-                  '${displayPath(store.backupPath)}; a backup server can '
-                  'restore it from Backups.',
+                  '${displayPath(store.backupPath)}, and Backups can '
+                  'restore from it.',
               action: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -478,7 +505,7 @@ class _TodoPanel extends StatelessWidget {
         Container(height: 1, color: theme.divider),
         TodoBackupFooter(
           store: store,
-          remote: remote,
+          sync: sync,
           onOpen: () => backups.value = true,
         ),
       ],

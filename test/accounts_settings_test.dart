@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/brand_marks.dart';
+import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_api.dart';
@@ -13,10 +14,12 @@ import 'package:moonswing/github/github_token_store.dart';
 import 'package:moonswing/google/google_account_file.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
+import 'package:moonswing/overlay/settings/accounts/caldav_account.dart';
 import 'package:moonswing/overlay/settings/accounts/github_account.dart';
 import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/scopes.dart';
 
+import 'caldav_fakes.dart';
 import 'github_fakes.dart';
 import 'google_fakes.dart';
 
@@ -242,6 +245,9 @@ void main() {
       addTearDown(googleAccount!.dispose);
       final calendar = GoogleCalendarStore.forTesting(account: googleAccount);
       final account = github(FakeGithubClient())..seed(login: 'octocat');
+      final caldav = CalDavAccountStore.forTesting(
+        directory: '${tempDir.path}/caldav',
+      );
 
       await tester.pumpWidget(
         _host(
@@ -249,17 +255,81 @@ void main() {
             google: googleAccount,
             googleCalendar: calendar,
             github: account,
+            caldav: caldav,
             child: const AccountsSettingsPage(),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      // Both cards, the scope's GitHub account on one of them.
+      // Every card, the scope's GitHub account on one of them.
       expect(find.text('Google'), findsOneWidget);
       expect(find.text('Sign in with Google'), findsOneWidget);
       expect(find.text('octocat'), findsOneWidget);
-      expect(find.byType(BrandMark), findsNWidgets(2));
+      expect(find.text('CalDAV'), findsOneWidget);
+      expect(find.byType(BrandMark), findsNWidgets(3));
+    });
+  });
+
+  group('the CalDAV card', () {
+    Future<void> pump(WidgetTester tester, CalDavAccountStore store) async {
+      await tester.pumpWidget(
+        _host(SingleChildScrollView(child: CalDavAccountCard(account: store))),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('signs in by finding the task lists', (tester) async {
+      final server = FakeCalDavServer();
+      final store = CalDavAccountStore.forTesting(
+        directory: '${tempDir.path}/caldav',
+        client: server.client,
+      );
+      await pump(tester, store);
+      expect(find.text('Connect'), findsOneWidget);
+
+      final fields = find.byType(EditableText);
+      await tester.enterText(fields.at(0), 'ftp://dav.example.com');
+      await tester.pump();
+      expect(find.textContaining('has to start with https://'), findsOneWidget);
+      await tester.enterText(fields.at(0), 'http://dav.example.com');
+      await tester.pump();
+      expect(find.textContaining('unencrypted'), findsOneWidget);
+
+      await tester.enterText(fields.at(0), FakeCalDavServer.host);
+      await tester.enterText(fields.at(1), 'me');
+      await tester.enterText(fields.at(2), 'secret');
+      await tester.pump();
+      // The request and the file write are real I/O.
+      await tester.runAsync(
+        () => store.signIn(
+          url: FakeCalDavServer.host,
+          username: 'me',
+          password: 'secret',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('me on dav.example.com'), findsOneWidget);
+      expect(find.text('Task list: Home tasks'), findsOneWidget);
+      expect(find.text('Sign out'), findsOneWidget);
+    });
+
+    testWidgets('a refused sign-in is said on the card', (tester) async {
+      final server = FakeCalDavServer();
+      final store = CalDavAccountStore.forTesting(
+        directory: '${tempDir.path}/caldav',
+        client: server.client,
+      );
+      await tester.runAsync(
+        () => store.signIn(
+          url: FakeCalDavServer.host,
+          username: 'me',
+          password: 'wrong',
+        ),
+      );
+      await pump(tester, store);
+      expect(find.textContaining('refused the user name'), findsOneWidget);
+      expect(store.account, isNull);
     });
   });
 
