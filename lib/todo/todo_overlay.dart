@@ -380,11 +380,7 @@ class _TodoPanel extends StatelessWidget {
           onClose: onClose,
           onBackups: () => backups.value = true,
           // Disabled while the board did not read: it has nothing true to say.
-          onStandup: store.editable
-              ? () {
-                  if (store.takeStandup() != null) standup.value = true;
-                }
-              : null,
+          onStandup: store.editable ? () => standup.value = true : null,
           search: search,
           searchField: searchField,
         ),
@@ -543,8 +539,8 @@ class _Header extends StatelessWidget {
           if (onStandup case final onStandup?) ...[
             _HeaderButton(
               tooltip:
-                  'Standup summary: what was finished, started and still to '
-                  'do since the last one, and the ones before it',
+                  'Standup summaries: what was finished, started and still to '
+                  'do since the last one',
               onTap: onStandup,
               builder: (color) => FaIcon(
                 FontAwesomeIcons.bullhorn,

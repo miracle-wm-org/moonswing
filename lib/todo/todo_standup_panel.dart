@@ -1,6 +1,7 @@
-// The card the board's standup button opens: the summary `todo_standup.dart`
-// just wrote, every one taken before it to pick from and copy again, and the
-// way to invalidate the latest so the next one covers what it did.
+// The card the board's standup button opens: every summary taken so far to
+// pick from and copy again, the button that takes a new one (opening the card
+// does not — looking back at yesterday's must not start today's), and the way
+// to invalidate the latest so the next one covers what it did.
 
 import 'package:flutter/widgets.dart';
 
@@ -26,7 +27,8 @@ const double kTodoStandupBodyHeight = 460;
 const double kTodoStandupRowHeight = 44;
 
 /// The standup card over a scrim that covers the board, showing
-/// [TodoStore.standups] — newest first, which is the one the button just took.
+/// [TodoStore.standups] — newest first. A new summary is taken only from the
+/// card's own "New summary" button.
 class TodoStandupLayer extends StatelessWidget {
   const TodoStandupLayer({
     super.key,
@@ -88,8 +90,8 @@ class _StandupCard extends StatefulWidget {
 }
 
 class _StandupCardState extends State<_StandupCard> {
-  /// The summaries on show. Read from the store once and again after an
-  /// invalidation — the store does not announce either.
+  /// The summaries on show. Read from the store once and again after a new
+  /// one is taken or the latest invalidated — the store announces neither.
   late List<StandupSummary> _summaries = widget.store.standups;
 
   /// Which of [_summaries] is shown; 0 is the latest.
@@ -121,6 +123,15 @@ class _StandupCardState extends State<_StandupCard> {
         ClipboardResult.failed => '$kClipboardCommand could not copy it.',
       };
       _messageIsError = result != ClipboardResult.copied;
+    });
+  }
+
+  void _generate() {
+    if (widget.store.takeStandup() == null) return;
+    setState(() {
+      _summaries = widget.store.standups;
+      _selected = 0;
+      _message = null;
     });
   }
 
@@ -183,6 +194,15 @@ class _StandupCardState extends State<_StandupCard> {
                 ),
                 const SizedBox(width: 8),
               ],
+              SizedBox(
+                width: 120,
+                child: SettingsActionButton(
+                  label: 'New summary',
+                  enabled: widget.store.editable,
+                  onTap: _generate,
+                ),
+              ),
+              const SizedBox(width: 8),
               SizedBox(
                 width: 90,
                 child: SettingsActionButton(
@@ -375,7 +395,9 @@ class _ReportBox extends StatelessWidget {
         key: ObjectKey(summary),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Text(
-          summary?.report ?? 'No summaries are kept.',
+          summary?.report ??
+              'No summaries yet. "New summary" takes one of what was '
+                  'finished, started and still to do.',
           style: TextStyle(
             fontSize: ShellFontSizes.body,
             height: 1.4,

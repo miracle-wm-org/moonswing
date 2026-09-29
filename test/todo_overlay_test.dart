@@ -298,7 +298,7 @@ void main() {
     expect(closing.value, isFalse);
   });
 
-  testWidgets('the standup button shows a summary since the last one', (
+  testWidgets('the standup card takes a summary since the last one', (
     tester,
   ) async {
     final store = await pump(tester, [
@@ -313,9 +313,15 @@ void main() {
     final button = find.byWidgetPredicate(
       (w) => w is FaIcon && w.icon == FontAwesomeIcons.bullhorn.data,
     );
+    // Opening the card takes nothing; its own button does.
     await tester.tap(button);
     await tester.pumpAndSettle();
     expect(find.text('Standup'), findsOneWidget);
+    expect(store.standups, isEmpty);
+    expect(store.lastStandup, isNull);
+    expect(find.textContaining('No summaries yet'), findsOneWidget);
+    await tester.tap(find.text('New summary'));
+    await tester.pumpAndSettle();
     final report = tester.widget<Text>(find.textContaining('Standup — ')).data!;
     expect(report, contains('Done:\n• Card done'));
     expect(report, contains('In progress:\n• Card doing'));
@@ -328,9 +334,18 @@ void main() {
     expect(find.text('Standup'), findsNothing);
     expect(closing.value, isFalse);
 
-    // The next one counts from the first: nothing new has been finished.
+    // Reopening shows the kept summary without taking another.
     now = now.add(const Duration(hours: 1));
     await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(store.standups, hasLength(1));
+    expect(
+      tester.widget<Text>(find.textContaining('Standup — ')).data,
+      contains('Done:\n• Card done'),
+    );
+
+    // The next one counts from the first: nothing new has been finished.
+    await tester.tap(find.text('New summary'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<Text>(find.textContaining('Standup — ')).data,
@@ -365,6 +380,8 @@ void main() {
 
     now = now.add(const Duration(hours: 1));
     await tester.tap(button);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('New summary'));
     await tester.pumpAndSettle();
     expect(
       tester.widget<Text>(find.textContaining('Standup — ')).data,
