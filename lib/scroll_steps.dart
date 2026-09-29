@@ -1,4 +1,5 @@
-import 'package:flutter/gestures.dart' show GestureBinding;
+import 'package:flutter/gestures.dart'
+    show GestureBinding, PointerScrollEvent, PointerSignalEvent;
 import 'package:flutter/widgets.dart';
 
 /// Turns scrolling into whole steps: a mouse wheel's notches, or a touchpad's
@@ -59,8 +60,7 @@ class ScrollSteps extends StatefulWidget {
 class _ScrollStepsState extends State<ScrollSteps> {
   final _accumulator = ScrollStepAccumulator();
 
-  static double _upward(Offset delta) =>
-      delta.dy != 0 ? -delta.dy : delta.dx;
+  static double _upward(Offset delta) => delta.dy != 0 ? -delta.dy : delta.dx;
 
   void _report(double upward) {
     final onSteps = widget.onSteps;

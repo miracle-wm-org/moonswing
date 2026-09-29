@@ -49,7 +49,10 @@ void main() {
   });
 
   group('ScrollSteps', () {
-    Future<List<int>> pumpSteps(WidgetTester tester, {bool enabled = true}) async {
+    Future<List<int>> pumpSteps(
+      WidgetTester tester, {
+      bool enabled = true,
+    }) async {
       final reported = <int>[];
       await tester.pumpWidget(
         Center(
@@ -67,7 +70,8 @@ void main() {
     ) async {
       final reported = await pumpSteps(tester);
       // A corner, not the centre: the listener must take the whole box.
-      final at = tester.getTopLeft(find.byType(ScrollSteps)) + const Offset(1, 1);
+      final at =
+          tester.getTopLeft(find.byType(ScrollSteps)) + const Offset(1, 1);
       final pointer = TestPointer(1, PointerDeviceKind.mouse);
       await tester.sendEventToBinding(pointer.hover(at));
       await tester.sendEventToBinding(pointer.scroll(const Offset(0, -53)));

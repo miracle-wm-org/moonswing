@@ -122,7 +122,9 @@ class SoundControlState extends State<SoundControl>
           if (!mounted) return;
           await _adoptDefaultSink(info.defaultSinkName);
         } catch (e) {
-          debugPrint('Could not re-read the default sink after a reconnect: $e');
+          debugPrint(
+            'Could not re-read the default sink after a reconnect: $e',
+          );
         }
       });
 
@@ -231,11 +233,7 @@ class SoundControlState extends State<SoundControl>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(
-                _volumeIconFor(level),
-                size: 12,
-                color: theme.foreground,
-              ),
+              FaIcon(_volumeIconFor(level), size: 12, color: theme.foreground),
               const SizedBox(width: 4),
               Text(
                 '${(level.volume * 100).round()}%',
@@ -431,8 +429,7 @@ class _VolumeSlider extends StatelessWidget {
         child: GestureDetector(
           onVerticalDragUpdate: !enabled
               ? null
-              : (d) =>
-                    onChanged(_valueFromPosition(context, d.globalPosition)),
+              : (d) => onChanged(_valueFromPosition(context, d.globalPosition)),
           onVerticalDragEnd: !enabled ? null : (d) => onChangeEnd(value),
           onTapDown: !enabled
               ? null
