@@ -45,6 +45,10 @@ npm run build && npm run preview
 
 Build deps: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`. Runtime, for lock only: `libgtk-session-lock0`, `libpam` — both `dlopen`ed, so the shell builds without them.
 
+## Pull requests
+
+**Always open a pull request.** When Claude Code has committed and pushed changes to a branch, it opens a pull request against `main` for them in the same session — no need to be asked. It never pushes to `main` directly. If a pull request for the branch is already open, push to it instead of opening another; if that one has been merged, start a new branch from `main` and open a new pull request.
+
 ## Packaging (`snap/snapcraft.yaml`, `.github/workflows/`)
 
 A **classic** snap, built nightly from `main`. Classic confinement puts the host's libraries on the loader path; `LD_LIBRARY_PATH` only *prepends* `$SNAP`.
