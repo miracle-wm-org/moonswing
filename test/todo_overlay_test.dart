@@ -93,6 +93,45 @@ void main() {
     expect(find.text('20 Sep 2026, 10:00'), findsNWidgets(2));
   });
 
+  testWidgets('a calendar card is marked in its calendar\'s colour', (
+    tester,
+  ) async {
+    TodoItem meeting(String id, String? color) =>
+        _item(id, TodoColumn.todo).copyWith(
+          external: TodoExternal(
+            source: TodoExternal.googleCalendar,
+            key: 'work/$id',
+            title: 'Card $id',
+            start: DateTime(2026, 9, 24, 15),
+            end: DateTime(2026, 9, 24, 16),
+            calendar: color == null ? null : 'Work',
+            color: color,
+          ),
+        );
+    await pump(tester, [
+      meeting('m', '#ff0000'),
+      meeting('n', null),
+      _item('a', TodoColumn.todo),
+    ]);
+    // The calendar is named on the card, and the icon beside it is its colour.
+    expect(find.text('Work'), findsOneWidget);
+    expect(find.text('Calendar'), findsOneWidget);
+    final icons = tester
+        .widgetList<FaIcon>(find.byIcon(FontAwesomeIcons.calendar.data))
+        .map((i) => i.color)
+        .toList();
+    const theme = ThemeConfig();
+    expect(icons, containsAll([const Color(0xFFFF0000), theme.accent]));
+
+    expect(
+      calendarCardColor(meeting('m', '#ff0000'), theme),
+      const Color(0xFFFF0000),
+    );
+    expect(calendarCardColor(meeting('n', null), theme), theme.accent);
+    expect(calendarCardColor(meeting('x', 'nonsense'), theme), theme.accent);
+    expect(calendarCardColor(_item('a', TodoColumn.todo), theme), isNull);
+  });
+
   testWidgets('the add button creates an item in its own column', (
     tester,
   ) async {

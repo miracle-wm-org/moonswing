@@ -44,6 +44,24 @@ List<TodoItem>? sync(
 DateTime at(int hour, [int minute = 0]) => DateTime(2026, 9, 25, hour, minute);
 
 void main() {
+  test('a card carries its calendar, and follows a recolour', () {
+    CalendarCardSource coloured(String color) => CalendarCardSource(
+      key: 'work/a',
+      title: 'Standup',
+      start: at(10),
+      end: at(10, 30),
+      calendar: 'Work',
+      color: color,
+    );
+    var board = sync(const [], [coloured('#ff0000')], at(8))!;
+    expect(board.single.external!.calendar, 'Work');
+    expect(board.single.external!.color, '#ff0000');
+    expect(sync(board, [coloured('#ff0000')], at(9)), isNull);
+
+    board = sync(board, [coloured('#00ff00')], at(9))!;
+    expect(board.single.external!.color, '#00ff00');
+  });
+
   test('a meeting follows the clock through the columns', () {
     final sources = [meeting('a')];
     var board = sync(const [], sources, at(8))!;

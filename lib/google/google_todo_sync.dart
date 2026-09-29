@@ -90,7 +90,7 @@ class GoogleTodoSync {
     if (editable) _apply();
   }
 
-  static CalendarCardSource _source(GoogleEvent e) => CalendarCardSource(
+  CalendarCardSource _source(GoogleEvent e) => CalendarCardSource(
     key: e.key,
     legacyKey: e.legacyKey,
     title: e.summary,
@@ -98,6 +98,8 @@ class GoogleTodoSync {
     end: e.end,
     link: e.meetingLink,
     url: e.htmlLink,
+    calendar: _calendar.calendarOf(e)?.summary,
+    color: _calendar.colorOf(e),
   );
 
   void _apply() {
