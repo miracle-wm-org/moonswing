@@ -290,7 +290,9 @@ class TodoMove {
 /// the next sync can tell a field the user has edited from one it wrote itself
 /// and leave the user's edit alone. [manual] is set the first time the user
 /// moves the card between columns. From then on the column is the user's and
-/// the sync stops moving it.
+/// the sync stops moving it. [calendar] and [color] say where the card came
+/// from, so the board can draw it in its calendar's colour; they are not the
+/// user's to edit, so every sync rewrites them.
 class TodoExternal {
   const TodoExternal({
     required this.source,
@@ -300,6 +302,8 @@ class TodoExternal {
     required this.end,
     this.link,
     this.url,
+    this.calendar,
+    this.color,
     this.manual = false,
   });
 
@@ -325,6 +329,12 @@ class TodoExternal {
   /// The event's own page.
   final String? url;
 
+  /// The name of the calendar the event is on, if known.
+  final String? calendar;
+
+  /// `#rrggbb` the calendar draws the event in, if known.
+  final String? color;
+
   /// The user has moved the card, so the sync no longer does.
   final bool manual;
 
@@ -337,6 +347,8 @@ class TodoExternal {
     DateTime? end,
     Object? link = _keep,
     Object? url = _keep,
+    Object? calendar = _keep,
+    Object? color = _keep,
     bool? manual,
   }) => TodoExternal(
     source: source,
@@ -346,6 +358,8 @@ class TodoExternal {
     end: end ?? this.end,
     link: identical(link, _keep) ? this.link : link as String?,
     url: identical(url, _keep) ? this.url : url as String?,
+    calendar: identical(calendar, _keep) ? this.calendar : calendar as String?,
+    color: identical(color, _keep) ? this.color : color as String?,
     manual: manual ?? this.manual,
   );
 
@@ -357,6 +371,8 @@ class TodoExternal {
     'end': end.toUtc().toIso8601String(),
     if (link != null) 'link': link,
     if (url != null) 'url': url,
+    if (calendar != null) 'calendar': calendar,
+    if (color != null) 'color': color,
     if (manual) 'manual': true,
   };
 
@@ -392,6 +408,8 @@ class TodoExternal {
       end: end,
       link: text('link'),
       url: text('url'),
+      calendar: text('calendar'),
+      color: text('color'),
       manual: json['manual'] == true,
     );
   }
@@ -406,11 +424,23 @@ class TodoExternal {
       other.end == end &&
       other.link == link &&
       other.url == url &&
+      other.calendar == calendar &&
+      other.color == color &&
       other.manual == manual;
 
   @override
-  int get hashCode =>
-      Object.hash(source, key, title, start, end, link, url, manual);
+  int get hashCode => Object.hash(
+    source,
+    key,
+    title,
+    start,
+    end,
+    link,
+    url,
+    calendar,
+    color,
+    manual,
+  );
 }
 
 /// One card on the board.

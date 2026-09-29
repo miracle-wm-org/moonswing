@@ -942,9 +942,11 @@ class _DraggableCard extends StatelessWidget {
       terms: terms,
       onOpenLink: onOpenLink,
     );
+    final stripe = calendarCardColor(item, theme);
     final card = HoverRegion(
       onTap: () => onEdit(item.id),
-      builder: (context, hovered) => _CardChrome(hovered: hovered, child: face),
+      builder: (context, hovered) =>
+          _CardChrome(hovered: hovered, stripe: stripe, child: face),
     );
     if (!store.editable) return RepaintBoundary(child: card);
     return DragTarget<String>(
@@ -966,11 +968,16 @@ class _DraggableCard extends StatelessWidget {
               // column's constraints, so it is given the column's width.
               feedback: SizedBox(
                 width: width,
-                child: _CardChrome(hovered: true, lifted: true, child: face),
+                child: _CardChrome(
+                  hovered: true,
+                  lifted: true,
+                  stripe: stripe,
+                  child: face,
+                ),
               ),
               childWhenDragging: Opacity(
                 opacity: 0.35,
-                child: _CardChrome(hovered: false, child: face),
+                child: _CardChrome(hovered: false, stripe: stripe, child: face),
               ),
               child: card,
             ),
@@ -999,22 +1006,45 @@ class _DraggableCard extends StatelessWidget {
   }
 }
 
+/// The colour a card the calendar sync made is marked in: its calendar's, else
+/// the theme's accent, the way the calendar overlay draws the same event. Null
+/// for a card the user made.
+@visibleForTesting
+Color? calendarCardColor(TodoItem item, ThemeConfig theme) {
+  final external = item.external;
+  if (external == null) return null;
+  final hex = external.color;
+  return (hex == null ? null : parseHexColor(hex)) ?? theme.accent;
+}
+
+/// The width of the band down a calendar card's left edge.
+const double _kStripeWidth = 4;
+
 class _CardChrome extends StatelessWidget {
   const _CardChrome({
     required this.hovered,
     required this.child,
     this.lifted = false,
+    this.stripe,
   });
 
   final bool hovered;
   final bool lifted;
+
+  /// The band down the left edge that says where the card came from, or
+  /// null for a card the user made.
+  final Color? stripe;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    const padding = EdgeInsets.fromLTRB(10, 8, 10, 8);
+    final stripe = this.stripe;
     return Container(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      padding: stripe == null
+          ? padding
+          : padding.copyWith(left: padding.left + _kStripeWidth),
       decoration: BoxDecoration(
         color: hovered
             ? Color.alphaBlend(
@@ -1034,7 +1064,63 @@ class _CardChrome extends StatelessWidget {
               ]
             : null,
       ),
+      // Painted as a decoration rather than laid out as a child, so the card's
+      // height is still its text's alone and the band needs no intrinsic pass.
+      foregroundDecoration: stripe == null
+          ? null
+          : _StripeDecoration(color: stripe, width: _kStripeWidth),
       child: child,
+    );
+  }
+}
+
+/// A band of [color] [width] wide down the left edge of a card, inside its
+/// one-pixel border and following its rounded corners.
+class _StripeDecoration extends Decoration {
+  const _StripeDecoration({required this.color, required this.width});
+
+  final Color color;
+  final double width;
+
+  @override
+  bool hitTest(Size size, Offset position, {TextDirection? textDirection}) =>
+      false;
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _StripePainter(color, width);
+
+  @override
+  bool operator ==(Object other) =>
+      other is _StripeDecoration &&
+      other.color == color &&
+      other.width == width;
+
+  @override
+  int get hashCode => Object.hash(color, width);
+}
+
+class _StripePainter extends BoxPainter {
+  _StripePainter(this.color, this.width);
+
+  final Color color;
+  final double width;
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size;
+    if (size == null) return;
+    // Inside the 1px border, so the inner radius is one less than the card's.
+    const inner = Radius.circular(ShellRadii.control - 1);
+    final rect = Rect.fromLTWH(
+      offset.dx + 1,
+      offset.dy + 1,
+      width,
+      size.height - 2,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndCorners(rect, topLeft: inner, bottomLeft: inner),
+      Paint()..color = color,
     );
   }
 }
@@ -1171,6 +1257,12 @@ class _CardFaceState extends State<_CardFace> {
                 icon: FontAwesomeIcons.repeat,
                 label: recurrence.describe(),
               ),
+            if (item.external case final e?)
+              _Fact(
+                icon: FontAwesomeIcons.calendar,
+                label: e.calendar ?? 'Calendar',
+                iconColor: calendarCardColor(item, theme),
+              ),
             if (item.external?.link case final join? when item.column.isOpen)
               _JoinChip(onTap: () => widget.onOpenLink(join)),
             _Fact(
@@ -1249,11 +1341,19 @@ class _JoinChip extends StatelessWidget {
 }
 
 class _Fact extends StatelessWidget {
-  const _Fact({required this.icon, required this.label, this.color});
+  const _Fact({
+    required this.icon,
+    required this.label,
+    this.color,
+    this.iconColor,
+  });
 
   final FaIconData icon;
   final String label;
   final Color? color;
+
+  /// The icon's own colour, where it differs from the label's.
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1262,7 +1362,11 @@ class _Fact extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FaIcon(icon, size: ShellFontSizes.caption - 1, color: tint),
+        FaIcon(
+          icon,
+          size: ShellFontSizes.caption - 1,
+          color: iconColor ?? tint,
+        ),
         const SizedBox(width: 4),
         Text(
           label,

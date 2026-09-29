@@ -33,6 +33,8 @@ class CalendarCardSource {
     required this.end,
     this.link,
     this.url,
+    this.calendar,
+    this.color,
     this.legacyKey,
   });
 
@@ -54,6 +56,12 @@ class CalendarCardSource {
 
   /// The event's own page.
   final String? url;
+
+  /// The name of the calendar the event is on.
+  final String? calendar;
+
+  /// `#rrggbb` the calendar draws the event in.
+  final String? color;
 }
 
 /// The column an event belongs in at [now].
@@ -176,6 +184,8 @@ List<TodoItem>? syncCalendarCards(
             end: source.end,
             link: source.link,
             url: source.url,
+            calendar: source.calendar,
+            color: source.color,
           ),
         ),
       );
@@ -191,6 +201,8 @@ List<TodoItem>? syncCalendarCards(
       end: source.end,
       link: source.link,
       url: source.url,
+      calendar: source.calendar,
+      color: source.color,
     );
     var updated = existing.copyWith(
       title: existing.title == was.title ? source.title : null,

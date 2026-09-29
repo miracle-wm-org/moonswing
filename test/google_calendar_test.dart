@@ -312,6 +312,14 @@ void main() {
   group('GoogleTodoSync', () {
     test('today\'s timed meetings land on the board while it is on', () async {
       final now = DateTime(2026, 9, 25, 10, 5);
+      client.calendars = const [
+        GoogleCalendar(
+          id: 'me@example.com',
+          summary: 'Me',
+          primary: true,
+          color: '#123456',
+        ),
+      ];
       client.events = {
         'primary': [
           event('standup', DateTime(2026, 9, 25, 10)),
@@ -352,6 +360,10 @@ void main() {
         'Event review',
       ]);
       expect(todo.items, hasLength(2), reason: 'all-day events stay off');
+      // Each card says which calendar it came from, in that calendar's colour.
+      final card = todo.items.first.external!;
+      expect(card.calendar, 'Me');
+      expect(card.color, '#123456');
 
       sync.configure(const GoogleConfig());
       expect(sync.active, isFalse);

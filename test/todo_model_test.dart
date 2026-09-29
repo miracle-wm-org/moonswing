@@ -224,6 +224,27 @@ void main() {
       expect(decodeTodoFile(encodeTodoFile(items)), items);
     });
 
+    test('a calendar card keeps its calendar and colour', () {
+      final external = TodoExternal(
+        source: TodoExternal.googleCalendar,
+        key: 'work/a',
+        title: 'Standup',
+        start: DateTime(2026, 9, 25, 10),
+        end: DateTime(2026, 9, 25, 10, 30),
+        calendar: 'Work',
+        color: '#ff0000',
+      );
+      expect(TodoExternal.fromJson(external.toJson()), external);
+      // A record from before either was kept reads with neither.
+      final old = TodoExternal.fromJson(
+        external.toJson()
+          ..remove('calendar')
+          ..remove('color'),
+      )!;
+      expect(old.calendar, isNull);
+      expect(old.color, isNull);
+    });
+
     test('a bad row costs that row; a bad field costs that field', () {
       final items = decodeTodoFile('''
 {
