@@ -601,13 +601,16 @@ class _NotificationPanelState extends State<NotificationPanel>
                       ],
                       NotificationSilenceRow(theme: theme),
                       Container(height: 1, color: theme.divider),
-                      NotificationSoundRow(theme: theme),
-                      Container(height: 1, color: theme.divider),
                       Expanded(
                         child: items.isEmpty
                             ? _buildEmpty(theme)
                             : _buildList(theme, items),
                       ),
+                      // At the foot, out of the way of the list: it is a
+                      // setting checked now and then, not something read on
+                      // every opening the way the notifications are.
+                      Container(height: 1, color: theme.divider),
+                      NotificationSoundRow(theme: theme),
                     ],
                   ),
                 ),
