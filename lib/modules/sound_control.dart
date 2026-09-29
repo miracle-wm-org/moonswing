@@ -10,6 +10,7 @@ import 'package:moonswing/pulse_client.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/scroll_steps.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/theme/theme_provider.dart';
@@ -26,6 +27,20 @@ FaIconData _volumeIconFor(_SinkLevel level) {
   if (level.volume <= 0.0) return FontAwesomeIcons.volumeOff;
   if (level.volume <= 0.5) return FontAwesomeIcons.volumeLow;
   return FontAwesomeIcons.volumeHigh;
+}
+
+/// How far one scroll step moves the volume, as a fraction of 100%.
+const _kScrollStepsPerFullScale = 20;
+
+/// [volume] moved by [steps] scroll steps, landing on the step grid.
+///
+/// Snapped rather than added, so a level the slider left at 53% goes to 55%
+/// and not 58%, and the bar's percentage reads in round numbers from the first
+/// notch on. Capped at 100%: PulseAudio will amplify past it, but a wheel is
+/// too easy to over-roll for that to be where scrolling ends up.
+double _scrolledVolume(double volume, int steps) {
+  const n = _kScrollStepsPerFullScale;
+  return ((volume * n).round() + steps).clamp(0, n) / n;
 }
 
 class SoundControl extends StatefulWidget {
@@ -107,7 +122,9 @@ class SoundControlState extends State<SoundControl>
           if (!mounted) return;
           await _adoptDefaultSink(info.defaultSinkName);
         } catch (e) {
-          debugPrint('Could not re-read the default sink after a reconnect: $e');
+          debugPrint(
+            'Could not re-read the default sink after a reconnect: $e',
+          );
         }
       });
 
@@ -145,6 +162,24 @@ class SoundControlState extends State<SoundControl>
     } catch (e) {
       debugPrint('Could not read the default sink: $e');
     }
+  }
+
+  /// Scrolling over the bar button. Muted or not, the way the slider's own
+  /// percentage is: scrolling sets the level the sink comes back at.
+  void _scrollVolume(int steps) {
+    final client = _client;
+    if (client == null) return;
+    final current = _level.value;
+    final volume = _scrolledVolume(current.volume, steps);
+    if (volume == current.volume) return;
+    // Shown at once rather than on PulseAudio's echo, so a fast roll steps
+    // from where the last notch put it instead of from a reading still in
+    // flight. The echo lands within a rounding of it, and the next step snaps
+    // back onto the grid either way.
+    _level.value = (volume: volume, muted: current.muted);
+    client.setSinkVolume(_defaultSinkName, volume).catchError((Object e) {
+      debugPrint('Could not set the volume: $e');
+    });
   }
 
   void _togglePopup(BuildContext context) {
@@ -188,25 +223,24 @@ class SoundControlState extends State<SoundControl>
     if (!_available) return const SizedBox.shrink();
 
     final theme = ThemeScope.of(context);
-    return ValueListenableBuilder<_SinkLevel>(
-      valueListenable: _level,
-      builder: (context, level, _) => BarButton(
-        active: isPopupOpen,
-        onTapDown: (_) => _togglePopup(context),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FaIcon(
-              _volumeIconFor(level),
-              size: 12,
-              color: theme.foreground,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${(level.volume * 100).round()}%',
-              style: TextStyle(fontSize: 16, color: theme.foreground),
-            ),
-          ],
+    return ScrollSteps(
+      onSteps: _scrollVolume,
+      child: ValueListenableBuilder<_SinkLevel>(
+        valueListenable: _level,
+        builder: (context, level, _) => BarButton(
+          active: isPopupOpen,
+          onTapDown: (_) => _togglePopup(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FaIcon(_volumeIconFor(level), size: 12, color: theme.foreground),
+              const SizedBox(width: 4),
+              Text(
+                '${(level.volume * 100).round()}%',
+                style: TextStyle(fontSize: 16, color: theme.foreground),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -355,6 +389,17 @@ class _VolumeSlider extends StatelessWidget {
   final ValueChanged<double> onChangeEnd;
   final Axis axis;
 
+  /// Scrolling over the track steps the level, and writes it as a tap does.
+  /// Off while muted, like the drag: the track reads 0% then.
+  ValueChanged<int>? get _onScrollSteps => !enabled
+      ? null
+      : (steps) {
+          final v = _scrolledVolume(value, steps);
+          if (v == value) return;
+          onChanged(v);
+          onChangeEnd(v);
+        };
+
   double _valueFromPosition(BuildContext context, Offset globalPosition) {
     final box = context.findRenderObject() as RenderBox;
     final local = box.globalToLocal(globalPosition);
@@ -379,11 +424,34 @@ class _VolumeSlider extends StatelessWidget {
     );
 
     if (axis == Axis.vertical) {
-      return GestureDetector(
-        onVerticalDragUpdate: !enabled
+      return ScrollSteps(
+        onSteps: _onScrollSteps,
+        child: GestureDetector(
+          onVerticalDragUpdate: !enabled
+              ? null
+              : (d) => onChanged(_valueFromPosition(context, d.globalPosition)),
+          onVerticalDragEnd: !enabled ? null : (d) => onChangeEnd(value),
+          onTapDown: !enabled
+              ? null
+              : (d) {
+                  final v = _valueFromPosition(context, d.globalPosition);
+                  onChanged(v);
+                  onChangeEnd(v);
+                },
+          child: CustomPaint(
+            size: const Size(20, double.infinity),
+            painter: painter,
+          ),
+        ),
+      );
+    }
+    return ScrollSteps(
+      onSteps: _onScrollSteps,
+      child: GestureDetector(
+        onHorizontalDragUpdate: !enabled
             ? null
             : (d) => onChanged(_valueFromPosition(context, d.globalPosition)),
-        onVerticalDragEnd: !enabled ? null : (d) => onChangeEnd(value),
+        onHorizontalDragEnd: !enabled ? null : (d) => onChangeEnd(value),
         onTapDown: !enabled
             ? null
             : (d) {
@@ -392,26 +460,9 @@ class _VolumeSlider extends StatelessWidget {
                 onChangeEnd(v);
               },
         child: CustomPaint(
-          size: const Size(20, double.infinity),
+          size: const Size(double.infinity, 20),
           painter: painter,
         ),
-      );
-    }
-    return GestureDetector(
-      onHorizontalDragUpdate: !enabled
-          ? null
-          : (d) => onChanged(_valueFromPosition(context, d.globalPosition)),
-      onHorizontalDragEnd: !enabled ? null : (d) => onChangeEnd(value),
-      onTapDown: !enabled
-          ? null
-          : (d) {
-              final v = _valueFromPosition(context, d.globalPosition);
-              onChanged(v);
-              onChangeEnd(v);
-            },
-      child: CustomPaint(
-        size: const Size(double.infinity, 20),
-        painter: painter,
       ),
     );
   }
