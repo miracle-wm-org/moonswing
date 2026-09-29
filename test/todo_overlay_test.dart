@@ -1,14 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
+import 'package:moonswing/todo/todo_caldav_sync.dart';
 import 'package:moonswing/todo/todo_controller.dart';
+import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_overlay.dart';
 import 'package:moonswing/todo/todo_store.dart';
@@ -48,6 +53,8 @@ void main() {
     List<TodoItem> items, {
     bool inMemory = false,
     ValueChanged<String>? onOpenLink,
+    VoidCallback? onOpenAccounts,
+    ValueChanged<TodoCalDavSync>? withSync,
   }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
@@ -58,6 +65,16 @@ void main() {
       inMemory: inMemory,
     );
     addTearDown(store.dispose);
+    // Never the shell's own: that one reads the real account file.
+    final sync = TodoCalDavSync.forTesting(
+      store: store,
+      accounts: CalDavAccountStore.forTesting(
+        directory: '${Directory.systemTemp.path}/todo-overlay-no-account',
+      ),
+      now: () => now,
+    );
+    addTearDown(sync.dispose);
+    withSync?.call(sync);
     await tester.pumpWidget(
       ThemeScope(
         theme: const ThemeConfig(),
@@ -65,6 +82,8 @@ void main() {
           closingNotifier: closing,
           onClosed: () => closed++,
           store: store,
+          sync: sync,
+          onOpenAccounts: onOpenAccounts ?? () {},
           onOpenLink: onOpenLink ?? (_) {},
         ),
       ),
@@ -305,36 +324,51 @@ void main() {
     expect(find.text(path), findsOneWidget);
     expect(find.text('Keep a copy somewhere else'), findsOneWidget);
     expect(find.textContaining('git init'), findsOneWidget);
-    expect(find.text('Backup servers'), findsOneWidget);
-    expect(find.text('No backup servers yet.'), findsOneWidget);
-
-    // The server form opens from the add button, and checks its address.
-    await tester.tap(find.text('Add server'));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byType(EditableText).at(2),
-      'ftp://nas.example/',
-    );
-    await tester.pump();
-    expect(find.textContaining('has to start with https://'), findsOneWidget);
-    await tester.enterText(
-      find.byType(EditableText).at(2),
-      'http://nas.example/dav/',
-    );
-    await tester.pump();
-    expect(
-      find.text('Saved as http://nas.example/dav/moonswing-todo.json'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('unencrypted'), findsOneWidget);
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
 
     // Escape backs out of Backups before it closes the board.
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.text('Backup file'), findsNothing);
     expect(closing.value, isFalse);
+  });
+
+  testWidgets('Backups offers a task list, and sends the user to sign in', (
+    tester,
+  ) async {
+    var opened = 0;
+    await pump(tester, const [], onOpenAccounts: () => opened++);
+    await tester.tap(find.text('Backups…'));
+    await tester.pumpAndSettle();
+    expect(find.text('Task list'), findsOneWidget);
+    expect(find.text('No CalDAV server is signed in to.'), findsOneWidget);
+    await tester.tap(find.text('Set up in Settings…'));
+    await tester.pumpAndSettle();
+    expect(opened, 1);
+    // Settings opens over where the board was.
+    expect(closing.value, isTrue);
+  });
+
+  testWidgets('a linked board says so, and why a sync did not get through', (
+    tester,
+  ) async {
+    late TodoCalDavSync sync;
+    final store = await pump(tester, const [], withSync: (s) => sync = s);
+    await tester.runAsync(
+      () => store.linkRemote(
+        const TodoRemoteLink(url: 'https://dav.example.com/t/', name: 'Home'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('synced with Home'), findsOneWidget);
+
+    await tester.tap(find.text('Backups…'));
+    await tester.pumpAndSettle();
+    expect(find.text('Not synced yet.'), findsOneWidget);
+    await tester.tap(find.text('Sync now'));
+    await tester.pumpAndSettle();
+    expect(sync.error, contains('Settings › Accounts'));
+    expect(find.textContaining('Not signed in'), findsOneWidget);
+    expect(find.textContaining('Home could not be synced'), findsOneWidget);
   });
 
   testWidgets('the standup card takes a summary since the last one', (

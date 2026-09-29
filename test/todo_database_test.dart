@@ -332,9 +332,12 @@ void main() {
         final path = '${dir.path}/notes.db';
         final old = TodoDatabase.open(path);
         old.close();
-        // Back to schema 2 by hand: no standups table, one recorded instant.
+        // Back to schema 2 by hand: no standups table (nor anything later),
+        // one recorded instant.
         final raw = sqlite3.open(path);
         raw.execute('DROP TABLE standups');
+        raw.execute('ALTER TABLE entries DROP COLUMN remote');
+        raw.execute('DROP TABLE remote_tombstones');
         raw.execute(
           "INSERT INTO meta(key, value) VALUES "
           "('standup_at', '2026-09-24T09:00:00.000Z')",
@@ -363,6 +366,57 @@ void main() {
         expect(db.standupAt, DateTime.utc(2026, 9, 24, 9).toLocal());
       },
     );
+  });
+
+  group('the synced task list', () {
+    late Directory dir;
+    final at = DateTime(2026, 9, 29, 9);
+
+    setUp(() => dir = Directory.systemTemp.createTempSync('todo_db_remote'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('a schema-3 board gains the task-list records, rows kept', () {
+      final path = '${dir.path}/notes.db';
+      final old = TodoDatabase.open(path);
+      old.apply(_board([_item('a', title: 'Before')]), at: at);
+      old.close();
+      // Back to schema 3 by hand.
+      final raw = sqlite3.open(path);
+      raw.execute('ALTER TABLE entries DROP COLUMN remote');
+      raw.execute('DROP TABLE remote_tombstones');
+      raw.userVersion = 3;
+      raw.close();
+
+      final db = TodoDatabase.open(path);
+      final card = db.readAll().todos.single;
+      expect(card.title, 'Before');
+      expect(card.remote, isNull);
+      const record = TodoRemote(
+        href: '/tasks/a.ics',
+        etag: '"1"',
+        raw: 'BEGIN:VCALENDAR',
+      );
+      db.apply(_board([card.copyWith(remote: record)]), at: at);
+      db.recordRemoteLink(
+        const TodoRemoteLink(
+          url: 'https://dav.example.com/tasks/',
+          name: 'Tasks',
+          changeToken: 'c1|',
+        ),
+      );
+      db.recordTombstones(add: [(href: '/tasks/gone.ics', etag: '"4"')]);
+      db.close();
+
+      final reopened = TodoDatabase.open(path);
+      addTearDown(reopened.close);
+      expect(reopened.readAll().todos.single.remote, record);
+      expect(reopened.remoteLink!.changeToken, 'c1|');
+      expect(reopened.tombstones, [(href: '/tasks/gone.ics', etag: '"4"')]);
+      reopened.recordTombstones(remove: ['/tasks/gone.ics']);
+      expect(reopened.tombstones, isEmpty);
+      reopened.recordRemoteLink(null);
+      expect(reopened.remoteLink, isNull);
+    });
   });
 
   group('query building', () {

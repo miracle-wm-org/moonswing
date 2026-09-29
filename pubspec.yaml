@@ -25,6 +25,10 @@ dependencies:
   ext_session_lock:
     path: packages/ext_session_lock
   http: ^1.2.0
+  # CalDAV's multistatus answers, for the todo board's task-list sync; also
+  # what test/wl_interfaces_test.dart diffs the Wayland tables against the
+  # protocol XMLs in protocol/ with.
+  xml: ^6.5.0
   # SHA-256 for the Google sign-in's PKCE challenge (RFC 7636 S256).
   crypto: ^3.0.6
   udev: ^0.0.3
@@ -98,9 +102,6 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  # test/wl_interfaces_test.dart diffs the hand-written Wayland interface
-  # tables against the protocol XMLs in protocol/.
-  xml: ^6.5.0
 
 flutter:
   uses-material-design: true

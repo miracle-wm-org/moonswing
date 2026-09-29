@@ -443,6 +443,66 @@ class TodoExternal {
   );
 }
 
+/// Where a card lives on the CalDAV task list the board syncs with, and the
+/// version of it this machine last saw.
+///
+/// [raw] is the task exactly as the server last had it (or as this machine
+/// last wrote it). It is two things at once: the *base* a three-way merge
+/// compares both sides against — what both agreed on — and the text an
+/// outgoing write patches, so every property the board does not own (an
+/// alarm, categories, another app's own fields) goes back to the server as it
+/// came.
+class TodoRemote {
+  const TodoRemote({required this.href, this.etag, required this.raw});
+
+  /// The task's path on the server, as the server spelled it.
+  final String href;
+
+  /// The server's version of it, or null when the server did not say.
+  final String? etag;
+
+  /// The task's `.ics` text.
+  final String raw;
+
+  TodoRemote copyWith({String? href, Object? etag = _keep, String? raw}) =>
+      TodoRemote(
+        href: href ?? this.href,
+        etag: identical(etag, _keep) ? this.etag : etag as String?,
+        raw: raw ?? this.raw,
+      );
+
+  static const Object _keep = Object();
+
+  Map<String, Object?> toJson() => {
+    'href': href,
+    if (etag != null) 'etag': etag,
+    'raw': raw,
+  };
+
+  /// Null for a record missing its href or text: the card is kept, and is
+  /// sent to the server as a new task on the next sync.
+  static TodoRemote? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final href = json['href'];
+    final raw = json['raw'];
+    if (href is! String || href.isEmpty || raw is! String || raw.isEmpty) {
+      return null;
+    }
+    final etag = json['etag'];
+    return TodoRemote(href: href, etag: etag is String ? etag : null, raw: raw);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is TodoRemote &&
+      other.href == href &&
+      other.etag == etag &&
+      other.raw == raw;
+
+  @override
+  int get hashCode => Object.hash(href, etag, raw);
+}
+
 /// One card on the board.
 class TodoItem {
   const TodoItem({
@@ -455,6 +515,7 @@ class TodoItem {
     this.recurrence,
     this.history = const [],
     this.external,
+    this.remote,
   });
 
   /// Stable for the life of the item, and unique within the file.
@@ -479,6 +540,10 @@ class TodoItem {
   /// The calendar event this card mirrors, if it is one. See [TodoExternal].
   final TodoExternal? external;
 
+  /// The task this card is on the synced task list, if it has been sent there
+  /// or came from there. See [TodoRemote].
+  final TodoRemote? remote;
+
   /// When it arrived in the column it is in now.
   DateTime get movedAt => history.isEmpty ? created : history.last.at;
 
@@ -500,6 +565,7 @@ class TodoItem {
     Object? recurrence = _keep,
     List<TodoMove>? history,
     Object? external = _keep,
+    Object? remote = _keep,
   }) => TodoItem(
     id: id,
     title: title ?? this.title,
@@ -514,6 +580,7 @@ class TodoItem {
     external: identical(external, _keep)
         ? this.external
         : external as TodoExternal?,
+    remote: identical(remote, _keep) ? this.remote : remote as TodoRemote?,
   );
 
   Map<String, Object?> toJson() => {
@@ -526,6 +593,7 @@ class TodoItem {
     if (recurrence != null) 'recurrence': recurrence!.toJson(),
     'history': [for (final move in history) move.toJson()],
     if (external != null) 'external': external!.toJson(),
+    if (remote != null) 'remote': remote!.toJson(),
   };
 
   /// Null for a row that cannot be an item at all: no id, or a column the board
@@ -556,6 +624,7 @@ class TodoItem {
       recurrence: TodoRecurrence.fromJson(json['recurrence']),
       history: history,
       external: TodoExternal.fromJson(json['external']),
+      remote: TodoRemote.fromJson(json['remote']),
     );
   }
 
@@ -570,7 +639,8 @@ class TodoItem {
       other.due == due &&
       other.recurrence == recurrence &&
       _listEquals(other.history, history) &&
-      other.external == external;
+      other.external == external &&
+      other.remote == remote;
 
   @override
   int get hashCode => Object.hash(
@@ -583,6 +653,7 @@ class TodoItem {
     recurrence,
     Object.hashAll(history),
     external,
+    remote,
   );
 }
 

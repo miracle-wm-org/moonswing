@@ -25,6 +25,7 @@
 
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
@@ -37,6 +38,7 @@ class AccountsScope extends InheritedWidget {
     this.googleCalendar,
     this.github,
     this.githubNotifications,
+    this.caldav,
     required super.child,
   });
 
@@ -45,7 +47,8 @@ class AccountsScope extends InheritedWidget {
     : google = GoogleAccountStore.instance,
       googleCalendar = GoogleCalendarStore.instance,
       github = GithubAccountStore.instance,
-      githubNotifications = GithubStore.instance;
+      githubNotifications = GithubStore.instance,
+      caldav = CalDavAccountStore.instance;
 
   /// The Google accounts — any number — and the access token behind each.
   /// Null falls through to [GoogleAccountStore.instance].
@@ -59,6 +62,9 @@ class AccountsScope extends InheritedWidget {
 
   /// The GitHub notification inbox, polled under a lease.
   final GithubStore? githubNotifications;
+
+  /// The CalDAV server, and the task lists on it.
+  final CalDavAccountStore? caldav;
 
   static AccountsScope? _scope(BuildContext context) =>
       context.getInheritedWidgetOfExactType<AccountsScope>();
@@ -81,10 +87,16 @@ class AccountsScope extends InheritedWidget {
   static GithubStore githubNotificationsOf(BuildContext context) =>
       _scope(context)?.githubNotifications ?? GithubStore.instance;
 
+  /// The CalDAV account: [CalDavAccountStore.account], its task lists, and
+  /// [CalDavAccountStore.client] for a request of a module's own.
+  static CalDavAccountStore caldavOf(BuildContext context) =>
+      _scope(context)?.caldav ?? CalDavAccountStore.instance;
+
   @override
   bool updateShouldNotify(AccountsScope old) =>
       google != old.google ||
       googleCalendar != old.googleCalendar ||
       github != old.github ||
-      githubNotifications != old.githubNotifications;
+      githubNotifications != old.githubNotifications ||
+      caldav != old.caldav;
 }

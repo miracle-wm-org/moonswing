@@ -21,7 +21,9 @@ import 'package:moonswing/todo/todo_standup.dart';
 ///  2. `entries.external`: the calendar event a card mirrors.
 ///  3. `standups`: every standup summary taken, so an old one can be copied
 ///     again and the latest invalidated.
-const int kTodoSchemaVersion = 3;
+///  4. `entries.remote`: the task a card is on the synced CalDAV task list;
+///     `remote_tombstones`: tasks deleted here and still owed a delete there.
+const int kTodoSchemaVersion = 4;
 
 /// The oldest SQLite with FTS5's `trigram` tokenizer, as
 /// `sqlite3_libversion_number` spells it.
@@ -60,6 +62,78 @@ const String _kStandupKey = 'standup_at';
 /// The `meta` key holding the calendar events whose cards the user deleted, so
 /// the calendar sync does not put them straight back. A JSON list of keys.
 const String _kDismissedCalendarKey = 'calendar_dismissed';
+
+/// The `meta` key holding the CalDAV task list the board syncs with, as JSON
+/// (see [TodoRemoteLink]). Kept with the board rather than with the account,
+/// because the cards' [TodoRemote] records are only meaningful against it.
+const String _kRemoteLinkKey = 'caldav_link';
+
+/// The CalDAV task list the board is linked to, and how far the last sync got.
+class TodoRemoteLink {
+  const TodoRemoteLink({
+    required this.url,
+    required this.name,
+    this.color,
+    this.changeToken,
+  });
+
+  /// The collection, absolute, ending in `/`.
+  final String url;
+  final String name;
+
+  /// `#rrggbb`, when the server has one.
+  final String? color;
+
+  /// The collection's change token at the end of the last full sync, or null
+  /// before the first. See `CalDavClient.changeToken`.
+  final String? changeToken;
+
+  TodoRemoteLink copyWith({Object? changeToken = _keep}) => TodoRemoteLink(
+    url: url,
+    name: name,
+    color: color,
+    changeToken: identical(changeToken, _keep)
+        ? this.changeToken
+        : changeToken as String?,
+  );
+
+  static const Object _keep = Object();
+
+  Map<String, Object?> toJson() => {
+    'url': url,
+    'name': name,
+    if (color != null) 'color': color,
+    if (changeToken != null) 'change_token': changeToken,
+  };
+
+  static TodoRemoteLink? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final url = json['url'];
+    if (url is! String || url.isEmpty) return null;
+    String? text(String key) =>
+        json[key] is String ? json[key] as String : null;
+    return TodoRemoteLink(
+      url: url,
+      name: text('name') ?? url,
+      color: text('color'),
+      changeToken: text('change_token'),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is TodoRemoteLink &&
+      other.url == url &&
+      other.name == name &&
+      other.color == color &&
+      other.changeToken == changeToken;
+
+  @override
+  int get hashCode => Object.hash(url, name, color, changeToken);
+}
+
+/// A task deleted on the board whose delete the server has not had yet.
+typedef TodoTombstone = ({String href, String? etag});
 
 /// SQLite's primary result codes for a file that is damaged, or is not a
 /// database at all.
@@ -229,7 +303,8 @@ class TodoDatabase {
           due          TEXT,
           recurrence   TEXT,
           history      TEXT NOT NULL DEFAULT '[]',
-          external     TEXT
+          external     TEXT,
+          remote       TEXT
         )''');
       db.execute('CREATE INDEX entries_order ON entries(kind, position)');
       // `trigram`, not the default word tokenizer: "any string" includes the
@@ -261,6 +336,7 @@ class TodoDatabase {
         'CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)',
       );
       _createStandups(db);
+      _createTombstones(db);
       db.userVersion = kTodoSchemaVersion;
     });
   }
@@ -273,6 +349,10 @@ class TodoDatabase {
         db.execute('ALTER TABLE entries ADD COLUMN external TEXT');
       }
       if (from < 3) _createStandups(db);
+      if (from < 4) {
+        db.execute('ALTER TABLE entries ADD COLUMN remote TEXT');
+        _createTombstones(db);
+      }
       db.userVersion = kTodoSchemaVersion;
     });
   }
@@ -284,6 +364,14 @@ class TodoDatabase {
         taken_at TEXT NOT NULL,
         since    TEXT,
         report   TEXT NOT NULL
+      )''');
+  }
+
+  static void _createTombstones(Database db) {
+    db.execute('''
+      CREATE TABLE remote_tombstones(
+        href TEXT PRIMARY KEY,
+        etag TEXT
       )''');
   }
 
@@ -477,6 +565,59 @@ class TodoDatabase {
     ]);
   }
 
+  /// The task list the board syncs with, or null when it is not linked.
+  TodoRemoteLink? get remoteLink {
+    final rows = _db.select('SELECT value FROM meta WHERE key = ?', [
+      _kRemoteLinkKey,
+    ]);
+    if (rows.isEmpty) return null;
+    final value = rows.single['value'];
+    return TodoRemoteLink.fromJson(value is String ? _decodeJson(value) : null);
+  }
+
+  /// Records [link] as [remoteLink], or forgets it.
+  void recordRemoteLink(TodoRemoteLink? link) {
+    if (link == null) {
+      _db.execute('DELETE FROM meta WHERE key = ?', [_kRemoteLinkKey]);
+    } else {
+      _db.execute('INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)', [
+        _kRemoteLinkKey,
+        jsonEncode(link.toJson()),
+      ]);
+    }
+  }
+
+  /// The tasks deleted here and still owed a delete on the server.
+  List<TodoTombstone> get tombstones => [
+    for (final row in _db.select('SELECT href, etag FROM remote_tombstones'))
+      if (row['href'] case final String href)
+        (
+          href: href,
+          etag: row['etag'] is String ? row['etag'] as String : null,
+        ),
+  ];
+
+  /// Adds [add] to [tombstones] and removes [remove] (by href), together.
+  void recordTombstones({
+    Iterable<TodoTombstone> add = const [],
+    Iterable<String> remove = const [],
+  }) {
+    _transaction(() {
+      for (final t in add) {
+        _db.execute(
+          'INSERT OR REPLACE INTO remote_tombstones(href, etag) VALUES (?, ?)',
+          [t.href, t.etag],
+        );
+      }
+      for (final href in remove) {
+        _db.execute('DELETE FROM remote_tombstones WHERE href = ?', [href]);
+      }
+    });
+  }
+
+  /// Forgets every tombstone — the board is no longer linked.
+  void clearTombstones() => _db.execute('DELETE FROM remote_tombstones');
+
   /// Whether an old `todo.json` has already been imported.
   bool get importedJson => _db.select('SELECT 1 FROM meta WHERE key = ?', [
     _kImportedJsonKey,
@@ -614,8 +755,8 @@ class TodoDatabase {
 const String _kInsertTodo = '''
   INSERT INTO entries(
     id, kind, position, title, body, board_column,
-    created, updated, due, recurrence, history, external)
-  VALUES (?, 'todo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''';
+    created, updated, due, recurrence, history, external, remote)
+  VALUES (?, 'todo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''';
 
 const String _kUpsertTodo =
     '''
@@ -630,7 +771,8 @@ const String _kUpsertTodo =
     due = excluded.due,
     recurrence = excluded.recurrence,
     history = excluded.history,
-    external = excluded.external''';
+    external = excluded.external,
+    remote = excluded.remote''';
 
 const String _kUpsertNote = '''
   INSERT INTO entries(id, kind, title, body, created, updated)
@@ -657,6 +799,7 @@ List<Object?> _todoParameters(TodoItem item, int position, String updated) {
     item.recurrence == null ? null : jsonEncode(json['recurrence']),
     jsonEncode(json['history']),
     item.external == null ? null : jsonEncode(json['external']),
+    item.remote == null ? null : jsonEncode(json['remote']),
   ];
 }
 
@@ -673,6 +816,7 @@ TodoItem? _todoFromRow(Row row) => TodoItem.fromJson({
   'recurrence': _decodeJson(row['recurrence']),
   'history': _decodeJson(row['history']),
   'external': _decodeJson(row['external']),
+  'remote': _decodeJson(row['remote']),
 });
 
 NoteItem? _noteFromRow(Row row) {
