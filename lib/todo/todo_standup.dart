@@ -56,11 +56,17 @@ class StandupSummary {
 ///    when there are none, because an empty "Dropped" is noise.
 ///
 /// The Inbox is left out: it is what has not been looked at yet, not a plan.
+/// So is every card the calendar sync put on the board ([TodoItem.external]),
+/// in any column: a meeting is not work to report on.
 String standupReport(
-  List<TodoItem> items, {
+  List<TodoItem> board, {
   required DateTime? since,
   required DateTime now,
 }) {
+  final items = [
+    for (final item in board)
+      if (item.external == null) item,
+  ];
   final from = since ?? now.subtract(kStandupFirstWindow);
   final today = dateOnly(now);
   bool arrivedSince(TodoItem item) => item.movedAt.isAfter(from);

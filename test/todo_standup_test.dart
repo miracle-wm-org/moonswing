@@ -72,6 +72,42 @@ void main() {
       );
     });
 
+    test('leaves out every card the calendar sync put on the board', () {
+      TodoItem meeting(String title, TodoColumn column) =>
+          _item(title, column, at: after).copyWith(
+            external: TodoExternal(
+              source: TodoExternal.googleCalendar,
+              key: 'primary/$title',
+              title: title,
+              start: after,
+              end: after.add(const Duration(minutes: 30)),
+            ),
+          );
+      final report = standupReport(
+        [
+          meeting('Sprint review', TodoColumn.finished),
+          meeting('Design sync', TodoColumn.inProgress),
+          meeting('Planning', TodoColumn.todo),
+          meeting('Cancelled 1:1', TodoColumn.abandoned),
+          _item('Shipped login', TodoColumn.finished, at: after),
+        ],
+        since: last,
+        now: now,
+      );
+      expect(report, contains('• Shipped login'));
+      for (final title in [
+        'Sprint review',
+        'Design sync',
+        'Planning',
+        'Cancelled 1:1',
+      ]) {
+        expect(report, isNot(contains(title)));
+      }
+      expect(report, contains('• Nothing in progress'));
+      expect(report, contains('• Nothing left to do'));
+      expect(report, isNot(contains('Dropped:')));
+    });
+
     test('an empty board says so rather than printing bare headings', () {
       final report = standupReport(const [], since: null, now: now);
       expect(report, contains('Covering the last 24 hours.'));

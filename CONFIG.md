@@ -645,13 +645,15 @@ the middle of a word counts, and case does not — in a card's title and details
 with several words, a card has to contain all of them. **Ctrl+F** returns to the
 field, and **Escape** clears it before it closes the board.
 
-The megaphone at the top of the board writes a **standup** summary: what you
-moved to **Finished** since the last time you pressed it, everything in **In
-Progress** (marked *started* if it moved there since then), everything in
-**Todo** with its due date, overdue first, and anything you moved to
-**Abandoned** since then. The first time, it covers the last 24 hours. It is
-plain text with a **Copy** button, for pasting into a chat. **Inbox** is left
-out, and nothing is sent anywhere.
+The megaphone at the top of the board opens your **standup** summaries, and
+**New summary** there writes one: what you moved to **Finished** since the last
+summary, everything in **In Progress** (marked *started* if it moved there since
+then), everything in **Todo** with its due date, overdue first, and anything you
+moved to **Abandoned** since then. The first time, it covers the last 24 hours.
+Opening the megaphone only shows the summaries already taken; it never writes a
+new one. It is plain text with a **Copy** button, for pasting into a chat.
+**Inbox** is left out, and so are calendar events the Google sync put on the
+board — a meeting is not work to report. Nothing is sent anywhere.
 
 The board is kept in an SQLite database, `~/.local/share/moonswing/notes.db`
 (or under `$XDG_DATA_HOME`), not in `config.toml`, and saved as you go.  SQLite comes
