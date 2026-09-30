@@ -29,12 +29,24 @@ class CalDavAccount {
     required this.url,
     required this.username,
     required this.password,
+    this.trustedCertificate,
   });
 
   /// What the user typed: the server, a principal, or one calendar.
   final String url;
   final String username;
   final String password;
+
+  /// The SHA-256 fingerprint of a certificate the user chose to trust for
+  /// this server beyond what the system trusts, or null.
+  final String? trustedCertificate;
+
+  CalDavAccount withTrustedCertificate(String? fingerprint) => CalDavAccount(
+    url: url,
+    username: username,
+    password: password,
+    trustedCertificate: fingerprint,
+  );
 
   /// "me on dav.example.com".
   String get label {
@@ -47,10 +59,11 @@ class CalDavAccount {
       other is CalDavAccount &&
       other.url == url &&
       other.username == username &&
-      other.password == password;
+      other.password == password &&
+      other.trustedCertificate == trustedCertificate;
 
   @override
-  int get hashCode => Object.hash(url, username, password);
+  int get hashCode => Object.hash(url, username, password, trustedCertificate);
 }
 
 /// The signed-in CalDAV account, and the task lists on it.
@@ -77,6 +90,7 @@ class CalDavAccountStore extends ChangeNotifier {
   Future<void>? _loading;
   bool _busy = false;
   String _error = '';
+  CalDavCertificate? _untrusted;
 
   /// Counts sign-in attempts, so one [cancelSignIn] abandoned can tell, when
   /// its server finally answers, that nobody is waiting for it any more.
@@ -120,10 +134,20 @@ class CalDavAccountStore extends ChangeNotifier {
   /// Why the last sign-in or refresh failed, or empty.
   String get error => _error;
 
+  /// The certificate the last sign-in or refresh was refused over, which the
+  /// user may choose to trust; null otherwise.
+  CalDavCertificate? get untrustedCertificate => _untrusted;
+
   void clearError() {
-    if (_error.isEmpty) return;
+    if (_error.isEmpty && _untrusted == null) return;
     _error = '';
+    _untrusted = null;
     notifyListeners();
+  }
+
+  void _failed(CalDavException e) {
+    _error = e.message;
+    _untrusted = e is CalDavUntrustedCertificate ? e.certificate : null;
   }
 
   /// A client for [account], or null when signed out.
@@ -133,6 +157,7 @@ class CalDavAccountStore extends ChangeNotifier {
     return CalDavClient(
       username: a.username,
       password: a.password,
+      trustedCertificate: a.trustedCertificate,
       client: _httpClient,
     );
   }
@@ -166,6 +191,9 @@ class CalDavAccountStore extends ChangeNotifier {
               url: url,
               username: text('username'),
               password: text('password'),
+              trustedCertificate: json['trusted_certificate'] is String
+                  ? json['trusted_certificate'] as String
+                  : null,
             );
             _taskLists = [
               if (json['task_lists'] case final List<Object?> lists)
@@ -184,11 +212,14 @@ class CalDavAccountStore extends ChangeNotifier {
 
   /// Signs in: asks the server at [url] for the task lists [username] can
   /// see, and keeps the account only if it answers. Returns whether it did;
-  /// [error] says why not.
+  /// [error] says why not, and [untrustedCertificate] what the server
+  /// presented when that was the reason. [trustedCertificate] is a
+  /// fingerprint to accept beyond the system's trust store.
   Future<bool> signIn({
     required String url,
     required String username,
     required String password,
+    String? trustedCertificate,
   }) async {
     final server = calDavServerUri(url);
     if (server == null) {
@@ -197,10 +228,15 @@ class CalDavAccountStore extends ChangeNotifier {
       return false;
     }
     final attempt = ++_signInAttempt;
-    final connection = _httpClient ?? (_signInConnection = http.Client());
+    final connection =
+        _httpClient ??
+        (_signInConnection = CalDavHttpClient(
+          trustedCertificate: trustedCertificate,
+        ));
     _busy = true;
     _signingIn = true;
     _error = '';
+    _untrusted = null;
     notifyListeners();
     try {
       final lists = await CalDavClient(
@@ -219,12 +255,13 @@ class CalDavAccountStore extends ChangeNotifier {
         url: url.trim(),
         username: username,
         password: password,
+        trustedCertificate: trustedCertificate,
       );
       _taskLists = lists;
       await _save();
       return true;
     } on CalDavException catch (e) {
-      if (attempt == _signInAttempt) _error = e.message;
+      if (attempt == _signInAttempt) _failed(e);
       return false;
     } finally {
       // A cancelled attempt has already been wound down by [cancelSignIn],
@@ -253,6 +290,7 @@ class CalDavAccountStore extends ChangeNotifier {
     _busy = false;
     _signingIn = false;
     _error = '';
+    _untrusted = null;
     notifyListeners();
   }
 
@@ -264,16 +302,28 @@ class CalDavAccountStore extends ChangeNotifier {
     if (server == null || client == null) return;
     _busy = true;
     _error = '';
+    _untrusted = null;
     notifyListeners();
     try {
       _taskLists = await client.discoverTaskLists(server);
       await _save();
     } on CalDavException catch (e) {
-      _error = e.message;
+      _failed(e);
     } finally {
       _busy = false;
       notifyListeners();
     }
+  }
+
+  /// Trusts the certificate with [fingerprint] for the signed-in account —
+  /// a self-signed one that was renewed — and asks for the task lists again
+  /// over it. Signed out, the form signs in with it instead.
+  Future<void> trustCertificate(String fingerprint) async {
+    final a = _account;
+    if (a == null) return;
+    _account = a.withTrustedCertificate(fingerprint);
+    await _save();
+    await refreshTaskLists();
   }
 
   /// Forgets the account. Must work whatever state the file is in.
@@ -281,6 +331,7 @@ class CalDavAccountStore extends ChangeNotifier {
     _account = null;
     _taskLists = const [];
     _error = '';
+    _untrusted = null;
     notifyListeners();
     try {
       final file = File(path);
@@ -305,6 +356,7 @@ class CalDavAccountStore extends ChangeNotifier {
           'url': a.url,
           'username': a.username,
           'password': a.password,
+          'trusted_certificate': ?a.trustedCertificate,
           'task_lists': [
             for (final l in _taskLists)
               {'url': l.url.toString(), 'name': l.name, 'color': ?l.color},

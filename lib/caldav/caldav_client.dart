@@ -10,12 +10,22 @@
 // GET alone, so this follows them itself: `/.well-known/caldav` is a redirect
 // by design.
 //
+// TLS is the system's trust store — Dart reads `/etc/ssl/certs` — plus, for a
+// server whose certificate that store cannot vouch for (self-signed, a private
+// CA, a chain served without its intermediate), one certificate the user has
+// pinned by its SHA-256 fingerprint. Pinned, never "accept anything": the
+// password goes out on every request, and an exemption for any certificate at
+// all is an exemption for whoever sits between this machine and the server.
+//
 // Flutter-free, for `test/caldav_client_test.dart`.
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:xml/xml.dart';
 
 /// How long one request may take before the server counts as unreachable.
@@ -42,6 +52,81 @@ class CalDavException implements Exception {
 /// read: somebody else edited it.
 class CalDavConflict extends CalDavException {
   const CalDavConflict(super.message) : super(statusCode: 412);
+}
+
+/// The certificate a server presented and this machine would not trust.
+class CalDavCertificate {
+  const CalDavCertificate({
+    required this.host,
+    required this.fingerprint,
+    required this.subject,
+    required this.issuer,
+    required this.expires,
+  });
+
+  final String host;
+
+  /// SHA-256 of the DER, as [calDavCertificateFingerprint] spells it.
+  final String fingerprint;
+  final String subject;
+  final String issuer;
+  final DateTime expires;
+
+  factory CalDavCertificate.of(X509Certificate cert, String host) =>
+      CalDavCertificate(
+        host: host,
+        fingerprint: calDavCertificateFingerprint(cert.der),
+        subject: cert.subject,
+        issuer: cert.issuer,
+        expires: cert.endValidity,
+      );
+}
+
+/// A handshake refused the server's certificate. [certificate] is what the
+/// user would be pinning, should they choose to.
+class CalDavUntrustedCertificate extends CalDavException {
+  const CalDavUntrustedCertificate(super.message, this.certificate);
+  final CalDavCertificate certificate;
+}
+
+/// `AB:CD:…`, the SHA-256 of [der] as `openssl x509 -fingerprint -sha256`
+/// prints it, so the two can be compared by eye.
+String calDavCertificateFingerprint(List<int> der) => [
+  for (final b in sha256.convert(der).bytes)
+    b.toRadixString(16).padLeft(2, '0').toUpperCase(),
+].join(':');
+
+/// An `http.Client` over `dart:io` that trusts what the system does and, in
+/// addition, the one certificate whose fingerprint is [trustedCertificate].
+/// Remembers the certificate it last refused, which is how a failed
+/// handshake — reported by `dart:io` as nothing more specific than an
+/// exception — becomes a [CalDavUntrustedCertificate].
+class CalDavHttpClient extends http.BaseClient {
+  CalDavHttpClient({this.trustedCertificate}) {
+    _inner = IOClient(HttpClient()..badCertificateCallback = _accept);
+  }
+
+  final String? trustedCertificate;
+  late final IOClient _inner;
+
+  /// The certificate the last refused handshake presented.
+  CalDavCertificate? refused;
+
+  bool _accept(X509Certificate cert, String host, int port) {
+    final seen = CalDavCertificate.of(cert, host);
+    if (trustedCertificate != null && seen.fingerprint == trustedCertificate) {
+      return true;
+    }
+    refused = seen;
+    return false;
+  }
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _inner.send(request);
+
+  @override
+  void close() => _inner.close();
 }
 
 /// Whether [url] would send a password unencrypted to another machine.
@@ -97,12 +182,17 @@ class CalDavClient {
   CalDavClient({
     required this.username,
     required this.password,
+    this.trustedCertificate,
     http.Client? client,
     this.timeout = kCalDavTimeout,
   }) : _client = client;
 
   final String username;
   final String password;
+
+  /// The fingerprint of a certificate to trust beyond the system's, when no
+  /// [http.Client] is given; one that is given brings its own trust.
+  final String? trustedCertificate;
   final Duration timeout;
   final http.Client? _client;
 
@@ -125,10 +215,12 @@ class CalDavClient {
     String? body,
     String contentType = 'application/xml; charset=utf-8',
   }) async {
-    final client = _client ?? http.Client();
+    final client =
+        _client ?? CalDavHttpClient(trustedCertificate: trustedCertificate);
     try {
       var target = url;
       for (var hop = 0; ; hop++) {
+        if (client is CalDavHttpClient) client.refused = null;
         final request = http.Request(method, target)
           ..followRedirects = false
           ..headers.addAll(_auth)
@@ -138,9 +230,8 @@ class CalDavClient {
           request.body = body;
         }
         final streamed = await client.send(request).timeout(timeout);
-        final response = await http.Response.fromStream(
-          streamed,
-        ).timeout(timeout);
+        final response = await http.Response.fromStream(streamed)
+            .timeout(timeout);
         final location = response.headers['location'];
         if (hop < 5 &&
             location != null &&
@@ -155,6 +246,15 @@ class CalDavClient {
     } on CalDavException {
       rethrow;
     } catch (e) {
+      if (client case CalDavHttpClient(:final refused?)) {
+        throw CalDavUntrustedCertificate(
+          '${refused.host} presented a certificate this machine does not '
+          'trust (issued by ${refused.issuer}). If this is your own server, '
+          'check the fingerprint below against it and trust it, or add its '
+          'CA to the system trust store.',
+          refused,
+        );
+      }
       throw CalDavException('Could not reach ${url.host}: $e');
     } finally {
       if (_client == null) client.close();
@@ -457,9 +557,8 @@ class _DavResponse {
 
   /// `#rrggbb` from Apple's `#rrggbbaa`, or null.
   static String? _color(String? value) {
-    final match = RegExp(
-      r'^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$',
-    ).firstMatch(value?.trim() ?? '');
+    final match = RegExp(r'^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$')
+        .firstMatch(value?.trim() ?? '');
     return match == null ? null : '#${match[1]!.toLowerCase()}';
   }
 }
