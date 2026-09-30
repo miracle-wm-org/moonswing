@@ -5,9 +5,10 @@
 // Unlike Google and GitHub there is no OAuth app and no browser: CalDAV is a
 // password (ideally an app password) sent to a server the user names. So the
 // card is a form, and Connect is the server being asked for the user's task
-// lists — an account is only kept once that answers. `CalDavAccountStore` holds
-// it; which list the board syncs with is chosen on the board itself, since
-// linking one merges the two.
+// lists — an account is only kept once that answers, and Cancel abandons a
+// server that is slow to (a mistyped address may never). `CalDavAccountStore`
+// holds it; which list the board syncs with is chosen on the board itself,
+// since linking one merges the two.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -224,16 +225,26 @@ class _SignInFormState extends State<_SignInForm> {
           ],
         ),
         const SizedBox(height: 12),
-        Align(
-          alignment: Alignment.centerRight,
-          child: SettingsActionButton(
-            label: 'Connect',
-            primary: true,
-            compact: true,
-            enabled: _ready,
-            loading: widget.account.busy,
-            onTap: _connect,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            if (widget.account.signingIn) ...[
+              SettingsActionButton(
+                label: 'Cancel',
+                compact: true,
+                onTap: widget.account.cancelSignIn,
+              ),
+              const SizedBox(width: 8),
+            ],
+            SettingsActionButton(
+              label: 'Connect',
+              primary: true,
+              compact: true,
+              enabled: _ready,
+              loading: widget.account.busy,
+              onTap: _connect,
+            ),
+          ],
         ),
       ],
     );

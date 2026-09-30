@@ -78,6 +78,15 @@ class CalDavAccountStore extends ChangeNotifier {
   bool _busy = false;
   String _error = '';
 
+  /// Counts sign-in attempts, so one [cancelSignIn] abandoned can tell, when
+  /// its server finally answers, that nobody is waiting for it any more.
+  int _signInAttempt = 0;
+  bool _signingIn = false;
+
+  /// The connection a sign-in with no injected client runs over, closed by
+  /// [cancelSignIn] so the request is dropped rather than left to time out.
+  http.Client? _signInConnection;
+
   /// The directory the account file sits in, resolved per call so a test that
   /// sets `XDG_STATE_HOME` is not defeated by a value cached at start-up.
   String get directory {
@@ -104,6 +113,9 @@ class CalDavAccountStore extends ChangeNotifier {
 
   /// A sign-in or a refresh is under way.
   bool get busy => _busy;
+
+  /// A [signIn] is waiting on the server, and [cancelSignIn] would stop it.
+  bool get signingIn => _signingIn;
 
   /// Why the last sign-in or refresh failed, or empty.
   String get error => _error;
@@ -184,15 +196,19 @@ class CalDavAccountStore extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    final attempt = ++_signInAttempt;
+    final connection = _httpClient ?? (_signInConnection = http.Client());
     _busy = true;
+    _signingIn = true;
     _error = '';
     notifyListeners();
     try {
       final lists = await CalDavClient(
         username: username,
         password: password,
-        client: _httpClient,
+        client: connection,
       ).discoverTaskLists(server);
+      if (attempt != _signInAttempt) return false;
       if (lists.isEmpty) {
         _error =
             '${server.host} answered, but has no task lists for $username. '
@@ -208,12 +224,36 @@ class CalDavAccountStore extends ChangeNotifier {
       await _save();
       return true;
     } on CalDavException catch (e) {
-      _error = e.message;
+      if (attempt == _signInAttempt) _error = e.message;
       return false;
     } finally {
-      _busy = false;
-      notifyListeners();
+      // A cancelled attempt has already been wound down by [cancelSignIn],
+      // and a newer one owns the flags now.
+      if (attempt == _signInAttempt) {
+        if (_httpClient == null) {
+          connection.close();
+          _signInConnection = null;
+        }
+        _busy = false;
+        _signingIn = false;
+        notifyListeners();
+      }
     }
+  }
+
+  /// Abandons a [signIn] still waiting on its server — the address or the
+  /// user name was mistyped, and the server behind it may take the whole
+  /// timeout to say so, or never answer at all. Nothing is kept and no error
+  /// is shown; that attempt's [signIn] returns false.
+  void cancelSignIn() {
+    if (!_signingIn) return;
+    _signInAttempt++;
+    _signInConnection?.close();
+    _signInConnection = null;
+    _busy = false;
+    _signingIn = false;
+    _error = '';
+    notifyListeners();
   }
 
   /// Asks the server for its task lists again.
