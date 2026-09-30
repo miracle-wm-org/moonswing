@@ -22,10 +22,18 @@
 //   handing it the canvas would let the next frame tear the one being written,
 //   and a slow encoder would grow the sink's queue without limit. Bounding to
 //   [_maxInFlight] turns overload into dropped frames rather than into memory.
+// - **Writes are serialised through one pump.** An `IOSink` is *bound* while a
+//   flush is pending, and `add`, `flush` and `close` all throw a `StateError`
+//   until it lands. Writing straight from the tick lost every frame that came
+//   in behind a slow flush, and a stop that landed there never closed ffmpeg's
+//   stdin at all — ffmpeg waited on it until the flush timeout killed it, and
+//   the recording failed with nothing on stderr. So frames queue, one pump
+//   hands them over a flush at a time, and a stop drains it before closing.
 // - **A missing ffmpeg is a message, not a silence.** It names the package, never
 //   a package manager.
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -76,6 +84,9 @@ class ScreenRecorder {
 
   final Completer<void> _firstFrame = Completer<void>();
   final List<Uint8List> _pool = [];
+  final Queue<Uint8List> _queue = Queue<Uint8List>();
+  bool _pumping = false;
+  Future<void> _pumped = Future<void>.value();
   final StringBuffer _stderr = StringBuffer();
 
   Uint8List? _canvas;
@@ -162,7 +173,10 @@ class ScreenRecorder {
     }
 
     try {
-      await sink.flush();
+      // Every queued frame reaches the pipe before it closes, and closing
+      // while the pump's flush is pending would throw — leaving ffmpeg
+      // waiting on a stdin nobody ends.
+      await _pumped;
       await sink.close();
     } catch (_) {
       // A broken pipe here means ffmpeg is already gone; its exit code below
@@ -265,19 +279,40 @@ class ScreenRecorder {
     final buffer = _pool.isNotEmpty ? _pool.removeLast() : Uint8List(canvas.length);
     buffer.setRange(0, canvas.length, canvas);
     _inFlight++;
-    try {
-      sink.add(buffer);
-    } catch (_) {
-      _inFlight--;
-      return false;
+    _queue.add(buffer);
+    if (!_pumping) {
+      _pumping = true;
+      _pumped = _pump(sink);
     }
-    sink.flush().then((_) => _release(buffer), onError: (_) => _release(buffer));
     return true;
+  }
+
+  /// Hands queued frames to [sink] one flush at a time, until the queue is
+  /// empty.
+  Future<void> _pump(IOSink sink) async {
+    try {
+      while (_queue.isNotEmpty) {
+        final buffer = _queue.removeFirst();
+        try {
+          sink.add(buffer);
+          await sink.flush();
+        } finally {
+          _release(buffer);
+        }
+      }
+    } catch (_) {
+      // A broken pipe: ffmpeg is gone, and its exit code is the real answer.
+      while (_queue.isNotEmpty) {
+        _release(_queue.removeFirst());
+      }
+    } finally {
+      _pumping = false;
+    }
   }
 
   void _release(Uint8List buffer) {
     _inFlight--;
-    if (_pool.length < _maxInFlight) _pool.add(buffer);
+    if (!_stopping && _pool.length < _maxInFlight) _pool.add(buffer);
   }
 
   Future<void> _startFfmpeg() async {
