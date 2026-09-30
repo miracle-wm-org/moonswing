@@ -705,12 +705,16 @@ is: the database above is still what is on screen, it works offline, search
 still covers every card and note, and the backup file is still written.
 
 Sign in once under **Settings › Accounts › CalDAV** with the server's address
-(or the address of one task list), your user name and a password — an app
-password, where the server offers them. The shell asks the server for your task
-lists before keeping anything, so a wrong address or password is said there and
-then. The address and password are kept in
+(or the address of one calendar or task list), your user name and a password —
+an app password, where the server offers them. The shell asks the server for
+your calendars and task lists before keeping anything, so a wrong address or
+password is said there and then. **Add account** signs in to another server (or
+as another user on the same one) beside it; signing in again with an address
+and user name already listed replaces that account rather than listing it
+twice. The addresses and passwords are kept in
 `~/.local/state/moonswing/caldav-account.json` (or under `$XDG_STATE_HOME`),
-readable only by you, not in `config.toml`.
+readable only by you, not in `config.toml`. The same accounts' calendars of
+events can be shown on the Calendar tab; see Calendar.
 
 The server's certificate is checked against the system's trust store
 (`/etc/ssl/certs`). A server that store cannot vouch for — self-signed, signed
@@ -719,14 +723,17 @@ it to a public one — is refused with `CERTIFICATE_VERIFY_FAILED`, and the form
 shows the certificate's SHA-256 fingerprint. Compare it with
 `openssl x509 -in cert.pem -noout -fingerprint -sha256` on the server; if they
 match, **Trust certificate and connect** pins that one certificate to the
-account. Only it is trusted, not certificates in general, so a renewed
+account (for an account already signed in, the card offers **Trust** beside
+it instead). Only it is trusted, not certificates in general, so a renewed
 self-signed certificate is refused again until it is trusted in turn. The
 alternative that needs no pin is to make the machine trust the server: have it
 serve its full chain, or add your CA to the system trust store
 (`update-ca-certificates` on Debian and Ubuntu, `trust anchor` on Fedora and
 Arch).
 
-Then open **Backups…** on the board, pick a list and **Link**. Linking
+Then open **Backups…** on the board, pick a list and **Link**. With more than
+one account signed in, every account's lists are offered, each named with its
+account, and the sync signs in with the account the list was found on. Linking
 *merges*: every card is sent to the list and every task on it comes to the
 board. With the switch beside it turned on it *replaces* the board instead —
 the cards are removed and the list's tasks take their place, after the board is
@@ -1486,7 +1493,7 @@ The lock screen starts as a clock, date, and the account name over the wallpaper
 
 ## Calendar
 
-The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Google Calendar events appear only once an account is signed in under Settings › Accounts; see Google Account. Settings › Shell › Calendar holds both this section and, per signed-in account, which of its calendars are read.
+The `[calendar]` section configures the Calendar tab, reached by clicking the clock. The tab is a month grid beside the current local time. On its own it fetches nothing over the network. Events appear only once an account is signed in under Settings › Accounts: a Google account (see Google Account), a CalDAV server (see CalDAV calendars below), or any number of both. Settings › Shell › Calendar holds this section and, per signed-in account, which of its calendars are read.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -1494,13 +1501,32 @@ The `[calendar]` section configures the Calendar tab, reached by clicking the cl
 
 ### Events on the calendar
 
-With a Google account signed in, events are drawn on the calendar itself. Each day of the month holds a bar per event, as many as the cell has room for, then **+N more**, which opens that day. An all-day or multi-day event is a filled banner in its calendar's colour; a timed one is a dot, its start time and its title.
+With a Google account or a CalDAV calendar signed in and chosen, events are drawn on the calendar itself, every account's together. Each day of the month holds a bar per event, as many as the cell has room for, then **+N more**, which opens that day. An all-day or multi-day event is a filled banner in its calendar's colour; a timed one is a dot, its start time and its title.
 
 **Month**, **Week** and **Day** above the grid switch the view. Week and Day are a time grid: each timed event is a box as tall as the meeting is long, events that overlap share the column, all-day events sit in a strip across the top, and a line marks the current time. They open scrolled to the working day. In Week, clicking a day's name opens that day. The chevrons step by a month, a week or a day.
 
-Clicking any event opens its details: when, which calendar (and account), where, and the description. The buttons under it go where the event links: **Join** for a Google Meet, Zoom or Teams call, **Open in Google Calendar**, and one per attachment or link in the description.
+Clicking any event opens its details: when, which calendar (and account), where, and the description. The buttons under it go where the event links: **Join** for a Google Meet, Zoom or Teams call, **Open in Google Calendar** (for a Google event), and one per attachment or link in the description.
 
-If a calendar cannot be read, its name and Google's reason appear above the grid with **Retry**. The other calendars' events stay on screen.
+If a calendar cannot be read, its name and the server's reason appear above the grid with **Retry**. The other calendars' events stay on screen.
+
+### CalDAV calendars
+
+The CalDAV servers signed in under Settings › Accounts (see Task list sync, under the todo board, for signing in) can show their calendars of events here, as many servers as you like. Settings › Shell › Calendar lists each server's calendars under its own heading, with a switch each; none is shown until it is switched on. The calendars are looked for again each time that page opens, so one made on the server since appears there.
+
+A recurring event is expanded by the server, into its occurrences in the month on screen. For a server that does not, the shell reads the common rules itself (daily, weekly on given days, monthly on a day of the month, yearly, with an interval, a count or an end date, and the dates excepted); an event with a rule it cannot read shows its first occurrence only. Times written in a named time zone are converted with the time zone database the world clocks use.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `calendars` | array of strings | `[]` | The calendars to show, by their address on the server, as Settings › Shell › Calendar writes them. One list serves every account, since an address belongs to one server. |
+| `show_in_calendar` | bool | `true` | Draw the chosen calendars' events on the Calendar tab, and offer its Week and Day views. |
+| `refresh_minutes` | int | `5` | How often events are read again while the Calendar tab is open (1–60). Nothing is fetched while it is closed. |
+
+```toml
+[caldav]
+calendars = ["https://dav.example.com/dav/calendars/me/personal/"]
+show_in_calendar = true
+refresh_minutes = 5
+```
 
 ### World Clocks
 

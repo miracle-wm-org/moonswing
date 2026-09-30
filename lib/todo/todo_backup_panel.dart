@@ -528,7 +528,7 @@ class _BackupCardState extends State<_BackupCard> {
                     loading: sync.running,
                     onTap: () => sync.syncNow(),
                   ),
-                  if (accounts.account == null)
+                  if (accounts.clientForCollection(Uri.parse(link.url)) == null)
                     SettingsActionButton(
                       label: 'Sign in…',
                       compact: true,
@@ -562,8 +562,7 @@ class _BackupCardState extends State<_BackupCard> {
         ],
       ];
     }
-    final account = accounts.account;
-    if (account == null) {
+    if (!accounts.signedIn) {
       return [
         const _Heading('Task list'),
         intro,
@@ -584,6 +583,13 @@ class _BackupCardState extends State<_BackupCard> {
       ];
     }
     final lists = accounts.taskLists;
+    final several = accounts.accounts.length > 1;
+    String labelOf(CalDavCollection l) {
+      if (!several) return l.name;
+      final on = accounts.accountOf(l.url);
+      return on == null ? l.name : '${l.name} — ${on.label}';
+    }
+
     final chosen = lists.contains(_chosen)
         ? _chosen
         : (lists.isEmpty ? null : lists.first);
@@ -591,9 +597,9 @@ class _BackupCardState extends State<_BackupCard> {
       const _Heading('Task list'),
       intro,
       const SizedBox(height: 10),
-      if (accounts.error.isNotEmpty) ...[
+      if (accounts.refreshError.isNotEmpty) ...[
         Text(
-          accounts.error,
+          accounts.refreshError,
           style: const TextStyle(
             fontSize: ShellFontSizes.secondary,
             color: kErrorColor,
@@ -605,7 +611,10 @@ class _BackupCardState extends State<_BackupCard> {
         Row(
           children: [
             Expanded(
-              child: SettingsHint('No task lists found on ${account.label}.'),
+              child: SettingsHint(
+                'No task lists found on '
+                '${accounts.accounts.map((a) => a.label).join(', ')}.',
+              ),
             ),
             const SizedBox(width: 8),
             SettingsActionButton(
@@ -623,7 +632,7 @@ class _BackupCardState extends State<_BackupCard> {
               child: SettingsDropdown<CalDavCollection>(
                 items: [
                   for (final l in lists)
-                    SettingsDropdownItem(value: l, label: l.name),
+                    SettingsDropdownItem(value: l, label: labelOf(l)),
                 ],
                 selected: chosen,
                 onSelected: (l) => setState(() => _chosen = l),

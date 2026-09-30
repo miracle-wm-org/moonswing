@@ -1,14 +1,17 @@
-// Settings › Accounts › CalDAV: the one place the shell signs in to a CalDAV
-// server — Radicale, Baïkal, Nextcloud, Fastmail, iCloud — whose task lists the
-// todo board can sync with.
+// Settings › Accounts › CalDAV: the one place the shell signs in to CalDAV
+// servers — Radicale, Baïkal, Nextcloud, Fastmail, iCloud — as many as the user
+// has, whose calendars the Calendar tab can show and whose task lists the todo
+// board can sync with.
 //
 // Unlike Google and GitHub there is no OAuth app and no browser: CalDAV is a
 // password (ideally an app password) sent to a server the user names. So the
-// card is a form, and Connect is the server being asked for the user's task
-// lists — an account is only kept once that answers, and Cancel abandons a
-// server that is slow to (a mistyped address may never). `CalDavAccountStore`
-// holds it; which list the board syncs with is chosen on the board itself,
-// since linking one merges the two.
+// card is a form, and Connect is the server being asked for the user's
+// calendars — an account is only kept once that answers, and Cancel abandons
+// a server that is slow to (a mistyped address may never). With an account
+// already listed the form is behind **Add account**, the way Google's second
+// sign-in is. `CalDavAccountStore` holds them; which calendars the Calendar tab
+// shows is chosen under Shell › Calendar, and which list the board syncs with
+// on the board itself, since linking one merges the two.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -18,75 +21,128 @@ import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/caldav/caldav_client.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_highlight.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// The CalDAV card.
-class CalDavAccountCard extends StatelessWidget {
+class CalDavAccountCard extends StatefulWidget {
   const CalDavAccountCard({super.key, required this.account});
 
   final CalDavAccountStore account;
+
+  @override
+  State<CalDavAccountCard> createState() => _CalDavAccountCardState();
+}
+
+class _CalDavAccountCardState extends State<CalDavAccountCard> {
+  /// Whether the form is open for another account beside those listed.
+  bool _adding = false;
+
+  CalDavAccountStore get account => widget.account;
+
+  void _closeForm() {
+    account
+      ..cancelSignIn()
+      ..clearError();
+    setState(() => _adding = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: account,
       builder: (context, _) {
-        final signedIn = account.account;
+        final accounts = account.accounts;
         final error = account.error;
         final untrusted = account.untrustedCertificate;
+        final formOpen = accounts.isEmpty || _adding;
         return AccountProviderCard(
           brand: AccountBrand.caldav,
-          tagline: 'Task lists on your own calendar server',
-          state: signedIn == null
-              ? AccountLinkState.none
-              : AccountLinkState.linked,
+          tagline: 'Calendars and task lists on your own server',
+          state: accounts.isNotEmpty
+              ? AccountLinkState.linked
+              : account.signingIn
+              ? AccountLinkState.pending
+              : AccountLinkState.none,
           info:
               'Any CalDAV server: Radicale, Baïkal, Nextcloud, ownCloud, '
-              'Fastmail, iCloud and others. Give the address of the server '
-              '(or of one task list), your user name, and a password — an app '
-              'password, where the server offers them. They are kept in '
-              '~/.local/state/moonswing, readable only by you. Which task list '
-              'the todo board syncs with is chosen on the board, under '
-              'Backups…',
-          usedBy: const [(FontAwesomeIcons.tableColumns, 'Todo board')],
+              'Fastmail, iCloud and others, as many as you like. Give the '
+              'address of the server (or of one calendar), your user name, and '
+              'a password — an app password, where the server offers them. '
+              'They are kept in ~/.local/state/moonswing, readable only by you. '
+              'Which calendars the Calendar tab shows is chosen under Shell › '
+              'Calendar; which task list the todo board syncs with is chosen on '
+              'the board, under Backups…',
+          // An add button goes at the top right of the collection it adds to.
+          trailing: accounts.isNotEmpty && !_adding
+              ? SettingsAddButton(
+                  label: 'Add account',
+                  onTap: () => setState(() => _adding = true),
+                )
+              : null,
+          usedBy: const [
+            (FontAwesomeIcons.calendarDays, 'Calendar tab'),
+            (FontAwesomeIcons.tableColumns, 'Todo board'),
+          ],
           children: [
-            if (error.isNotEmpty) ...[
-              SettingsBanner(
-                title: untrusted == null
-                    ? 'CalDAV account'
-                    : 'Untrusted certificate',
-                message: untrusted == null
-                    ? error
-                    : '$error\n\n${_describe(untrusted)}',
-                action: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Signed out, the form trusts it as it connects, since
-                    // it holds the address and password to connect with.
-                    if (untrusted != null && signedIn != null) ...[
-                      SettingsActionButton(
-                        label: 'Trust',
-                        compact: true,
-                        onTap: () =>
-                            account.trustCertificate(untrusted.fingerprint),
-                      ),
-                      const SizedBox(width: 8),
-                    ],
-                    SettingsActionButton(
-                      label: 'Dismiss',
-                      compact: true,
-                      onTap: account.clearError,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
+            for (final a in accounts) ...[
+              _AccountRow(store: account, account: a),
+              const SizedBox(height: 8),
             ],
-            if (signedIn == null)
-              _SignInForm(account: account)
-            else
-              _SignedIn(account: account, signedIn: signedIn),
+            if (formOpen) ...[
+              if (accounts.isNotEmpty) const SizedBox(height: 4),
+              if (error.isNotEmpty) ...[
+                SettingsBanner(
+                  title: untrusted == null
+                      ? 'CalDAV account'
+                      : 'Untrusted certificate',
+                  message: untrusted == null
+                      ? error
+                      : '$error\n\n${_describe(untrusted)}',
+                  // The form trusts it as it connects, since it holds the
+                  // address and password to connect with.
+                  action: SettingsActionButton(
+                    label: 'Dismiss',
+                    compact: true,
+                    onTap: account.clearError,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              _SignInForm(
+                // A fresh form per account added, so the fields start empty.
+                key: ValueKey(accounts.length),
+                account: account,
+                onCancel: accounts.isEmpty ? null : _closeForm,
+                onSignedIn: () => setState(() => _adding = false),
+              ),
+            ],
+            if (accounts.isNotEmpty && !formOpen) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Expanded(
+                    child: AccountBlurb(
+                      'Which calendars the Calendar tab shows is set with the '
+                      'rest of the calendar. Open the todo board and choose '
+                      'Backups… to link it to a task list.',
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  SettingsActionButton(
+                    label: 'Calendar settings',
+                    icon: FontAwesomeIcons.calendarDays,
+                    compact: true,
+                    onTap: () => openSettingsAt(
+                      context,
+                      SettingsCatalog.caldavCalendars,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         );
       },
@@ -103,44 +159,89 @@ String _describe(CalDavCertificate c) {
       'On the server: openssl x509 -in cert.pem -noout -fingerprint -sha256';
 }
 
-class _SignedIn extends StatelessWidget {
-  const _SignedIn({required this.account, required this.signedIn});
+/// What an account was found to hold, in a line.
+String calDavAccountSummary(CalDavAccount a) {
+  String names(String one, String many, List<CalDavCollection> list) =>
+      '${list.length == 1 ? one : many}: ${list.map((c) => c.name).join(', ')}';
+  // A collection that holds both is listed under each.
+  final events = a.eventCalendars;
+  final tasks = a.taskLists;
+  if (events.isEmpty && tasks.isEmpty) return 'No calendars found';
+  return [
+    if (events.isNotEmpty) names('Calendar', 'Calendars', events),
+    if (tasks.isNotEmpty) names('Task list', 'Task lists', tasks),
+  ].join(' · ');
+}
 
-  final CalDavAccountStore account;
-  final CalDavAccount signedIn;
+/// One signed-in account: who, what it holds, and what went wrong reading it.
+class _AccountRow extends StatelessWidget {
+  const _AccountRow({required this.store, required this.account});
+
+  final CalDavAccountStore store;
+  final CalDavAccount account;
 
   @override
   Widget build(BuildContext context) {
-    final lists = account.taskLists;
+    final id = account.id;
+    final error = store.errorOf(id);
+    final untrusted = store.untrustedCertificateOf(id);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         AccountIdentityRow(
-          name: signedIn.label,
-          detail: lists.isEmpty
-              ? 'No task lists found'
-              : lists.length == 1
-              ? 'Task list: ${lists.single.name}'
-              : '${lists.length} task lists: '
-                    '${lists.map((l) => l.name).join(', ')}',
+          name: account.label,
+          detail: calDavAccountSummary(account),
           actions: [
             SettingsIconButton(
               icon: FontAwesomeIcons.arrowsRotate,
-              tooltip: 'Look for task lists again',
-              onTap: account.refreshTaskLists,
+              tooltip: 'Look for calendars again',
+              enabled: !store.refreshing(id),
+              onTap: () => store.refresh(id),
             ),
             SettingsActionButton(
               label: 'Sign out',
               compact: true,
-              onTap: account.signOut,
+              onTap: () => store.signOut(id),
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        const AccountBlurb(
-          'Open the todo board and choose Backups… to link it to one of '
-          'these lists.',
-        ),
+        if (error.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SettingsBanner(
+            title: untrusted == null
+                ? 'Could not read ${account.label}'
+                : 'Untrusted certificate',
+            message: untrusted == null
+                ? error
+                : '$error\n\n${_describe(untrusted)}',
+            action: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (untrusted != null) ...[
+                  SettingsActionButton(
+                    label: 'Trust',
+                    compact: true,
+                    onTap: () =>
+                        store.trustCertificate(id, untrusted.fingerprint),
+                  ),
+                  const SizedBox(width: 8),
+                ] else ...[
+                  SettingsActionButton(
+                    label: 'Retry',
+                    compact: true,
+                    onTap: () => store.refresh(id),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                SettingsActionButton(
+                  label: 'Dismiss',
+                  compact: true,
+                  onTap: () => store.clearErrorOf(id),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -148,9 +249,21 @@ class _SignedIn extends StatelessWidget {
 
 /// The server address, user name and password, and Connect.
 class _SignInForm extends StatefulWidget {
-  const _SignInForm({required this.account});
+  const _SignInForm({
+    super.key,
+    required this.account,
+    this.onCancel,
+    this.onSignedIn,
+  });
 
   final CalDavAccountStore account;
+
+  /// Closes the form, when there is somewhere to go back to: accounts are
+  /// already listed. Null for the first account's form, which is the card.
+  final VoidCallback? onCancel;
+
+  /// Called when a sign-in from this form was kept.
+  final VoidCallback? onSignedIn;
 
   @override
   State<_SignInForm> createState() => _SignInFormState();
@@ -179,16 +292,18 @@ class _SignInFormState extends State<_SignInForm> {
     super.dispose();
   }
 
-  bool get _ready => calDavServerUri(_url.text) != null && !widget.account.busy;
+  bool get _ready =>
+      calDavServerUri(_url.text) != null && !widget.account.signingIn;
 
   Future<void> _connect({String? trustedCertificate}) async {
     if (!_ready) return;
-    await widget.account.signIn(
+    final kept = await widget.account.signIn(
       url: _url.text,
       username: _user.text,
       password: _password.text,
       trustedCertificate: trustedCertificate,
     );
+    if (kept && mounted) widget.onSignedIn?.call();
   }
 
   @override
@@ -200,8 +315,8 @@ class _SignInFormState extends State<_SignInForm> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const AccountBlurb(
-          'The address of your server, or of one task list on it. The shell '
-          'asks it for your task lists before keeping anything.',
+          'The address of your server, or of one calendar on it. The shell '
+          'asks it for your calendars and task lists before keeping anything.',
         ),
         const SizedBox(height: 10),
         const _Label('Server address'),
@@ -259,16 +374,18 @@ class _SignInFormState extends State<_SignInForm> {
         Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            if (widget.account.signingIn) ...[
+            if (widget.account.signingIn || widget.onCancel != null) ...[
               SettingsActionButton(
                 label: 'Cancel',
                 compact: true,
-                onTap: widget.account.cancelSignIn,
+                onTap: widget.account.signingIn
+                    ? widget.account.cancelSignIn
+                    : widget.onCancel!,
               ),
               const SizedBox(width: 8),
             ],
             if (widget.account.untrustedCertificate case final untrusted?
-                when !widget.account.busy) ...[
+                when !widget.account.signingIn) ...[
               SettingsActionButton(
                 label: 'Trust certificate and connect',
                 compact: true,
@@ -283,7 +400,7 @@ class _SignInFormState extends State<_SignInForm> {
               primary: true,
               compact: true,
               enabled: _ready,
-              loading: widget.account.busy,
+              loading: widget.account.signingIn,
               onTap: _connect,
             ),
           ],

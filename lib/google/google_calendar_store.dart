@@ -23,6 +23,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:moonswing/accounts/calendar_event_source.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_api.dart';
 import 'package:moonswing/google/google_config.dart';
@@ -57,7 +58,8 @@ class GoogleCalendarLease {
 }
 
 /// The events, the calendar list, and the poll behind both.
-class GoogleCalendarStore extends ChangeNotifier {
+class GoogleCalendarStore extends ChangeNotifier
+    implements CalendarEventSource {
   GoogleCalendarStore._({GoogleAccountStore? account, bool autoTimers = true})
     : _account = account ?? GoogleAccountStore.instance,
       _autoTimers = autoTimers {
@@ -120,8 +122,7 @@ class GoogleCalendarStore extends ChangeNotifier {
   /// Every fetched occurrence, cancelled ones included, in start order.
   List<GoogleEvent> get events => _events;
 
-  /// The events on the local day [day], all-day ones first, then by start.
-  /// Cancelled ones are left out.
+  @override
   List<GoogleEvent> eventsOn(DateTime day) {
     final midnight = DateTime(day.year, day.month, day.day);
     return _events
@@ -132,14 +133,11 @@ class GoogleCalendarStore extends ChangeNotifier {
 
   /// All-day (and multi-day) events first, then by start, then the longer
   /// first, so a day's bars read in the order a calendar lists them.
-  static int compareForDay(GoogleEvent a, GoogleEvent b) {
-    if (a.allDay != b.allDay) return a.allDay ? -1 : 1;
-    final byStart = a.start.compareTo(b.start);
-    if (byStart != 0) return byStart;
-    return b.end.compareTo(a.end);
-  }
+  static int compareForDay(GoogleEvent a, GoogleEvent b) =>
+      compareEventsForDay(a, b);
 
   /// Whether the local day [day] has any event, for the month grid's markers.
+  @override
   bool hasEventsOn(DateTime day) {
     final midnight = DateTime(day.year, day.month, day.day);
     return _events.any((e) => !e.cancelled && e.overlapsDay(midnight));
@@ -166,13 +164,29 @@ class GoogleCalendarStore extends ChangeNotifier {
     return null;
   }
 
+  /// Whether [event] was read from a Google calendar: a CalDAV event's
+  /// calendar is its collection's URL, which no Google calendar id is.
+  @override
+  bool owns(GoogleEvent event) => !event.calendarId.startsWith('http');
+
+  /// The calendar's name, and the account's when more than one is linked.
+  @override
+  String calendarLabelOf(GoogleEvent event) {
+    final name = calendarOf(event)?.summary ?? event.calendarId;
+    return _account.accounts.length > 1 && event.account.isNotEmpty
+        ? '$name · ${event.account}'
+        : name;
+  }
+
   /// `#rrggbb` to draw [event] in: its own colour, else its calendar's. Null
   /// when neither is known, for the theme's accent.
+  @override
   String? colorOf(GoogleEvent event) => event.color ?? calendarOf(event)?.color;
 
   bool _loading = false;
 
   /// True while a fetch is in flight with nothing yet on screen.
+  @override
   bool get loading => _loading;
 
   List<String> _errors = const [];
@@ -182,6 +196,7 @@ class GoogleCalendarStore extends ChangeNotifier {
   List<String> get errors => _errors;
 
   /// [errors] as one line, or empty.
+  @override
   String get error => _errors.join('\n');
 
   final Map<String, String> _calendarsErrors = {};
@@ -418,6 +433,7 @@ class GoogleCalendarStore extends ChangeNotifier {
 
   /// Fetches the leased span now. Public because a failure offers a retry: a
   /// network comes back and the shell cannot see it happen.
+  @override
   Future<void> refresh() async {
     final wanted = _wanted;
     if (wanted == null || !_account.signedIn) return;

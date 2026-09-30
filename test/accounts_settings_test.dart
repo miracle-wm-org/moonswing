@@ -310,7 +310,53 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('me on dav.example.com'), findsOneWidget);
-      expect(find.text('Task list: Home tasks'), findsOneWidget);
+      expect(
+        find.text('Calendar: Home calendar · Task list: Home tasks'),
+        findsOneWidget,
+      );
+      expect(find.text('Sign out'), findsOneWidget);
+    });
+
+    testWidgets('lists every account, and adds another behind a button', (
+      tester,
+    ) async {
+      final server = FakeCalDavServer();
+      final store = CalDavAccountStore.forTesting(
+        directory: '${tempDir.path}/caldav',
+        client: server.client,
+      );
+      await tester.runAsync(() async {
+        await store.load();
+        await store.signIn(
+          url: FakeCalDavServer.host,
+          username: 'me',
+          password: 'secret',
+        );
+      });
+      await pump(tester, store);
+      expect(find.text('Connect'), findsNothing, reason: 'the form is closed');
+      expect(find.text('Calendar settings'), findsOneWidget);
+
+      await tester.tap(find.text('Add account'));
+      await tester.pumpAndSettle();
+      expect(find.text('Connect'), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.text('Connect'), findsNothing);
+
+      await tester.runAsync(
+        () => store.signIn(
+          url: '${FakeCalDavServer.host}/dav/',
+          username: 'me',
+          password: 'secret',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('me on dav.example.com'), findsNWidgets(2));
+      expect(find.text('Sign out'), findsNWidgets(2));
+
+      await tester.runAsync(() => store.signOut(store.accounts.first.id));
+      await tester.pumpAndSettle();
       expect(find.text('Sign out'), findsOneWidget);
     });
 
@@ -329,7 +375,7 @@ void main() {
       );
       await pump(tester, store);
       expect(find.textContaining('refused the user name'), findsOneWidget);
-      expect(store.account, isNull);
+      expect(store.accounts, isEmpty);
     });
   });
 

@@ -44,7 +44,7 @@ void main() {
 
     gate.complete();
     expect(await signIn, isFalse);
-    expect(account.account, isNull);
+    expect(account.accounts, isEmpty);
     expect(account.error, isEmpty);
     expect(File(account.path).existsSync(), isFalse);
   });
@@ -84,7 +84,7 @@ void main() {
 
     gate.complete();
     expect(await mistyped, isFalse);
-    expect(account.account?.password, 'secret');
+    expect(account.accounts.single.password, 'secret');
     expect(account.error, isEmpty);
     expect(account.busy, isFalse);
   });

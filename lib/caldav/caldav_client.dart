@@ -28,6 +28,8 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:xml/xml.dart';
 
+import 'package:moonswing/caldav/ical.dart';
+
 /// How long one request may take before the server counts as unreachable.
 const Duration kCalDavTimeout = Duration(seconds: 30);
 
@@ -149,9 +151,14 @@ Uri? calDavServerUri(String url) {
   return parsed;
 }
 
-/// A calendar collection that can hold tasks.
+/// A calendar collection: a task list, a calendar of events, or both.
 class CalDavCollection {
-  const CalDavCollection({required this.url, required this.name, this.color});
+  const CalDavCollection({
+    required this.url,
+    required this.name,
+    this.color,
+    this.components = const {},
+  });
 
   /// Absolute, ending in `/`.
   final Uri url;
@@ -160,15 +167,28 @@ class CalDavCollection {
   /// `#rrggbb`, when the server has one.
   final String? color;
 
+  /// The components it says it holds (`VTODO`, `VEVENT`), upper case. Empty
+  /// when it does not say, which means it may hold any.
+  final Set<String> components;
+
+  /// Whether it can hold tasks.
+  bool get holdsTasks => components.isEmpty || components.contains('VTODO');
+
+  /// Whether it can hold events.
+  bool get holdsEvents => components.isEmpty || components.contains('VEVENT');
+
   @override
   bool operator ==(Object other) =>
       other is CalDavCollection &&
       other.url == url &&
       other.name == name &&
-      other.color == color;
+      other.color == color &&
+      other.components.length == components.length &&
+      other.components.containsAll(components);
 
   @override
-  int get hashCode => Object.hash(url, name, color);
+  int get hashCode =>
+      Object.hash(url, name, color, Object.hashAllUnordered(components));
 }
 
 /// One task resource, as listed: where it is and which version.
@@ -297,13 +317,20 @@ class CalDavClient {
     return _parseMultistatus(response, response.url);
   }
 
-  /// The task lists the account at [server] can see.
+  /// The task lists the account at [server] can see. See [discoverCalendars].
+  Future<List<CalDavCollection>> discoverTaskLists(Uri server) async => [
+    for (final c in await discoverCalendars(server))
+      if (c.holdsTasks) c,
+  ];
+
+  /// Every calendar collection the account at [server] can see — task lists
+  /// and calendars of events alike.
   ///
   /// [server] may be the server's root, a principal, a calendar home or one
   /// calendar: whatever the user copied from their server's settings page.
   /// Follows RFC 6764 (`/.well-known/caldav`) and RFC 5397
   /// (`current-user-principal`) from wherever it starts.
-  Future<List<CalDavCollection>> discoverTaskLists(Uri server) async {
+  Future<List<CalDavCollection>> discoverCalendars(Uri server) async {
     const probe =
         '<d:resourcetype/><d:displayname/><d:current-user-principal/>'
         '<c:calendar-home-set/><c:supported-calendar-component-set/>'
@@ -319,13 +346,7 @@ class CalDavClient {
       here = const [];
     }
     final self = here.isEmpty ? null : here.first;
-    if (self != null && self.isCalendar) {
-      final list = self.asTaskList();
-      if (list != null) return [list];
-      throw CalDavException(
-        '${server.toString()} is a calendar without tasks.',
-      );
-    }
+    if (self != null && self.isCalendar) return [self.asCollection()];
 
     Uri? home = self?.hrefProp(_caldav, 'calendar-home-set');
     var principal = self?.hrefProp(_dav, 'current-user-principal');
@@ -357,7 +378,7 @@ class CalDavClient {
     final listed = await _propfind(home, probe, depth: 1, extraNs: ns);
     return [
       for (final r in listed)
-        if (r.isCalendar) ?r.asTaskList(),
+        if (r.isCalendar) r.asCollection(),
     ];
   }
 
@@ -400,6 +421,44 @@ class CalDavClient {
       for (final r in _parseMultistatus(response, collection))
         if (hrefKey(collection, r.href) != self)
           (href: r.href, etag: r.text(_dav, 'getetag')),
+    ];
+  }
+
+  /// Every event in [collection] that overlaps [from]–[to], with recurring
+  /// ones expanded by the server into their occurrences in that span (RFC 4791
+  /// §9.6.5). A server that does not expand answers the recurring event
+  /// itself, which `caldav_events.dart` expands instead.
+  Future<List<CalDavResource>> listEvents(
+    Uri collection, {
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final start = formatICalUtc(from);
+    final end = formatICalUtc(to);
+    final response = await _send(
+      'REPORT',
+      collection,
+      headers: {'Depth': '1'},
+      body:
+          '<?xml version="1.0" encoding="utf-8"?>'
+          '<c:calendar-query xmlns:d="DAV:" xmlns:c="$_caldav">'
+          '<d:prop><d:getetag/>'
+          '<c:calendar-data><c:expand start="$start" end="$end"/>'
+          '</c:calendar-data></d:prop>'
+          '<c:filter><c:comp-filter name="VCALENDAR">'
+          '<c:comp-filter name="VEVENT">'
+          '<c:time-range start="$start" end="$end"/>'
+          '</c:comp-filter>'
+          '</c:comp-filter></c:filter>'
+          '</c:calendar-query>',
+    );
+    if (response.statusCode != 207) throw _refusal(collection, response);
+    final self = hrefKey(collection, collection.path);
+    return [
+      for (final r in _parseMultistatus(response, collection))
+        if (hrefKey(collection, r.href) != self)
+          if (r.text(_caldav, 'calendar-data') case final data?)
+            (href: r.href, etag: r.text(_dav, 'getetag'), data: data),
     ];
   }
 
@@ -529,17 +588,17 @@ class _DavResponse {
       )?.findElements('calendar', namespace: _caldav).isNotEmpty ??
       false;
 
-  /// This calendar as a task list, or null when it holds no tasks. A calendar
-  /// that does not say which components it holds may hold any.
-  CalDavCollection? asTaskList() {
+  /// This calendar as a collection. One that does not say which components
+  /// it holds may hold any.
+  CalDavCollection asCollection() {
     final comps = prop(_caldav, 'supported-calendar-component-set');
-    if (comps != null) {
-      final names = [
+    final names = <String>{
+      if (comps != null)
         for (final c in comps.findElements('comp', namespace: _caldav))
-          (c.getAttribute('name') ?? '').toUpperCase(),
-      ];
-      if (names.isNotEmpty && !names.contains('VTODO')) return null;
-    }
+          if ((c.getAttribute('name') ?? '').trim() case final n
+              when n.isNotEmpty)
+            n.toUpperCase(),
+    };
     var url = base.resolve(href);
     if (!url.path.endsWith('/')) url = url.replace(path: '${url.path}/');
     final name = text(_dav, 'displayname')?.trim();
@@ -547,6 +606,7 @@ class _DavResponse {
       url: url,
       name: name == null || name.isEmpty ? _lastSegment(url) : name,
       color: _color(text(_apple, 'calendar-color')),
+      components: names,
     );
   }
 

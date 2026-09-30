@@ -11,6 +11,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/app_scope.dart';
+import 'package:moonswing/caldav/caldav_service.dart';
 import 'package:moonswing/capture/capture_store.dart';
 import 'package:moonswing/capture/selection_controller.dart';
 import 'package:moonswing/capture/selector_overlay.dart';
@@ -300,6 +301,9 @@ void _startShellServices({
   // starts the todo board's calendar sync if `[google] todo_sync` asks for it.
   // After the board, whose cards it keeps.
   startGoogleService();
+  // The CalDAV calendars the Calendar tab can show: reads `[caldav]`, and
+  // fetches nothing until the tab is open with a calendar chosen.
+  startCalDavCalendarService();
   // Timers do not count a suspend, so a meeting that started or ended while the
   // lid was shut is caught up on waking rather than an hour late.
   watchResume(() {

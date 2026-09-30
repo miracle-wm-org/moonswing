@@ -252,7 +252,7 @@ void main() {
 
   test('signed out, it says where to sign in', () async {
     await sync.linkTo(tasks);
-    await accounts.signOut();
+    await accounts.signOutAll();
     expect(await sync.syncNow(), contains('Settings › Accounts'));
   });
 
@@ -287,7 +287,7 @@ void main() {
 
     final reread = CalDavAccountStore.forTesting(directory: stateDir);
     await reread.load();
-    expect(reread.account!.username, 'me');
+    expect(reread.accounts.single.username, 'me');
     expect(reread.taskLists.single.url, FakeCalDavServer.tasksUrl);
   });
 }

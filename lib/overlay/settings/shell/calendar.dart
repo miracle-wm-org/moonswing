@@ -1,15 +1,19 @@
-// Shell › Calendar: the month grid, and every linked Google account's calendars
-// beside it.
+// Shell › Calendar: the month grid, and every linked Google account's and
+// CalDAV server's calendars beside it.
 //
 // The sign-in itself is Settings › Accounts, which is the one place a sign-in
-// runs; what the shell *does* with an account is ordinary `[google]` config, and
-// it lives here with the rest of the calendar so it is all in one place — one
-// section per linked account, each listing that account's calendars.
+// runs; what the shell *does* with an account is ordinary `[google]` and
+// `[caldav]` config, and it lives here with the rest of the calendar so it is
+// all in one place — one section per linked account, each listing that
+// account's calendars.
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
+import 'package:moonswing/caldav/caldav_account_store.dart';
+import 'package:moonswing/caldav/caldav_client.dart';
+import 'package:moonswing/caldav/caldav_config.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_api.dart';
@@ -19,15 +23,18 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
 
-/// The Calendar category: the month grid's own settings, then Google's.
+/// The Calendar category: the month grid's own settings, then Google's, then
+/// CalDAV's.
 class CalendarSection extends StatelessWidget {
   const CalendarSection({
     super.key,
     required this.store,
     GoogleAccountStore? account,
     GoogleCalendarStore? calendar,
+    CalDavAccountStore? caldav,
   }) : _account = account,
-       _calendar = calendar;
+       _calendar = calendar,
+       _caldav = caldav;
 
   final ConfigStore store;
 
@@ -35,6 +42,7 @@ class CalendarSection extends StatelessWidget {
   /// the [AccountsScope].
   final GoogleAccountStore? _account;
   final GoogleCalendarStore? _calendar;
+  final CalDavAccountStore? _caldav;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +75,8 @@ class CalendarSection extends StatelessWidget {
           account: _account,
           calendar: _calendar,
         ),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        CalDavCalendarSettings(config: store, accounts: _caldav),
       ],
     );
   }
@@ -325,6 +335,190 @@ class _GoogleUseSection extends StatelessWidget {
                 v.toInt().clamp(
                   GoogleConfig.minRefreshMinutes,
                   GoogleConfig.maxRefreshMinutes,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Every CalDAV account's calendars, one section each, and whether they are
+/// shown. A sliver.
+///
+/// Signed out, it says where the sign-in is and links there.
+class CalDavCalendarSettings extends StatefulWidget {
+  const CalDavCalendarSettings({
+    super.key,
+    required this.config,
+    CalDavAccountStore? accounts,
+  }) : _accounts = accounts;
+
+  final ConfigStore config;
+  final CalDavAccountStore? _accounts;
+
+  @override
+  State<CalDavCalendarSettings> createState() => _CalDavCalendarSettingsState();
+}
+
+class _CalDavCalendarSettingsState extends State<CalDavCalendarSettings> {
+  late final CalDavAccountStore _accounts =
+      widget._accounts ?? AccountsScope.caldavOf(context);
+
+  @override
+  void initState() {
+    super.initState();
+    // The calendars are looked for again as the page opens, as Google's are:
+    // one made on the server since shows up here, and an account kept by a
+    // build that only looked for task lists finds its calendars of events.
+    _accounts.load().then((_) {
+      if (mounted && _accounts.signedIn) _accounts.refreshAll();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _accounts,
+      builder: (context, _) {
+        if (!_accounts.signedIn) return const _CalDavSignedOutSection();
+        return SliverMainAxisGroup(
+          slivers: [
+            for (final a in _accounts.accounts) ...[
+              SliverSettingsSection(
+                label: a.label,
+                info: SettingsCatalog.caldavCalendars.description,
+                trailing: SettingsRescanButton(
+                  label: 'Reload',
+                  onTap: () => _accounts.refresh(a.id),
+                ),
+                children: _accountRows(a),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            ],
+            _CalDavUseSection(config: widget.config),
+          ],
+        );
+      },
+    );
+  }
+
+  List<String> _selected() => CalDavConfig.fromMap(
+    widget.config.get<Map<String, dynamic>>(['caldav']),
+  ).calendars;
+
+  void _toggle(CalDavCollection c, bool on) {
+    final url = c.url.toString();
+    final next = [..._selected()]..remove(url);
+    if (on) next.add(url);
+    widget.config.set(['caldav', 'calendars'], next);
+  }
+
+  List<Widget> _accountRows(CalDavAccount a) {
+    final calendars = a.eventCalendars;
+    final error = _accounts.errorOf(a.id);
+    return [
+      if (error.isNotEmpty)
+        SettingsBanner(
+          title: 'Could not read the calendars of ${a.label}',
+          message: error,
+          action: SettingsActionButton(
+            label: 'Retry',
+            compact: true,
+            onTap: () => _accounts.refresh(a.id),
+          ),
+        )
+      else if (calendars.isEmpty)
+        SettingsHint(
+          _accounts.refreshing(a.id)
+              ? 'Reading your calendars…'
+              : 'No calendars of events on this account.',
+        ),
+      for (final c in calendars)
+        SettingsRow(
+          label: c.name,
+          // Per row and on a bool, not on the section: ConfigStore notifies
+          // on every keystroke anywhere in settings.
+          control: StoreSelector<bool>(
+            listenable: widget.config,
+            selector: () => _selected().contains(c.url.toString()),
+            builder: (context, on) =>
+                SettingsToggle(value: on, onChanged: (v) => _toggle(c, v)),
+          ),
+        ),
+    ];
+  }
+}
+
+/// No CalDAV account: what would be here, and the way to the sign-in.
+class _CalDavSignedOutSection extends StatelessWidget {
+  const _CalDavSignedOutSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverSettingsSection(
+      label: 'CalDAV calendars',
+      info: SettingsCatalog.caldavCalendars.description,
+      children: [
+        const SettingsHint(
+          'Add a CalDAV server — Nextcloud, Radicale, Fastmail, iCloud and '
+          'others — to show its calendars here.',
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SettingsActionButton(
+            label: 'Add a server in Accounts',
+            icon: FontAwesomeIcons.userPlus,
+            compact: true,
+            onTap: () => openSettingsAt(context, SettingsCatalog.caldavAccount),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Whether the CalDAV calendars are shown, and how often they are re-read.
+class _CalDavUseSection extends StatelessWidget {
+  const _CalDavUseSection({required this.config});
+
+  final ConfigStore config;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverSettingsSection(
+      label: 'Use CalDAV calendars for',
+      children: [
+        SettingsRow.field(
+          SettingsCatalog.caldavShowInCalendar,
+          info: SettingsCatalog.caldavShowInCalendar.description,
+          control: ConfigValue<bool>(
+            store: config,
+            path: const ['caldav', 'show_in_calendar'],
+            fallback: true,
+            builder: (context, value) => SettingsToggle(
+              value: value!,
+              onChanged: (v) => config.set(['caldav', 'show_in_calendar'], v),
+            ),
+          ),
+        ),
+        SettingsRow.field(
+          SettingsCatalog.caldavRefreshMinutes,
+          control: ConfigValue<num>(
+            store: config,
+            path: const ['caldav', 'refresh_minutes'],
+            fallback: 5,
+            builder: (context, value) => SettingsNumberField(
+              value: value!,
+              isInt: true,
+              onChanged: (v) => config.set(
+                ['caldav', 'refresh_minutes'],
+                v.toInt().clamp(
+                  CalDavConfig.minRefreshMinutes,
+                  CalDavConfig.maxRefreshMinutes,
                 ),
               ),
             ),

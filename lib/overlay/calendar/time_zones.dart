@@ -277,6 +277,33 @@ ZoneTime? resolveZone(String zone, DateTime now) {
   );
 }
 
+/// [wallClock] — its fields read as the time on a clock in the zone [tzid] —
+/// as local time, or null when the database knows no such zone. What a
+/// CalDAV event's `TZID` time is read through.
+///
+/// Some calendar apps prefix the IANA name with a path of their own
+/// (`/freeassociation.sourceforge.net/Europe/London`), so a name the database
+/// does not know is tried again from each later segment on.
+DateTime? zonedWallClockToLocal(DateTime wallClock, String tzid) {
+  ensureTimeZonesInitialized();
+  final segments = tzid.split('/').where((s) => s.isNotEmpty).toList();
+  tz.Location? location;
+  for (var i = 0; i < segments.length && location == null; i++) {
+    location = _locationFor(segments.skip(i).join('/'));
+  }
+  if (location == null) return null;
+  final t = tz.TZDateTime(
+    location,
+    wallClock.year,
+    wallClock.month,
+    wallClock.day,
+    wallClock.hour,
+    wallClock.minute,
+    wallClock.second,
+  );
+  return DateTime.fromMillisecondsSinceEpoch(t.millisecondsSinceEpoch);
+}
+
 // ---------------------------------------------------------------------------
 // Search
 // ---------------------------------------------------------------------------

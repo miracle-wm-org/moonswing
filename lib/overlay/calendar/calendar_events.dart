@@ -1,6 +1,6 @@
 // The Calendar tab's account half: the events drawn *on* the calendar.
 //
-// Three views read `GoogleCalendarStore` and nothing else — the month grid's
+// Three views read `CalendarEventSource` and nothing else — the month grid's
 // bars (one per event, as many as the cell has room for and a "+N more"), and
 // the week and day views' time grid, where a timed event is a box as tall as
 // it is long and events that overlap share the column. Clicking any of them
@@ -16,7 +16,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/clock/minute_clock_store.dart';
 import 'package:moonswing/google/google_api.dart';
-import 'package:moonswing/google/google_calendar_store.dart';
+import 'package:moonswing/accounts/calendar_event_source.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/overlay/calendar/event_layout.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
@@ -39,7 +39,7 @@ typedef EventTap = void Function(GoogleEvent event);
 
 /// The colour [event] is drawn in: its own, else its calendar's, else the
 /// theme's accent.
-Color eventColor(GoogleCalendarStore store, GoogleEvent event, ThemeConfig t) {
+Color eventColor(CalendarEventSource store, GoogleEvent event, ThemeConfig t) {
   final hex = store.colorOf(event);
   return (hex == null ? null : parseHexColor(hex)) ?? t.accent;
 }
@@ -51,7 +51,7 @@ Color textOn(Color background) =>
 
 /// A signature of what [day]'s cell draws, so a cell rebuilds only when its
 /// own events moved.
-String _daySignature(GoogleCalendarStore store, DateTime day) {
+String _daySignature(CalendarEventSource store, DateTime day) {
   final buffer = StringBuffer();
   for (final e in store.eventsOn(day)) {
     buffer
@@ -156,7 +156,7 @@ class MonthDayEvents extends StatelessWidget {
     required this.onMore,
   });
 
-  final GoogleCalendarStore store;
+  final CalendarEventSource store;
   final DateTime day;
   final EventTap onEvent;
   final ValueChanged<DateTime> onMore;
@@ -257,7 +257,7 @@ class CalendarTimeGrid extends StatefulWidget {
     this.clock,
   });
 
-  final GoogleCalendarStore store;
+  final CalendarEventSource store;
   final List<DateTime> days;
   final EventTap onEvent;
 
@@ -466,7 +466,7 @@ class _BannerStrip extends StatelessWidget {
 
   static const int _maxRows = 3;
 
-  final GoogleCalendarStore store;
+  final CalendarEventSource store;
   final List<DateTime> days;
   final List<List<GoogleEvent>> banners;
   final EventTap onEvent;
@@ -569,7 +569,7 @@ class _DayColumn extends StatelessWidget {
     required this.onEvent,
   });
 
-  final GoogleCalendarStore store;
+  final CalendarEventSource store;
   final DateTime day;
   final List<PlacedEvent> placed;
   final MinuteClockStore clock;

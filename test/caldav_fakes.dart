@@ -23,6 +23,7 @@ class FakeCalDavServer {
   static const String tasksPath = '/dav/calendars/me/tasks/';
   static const String eventsPath = '/dav/calendars/me/events/';
   static Uri get tasksUrl => Uri.parse('$host$tasksPath');
+  static Uri get eventsUrl => Uri.parse('$host$eventsPath');
 
   /// Whether a `PUT` answers with the new ETag. Some servers do not.
   bool sendEtagOnPut;
@@ -31,6 +32,13 @@ class FakeCalDavServer {
   int? failWith;
 
   final Map<String, FakeTask> tasks = {};
+
+  /// The events calendar's resources, by path. Answered whole to every
+  /// `calendar-query`: the time range is the client's to apply as well.
+  final Map<String, String> events = {};
+
+  /// The last `calendar-query` sent to the events calendar.
+  String? lastEventQuery;
   final List<String> log = [];
   int _version = 0;
   int ctag = 0;
@@ -157,6 +165,19 @@ class FakeCalDavServer {
   }
 
   http.Response _report(String path, String body) {
+    if (path == eventsPath && body.contains('calendar-query')) {
+      lastEventQuery = body;
+      return _multistatus(
+        [
+          for (final e in events.entries)
+            _response(
+              e.key,
+              '<d:getetag>"e"</d:getetag>'
+              '<c:calendar-data>${_escape(e.value)}</c:calendar-data>',
+            ),
+        ].join(),
+      );
+    }
     if (path != tasksPath) return http.Response('', 404);
     if (body.contains('calendar-query')) {
       return _multistatus(

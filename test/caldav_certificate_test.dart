@@ -137,7 +137,7 @@ void main() {
       );
       final offered = account.untrustedCertificate;
       expect(offered?.fingerprint, _fingerprint);
-      expect(account.account, isNull);
+      expect(account.accounts, isEmpty);
 
       expect(
         await account.signIn(
@@ -152,9 +152,13 @@ void main() {
 
       final reloaded = CalDavAccountStore.forTesting(directory: dir.path);
       await reloaded.load();
-      expect(reloaded.account?.trustedCertificate, _fingerprint);
+      expect(reloaded.accounts.single.trustedCertificate, _fingerprint);
       expect(
-        (await reloaded.client()!.discoverTaskLists(url)).single.name,
+        (await reloaded
+                .clientFor(reloaded.accounts.single)
+                .discoverTaskLists(url))
+            .single
+            .name,
         'Tasks',
       );
     },

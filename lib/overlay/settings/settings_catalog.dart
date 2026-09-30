@@ -1111,6 +1111,43 @@ abstract final class SettingsCatalog {
     tags: const ['google', 'poll', 'interval', 'sync'],
   );
 
+  // The CalDAV servers' calendars, beside Google's for the same reason.
+
+  static final caldavCalendars = _shellPane(
+    'Calendar',
+    'CalDAV calendars',
+    description:
+        "Which of each CalDAV server's calendars the Calendar tab shows.",
+    tags: const [
+      'caldav',
+      'calendar',
+      'calendars',
+      'events',
+      'nextcloud',
+      'radicale',
+      'fastmail',
+      'icloud',
+    ],
+  );
+
+  static final caldavShowInCalendar = shellField(
+    'caldav.show_in_calendar',
+    'Show CalDAV events in the calendar',
+    section: 'Calendar',
+    description:
+        "Draw the chosen CalDAV calendars' events on the Calendar tab, beside "
+        "any Google account's.",
+    tags: const ['caldav', 'events', 'agenda', 'meetings', 'week', 'day'],
+  );
+
+  static final caldavRefreshMinutes = shellField(
+    'caldav.refresh_minutes',
+    'Refresh CalDAV every (minutes)',
+    section: 'Calendar',
+    description: 'How often events are read again while something shows them.',
+    tags: const ['caldav', 'poll', 'interval', 'sync'],
+  );
+
   // -------------------------------------------------------------------------
   // Accounts
   // -------------------------------------------------------------------------
@@ -1131,6 +1168,30 @@ abstract final class SettingsCatalog {
       'accounts',
       'add account',
       'calendar',
+    ],
+  );
+
+  static final caldavAccount = _pane(
+    'accounts',
+    'Accounts',
+    'CalDAV accounts',
+    description:
+        'Sign in to one or more CalDAV servers, so the Calendar tab shows '
+        'their calendars and the todo board can sync with a task list.',
+    tags: const [
+      'caldav',
+      'nextcloud',
+      'radicale',
+      'baikal',
+      'fastmail',
+      'icloud',
+      'server',
+      'sign in',
+      'account',
+      'accounts',
+      'add account',
+      'calendar',
+      'tasks',
     ],
   );
 
@@ -2050,7 +2111,11 @@ abstract final class SettingsCatalog {
     googleShowInCalendar,
     googleTodoSync,
     googleRefreshMinutes,
+    caldavCalendars,
+    caldavShowInCalendar,
+    caldavRefreshMinutes,
     googleAccount,
+    caldavAccount,
     githubAccount,
     ..._hardware,
     ...miracleFields,
