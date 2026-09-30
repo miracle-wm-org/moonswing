@@ -133,6 +133,11 @@ class TodoStore extends ChangeNotifier {
   List<StandupSummary> _standups = const [];
   Timer? _writeTimer;
   Timer? _midnight;
+  Timer? _calendarClock;
+
+  /// The day [startOfDay] last ran for, so a wakeup can tell whether it slept
+  /// through a midnight.
+  DateTime? _startedDay;
   int _idCounter = 0;
 
   /// Null until the first [load] opens it, and again after a failed open, so
@@ -363,6 +368,7 @@ class TodoStore extends ChangeNotifier {
     // backup file: a first write, or none at all when the file matches.
     _queueBackup();
     _armMidnight();
+    _armCalendarClock();
     notifyListeners();
   }
 
@@ -486,6 +492,7 @@ class TodoStore extends ChangeNotifier {
     _loaded = true;
     _queueBackup();
     _armMidnight();
+    _armCalendarClock();
     notifyListeners();
     await _backupChain;
     return kept;
@@ -581,16 +588,19 @@ class TodoStore extends ChangeNotifier {
   void startOfDay({bool remind = true}) {
     if (!editable) return;
     final now = _now();
+    _startedDay = dateOnly(now);
     final spawned = spawnRecurring(_items, now, _newId, now: now);
     if (spawned != null) {
       _items = List.unmodifiable(spawned);
       _scheduleWrite();
     }
+    _advanceCalendarCards();
     if (remind) {
       final reminder = dueReminder(_items, now);
       if (reminder != null) onReminder?.call(reminder.summary, reminder.body);
     }
     _armMidnight();
+    _armCalendarClock();
     // Also on a quiet day: the date moved, so the bar's due count may have.
     notifyListeners();
   }
@@ -755,6 +765,52 @@ class TodoStore extends ChangeNotifier {
       dismissed: _dismissedCalendarKeys,
     );
     if (next != null) _commit(next);
+  }
+
+  /// Catches up after the machine slept: Dart's timers run on the monotonic
+  /// clock, which stops during a suspend, so a meeting that started or ended
+  /// while the lid was shut would otherwise move only once the timer's own
+  /// time had passed *awake*. A night slept through is the next day's start.
+  void resumed() {
+    if (!editable) return;
+    _midnight?.cancel();
+    _midnight = null;
+    if (_startedDay != dateOnly(_now())) {
+      startOfDay();
+    } else {
+      _advanceCalendarCards();
+      _armMidnight();
+      _armCalendarClock();
+    }
+  }
+
+  /// Moves calendar cards by the times recorded on them (see
+  /// [advanceCalendarCards]) — what keeps them moving before the calendar has
+  /// answered, while it cannot, and with no account signed in at all.
+  void _advanceCalendarCards() {
+    if (!editable) return;
+    final next = advanceCalendarCards(_items, _now());
+    if (next != null) _commit(next);
+  }
+
+  /// One timer, to just past the next start or end of a card still following
+  /// the clock, and none while no card is.
+  void _armCalendarClock() {
+    _calendarClock?.cancel();
+    _calendarClock = null;
+    if (!_autoTimers || !editable) return;
+    final now = _now();
+    final next = nextCalendarCardBoundary(_items, now);
+    if (next == null) return;
+    // A second past the boundary, so the comparison on waking lands after it.
+    _calendarClock = Timer(
+      next.difference(now) + const Duration(seconds: 1),
+      () {
+        _calendarClock = null;
+        _advanceCalendarCards();
+        _armCalendarClock();
+      },
+    );
   }
 
   // --- the synced task list ----------------------------------------------
@@ -981,6 +1037,7 @@ class TodoStore extends ChangeNotifier {
   void _commit(List<TodoItem> next) {
     _items = List.unmodifiable(next);
     _armMidnight();
+    _armCalendarClock();
     _scheduleWrite();
     notifyListeners();
   }
@@ -1105,6 +1162,7 @@ class TodoStore extends ChangeNotifier {
     if (_writeTimer != null) _writeNow();
     _writeTimer?.cancel();
     _midnight?.cancel();
+    _calendarClock?.cancel();
     _db?.close();
     _db = null;
     super.dispose();

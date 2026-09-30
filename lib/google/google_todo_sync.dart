@@ -143,6 +143,10 @@ class GoogleTodoSync {
     });
   }
 
+  /// Catches up after the machine slept, whose time the pending timer did not
+  /// count (Dart's timers run on the monotonic clock).
+  void resumed() => _apply();
+
   @visibleForTesting
   void dispose() {
     _enabled = false;

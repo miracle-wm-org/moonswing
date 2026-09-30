@@ -49,6 +49,7 @@ import 'package:moonswing/emoji/emoji_controller.dart';
 import 'package:moonswing/emoji/emoji_picker_overlay.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_service.dart';
+import 'package:moonswing/google/google_todo_sync.dart';
 import 'package:moonswing/input_trigger/input_trigger_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_store.dart';
 import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
@@ -90,6 +91,7 @@ import 'package:moonswing/power/power_controller.dart';
 import 'package:moonswing/power/power_menu_controller.dart';
 import 'package:moonswing/power/power_menu_overlay.dart';
 import 'package:moonswing/power/power_service.dart';
+import 'package:moonswing/power/sleep_watch.dart';
 import 'package:moonswing/screencast/picker_controller.dart';
 import 'package:moonswing/screencast/picker_overlay.dart';
 import 'package:moonswing/screencast/picker_sources.dart';
@@ -298,6 +300,12 @@ void _startShellServices({
   // starts the todo board's calendar sync if `[google] todo_sync` asks for it.
   // After the board, whose cards it keeps.
   startGoogleService();
+  // Timers do not count a suspend, so a meeting that started or ended while the
+  // lid was shut is caught up on waking rather than an hour late.
+  watchResume(() {
+    TodoStore.instance.resumed();
+    GoogleTodoSync.instance.resumed();
+  });
   // The GitHub account, likewise: a file read and no network until a consumer
   // takes a lease, so Settings › Accounts opens knowing whether it is linked.
   unawaited(GithubAccountStore.instance.load());

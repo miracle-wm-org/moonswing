@@ -277,3 +277,66 @@ DateTime? nextCalendarBoundary(
   }
   return best;
 }
+
+/// Moves each calendar card to the column its own recorded times put it in at
+/// [now], with no calendar to ask.
+///
+/// What keeps the board right when the calendar cannot answer — at login
+/// before the first fetch lands, offline, or with the account signed out — and
+/// for cards from an earlier day, which [syncCalendarCards] no longer looks at.
+/// Only forward: Todo → In Progress → Finished, each move recorded at the
+/// meeting's start or end. A card the user has moved, or one no longer open,
+/// is left alone. Returns null when nothing moved.
+List<TodoItem>? advanceCalendarCards(List<TodoItem> items, DateTime now) {
+  // Latest first, each inserted at the top of its column, as the sync does,
+  // so the column stays in start order.
+  final due = [
+    for (final item in items)
+      if (_clockDriven(item) &&
+          _calendarRank(
+                calendarColumnAt(item.external!.start, item.external!.end, now),
+              ) >
+              _calendarRank(item.column))
+        item,
+  ]..sort((a, b) => b.external!.start.compareTo(a.external!.start));
+  if (due.isEmpty) return null;
+  final next = [...items];
+  for (final item in due) {
+    final e = item.external!;
+    final target = calendarColumnAt(e.start, e.end, now);
+    final at = target == TodoColumn.finished ? e.end : e.start;
+    next.removeWhere((i) => i.id == item.id);
+    _insertAtTop(next, _moved(item, target, at, now));
+  }
+  return next;
+}
+
+/// A calendar card whose column still follows the clock.
+bool _clockDriven(TodoItem item) {
+  final e = item.external;
+  return e != null &&
+      e.source == TodoExternal.googleCalendar &&
+      !e.manual &&
+      item.column.isOpen;
+}
+
+int _calendarRank(TodoColumn column) => switch (column) {
+  TodoColumn.todo => 0,
+  TodoColumn.inProgress => 1,
+  TodoColumn.finished => 2,
+  _ => -1,
+};
+
+/// The next instant after [now] at which [advanceCalendarCards] would move a
+/// card in [items], or null when none will.
+DateTime? nextCalendarCardBoundary(List<TodoItem> items, DateTime now) {
+  DateTime? best;
+  for (final item in items) {
+    if (!_clockDriven(item)) continue;
+    final e = item.external!;
+    for (final t in [e.start, e.end]) {
+      if (t.isAfter(now) && (best == null || t.isBefore(best))) best = t;
+    }
+  }
+  return best;
+}
