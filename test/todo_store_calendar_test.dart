@@ -77,4 +77,22 @@ void main() {
     );
     expect(store.item(card.id)!.external!.manual, isTrue);
   });
+
+  test('the board moves its cards by their own times, with no sync', () {
+    store.applyCalendarSync([_meeting('a', 10)], day: day);
+    // Logged in again at 10:05, before the calendar has answered.
+    now = DateTime(2026, 9, 25, 10, 5);
+    store.resumed();
+    expect(store.itemsIn(TodoColumn.inProgress), hasLength(1));
+    now = DateTime(2026, 9, 25, 11);
+    store.resumed();
+    expect(store.itemsIn(TodoColumn.finished), hasLength(1));
+  });
+
+  test('the start of the day finishes yesterday\'s meetings', () {
+    store.applyCalendarSync([_meeting('a', 10)], day: day);
+    now = DateTime(2026, 9, 26, 8);
+    store.startOfDay(remind: false);
+    expect(store.itemsIn(TodoColumn.finished), hasLength(1));
+  });
 }

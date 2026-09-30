@@ -237,4 +237,59 @@ void main() {
     // A deletion recorded under the old key still holds.
     expect(sync(const [], [renamed], at(9), dismissed: {'primary/a'}), isNull);
   });
+
+  group('advanceCalendarCards, with no calendar to ask', () {
+    List<TodoItem> board() => sync(const [], [
+      meeting('a', startHour: 9),
+      meeting('b', startHour: 11),
+    ], at(8))!;
+
+    test('a meeting under way at login moves to In Progress', () {
+      final next = advanceCalendarCards(board(), at(9, 10))!;
+      final a = next.firstWhere((i) => i.external!.key == 'primary/a');
+      expect(a.column, TodoColumn.inProgress);
+      expect(a.history.last.at, at(9), reason: 'recorded at its start');
+      final b = next.firstWhere((i) => i.external!.key == 'primary/b');
+      expect(b.column, TodoColumn.todo);
+    });
+
+    test('a meeting that ended before login goes straight to Finished', () {
+      final next = advanceCalendarCards(board(), at(12))!;
+      for (final item in next) {
+        expect(item.column, TodoColumn.finished);
+        expect(item.history.last.at, item.external!.end);
+      }
+      expect(next.map((i) => i.external!.key), [
+        'primary/a',
+        'primary/b',
+      ], reason: 'the column stays in start order');
+    });
+
+    test('an earlier day\'s card is finished too', () {
+      final next = advanceCalendarCards(board(), DateTime(2026, 9, 26, 8))!;
+      expect(next.every((i) => i.column == TodoColumn.finished), isTrue);
+    });
+
+    test('a card the user moved, or a closed one, is left alone', () {
+      final items = board();
+      final manual = [
+        for (final i in items)
+          i.copyWith(external: i.external!.copyWith(manual: true)),
+      ];
+      expect(advanceCalendarCards(manual, at(12)), isNull);
+      final abandoned = [
+        for (final i in items) i.copyWith(column: TodoColumn.abandoned),
+      ];
+      expect(advanceCalendarCards(abandoned, at(12)), isNull);
+    });
+
+    test('nothing to do is null, and the next boundary is still ahead', () {
+      final items = board();
+      expect(advanceCalendarCards(items, at(8, 30)), isNull);
+      expect(nextCalendarCardBoundary(items, at(8, 30)), at(9));
+      expect(nextCalendarCardBoundary(items, at(9, 30)), at(11));
+      final done = advanceCalendarCards(items, at(12))!;
+      expect(nextCalendarCardBoundary(done, at(12)), isNull);
+    });
+  });
 }
