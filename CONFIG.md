@@ -712,6 +712,20 @@ then. The address and password are kept in
 `~/.local/state/moonswing/caldav-account.json` (or under `$XDG_STATE_HOME`),
 readable only by you, not in `config.toml`.
 
+The server's certificate is checked against the system's trust store
+(`/etc/ssl/certs`). A server that store cannot vouch for — self-signed, signed
+by your own CA, or serving its certificate without the intermediate that links
+it to a public one — is refused with `CERTIFICATE_VERIFY_FAILED`, and the form
+shows the certificate's SHA-256 fingerprint. Compare it with
+`openssl x509 -in cert.pem -noout -fingerprint -sha256` on the server; if they
+match, **Trust certificate and connect** pins that one certificate to the
+account. Only it is trusted, not certificates in general, so a renewed
+self-signed certificate is refused again until it is trusted in turn. The
+alternative that needs no pin is to make the machine trust the server: have it
+serve its full chain, or add your CA to the system trust store
+(`update-ca-certificates` on Debian and Ubuntu, `trust anchor` on Fedora and
+Arch).
+
 Then open **Backups…** on the board, pick a list and **Link**. Linking
 *merges*: every card is sent to the list and every task on it comes to the
 board. With the switch beside it turned on it *replaces* the board instead —

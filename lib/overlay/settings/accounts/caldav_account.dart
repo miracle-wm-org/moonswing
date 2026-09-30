@@ -34,6 +34,7 @@ class CalDavAccountCard extends StatelessWidget {
       builder: (context, _) {
         final signedIn = account.account;
         final error = account.error;
+        final untrusted = account.untrustedCertificate;
         return AccountProviderCard(
           brand: AccountBrand.caldav,
           tagline: 'Task lists on your own calendar server',
@@ -52,12 +53,32 @@ class CalDavAccountCard extends StatelessWidget {
           children: [
             if (error.isNotEmpty) ...[
               SettingsBanner(
-                title: 'CalDAV account',
-                message: error,
-                action: SettingsActionButton(
-                  label: 'Dismiss',
-                  compact: true,
-                  onTap: account.clearError,
+                title: untrusted == null
+                    ? 'CalDAV account'
+                    : 'Untrusted certificate',
+                message: untrusted == null
+                    ? error
+                    : '$error\n\n${_describe(untrusted)}',
+                action: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Signed out, the form trusts it as it connects, since
+                    // it holds the address and password to connect with.
+                    if (untrusted != null && signedIn != null) ...[
+                      SettingsActionButton(
+                        label: 'Trust',
+                        compact: true,
+                        onTap: () =>
+                            account.trustCertificate(untrusted.fingerprint),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    SettingsActionButton(
+                      label: 'Dismiss',
+                      compact: true,
+                      onTap: account.clearError,
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
@@ -71,6 +92,15 @@ class CalDavAccountCard extends StatelessWidget {
       },
     );
   }
+}
+
+String _describe(CalDavCertificate c) {
+  final expires = c.expires.toLocal().toIso8601String().split('T').first;
+  return 'Subject: ${c.subject}\n'
+      'Issuer: ${c.issuer}\n'
+      'Expires: $expires\n'
+      'SHA-256: ${c.fingerprint}\n\n'
+      'On the server: openssl x509 -in cert.pem -noout -fingerprint -sha256';
 }
 
 class _SignedIn extends StatelessWidget {
@@ -151,12 +181,13 @@ class _SignInFormState extends State<_SignInForm> {
 
   bool get _ready => calDavServerUri(_url.text) != null && !widget.account.busy;
 
-  Future<void> _connect() async {
+  Future<void> _connect({String? trustedCertificate}) async {
     if (!_ready) return;
     await widget.account.signIn(
       url: _url.text,
       username: _user.text,
       password: _password.text,
+      trustedCertificate: trustedCertificate,
     );
   }
 
@@ -233,6 +264,17 @@ class _SignInFormState extends State<_SignInForm> {
                 label: 'Cancel',
                 compact: true,
                 onTap: widget.account.cancelSignIn,
+              ),
+              const SizedBox(width: 8),
+            ],
+            if (widget.account.untrustedCertificate case final untrusted?
+                when !widget.account.busy) ...[
+              SettingsActionButton(
+                label: 'Trust certificate and connect',
+                compact: true,
+                enabled: _ready,
+                onTap: () =>
+                    _connect(trustedCertificate: untrusted.fingerprint),
               ),
               const SizedBox(width: 8),
             ],
