@@ -154,6 +154,12 @@ void main() {
     expect(forest.muted, isNot(forest.accent));
   });
 
+  test('dracula is flat: a solid Dracula background, no purple fade', () {
+    final dracula = _shipped('dracula');
+    expect(dracula.panelGradient, isFalse);
+    expect(dracula.panelBackground, const Color(0xFF282A36));
+  });
+
   test('carbon is flat: no fade, no lift, and no shadow at all', () {
     final carbon = _shipped('carbon');
     // Flat is the whole brief, and it is spelled on every key that could

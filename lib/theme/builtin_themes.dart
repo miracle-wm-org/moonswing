@@ -149,8 +149,10 @@ notification_badge   = "#FFB86C"
 notification_badge_foreground = "#282A36"
 scrim                = "#88282A36"
 
-panel_background     = "#EE282A36"
-panel_gradient       = true
+# Solid, not translucent: a see-through bar would let the wallpaper decide
+# what colour the flattest surface in the theme is.
+panel_background     = "#FF282A36"
+panel_gradient       = false
 
 # Flush and square — Dracula is a flat palette, not a floating one. The rim
 # colour matches divider so switching it on reads as Dracula.
