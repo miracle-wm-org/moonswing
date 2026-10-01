@@ -101,7 +101,7 @@ class TodoCalDavSync extends ChangeNotifier {
   String? _error;
   List<String> _conflicts = const [];
 
-  /// The account the sync signs in with.
+  /// The accounts the sync signs in with: the one the linked list is on.
   CalDavAccountStore get accounts => _accounts;
 
   /// The list the board is linked to, or null.
@@ -136,7 +136,7 @@ class TodoCalDavSync extends ChangeNotifier {
     await _accounts.removeLegacyBackupServers();
     await _accounts.load();
     _arm();
-    if (link != null && _accounts.account != null) unawaited(syncNow());
+    if (link != null && _accounts.signedIn) unawaited(syncNow());
   }
 
   /// Links the board to [list] and syncs. With [replaceLocal] the board's
@@ -206,7 +206,7 @@ class TodoCalDavSync extends ChangeNotifier {
   /// from a microtask, since it is called from the board's `initState` and a
   /// run announces itself to listeners.
   void syncIfStale() {
-    if (link == null || _accounts.account == null || running) return;
+    if (link == null || !_accounts.signedIn || running) return;
     final last = _lastAttempt;
     if (last != null && _now().difference(last).abs() < kTaskListFreshEnough) {
       return;
@@ -229,15 +229,18 @@ class TodoCalDavSync extends ChangeNotifier {
     final link = _store.remoteLink;
     if (link == null) return false;
     _lastAttempt = _now();
-    final client = _accounts.client();
+    final collection = Uri.parse(link.url);
+    final client = _accounts.clientForCollection(collection);
     if (client == null) {
-      _error =
-          'Not signed in to a CalDAV server. Sign in under Settings › '
-          'Accounts to sync with ${link.name}.';
+      _error = _accounts.signedIn
+          ? 'None of the CalDAV accounts under Settings › Accounts is on '
+                '${collection.host}. Sign in to it there to sync with '
+                '${link.name}.'
+          : 'Not signed in to a CalDAV server. Sign in under Settings › '
+                'Accounts to sync with ${link.name}.';
       return false;
     }
     if (!_store.editable) return false;
-    final collection = Uri.parse(link.url);
     String key(String href) => CalDavClient.hrefKey(collection, href);
     var conflicted = false;
     try {
@@ -321,7 +324,7 @@ class TodoCalDavSync extends ChangeNotifier {
 
   /// A write of the board landed: if it left anything to send, send it soon.
   void _onBoardWritten() {
-    if (!_autoTimers || link == null || _accounts.account == null) return;
+    if (!_autoTimers || link == null || !_accounts.signedIn) return;
     if (_store.tombstones.isEmpty && !_store.items.any(needsPush)) return;
     _push?.cancel();
     _push = Timer(kTaskListPushDelay, () {
@@ -333,7 +336,7 @@ class TodoCalDavSync extends ChangeNotifier {
   /// The poll: one timer, and only while a list is linked and signed in to.
   void _arm() {
     final wanted =
-        _autoTimers && link != null && _accounts.account != null && !running;
+        _autoTimers && link != null && _accounts.signedIn && !running;
     _poll?.cancel();
     _poll = wanted ? Timer(kTaskListPoll, () => unawaited(syncNow())) : null;
   }

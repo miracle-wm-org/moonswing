@@ -15,7 +15,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/google/google_api.dart';
-import 'package:moonswing/google/google_calendar_store.dart';
+import 'package:moonswing/accounts/calendar_event_source.dart';
 import 'package:moonswing/overlay/calendar/calendar_events.dart';
 import 'package:moonswing/overlay/calendar/event_layout.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -28,7 +28,7 @@ import 'package:moonswing/theme/tokens.dart';
 Future<void> showEventDetails(
   BuildContext context, {
   required GoogleEvent event,
-  required GoogleCalendarStore store,
+  required CalendarEventSource store,
   required bool Function(String url) openUrl,
 }) => showRootModal<void>(
   context,
@@ -67,7 +67,7 @@ class EventDetailsCard extends StatelessWidget {
   });
 
   final GoogleEvent event;
-  final GoogleCalendarStore store;
+  final CalendarEventSource store;
   final VoidCallback onClose;
   final ValueChanged<String> onOpen;
 
@@ -75,9 +75,7 @@ class EventDetailsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final color = eventColor(store, event, theme);
-    final calendar = store.calendarOf(event);
-    final several = store.account.accounts.length > 1;
-    final calendarName = calendar?.summary ?? event.calendarId;
+    final calendarName = store.calendarLabelOf(event);
     final join = event.meetingLink;
     final page = event.htmlLink;
     final links = event.links;
@@ -186,12 +184,7 @@ class EventDetailsCard extends StatelessWidget {
           ),
           line(
             FontAwesomeIcons.calendarDays,
-            Text(
-              several && event.account.isNotEmpty
-                  ? '$calendarName · ${event.account}'
-                  : calendarName,
-              style: secondary,
-            ),
+            Text(calendarName, style: secondary),
           ),
           if (showLocation)
             line(

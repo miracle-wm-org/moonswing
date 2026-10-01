@@ -6,7 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
+import 'package:moonswing/accounts/calendar_event_source.dart';
 import 'package:moonswing/app_info.dart';
+import 'package:moonswing/caldav/caldav_calendar_store.dart';
 import 'package:moonswing/clock/minute_clock_store.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
@@ -35,11 +37,13 @@ import 'package:moonswing/timers/timer_widgets.dart';
 ///
 /// The grid itself is local date arithmetic. When a Google account is signed in
 /// under Settings › Accounts and `[google] show_in_calendar` is on, the tab also
-/// holds a [GoogleCalendarStore] lease on the span on screen and draws the
-/// events *on* the calendar: bars in each day of the month, and a Week and a
-/// Day view where a timed event is a box as long as the meeting. Clicking one
-/// opens its details. The lease exists only while the tab is [active], so a
-/// closed overlay fetches nothing.
+/// holds a [GoogleCalendarStore] lease on the span on screen — and likewise a
+/// [CalDavCalendarStore] lease when a CalDAV account is signed in with a
+/// calendar chosen under `[caldav]` — and draws the events of both *on* the
+/// calendar, through one [MergedCalendarEvents]: bars in each day of the
+/// month, and a Week and a Day view where a timed event is a box as long as
+/// the meeting. Clicking one opens its details. The leases exist only while the
+/// tab is [active], so a closed overlay fetches nothing.
 ///
 /// The world clocks are read from and written straight back to [ConfigStore]:
 /// one consumer in one window, and adding and removing *are* the persisted
@@ -55,6 +59,8 @@ class CalendarTab extends StatefulWidget {
     this.timers,
     this.google,
     this.showGoogleEvents,
+    this.caldav,
+    this.showCalDavEvents,
     this.openUrl,
     this.minuteClock,
   });
@@ -93,6 +99,14 @@ class CalendarTab extends StatefulWidget {
   /// `[google] show_in_calendar` from [ConfigStore].
   final bool? showGoogleEvents;
 
+  /// Where the CalDAV calendars' events come from, or null for the
+  /// [AccountsScope]'s. Injected by tests.
+  final CalDavCalendarStore? caldav;
+
+  /// Whether to show the CalDAV calendars' events, or null to read
+  /// `[caldav]` from the store's configuration.
+  final bool? showCalDavEvents;
+
   /// Opens an event's page or join link, or null for the default browser.
   final bool Function(String url)? openUrl;
 
@@ -114,7 +128,18 @@ class _CalendarTabState extends State<CalendarTab> {
 
   late final GoogleCalendarStore _google =
       widget.google ?? AccountsScope.googleCalendarOf(context);
+  late final CalDavCalendarStore _caldav =
+      widget.caldav ?? AccountsScope.caldavCalendarOf(context);
   GoogleCalendarLease? _lease;
+  CalDavCalendarLease? _caldavLease;
+
+  /// What either source's visibility hangs on besides the config: the Google
+  /// accounts and the CalDAV ones. Never the stores themselves, whose every
+  /// fetch would rebuild the whole tab; the views below listen to those.
+  late final Listenable _sources = Listenable.merge([
+    _google.account,
+    _caldav.accounts,
+  ]);
 
   @override
   void initState() {
@@ -122,7 +147,7 @@ class _CalendarTabState extends State<CalendarTab> {
     final today = DateTime.now();
     _selectedDay = dayKey(today);
     _visibleMonth = DateTime(today.year, today.month, 1);
-    _google.account.addListener(_syncLease);
+    _sources.addListener(_syncLease);
     _syncLease();
   }
 
@@ -134,9 +159,11 @@ class _CalendarTabState extends State<CalendarTab> {
 
   @override
   void dispose() {
-    _google.account.removeListener(_syncLease);
+    _sources.removeListener(_syncLease);
     _lease?.release();
     _lease = null;
+    _caldavLease?.release();
+    _caldavLease = null;
     super.dispose();
   }
 
@@ -153,20 +180,43 @@ class _CalendarTabState extends State<CalendarTab> {
         true;
   }
 
-  /// Whether the events half of the tab is on screen.
-  bool get _eventsVisible => _showEvents && _google.account.signedIn;
+  /// Whether Google's events are on screen.
+  bool get _googleVisible => _showEvents && _google.account.signedIn;
 
-  /// Takes, moves or drops the lease on the span on screen. For the month it
+  /// Whether the CalDAV calendars' events are on screen.
+  bool get _caldavVisible {
+    final injected = widget.showCalDavEvents;
+    if (injected != null) return injected && _caldav.accounts.signedIn;
+    if (_injected) return false;
+    return _caldav.active;
+  }
+
+  /// The sources on screen, as one, or null when there are none. Equal to the
+  /// last while the same sources are, so the views keep their subscriptions.
+  CalendarEventSource? get _events {
+    final sources = <CalendarEventSource>[
+      if (_googleVisible) _google,
+      if (_caldavVisible) _caldav,
+    ];
+    return sources.isEmpty ? null : MergedCalendarEvents(sources);
+  }
+
+  /// Takes, moves or drops the leases on the span on screen. For the month it
   /// is the grid's, leading and trailing days included, since those carry
   /// bars too. For a week or a day it is that week *and* its month's grid, so
   /// stepping through the days of a month fetches nothing new.
   void _syncLease() {
-    final wanted = widget.active && _eventsVisible;
-    if (!wanted) {
+    final google = widget.active && _googleVisible;
+    final caldav = widget.active && _caldavVisible;
+    if (!google) {
       _lease?.release();
       _lease = null;
-      return;
     }
+    if (!caldav) {
+      _caldavLease?.release();
+      _caldavLease = null;
+    }
+    if (!google && !caldav) return;
     final grid = buildMonthGrid(
       _visibleMonth.year,
       _visibleMonth.month,
@@ -180,11 +230,21 @@ class _CalendarTabState extends State<CalendarTab> {
       if (week.last.isAfter(last)) last = week.last;
     }
     final to = DateTime(last.year, last.month, last.day + 1);
-    final lease = _lease;
-    if (lease == null) {
-      _lease = _google.acquire(from, to);
-    } else {
-      lease.update(from, to);
+    if (google) {
+      final lease = _lease;
+      if (lease == null) {
+        _lease = _google.acquire(from, to);
+      } else {
+        lease.update(from, to);
+      }
+    }
+    if (caldav) {
+      final lease = _caldavLease;
+      if (lease == null) {
+        _caldavLease = _caldav.acquire(from, to);
+      } else {
+        lease.update(from, to);
+      }
     }
   }
 
@@ -243,11 +303,13 @@ class _CalendarTabState extends State<CalendarTab> {
   }
 
   void _openEvent(BuildContext context, GoogleEvent event) {
+    final events = _events;
+    if (events == null) return;
     unawaited(
       showEventDetails(
         context,
         event: event,
-        store: _google,
+        store: events,
         openUrl: widget.openUrl ?? openUriWithDefault,
       ),
     );
@@ -303,7 +365,8 @@ class _CalendarTabState extends State<CalendarTab> {
     // or moved the week start and with it the grid's first day. The lease only
     // schedules its work, so taking it from here notifies nobody mid-build.
     _syncLease();
-    final events = _eventsVisible;
+    final source = _events;
+    final events = source != null;
     // A week or a day of nothing is a blank page: without events on screen
     // there is only the month.
     final view = events ? _view : CalendarView.month;
@@ -324,7 +387,7 @@ class _CalendarTabState extends State<CalendarTab> {
             onView: _setView,
             onOpenDay: (day) => _goToDay(day, view: CalendarView.day),
             onEvent: (event) => _openEvent(context, event),
-            events: events ? _google : null,
+            events: source,
             minuteClock: widget.minuteClock,
           ),
         ),
@@ -356,7 +419,7 @@ class _CalendarTabState extends State<CalendarTab> {
     // to hold — a test that passes only one still reaches the store.
     if (_injected) {
       return ListenableBuilder(
-        listenable: _google.account,
+        listenable: _sources,
         builder: (context, _) => _buildPane(context),
       );
     }
@@ -365,7 +428,7 @@ class _CalendarTabState extends State<CalendarTab> {
     // the overlay stays open, and an added clock must appear on the same frame,
     // so this listens rather than snapshotting.
     return ListenableBuilder(
-      listenable: Listenable.merge([ConfigStore.instance, _google.account]),
+      listenable: Listenable.merge([ConfigStore.instance, _sources]),
       builder: (context, _) => _buildPane(context),
     );
   }
@@ -402,8 +465,8 @@ class _CalendarPane extends StatelessWidget {
   final ValueChanged<DateTime> onOpenDay;
   final EventTap onEvent;
 
-  /// The account's events, or null when they are not shown.
-  final GoogleCalendarStore? events;
+  /// The accounts' events, or null when they are not shown.
+  final CalendarEventSource? events;
 
   final MinuteClockStore? minuteClock;
 
@@ -489,7 +552,7 @@ class _MonthGrid extends StatelessWidget {
   final ValueChanged<DateTime> onDaySelected;
   final ValueChanged<DateTime> onOpenDay;
   final EventTap onEvent;
-  final GoogleCalendarStore? events;
+  final CalendarEventSource? events;
 
   @override
   Widget build(BuildContext context) {
@@ -580,7 +643,7 @@ class _CalendarHeader extends StatelessWidget {
 
   /// Null when there is no choice of view: no events, so only the month.
   final CalendarView? view;
-  final GoogleCalendarStore? events;
+  final CalendarEventSource? events;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final VoidCallback onToday;
@@ -652,7 +715,7 @@ class _CalendarHeader extends StatelessWidget {
 class _EventsError extends StatelessWidget {
   const _EventsError({required this.store});
 
-  final GoogleCalendarStore store;
+  final CalendarEventSource store;
 
   @override
   Widget build(BuildContext context) {
@@ -761,7 +824,7 @@ class _DayCell extends StatelessWidget {
   final EventTap onEvent;
 
   /// Where the event bars read from, or null for a plain day number.
-  final GoogleCalendarStore? events;
+  final CalendarEventSource? events;
 
   @override
   Widget build(BuildContext context) {

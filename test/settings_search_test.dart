@@ -194,9 +194,12 @@ void main() {
           'Sound output and input',
           'Keyboard layout',
           'Google accounts',
+          'CalDAV accounts',
           'GitHub account',
-          // One section per linked Google account, titled by its address.
+          // One section per linked Google account, titled by its address,
+          // and one per CalDAV account.
           'Google calendars',
+          'CalDAV calendars',
           // The Window Manager pane's collections: a list of key bindings or
           // of startup applications is not a row anything can scroll to.
           'Animated events',
@@ -209,7 +212,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(20));
+      expect(unhighlightable, hasLength(22));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

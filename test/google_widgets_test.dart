@@ -5,6 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:moonswing/caldav/caldav_account_store.dart';
+import 'package:moonswing/caldav/caldav_calendar_store.dart';
+import 'package:moonswing/caldav/caldav_config.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/github/github_account_store.dart';
@@ -25,6 +28,7 @@ import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/shell/calendar.dart';
 import 'package:moonswing/scopes.dart';
 
+import 'caldav_fakes.dart';
 import 'github_fakes.dart';
 import 'google_fakes.dart';
 
@@ -87,6 +91,27 @@ void main() {
     )..seed(stage: GithubAuthStage.signedOut);
     addTearDown(github.dispose);
     return github;
+  }
+
+  /// CalDAV accounts signed in to the in-memory server, one per address;
+  /// none by default, and never the real account file.
+  Future<CalDavAccountStore> caldavWith(
+    WidgetTester tester, {
+    FakeCalDavServer? server,
+    List<String> urls = const [],
+  }) async {
+    final store = await tester.runAsync(() async {
+      final accounts = CalDavAccountStore.forTesting(
+        directory: '${tempDir.path}/caldav',
+        client: (server ?? FakeCalDavServer()).client,
+      );
+      await accounts.load();
+      for (final url in urls) {
+        await accounts.signIn(url: url, username: 'me', password: 'secret');
+      }
+      return accounts;
+    });
+    return store!;
   }
 
   Future<ConfigStore> config(WidgetTester tester, String contents) async {
@@ -184,8 +209,10 @@ void main() {
       required GoogleAccountStore account,
       required GoogleCalendarStore calendar,
       required ConfigStore config,
+      CalDavAccountStore? caldav,
       void Function(SettingsField)? onJump,
     }) async {
+      caldav ??= await caldavWith(tester);
       await tester.pumpWidget(
         _host(
           SettingsHighlightScope(
@@ -197,6 +224,7 @@ void main() {
                   store: config,
                   account: account,
                   calendar: calendar,
+                  caldav: caldav,
                 ),
               ],
             ),
@@ -325,6 +353,61 @@ void main() {
       await tester.pumpAndSettle();
       expect(store.get<List>(['google', 'calendars']), ['primary']);
       await tester.runAsync(store.flush);
+    });
+
+    testWidgets('CalDAV: a section per server, a switch per calendar', (
+      tester,
+    ) async {
+      final google = await accountWith(tester, const []);
+      final caldav = await caldavWith(
+        tester,
+        urls: [FakeCalDavServer.host, '${FakeCalDavServer.host}/dav/'],
+      );
+      expect(caldav.accounts, hasLength(2));
+      final store = await config(tester, '');
+      await pumpPane(
+        tester,
+        account: google,
+        calendar: GoogleCalendarStore.forTesting(account: google),
+        config: store,
+        caldav: caldav,
+      );
+
+      // One section per server, each listing its calendar of events (and not
+      // its task list), then the section saying what they are used for.
+      expect(find.text('ME ON DAV.EXAMPLE.COM'), findsNWidgets(2));
+      expect(find.text('Home calendar'), findsNWidgets(2));
+      expect(find.text('Home tasks'), findsNothing);
+      expect(find.text('Show CalDAV events in the calendar'), findsOneWidget);
+
+      final toggles = tester
+          .widgetList<SettingsToggle>(find.byType(SettingsToggle))
+          .toList();
+      expect(toggles[0].value, isFalse, reason: 'none are shown by default');
+      await tester.tap(find.byType(SettingsToggle).first);
+      await tester.pumpAndSettle();
+      expect(store.get<List>(['caldav', 'calendars']), [
+        FakeCalDavServer.eventsUrl.toString(),
+      ]);
+      await tester.tap(find.byType(SettingsToggle).first);
+      await tester.pumpAndSettle();
+      expect(store.get<List>(['caldav', 'calendars']), isEmpty);
+      await tester.runAsync(store.flush);
+    });
+
+    testWidgets('CalDAV signed out: a link to Accounts', (tester) async {
+      final google = await accountWith(tester, const []);
+      final jumps = <SettingsField>[];
+      await pumpPane(
+        tester,
+        account: google,
+        calendar: GoogleCalendarStore.forTesting(account: google),
+        config: await config(tester, ''),
+        onJump: jumps.add,
+      );
+      await tester.tap(find.text('Add a server in Accounts'));
+      await tester.pump();
+      expect(jumps, [SettingsCatalog.caldavAccount]);
     });
   });
 
@@ -497,6 +580,80 @@ void main() {
       await tester.tap(find.text('Standup'));
       await tester.pump();
       expect(find.text('Join Google Meet'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  group('Calendar tab CalDAV events', () {
+    testWidgets('drawn beside no Google account at all', (tester) async {
+      tester.view.physicalSize = const Size(1100, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final now = DateTime.now();
+      String utc(DateTime t) {
+        final u = t.toUtc();
+        String two(int n) => n.toString().padLeft(2, '0');
+        return '${u.year}${two(u.month)}${two(u.day)}T'
+            '${two(u.hour)}${two(u.minute)}00Z';
+      }
+
+      final start = DateTime(now.year, now.month, now.day, 14);
+      final server = FakeCalDavServer();
+      server.events['/dav/calendars/me/events/a.ics'] =
+          'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:a\r\n'
+          'DTSTART:${utc(start)}\r\n'
+          'DTEND:${utc(start.add(const Duration(hours: 1)))}\r\n'
+          'SUMMARY:Dentist\r\nLOCATION:Main Street\r\n'
+          'END:VEVENT\r\nEND:VCALENDAR\r\n';
+      final accounts = await caldavWith(
+        tester,
+        server: server,
+        urls: [FakeCalDavServer.host],
+      );
+      final caldav = CalDavCalendarStore.forTesting(
+        accounts: accounts,
+        config: CalDavConfig(
+          calendars: [FakeCalDavServer.eventsUrl.toString()],
+        ),
+      );
+      addTearDown(caldav.dispose);
+      final google = await accountWith(tester, const []);
+      final timers = TimersStore.forTesting(now: () => now);
+      addTearDown(timers.dispose);
+
+      await tester.pumpWidget(
+        _host(
+          CalendarTab(
+            active: true,
+            weekStart: DateTime.monday,
+            worldClocks: const [],
+            timers: timers,
+            google: GoogleCalendarStore.forTesting(account: google),
+            showGoogleEvents: true,
+            caldav: caldav,
+            showCalDavEvents: true,
+            minuteClock: MinuteClockStore.forTesting(clock: () => now),
+          ),
+        ),
+      );
+      for (var i = 0; i < 5 && caldav.events.isEmpty; i++) {
+        await tester.pump();
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 5)),
+        );
+      }
+      await tester.pump();
+      expect(caldav.events, isNotEmpty);
+      expect(find.text('14:00 Dentist'), findsOneWidget);
+
+      await tester.tap(find.text('14:00 Dentist'));
+      await tester.pump();
+      expect(find.text('Home calendar'), findsOneWidget);
+      expect(find.text('Main Street'), findsOneWidget);
+      expect(find.text('Open in Google Calendar'), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
 
       await tester.pumpWidget(const SizedBox());
     });

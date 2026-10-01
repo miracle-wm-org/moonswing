@@ -28,7 +28,18 @@ void main() {
           url: FakeCalDavServer.tasksUrl,
           name: 'Home tasks',
           color: '#ff8800',
+          components: {'VTODO'},
         ),
+      ]);
+    });
+
+    test('finds calendars of events as well as task lists', () async {
+      final calendars = await client.discoverCalendars(
+        Uri.parse(FakeCalDavServer.host),
+      );
+      expect(calendars.map((c) => (c.name, c.holdsTasks, c.holdsEvents)), [
+        ('Home tasks', true, false),
+        ('Home calendar', false, true),
       ]);
     });
 

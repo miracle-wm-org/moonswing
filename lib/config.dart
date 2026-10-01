@@ -15,6 +15,7 @@ import 'package:toml/toml.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/default_config.dart';
 import 'package:moonswing/desktop/desktop_config.dart';
+import 'package:moonswing/caldav/caldav_config.dart';
 import 'package:moonswing/google/google_config.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/module.dart';
@@ -727,6 +728,11 @@ class AppConfig {
   /// null; the account itself is not config, see `google_account_file.dart`.
   final GoogleConfig google;
 
+  /// What the shell does with the CalDAV accounts (Settings › Accounts). Never
+  /// null; the accounts themselves are not config, see
+  /// `caldav_account_store.dart`.
+  final CalDavConfig caldav;
+
   const AppConfig({
     this.panels = const {'default': PanelConfig()},
     this.background,
@@ -740,6 +746,7 @@ class AppConfig {
     this.power = const PowerConfig(),
     this.polkit = const PolkitConfig(),
     this.google = const GoogleConfig(),
+    this.caldav = const CalDavConfig(),
   });
 
   /// Resolves the absolute path to `config.toml`, honouring
@@ -829,6 +836,7 @@ class AppConfig {
       power: PowerConfig.fromMap(map.tableOrNull('power')),
       polkit: PolkitConfig.fromMap(map.tableOrNull('polkit')),
       google: GoogleConfig.fromMap(map.tableOrNull('google')),
+      caldav: CalDavConfig.fromMap(map.tableOrNull('caldav')),
     );
   }
 
@@ -847,7 +855,8 @@ class AppConfig {
           other.screenshare == screenshare &&
           other.power == power &&
           other.polkit == polkit &&
-          other.google == google;
+          other.google == google &&
+          other.caldav == caldav;
 
   /// Hashed on the panel count alone: equal maps have equal
   /// lengths, and two maps that are equal can still iterate in
@@ -867,5 +876,6 @@ class AppConfig {
         power,
         polkit,
         google,
+        caldav,
       );
 }

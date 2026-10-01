@@ -26,6 +26,7 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/caldav/caldav_account_store.dart';
+import 'package:moonswing/caldav/caldav_calendar_store.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
@@ -39,6 +40,7 @@ class AccountsScope extends InheritedWidget {
     this.github,
     this.githubNotifications,
     this.caldav,
+    this.caldavCalendar,
     required super.child,
   });
 
@@ -48,7 +50,8 @@ class AccountsScope extends InheritedWidget {
       googleCalendar = GoogleCalendarStore.instance,
       github = GithubAccountStore.instance,
       githubNotifications = GithubStore.instance,
-      caldav = CalDavAccountStore.instance;
+      caldav = CalDavAccountStore.instance,
+      caldavCalendar = CalDavCalendarStore.instance;
 
   /// The Google accounts — any number — and the access token behind each.
   /// Null falls through to [GoogleAccountStore.instance].
@@ -63,8 +66,11 @@ class AccountsScope extends InheritedWidget {
   /// The GitHub notification inbox, polled under a lease.
   final GithubStore? githubNotifications;
 
-  /// The CalDAV server, and the task lists on it.
+  /// The CalDAV servers — any number — and the calendars on each.
   final CalDavAccountStore? caldav;
+
+  /// Every chosen calendar of every CalDAV account, leased by time window.
+  final CalDavCalendarStore? caldavCalendar;
 
   static AccountsScope? _scope(BuildContext context) =>
       context.getInheritedWidgetOfExactType<AccountsScope>();
@@ -87,10 +93,15 @@ class AccountsScope extends InheritedWidget {
   static GithubStore githubNotificationsOf(BuildContext context) =>
       _scope(context)?.githubNotifications ?? GithubStore.instance;
 
-  /// The CalDAV account: [CalDavAccountStore.account], its task lists, and
-  /// [CalDavAccountStore.client] for a request of a module's own.
+  /// The CalDAV accounts: [CalDavAccountStore.accounts], their calendars and
+  /// task lists, and [CalDavAccountStore.clientFor] for a request of a
+  /// module's own.
   static CalDavAccountStore caldavOf(BuildContext context) =>
       _scope(context)?.caldav ?? CalDavAccountStore.instance;
+
+  /// The events of the CalDAV calendars chosen under Settings › Calendar.
+  static CalDavCalendarStore caldavCalendarOf(BuildContext context) =>
+      _scope(context)?.caldavCalendar ?? CalDavCalendarStore.instance;
 
   @override
   bool updateShouldNotify(AccountsScope old) =>
@@ -98,5 +109,6 @@ class AccountsScope extends InheritedWidget {
       googleCalendar != old.googleCalendar ||
       github != old.github ||
       githubNotifications != old.githubNotifications ||
-      caldav != old.caldav;
+      caldav != old.caldav ||
+      caldavCalendar != old.caldavCalendar;
 }
