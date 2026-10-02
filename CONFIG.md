@@ -91,6 +91,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"workspaces"` - Workspace switcher, with the icons of what is open on each (requires Miracle WM)
 - `"media_player"` - MPRIS media player controls
 - `"sound_control"` - PulseAudio volume display
+- `"brightness"` - Display backlight level; scroll over it or open its slider to change it (hidden on machines with no backlight)
 - `"battery"` - Battery status monitor
 - `"network"` - Network connectivity (ethernet or WiFi name and IP address)
 - `"weather"` - Weather display

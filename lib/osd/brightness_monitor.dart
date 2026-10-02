@@ -34,6 +34,17 @@ class BrightnessMonitor {
   /// The brightness right now, or null when there is no usable backlight.
   double? get current => _last;
 
+  /// The device's directory name under `/sys/class/backlight` — what logind's
+  /// `SetBrightness` names it by — or null when there is no usable backlight.
+  String? get deviceName {
+    final device = _device;
+    if (device == null) return null;
+    return device.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+  }
+
+  /// The device's `max_brightness`, the raw value [current] is a fraction of.
+  int get maxBrightness => _max;
+
   /// Finds a backlight device, seeds [current] with its present level, and
   /// starts watching. The seed value is deliberately *not* emitted on
   /// [onChanged] — the shell must not flash an indicator at start-up.

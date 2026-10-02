@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/module.dart';
 import 'package:moonswing/modules/battery.dart';
+import 'package:moonswing/modules/brightness.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/modules/dock.dart';
 import 'package:moonswing/modules/github.dart';
@@ -31,6 +32,7 @@ void main() {
       workspacesModule,
       mediaPlayerModule,
       soundControlModule,
+      brightnessModule,
       batteryModule,
       weatherModule,
       clockModule,
@@ -56,6 +58,7 @@ void main() {
       'workspaces',
       'media_player',
       'sound_control',
+      'brightness',
       'battery',
       'weather',
       'clock',

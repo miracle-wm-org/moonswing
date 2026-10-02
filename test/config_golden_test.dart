@@ -84,6 +84,7 @@ void main() {
         'screenshot',
         'screen_recorder',
         'sound_control',
+        'brightness',
         'system_tray',
         'battery',
         'weather',
