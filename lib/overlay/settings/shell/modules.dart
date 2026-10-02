@@ -25,6 +25,7 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/shell/weather_location.dart';
+import 'package:moonswing/stocks/stock_config.dart' show StockConfig;
 import 'package:moonswing/system/system_monitor_config.dart'
     show SystemMonitorConfig;
 import 'package:moonswing/timers/timer_sound.dart'
@@ -322,6 +323,29 @@ final List<_ModuleGroup> _moduleGroups = [
     // preference: one is an OAuth app the user registered and the other is
     // what that app may do, and both are typed once into `config.toml` by
     // somebody who has read what they mean.
+  ]),
+  _ModuleGroup('Stock market', [
+    // The same list the strip's popup edits: an add there is a row here, and
+    // a symbol typed here is quoted on the next poll.
+    _ModuleSetting.stringList(
+      SettingsCatalog.stocksSymbols,
+      addHint: 'symbol, e.g. AAPL',
+    ),
+    _ModuleSetting.number(
+      SettingsCatalog.stocksRefreshSeconds,
+      defaultValue: const StockConfig().refreshSeconds,
+      isInt: true,
+    ),
+    _ModuleSetting.number(
+      SettingsCatalog.stocksScrollSpeed,
+      defaultValue: const StockConfig().scrollSpeed,
+      isInt: false,
+    ),
+    _ModuleSetting.number(
+      SettingsCatalog.stocksWidth,
+      defaultValue: const StockConfig().width,
+      isInt: false,
+    ),
   ]),
   _ModuleGroup('Screenshot', [
     _ModuleSetting.text(

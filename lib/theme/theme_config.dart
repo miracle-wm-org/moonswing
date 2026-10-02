@@ -695,6 +695,14 @@ final Map<(int, int), Color> _readableCache = {};
 /// theme, and whatever the settings pane is previewing).
 const int _kReadableCacheLimit = 16;
 
+/// [color] as text on [surface]: itself when it already clears [kTextContrast]
+/// there, and otherwise the least move along its own lightness ramp that does.
+///
+/// The rule [ThemeConfig.accentText] applies to the accent, for a colour that
+/// is not the theme's own — a gain's green or a loss's red, which have to stay
+/// green and red on every palette and still be read on each.
+Color readableOn(Color color, Color surface) => _readableOn(color, surface);
+
 /// [color], moved along its own lightness ramp until it clears [kTextContrast]
 /// against [surface] — or as far as that ramp reaches, when nothing on it does.
 ///

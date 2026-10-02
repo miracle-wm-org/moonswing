@@ -423,6 +423,54 @@ Copying the sign-in code needs `wl-copy` (the `wl-clipboard` package), as the
 emoji picker does; without it the code can still be typed out by hand, and the
 card says so.
 
+### Stock market
+
+Your watchlist crawling along the bar the way the ticker runs along the bottom
+of a financial news channel: each symbol, its price, and its move today in green
+or red. Hover the strip to hold it still. Click it for the list itself, where you
+can **search by symbol or company name** and add what you find, reorder the list
+with the arrows on a row, remove a ticker with its ×, or click a row to open its
+page on Yahoo Finance.
+
+Quotes come from Yahoo Finance, read exactly the way
+[`ticker`](https://github.com/achannarasappa/ticker) reads them — the same
+request, the same session handshake, and the same rule for which price is "the"
+price: outside the regular session the strip shows the pre-market or after-hours
+price once anything has traded, and the day's change includes it. The **Stock
+market** desktop widget reads the same quotes from the same poll, so the two never
+disagree.
+
+```toml
+[modules.stocks]
+symbols = ["^GSPC", "^DJI", "^IXIC", "AAPL", "MSFT", "BTC-USD"]
+refresh_seconds = 15
+scroll_speed = 40
+width = 320
+```
+
+| Key               | Type             | Default | Description                                                                                   |
+| ----------------- | ---------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `symbols`         | array of strings | `[]`    | The watchlist, in crawl order, as Yahoo Finance spells each symbol                             |
+| `refresh_seconds` | int              | `15`    | How often prices are re-read while a market on the list is trading (5–3600)                    |
+| `scroll_speed`    | float            | `40`    | How fast the strip crawls, in pixels a second (5–400)                                          |
+| `width`           | float            | `320`   | How wide the strip is in a horizontal bar (80–2000). A watchlist narrower than this sits still |
+
+Symbols are Yahoo Finance's: `AAPL` for a US stock, `^GSPC` for the S&P 500,
+`BRK-B` for a class of share, `SAP.DE` for a stock on another exchange,
+`EURUSD=X` for a currency pair, `BTC-USD` for a coin. Indices are shown by name
+and currency pairs as `EUR/USD`. The popup's add button writes `symbols` for you,
+and **Settings → Shell → Module Settings → Stock market** edits the same list.
+
+A new watchlist starts empty; the popup offers the S&P 500, the Dow and the Nasdaq
+as a one-click start. While every market on the list is closed, prices are
+re-read every two minutes instead of every `refresh_seconds`, and nothing is
+requested at all while neither the strip nor the widget is on screen. In a
+left or right bar, where there is no room to crawl, the module is a chart icon
+coloured by the first ticker's move.
+
+**The module is not in the default layout** — add `"stocks"` to a panel's
+`left`, `center` or `right` list, or use **Settings → Shell → Panels & Layout**.
+
 ### Notifications
 
 A bell that shakes and shows a count when a notification arrives, and opens the
@@ -1402,7 +1450,7 @@ Items on a cell that does not exist on a smaller monitor are drawn in the neares
 
 Alongside the icons, the grid holds **widgets** — cards that take a rectangle of cells rather than a single one, and that you resize by dragging a corner. Right-click bare desktop and choose **Add widget…** to place one; right-click a widget for **Remove**. Widgets are dragged from anywhere on the card, and their own buttons still work: a press that moves is a drag, one that does not is a click.
 
-Six types ship:
+Seven types ship:
 
 | `type` | Name | What it draws |
 | ------ | ---- | ------------- |
@@ -1412,6 +1460,7 @@ Six types ship:
 | `fortune` | Fortune | A line from `fortune(6)` over a lamp, with a button that asks for another |
 | `tux` | Tux | A penguin with something nice to say each day |
 | `analog_clock` | Analog clock | The time on a dial, with an hour hand and a minute hand and no second hand |
+| `stocks` | Stock market | Your watchlist: each ticker's price, its move today and where it sits in the day's range |
 
 ```toml
 [[desktop.widgets]]
@@ -1458,6 +1507,21 @@ twelve hour marks, at two it adds the sixty minute marks, and larger still it
 sets the hour numerals inside them. It is drawn in your theme — the dial takes
 `control_surface`, the marks and hands `foreground`, and the pivot `accent` —
 so it changes with everything else when you change themes.
+
+### The stock market widget
+
+The same watchlist as the bar's stock market strip (`[modules.stocks]`), from the
+same poll: a ticker added from the strip's popup appears on the widget straight
+away, and the two always show the same price. Each row is the ticker, its price
+and its move today; widen the card and it adds the company name and a bar showing
+where the price sits between today's low and high, with the stretch since the
+open drawn in the day's colour. Click a row to open its page on Yahoo Finance.
+
+It is drawn in your theme — the card is the theme's popup surface, the text its
+`popup_foreground` and `muted`, the range marker its `accent` — and the green and
+red are darkened or lightened just enough to read on whatever `popup_background`
+the theme has. With no tickers on the list it offers a button to the setting
+that holds them.
 
 ## Lock Screen
 

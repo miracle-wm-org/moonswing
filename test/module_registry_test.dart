@@ -16,6 +16,7 @@ import 'package:moonswing/modules/screen_recorder.dart';
 import 'package:moonswing/modules/scratchpad.dart';
 import 'package:moonswing/modules/screenshot.dart';
 import 'package:moonswing/modules/sound_control.dart';
+import 'package:moonswing/modules/stocks.dart';
 import 'package:moonswing/modules/system.dart';
 import 'package:moonswing/modules/system_monitor.dart';
 import 'package:moonswing/modules/system_tray.dart';
@@ -50,6 +51,7 @@ void main() {
       githubModule,
       scratchpadModule,
       todoModule,
+      stocksModule,
     ];
     for (final module in modules) {
       Module.register(module);
@@ -76,6 +78,7 @@ void main() {
       'github',
       'scratchpad',
       'todo',
+      'stocks',
     ];
     for (final key in expected) {
       expect(Module.lookup(key), isNotNull, reason: key);
