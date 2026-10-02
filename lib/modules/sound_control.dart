@@ -13,6 +13,7 @@ import 'package:moonswing/scopes.dart';
 import 'package:moonswing/scroll_steps.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/level_slider.dart';
 import 'package:moonswing/theme/theme_provider.dart';
 
 /// A sink's level as the shell last saw it.
@@ -27,20 +28,6 @@ FaIconData _volumeIconFor(_SinkLevel level) {
   if (level.volume <= 0.0) return FontAwesomeIcons.volumeOff;
   if (level.volume <= 0.5) return FontAwesomeIcons.volumeLow;
   return FontAwesomeIcons.volumeHigh;
-}
-
-/// How far one scroll step moves the volume, as a fraction of 100%.
-const _kScrollStepsPerFullScale = 20;
-
-/// [volume] moved by [steps] scroll steps, landing on the step grid.
-///
-/// Snapped rather than added, so a level the slider left at 53% goes to 55%
-/// and not 58%, and the bar's percentage reads in round numbers from the first
-/// notch on. Capped at 100%: PulseAudio will amplify past it, but a wheel is
-/// too easy to over-roll for that to be where scrolling ends up.
-double _scrolledVolume(double volume, int steps) {
-  const n = _kScrollStepsPerFullScale;
-  return ((volume * n).round() + steps).clamp(0, n) / n;
 }
 
 class SoundControl extends StatefulWidget {
@@ -170,7 +157,7 @@ class SoundControlState extends State<SoundControl>
     final client = _client;
     if (client == null) return;
     final current = _level.value;
-    final volume = _scrolledVolume(current.volume, steps);
+    final volume = scrolledLevel(current.volume, steps);
     if (volume == current.volume) return;
     // Shown at once rather than on PulseAudio's echo, so a fast roll steps
     // from where the last notch put it instead of from a reading still in
@@ -332,7 +319,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
               const SizedBox(height: 10),
               SizedBox(
                 height: 120,
-                child: _VolumeSlider(
+                child: LevelSlider(
                   value: muted ? 0.0 : volume,
                   enabled: !muted,
                   axis: Axis.vertical,
@@ -349,7 +336,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
               muteButton,
               const SizedBox(width: 8),
               Expanded(
-                child: _VolumeSlider(
+                child: LevelSlider(
                   value: muted ? 0.0 : volume,
                   enabled: !muted,
                   onChanged: onChanged,
@@ -372,201 +359,6 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
       ),
     );
   }
-}
-
-class _VolumeSlider extends StatelessWidget {
-  const _VolumeSlider({
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-    required this.onChangeEnd,
-    this.axis = Axis.horizontal,
-  });
-
-  final double value;
-  final bool enabled;
-  final ValueChanged<double> onChanged;
-  final ValueChanged<double> onChangeEnd;
-  final Axis axis;
-
-  /// Scrolling over the track steps the level, and writes it as a tap does.
-  /// Off while muted, like the drag: the track reads 0% then.
-  ValueChanged<int>? get _onScrollSteps => !enabled
-      ? null
-      : (steps) {
-          final v = _scrolledVolume(value, steps);
-          if (v == value) return;
-          onChanged(v);
-          onChangeEnd(v);
-        };
-
-  double _valueFromPosition(BuildContext context, Offset globalPosition) {
-    final box = context.findRenderObject() as RenderBox;
-    final local = box.globalToLocal(globalPosition);
-    if (axis == Axis.vertical) {
-      return (1.0 - local.dy / box.size.height).clamp(0.0, 1.0);
-    }
-    return (local.dx / box.size.width).clamp(0.0, 1.0);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final painter = _SliderPainter(
-      value: value,
-      enabled: enabled,
-      axis: axis,
-      trackColor: theme.sliderTrack,
-      activeFillColor: theme.accent,
-      inactiveFillColor: theme.sliderTrack,
-      activeThumbColor: theme.popupForeground,
-      inactiveThumbColor: theme.sliderTrack,
-    );
-
-    if (axis == Axis.vertical) {
-      return ScrollSteps(
-        onSteps: _onScrollSteps,
-        child: GestureDetector(
-          onVerticalDragUpdate: !enabled
-              ? null
-              : (d) => onChanged(_valueFromPosition(context, d.globalPosition)),
-          onVerticalDragEnd: !enabled ? null : (d) => onChangeEnd(value),
-          onTapDown: !enabled
-              ? null
-              : (d) {
-                  final v = _valueFromPosition(context, d.globalPosition);
-                  onChanged(v);
-                  onChangeEnd(v);
-                },
-          child: CustomPaint(
-            size: const Size(20, double.infinity),
-            painter: painter,
-          ),
-        ),
-      );
-    }
-    return ScrollSteps(
-      onSteps: _onScrollSteps,
-      child: GestureDetector(
-        onHorizontalDragUpdate: !enabled
-            ? null
-            : (d) => onChanged(_valueFromPosition(context, d.globalPosition)),
-        onHorizontalDragEnd: !enabled ? null : (d) => onChangeEnd(value),
-        onTapDown: !enabled
-            ? null
-            : (d) {
-                final v = _valueFromPosition(context, d.globalPosition);
-                onChanged(v);
-                onChangeEnd(v);
-              },
-        child: CustomPaint(
-          size: const Size(double.infinity, 20),
-          painter: painter,
-        ),
-      ),
-    );
-  }
-}
-
-class _SliderPainter extends CustomPainter {
-  const _SliderPainter({
-    required this.value,
-    required this.enabled,
-    required this.trackColor,
-    required this.activeFillColor,
-    required this.inactiveFillColor,
-    required this.activeThumbColor,
-    required this.inactiveThumbColor,
-    this.axis = Axis.horizontal,
-  });
-
-  final double value;
-  final bool enabled;
-  final Axis axis;
-  final Color trackColor;
-  final Color activeFillColor;
-  final Color inactiveFillColor;
-  final Color activeThumbColor;
-  final Color inactiveThumbColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (axis == Axis.vertical) {
-      final trackX = size.width / 2;
-      final thumbY = (1.0 - value) * size.height;
-
-      // Track background
-      canvas.drawLine(
-        Offset(trackX, 0),
-        Offset(trackX, size.height),
-        Paint()
-          ..color = trackColor
-          ..strokeWidth = 3
-          ..strokeCap = StrokeCap.round,
-      );
-
-      // Track fill (bottom up)
-      if (thumbY < size.height) {
-        canvas.drawLine(
-          Offset(trackX, size.height),
-          Offset(trackX, thumbY),
-          Paint()
-            ..color = enabled ? activeFillColor : inactiveFillColor
-            ..strokeWidth = 3
-            ..strokeCap = StrokeCap.round,
-        );
-      }
-
-      // Thumb
-      canvas.drawCircle(
-        Offset(trackX, thumbY),
-        6,
-        Paint()..color = enabled ? activeThumbColor : inactiveThumbColor,
-      );
-      return;
-    }
-
-    final trackY = size.height / 2;
-    final thumbX = value * size.width;
-
-    // Track background
-    canvas.drawLine(
-      Offset(0, trackY),
-      Offset(size.width, trackY),
-      Paint()
-        ..color = trackColor
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round,
-    );
-
-    // Track fill
-    if (thumbX > 0) {
-      canvas.drawLine(
-        Offset(0, trackY),
-        Offset(thumbX, trackY),
-        Paint()
-          ..color = enabled ? activeFillColor : inactiveFillColor
-          ..strokeWidth = 3
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-
-    // Thumb
-    canvas.drawCircle(
-      Offset(thumbX, trackY),
-      6,
-      Paint()..color = enabled ? activeThumbColor : inactiveThumbColor,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SliderPainter old) =>
-      old.value != value ||
-      old.enabled != enabled ||
-      old.axis != axis ||
-      old.trackColor != trackColor ||
-      old.activeFillColor != activeFillColor ||
-      old.activeThumbColor != activeThumbColor;
 }
 
 final Module soundControlModule = Module.plain(

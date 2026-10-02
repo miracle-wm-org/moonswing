@@ -33,6 +33,7 @@ import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/modules/keyboard_layout.dart';
 import 'package:moonswing/modules/launcher.dart';
 import 'package:moonswing/modules/sound_control.dart';
+import 'package:moonswing/modules/brightness.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/modules/media_player.dart';
 import 'package:moonswing/modules/network.dart';
@@ -146,6 +147,7 @@ void main() async {
   Module.register(workspacesModule);
   Module.register(mediaPlayerModule);
   Module.register(soundControlModule);
+  Module.register(brightnessModule);
   Module.register(batteryModule);
   Module.register(weatherModule);
   Module.register(clockModule);
