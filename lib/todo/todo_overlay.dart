@@ -14,7 +14,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
+import 'package:moonswing/github/github_link_chip.dart';
+import 'package:moonswing/github/github_link_store.dart';
+import 'package:moonswing/github/github_links.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -1157,7 +1161,10 @@ class _StripePainter extends BoxPainter {
 ///
 /// A web address in the title or body is a link: clicking it opens the address
 /// and not the card, because the text's recognizer sits deeper than the card's
-/// and so wins the tap.
+/// and so wins the tap. A link to a GitHub issue or pull request is drawn as a
+/// chip carrying its title and state instead, while there is a GitHub account
+/// to read it as ([GithubLinkChip]); the card then listens to
+/// [GithubLinkStore] for the account coming and going, and nothing else.
 class _CardFace extends StatefulWidget {
   const _CardFace({
     required this.item,
@@ -1208,17 +1215,41 @@ class _CardFaceState extends State<_CardFace> {
 
   @override
   Widget build(BuildContext context) {
+    final title = widget.item.title.trim();
+    final body = widget.item.body.trim();
+    final titleLinks = findLinks(title);
+    final bodyLinks = findLinks(body);
+    _forgetAllBut([...titleLinks, ...bodyLinks]);
+    final refs = <String, GithubRef>{
+      for (final link in [...titleLinks, ...bodyLinks])
+        link.url: ?parseGithubRef(link.url),
+    };
+    if (refs.isEmpty) {
+      return _face(context, title, body, titleLinks, bodyLinks, refs, null);
+    }
+    final githubLinks = AccountsScope.githubLinksOf(context);
+    return ListenableBuilder(
+      listenable: githubLinks,
+      builder: (context, _) =>
+          _face(context, title, body, titleLinks, bodyLinks, refs, githubLinks),
+    );
+  }
+
+  Widget _face(
+    BuildContext context,
+    String title,
+    String body,
+    List<TodoLink> titleLinks,
+    List<TodoLink> bodyLinks,
+    Map<String, GithubRef> refs,
+    GithubLinkStore? githubLinks,
+  ) {
     final item = widget.item;
     final terms = widget.terms;
     final theme = ThemeScope.of(context);
     final dim = theme.popupForeground.withValues(alpha: 0.6);
     final due = item.due;
     final recurrence = item.recurrence;
-    final title = item.title.trim();
-    final body = item.body.trim();
-    final titleLinks = findLinks(title);
-    final bodyLinks = findLinks(body);
-    _forgetAllBut([...titleLinks, ...bodyLinks]);
     final hit = TextStyle(
       backgroundColor: theme.accent.withValues(alpha: 0.35),
       color: theme.popupForeground,
@@ -1228,6 +1259,29 @@ class _CardFaceState extends State<_CardFace> {
       decoration: TextDecoration.underline,
       decorationColor: theme.accent,
     );
+    final chips = githubLinks != null && githubLinks.enabled;
+    List<InlineSpan> spans(String text, List<TodoLink> links, double size) =>
+        highlightMatchesWithChips(
+          text,
+          terms,
+          hit: hit,
+          links: links,
+          link: link,
+          recognizerFor: _recognizerFor,
+          chipFor: (link, matched) {
+            final ref = refs[link.url];
+            if (!chips || ref == null) return null;
+            return githubLinkChipSpan(
+              GithubLinkChip(
+                store: githubLinks,
+                ref: ref,
+                highlighted: matched,
+                fontSize: size,
+                onOpen: () => widget.onOpenLink(link.url),
+              ),
+            );
+          },
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1236,14 +1290,7 @@ class _CardFaceState extends State<_CardFace> {
           TextSpan(
             children: title.isEmpty
                 ? [const TextSpan(text: 'Untitled')]
-                : highlightMatches(
-                    title,
-                    terms,
-                    hit: hit,
-                    links: titleLinks,
-                    link: link,
-                    recognizerFor: _recognizerFor,
-                  ),
+                : spans(title, titleLinks, ShellFontSizes.body),
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -1257,14 +1304,7 @@ class _CardFaceState extends State<_CardFace> {
           const SizedBox(height: 4),
           Text.rich(
             TextSpan(
-              children: highlightMatches(
-                body,
-                terms,
-                hit: hit,
-                links: bodyLinks,
-                link: link,
-                recognizerFor: _recognizerFor,
-              ),
+              children: spans(body, bodyLinks, ShellFontSizes.secondary),
             ),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,

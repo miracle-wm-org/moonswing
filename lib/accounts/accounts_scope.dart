@@ -27,6 +27,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/caldav/caldav_calendar_store.dart';
+import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
@@ -39,6 +40,7 @@ class AccountsScope extends InheritedWidget {
     this.googleCalendar,
     this.github,
     this.githubNotifications,
+    this.githubLinks,
     this.caldav,
     this.caldavCalendar,
     required super.child,
@@ -50,6 +52,7 @@ class AccountsScope extends InheritedWidget {
       googleCalendar = GoogleCalendarStore.instance,
       github = GithubAccountStore.instance,
       githubNotifications = GithubStore.instance,
+      githubLinks = GithubLinkStore.instance,
       caldav = CalDavAccountStore.instance,
       caldavCalendar = CalDavCalendarStore.instance;
 
@@ -65,6 +68,9 @@ class AccountsScope extends InheritedWidget {
 
   /// The GitHub notification inbox, polled under a lease.
   final GithubStore? githubNotifications;
+
+  /// The titles behind links to GitHub issues and pull requests.
+  final GithubLinkStore? githubLinks;
 
   /// The CalDAV servers — any number — and the calendars on each.
   final CalDavAccountStore? caldav;
@@ -93,6 +99,11 @@ class AccountsScope extends InheritedWidget {
   static GithubStore githubNotificationsOf(BuildContext context) =>
       _scope(context)?.githubNotifications ?? GithubStore.instance;
 
+  /// What a link to a GitHub issue or pull request is called, read as the
+  /// signed-in account.
+  static GithubLinkStore githubLinksOf(BuildContext context) =>
+      _scope(context)?.githubLinks ?? GithubLinkStore.instance;
+
   /// The CalDAV accounts: [CalDavAccountStore.accounts], their calendars and
   /// task lists, and [CalDavAccountStore.clientFor] for a request of a
   /// module's own.
@@ -109,6 +120,7 @@ class AccountsScope extends InheritedWidget {
       googleCalendar != old.googleCalendar ||
       github != old.github ||
       githubNotifications != old.githubNotifications ||
+      githubLinks != old.githubLinks ||
       caldav != old.caldav ||
       caldavCalendar != old.caldavCalendar;
 }

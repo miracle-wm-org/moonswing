@@ -136,6 +136,64 @@ List<TextSpan> highlightMatches(
   return spans;
 }
 
+/// [highlightMatches], except that a link [chipFor] answers a span for is
+/// drawn as that span in place of its address.
+///
+/// [chipFor] is told whether any of [terms] falls inside the address, so a
+/// card a search found by its link still says why it is showing once the
+/// address is no longer drawn. A link it answers null for is the underlined
+/// text [highlightMatches] draws.
+List<InlineSpan> highlightMatchesWithChips(
+  String text,
+  List<String> terms, {
+  required TextStyle hit,
+  required InlineSpan? Function(TodoLink link, bool matched) chipFor,
+  List<TodoLink> links = const [],
+  TextStyle? link,
+  GestureRecognizer? Function(TodoLink link)? recognizerFor,
+}) {
+  final ranges = _matchRanges(text, terms);
+  final spans = <InlineSpan>[];
+  var from = 0;
+  final pending = <TodoLink>[];
+  void flush(int to) {
+    final base = from;
+    if (to <= base) return;
+    spans.addAll(
+      highlightMatches(
+        text.substring(base, to),
+        terms,
+        hit: hit,
+        links: [
+          for (final l in pending)
+            TodoLink(l.start - base, l.end - base, l.url),
+        ],
+        link: link,
+        recognizerFor: recognizerFor == null
+            ? null
+            : (shifted) => recognizerFor(
+                TodoLink(shifted.start + base, shifted.end + base, shifted.url),
+              ),
+      ),
+    );
+    pending.clear();
+  }
+
+  for (final l in links) {
+    final matched = ranges.any((r) => r.$1 < l.end && l.start < r.$2);
+    final chip = chipFor(l, matched);
+    if (chip == null) {
+      pending.add(l);
+      continue;
+    }
+    flush(l.start);
+    spans.add(chip);
+    from = l.end;
+  }
+  flush(text.length);
+  return spans;
+}
+
 /// Where [terms] occur in [text], ignoring case, merged into disjoint runs in
 /// order.
 List<(int, int)> _matchRanges(String text, List<String> terms) {

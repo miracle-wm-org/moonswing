@@ -48,6 +48,16 @@ class FakeGithubClient implements GithubClient {
   String login;
   GithubException? failWriteWith;
 
+  /// What [fetchIssue] answers, by `owner/repo/number`; a missing one is the
+  /// 404 GitHub sends.
+  final Map<String, GithubIssue> issues = {};
+  GithubException? failIssueWith;
+
+  /// When set, [fetchIssue] waits on it — the way a test holds reads in
+  /// flight to count them.
+  Completer<void>? issueGate;
+  final List<String> issueCalls = [];
+
   int deviceCodeCalls = 0;
   int tokenCalls = 0;
   int fetchCalls = 0;
@@ -116,6 +126,24 @@ class FakeGithubClient implements GithubClient {
     final failure = failWriteWith;
     if (failure != null) throw failure;
     markedRead.add(id);
+  }
+
+  @override
+  Future<GithubIssue> fetchIssue({
+    required String token,
+    required String owner,
+    required String repo,
+    required int number,
+  }) async {
+    final key = '$owner/$repo/$number';
+    issueCalls.add(key);
+    final gate = issueGate;
+    if (gate != null) await gate.future;
+    final failure = failIssueWith;
+    if (failure != null) throw failure;
+    final issue = issues[key];
+    if (issue == null) throw const GithubException('Not found');
+    return issue;
   }
 
   @override

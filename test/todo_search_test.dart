@@ -22,6 +22,77 @@ TodoItem _item(String id, String title) => TodoItem(
 );
 
 void main() {
+  group('highlightMatchesWithChips', () {
+    const chip = TextSpan(text: '[chip]');
+    const text =
+        'See https://github.com/o/r/pull/1 and https://example.com now';
+
+    test('draws a chosen link as its chip and the rest as text', () {
+      final links = findLinks(text);
+      final told = <(String, bool)>[];
+      final recognizer = TapGestureRecognizer();
+      addTearDown(recognizer.dispose);
+      final seen = <TodoLink>[];
+      final spans = highlightMatchesWithChips(
+        text,
+        ['exam', 'pull'],
+        hit: _hit,
+        links: links,
+        link: const TextStyle(decoration: TextDecoration.underline),
+        recognizerFor: (link) {
+          seen.add(link);
+          return recognizer;
+        },
+        chipFor: (link, matched) {
+          told.add((link.url, matched));
+          return link.url.contains('github') ? chip : null;
+        },
+      );
+      expect(told, [
+        ('https://github.com/o/r/pull/1', true),
+        ('https://example.com', true),
+      ]);
+      expect(spans.first, isA<TextSpan>());
+      expect((spans.first as TextSpan).text, 'See ');
+      expect(spans[1], same(chip));
+      expect(
+        [
+          for (final s in spans.skip(2))
+            (
+              (s as TextSpan).text,
+              s.style?.fontWeight == FontWeight.bold,
+              s.recognizer != null,
+            ),
+        ],
+        [
+          (' and ', false, false),
+          ('https://', false, true),
+          ('exam', true, true),
+          ('ple.com', false, true),
+          (' now', false, false),
+        ],
+      );
+      // The text link's recognizer is asked for with its place in the whole
+      // text, not in the stretch after the chip.
+      expect(seen.toSet(), {links.last});
+    });
+
+    test('says a link was not matched when no term falls inside it', () {
+      final told = <bool>[];
+      highlightMatchesWithChips(
+        text,
+        ['see'],
+        hit: _hit,
+        links: findLinks(text),
+        chipFor: (link, matched) {
+          told.add(matched);
+          return chip;
+        },
+      );
+      expect(told, [false, false]);
+    });
+  });
+
   group('highlightMatches', () {
     test('marks every occurrence, in any case', () {
       expect(_runs(highlightMatches('Bug in bugfix', ['BUG'], hit: _hit)), [
