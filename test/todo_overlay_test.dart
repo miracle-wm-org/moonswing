@@ -6,8 +6,13 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/github/github_account_store.dart';
+import 'package:moonswing/github/github_api.dart';
+import 'package:moonswing/github/github_link_store.dart';
+import 'package:moonswing/github/github_token_store.dart';
 import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
@@ -17,6 +22,8 @@ import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_overlay.dart';
 import 'package:moonswing/todo/todo_store.dart';
+
+import 'github_fakes.dart';
 
 TodoItem _item(
   String id,
@@ -55,6 +62,7 @@ void main() {
     ValueChanged<String>? onOpenLink,
     VoidCallback? onOpenAccounts,
     ValueChanged<TodoCalDavSync>? withSync,
+    GithubLinkStore? githubLinks,
   }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
@@ -78,13 +86,16 @@ void main() {
     await tester.pumpWidget(
       ThemeScope(
         theme: const ThemeConfig(),
-        child: TodoOverlay(
-          closingNotifier: closing,
-          onClosed: () => closed++,
-          store: store,
-          sync: sync,
-          onOpenAccounts: onOpenAccounts ?? () {},
-          onOpenLink: onOpenLink ?? (_) {},
+        child: AccountsScope(
+          githubLinks: githubLinks,
+          child: TodoOverlay(
+            closingNotifier: closing,
+            onClosed: () => closed++,
+            store: store,
+            sync: sync,
+            onOpenAccounts: onOpenAccounts ?? () {},
+            onOpenLink: onOpenLink ?? (_) {},
+          ),
         ),
       ),
     );
@@ -290,6 +301,59 @@ void main() {
     await tapCharacter('Read https://example.com/title', 1);
     expect(find.text('Edit item'), findsOneWidget);
     expect(opened, hasLength(2));
+  });
+
+  testWidgets('a GitHub link is its title, and still opens the address', (
+    tester,
+  ) async {
+    final tokens = Directory.systemTemp.createTempSync('todo-github-');
+    addTearDown(() => tokens.deleteSync(recursive: true));
+    final client = FakeGithubClient()
+      ..issues['o/r/12'] = const GithubIssue(
+        number: 12,
+        title: 'Fix the thing',
+        state: GithubIssueState.open,
+        isPullRequest: true,
+      );
+    final account = GithubAccountStore.forTesting(
+      client: client,
+      tokens: GithubTokenStore(directory: tokens.path),
+    )..seed();
+    addTearDown(account.dispose);
+    final links = GithubLinkStore.forTesting(account: account);
+    addTearDown(links.dispose);
+    const url = 'https://github.com/o/r/pull/12';
+    final opened = <String>[];
+    await pump(
+      tester,
+      [
+        TodoItem(
+          id: 'a',
+          title: 'Review $url',
+          body: 'and https://github.com/o/r/issues/99 too',
+          column: TodoColumn.inbox,
+          created: DateTime(2026, 9, 20, 10),
+        ),
+      ],
+      onOpenLink: opened.add,
+      githubLinks: links,
+    );
+
+    expect(find.text('Fix the thing #12', findRichText: true), findsOneWidget);
+    // A link GitHub would not answer for is still a chip, by its number.
+    expect(find.text('r#99', findRichText: true), findsOneWidget);
+    expect(find.textContaining(url, findRichText: true), findsNothing);
+
+    await tester.tap(find.text('Fix the thing #12', findRichText: true));
+    await tester.pumpAndSettle();
+    expect(opened, [url]);
+    expect(find.text('Edit item'), findsNothing);
+
+    // Signed out, the address is the address again.
+    account.seed(stage: GithubAuthStage.signedOut);
+    await tester.pumpAndSettle();
+    expect(find.text('Fix the thing #12', findRichText: true), findsNothing);
+    expect(find.text('Review $url', findRichText: true), findsOneWidget);
   });
 
   testWidgets('Escape closes the editor, then the board', (tester) async {

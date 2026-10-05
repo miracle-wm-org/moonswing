@@ -268,6 +268,95 @@ class GithubNotificationPage {
   final int? pollInterval;
 }
 
+/// What an issue or pull request is now, as the issues endpoint reports it.
+enum GithubIssueState {
+  open,
+
+  /// A pull request still marked as a draft.
+  draft,
+
+  /// A pull request that was merged.
+  merged,
+
+  /// An issue closed as done.
+  completed,
+
+  /// Closed any other way: a pull request closed unmerged, an issue closed as
+  /// not planned or a duplicate.
+  closed,
+}
+
+/// One issue or pull request, as much of it as a link to it shows.
+class GithubIssue {
+  const GithubIssue({
+    required this.number,
+    required this.title,
+    required this.state,
+    required this.isPullRequest,
+  });
+
+  final int number;
+  final String title;
+  final GithubIssueState state;
+  final bool isPullRequest;
+
+  @override
+  bool operator ==(Object other) =>
+      other is GithubIssue &&
+      other.number == number &&
+      other.title == title &&
+      other.state == state &&
+      other.isPullRequest == isPullRequest;
+
+  @override
+  int get hashCode => Object.hash(number, title, state, isPullRequest);
+
+  @override
+  String toString() => 'GithubIssue(#$number $title, ${state.name})';
+}
+
+/// The issues endpoint's answer, which is the same shape for a pull request —
+/// the REST API treats every pull request as an issue, and says which by the
+/// `pull_request` table it carries.
+///
+/// Null when it carries no number, the one field a link cannot do without. An
+/// unknown `state` reads as open, since that is what an issue is until it is
+/// closed, and a missing title as an empty one.
+GithubIssue? parseIssue(Object? json) {
+  if (json is! Map<String, dynamic>) return null;
+  final number = _asInt(json['number']);
+  if (number == null || number <= 0) return null;
+  final pull = json['pull_request'];
+  final isPull = pull is Map;
+  final closed = _asString(json['state']) == 'closed';
+  final GithubIssueState state;
+  if (isPull) {
+    final merged = _asString(pull['merged_at']).isNotEmpty;
+    state = merged
+        ? GithubIssueState.merged
+        : closed
+        ? GithubIssueState.closed
+        : json['draft'] == true
+        ? GithubIssueState.draft
+        : GithubIssueState.open;
+  } else if (closed) {
+    // `state_reason` arrived after closing did; an old issue closed without
+    // one was, as GitHub draws it, completed.
+    final reason = _asString(json['state_reason']);
+    state = reason.isEmpty || reason == 'completed'
+        ? GithubIssueState.completed
+        : GithubIssueState.closed;
+  } else {
+    state = GithubIssueState.open;
+  }
+  return GithubIssue(
+    number: number,
+    title: _asString(json['title']),
+    state: state,
+    isPullRequest: isPull,
+  );
+}
+
 /// The seam the store polls through. [HttpGithubClient] is the one
 /// implementation; a test supplies its own and never opens a socket.
 abstract class GithubClient {
@@ -303,6 +392,19 @@ abstract class GithubClient {
 
   /// Marks everything read, up to and including [lastReadAt].
   Future<void> markAllRead({required String token, DateTime? lastReadAt});
+
+  /// Issue or pull request [number] of `owner/repo`.
+  ///
+  /// Never a [GithubAuthException] for one repository refusing: a link to a
+  /// private repository, or to an organisation enforcing SSO, is a fact about
+  /// that link and must not sign the whole account out. Only a rejected token
+  /// is.
+  Future<GithubIssue> fetchIssue({
+    required String token,
+    required String owner,
+    required String repo,
+    required int number,
+  });
 }
 
 /// The REST API, over `github.com` for the sign-in and `api.github.com` for
@@ -513,6 +615,41 @@ class HttpGithubClient implements GithubClient {
     );
     final code = response.statusCode;
     if (code >= 200 && code < 300) return;
+    _fail(url, response);
+  }
+
+  @override
+  Future<GithubIssue> fetchIssue({
+    required String token,
+    required String owner,
+    required String repo,
+    required int number,
+  }) async {
+    final url = Uri.https(
+      'api.github.com',
+      '/repos/$owner/$repo/issues/$number',
+    );
+    final response = await _send('GET', url, token: token);
+    final code = response.statusCode;
+    if (code == 200) {
+      final issue = parseIssue(jsonDecode(utf8.decode(response.bodyBytes)));
+      if (issue == null) throw const GithubException('GitHub sent no issue');
+      return issue;
+    }
+    // GitHub answers 404 rather than 403 for a private repository the token
+    // cannot see, so as not to say it exists — and the default sign-in asks
+    // for no repository access at all.
+    if (code == 404) {
+      throw const GithubException(
+        'Not found — or in a private repository, which needs the repo scope',
+      );
+    }
+    if (code == 410) throw const GithubException('This issue was deleted');
+    if (code == 403 && !_isRateLimited(response)) {
+      throw GithubException(
+        _errorMessage(_decodeObject(response), 'GitHub refused this one'),
+      );
+    }
     _fail(url, response);
   }
 }

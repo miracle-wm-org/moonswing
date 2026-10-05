@@ -375,7 +375,8 @@ it on the card, and opens github.com/login/device in your browser. You type the
 code in there, authorise the app, and the shell takes it from there — your
 password is never typed into the shell and never reaches it. Closing the
 settings half-way through loses nothing: the code stays on the card until it
-expires. Anything else in the shell that reads GitHub uses the same account.
+expires. Anything else in the shell that reads GitHub uses the same account —
+the todo board, for one, shows a link to an issue or pull request by its title.
 
 The access token is written to `~/.local/state/moonswing/github-token`
 (mode 0600, in a directory created 0700), not into `config.toml`. **Sign out** on
@@ -399,7 +400,9 @@ client_id = "Iv1.0123456789abcdef"
 access to the notification list plus the two calls that mark a thread read —
 nothing else, not the contents of a single repository. Notifications from
 **private** repositories are not included in that; listing them needs `repo`,
-which is full read/write access to every repository you can reach:
+which is full read/write access to every repository you can reach. The same
+goes for a todo card's link into a private repository, which is shown by its
+title only with `repo`:
 
 ```toml
 [modules.github]
@@ -693,6 +696,17 @@ cards that match, and highlights what matched. It looks for any piece of text �
 the middle of a word counts, and case does not — in a card's title and details;
 with several words, a card has to contain all of them. **Ctrl+F** returns to the
 field, and **Escape** clears it before it closes the board.
+
+A web address in a card's title or details is a link: clicking it opens the
+address in your browser rather than the card. While a GitHub account is signed
+in (Settings › **Accounts**), a link to a GitHub issue or pull request is drawn as
+a chip instead, with its title, its number and an icon for whether it is open, a
+draft, merged or closed; hovering over it says which repository it is in, and
+clicking it still opens the page. A title is read when the board first shows the
+card and read again when the board is opened more than ten minutes later, so
+the chips catch up with merges. A link GitHub will not answer for keeps its
+number, with a warning icon and the reason on hover — a link into a **private**
+repository needs the `repo` scope (see [GitHub](#github)).
 
 The megaphone at the top of the board opens your **standup** summaries, and
 **New summary** there writes one: what you moved to **Finished** since the last
