@@ -750,6 +750,45 @@ abstract final class SettingsCatalog {
     const ['github', 'notifications', 'read', 'open', 'browser'],
   );
 
+  static final stocksSymbols = _module(
+    'modules.stocks.symbols',
+    'Tickers',
+    'The watchlist the stock market strip crawls and the desktop widget '
+        'lists, in order — symbols as Yahoo Finance spells them. The strip\'s '
+        'own popup searches by company name.',
+    const [
+      'stocks',
+      'stock market',
+      'ticker',
+      'symbol',
+      'watchlist',
+      'shares',
+      'quote',
+      'finance',
+    ],
+  );
+  static final stocksRefreshSeconds = _module(
+    'modules.stocks.refresh_seconds',
+    'Refresh (seconds)',
+    'How often prices are re-read while a market on the list is trading. '
+        'While every one is closed, they are re-read every two minutes.',
+    const ['stocks', 'ticker', 'quote', 'interval', 'update', 'poll'],
+  );
+  static final stocksScrollSpeed = _module(
+    'modules.stocks.scroll_speed',
+    'Scroll speed',
+    'How fast the strip crawls along the bar, in pixels a second. Hovering '
+        'it holds it still.',
+    const ['stocks', 'ticker', 'crawl', 'scroll', 'speed', 'marquee'],
+  );
+  static final stocksWidth = _module(
+    'modules.stocks.width',
+    'Strip width',
+    'How much of a horizontal bar the crawling strip takes. A watchlist '
+        'narrower than this sits still.',
+    const ['stocks', 'ticker', 'crawl', 'width', 'size'],
+  );
+
   static final recorderDirectory = _module(
     'modules.screen_recorder.directory',
     'Save to',
@@ -2229,6 +2268,10 @@ abstract final class SettingsCatalog {
     networkPollSeconds,
     notificationsSound,
     notificationsSoundVolume,
+    stocksSymbols,
+    stocksRefreshSeconds,
+    stocksScrollSpeed,
+    stocksWidth,
     screenshotDirectory,
     screenshotCopyToClipboard,
     screenshotDelaySeconds,

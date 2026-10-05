@@ -64,6 +64,7 @@ void main() {
     test('every route the shell can emit lands on a real category', () {
       expect(isShellCategory(SettingsRoute.background.shellCategory!), isTrue);
       expect(isShellCategory(SettingsRoute.desktop.shellCategory!), isTrue);
+      expect(isShellCategory(SettingsRoute.modules.shellCategory!), isTrue);
     });
 
     test('an unknown title is not a category', () {

@@ -46,6 +46,11 @@ class SettingsRoute {
   /// Where the desktop grid's own settings live.
   static const SettingsRoute desktop = SettingsRoute(shellCategory: 'Desktop');
 
+  /// Where every `[modules.*]` option lives — the stock market widget's
+  /// "Manage tickers", for one, whose watchlist is a row there.
+  static const SettingsRoute modules =
+      SettingsRoute(shellCategory: 'Module Settings');
+
   /// Where the keyboard layout popup's "Keyboard settings…" footer goes.
   ///
   /// A top-level category rather than a Shell one: the first five sidebar entries

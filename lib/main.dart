@@ -33,6 +33,7 @@ import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/modules/keyboard_layout.dart';
 import 'package:moonswing/modules/launcher.dart';
 import 'package:moonswing/modules/sound_control.dart';
+import 'package:moonswing/modules/stocks.dart';
 import 'package:moonswing/modules/brightness.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/modules/media_player.dart';
@@ -117,6 +118,7 @@ import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/desktop/widgets/media_player_widget.dart';
 import 'package:moonswing/desktop/widgets/fortune_widget.dart';
 import 'package:moonswing/desktop/widgets/moon_widget.dart';
+import 'package:moonswing/desktop/widgets/stocks_widget.dart';
 import 'package:moonswing/desktop/widgets/tux_widget.dart';
 import 'package:moonswing/desktop/widgets/weather_widget.dart';
 import 'package:moonswing/overlay/overlay.dart';
@@ -165,6 +167,7 @@ void main() async {
   Module.register(githubModule);
   Module.register(scratchpadModule);
   Module.register(todoModule);
+  Module.register(stocksModule);
 
   // The desktop grid's own registry, populated the same way: `[[desktop.widgets]]`
   // names a type, and lookup happens at render time. See
@@ -175,6 +178,7 @@ void main() async {
   DesktopWidgetRegistry.register(fortuneDesktopWidget);
   DesktopWidgetRegistry.register(tuxDesktopWidget);
   DesktopWidgetRegistry.register(analogClockDesktopWidget);
+  DesktopWidgetRegistry.register(stocksDesktopWidget);
 
   // The only awaits before the first frame, and they have to be: every native
   // window's geometry comes out of them. Everything else starts in
