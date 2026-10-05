@@ -349,10 +349,6 @@ void main() {
         addTearDown(db.close);
         expect(db.standupAt, DateTime.utc(2026, 9, 24, 9).toLocal());
         expect(db.standups, isEmpty);
-        // Nothing kept to invalidate: the recorded instant stays.
-        db.invalidateLatestStandup();
-        expect(db.standupAt, DateTime.utc(2026, 9, 24, 9).toLocal());
-
         final summary = StandupSummary(
           takenAt: DateTime.utc(2026, 9, 25, 9).toLocal(),
           since: db.standupAt,
@@ -361,9 +357,6 @@ void main() {
         db.recordStandup(summary);
         expect(db.standups, [summary]);
         expect(db.standupAt, summary.takenAt);
-        db.invalidateLatestStandup();
-        expect(db.standups, isEmpty);
-        expect(db.standupAt, DateTime.utc(2026, 9, 24, 9).toLocal());
       },
     );
   });

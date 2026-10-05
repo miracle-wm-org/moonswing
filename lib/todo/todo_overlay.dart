@@ -391,6 +391,7 @@ class _TodoPanel extends StatelessWidget {
                       : TodoStandupLayer(
                           store: store,
                           onDone: () => standup.value = false,
+                          onOpenLink: onOpenLink,
                         ),
                 ),
               ),

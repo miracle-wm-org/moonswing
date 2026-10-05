@@ -20,7 +20,7 @@ import 'package:moonswing/todo/todo_standup.dart';
 ///  1. The board.
 ///  2. `entries.external`: the calendar event a card mirrors.
 ///  3. `standups`: every standup summary taken, so an old one can be copied
-///     again and the latest invalidated.
+///     again.
 ///  4. `entries.remote`: the task a card is on the synced CalDAV task list;
 ///     `remote_tombstones`: tasks deleted here and still owed a delete there.
 const int kTodoSchemaVersion = 4;
@@ -512,22 +512,6 @@ class TodoDatabase {
         ],
       );
       _setStandupAt(summary.takenAt);
-    });
-  }
-
-  /// Forgets the newest summary and sets [standupAt] back to the instant it
-  /// counted from, so the next one covers what it did. Does nothing when there
-  /// is no summary kept.
-  void invalidateLatestStandup() {
-    _transaction(() {
-      final rows = _db.select(
-        'SELECT seq, since FROM standups ORDER BY seq DESC LIMIT 1',
-      );
-      if (rows.isEmpty) return;
-      final row = rows.single;
-      _db.execute('DELETE FROM standups WHERE seq = ?', [row['seq']]);
-      final since = row['since'];
-      _setStandupAt(since is String ? DateTime.tryParse(since) : null);
     });
   }
 

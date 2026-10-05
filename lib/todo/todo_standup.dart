@@ -14,8 +14,7 @@ import 'package:moonswing/todo/todo_model.dart';
 const Duration kStandupFirstWindow = Duration(days: 1);
 
 /// One standup summary as it was taken: the text, when, and the instant it
-/// counted from — which is what the next summary goes back to counting from
-/// when this one is invalidated.
+/// counted from.
 class StandupSummary {
   const StandupSummary({
     required this.takenAt,
@@ -45,7 +44,8 @@ class StandupSummary {
 /// The standup summary for [items] at [now], counting activity after [since]
 /// (or [kStandupFirstWindow] before [now] when there has been no summary yet).
 ///
-/// Plain text, meant to be pasted into a chat:
+/// Plain text, meant to be pasted into a chat, so it opens straight onto the
+/// first list — no title or date line to delete before sending:
 ///
 ///  * **Done** — cards that arrived in Finished after [since] and are still
 ///    there, so one finished and then reopened is not claimed as done.
@@ -105,11 +105,6 @@ String standupReport(
   }
 
   final lines = <String>[
-    'Standup — ${describeStandupDay(now)}',
-    since == null
-        ? 'Covering the last 24 hours.'
-        : 'Since ${describeStandupMoment(since, now: now)}.',
-    '',
     'Done:',
     if (done.isEmpty) '• Nothing finished',
     for (final item in done) '• ${_titleOf(item)}',
@@ -130,6 +125,21 @@ String standupReport(
     ],
   ];
   return lines.join('\n');
+}
+
+/// [report] without the title, the line saying what it covered and the blank
+/// line after them, which a summary taken before they were dropped still opens
+/// with — so a kept old one reads, and copies, like a new one.
+String standupReportBody(String report) {
+  final lines = report.split('\n');
+  if (lines.length >= 3 &&
+      lines[0].startsWith('Standup — ') &&
+      (lines[1].startsWith('Since ') ||
+          lines[1] == 'Covering the last 24 hours.') &&
+      lines[2].isEmpty) {
+    return lines.skip(3).join('\n');
+  }
+  return report;
 }
 
 String _titleOf(TodoItem item) {

@@ -714,7 +714,10 @@ summary, everything in **In Progress** (marked *started* if it moved there since
 then), everything in **Todo** with its due date, overdue first, and anything you
 moved to **Abandoned** since then. The first time, it covers the last 24 hours.
 Opening the megaphone only shows the summaries already taken; it never writes a
-new one. It is plain text with a **Copy** button, for pasting into a chat.
+new one. It is plain text, for pasting into a chat: select it where it is (drag,
+double-click, or **Ctrl+A**) and copy with **Ctrl+C**, which needs
+`wl-clipboard`. A web address in a card's title shows up as a link, and
+clicking it opens it.
 **Inbox** is left out, and so are calendar events the Google sync put on the
 board — a meeting is not work to report. Nothing is sent anywhere.
 
