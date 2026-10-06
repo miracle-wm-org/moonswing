@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -9,6 +10,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_link_store.dart';
@@ -21,6 +23,7 @@ import 'package:moonswing/todo/todo_controller.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_overlay.dart';
+import 'package:moonswing/todo/todo_standup_panel.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
 import 'github_fakes.dart';
@@ -41,6 +44,36 @@ TodoItem _item(
       history ??
       [TodoMove(from: null, to: column, at: DateTime(2026, 9, 20, 10))],
 );
+
+/// The text of the standup summary on show.
+String standupText(WidgetTester tester) => tester
+    .widget<Text>(
+      find.descendant(
+        of: find.byType(SelectableRegion),
+        matching: find.byType(Text),
+      ),
+    )
+    .textSpan!
+    .toPlainText();
+
+/// The middle of the one stretch of text [finder] finds.
+Offset centreOf(FinderBase<TextRangeContext> finder) {
+  final range = finder.evaluate().single;
+  final boxes = range.renderObject.getBoxesForSelection(
+    TextSelection(
+      baseOffset: range.textRange.start,
+      extentOffset: range.textRange.end,
+    ),
+  );
+  return range.renderObject.localToGlobal(boxes.first.toRect().center);
+}
+
+Future<void> sendCtrl(WidgetTester tester, LogicalKeyboardKey key) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(key);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+  await tester.pumpAndSettle();
+}
 
 void main() {
   late ValueNotifier<bool> closing;
@@ -459,11 +492,14 @@ void main() {
     expect(find.textContaining('No summaries yet'), findsOneWidget);
     await tester.tap(find.text('New summary'));
     await tester.pumpAndSettle();
-    final report = tester.widget<Text>(find.textContaining('Standup — ')).data!;
-    expect(report, contains('Done:\n• Card done'));
+    final report = standupText(tester);
+    expect(report, startsWith('Done:\n• Card done'));
     expect(report, contains('In progress:\n• Card doing'));
     expect(report, contains('To do:\n• Card next'));
     expect(store.lastStandup, now);
+    // Copying is selecting; there is no button for it, nor for forgetting one.
+    expect(find.text('Copy'), findsNothing);
+    expect(find.text('Invalidate'), findsNothing);
 
     // Escape closes the summary before it closes the board.
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
@@ -476,54 +512,119 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
     expect(store.standups, hasLength(1));
-    expect(
-      tester.widget<Text>(find.textContaining('Standup — ')).data,
-      contains('Done:\n• Card done'),
-    );
+    expect(standupText(tester), contains('Done:\n• Card done'));
 
     // The next one counts from the first: nothing new has been finished.
     await tester.tap(find.text('New summary'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<Text>(find.textContaining('Standup — ')).data,
-      contains('Done:\n• Nothing finished'),
-    );
+    expect(standupText(tester), contains('Done:\n• Nothing finished'));
 
-    // Both are listed; picking the older one shows it, and hides Invalidate,
-    // which only ever applies to the latest.
+    // Both are listed; picking the older one shows it.
     expect(store.standups, hasLength(2));
     expect(find.text('Latest'), findsOneWidget);
-    expect(find.text('Invalidate'), findsOneWidget);
     await tester.tap(find.text('Today at 12:00'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<Text>(find.textContaining('Standup — ')).data,
-      contains('Done:\n• Card done'),
+    expect(standupText(tester), contains('Done:\n• Card done'));
+  });
+
+  testWidgets('a summary is selected and copied in place, its links live', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final store = TodoStore.forTesting(
+      items: [
+        _item(
+          'doing',
+          TodoColumn.inProgress,
+        ).copyWith(title: 'Review https://example.com/pr/1 today'),
+      ],
+      now: () => now,
+      inMemory: true,
     );
-    expect(find.text('Invalidate'), findsNothing);
-
-    // Invalidating the latest drops it and counts from the first again, so the
-    // next summary reports the finished card once more.
-    await tester.tap(find.text('Today at 13:00'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Invalidate'));
-    await tester.pumpAndSettle();
-    expect(store.standups, hasLength(1));
-    expect(store.lastStandup, DateTime(2026, 9, 24, 12));
-    expect(find.text('Latest'), findsNothing);
-    expect(find.textContaining('count from today at 12:00'), findsOneWidget);
-    await tester.tap(find.text('Done'));
-    await tester.pumpAndSettle();
-
-    now = now.add(const Duration(hours: 1));
-    await tester.tap(button);
-    await tester.pumpAndSettle();
+    addTearDown(store.dispose);
+    final copied = <String>[];
+    var result = ClipboardResult.copied;
+    final opened = <String>[];
+    await tester.pumpWidget(
+      ThemeScope(
+        theme: const ThemeConfig(),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: Overlay(
+            initialEntries: [
+              OverlayEntry(
+                builder: (context) => TodoStandupLayer(
+                  store: store,
+                  onDone: () {},
+                  onOpenLink: opened.add,
+                  copy: (text) async {
+                    copied.add(text);
+                    return result;
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
     await tester.tap(find.text('New summary'));
     await tester.pumpAndSettle();
-    expect(
-      tester.widget<Text>(find.textContaining('Standup — ')).data,
-      contains('Since today at 12:00.'),
+    final report = standupText(tester);
+    expect(report, contains('• Review https://example.com/pr/1 today'));
+
+    // A click on the address opens it.
+    final link = find.textRange.ofSubstring(
+      'https://example.com/pr/1',
+      descendentOf: find.byType(SelectableRegion),
     );
+    await tester.tapAt(centreOf(link), kind: PointerDeviceKind.mouse);
+    await tester.pumpAndSettle();
+    expect(opened, ['https://example.com/pr/1']);
+
+    // A drag selects; Ctrl+C hands the selection to the clipboard helper.
+    final word = find.textRange.ofSubstring(
+      'In progress',
+      descendentOf: find.byType(SelectableRegion),
+    );
+    final range = word.evaluate().single;
+    final boxes = range.renderObject.getBoxesForSelection(
+      TextSelection(
+        baseOffset: range.textRange.start,
+        extentOffset: range.textRange.end,
+      ),
+    );
+    final from = range.renderObject.localToGlobal(
+      boxes.first.toRect().centerLeft + const Offset(1, 0),
+    );
+    final to = range.renderObject.localToGlobal(
+      boxes.last.toRect().centerRight,
+    );
+    final gesture = await tester.startGesture(
+      from,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pump();
+    await gesture.moveTo(to);
+    await tester.pump();
+    await gesture.up();
+    await tester.pumpAndSettle();
+    await sendCtrl(tester, LogicalKeyboardKey.keyC);
+    expect(copied, ['In progress']);
+
+    // Ctrl+A takes all of it.
+    await sendCtrl(tester, LogicalKeyboardKey.keyA);
+    await sendCtrl(tester, LogicalKeyboardKey.keyC);
+    expect(copied.last, report);
+
+    expect(find.textContaining('wl-clipboard'), findsNothing);
+
+    // A copy that fails says why.
+    result = ClipboardResult.unavailable;
+    await sendCtrl(tester, LogicalKeyboardKey.keyC);
+    expect(find.text('Install wl-clipboard to copy it.'), findsOneWidget);
   });
 
   Finder searchField() => find.byType(EditableText).first;

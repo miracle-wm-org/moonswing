@@ -53,9 +53,6 @@ void main() {
       );
       expect(
         report,
-        'Standup — Friday 2026-09-25\n'
-        'Since yesterday at 09:15.\n'
-        '\n'
         'Done:\n'
         '• Shipped login\n'
         '\n'
@@ -110,7 +107,7 @@ void main() {
 
     test('an empty board says so rather than printing bare headings', () {
       final report = standupReport(const [], since: null, now: now);
-      expect(report, contains('Covering the last 24 hours.'));
+      expect(report, startsWith('Done:\n'));
       expect(report, contains('• Nothing finished'));
       expect(report, contains('• Nothing in progress'));
       expect(report, contains('• Nothing left to do'));
@@ -128,6 +125,32 @@ void main() {
       );
       expect(report, contains('• Recent'));
       expect(report, isNot(contains('Too old')));
+    });
+  });
+
+  group('standupReportBody', () {
+    test('drops the header a summary taken before it went still has', () {
+      const body = 'Done:\n• Shipped login\n\nIn progress:\n• Carry on';
+      expect(
+        standupReportBody(
+          'Standup — Friday 2026-09-25\nSince yesterday at 09:15.\n\n$body',
+        ),
+        body,
+      );
+      expect(
+        standupReportBody(
+          'Standup — Friday 2026-09-25\nCovering the last 24 hours.\n\n$body',
+        ),
+        body,
+      );
+    });
+
+    test('leaves a summary without one exactly as it is', () {
+      final report = standupReport(const [], since: null, now: now);
+      expect(standupReportBody(report), report);
+      // A card titled like a header is a card, not a header.
+      const odd = 'Standup — notes\nSince Monday\n• one';
+      expect(standupReportBody(odd), odd);
     });
   });
 
@@ -158,9 +181,9 @@ void main() {
       store = TodoStore.forTesting(directory: dir.path, now: () => clock);
       await store.load();
       expect(store.lastStandup, DateTime(2026, 9, 24, 9, 0));
-      final report = store.takeStandup()!.report;
-      expect(report, contains('Since yesterday at 09:00.'));
-      expect(report, contains('Done:\n• Ticket'));
+      final summary = store.takeStandup()!;
+      expect(summary.since, DateTime(2026, 9, 24, 9, 0));
+      expect(summary.report, contains('Done:\n• Ticket'));
 
       clock = DateTime(2026, 9, 26, 9, 0);
       expect(
@@ -185,51 +208,6 @@ void main() {
       store = TodoStore.forTesting(directory: dir.path, now: () => clock);
       await store.load();
       expect(store.standups, [second, first]);
-      store.dispose();
-    });
-
-    test('invalidating the latest makes the next one cover it again', () async {
-      var store = TodoStore.forTesting(directory: dir.path, now: () => clock);
-      await store.load();
-      final id = store.add(TodoColumn.todo, title: 'Ticket')!;
-      final first = store.takeStandup()!;
-
-      clock = DateTime(2026, 9, 24, 14, 0);
-      store.move(id, TodoColumn.finished);
-      clock = DateTime(2026, 9, 25, 9, 0);
-      expect(store.takeStandup()!.report, contains('Done:\n• Ticket'));
-
-      expect(store.invalidateLatestStandup(), isTrue);
-      expect(store.standups, [first]);
-      expect(store.lastStandup, DateTime(2026, 9, 24, 9, 0));
-      await store.flush();
-      store.dispose();
-
-      // The invalidation survives a restart, and the next summary still
-      // reports the card as done.
-      clock = DateTime(2026, 9, 25, 9, 30);
-      store = TodoStore.forTesting(directory: dir.path, now: () => clock);
-      await store.load();
-      expect(store.standups, [first]);
-      expect(store.lastStandup, DateTime(2026, 9, 24, 9, 0));
-      final retaken = store.takeStandup()!;
-      expect(retaken.since, DateTime(2026, 9, 24, 9, 0));
-      expect(retaken.report, contains('Since yesterday at 09:00.'));
-      expect(retaken.report, contains('Done:\n• Ticket'));
-
-      // Invalidating back past the first summary starts over.
-      expect(store.invalidateLatestStandup(), isTrue);
-      expect(store.invalidateLatestStandup(), isTrue);
-      expect(store.standups, isEmpty);
-      expect(store.lastStandup, isNull);
-      expect(store.invalidateLatestStandup(), isFalse);
-      await store.flush();
-      store.dispose();
-
-      store = TodoStore.forTesting(directory: dir.path, now: () => clock);
-      await store.load();
-      expect(store.lastStandup, isNull);
-      expect(store.standups, isEmpty);
       store.dispose();
     });
   });

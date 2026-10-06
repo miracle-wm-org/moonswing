@@ -1,8 +1,8 @@
 // The card the board's standup button opens: every summary taken so far to
-// pick from and copy again, the button that takes a new one (opening the card
-// does not — looking back at yesterday's must not start today's), and the way
-// to invalidate the latest so the next one covers what it did.
+// pick from and copy again, and the button that takes a new one (opening the
+// card does not — looking back at yesterday's must not start today's).
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/emoji/emoji_clipboard.dart';
@@ -11,6 +11,8 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
+import 'package:moonswing/todo/todo_links.dart';
+import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_standup.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
@@ -34,13 +36,18 @@ class TodoStandupLayer extends StatelessWidget {
     super.key,
     required this.store,
     required this.onDone,
+    required this.onOpenLink,
     this.copy = copyTextToClipboard,
   });
 
   final TodoStore store;
   final VoidCallback onDone;
 
-  /// How "Copy" copies; a test records instead of forking `wl-copy`.
+  /// What a click on a link in a summary does with its address.
+  final ValueChanged<String> onOpenLink;
+
+  /// How a copy of the selected text copies; a test records instead of
+  /// forking `wl-copy`.
   final Future<ClipboardResult> Function(String text) copy;
 
   @override
@@ -65,7 +72,12 @@ class TodoStandupLayer extends StatelessWidget {
                   double.infinity,
                 ),
               ),
-              child: _StandupCard(store: store, onDone: onDone, copy: copy),
+              child: _StandupCard(
+                store: store,
+                onDone: onDone,
+                onOpenLink: onOpenLink,
+                copy: copy,
+              ),
             ),
           ),
         ),
@@ -78,11 +90,13 @@ class _StandupCard extends StatefulWidget {
   const _StandupCard({
     required this.store,
     required this.onDone,
+    required this.onOpenLink,
     required this.copy,
   });
 
   final TodoStore store;
   final VoidCallback onDone;
+  final ValueChanged<String> onOpenLink;
   final Future<ClipboardResult> Function(String text) copy;
 
   @override
@@ -91,14 +105,15 @@ class _StandupCard extends StatefulWidget {
 
 class _StandupCardState extends State<_StandupCard> {
   /// The summaries on show. Read from the store once and again after a new
-  /// one is taken or the latest invalidated — the store announces neither.
+  /// one is taken — the store does not announce it.
   late List<StandupSummary> _summaries = widget.store.standups;
 
   /// Which of [_summaries] is shown; 0 is the latest.
   int _selected = 0;
 
-  String? _message;
-  bool _messageIsError = false;
+  /// Why the last copy did not reach the clipboard, or null. A copy that did
+  /// says nothing: the user pressed Ctrl+C and will paste.
+  String? _copyError;
 
   StandupSummary? get _shown =>
       _selected < _summaries.length ? _summaries[_selected] : null;
@@ -107,22 +122,19 @@ class _StandupCardState extends State<_StandupCard> {
     if (index == _selected) return;
     setState(() {
       _selected = index;
-      _message = null;
+      _copyError = null;
     });
   }
 
-  Future<void> _copy() async {
-    final shown = _shown;
-    if (shown == null) return;
-    final result = await widget.copy(shown.report);
+  Future<void> _copy(String text) async {
+    final result = await widget.copy(text);
     if (!mounted) return;
     setState(() {
-      _message = switch (result) {
-        ClipboardResult.copied => 'The summary is on the clipboard.',
+      _copyError = switch (result) {
+        ClipboardResult.copied => null,
         ClipboardResult.unavailable => 'Install $kClipboardPackage to copy it.',
         ClipboardResult.failed => '$kClipboardCommand could not copy it.',
       };
-      _messageIsError = result != ClipboardResult.copied;
     });
   }
 
@@ -131,23 +143,7 @@ class _StandupCardState extends State<_StandupCard> {
     setState(() {
       _summaries = widget.store.standups;
       _selected = 0;
-      _message = null;
-    });
-  }
-
-  void _invalidate() {
-    final latest = _summaries.isEmpty ? null : _summaries.first;
-    if (latest == null || !widget.store.invalidateLatestStandup()) return;
-    setState(() {
-      _summaries = widget.store.standups;
-      _selected = 0;
-      _messageIsError = false;
-      final since = latest.since;
-      _message = since == null
-          ? 'Invalidated. The next summary will look back over the last '
-                '24 hours.'
-          : 'Invalidated. The next summary will count from '
-                '${describeStandupMoment(since, now: widget.store.now)}.';
+      _copyError = null;
     });
   }
 
@@ -179,36 +175,12 @@ class _StandupCardState extends State<_StandupCard> {
                   ),
                 ),
               ),
-              if (_selected == 0 && shown != null) ...[
-                const SettingsInfoTip(
-                  'Forgets the latest summary. The next one counts from where '
-                  'it did, so it covers everything this one covered.',
-                ),
-                const SizedBox(width: 6),
-                SizedBox(
-                  width: 110,
-                  child: SettingsActionButton(
-                    label: 'Invalidate',
-                    onTap: _invalidate,
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
               SizedBox(
                 width: 120,
                 child: SettingsActionButton(
                   label: 'New summary',
                   enabled: widget.store.editable,
                   onTap: _generate,
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 90,
-                child: SettingsActionButton(
-                  label: 'Copy',
-                  enabled: shown != null,
-                  onTap: _copy,
                 ),
               ),
               const SizedBox(width: 8),
@@ -222,20 +194,20 @@ class _StandupCardState extends State<_StandupCard> {
               ),
             ],
           ),
-          if (_message != null) ...[
+          if (_copyError case final error?) ...[
             const SizedBox(height: 10),
             Text(
-              _message!,
+              error,
               style: TextStyle(
                 fontSize: ShellFontSizes.secondary,
-                color: _messageIsError ? kErrorColor : theme.accentText,
+                color: kErrorColor,
               ),
             ),
           ],
           const SizedBox(height: 14),
           Flexible(
             child: _summaries.length < 2
-                ? _ReportBox(summary: shown)
+                ? _report(shown)
                 // One height whichever summary is picked, so the list does
                 // not jump about under the pointer.
                 : SizedBox(
@@ -253,7 +225,7 @@ class _StandupCardState extends State<_StandupCard> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Expanded(child: _ReportBox(summary: shown)),
+                        Expanded(child: _report(shown)),
                       ],
                     ),
                   ),
@@ -262,6 +234,12 @@ class _StandupCardState extends State<_StandupCard> {
       ),
     );
   }
+
+  Widget _report(StandupSummary? summary) => _ReportBox(
+    summary: summary,
+    onOpenLink: widget.onOpenLink,
+    onCopy: _copy,
+  );
 }
 
 /// Every kept summary, newest first, one fixed-height row each.
@@ -374,11 +352,19 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-/// The text of the summary on show, scrollable and selectable by copying.
+/// The text of the summary on show, scrollable, and selectable in place: a drag
+/// or a double click selects, Ctrl+A selects it all, and Ctrl+C copies what is
+/// selected. A web address in it is a link, and clicking it opens it.
 class _ReportBox extends StatelessWidget {
-  const _ReportBox({required this.summary});
+  const _ReportBox({
+    required this.summary,
+    required this.onOpenLink,
+    required this.onCopy,
+  });
 
   final StandupSummary? summary;
+  final ValueChanged<String> onOpenLink;
+  final ValueChanged<String> onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -391,19 +377,136 @@ class _ReportBox extends StatelessWidget {
         border: Border.all(color: theme.divider),
       ),
       child: SingleChildScrollView(
-        // Keyed on the summary, so picking another starts at its top.
+        // Keyed on the summary, so picking another starts at its top with
+        // nothing selected.
         key: ObjectKey(summary),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        child: Text(
-          summary?.report ??
-              'No summaries yet. "New summary" takes one of what was '
-                  'finished, started and still to do.',
-          style: TextStyle(
-            fontSize: ShellFontSizes.body,
-            height: 1.4,
-            color: summary == null
-                ? theme.popupForeground.withValues(alpha: 0.6)
-                : theme.popupForeground,
+        child: summary == null
+            ? Text(
+                'No summaries yet. "New summary" takes one of what was '
+                'finished, started and still to do.',
+                style: TextStyle(
+                  fontSize: ShellFontSizes.body,
+                  height: 1.4,
+                  color: theme.popupForeground.withValues(alpha: 0.6),
+                ),
+              )
+            : _SelectableReport(
+                text: standupReportBody(summary.report),
+                onOpenLink: onOpenLink,
+                onCopy: onCopy,
+              ),
+      ),
+    );
+  }
+}
+
+/// [text] in a [SelectableRegion], with its links underlined and live.
+///
+/// The region's own copy goes through Flutter's `Clipboard`, which is a silent
+/// no-op on a layer-shell surface (see `emoji/emoji_clipboard.dart`), so its
+/// [CopySelectionTextIntent] is overridden to hand the selection to [onCopy]
+/// instead. No `WidgetsApp` is mounted, so the editing keys that reach that
+/// intent and select-all are supplied here too.
+class _SelectableReport extends StatefulWidget {
+  const _SelectableReport({
+    required this.text,
+    required this.onOpenLink,
+    required this.onCopy,
+  });
+
+  final String text;
+  final ValueChanged<String> onOpenLink;
+  final ValueChanged<String> onCopy;
+
+  @override
+  State<_SelectableReport> createState() => _SelectableReportState();
+}
+
+class _SelectableReportState extends State<_SelectableReport> {
+  final FocusNode _focus = FocusNode(debugLabel: 'standup summary');
+
+  /// What is selected, as plain text; null or empty while nothing is.
+  String? _selection;
+
+  /// One recognizer per address, kept across builds and disposed once the
+  /// address is gone, since a [TextSpan] does not own its recognizer.
+  final Map<String, TapGestureRecognizer> _recognizers = {};
+
+  TapGestureRecognizer _recognizerFor(TodoLink link) =>
+      _recognizers.putIfAbsent(
+        link.url,
+        () => TapGestureRecognizer()..onTap = () => widget.onOpenLink(link.url),
+      );
+
+  void _forgetAllBut(Iterable<TodoLink> links) {
+    final keep = {for (final link in links) link.url};
+    _recognizers.removeWhere((url, recognizer) {
+      if (keep.contains(url)) return false;
+      recognizer.dispose();
+      return true;
+    });
+  }
+
+  void _copy() {
+    final selection = _selection;
+    if (selection == null || selection.isEmpty) return;
+    widget.onCopy(selection);
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    for (final recognizer in _recognizers.values) {
+      recognizer.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final text = widget.text;
+    final links = findLinks(text);
+    _forgetAllBut(links);
+    return DefaultSelectionStyle(
+      selectionColor: theme.accent.withValues(alpha: 0.4),
+      mouseCursor: SystemMouseCursors.text,
+      child: DefaultTextEditingShortcuts(
+        child: Actions(
+          actions: {
+            CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(
+              onInvoke: (_) {
+                _copy();
+                return null;
+              },
+            ),
+          },
+          child: SelectableRegion(
+            focusNode: _focus,
+            selectionControls: emptyTextSelectionControls,
+            onSelectionChanged: (content) => _selection = content?.plainText,
+            child: Text.rich(
+              TextSpan(
+                children: highlightMatches(
+                  text,
+                  const [],
+                  hit: const TextStyle(),
+                  links: links,
+                  link: TextStyle(
+                    color: theme.accent,
+                    decoration: TextDecoration.underline,
+                    decorationColor: theme.accent,
+                  ),
+                  recognizerFor: _recognizerFor,
+                ),
+              ),
+              style: TextStyle(
+                fontSize: ShellFontSizes.body,
+                height: 1.4,
+                color: theme.popupForeground,
+              ),
+            ),
           ),
         ),
       ),

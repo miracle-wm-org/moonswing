@@ -262,9 +262,8 @@ class TodoStore extends ChangeNotifier {
 
   /// Every standup summary taken, newest first.
   ///
-  /// Not announced to listeners, like [takeStandup] and
-  /// [invalidateLatestStandup]: nothing on the board renders them, and the
-  /// card that does reads them when it acts.
+  /// Not announced to listeners, like [takeStandup]: nothing on the board
+  /// renders them, and the card that does reads them when it acts.
   List<StandupSummary> get standups => _standups;
 
   /// The standup summary of the board since [lastStandup] (see
@@ -291,22 +290,6 @@ class TodoStore extends ChangeNotifier {
       debugPrint('todo: could not record the standup: ${e.message}');
     }
     return summary;
-  }
-
-  /// Forgets the newest of [standups] and goes back to counting from where it
-  /// counted from, so the next summary taken covers everything it did. Returns
-  /// false, changing nothing, when there is none or the board is not
-  /// [editable].
-  bool invalidateLatestStandup() {
-    if (!editable || _standups.isEmpty) return false;
-    _lastStandup = _standups.first.since;
-    _standups = List.unmodifiable(_standups.skip(1));
-    try {
-      _db?.invalidateLatestStandup();
-    } on SqliteException catch (e) {
-      debugPrint('todo: could not invalidate the standup: ${e.message}');
-    }
-    return true;
   }
 
   /// Reads the board, makes today's recurring copies and posts the reminder.
