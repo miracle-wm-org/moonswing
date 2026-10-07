@@ -5,7 +5,7 @@
 <h1 align="center">Moonswing</h1>
 
 <p align="center">
-  A largely AI-coded, very unserious, just for funzies desktop<br>
+  A largely AI-coded, very unserious, just for fun desktop<br>
   environment for Linux, built entirely in Flutter.
 </p>
 
@@ -20,11 +20,12 @@ The purpose of this project is to:
 1. Stress test Flutter
 2. Explore the bounds of building new desktops for Wayland
 3. Experiment with new Wayland protocols, portals, and everything else
-4. Have fun and build something fun
+4. Have fun
 
-**Use this project at your own risk!** This project may be entirely unstable.
-The snap will be the only supported packaging from my end. The config format is subject to change
-at any time.
+**Use this project at your own risk!**
+
+This project may be entirely unstable. The snap will be the only supported packaging
+from my end. The config format is subject to change at any time.
 
 ![Moonswing demo](demo.png)
 
@@ -123,6 +124,7 @@ flutter run
 ```
 
 ## Documentation
+The docs are very AI generated, and probably somewhat useless.
 
 The full configuration reference is in [`CONFIG.md`](CONFIG.md), and the same content — plus
 install, build and wiki pages — is published at
@@ -140,3 +142,12 @@ npm run dev          # http://localhost:4321/moonswing/
 
 Its configuration pages are generated from `CONFIG.md` and its artwork from `assets/`, so
 neither is maintained twice. See [`website/README.md`](website/README.md).
+
+## Contributing
+Bug reports and feature requests are very welcome. Please make an issue on the Github
+project to suggest one.
+
+Because of how AI-coded this project is, I am not accepting pull requests on it, unless
+they are for very minor bug fixes. I cannot feasibly read large pull requests and feel
+satisfied that they are not malicious. As a result, any large pull request that includes
+a full feature will be closed.
