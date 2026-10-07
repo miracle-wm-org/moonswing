@@ -63,11 +63,13 @@ enum ShellShortcut {
         'let Alt go to switch',
     configKey: 'switch_windows',
     defaultSpec: kDefaultSwitchWindows,
+    needsMiracle: true,
   ),
   switchWindowsBack(
     label: 'Switch windows, backwards',
     configKey: 'switch_windows_back',
     defaultSpec: kDefaultSwitchWindowsBack,
+    needsMiracle: true,
   ),
   screenshotArea(
     label: 'Screenshot an area',
@@ -86,11 +88,13 @@ enum ShellShortcut {
     label: 'Show or hide the scratchpad',
     configKey: 'toggle_scratchpad',
     defaultSpec: kDefaultToggleScratchpad,
+    needsMiracle: true,
   ),
   moveToScratchpad(
     label: 'Move the focused window to the scratchpad',
     configKey: 'move_to_scratchpad',
     defaultSpec: kDefaultMoveToScratchpad,
+    needsMiracle: true,
   ),
   powerButton(
     label: 'The power button',
@@ -106,7 +110,13 @@ enum ShellShortcut {
     required this.configKey,
     required this.defaultSpec,
     this.detail,
+    this.needsMiracle = false,
   });
+
+  /// Whether this does nothing but drive Miracle WM's IPC. On any other
+  /// compositor it is never registered, and the sheet leaves its row out — see
+  /// `kMiracleOnlyShortcuts`, which names the same four registrations.
+  final bool needsMiracle;
 
   /// What the shortcut does, in a person's words — the row's description.
   final String label;

@@ -9,6 +9,18 @@ import 'package:moonswing/caldav/caldav_account_store.dart';
 
 import 'caldav_fakes.dart';
 
+/// [request] as a request that can be sent again.
+///
+/// `MockClient` finalizes the request it hands its handler, and a finalized
+/// request cannot be sent: passing it straight on to the fake server's own
+/// `MockClient` throws "Can't finalize a finalized Request", which the store
+/// reports as the server being unreachable.
+http.Request _copy(http.Request request) =>
+    http.Request(request.method, request.url)
+      ..followRedirects = request.followRedirects
+      ..headers.addAll(request.headers)
+      ..bodyBytes = request.bodyBytes;
+
 void main() {
   late Directory dir;
 
@@ -22,7 +34,7 @@ void main() {
     final gate = Completer<void>();
     final slow = MockClient((request) async {
       await gate.future;
-      return server.client.send(request).then(http.Response.fromStream);
+      return server.client.send(_copy(request)).then(http.Response.fromStream);
     });
     final account = CalDavAccountStore.forTesting(
       directory: dir.path,
@@ -59,7 +71,7 @@ void main() {
         await gate.future;
         return http.Response('', 401);
       }
-      return server.client.send(request).then(http.Response.fromStream);
+      return server.client.send(_copy(request)).then(http.Response.fromStream);
     });
     final account = CalDavAccountStore.forTesting(
       directory: dir.path,

@@ -84,6 +84,8 @@ rationale in this file is retold for someone who does not have the repository op
 
 **Services throw; `run()` records.** A genuine failure (bus unreachable, missing protocol) propagates and settles `failed`; a *graceful decline* — another daemon owns the name, a feature switched off — logs and returns, settling `ready`. A service that swallows its own failures makes a loader resolve with the feature dead.
 
+**Miracle WM is optional.** The shell runs on sway, Miriway or any `wlr-layer-shell` compositor, and `MiracleManager.unsupported` is the one answer to "is this miracle": settled from the environment (`MIRACLESOCK`, or `XDG_CURRENT_DESKTOP` naming `miracle-wm`), or — with only a `SWAYSOCK`/`I3SOCK` — by asking the socket for `GET_KEYBINDS`, which sway never answers. Never take an i3-compatible socket as miracle's on its own, and never send a request without the manager's `requestTimeout`. Anything that only drives miracle's IPC renders nothing or says why: a bar module sets `requiresMiracle` and the panel drops it, gap included; a shortcut joins `kMiracleOnlyShortcuts` (and its `ShellShortcut` row `needsMiracle`) so the compositor keeps the key; elsewhere, `kNotMiracleMessage` with no Retry — nothing will ever answer one.
+
 Consequence: panels paint before the shell knows which display each is on. `DisplayScope.output` is nullable, and a panel is matched to its output by **connector name** first (GDK's connector and `wl_output.name` are the same string and neither moves under repositioning), then by a make/model/position tuple, with a first-output fallback only when there is exactly one output.
 
 ### Windows (`package:layer_shell`, `lib/popup.dart`, `lib/main.dart`)

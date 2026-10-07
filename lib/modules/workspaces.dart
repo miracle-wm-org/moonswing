@@ -395,6 +395,11 @@ class WorkspacesState extends State<Workspaces> {
     final theme = ThemeScope.of(context);
     final connection = _connection;
 
+    // Not Miracle at all — sway, Miriway. Workspaces are miracle's to report,
+    // and a retry button for a compositor that will never answer is a broken
+    // control in the bar, so the module takes no room.
+    if (_manager?.unsupported ?? false) return const SizedBox.shrink();
+
     if (connection == null) {
       // The IPC connect is started after the shell's first frame, so for the
       // first moments the manager is not yet even *connecting*. Asking the
@@ -684,6 +689,7 @@ final Module workspacesModule = Module.simple(
   configKey: 'workspaces',
   fromMap: WorkspacesConfig.fromMap,
   builder: (context, config) => Workspaces(config: config),
+  requiresMiracle: true,
 );
 
 class _WorkspaceButtonState extends State<_WorkspaceButton>

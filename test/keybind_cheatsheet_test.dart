@@ -15,6 +15,7 @@ import 'package:moonswing/keybinds/keybind_cheatsheet_overlay.dart';
 import 'package:moonswing/keybinds/keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybinds.dart';
+import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/modules/keybinds.dart';
 import 'package:moonswing/scopes.dart';
 
@@ -56,15 +57,19 @@ Finder _faIcon(FaIconData icon) => find.byIcon(icon.data);
 /// A source with no socket behind it, which is the whole reason
 /// [KeybindSource] is an interface.
 class FakeKeybindSource implements KeybindSource {
-  FakeKeybindSource({this.result, this.failure});
+  FakeKeybindSource({this.result, this.failure, this.unsupported = false});
 
   KeybindsResult? result;
   String? failure;
+
+  /// The compositor is not Miracle WM.
+  bool unsupported;
   int reads = 0;
 
   @override
   Future<KeybindsResult> read() async {
     reads++;
+    if (unsupported) throw const KeybindUnsupported();
     final message = failure;
     if (message != null) throw KeybindUnavailable(message);
     return result!;
@@ -271,6 +276,38 @@ void main() {
 
       expect(source.reads, 2);
       expect(find.text('Close the focused window'), findsOneWidget);
+    });
+
+    testWidgets('on another compositor, says so once and offers no retry',
+        (tester) async {
+      final store = KeybindStore.forTesting(
+        source: FakeKeybindSource(unsupported: true),
+      );
+      final shellStore = ShellKeybindStore.forTesting(
+        miracle: MiracleManager(environment: {'XDG_CURRENT_DESKTOP': 'sway'}),
+      );
+      await pump(tester, store: store, shellStore: shellStore);
+
+      expect(store.status, KeybindStatus.unsupported);
+      expect(find.textContaining(kNotMiracleMessage), findsOneWidget);
+      expect(find.text('Could not read the key bindings'), findsNothing);
+      expect(find.text('Retry'), findsNothing);
+      // The shell's own rows are still there, less the ones that only drive
+      // miracle's IPC and were never registered.
+      expect(find.text('Open the application launcher'), findsOneWidget);
+      expect(find.text('Switch windows'), findsNothing);
+      expect(find.text('Show or hide the scratchpad'), findsNothing);
+    });
+
+    testWidgets('says when the compositor has no global shortcuts at all',
+        (tester) async {
+      final shellStore = ShellKeybindStore.forTesting();
+      await pump(tester, shellStore: shellStore);
+      expect(find.textContaining('offers no global shortcuts'), findsNothing);
+
+      shellStore.reportGlobalShortcuts(available: false);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('offers no global shortcuts'), findsOneWidget);
     });
 
     testWidgets('releases its lease when the window goes', (tester) async {

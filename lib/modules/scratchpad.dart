@@ -132,4 +132,5 @@ class _ScratchpadButtonState extends State<ScratchpadButton>
 final Module scratchpadModule = Module.plain(
   configKey: 'scratchpad',
   builder: (context) => const ScratchpadButton(),
+  requiresMiracle: true,
 );

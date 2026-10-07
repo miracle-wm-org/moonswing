@@ -15,6 +15,8 @@
 // hold is the last failure, because a command that went nowhere is otherwise
 // indistinguishable from a scratchpad with nothing on it.
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:miracle/miracle.dart';
 
@@ -88,6 +90,7 @@ class ScratchpadStore extends ChangeNotifier {
       failures.map((f) => f.error).nonNulls.firstOrNull ??
           'Miracle refused the command.',
     MiracleConnectionException(:final message) => message,
+    TimeoutException() => 'Miracle did not answer in time.',
     _ => '$error',
   };
 }

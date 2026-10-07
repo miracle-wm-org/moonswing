@@ -55,6 +55,9 @@ class _ScreenshotButtonState extends State<ScreenshotButton>
       return;
     }
     final sound = ShutterSoundStore.instance;
+    // The bar's context: the popup's content is under a FlutterView of its
+    // own, with no `MiracleScope` above it.
+    final modes = offeredSelectionModes(context);
     openBarPopup(
       context,
       preferredConstraints: const BoxConstraints(maxWidth: 360, maxHeight: 400),
@@ -72,7 +75,7 @@ class _ScreenshotButtonState extends State<ScreenshotButton>
             final note = _store.error ?? sound.error;
             return CaptureMenuCard(
               actions: [
-                for (final mode in SelectionMode.values)
+                for (final mode in modes)
                   CaptureMenuAction.mode(mode, () => _start(mode)),
               ],
               note: note,

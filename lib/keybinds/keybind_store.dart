@@ -36,6 +36,10 @@ enum KeybindStatus {
   /// Miracle could not be asked, or refused. [KeybindStore.error] says why and
   /// [KeybindStore.retry] is offered.
   unavailable,
+
+  /// The compositor is not Miracle WM, so there are no bindings of miracle's to
+  /// show and no retry that could find any.
+  unsupported,
 }
 
 /// Where the bindings come from.
@@ -57,6 +61,14 @@ class KeybindUnavailable implements Exception {
   String toString() => message;
 }
 
+/// The compositor is not Miracle WM: there is nothing to read, ever.
+class KeybindUnsupported implements Exception {
+  const KeybindUnsupported();
+
+  @override
+  String toString() => kNotMiracleMessage;
+}
+
 /// The real source: miracle's IPC socket, through the shell's one connection.
 class MiracleKeybindSource implements KeybindSource {
   const MiracleKeybindSource(this._manager);
@@ -73,6 +85,9 @@ class MiracleKeybindSource implements KeybindSource {
       await _manager.connect();
       connection = _manager.connection;
     }
+    // Checked after the connect, which is where a session the environment
+    // could not place is settled.
+    if (_manager.unsupported) throw const KeybindUnsupported();
     if (connection == null) {
       throw KeybindUnavailable(
         _manager.lastError ?? 'The shell is not connected to Miracle.',
@@ -176,6 +191,8 @@ class KeybindStore extends ChangeNotifier {
       final result = await source.read();
       _result = result;
       _finish(error: '', status: KeybindStatus.ready);
+    } on KeybindUnsupported {
+      _finish(error: '', status: KeybindStatus.unsupported);
     } on KeybindUnavailable catch (e) {
       _finish(error: e.message, status: KeybindStatus.unavailable);
     } catch (e) {

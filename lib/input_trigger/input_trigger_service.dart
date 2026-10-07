@@ -69,7 +69,15 @@ const String kPowerButtonShortcut = 'moonswing.power-button';
 /// skipped here is one no setting could turn back on without a restart. What
 /// `"none"` costs instead is the logind inhibitor and the root's response to the
 /// press, both read from the live config at the moment they matter.
-List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
+///
+/// [miracle] false drops the shortcuts that do nothing but drive Miracle WM's
+/// IPC — the window switcher and the scratchpad. On another compositor they
+/// could never work, and registering them anyway would take the keys away from
+/// that compositor's own bindings for them.
+List<InputShortcut> inputShortcutsFor(
+  ShortcutsConfig config, {
+  bool miracle = true,
+}) {
   final wanted = <(String, ShortcutSpec?, VoidCallback, void Function(bool)?)>[
     (
       'moonswing.open-settings',
@@ -163,6 +171,10 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
   final shortcuts = <InputShortcut>[];
   final seen = <ShortcutSpec, String>{};
   for (final (name, spec, onActivate, onOwnership) in wanted) {
+    if (!miracle && kMiracleOnlyShortcuts.contains(name)) {
+      debugPrint('input-trigger: "$name" needs Miracle WM; not registered');
+      continue;
+    }
     if (spec == null) {
       debugPrint('input-trigger: "$name" is disabled by config');
       // A shortcut that is never registered is one the compositor will never
@@ -189,6 +201,15 @@ List<InputShortcut> inputShortcutsFor(ShortcutsConfig config) {
   }
   return shortcuts;
 }
+
+/// The registrations [inputShortcutsFor] leaves out on a compositor that is not
+/// Miracle WM.
+const Set<String> kMiracleOnlyShortcuts = {
+  'moonswing.switch-windows',
+  'moonswing.switch-windows-back',
+  'moonswing.toggle-scratchpad',
+  'moonswing.move-to-scratchpad',
+};
 
 /// The shell's shortcuts with no user config applied.
 List<InputShortcut> defaultInputShortcuts() =>
@@ -324,6 +345,10 @@ class InputTriggerManager {
 InputTriggerManager startInputTriggerService(
   WaylandClient client, {
   ShortcutsConfig shortcuts = const ShortcutsConfig(),
+  bool miracle = true,
 }) {
-  return InputTriggerManager(client, shortcuts: inputShortcutsFor(shortcuts));
+  return InputTriggerManager(
+    client,
+    shortcuts: inputShortcutsFor(shortcuts, miracle: miracle),
+  );
 }

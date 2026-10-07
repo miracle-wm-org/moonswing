@@ -56,6 +56,29 @@ setting has a working default. From there, see the
 [configuration reference](/configuration/), or open **Settings** from the bar and edit
 it live.
 
+## On a compositor other than miracle-wm
+
+Everything that is the compositor's business rather than the shell's — workspaces, the
+scratchpad, switching windows, the window manager's own key bindings — is read from
+miracle-wm's IPC, and on Sway, Miriway or anything else those parts step aside:
+
+- **The `workspaces` and `scratchpad` modules are left out of the bar**, gap and all, even
+  if `config.toml` names them.
+- **Alt+Tab and the two scratchpad keys are not registered**, so the compositor's own
+  bindings for them keep working.
+- **Screenshots and recordings offer no "window" mode** — picking a window needs
+  miracle-wm's window tree.
+- **The keyboard-shortcut sheet says so** in place of miracle-wm's bindings, and says when
+  the compositor offers no global shortcuts at all (`ext-input-trigger-v1`) — Sway does
+  not, so none of the shell's own keys reach it there.
+- **Settings › Window Manager** still edits `~/.config/miracle-wm/config.yaml` when
+  miracle-wm is installed, and says it is not when it is not.
+
+The shell decides once, at start-up: `MIRACLESOCK` set, or `XDG_CURRENT_DESKTOP` naming
+`miracle-wm`, is miracle-wm; any other desktop name is not. With neither, but a
+`SWAYSOCK` or `I3SOCK`, it asks that socket a question only miracle-wm answers — Sway
+speaks the same IPC protocol and would otherwise be mistaken for it.
+
 ## Update
 
 Re-run the install command. `snapd` replaces the installed revision in place:
