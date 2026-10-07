@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart' show ThemeConfig;
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/editable_text_mouse.dart';
 import 'package:moonswing/root_modal.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
@@ -1818,6 +1819,7 @@ class _SettingsTextFieldState extends State<SettingsTextField>
   late final bool _ownsController = widget.controller == null;
   late final FocusNode _focusNode = widget.focusNode ?? FocusNode();
   late final bool _ownsFocusNode = widget.focusNode == null;
+  final GlobalKey<EditableTextState> _editableKey = GlobalKey();
   bool _focused = false;
 
   @override
@@ -1866,65 +1868,72 @@ class _SettingsTextFieldState extends State<SettingsTextField>
     final leading = widget.leading;
     final trailing = widget.trailing;
 
-    final field = Stack(
-      children: [
-        if (widget.hint != null)
-          // Behind the text rather than swapped for it: an IgnorePointer keeps
-          // the tap that should focus the field off the placeholder, and painting
-          // both means the field never changes height as the first character
-          // arrives.
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ValueListenableBuilder<TextEditingValue>(
-                valueListenable: _controller,
-                builder: (context, value, _) => value.text.isNotEmpty
-                    ? const SizedBox.shrink()
-                    : Align(
-                        alignment: widget.maxLines == 1
-                            ? Alignment.centerLeft
-                            : Alignment.topLeft,
-                        child: Text(
-                          widget.hint!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: ShellFontSizes.body,
-                            color: theme.popupForeground.withValues(
-                              alpha: 0.35,
+    // Selectable with the mouse: a bare EditableText only places the caret.
+    final field = EditableTextMouseSelection(
+      editableKey: _editableKey,
+      child: Stack(
+        children: [
+          if (widget.hint != null)
+            // Behind the text rather than swapped for it: an IgnorePointer keeps
+            // the tap that should focus the field off the placeholder, and painting
+            // both means the field never changes height as the first character
+            // arrives.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (context, value, _) => value.text.isNotEmpty
+                      ? const SizedBox.shrink()
+                      : Align(
+                          alignment: widget.maxLines == 1
+                              ? Alignment.centerLeft
+                              : Alignment.topLeft,
+                          child: Text(
+                            widget.hint!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: ShellFontSizes.body,
+                              color: theme.popupForeground.withValues(
+                                alpha: 0.35,
+                              ),
+                              fontFamily: theme.fontFamily,
                             ),
-                            fontFamily: theme.fontFamily,
                           ),
                         ),
-                      ),
+                ),
               ),
             ),
+          EditableText(
+            key: _editableKey,
+            controller: _controller,
+            focusNode: _focusNode,
+            autofocus: widget.autofocus,
+            // Pointer handling is the EditableTextMouseSelection's above.
+            rendererIgnoresPointer: true,
+            style: TextStyle(
+              fontSize: ShellFontSizes.body,
+              color: theme.popupForeground,
+              fontFamily: theme.fontFamily,
+            ),
+            cursorColor: theme.accentText,
+            backgroundCursorColor: theme.divider,
+            selectionColor: theme.accent.withValues(alpha: 0.4),
+            inputFormatters: widget.inputFormatters,
+            maxLines: widget.obscureText ? 1 : widget.maxLines,
+            minLines: widget.minLines,
+            obscureText: widget.obscureText,
+            keyboardType: widget.maxLines == 1
+                ? TextInputType.text
+                : TextInputType.multiline,
+            textInputAction: widget.maxLines == 1
+                ? null
+                : TextInputAction.newline,
+            onChanged: (v) => widget.onChanged(v),
+            onSubmitted: widget.onSubmitted,
           ),
-        EditableText(
-          controller: _controller,
-          focusNode: _focusNode,
-          autofocus: widget.autofocus,
-          style: TextStyle(
-            fontSize: ShellFontSizes.body,
-            color: theme.popupForeground,
-            fontFamily: theme.fontFamily,
-          ),
-          cursorColor: theme.accentText,
-          backgroundCursorColor: theme.divider,
-          selectionColor: theme.accent.withValues(alpha: 0.4),
-          inputFormatters: widget.inputFormatters,
-          maxLines: widget.obscureText ? 1 : widget.maxLines,
-          minLines: widget.minLines,
-          obscureText: widget.obscureText,
-          keyboardType: widget.maxLines == 1
-              ? TextInputType.text
-              : TextInputType.multiline,
-          textInputAction: widget.maxLines == 1
-              ? null
-              : TextInputAction.newline,
-          onChanged: (v) => widget.onChanged(v),
-          onSubmitted: widget.onSubmitted,
-        ),
-      ],
+        ],
+      ),
     );
 
     return Container(
