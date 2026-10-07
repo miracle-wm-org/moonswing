@@ -16,6 +16,7 @@ import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_token_store.dart';
 import 'package:moonswing/modules/todo.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
@@ -96,6 +97,7 @@ void main() {
     VoidCallback? onOpenAccounts,
     ValueChanged<TodoCalDavSync>? withSync,
     GithubLinkStore? githubLinks,
+    Future<ClipboardResult> Function(String text)? copy,
   }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
@@ -128,6 +130,7 @@ void main() {
             sync: sync,
             onOpenAccounts: onOpenAccounts ?? () {},
             onOpenLink: onOpenLink ?? (_) {},
+            copy: copy ?? (_) async => ClipboardResult.copied,
           ),
         ),
       ),
@@ -207,6 +210,8 @@ void main() {
     await tester.tap(adds.at(TodoColumn.values.indexOf(TodoColumn.finished)));
     await tester.pumpAndSettle();
     expect(find.text('New item'), findsOneWidget);
+    // Typed into at once: the title has the keyboard, not the search.
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo title');
 
     // The editor's title field; the first EditableText is the board's search.
     await tester.enterText(find.byType(EditableText).at(1), 'Write report');
@@ -404,6 +409,142 @@ void main() {
     await tester.pumpAndSettle();
     expect(closing.value, isTrue);
     expect(closed, 1);
+  });
+
+  testWidgets('the editor opens with its title focused, not the search', (
+    tester,
+  ) async {
+    await pump(tester, [_item('a', TodoColumn.inbox)]);
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo title');
+    await tester.enterText(
+      find
+          .descendant(
+            of: find.byType(SettingsTextField),
+            matching: find.byType(EditableText),
+          )
+          .first,
+      'Renamed',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(find.text('Renamed'), findsOneWidget);
+
+    // The keyboard goes back to the search, so Escape still closes the board.
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo search');
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(closing.value, isTrue);
+  });
+
+  Future<void> rightClick(WidgetTester tester, Finder finder) async {
+    final gesture = await tester.startGesture(
+      tester.getCenter(finder),
+      kind: PointerDeviceKind.mouse,
+      buttons: kSecondaryMouseButton,
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a card\'s right-click menu copies its title or description', (
+    tester,
+  ) async {
+    final copied = <String>[];
+    final store = await pump(
+      tester,
+      [
+        _item(
+          'a',
+          TodoColumn.inbox,
+        ).copyWith(title: '  Ship it  ', body: 'Line one\nLine two\n'),
+      ],
+      copy: (text) async {
+        copied.add(text);
+        return ClipboardResult.copied;
+      },
+    );
+    await rightClick(tester, find.text('Ship it'));
+    expect(find.text('Copy title'), findsOneWidget);
+    expect(find.text('Copy description'), findsOneWidget);
+    // A right click opens the menu, never the card, and does not pick it up.
+    expect(find.text('Edit item'), findsNothing);
+    expect(store.item('a')!.column, TodoColumn.inbox);
+
+    await tester.tap(find.text('Copy title'));
+    await tester.pumpAndSettle();
+    expect(copied, ['Ship it']);
+    expect(find.text('Copy title'), findsNothing);
+    expect(find.text('Edit item'), findsNothing);
+
+    await rightClick(tester, find.text('Ship it'));
+    await tester.tap(find.text('Copy description'));
+    await tester.pumpAndSettle();
+    expect(copied, ['Ship it', 'Line one\nLine two']);
+    expect(find.text('Nothing was copied'), findsNothing);
+  });
+
+  testWidgets('a card menu closes on a click elsewhere or Escape', (
+    tester,
+  ) async {
+    final copied = <String>[];
+    await pump(
+      tester,
+      [_item('a', TodoColumn.inbox), _item('b', TodoColumn.todo)],
+      copy: (text) async {
+        copied.add(text);
+        return ClipboardResult.copied;
+      },
+    );
+    await rightClick(tester, find.text('Card a'));
+    expect(find.text('Copy title'), findsOneWidget);
+    // The click that closes the menu does nothing else: not open the card
+    // under it.
+    await tester.tap(find.text('Card b'));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy title'), findsNothing);
+    expect(find.text('Edit item'), findsNothing);
+
+    await rightClick(tester, find.text('Card a'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Copy title'), findsNothing);
+    expect(closing.value, isFalse);
+    expect(copied, isEmpty);
+  });
+
+  testWidgets('a card with no description cannot copy one', (tester) async {
+    final copied = <String>[];
+    await pump(
+      tester,
+      [_item('a', TodoColumn.inbox).copyWith(body: '  ')],
+      copy: (text) async {
+        copied.add(text);
+        return ClipboardResult.copied;
+      },
+    );
+    await rightClick(tester, find.text('Card a'));
+    await tester.tap(find.text('Copy description'));
+    await tester.pumpAndSettle();
+    expect(copied, isEmpty);
+  });
+
+  testWidgets('a copy that did not reach the clipboard says why', (
+    tester,
+  ) async {
+    await pump(tester, [
+      _item('a', TodoColumn.inbox),
+    ], copy: (_) async => ClipboardResult.unavailable);
+    await rightClick(tester, find.text('Card a'));
+    await tester.tap(find.text('Copy title'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing was copied'), findsOneWidget);
+    expect(find.textContaining(kClipboardPackage), findsOneWidget);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing was copied'), findsNothing);
   });
 
   testWidgets('the board says where its backup is, and opens Backups', (

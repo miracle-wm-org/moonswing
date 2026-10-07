@@ -5,8 +5,8 @@
 // and the day turning over; `todo_model.dart` owns every date rule, and
 // [TodoBoardSearch] what the search field leaves showing. This file is the
 // panel, the search field, the columns, the cards, drag and drop between them,
-// and the editor that creates and changes one. The backups card over it is
-// `todo_backup_panel.dart`.
+// a card's right-click menu, and the editor that creates and changes one. The
+// backups card over it is `todo_backup_panel.dart`.
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -16,6 +16,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
+import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_link_chip.dart';
 import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_links.dart';
@@ -82,6 +84,7 @@ class TodoOverlay extends StatefulWidget {
     this.sync,
     this.onOpenAccounts,
     this.onOpenLink = _openLink,
+    this.copy = copyTextToClipboard,
   });
 
   final ValueNotifier<bool> closingNotifier;
@@ -103,6 +106,10 @@ class TodoOverlay extends StatefulWidget {
   final ValueChanged<String> onOpenLink;
 
   static void _openLink(String url) => openUriWithDefault(url);
+
+  /// How a card menu's copy copies; a widget test records instead of forking
+  /// `wl-copy`.
+  final Future<ClipboardResult> Function(String text) copy;
 
   @override
   State<TodoOverlay> createState() => _TodoOverlayState();
@@ -154,6 +161,15 @@ class _TodoOverlayState extends State<TodoOverlay> {
   /// cards.
   final ValueNotifier<_EditRequest?> _editing = ValueNotifier(null);
 
+  /// The open card menu, or null. A notifier for [_editing]'s reason.
+  final ValueNotifier<_CardMenuRequest?> _menu = ValueNotifier(null);
+
+  /// The panel's layer stack, which a card menu's position is measured in.
+  final GlobalKey _layersKey = GlobalKey(debugLabel: 'todo layers');
+
+  /// Why the last copy from a card menu did not reach the clipboard, or null.
+  final ValueNotifier<String?> _copyError = ValueNotifier(null);
+
   /// The panel lives in an [Overlay] of its own, for two things that insert
   /// into the nearest one: a dragged card's feedback, and the editor's
   /// dropdowns.
@@ -164,7 +180,11 @@ class _TodoOverlayState extends State<TodoOverlay> {
       // A click on the scrim closes the board — it holds nothing unsaved —
       // but not while the editor is open, which does.
       onBackdropTap: () {
-        if (_editing.value == null && !_backups.value && !_standup.value) {
+        if (_menu.value != null) {
+          _menu.value = null;
+        } else if (_editing.value == null &&
+            !_backups.value &&
+            !_standup.value) {
           _requestClose();
         }
       },
@@ -181,6 +201,11 @@ class _TodoOverlayState extends State<TodoOverlay> {
               folds: _folds,
               searchField: _buildSearchField(context),
               editing: _editing,
+              onEditorDone: _closeEditor,
+              menu: _menu,
+              layersKey: _layersKey,
+              copyError: _copyError,
+              onCopy: _copy,
               backups: _backups,
               standup: _standup,
               sync: _sync,
@@ -195,6 +220,26 @@ class _TodoOverlayState extends State<TodoOverlay> {
   );
 
   void _requestClose() => widget.closingNotifier.value = true;
+
+  /// Closes the editor and gives the keyboard back to the search field: the
+  /// editor's title had it, and a focus left on nothing would leave Escape and
+  /// Ctrl+F with no one to hear them.
+  void _closeEditor() {
+    _editing.value = null;
+    _searchFocus.requestFocus();
+  }
+
+  /// Copies [text] from a card menu, saying so on the board if it could not.
+  Future<void> _copy(String text) async {
+    final result = await widget.copy(text);
+    if (!mounted) return;
+    _copyError.value = switch (result) {
+      ClipboardResult.copied => null,
+      ClipboardResult.unavailable =>
+        'Install $kClipboardPackage to copy from a card.',
+      ClipboardResult.failed => '$kClipboardCommand could not copy it.',
+    };
+  }
 
   Widget _buildSearchField(BuildContext context) => SizedBox(
     width: kTodoSearchWidth,
@@ -225,6 +270,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.keyF &&
         HardwareKeyboard.instance.isControlPressed &&
+        _menu.value == null &&
         _editing.value == null &&
         !_backups.value &&
         !_standup.value) {
@@ -232,11 +278,12 @@ class _TodoOverlayState extends State<TodoOverlay> {
       return;
     }
     if (key != LogicalKeyboardKey.escape) return;
-    // Escape backs out one layer at a time: the editor, then the search, then
-    // the board.
-    if (_editing.value != null) {
-      _editing.value = null;
-      _searchFocus.requestFocus();
+    // Escape backs out one layer at a time: a card menu, the editor, then the
+    // search, then the board.
+    if (_menu.value != null) {
+      _menu.value = null;
+    } else if (_editing.value != null) {
+      _closeEditor();
     } else if (_backups.value) {
       _backups.value = false;
       _searchFocus.requestFocus();
@@ -258,6 +305,8 @@ class _TodoOverlayState extends State<TodoOverlay> {
     _folds.dispose();
     _search.dispose();
     _editing.dispose();
+    _menu.dispose();
+    _copyError.dispose();
     _backups.dispose();
     _standup.dispose();
     super.dispose();
@@ -303,6 +352,11 @@ class _TodoPanel extends StatelessWidget {
     required this.folds,
     required this.searchField,
     required this.editing,
+    required this.onEditorDone,
+    required this.menu,
+    required this.layersKey,
+    required this.copyError,
+    required this.onCopy,
     required this.backups,
     required this.standup,
     required this.sync,
@@ -326,6 +380,13 @@ class _TodoPanel extends StatelessWidget {
   /// unchanged so a board rebuild does not rebuild the field.
   final Widget searchField;
   final ValueNotifier<_EditRequest?> editing;
+  final VoidCallback onEditorDone;
+  final ValueNotifier<_CardMenuRequest?> menu;
+
+  /// On the [Stack] the editor, the other cards and the menu are layered in.
+  final GlobalKey layersKey;
+  final ValueNotifier<String?> copyError;
+  final ValueChanged<String> onCopy;
   final VoidCallback onClose;
   final ValueChanged<String> onOpenLink;
 
@@ -348,6 +409,7 @@ class _TodoPanel extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(11),
           child: Stack(
+            key: layersKey,
             children: [
               Positioned.fill(
                 child: ListenableBuilder(
@@ -366,7 +428,7 @@ class _TodoPanel extends StatelessWidget {
                           key: ObjectKey(request),
                           store: store,
                           request: request,
-                          onDone: () => editing.value = null,
+                          onDone: onEditorDone,
                         ),
                 ),
               ),
@@ -395,10 +457,36 @@ class _TodoPanel extends StatelessWidget {
                         ),
                 ),
               ),
+              // Last, so a menu opened over a card is over everything.
+              Positioned.fill(
+                child: ValueListenableBuilder<_CardMenuRequest?>(
+                  valueListenable: menu,
+                  builder: (context, request, _) => request == null
+                      ? const SizedBox.shrink()
+                      : _CardMenuLayer(
+                          request: request,
+                          onCopy: (text) {
+                            menu.value = null;
+                            onCopy(text);
+                          },
+                          onDismiss: () => menu.value = null,
+                        ),
+                ),
+              ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  /// Opens [item]'s menu at [at], a global position, measured into the layer
+  /// the menu is drawn in.
+  void _openMenu(TodoItem item, Offset at) {
+    final layers = layersKey.currentContext?.findRenderObject();
+    menu.value = _CardMenuRequest(
+      item,
+      layers is RenderBox ? layers.globalToLocal(at) : at,
     );
   }
 
@@ -417,6 +505,23 @@ class _TodoPanel extends StatelessWidget {
           searchField: searchField,
         ),
         Container(height: 1, color: theme.divider),
+        ValueListenableBuilder<String?>(
+          valueListenable: copyError,
+          builder: (context, error, _) => error == null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: SettingsBanner(
+                    title: 'Nothing was copied',
+                    message: error,
+                    action: SettingsActionButton(
+                      label: 'OK',
+                      compact: true,
+                      onTap: () => copyError.value = null,
+                    ),
+                  ),
+                ),
+        ),
         if (loadError != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -497,6 +602,7 @@ class _TodoPanel extends StatelessWidget {
                             store: store,
                             onEdit: (id) =>
                                 editing.value = _EditRequest.edit(id),
+                            onMenu: _openMenu,
                             onOpenLink: onOpenLink,
                             onAdd: () =>
                                 editing.value = _EditRequest.create(column),
@@ -662,6 +768,7 @@ class _ColumnView extends StatelessWidget {
     required this.folds,
     required this.store,
     required this.onEdit,
+    required this.onMenu,
     required this.onOpenLink,
     required this.onAdd,
   });
@@ -680,6 +787,7 @@ class _ColumnView extends StatelessWidget {
   final _DayFoldsNotifier folds;
   final TodoStore store;
   final ValueChanged<String> onEdit;
+  final _CardMenuCallback onMenu;
   final ValueChanged<String> onOpenLink;
   final VoidCallback onAdd;
 
@@ -815,6 +923,7 @@ class _ColumnView extends StatelessWidget {
                   width: constraints.maxWidth - 16,
                   store: store,
                   onEdit: onEdit,
+                  onMenu: onMenu,
                   onOpenLink: onOpenLink,
                 ),
               ),
@@ -955,6 +1064,7 @@ class _DraggableCard extends StatelessWidget {
     required this.width,
     required this.store,
     required this.onEdit,
+    required this.onMenu,
     required this.onOpenLink,
   });
 
@@ -963,6 +1073,7 @@ class _DraggableCard extends StatelessWidget {
   final double width;
   final TodoStore store;
   final ValueChanged<String> onEdit;
+  final _CardMenuCallback onMenu;
   final ValueChanged<String> onOpenLink;
 
   @override
@@ -977,6 +1088,7 @@ class _DraggableCard extends StatelessWidget {
     final stripe = calendarCardColor(item, theme);
     final card = HoverRegion(
       onTap: () => onEdit(item.id),
+      onSecondaryTapDown: (details) => onMenu(item, details.globalPosition),
       builder: (context, hovered) =>
           _CardChrome(hovered: hovered, stripe: stripe, child: face),
     );
@@ -1445,6 +1557,101 @@ class _Fact extends StatelessWidget {
   }
 }
 
+/// A right click on a card: the card as it was clicked, and where.
+@immutable
+class _CardMenuRequest {
+  const _CardMenuRequest(this.item, this.at);
+
+  final TodoItem item;
+
+  /// The pointer, in the coordinates of the layer the menu is drawn in.
+  final Offset at;
+}
+
+typedef _CardMenuCallback = void Function(TodoItem item, Offset at);
+
+/// A card's right-click menu, opened at the pointer over a barrier covering
+/// the board: a click anywhere else, a right click included, closes it.
+///
+/// Drawn in the board's own window rather than as a popup surface: the board
+/// spans the output, so there is no outside for a menu to need to reach.
+class _CardMenuLayer extends StatelessWidget {
+  const _CardMenuLayer({
+    required this.request,
+    required this.onCopy,
+    required this.onDismiss,
+  });
+
+  final _CardMenuRequest request;
+  final ValueChanged<String> onCopy;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = request.item;
+    final title = item.title.trim();
+    final body = item.body.trim();
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onDismiss,
+            onSecondaryTapDown: (_) => onDismiss(),
+          ),
+        ),
+        Positioned.fill(
+          child: CustomSingleChildLayout(
+            delegate: _AtPointerLayout(request.at),
+            // Absorbs clicks on the card's own chrome, which would otherwise
+            // fall through to the barrier.
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              child: DesktopMenuCard(
+                entries: [
+                  DesktopMenuEntry(
+                    label: 'Copy title',
+                    icon: FontAwesomeIcons.copy,
+                    enabled: title.isNotEmpty,
+                    onTap: () => onCopy(title),
+                  ),
+                  DesktopMenuEntry(
+                    label: 'Copy description',
+                    icon: FontAwesomeIcons.alignLeft,
+                    enabled: body.isNotEmpty,
+                    onTap: () => onCopy(body),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Puts the menu's top-left corner at the pointer, slid back inside the board
+/// where it would hang off its right or bottom edge.
+class _AtPointerLayout extends SingleChildLayoutDelegate {
+  const _AtPointerLayout(this.at);
+
+  final Offset at;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen();
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) => Offset(
+    at.dx.clamp(0, (size.width - childSize.width).clamp(0, double.infinity)),
+    at.dy.clamp(0, (size.height - childSize.height).clamp(0, double.infinity)),
+  );
+
+  @override
+  bool shouldRelayout(_AtPointerLayout oldDelegate) => oldDelegate.at != at;
+}
+
 const List<String> _kMonths = [
   'Jan',
   'Feb',
@@ -1567,6 +1774,11 @@ class _TodoEditorState extends State<_TodoEditor> {
       widget.existing?.recurrence?.start ?? dateOnly(widget.store.now),
     ),
   );
+
+  /// The title's, focused as the editor opens. Asked for explicitly, because
+  /// `autofocus` only takes focus in a scope where nothing has it, and the
+  /// board's search field already does.
+  final FocusNode _titleFocus = FocusNode(debugLabel: 'todo title');
   late TodoColumn _column = widget.column;
   late bool _repeats = widget.existing?.recurrence != null;
   late RecurrenceUnit _unit =
@@ -1580,6 +1792,9 @@ class _TodoEditorState extends State<_TodoEditor> {
     for (final controller in [_due, _every, _start]) {
       controller.addListener(_onDraftChanged);
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _titleFocus.requestFocus();
+    });
   }
 
   void _onDraftChanged() {
@@ -1591,6 +1806,7 @@ class _TodoEditorState extends State<_TodoEditor> {
     for (final c in [_title, _body, _due, _every, _start]) {
       c.dispose();
     }
+    _titleFocus.dispose();
     super.dispose();
   }
 
@@ -1726,7 +1942,7 @@ class _TodoEditorState extends State<_TodoEditor> {
             const _Label('Title'),
             SettingsTextField(
               controller: _title,
-              autofocus: true,
+              focusNode: _titleFocus,
               hint: 'What needs doing',
               onChanged: (_) {},
               onSubmitted: (_) => _save(),

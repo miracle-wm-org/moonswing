@@ -7,29 +7,17 @@
 // got subtly wrong.
 library;
 
-import 'package:flutter/gestures.dart'
-    show
-        TapDragDownDetails,
-        TapDragStartDetails,
-        TapDragUpDetails,
-        TapDragUpdateDetails;
-import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/editable_text_mouse.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// A raw [EditableText] (there is no Material `TextField` in this tree) with an
 /// autofocus and a hint drawn behind it.
 ///
-/// Mouse selection is wired up the way `TextField` does it, because a bare
-/// [EditableText] cannot: [RenderEditable] carries its own plain tap recogniser
-/// and sits deeper in the hit-test path than any detector wrapped around it, so it
-/// wins the arena and a hand-rolled one never fires. `rendererIgnoresPointer`
-/// switches that off and lets [TextSelectionGestureDetector] — which counts
-/// consecutive taps rather than racing a double-tap recogniser, so single clicks
-/// stay instant — own click, double-click, triple-click and drag.
+/// Mouse selection is [EditableTextMouseSelection]'s.
 ///
 /// The owner supplies the controller and focus node and disposes them: every
 /// overlay reads the query in its own key handler, and a field that owned them
@@ -65,52 +53,6 @@ class OverlaySearchField extends StatefulWidget {
 class _OverlaySearchFieldState extends State<OverlaySearchField> {
   final GlobalKey<EditableTextState> _editableKey = GlobalKey();
 
-  RenderEditable? get _renderEditable =>
-      _editableKey.currentState?.renderEditable;
-
-  void _onSingleTapUp(TapDragUpDetails details) {
-    widget.focusNode.requestFocus();
-    _renderEditable?.selectPositionAt(
-      from: details.globalPosition,
-      cause: SelectionChangedCause.tap,
-    );
-  }
-
-  void _onDoubleTapDown(TapDragDownDetails details) {
-    widget.focusNode.requestFocus();
-    _renderEditable?.selectWordsInRange(
-      from: details.globalPosition,
-      cause: SelectionChangedCause.doubleTap,
-    );
-  }
-
-  void _onTripleTapDown(TapDragDownDetails details) {
-    widget.focusNode.requestFocus();
-    // A one-line field, so "the paragraph" is the whole query.
-    widget.controller.selection = TextSelection(
-      baseOffset: 0,
-      extentOffset: widget.controller.text.length,
-    );
-  }
-
-  void _onDragSelectionStart(TapDragStartDetails details) {
-    widget.focusNode.requestFocus();
-    _renderEditable?.selectPositionAt(
-      from: details.globalPosition,
-      cause: SelectionChangedCause.drag,
-    );
-  }
-
-  void _onDragSelectionUpdate(TapDragUpdateDetails details) {
-    // The details report where the drag is *now* plus how far it has come, so
-    // the anchor is recovered rather than remembered.
-    _renderEditable?.selectPositionAt(
-      from: details.globalPosition - details.offsetFromOrigin,
-      to: details.globalPosition,
-      cause: SelectionChangedCause.drag,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = widget.theme;
@@ -126,62 +68,54 @@ class _OverlaySearchFieldState extends State<OverlaySearchField> {
           FaIcon(widget.icon, size: 14, color: theme.muted),
           const SizedBox(width: 10),
           Expanded(
-            child: MouseRegion(
-              cursor: SystemMouseCursors.text,
-              child: TextSelectionGestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onSingleTapUp: _onSingleTapUp,
-                onDoubleTapDown: _onDoubleTapDown,
-                onTripleTapDown: _onTripleTapDown,
-                onDragSelectionStart: _onDragSelectionStart,
-                onDragSelectionUpdate: _onDragSelectionUpdate,
-                child: Stack(
-                  alignment: Alignment.centerLeft,
-                  children: [
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: widget.controller,
-                      builder: (context, value, _) => value.text.isEmpty
-                          ? Text(
-                              widget.hint,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: theme.muted,
-                                fontSize: ShellFontSizes.field,
-                              ),
-                            )
-                          : const SizedBox.shrink(),
+            child: EditableTextMouseSelection(
+              editableKey: _editableKey,
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: widget.controller,
+                    builder: (context, value, _) => value.text.isEmpty
+                        ? Text(
+                            widget.hint,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: theme.muted,
+                              fontSize: ShellFontSizes.field,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                  EditableText(
+                    key: _editableKey,
+                    controller: widget.controller,
+                    focusNode: widget.focusNode,
+                    autofocus: true,
+                    // Hands pointer handling to the detector above; without
+                    // this RenderEditable's own tap recogniser wins the
+                    // arena and nothing but caret placement ever works.
+                    rendererIgnoresPointer: true,
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.field,
+                      color: theme.popupForeground,
+                      fontFamily: theme.fontFamily,
                     ),
-                    EditableText(
-                      key: _editableKey,
-                      controller: widget.controller,
-                      focusNode: widget.focusNode,
-                      autofocus: true,
-                      // Hands pointer handling to the detector above; without
-                      // this RenderEditable's own tap recogniser wins the
-                      // arena and nothing but caret placement ever works.
-                      rendererIgnoresPointer: true,
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.field,
-                        color: theme.popupForeground,
-                        fontFamily: theme.fontFamily,
-                      ),
-                      // The caret is a mark to be *seen*, so it takes the
-                      // accent's reading colour; the highlight below is a fill
-                      // and keeps the accent itself. Swapping them over would
-                      // put pale text on a pale block.
-                      cursorColor: theme.accentText,
-                      backgroundCursorColor: theme.divider,
-                      // Selected text is drawn on the accent, which reads as an
-                      // inverted block against the field's dark control surface.
-                      // Flutter paints the highlight *behind* the glyphs and
-                      // offers no way to recolour them, so the contrast has to
-                      // come from the highlight alone.
-                      selectionColor: theme.accent,
-                      onChanged: widget.onChanged,
-                    ),
-                  ],
-                ),
+                    // The caret is a mark to be *seen*, so it takes the
+                    // accent's reading colour; the highlight below is a fill
+                    // and keeps the accent itself. Swapping them over would
+                    // put pale text on a pale block.
+                    cursorColor: theme.accentText,
+                    backgroundCursorColor: theme.divider,
+                    // Selected text is drawn on the accent, which reads as an
+                    // inverted block against the field's dark control surface.
+                    // Flutter paints the highlight *behind* the glyphs and
+                    // offers no way to recolour them, so the contrast has to
+                    // come from the highlight alone.
+                    selectionColor: theme.accent,
+                    onChanged: widget.onChanged,
+                  ),
+                ],
               ),
             ),
           ),
