@@ -54,7 +54,7 @@ CaptureSource resolveCaptureSource(
   if (!connection.supported) {
     throw const CaptureException(
         'This compositor does not support screen capture '
-        '(needs miracle-wm with MirAL >= 5.6).');
+        '(ext-image-copy-capture-v1).');
   }
 
   final identifier = target.toplevelIdentifier;

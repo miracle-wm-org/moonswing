@@ -29,6 +29,7 @@ import 'package:moonswing/keybinds/shell_keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybinds.dart';
 import 'package:moonswing/keybinds/shortcut_capture.dart';
 import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -219,7 +220,9 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
         const SizedBox(height: 14),
         // A failure over a list the store already has: the last good sheet
         // stays readable and the reason sits above it, `KeyboardStore`'s rule.
-        if (_store.error.isNotEmpty && result != null) ...[
+        if (_store.error.isNotEmpty &&
+            result != null &&
+            _store.status != KeybindStatus.unsupported) ...[
           _CheatsheetError(
             message: _store.error,
             busy: _store.refreshing,
@@ -265,6 +268,22 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
 
   /// The compositor's half: its own bindings, grouped, and read only.
   Widget _buildCompositorBody(ThemeConfig theme, KeybindsResult? result) {
+    if (_store.status == KeybindStatus.unsupported) {
+      // Not an error with a Retry: no other compositor will ever answer
+      // miracle's request, so there is nothing to try again.
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          "$kNotMiracleMessage The window manager's own bindings are not "
+          'shown.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: ShellFontSizes.caption,
+            color: theme.muted,
+          ),
+        ),
+      );
+    }
     if (result == null) {
       if (_store.status == KeybindStatus.loading) {
         return const SizedBox(
@@ -657,7 +676,32 @@ class _ShellSectionBlock extends StatelessWidget {
                 ],
               ),
             ),
-          for (final shortcut in ShellShortcut.values)
+          if (store.globalShortcutsUnavailable)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                children: [
+                  FaIcon(
+                    FontAwesomeIcons.triangleExclamation,
+                    size: 10,
+                    color: kErrorColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'This compositor offers no global shortcuts '
+                      '(ext-input-trigger-v1), so none of these keys reach '
+                      'the shell.',
+                      style: TextStyle(
+                        fontSize: ShellFontSizes.caption,
+                        color: kErrorColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          for (final shortcut in store.shown)
             _ShellShortcutTile(
               shortcut: shortcut,
               store: store,

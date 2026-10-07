@@ -62,8 +62,8 @@ Future<void> startScreencastService({
   DBusClient? client;
   try {
     if (!connection.supported) {
-      throw StateError('compositor lacks ext-image-copy-capture '
-          '(needs miracle-wm with MirAL >= 5.6)');
+      throw StateError('compositor lacks ext-image-copy-capture-v1 '
+          '(on miracle-wm, that is MirAL >= 5.6)');
     }
 
     client = DBusClient.session();

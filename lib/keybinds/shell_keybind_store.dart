@@ -23,6 +23,7 @@ import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/keybinds/shell_keybinds.dart';
+import 'package:moonswing/miracle_manager.dart';
 
 /// The shell's global shortcuts: what the config file says now, what the
 /// running shell actually registered, and the writes that change the first.
@@ -37,9 +38,11 @@ class ShellKeybindStore extends ChangeNotifier {
   factory ShellKeybindStore.forTesting({
     ConfigStore? config,
     ShortcutsConfig registered = const ShortcutsConfig(),
+    MiracleManager? miracle,
   }) {
     final store = ShellKeybindStore._();
     if (config != null) store.bind(config, registered: registered);
+    if (miracle != null) store.watchMiracle(miracle);
     return store;
   }
 
@@ -74,6 +77,49 @@ class ShellKeybindStore extends ChangeNotifier {
     _registered = registered;
     _shortcuts = _read(config);
     config.addListener(_reread);
+  }
+
+  MiracleManager? _miracle;
+  bool _miracleUnsupported = false;
+
+  /// Whether the compositor is known not to be Miracle WM, so the shortcuts
+  /// that only drive its IPC were never registered and have no row.
+  bool get miracleUnsupported => _miracleUnsupported;
+
+  /// The rows the sheet draws: every shortcut, less the Miracle-only ones on a
+  /// compositor that is not Miracle.
+  Iterable<ShellShortcut> get shown => ShellShortcut.values.where(
+    (shortcut) => !(shortcut.needsMiracle && _miracleUnsupported),
+  );
+
+  /// Follows [miracle]'s verdict on the compositor, which may only arrive with
+  /// its first connect.
+  void watchMiracle(MiracleManager miracle) {
+    _miracle?.removeListener(_onMiracle);
+    _miracle = miracle..addListener(_onMiracle);
+    _onMiracle();
+  }
+
+  void _onMiracle() {
+    final unsupported = _miracle?.unsupported ?? false;
+    if (unsupported == _miracleUnsupported) return;
+    _miracleUnsupported = unsupported;
+    notifyListeners();
+  }
+
+  bool? _globalShortcuts;
+
+  /// Whether the compositor turned out to have no global-shortcut protocol
+  /// (`ext-input-trigger-v1`) — sway, for one — so none of these keys reaches
+  /// the shell whatever they are bound to. False until that is known.
+  bool get globalShortcutsUnavailable => _globalShortcuts == false;
+
+  /// Records whether the shortcuts could be registered at all. Called once,
+  /// after the compositor's first burst of globals.
+  void reportGlobalShortcuts({required bool available}) {
+    if (_globalShortcuts == available) return;
+    _globalShortcuts = available;
+    notifyListeners();
   }
 
   /// What [shortcut] is bound to now, or null when the user disabled it.
@@ -135,6 +181,8 @@ class ShellKeybindStore extends ChangeNotifier {
   void dispose() {
     _config?.removeListener(_reread);
     _config = null;
+    _miracle?.removeListener(_onMiracle);
+    _miracle = null;
     super.dispose();
   }
 }
@@ -148,4 +196,7 @@ class ShellKeybindStore extends ChangeNotifier {
 void startShellKeybindService(
   ConfigStore config, {
   required ShortcutsConfig registered,
-}) => ShellKeybindStore.instance.bind(config, registered: registered);
+  required MiracleManager miracle,
+}) => ShellKeybindStore.instance
+  ..bind(config, registered: registered)
+  ..watchMiracle(miracle);

@@ -55,6 +55,9 @@ class _ScreenRecorderButtonState extends State<ScreenRecorderButton>
       closePopup();
       return;
     }
+    // The bar's context: the popup's content is under a FlutterView of its
+    // own, with no `MiracleScope` above it.
+    final modes = offeredSelectionModes(context);
     openBarPopup(
       context,
       preferredConstraints: const BoxConstraints(maxWidth: 360, maxHeight: 400),
@@ -71,7 +74,7 @@ class _ScreenRecorderButtonState extends State<ScreenRecorderButton>
                   onTap: _stop,
                 )
               else
-                for (final mode in SelectionMode.values)
+                for (final mode in modes)
                   CaptureMenuAction.mode(mode, () => _start(mode)),
             ],
             note: _note(),

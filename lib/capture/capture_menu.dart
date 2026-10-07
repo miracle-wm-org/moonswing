@@ -16,6 +16,20 @@ import 'package:moonswing/theme/tokens.dart';
 
 import 'selection_controller.dart';
 
+/// The selection modes a bar menu offers, given the bar's [context].
+///
+/// All three, except on a compositor that is not Miracle WM: picking a window
+/// needs the window rectangles in miracle's tree, and without them the window
+/// mode would put up a selection surface with nothing on it to pick. Read, not
+/// depended on — this runs from a tap, outside any build.
+List<SelectionMode> offeredSelectionModes(BuildContext context) {
+  final unsupported = MiracleScope.readOf(context)?.unsupported ?? false;
+  return [
+    for (final mode in SelectionMode.values)
+      if (!(unsupported && mode == SelectionMode.window)) mode,
+  ];
+}
+
 /// The icon a selection mode is offered under.
 FaIconData iconForMode(SelectionMode mode) => switch (mode) {
       SelectionMode.area => FontAwesomeIcons.cropSimple,

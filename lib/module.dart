@@ -60,16 +60,23 @@ abstract class Module {
     required String configKey,
     required C Function(Map<String, dynamic>? map) fromMap,
     required Widget Function(BuildContext context, C config) builder,
+    bool requiresMiracle = false,
   }) =>
-      _SimpleModule<C>(configKey, fromMap, builder);
+      _SimpleModule<C>(configKey, fromMap, builder, requiresMiracle);
 
   /// A module with no options of its own: its `[modules.<key>]` table is
   /// ignored.
   static Module plain({
     required String configKey,
     required WidgetBuilder builder,
+    bool requiresMiracle = false,
   }) =>
-      _SimpleModule<Null>(configKey, (_) => null, (context, _) => builder(context));
+      _SimpleModule<Null>(
+        configKey,
+        (_) => null,
+        (context, _) => builder(context),
+        requiresMiracle,
+      );
 
   /// The widget builder for this module.
   WidgetBuilder get builder;
@@ -79,6 +86,12 @@ abstract class Module {
   /// This must be unique so-as not to interfere with other
   /// modules.
   String get configKey;
+
+  /// Whether the module is nothing but a view of Miracle WM's IPC — workspaces,
+  /// the scratchpad. On any other compositor the panel leaves it out entirely,
+  /// gap included, rather than drawing a control that can never work. See
+  /// `MiracleManager.unsupported`.
+  bool get requiresMiracle => false;
 
   /// Loads the configuration for the given module, from the data at [configKey].
   ///
@@ -95,10 +108,18 @@ class _ModuleConfigNotifier extends ChangeNotifier {
 }
 
 class _SimpleModule<C> extends Module {
-  _SimpleModule(this.configKey, this._fromMap, this._builder);
+  _SimpleModule(
+    this.configKey,
+    this._fromMap,
+    this._builder,
+    this.requiresMiracle,
+  );
 
   @override
   final String configKey;
+
+  @override
+  final bool requiresMiracle;
 
   final C Function(Map<String, dynamic>? map) _fromMap;
   final Widget Function(BuildContext context, C config) _builder;

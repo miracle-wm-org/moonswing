@@ -217,7 +217,11 @@ void main() async {
   // miracle's bindings — it can also edit. Handed the snapshot the shortcuts
   // below are registered from, so an edit can be told apart from what the
   // keyboard actually does until the shell is restarted.
-  startShellKeybindService(store, registered: appConfig.shortcuts);
+  startShellKeybindService(
+    store,
+    registered: appConfig.shortcuts,
+    miracle: miracle,
+  );
 
   // And again for the scratchpad, whose two shortcuts are global and so have
   // no `MiracleScope` over them either — the bar button goes through the same
@@ -285,7 +289,15 @@ void _startShellServices({
 }) {
   services.run(
     ShellService.displays,
-    () => _connectDisplays(waylandClient, outputs, appConfig),
+    () => _connectDisplays(
+      waylandClient,
+      outputs,
+      appConfig,
+      // What the environment already says, which is all there is to go on this
+      // early: a session it cannot place is asked over the socket, and keeps
+      // the Miracle-only keys until that answer comes back.
+      miracle: !miracle.unsupported,
+    ),
   );
 
   // `connect()` never throws: a failure leaves the manager disconnected with a
@@ -377,8 +389,12 @@ void _startShellServices({
   // that cannot be reached is a connection the shell should not be holding.
   // The start-up snapshot, like the registration it mirrors — an edit needs a
   // restart either way.
-  if (appConfig.shortcuts.switchWindows != null ||
-      appConfig.shortcuts.switchWindowsBack != null) {
+  //
+  // And skipped on a compositor that is not Miracle WM, whose switch shortcuts
+  // are never registered — see [inputShortcutsFor].
+  if (!miracle.unsupported &&
+      (appConfig.shortcuts.switchWindows != null ||
+          appConfig.shortcuts.switchWindowsBack != null)) {
     startWindowSwitcherService(miracle);
   }
 
@@ -398,8 +414,9 @@ void _startShellServices({
 Future<void> _connectDisplays(
   WaylandClient waylandClient,
   OutputTracker outputs,
-  AppConfig appConfig,
-) async {
+  AppConfig appConfig, {
+  required bool miracle,
+}) async {
   await waylandClient.connect();
 
   // Registers the shell's global shortcuts with the compositor via the
@@ -408,6 +425,7 @@ Future<void> _connectDisplays(
   final inputTriggers = startInputTriggerService(
     waylandClient,
     shortcuts: appConfig.shortcuts,
+    miracle: miracle,
   );
 
   final outputCompleters = <Completer<void>>[];
@@ -449,7 +467,10 @@ Future<void> _connectDisplays(
 
   // The initial global burst is done. If the input-trigger managers weren't
   // among them the compositor doesn't implement these protocols — the shortcuts
-  // silently won't work, so say so once.
+  // won't work, so say so once here and for good on the cheat sheet.
+  ShellKeybindStore.instance.reportGlobalShortcuts(
+    available: inputTriggers.isRegistered,
+  );
   if (!inputTriggers.isRegistered) {
     debugPrint(
       'input-trigger: compositor did not advertise the '
@@ -1324,6 +1345,14 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   }
 
   void _openSwitcher(WindowSwitcherController controller) {
+    // Switching is miracle's IPC, so on another compositor there is nothing a
+    // pick could do. Its keys are not registered there either, unless the
+    // environment could not say which compositor this is and the socket had
+    // not yet answered when they were.
+    if (widget.miracle.unsupported) {
+      controller.cancel();
+      return;
+    }
     if (_surfaces.isEmpty) {
       // No monitor, so no surface, so nothing will ever call
       // [_onSwitcherClosed] — a session opened here would stay open with no
@@ -2663,6 +2692,32 @@ class _PanelMainState extends State<PanelMain> {
   }
 
   Widget _buildSection(List<String> modules) {
+    if (modules.isEmpty) return const SizedBox.shrink();
+
+    // A Miracle-only module is dropped outright on another compositor, so it
+    // costs neither a control that cannot work nor the gap beside it. The
+    // manager settles that once — from the environment, or from the first
+    // connect when only an i3-compatible socket was on offer — so a section
+    // holding one listens for it; one that holds none listens to nothing.
+    final miracle = MiracleScope.maybeOf(context);
+    if (miracle != null &&
+        modules.any((m) => Module.lookup(m)?.requiresMiracle ?? false)) {
+      return ListenableBuilder(
+        listenable: miracle,
+        builder: (context, _) => _buildModules(
+          miracle.unsupported
+              ? [
+                  for (final m in modules)
+                    if (!(Module.lookup(m)?.requiresMiracle ?? false)) m,
+                ]
+              : modules,
+        ),
+      );
+    }
+    return _buildModules(modules);
+  }
+
+  Widget _buildModules(List<String> modules) {
     if (modules.isEmpty) return const SizedBox.shrink();
 
     final bool vertical = widget.anchor == 'left' || widget.anchor == 'right';

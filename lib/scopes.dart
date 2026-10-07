@@ -45,6 +45,12 @@ class MiracleScope extends InheritedWidget {
   static MiracleManager? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<MiracleScope>()?.manager;
 
+  /// [maybeOf] without registering a dependency, for a callback outside build.
+  /// The manager is stable for the life of the shell, so there is nothing to
+  /// be rebuilt for.
+  static MiracleManager? readOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<MiracleScope>()?.manager;
+
   @override
   bool updateShouldNotify(MiracleScope old) => manager != old.manager;
 }
