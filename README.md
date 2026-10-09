@@ -42,6 +42,26 @@ Then, in your environment of choice (miracle-wm, Miriway, Sway, etc.), run:
 moonswing
 ```
 
+To have miracle-wm start Moonswing with every session, add `--miracle-autostart`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh | sh -s -- --miracle-autostart
+```
+
+This adds Moonswing to the `startup_apps` of `~/.config/miracle-wm/config.yaml`,
+restarted whenever it exits and run in its own systemd scope:
+
+```yaml
+startup_apps:
+  - command: /snap/bin/moonswing
+    restart_on_death: true
+    in_systemd_scope: true
+```
+
+An existing config is kept and the entry added to it (the original is saved
+alongside as `config.yaml.<timestamp>.bak`); with no config, one is created holding
+just this. If Moonswing is already a startup app there, the file is left untouched.
+
 Re-run the same command to update, and to remove:
 
 ```sh
