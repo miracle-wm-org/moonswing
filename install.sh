@@ -4,7 +4,7 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh | sh
 #
-# Downloads the newest `moonswing_*.snap` asset from the rolling `nightly`
+# Downloads the `moonswing_*.snap` asset from the rolling `nightly`
 # release and installs it with `--classic --dangerous`. Re-running it is how you
 # update: snapd replaces the installed revision in place.
 #
@@ -58,25 +58,30 @@ echo "==> Looking up the $TAG release of $REPO"
 release=$(curl -fsSL "$@" "$API") \
     || die "could not reach $API (private repo? export GH_TOKEN and retry)."
 
+# Match the asset by name, never "the first .snap": the release is rolling and
+# outlives renames — it carried a graceful-shell_*.snap from before the project
+# was called moonswing, and taking the first asset installed that instead.
+asset_re='moonswing_[^"/]*[.]snap'
 if [ -n "$TOKEN" ]; then
     # browser_download_url is unauthenticated and 404s on a private repo; the
     # asset's API url serves the bytes with Accept: application/octet-stream.
-    url=$(printf '%s' "$release" \
-        | grep -o 'https://api\.github\.com/repos/[^"]*/releases/assets/[0-9]*' \
-        | head -n 1)
+    # Within an asset object "url" comes before "name", so remember the last
+    # asset url seen and print it once the name matches.
+    url=$(printf '%s' "$release" | tr ',' '\n' | awk -v re="\"$asset_re\"" '
+        /"url"[[:space:]]*:[[:space:]]*"https:\/\/api\.github\.com\/repos\/[^"]*\/releases\/assets\/[0-9]+"/ {
+            match($0, /https:[^"]*/); last = substr($0, RSTART, RLENGTH)
+        }
+        /"name"[[:space:]]*:/ && $0 ~ re { print last; exit }')
     set -- -H "Authorization: Bearer $TOKEN" -H "Accept: application/octet-stream"
-    snapname=$(printf '%s' "$release" \
-        | grep -o '"name"[[:space:]]*:[[:space:]]*"[^"]*\.snap"' \
-        | head -n 1 \
-        | cut -d '"' -f 4)
+    snapname=$(printf '%s' "$release" | grep -o "\"$asset_re\"" | head -n 1 | tr -d '"')
 else
     url=$(printf '%s' "$release" \
-        | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*\.snap"' \
+        | grep -o "\"browser_download_url\"[[:space:]]*:[[:space:]]*\"[^\"]*/$asset_re\"" \
         | head -n 1 \
         | cut -d '"' -f 4)
     snapname=${url##*/}
 fi
-[ -n "$url" ] || die "the $TAG release has no .snap asset."
+[ -n "$url" ] || die "the $TAG release has no moonswing_*.snap asset."
 [ -n "$snapname" ] || snapname="moonswing.snap"
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/moonswing.XXXXXX")
@@ -89,6 +94,18 @@ curl -fL --progress-bar "$@" -o "$tmp/$snapname" "$url" || die "download failed.
 # --dangerous: the file is downloaded, not store-signed.
 echo "==> Installing $snapname"
 $SUDO snap install "$tmp/$snapname" --classic --dangerous || die "snap install failed."
+
+# An install from before the rename is a separate snap, not an older revision
+# of this one, so snapd leaves it in place. Say so rather than remove it unasked.
+if snap list graceful-shell >/dev/null 2>&1; then
+    cat <<'EOF'
+
+The `graceful-shell` snap (this project's former name) is still installed
+alongside. It is an old build; remove it with:
+
+    sudo snap remove graceful-shell
+EOF
+fi
 
 cat <<'EOF'
 
