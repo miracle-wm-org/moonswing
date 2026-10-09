@@ -2430,10 +2430,15 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         (
           controller: settings,
           builder: (_) => _windowChrome(
-            SettingsOverlay(
-              closingNotifier: _settings.closing,
-              onClosed: _onSettingsClosed,
-              route: _settingsRoute,
+            // For the Window Manager pane, which edits miracle-wm's own file
+            // and so is greyed out on any other compositor.
+            MiracleScope(
+              manager: widget.miracle,
+              child: SettingsOverlay(
+                closingNotifier: _settings.closing,
+                onClosed: _onSettingsClosed,
+                route: _settingsRoute,
+              ),
             ),
           ),
         ),

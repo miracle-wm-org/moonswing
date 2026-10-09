@@ -93,7 +93,13 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
   }
 
   void _onQueryChanged(String query) {
-    final results = rankSettings(SettingsCatalog.searchable, query);
+    final notMiracle = MiracleScope.readOf(context)?.unsupported ?? false;
+    final results = rankSettings(
+      notMiracle
+          ? SettingsCatalog.searchableWithoutMiracle
+          : SettingsCatalog.searchable,
+      query,
+    );
     setState(() {
       _results = results;
       _selected = 0;
