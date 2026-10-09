@@ -11,9 +11,9 @@
 #
 # Store uploads authenticate with the SNAPCRAFT_STORE_CREDENTIALS secret, from
 # `snapcraft export-login` (website/src/content/docs/wiki/packaging.md,
-# "Releases and channels", has the command). Forks have no such
-# secret, so the publish jobs are skipped outside this repository rather than
-# failing.
+# "Releases and channels", has the command). Forks have no such secret, so the
+# publish job is skipped outside the miracle-wm-org account rather than failing.
+# The owner, not the repository's full name: this one has been renamed before.
 
 name: Snap
 on:
@@ -95,7 +95,7 @@ jobs:
 
   publish:
     if: >-
-      github.repository == 'miracle-wm-org/graceful-shell' &&
+      github.repository_owner == 'miracle-wm-org' &&
       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: build
     runs-on: ubuntu-latest
