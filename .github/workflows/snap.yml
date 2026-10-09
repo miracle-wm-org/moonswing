@@ -1,0 +1,116 @@
+# Builds the snap and publishes it.
+#
+#   push to main  -> Snap Store `edge`, and the rolling `nightly` GitHub release
+#                    (which website/…/start/install.md's script installs from)
+#   push a v* tag -> Snap Store `stable`
+#
+# The channel is decided here and the version in snap/snapcraft.yaml, from the
+# same fact: a commit a `v*` tag points at builds as that version with grade
+# `stable`, which the store requires before it will release to `stable`.
+# Anything else builds as `<last release>+git<n>.<sha>`, grade `devel`.
+#
+# Store uploads authenticate with the SNAPCRAFT_STORE_CREDENTIALS secret, from
+# `snapcraft export-login` (website/src/content/docs/wiki/packaging.md,
+# "Releases and channels", has the command). Forks have no such secret, so the
+# publish job is skipped outside the miracle-wm-org account rather than failing.
+# The owner, not the repository's full name: this one has been renamed before.
+
+name: Snap
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer commit on main supersedes an edge build still running, but a release
+# is never cancelled — tags get a group of their own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      snap: ${{ steps.build.outputs.snap }}
+    steps:
+      # Full history and tags: the version is `git describe`d (snapcraft.yaml's
+      # override-pull), and a shallow clone has no tag to describe against.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: build
+        uses: snapcore/action-build@v1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: moonswing-snap
+          path: ${{ steps.build.outputs.snap }}
+
+  nightly:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: moonswing-snap
+      # One fixed asset name, where the snap's own filename carries a version
+      # that changes every commit (snapcraft.yaml's override-pull) — and a `+`
+      # that is not ours to trust an upload to keep verbatim, while the cleanup
+      # below deletes every asset whose name does not match exactly. install.sh
+      # finds it as moonswing_*.snap.
+      - name: Name the nightly asset
+        run: mv "${{ needs.build.outputs.snap }}" moonswing_nightly_amd64.snap
+      - name: Publish rolling nightly release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly build
+          prerelease: true
+          files: moonswing_nightly_amd64.snap
+          body: |
+            Automated nightly classic snap built from the latest `main`.
+            Install: `sudo snap install ./moonswing_*.snap --classic --dangerous`
+            Or from the Snap Store: `sudo snap install moonswing --classic --edge`
+      # The action replaces an asset of the same name but never removes one, so
+      # a rename (graceful-shell → moonswing) or a version bump leaves the old
+      # snap on the release beside the new one. After the upload, so a failed
+      # build never leaves the release empty.
+      - name: Drop superseded assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          keep=moonswing_nightly_amd64.snap
+          gh release view nightly --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' \
+            | while read -r asset; do
+                [ "$asset" = "$keep" ] && continue
+                echo "Deleting $asset"
+                gh release delete-asset nightly "$asset" --repo "$GITHUB_REPOSITORY" --yes
+              done
+
+  publish:
+    if: >-
+      github.repository_owner == 'miracle-wm-org' &&
+      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: build
+    runs-on: ubuntu-latest
+    # Optional protection: create a `snap-store` environment in the repository
+    # settings to require a reviewer before a release, or to scope the secret to
+    # this job. Without one GitHub creates it bare and the repository secret is
+    # used.
+    environment: snap-store
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: moonswing-snap
+      - uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ needs.build.outputs.snap }}
+          release: ${{ startsWith(github.ref, 'refs/tags/') && 'stable' || 'edge' }}

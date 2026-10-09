@@ -5,8 +5,8 @@ sidebar:
   order: 8
 ---
 
-Moonswing ships as a **classic** snap, built nightly from `main` by
-`.github/workflows/nightly-snap.yml`. Classic confinement puts the host's libraries on the
+Moonswing ships as a **classic** snap, built from every commit on `main` and every release tag
+by `.github/workflows/snap.yml`. Classic confinement puts the host's libraries on the
 loader path, and `LD_LIBRARY_PATH` only *prepends* `$SNAP` — which is the constraint everything
 below follows from.
 
@@ -49,3 +49,35 @@ the backends. It never overwrites a conf it did not write.
 Cloning `master` at HEAD once broke the release artifact overnight.
 `.github/workflows/flutter-master.yml` is the early warning, and the pin is only ever bumped to
 a revision that workflow has proven green.
+
+## Releases and channels
+
+The channel is decided by what was pushed, and the version by the same fact:
+
+| Pushed | Version | Grade | Published to |
+|---|---|---|---|
+| a commit on `main` | `<last release>+git<n>.<sha>` | `devel` | Snap Store `edge`, and the rolling `nightly` GitHub release |
+| a `v*` tag | the tag, less its `v` | `stable` | Snap Store `stable` |
+
+`snapcraft.yaml` has no `version:` or `grade:` of its own; the part's `override-pull` sets both
+from `git describe`, which is why the workflow checks out full history. The store refuses a
+`devel` grade on `stable`, so a release is cut by tagging a commit — `git tag v0.2.0 && git push
+origin v0.2.0` — never by editing the file.
+
+Uploads authenticate with the repository secret `SNAPCRAFT_STORE_CREDENTIALS`, exported by an
+account that holds the `moonswing` name:
+
+```sh
+snapcraft export-login --snaps=moonswing \
+  --acls package_access,package_push,package_update,package_release \
+  --expires 2027-10-09 moonswing.creds
+```
+
+The contents of `moonswing.creds` go in **Settings › Secrets and variables › Actions** as
+`SNAPCRAFT_STORE_CREDENTIALS`; the publish job runs in the `snap-store` environment, which can
+be given required reviewers or hold the secret itself. The credentials expire, and an expired
+one fails the publish job, not the build.
+
+A classic snap's uploads are held for manual review until the store has granted the name
+classic confinement, which is requested once on the
+[snapcraft forum](https://forum.snapcraft.io/c/store-requests/19).
