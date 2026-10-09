@@ -28,3 +28,19 @@ jobs:
           body: |
             Automated nightly classic snap built from the latest `main`.
             Install: `sudo snap install ./moonswing_*.snap --classic --dangerous`
+      # The action replaces an asset of the same name but never removes one, so
+      # a rename (graceful-shell → moonswing) or a version bump leaves the old
+      # snap on the release beside the new one. After the upload, so a failed
+      # build never leaves the release empty.
+      - name: Drop superseded assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: ${{ steps.build.outputs.snap }}
+        run: |
+          keep=$(basename "$KEEP")
+          gh release view nightly --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' \
+            | while read -r asset; do
+                [ "$asset" = "$keep" ] && continue
+                echo "Deleting $asset"
+                gh release delete-asset nightly "$asset" --repo "$GITHUB_REPOSITORY" --yes
+              done
