@@ -563,7 +563,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// difference alone.
   final Map<BaseWindowController, WindowEntry> _rootEntries = {};
 
-  /// Surfaces keyed by a stable monitor identity ([_monitorKey]), added and
+  /// Surfaces keyed by a stable monitor identity ([monitorKey]), added and
   /// removed on hotplug — the live source of truth for what the shell renders.
   final Map<String, _MonitorSurfaces> _surfaces = {};
 
@@ -808,8 +808,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // nudged.
     _panelMargin = ThemeStore.instance.theme.panelMargin;
 
-    for (final monitor in listMonitors()) {
-      _surfaces[_monitorKey(monitor)] = _createSurfaces(monitor);
+    // Mirrors folded into one, or a cloned display shows every surface twice.
+    for (final monitor in distinctMonitors(listMonitors())) {
+      _surfaces[monitorKey(monitor)] = _createSurfaces(monitor);
     }
 
     // React to monitors being plugged in / unplugged at runtime.
@@ -821,14 +822,6 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // is an error.
     _syncWindows();
   }
-
-  /// A stable key identifying a monitor across enumerations. The connector name
-  /// (e.g. `DP-1`) survives other monitors coming and going; only a GDK build
-  /// that cannot report it falls back to make/model/position.
-  String _monitorKey(MonitorInfo monitor) => monitor.connector.isNotEmpty
-      ? monitor.connector
-      : '${monitor.manufacturer}|${monitor.model}|'
-            '${monitor.position.dx},${monitor.position.dy}';
 
   /// Builds the layer-shell controllers (background + panels) for [monitor],
   /// realizing the native GTK windows immediately; the widgets rendering into
@@ -1930,10 +1923,16 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   }
 
   /// Reconciles [_surfaces] with the current monitor list: destroying surfaces
-  /// for unplugged monitors and creating them for plugged-in ones.
+  /// for unplugged monitors and creating them for plugged-in ones. A display
+  /// mirrored onto another counts as unplugged and one mirrored no longer as
+  /// plugged in — see [distinctMonitors].
   void _syncMonitors() {
     final incoming = <String, MonitorInfo>{
-      for (final monitor in listMonitors()) _monitorKey(monitor): monitor,
+      for (final monitor in distinctMonitors(
+        listMonitors(),
+        held: _surfaces.keys.toSet(),
+      ))
+        monitorKey(monitor): monitor,
     };
 
     final removed = <LayershellWindowController>[];
@@ -2281,7 +2280,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                           .open(SettingsRoute.background),
                       onAddRequested: _onDesktopAddRequested,
                       onKeyboardRequested: (wanted) => _setDesktopKeyboard(
-                        _monitorKey(surfaces.monitor),
+                        monitorKey(surfaces.monitor),
                         wanted,
                       ),
                     );
@@ -2331,7 +2330,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
             ),
         // The indicator is not tied to any panel, so it lives here beside the
         // background rather than being opened from inside a module.
-        if (_osd[_monitorKey(surfaces.monitor)] case final osd?)
+        if (_osd[monitorKey(surfaces.monitor)] case final osd?)
           (
             controller: osd,
             builder: (_) => _windowChrome(OsdWindow(store: OsdStore.instance)),
@@ -2339,7 +2338,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         // The floating notification badge, tied to the output rather than to any
         // panel — it is there whether or not this monitor's bars carry the bell
         // module.
-        if (_badges[_monitorKey(surfaces.monitor)] case final badge?)
+        if (_badges[monitorKey(surfaces.monitor)] case final badge?)
           (
             controller: badge,
             builder: (_) => _windowChrome(
@@ -2355,7 +2354,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         // The screenshot / recording selection surface, likewise not tied to
         // any panel — it covers the whole of this output, bars included.
         if (_selectionRequest != null)
-          if (_selector[_monitorKey(surfaces.monitor)] case final selector?)
+          if (_selector[monitorKey(surfaces.monitor)] case final selector?)
             (
               controller: selector,
               builder: (_) {
@@ -2389,7 +2388,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         // The window switcher, one surface per output for the same reason the
         // selection surfaces are: a layer-shell surface covers one screen, and
         // this one has to be on the screen the user is looking at.
-        if (_switcher[_monitorKey(surfaces.monitor)] case final switcher?)
+        if (_switcher[monitorKey(surfaces.monitor)] case final switcher?)
           (
             controller: switcher,
             builder: (_) => _windowChrome(
@@ -2401,7 +2400,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                 available: _switcherAvailable,
                 selection: WindowSwitcherController.instance.selection,
                 takesKeyboard:
-                    _monitorKey(surfaces.monitor) == _switcherKeyboardKey,
+                    monitorKey(surfaces.monitor) == _switcherKeyboardKey,
                 closingNotifier: _switcherClosing,
                 onClosed: _onSwitcherClosed,
                 onSelect: WindowSwitcherController.instance.select,
