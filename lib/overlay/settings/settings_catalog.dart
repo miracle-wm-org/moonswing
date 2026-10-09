@@ -2292,4 +2292,12 @@ abstract final class SettingsCatalog {
   static final List<SearchableSetting> searchable = [
     for (final field in all) SearchableSetting(field),
   ];
+
+  /// [searchable] without the Window Manager pane, which is greyed out on any
+  /// compositor that is not miracle-wm — a result would jump into a pane the
+  /// sidebar will not open.
+  static final List<SearchableSetting> searchableWithoutMiracle = [
+    for (final setting in searchable)
+      if (setting.field.route.category != 'miracle') setting,
+  ];
 }

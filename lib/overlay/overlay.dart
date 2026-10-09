@@ -3,6 +3,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -12,6 +13,7 @@ import 'package:moonswing/overlay/calendar/calendar_tab.dart';
 import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/overlay/settings/audio.dart';
 import 'package:moonswing/overlay/settings/bluetooth.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/display.dart';
 import 'package:moonswing/overlay/settings/keyboard.dart';
 import 'package:moonswing/overlay/settings/miracle.dart';
@@ -158,6 +160,12 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
     // reopens the overlay to retarget it.
     _selectedTab = widget.route?.tab ?? 'calendar';
     _selectedCategory = widget.route?.category ?? 'network';
+    // The Window Manager pane is greyed out on any other compositor, so a
+    // route into it lands where a route naming nothing would.
+    if (_selectedCategory == 'miracle' &&
+        (MiracleScope.readOf(context)?.unsupported ?? false)) {
+      _selectedCategory = 'network';
+    }
     _panelEntry = OverlayEntry(
       builder: (context) {
         final theme = ThemeScope.of(context);
@@ -406,7 +414,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _SettingsSidebar(
+                  SettingsSidebar(
                     selectedCategory: _selectedCategory,
                     onCategorySelected: _selectCategory,
                   ),
@@ -444,8 +452,19 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       case 'keyboard':
         return const KeyboardSettingsPage();
       case 'miracle':
-        return MiracleSettingsPage(
+        final miracle = MiracleScope.readOf(context);
+        final page = MiracleSettingsPage(
           initialCategory: widget.route?.miracleCategory,
+        );
+        if (miracle == null) return page;
+        // Only reachable when the compositor turned out not to be miracle
+        // after the pane was opened — an i3-compatible socket that never
+        // answered `GET_KEYBINDS`. The sidebar greys the row out from then on.
+        return ListenableBuilder(
+          listenable: miracle,
+          builder: (context, child) =>
+              miracle.unsupported ? const _NotMiraclePane() : child!,
+          child: page,
         );
       case 'accounts':
         return const AccountsSettingsPage();
@@ -461,8 +480,11 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
 // Sidebar
 // ---------------------------------------------------------------------------
 
-class _SettingsSidebar extends StatelessWidget {
-  const _SettingsSidebar({
+/// The settings tab's category list. Public for the tests alone: the overlay
+/// around it cannot be pumped without the whole shell's stores.
+@visibleForTesting
+class SettingsSidebar extends StatelessWidget {
+  const SettingsSidebar({
     required this.selectedCategory,
     required this.onCategorySelected,
   });
@@ -472,6 +494,17 @@ class _SettingsSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The manager settles [MiracleManager.unsupported] once, but possibly after
+    // the overlay has opened, so the sidebar listens for it.
+    final miracle = MiracleScope.maybeOf(context);
+    if (miracle == null) return _build(notMiracle: false);
+    return ListenableBuilder(
+      listenable: miracle,
+      builder: (context, _) => _build(notMiracle: miracle.unsupported),
+    );
+  }
+
+  Widget _build({required bool notMiracle}) {
     return SizedBox(
       width: 180,
       child: Padding(
@@ -514,6 +547,7 @@ class _SettingsSidebar extends StatelessWidget {
               label: 'Window Manager',
               selected: selectedCategory == 'miracle',
               onTap: () => onCategorySelected('miracle'),
+              disabledReason: notMiracle ? kWindowManagerUnavailable : null,
             ),
             _SidebarItem(
               icon: FontAwesomeIcons.circleUser,
@@ -534,12 +568,18 @@ class _SettingsSidebar extends StatelessWidget {
   }
 }
 
+/// Why the Window Manager row is greyed out, shown when the pointer rests on it.
+const String kWindowManagerUnavailable =
+    '$kNotMiracleMessage These settings edit Miracle WM\'s own configuration, '
+    'so they are only available in a Miracle WM session.';
+
 class _SidebarItem extends StatelessWidget {
   const _SidebarItem({
     required this.icon,
     required this.label,
     required this.selected,
     required this.onTap,
+    this.disabledReason,
   });
 
   final FaIconData icon;
@@ -547,51 +587,77 @@ class _SidebarItem extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// Non-null greys the row out, makes it inert and shows this as a tooltip.
+  final String? disabledReason;
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return HoverRegion(
-      onTap: onTap,
-      builder: (context, hovered) {
-        final Color bg;
-        if (selected) {
-          bg = theme.accent.withValues(alpha: 0.25);
-        } else if (hovered) {
-          bg = theme.surfaceHover;
-        } else {
-          bg = const Color(0x00000000);
-        }
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(ShellRadii.control),
-          ),
-          child: Row(
-            children: [
-              FaIcon(
-                icon,
-                size: ShellFontSizes.body,
-                color: selected
-                    ? theme.accentText
-                    : theme.popupForeground.withValues(alpha: 0.8),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.body,
-                  fontFamily: theme.fontFamily,
-                  color: selected
-                      ? theme.accentText
-                      : theme.popupForeground.withValues(alpha: 0.8),
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    final enabled = disabledReason == null;
+    final foregroundAlpha = enabled ? 0.8 : 0.35;
+    return SettingsTooltip(
+      message: disabledReason,
+      child: HoverRegion(
+        onTap: onTap,
+        enabled: enabled,
+        builder: (context, hovered) => _buildRow(
+          theme,
+          hovered: enabled && hovered,
+          foregroundAlpha: foregroundAlpha,
+        ),
+      ),
     );
   }
+
+  Widget _buildRow(
+    ThemeConfig theme, {
+    required bool hovered,
+    required double foregroundAlpha,
+  }) {
+    final Color bg;
+    if (selected) {
+      bg = theme.accent.withValues(alpha: 0.25);
+    } else if (hovered) {
+      bg = theme.surfaceHover;
+    } else {
+      bg = const Color(0x00000000);
+    }
+    final foreground = selected
+        ? theme.accentText
+        : theme.popupForeground.withValues(alpha: foregroundAlpha);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(ShellRadii.control),
+      ),
+      child: Row(
+        children: [
+          FaIcon(icon, size: ShellFontSizes.body, color: foreground),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: ShellFontSizes.body,
+              fontFamily: theme.fontFamily,
+              color: foreground,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// What the Window Manager pane shows if the compositor is found not to be
+/// miracle-wm while the pane is open.
+class _NotMiraclePane extends StatelessWidget {
+  const _NotMiraclePane();
+
+  @override
+  Widget build(BuildContext context) => const Padding(
+    padding: EdgeInsets.all(24),
+    child: SettingsHint(kWindowManagerUnavailable),
+  );
 }
