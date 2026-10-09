@@ -88,6 +88,8 @@ rationale in this file is retold for someone who does not have the repository op
 
 Consequence: panels paint before the shell knows which display each is on. `DisplayScope.output` is nullable, and a panel is matched to its output by **connector name** first (GDK's connector and `wl_output.name` are the same string and neither moves under repositioning), then by a make/model/position tuple, with a first-output fallback only when there is exactly one output.
 
+**Mirrored displays get surfaces once.** Clones are separate outputs at one origin, and Mir composites a layer surface onto *every* output covering it — so per-monitor surfaces on each clone drew every bar twice on both screens. `distinctMonitors` (`lib/display_provider.dart`) folds each group to one monitor (the one already holding surfaces, else GDK's first), and `MonitorWatcher` watches each monitor's `notify::geometry` as well as hotplug, because cloning or un-cloning is a move, not an add or remove.
+
 ### Windows (`package:layer_shell`, `lib/popup.dart`, `lib/main.dart`)
 
 Every surface — panel, background, overlay, OSD, badge, selection surface, lock screen, popup — is a `WindowEntry` in the **one** root `WindowRegistry`, reachable via `WindowRegistry.of(context)`. The gtk-layer-shell bridge is the `layer_shell` git dependency, which also re-exports the `@internal` SDK windowing pieces; when a build fails with `Type 'X' not found` inside `_window.dart`, the fix is upstream-first (bump that pin to a green revision, then apply the same rename here).

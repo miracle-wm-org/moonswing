@@ -228,6 +228,55 @@ void main() {
     });
   });
 
+  group('distinctMonitors', () {
+    List<String> keys(List<MonitorInfo> monitors) =>
+        [for (final m in monitors) monitorKey(m)];
+
+    test('side-by-side displays each keep their surfaces', () {
+      final monitors = [
+        monitor(connector: 'DP-1'),
+        monitor(connector: 'HDMI-A-1', position: const Offset(1920, 0)),
+      ];
+      expect(keys(distinctMonitors(monitors)), ['DP-1', 'HDMI-A-1']);
+    });
+
+    test('mirrored displays are given surfaces once, on the first', () {
+      // Two clones at one origin: the compositor shows a layer surface on every
+      // output covering it, so surfaces on both would be drawn twice on each.
+      final monitors = [
+        monitor(connector: 'eDP-1'),
+        monitor(connector: 'HDMI-A-1'),
+      ];
+      expect(keys(distinctMonitors(monitors)), ['eDP-1']);
+    });
+
+    test('a mirror group already holding surfaces keeps them where they are',
+        () {
+      // The second display was the one with bars before the first was cloned
+      // onto it; moving them would tear them down for nothing.
+      final monitors = [
+        monitor(connector: 'eDP-1'),
+        monitor(connector: 'HDMI-A-1'),
+        monitor(connector: 'DP-2', position: const Offset(1920, 0)),
+      ];
+      expect(
+        keys(distinctMonitors(monitors, held: {'HDMI-A-1', 'DP-2'})),
+        ['HDMI-A-1', 'DP-2'],
+      );
+    });
+
+    test('un-mirroring gives the display that moved away its own surfaces', () {
+      final monitors = [
+        monitor(connector: 'eDP-1'),
+        monitor(connector: 'HDMI-A-1', position: const Offset(1920, 0)),
+      ];
+      expect(
+        keys(distinctMonitors(monitors, held: {'eDP-1'})),
+        ['eDP-1', 'HDMI-A-1'],
+      );
+    });
+  });
+
   group('OutputTracker', () {
     test('a global re-advertised without a remove replaces its entry', () {
       final first = output(name: 'DP-1', make: 'Acme', model: 'X1');

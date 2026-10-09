@@ -37,6 +37,47 @@ class OutputTracker extends ChangeNotifier {
   void markChanged() => notifyListeners();
 }
 
+/// A stable key identifying a monitor across enumerations. The connector name
+/// (e.g. `DP-1`) survives other monitors coming and going; only a GDK build that
+/// cannot report it falls back to make/model/position.
+String monitorKey(MonitorInfo monitor) => monitor.connector.isNotEmpty
+    ? monitor.connector
+    : '${monitor.manufacturer}|${monitor.model}|'
+          '${monitor.position.dx},${monitor.position.dy}';
+
+/// The monitors the shell gives surfaces to: [monitors] with every set of
+/// mirrors folded into one.
+///
+/// Cloned displays are separate `wl_output`s laid out at the same origin, and a
+/// compositor that composites one scene for every output — Mir, so Miriway and
+/// miracle — shows a layer surface on *every* output covering its position, not
+/// only the one it was created for. So one set of surfaces per clone is drawn
+/// once per clone on each of them: two bars stacked under each other on both
+/// screens, two wallpapers, two OSDs. A mirror shows what is at its origin
+/// anyway, so one monitor of the group is given surfaces and the rest none.
+///
+/// The one kept is the first GDK enumerated — the compositor's own output order,
+/// GDK on Wayland reporting no primary — unless the shell already has surfaces
+/// on another member of the group ([held], by [monitorKey]): mirroring a second
+/// display onto the first must not tear the first one's bars down and rebuild
+/// them on the newcomer.
+List<MonitorInfo> distinctMonitors(
+  List<MonitorInfo> monitors, {
+  Set<String> held = const {},
+}) {
+  final byOrigin = <Offset, List<MonitorInfo>>{};
+  for (final monitor in monitors) {
+    byOrigin.putIfAbsent(monitor.position, () => []).add(monitor);
+  }
+  return [
+    for (final group in byOrigin.values)
+      group.firstWhere(
+        (monitor) => held.contains(monitorKey(monitor)),
+        orElse: () => group.first,
+      ),
+  ];
+}
+
 /// Resolves the [WaylandOutput] backing [monitor], or null while the shell does
 /// not (yet) know which one it is.
 ///
