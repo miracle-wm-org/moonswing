@@ -41,6 +41,40 @@ and run the same command the script does:
 sudo snap install ./moonswing_*.snap --classic --dangerous
 ```
 
+### Start it with miracle-wm
+
+Add `--miracle-autostart` to have miracle-wm start the shell with every session:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/install.sh | sh -s -- --miracle-autostart
+```
+
+`MOONSWING_MIRACLE_AUTOSTART=1` does the same. The script adds this entry to the
+`startup_apps` of `~/.config/miracle-wm/config.yaml`:
+
+```yaml
+startup_apps:
+  - command: /snap/bin/moonswing
+    restart_on_death: true
+    in_systemd_scope: true
+```
+
+- `restart_on_death` brings the shell back whenever it exits, crash or not.
+- `in_systemd_scope` runs it under `systemd-run --user --scope`, in a scope of its own.
+- The command is an absolute path because miracle-wm runs it on the compositor's own
+  `PATH`, which need not include `/snap/bin`.
+
+An existing config is edited in place: the entry goes first in an existing
+`startup_apps` list, or a new `startup_apps` key is appended, and the original is kept
+alongside as `config.yaml.<timestamp>.bak`. With no config the file is created holding
+only this, and every other setting keeps miracle-wm's default. If any startup app
+already runs `moonswing`, the file is not touched — so re-running the command to update
+is safe. A `startup_apps` written as an inline `[...]` list is not rewritten; the script
+prints the entry for you to add instead.
+
+miracle-wm reads its startup apps when it starts, so the entry takes effect from your
+next login.
+
 ## Run it
 
 From inside your compositor session — miracle-wm, Miriway, Sway, or anything else speaking
