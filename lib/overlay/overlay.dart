@@ -14,6 +14,7 @@ import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/overlay/settings/audio.dart';
 import 'package:moonswing/overlay/settings/bluetooth.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/default_apps.dart';
 import 'package:moonswing/overlay/settings/display.dart';
 import 'package:moonswing/overlay/settings/keyboard.dart';
 import 'package:moonswing/overlay/settings/miracle.dart';
@@ -466,6 +467,8 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
               miracle.unsupported ? const _NotMiraclePane() : child!,
           child: page,
         );
+      case 'default_apps':
+        return const DefaultAppsSettingsPage();
       case 'accounts':
         return const AccountsSettingsPage();
       case 'shell':
@@ -548,6 +551,12 @@ class SettingsSidebar extends StatelessWidget {
               selected: selectedCategory == 'miracle',
               onTap: () => onCategorySelected('miracle'),
               disabledReason: notMiracle ? kWindowManagerUnavailable : null,
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.arrowUpRightFromSquare,
+              label: 'Default Apps',
+              selected: selectedCategory == 'default_apps',
+              onTap: () => onCategorySelected('default_apps'),
             ),
             _SidebarItem(
               icon: FontAwesomeIcons.circleUser,

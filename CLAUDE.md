@@ -290,6 +290,7 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `scratchpad/` | The window manager's scratchpad: the one store the bar button and both `[shortcuts]` keys send miracle's `scratchpad show` / `move scratchpad` through. No count or shown state — miracle keeps stashed windows out of `GET_TREE` |
 | `switcher/` | Alt+Tab: the open-window list over `ext-foreign-toplevel-list`, its recency order, the overlay and the switch itself |
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
+| `default_apps/` | Settings › Default Apps over GIO: the category table and claim rule (pure), the `g_app_info_*_default_for_type` bindings behind an interface tests fake, and the leased store. No copy of `mimeapps.list` of its own — every write is read back, and one a `$desktop-mimeapps.list` outranks is a banner naming that file |
 | `keybinds/` | The cheat sheet behind the bar's keyboard icon: miracle's own bindings over `GET_KEYBINDS` and the shell's own `[shortcuts]`, the pure models that turn either into key caps, their two stores, the key-press capture and the overlay |
 
 Feature-level rationale that used to live in this file is in the git history of `CLAUDE.md` and in the doc comments of the files themselves.

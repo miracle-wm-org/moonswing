@@ -21,7 +21,7 @@ class SettingsRoute {
   final String tab;
 
   /// One of the settings sidebar ids: `network`, `bluetooth`, `display`,
-  /// `audio`, `keyboard`, `miracle`, `accounts`, `shell`.
+  /// `audio`, `keyboard`, `miracle`, `default_apps`, `accounts`, `shell`.
   final String category;
 
   /// A `_ShellCategory.title` inside the Shell pane, e.g. `Background`. Null
@@ -65,6 +65,11 @@ class SettingsRoute {
 
   /// Where anything offering to configure the *compositor* goes.
   static const SettingsRoute windowManager = SettingsRoute(category: 'miracle');
+
+  /// Where the applications that open each kind of file are chosen — the
+  /// default browser, file manager, image viewer.
+  static const SettingsRoute defaultApps =
+      SettingsRoute(category: 'default_apps');
 
   @override
   bool operator ==(Object other) =>

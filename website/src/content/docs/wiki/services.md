@@ -49,6 +49,22 @@ session with no systemd user manager (or a shell cgroup outside its delegated su
 the scope and nothing else, and a `ServiceUnknown` is remembered so twenty launches are not
 twenty doomed round trips.
 
+## Default applications are GIO's, not the shell's
+
+Settings › Default Apps — the default browser, file manager, image viewer, and a default for
+every type an installed application declares — keeps no state of its own. It reads and writes
+the user's XDG `mimeapps.list` through GIO (`g_app_info_get_default_for_type`,
+`g_app_info_set_as_default_for_type`, `g_app_info_reset_type_associations`), the
+specification's reference implementation and a library already in the process, so a choice
+made there is the one `xdg-open`, every GTK and Qt application and the shell's own desktop
+grid follow.
+
+A row stands for a family of types: a browser is `https:` and `http:` links *and* saved web
+pages, an image viewer every `image/*` it declares. The extra types are claimed only where the
+chosen application declares them. Every write is read back, because GIO writes only the
+generic `mimeapps.list` and a desktop-specific `miracle-wm-mimeapps.list` outranks it — a
+choice that did not take is a banner naming that file, never a silent no-op.
+
 ## polkit
 
 **The shell never authenticates anybody itself.** Only the setuid-root
