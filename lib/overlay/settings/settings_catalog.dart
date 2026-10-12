@@ -14,6 +14,7 @@ library;
 
 import 'package:flutter/foundation.dart' show immutable;
 
+import 'package:moonswing/default_apps/default_app_model.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 
@@ -71,6 +72,17 @@ SettingsField _shellPane(
   section: section,
   description: description,
   tags: tags,
+);
+
+/// A row of the Default Apps pane, built from the pane's own table so the label
+/// is spelled once — see [DefaultAppCategory.label].
+SettingsField _defaultApp(DefaultAppCategory category) => SettingsField(
+  id: 'default_apps.${category.id}',
+  label: category.label,
+  section: 'Default Apps',
+  route: SettingsRoute.defaultApps,
+  description: category.description,
+  tags: category.tags,
 );
 
 /// The index.
@@ -1359,6 +1371,44 @@ abstract final class SettingsCatalog {
   ];
 
   // -------------------------------------------------------------------------
+  // Default Apps
+  // -------------------------------------------------------------------------
+
+  static final defaultAppsPane = _pane(
+    'default_apps',
+    'Default Apps',
+    'Default applications',
+    description:
+        'Which application opens links, folders, pictures, music, video and '
+        'every other kind of file.',
+    tags: const [
+      'default',
+      'browser',
+      'open with',
+      'xdg-open',
+      'mime',
+      'file type',
+      'association',
+      'handler',
+      'mimeapps',
+    ],
+  );
+
+  /// The "Defaults" rows, one per [kDefaultAppCategories] entry, in its order.
+  static final List<SettingsField> defaultAppFields = [
+    for (final category in kDefaultAppCategories) _defaultApp(category),
+  ];
+
+  static final Map<String, SettingsField> _defaultAppFieldsById = {
+    for (final field in defaultAppFields) field.id: field,
+  };
+
+  /// The catalogue entry for [category]'s row.
+  static SettingsField defaultApp(DefaultAppCategory category) =>
+      _defaultAppFieldsById['default_apps.${category.id}'] ??
+      _defaultApp(category);
+
+  // -------------------------------------------------------------------------
   // Window Manager (miracle-wm's own configuration)
   // -------------------------------------------------------------------------
   //
@@ -2157,6 +2207,8 @@ abstract final class SettingsCatalog {
     caldavAccount,
     githubAccount,
     ..._hardware,
+    defaultAppsPane,
+    ...defaultAppFields,
     ...miracleFields,
   ];
 

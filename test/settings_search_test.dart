@@ -22,6 +22,7 @@ const _sidebarCategories = {
   'audio',
   'keyboard',
   'miracle',
+  'default_apps',
   'accounts',
   'shell',
 };
@@ -193,6 +194,7 @@ void main() {
           'Displays and resolution',
           'Sound output and input',
           'Keyboard layout',
+          'Default applications',
           'Google accounts',
           'CalDAV accounts',
           'GitHub account',
@@ -212,7 +214,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(22));
+      expect(unhighlightable, hasLength(23));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its
