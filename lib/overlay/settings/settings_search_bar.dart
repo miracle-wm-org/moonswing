@@ -181,6 +181,8 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Focus(
+      // The field below is the Tab stop; this only hears what it declines.
+      skipTraversal: true,
       onKeyEvent: _onKey,
       child: Stack(
         children: [
