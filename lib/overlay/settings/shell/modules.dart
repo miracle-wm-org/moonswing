@@ -336,6 +336,10 @@ final List<_ModuleGroup> _moduleGroups = [
       defaultValue: const StockConfig().refreshSeconds,
       isInt: true,
     ),
+    _ModuleSetting.toggle(
+      SettingsCatalog.stocksScroll,
+      defaultValue: const StockConfig().scroll,
+    ),
     _ModuleSetting.number(
       SettingsCatalog.stocksScrollSpeed,
       defaultValue: const StockConfig().scrollSpeed,

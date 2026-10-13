@@ -21,6 +21,7 @@ class StockConfig {
   const StockConfig({
     this.symbols = const [],
     this.refreshSeconds = 15,
+    this.scroll = true,
     this.scrollSpeed = 40,
     this.width = 320,
   });
@@ -37,10 +38,15 @@ class StockConfig {
   /// the store polls far less often — see `StockStore`.
   final int refreshSeconds;
 
+  /// Whether the strip crawls at all. Off, a horizontal bar shows the first
+  /// ticker on the watchlist standing still, sized to its own text — the
+  /// rest of the list stays a click away — and no ticker runs.
+  final bool scroll;
+
   /// How fast the strip crawls, in logical pixels a second.
   final double scrollSpeed;
 
-  /// How wide the strip is in a horizontal bar. A crawl needs a window to
+  /// How wide the strip is in a horizontal bar while it crawls. A crawl needs a window to
   /// crawl through, and sized to its content it would be the width of the
   /// whole watchlist.
   final double width;
@@ -61,6 +67,7 @@ class StockConfig {
       // Bounded below: this is a timer period against somebody else's API,
       // and `refresh_seconds = 0` is a tight loop.
       refreshSeconds: map.intOr('refresh_seconds', 15, min: 5, max: 3600),
+      scroll: map.boolOr('scroll', true),
       scrollSpeed: map.doubleOr('scroll_speed', 40, min: 5, max: 400),
       width: map.doubleOr('width', 320, min: 80, max: 2000),
     );
@@ -72,10 +79,16 @@ class StockConfig {
       other is StockConfig &&
           listEquals(other.symbols, symbols) &&
           other.refreshSeconds == refreshSeconds &&
+          other.scroll == scroll &&
           other.scrollSpeed == scrollSpeed &&
           other.width == width;
 
   @override
-  int get hashCode =>
-      Object.hash(Object.hashAll(symbols), refreshSeconds, scrollSpeed, width);
+  int get hashCode => Object.hash(
+        Object.hashAll(symbols),
+        refreshSeconds,
+        scroll,
+        scrollSpeed,
+        width,
+      );
 }

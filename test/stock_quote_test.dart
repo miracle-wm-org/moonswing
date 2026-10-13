@@ -279,8 +279,15 @@ void main() {
       expect(StockConfig.fromMap(null), config);
       expect(config.symbols, isEmpty);
       expect(config.refreshSeconds, 15);
+      expect(config.scroll, isTrue);
       expect(config.scrollSpeed, 40);
       expect(config.width, 320);
+    });
+
+    test('scroll = false is read, and is a change', () {
+      final config = StockConfig.fromMap({'scroll': false});
+      expect(config.scroll, isFalse);
+      expect(config, isNot(const StockConfig()));
     });
 
     test('normalizes, de-duplicates and drops what is not a symbol', () {
@@ -294,11 +301,13 @@ void main() {
       final config = StockConfig.fromMap({
         'symbols': 'AAPL',
         'refresh_seconds': 0,
+        'scroll': 'no',
         'scroll_speed': 10000.0,
         'width': 'wide',
       });
       expect(config.symbols, isEmpty);
       expect(config.refreshSeconds, 5);
+      expect(config.scroll, isTrue);
       expect(config.scrollSpeed, 400);
       expect(config.width, 320);
     });

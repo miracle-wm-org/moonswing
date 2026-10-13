@@ -147,6 +147,25 @@ void main() {
       expect(moved, moved.roundToDouble());
     });
 
+    testWidgets('scroll = false shows the first ticker, standing still',
+        (tester) async {
+      final store = seeded(['AAPL', 'MSFT', '^GSPC']);
+      await pumpBar(
+        tester,
+        store,
+        config: const StockConfig(scroll: false, width: 120),
+      );
+      expect(find.byType(TickerCrawl), findsNothing);
+      expect(find.text('AAPL'), findsOneWidget);
+      expect(find.text('MSFT'), findsNothing);
+      expect(find.text('S&P 500'), findsNothing);
+      expect(tester.binding.transientCallbackCount, 0);
+
+      final first = tester.getTopLeft(find.text('AAPL'));
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.getTopLeft(find.text('AAPL')), first);
+    });
+
     testWidgets('a side bar shows the mark, not a crawl', (tester) async {
       final store = seeded(['AAPL', 'MSFT']);
       await pumpBar(tester, store, anchor: 'left');
