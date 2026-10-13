@@ -439,6 +439,58 @@ void main() {
     expect(closing.value, isTrue);
   });
 
+  testWidgets(
+    'Tab walks the editor\'s fields and stays in the editor',
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+    (tester) async {
+      await pump(tester, []);
+      await tester.tap(
+        find
+            .byWidgetPredicate(
+              (w) => w.runtimeType.toString() == 'SettingsIconButton',
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      // Repeating, so the form has all five of its fields.
+      await tester.tap(find.byType(SettingsToggle));
+      await tester.pumpAndSettle();
+
+      final fields = find.descendant(
+        of: find.byType(SettingsTextField),
+        matching: find.byType(EditableText),
+      );
+      expect(fields, findsNWidgets(5));
+      int focused() => [
+        for (var i = 0; i < 5; i++)
+          tester.widget<EditableText>(fields.at(i)).focusNode.hasPrimaryFocus,
+      ].indexOf(true);
+      Future<void> tab({bool shift = false}) async {
+        if (shift) await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        if (shift) await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+      }
+
+      // Title, details, due, every, starting — then round to the title
+      // again, never out to the board's search behind the scrim.
+      expect(focused(), 0);
+      for (final next in [1, 2, 3, 4, 0]) {
+        await tab();
+        expect(focused(), next);
+      }
+      await tab(shift: true);
+      expect(focused(), 4);
+
+      // Tab moves the focus rather than typing into the field it leaves.
+      await tab(shift: true);
+      await tab(shift: true);
+      await tab(shift: true);
+      expect(focused(), 1);
+      expect(tester.widget<EditableText>(fields.at(1)).controller.text, '');
+    },
+  );
+
   Future<void> rightClick(WidgetTester tester, Finder finder) async {
     final gesture = await tester.startGesture(
       tester.getCenter(finder),
