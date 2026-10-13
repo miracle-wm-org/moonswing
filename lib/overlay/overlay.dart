@@ -28,6 +28,7 @@ import 'package:moonswing/overlay/system/system_tab.dart';
 import 'package:moonswing/overlay/system_info/system_info_tab.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/tab_focus_traversal.dart';
 
 /// The panel is a share of the display rather than a fixed box, so it reads the
 /// same on a 1080p laptop and on a 4K desktop. 16:10 is a little squarer than
@@ -129,7 +130,8 @@ class SettingsOverlay extends StatefulWidget {
 }
 
 class _SettingsOverlayState extends State<SettingsOverlay> {
-  final _focusNode = FocusNode();
+  // Listens for Escape and Ctrl+F; never a Tab stop of its own.
+  final _focusNode = FocusNode(skipTraversal: true);
 
   // Where a picked search result is published, and who is listening for it:
   // the Shell pane pushes the category's route, its category view holds that
@@ -249,50 +251,53 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       // Ctrl+A, …) that WidgetsApp normally supplies are absent. Provide them
       // here so every EditableText in the settings UI — including the
       // color-picker popup, which is inserted into the Overlay below — handles
-      // editing keys instead of dropping them.
+      // editing keys instead of dropping them. Tab between fields is the other
+      // half a WidgetsApp would have supplied.
       child: DefaultTextEditingShortcuts(
-        child: DefaultTextStyle(
-          style: TextStyle(
-            fontFamily: theme.fontFamily,
-            fontSize: 14,
-            color: theme.popupForeground,
-          ),
-          child: KeyboardListener(
-            focusNode: _focusNode,
-            autofocus: true,
-            onKeyEvent: (event) {
-              if (event is! KeyDownEvent) return;
-              if (event.logicalKey == LogicalKeyboardKey.escape) {
-                _requestClose();
-                return;
-              }
-              // Ctrl+F focuses the settings search, which is the binding
-              // `file_picker.dart` already answers to for its own search box.
-              // Read here rather than on the field because this listener is
-              // the panel's root, so it sees the key wherever the pointer and
-              // the focus happen to be; it is gated on the tab because the
-              // search bar is the Settings tab's alone.
-              if (event.logicalKey == LogicalKeyboardKey.keyF &&
-                  HardwareKeyboard.instance.isControlPressed &&
-                  _selectedTab == 'settings') {
-                _searchFocus.requestFocus();
-              }
-            },
-            // Every popup this window opens paints opaque, whatever alpha
-            // the theme gives `popup_background`: the dropdowns, the colour
-            // picker, the confirmations and the file picker all float over
-            // the panel's own dense text, and a see-through card over it
-            // leaves neither layer readable. Above the Overlay rather than
-            // inside the panel, because that is where `showRootModal` and
-            // every `AnchoredSearchDropdown` insert their cards.
-            // Above the Overlay, so the panel *and* everything floating
-            // over it can read the pending jump — the results card is a
-            // sibling of the pane it sends the user to.
-            child: SettingsHighlightScope(
-              controller: _highlight,
-              onJump: _jumpToSetting,
-              child: OpaquePopupScope(
-                child: Overlay(initialEntries: [_panelEntry]),
+        child: TabFocusTraversal(
+          child: DefaultTextStyle(
+            style: TextStyle(
+              fontFamily: theme.fontFamily,
+              fontSize: 14,
+              color: theme.popupForeground,
+            ),
+            child: KeyboardListener(
+              focusNode: _focusNode,
+              autofocus: true,
+              onKeyEvent: (event) {
+                if (event is! KeyDownEvent) return;
+                if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  _requestClose();
+                  return;
+                }
+                // Ctrl+F focuses the settings search, which is the binding
+                // `file_picker.dart` already answers to for its own search box.
+                // Read here rather than on the field because this listener is
+                // the panel's root, so it sees the key wherever the pointer and
+                // the focus happen to be; it is gated on the tab because the
+                // search bar is the Settings tab's alone.
+                if (event.logicalKey == LogicalKeyboardKey.keyF &&
+                    HardwareKeyboard.instance.isControlPressed &&
+                    _selectedTab == 'settings') {
+                  _searchFocus.requestFocus();
+                }
+              },
+              // Every popup this window opens paints opaque, whatever alpha
+              // the theme gives `popup_background`: the dropdowns, the colour
+              // picker, the confirmations and the file picker all float over
+              // the panel's own dense text, and a see-through card over it
+              // leaves neither layer readable. Above the Overlay rather than
+              // inside the panel, because that is where `showRootModal` and
+              // every `AnchoredSearchDropdown` insert their cards.
+              // Above the Overlay, so the panel *and* everything floating
+              // over it can read the pending jump — the results card is a
+              // sibling of the pane it sends the user to.
+              child: SettingsHighlightScope(
+                controller: _highlight,
+                onJump: _jumpToSetting,
+                child: OpaquePopupScope(
+                  child: Overlay(initialEntries: [_panelEntry]),
+                ),
               ),
             ),
           ),
