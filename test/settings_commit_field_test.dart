@@ -137,4 +137,30 @@ void main() {
     final field = find.byType(EditableText).first;
     expect(tester.widget<EditableText>(field).controller.text, 'two');
   });
+
+  testWidgets('a field focus leaves keeps no selection', (tester) async {
+    await pump(
+      tester,
+      SettingsCommitField(initial: 'foot', onCommitted: (_) {}),
+    );
+
+    EditableText editable(Finder f) => tester.widget<EditableText>(f);
+    final first = find.byType(EditableText).first;
+    final last = find.byType(EditableText).last;
+
+    // What tabbing in does: a desktop single-line field selects all of itself.
+    editable(first).focusNode.requestFocus();
+    await tester.pump();
+    expect(
+      editable(first).controller.selection,
+      const TextSelection(baseOffset: 0, extentOffset: 4),
+    );
+
+    editable(last).focusNode.requestFocus();
+    await tester.pump();
+    expect(
+      editable(first).controller.selection,
+      const TextSelection.collapsed(offset: 4),
+    );
+  }, variant: TargetPlatformVariant.only(TargetPlatform.linux));
 }

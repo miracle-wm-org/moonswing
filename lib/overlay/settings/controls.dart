@@ -1833,7 +1833,24 @@ class _SettingsTextFieldState extends State<SettingsTextField>
   // element.
   void _onFocusChanged() {
     if (!mounted) return;
-    setState(() => _focused = _focusNode.hasFocus);
+    final focused = _focusNode.hasFocus;
+    if (!focused) _collapseSelection();
+    setState(() => _focused = focused);
+  }
+
+  /// Drops the selection a field is left holding.
+  ///
+  /// A desktop single-line [EditableText] selects all of itself when focus
+  /// arrives and does nothing to the selection when it leaves, while
+  /// [EditableText.selectionColor] is painted focused or not — so tabbing
+  /// through a page left every field it passed fully highlighted. Collapsed to
+  /// the extent, so coming back by click or arrow key starts where the user was.
+  void _collapseSelection() {
+    final selection = _controller.selection;
+    if (!selection.isValid || selection.isCollapsed) return;
+    _controller.selection = TextSelection.collapsed(
+      offset: selection.extentOffset,
+    );
   }
 
   @override
