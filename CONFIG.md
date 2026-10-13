@@ -1785,6 +1785,42 @@ max_fps = 0
 
 There is deliberately no D-Bus activation file: the shell owns the backend name from session start, so screen sharing cannot start the shell. If the shell is not running, screen sharing is simply unavailable.
 
+## Input Capture
+
+The `[input_capture]` section configures the shell's **xdg-desktop-portal InputCapture backend** — what lets a keyboard-and-mouse sharing application such as [DeskFlow](https://github.com/deskflow/deskflow) or Input Leap use this computer as the one whose keyboard and mouse are shared. The application asks once; the shell shows a prompt naming it, and nothing is captured unless you press **Allow**. Escape, a click outside, or Deny refuses.
+
+Once allowed, the application draws its *barriers* — the screen edges its other computers sit beyond. Push the pointer through one and the cursor stays put, hidden, while every key, click, scroll and movement goes to the application (over a libei socket) instead of to anything on this computer, until the application hands them back.
+
+**Super+Shift+Escape always takes the keyboard and mouse back**, and stops that application capturing again until it asks anew — so an application that hangs or misbehaves while holding your input cannot keep it.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | boolean | `true` | Whether to serve InputCapture at all. Set false to leave it to another backend, or to nobody. |
+
+```toml
+[input_capture]
+enabled = true
+```
+
+### Requirements
+
+- **libeis**, libei's server library — `libeis1` on Debian and on Ubuntu 24.04 and later. The snap carries its own. Without it the feature disables itself and logs why.
+- **A compositor with `wlr-layer-shell`, `relative-pointer` and `pointer-constraints`.** sway and the other wlroots compositors have all three; on any compositor missing one, the shell logs which.
+- **The portal files**, the same ones as screen sharing: the shell's `.portal` lists both interfaces, and the `-portals.conf` routes both to it. An existing `*-portals.conf` of your own needs one more line under `[preferred]`:
+
+  ```ini
+  org.freedesktop.impl.portal.InputCapture=moonswing
+  ```
+
+  The snap adds that line itself to a conf *it* wrote before the shell served InputCapture; one you wrote is left for you to change. Turning `[screenshare] enabled` off stops the snap registering the portal files at all, including for input capture.
+
+### How it behaves
+
+- **The last pixel of an armed edge belongs to the shell.** The shell can only see the pointer reach an edge through a surface of its own, so while an application has barriers armed, a one-pixel strip along that edge takes clicks that would have landed on whatever was under it. Nothing is there while no application is armed.
+- **A barrier must be on the outside of your screens.** The edge where two monitors meet is refused, so moving between your own monitors is never captured.
+- **Plugging or unplugging a monitor ends a capture** and asks the application to draw its barriers again.
+- **A lock screen ends a capture**, so a password is never typed into the other computer.
+
 ## Full Example
 
 ```toml

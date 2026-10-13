@@ -4,6 +4,7 @@
 //   dart compile exe tool/screencast_spike.dart -o /tmp/spike
 //   WAYLAND_DISPLAY=wayland-99 /tmp/spike            # registry + outputs
 //   WAYLAND_DISPLAY=wayland-99 /tmp/spike --capture  # + stream 3 frames/output
+//   WAYLAND_DISPLAY=wayland-99 /tmp/spike --input-capture  # InputCapture backend
 //
 // Compiled `dart` has no Flutter engine, which is why the whole lib/screencast +
 // lib/wayland_ffi stack is Flutter-free. Blocking roundtrips stand in for the
@@ -14,6 +15,9 @@ import 'dart:async';
 import 'dart:ffi'; // for the Pointer.asTypedList extension
 import 'dart:io';
 
+import 'package:moonswing/input_capture/consent_types.dart';
+import 'package:moonswing/input_capture/input_capture_log.dart';
+import 'package:moonswing/input_capture/input_capture_service.dart';
 import 'package:moonswing/pipewire/spa_pod.dart';
 import 'package:moonswing/pipewire/video_stream.dart';
 import 'package:moonswing/screencast/capture_connection.dart';
@@ -25,6 +29,12 @@ import 'package:moonswing/wayland_ffi/wl_protocols.dart';
 
 Future<void> main(List<String> argv) async {
   screencastLog = say;
+  inputCaptureLog = say;
+
+  if (argv.contains('--input-capture')) {
+    await _runInputCapture();
+    return; // owns the process from here
+  }
 
   final connection = CaptureConnection.connect(attachToGlibLoop: false);
   if (connection == null) {
@@ -100,6 +110,39 @@ Future<void> _runPortal(List<String> argv) async {
   // pumped by hand. The interval doubles as the frame cadence.
   Timer.periodic(const Duration(milliseconds: 8), (_) => service.pumpManually());
   await Completer<void>().future; // run until killed
+}
+
+/// Runs the real InputCapture portal backend headlessly: the same D-Bus object,
+/// Wayland surfaces and libeis contexts as the shell, with consent granted by
+/// [_AutoConsent]. Point DeskFlow at it through a real xdg-desktop-portal
+/// frontend (or `tool/input_capture_client_test.py`), push the pointer through
+/// a barrier, and Super+Shift+Escape takes input back.
+Future<void> _runInputCapture() async {
+  say('starting InputCapture portal backend (headless auto-accept)...');
+  await startInputCaptureService(
+    consent: _AutoConsent(),
+    attachToGlibLoop: false,
+  );
+  final service = inputCaptureService;
+  if (service == null) {
+    say('FAIL: service did not start');
+    exit(1);
+  }
+  say('zones: ${service.controller.zones} — Ctrl-C to stop');
+  Timer.periodic(const Duration(milliseconds: 4), (_) => service.pumpManually());
+  await Completer<void>().future; // run until killed
+}
+
+class _AutoConsent implements InputCaptureConsent {
+  @override
+  Future<bool> ask(InputCaptureConsentRequest request) async {
+    say('  input capture requested by "${request.appId}" '
+        '(keyboard=${request.keyboard} pointer=${request.pointer}) — allowing');
+    return true;
+  }
+
+  @override
+  void cancel() {}
 }
 
 /// Grants every request, choosing the first available source of the requested

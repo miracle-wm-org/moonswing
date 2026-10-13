@@ -43,17 +43,18 @@ install-pam:
 	install -m 644 pam/moonswing $(PAMDIR)/moonswing
 	@echo "Installed PAM service to $(PAMDIR)/moonswing."
 
-# Registers the shell as the ScreenCast portal backend. No D-Bus activation
-# file: the shell owns the name from session start, and screen sharing should
-# not be able to start the shell.
+# Registers the shell as the ScreenCast and InputCapture portal backend. No
+# D-Bus activation file: the shell owns the name from session start, and screen
+# or input sharing should not be able to start the shell.
 install-portal:
 	install -d $(PORTALDIR) $(PORTALCONFDIR)
 	install -m 644 portal/moonswing.portal $(PORTALDIR)/moonswing.portal
 	@if [ -f $(PORTALCONFDIR)/mir-portals.conf ]; then \
 		echo "Kept existing $(PORTALCONFDIR)/mir-portals.conf — to use the"; \
-		echo "shell's screen-share picker it needs:"; \
+		echo "shell's screen-share picker and input capture it needs:"; \
 		echo "  [preferred]"; \
 		echo "  org.freedesktop.impl.portal.ScreenCast=moonswing"; \
+		echo "  org.freedesktop.impl.portal.InputCapture=moonswing"; \
 	else \
 		install -m 644 portal/moonswing-portals.conf \
 			$(PORTALCONFDIR)/mir-portals.conf; \

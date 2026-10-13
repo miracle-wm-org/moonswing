@@ -78,7 +78,7 @@ const PAGES = [
     title: 'Overlays and system integration',
     description:
       'The emoji picker, calendar, notifications, on-screen indicator, ' +
-      'power button, authentication prompts and screen sharing.',
+      'power button, authentication prompts, screen sharing and input capture.',
     sections: [
       'Emoji Picker',
       'Calendar',
@@ -87,6 +87,7 @@ const PAGES = [
       'Power Button',
       'Authentication Prompts',
       'Screen Sharing',
+      'Input Capture',
     ],
   },
   {

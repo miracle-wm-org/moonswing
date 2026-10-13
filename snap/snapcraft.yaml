@@ -200,7 +200,35 @@ parts:
       - -usr/include
       - -usr/lib/*/pkgconfig
 
-  # The ScreenCast portal backend files. They are *staged*, not installed:
+  # The InputCapture backend dlopens libeis.so.1 (lib/input_capture/eis_ffi.dart)
+  # and reports the feature failed when it is absent. core22 predates libei — it
+  # entered Ubuntu in noble — and so does a host on an older release, so the
+  # server half is built here. Only libeis is kept: the client half, libei, is
+  # the *application's* (DeskFlow links its own), and liboeffis is for
+  # RemoteDesktop. libeis needs nothing at run time beyond libc, so it brings no
+  # second copy of anything the host already has mapped.
+  libeis:
+    plugin: meson
+    source: https://gitlab.freedesktop.org/libinput/libei.git
+    source-tag: 1.2.1
+    meson-parameters:
+      - --prefix=/usr
+      - --buildtype=release
+      - -Dtests=disabled
+      - -Dliboeffis=disabled
+      - -Ddocumentation=[]
+    build-packages:
+      - meson
+      - ninja-build
+      - pkg-config
+      # The protocol scanner (proto/ei-scanner) is Python with these two.
+      - python3
+      - python3-attr
+      - python3-jinja2
+    prime:
+      - usr/lib/*/libeis.so*
+
+  # The portal backend files (ScreenCast and InputCapture). They are *staged*, not installed:
   # xdg-desktop-portal reads them from a search path a snap cannot write at
   # build time, so they are copied out at run time instead — machine-wide by
   # snap/hooks/install (via bin/moonswing-portal-setup below) and per-user

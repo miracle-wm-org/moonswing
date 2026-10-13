@@ -187,4 +187,37 @@ void main() {
     checkInterface(
         xml, 'ext_foreign_toplevel_handle_v1', () => ifaces.toplevelHandle);
   });
+
+  group('wlr-layer-shell-unstable-v1', () {
+    final ifaces = WlProtocolInterfaces.instance;
+    const xml = 'wlr-layer-shell-unstable-v1.xml';
+    checkInterface(xml, 'zwlr_layer_shell_v1', () => ifaces.layerShell);
+    checkInterface(xml, 'zwlr_layer_surface_v1', () => ifaces.layerSurface);
+  });
+
+  group('relative-pointer-unstable-v1', () {
+    final ifaces = WlProtocolInterfaces.instance;
+    const xml = 'relative-pointer-unstable-v1.xml';
+    checkInterface(xml, 'zwp_relative_pointer_manager_v1',
+        () => ifaces.relativePointerManager);
+    checkInterface(
+        xml, 'zwp_relative_pointer_v1', () => ifaces.relativePointer);
+  });
+
+  group('pointer-constraints-unstable-v1', () {
+    final ifaces = WlProtocolInterfaces.instance;
+    const xml = 'pointer-constraints-unstable-v1.xml';
+    checkInterface(
+        xml, 'zwp_pointer_constraints_v1', () => ifaces.pointerConstraints);
+    checkInterface(xml, 'zwp_locked_pointer_v1', () => ifaces.lockedPointer);
+    checkInterface(
+        xml, 'zwp_confined_pointer_v1', () => ifaces.confinedPointer);
+  });
+
+  group('xdg-output-unstable-v1', () {
+    final ifaces = WlProtocolInterfaces.instance;
+    const xml = 'xdg-output-unstable-v1.xml';
+    checkInterface(xml, 'zxdg_output_manager_v1', () => ifaces.xdgOutputManager);
+    checkInterface(xml, 'zxdg_output_v1', () => ifaces.xdgOutput);
+  });
 }

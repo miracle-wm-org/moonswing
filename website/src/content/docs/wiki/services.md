@@ -11,7 +11,14 @@ The shell exports four surfaces on the session bus:
 - `org.kde.StatusNotifierWatcher`, plus the host (with a `com.canonical.dbusmenu` client for
   tray menus)
 - `org.freedesktop.PolicyKit1.AuthenticationAgent`
-- the ScreenCast portal backend, on its own name
+- the xdg-desktop-portal backend — ScreenCast and InputCapture — on its own name
+
+The two portal interfaces share that name because a `.portal` file names one bus name and the
+frontend calls every interface behind it at one path. So one connection owns the name and one
+object at `/org/freedesktop/portal/desktop` serves the union of both backends' interfaces
+(`lib/portal_bus.dart`); each contributes its table and takes it back, and the last one out
+gives the name up. Either can be switched off, or fail on its own, without taking the other
+with it.
 
 Every exported object extends `DBusServiceObject`, where **one interface table** drives
 `handleMethodCall`'s guard and dispatch, `getProperty`, `getAllProperties` and `introspect`.

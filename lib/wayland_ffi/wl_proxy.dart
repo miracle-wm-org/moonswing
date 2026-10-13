@@ -137,6 +137,35 @@ typedef _CGeometry = ffi.Void Function(
     ffi.Pointer<Utf8>,
     ffi.Int32);
 
+typedef _CII = ffi.Void Function(
+    ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>, ffi.Int32, ffi.Int32);
+typedef _CUI = ffi.Void Function(
+    ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Int32);
+typedef _CUII = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>,
+    ffi.Uint32, ffi.Int32, ffi.Int32);
+typedef _CUUI = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>,
+    ffi.Uint32, ffi.Uint32, ffi.Int32);
+typedef _CUIU = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>,
+    ffi.Uint32, ffi.Int32, ffi.Uint32);
+typedef _CUUUU = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>,
+    ffi.Uint32, ffi.Uint32, ffi.Uint32, ffi.Uint32);
+typedef _CUUUUU = ffi.Void Function(ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Void>, ffi.Uint32, ffi.Uint32, ffi.Uint32, ffi.Uint32,
+    ffi.Uint32);
+typedef _CUPII = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>,
+    ffi.Uint32, ffi.Pointer<ffi.Void>, ffi.Int32, ffi.Int32);
+typedef _CUPP = ffi.Void Function(ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>,
+    ffi.Uint32, ffi.Pointer<ffi.Void>, ffi.Pointer<ffi.Void>);
+typedef _CUUIIII = ffi.Void Function(
+    ffi.Pointer<ffi.Void>,
+    ffi.Pointer<ffi.Void>,
+    ffi.Uint32,
+    ffi.Uint32,
+    ffi.Int32,
+    ffi.Int32,
+    ffi.Int32,
+    ffi.Int32);
+
 ffi.Pointer<ffi.Void> _park(ffi.NativeCallable callable) {
   _keepAliveCallables.add(callable);
   return callable.nativeFunction.cast();
@@ -230,3 +259,84 @@ ffi.Pointer<ffi.Void> evGeometry(
                 y,
                 make.address == 0 ? '' : make.toDartString(),
                 model.address == 0 ? '' : model.toDartString())));
+
+// The input-capture path's signatures. `fixed` (`wl_fixed_t`) arrives as the
+// raw Int32 — 24.8 fixed point — and is converted by the caller with
+// [wlFixedToDouble]; an `fd` (`h`) is an Int32 the receiver now owns.
+
+ffi.Pointer<ffi.Void> evII(void Function(int proxy, int a, int b) fn) =>
+    _park(ffi.NativeCallable<_CII>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b) =>
+            fn(p.address, a, b)));
+
+ffi.Pointer<ffi.Void> evUI(void Function(int proxy, int a, int b) fn) =>
+    _park(ffi.NativeCallable<_CUI>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b) =>
+            fn(p.address, a, b)));
+
+ffi.Pointer<ffi.Void> evUII(void Function(int proxy, int a, int b, int c) fn) =>
+    _park(ffi.NativeCallable<_CUII>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b,
+                int c) =>
+            fn(p.address, a, b, c)));
+
+ffi.Pointer<ffi.Void> evUUI(void Function(int proxy, int a, int b, int c) fn) =>
+    _park(ffi.NativeCallable<_CUUI>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b,
+                int c) =>
+            fn(p.address, a, b, c)));
+
+/// `uhu` — `wl_keyboard.keymap`'s format, fd and size.
+ffi.Pointer<ffi.Void> evUIU(void Function(int proxy, int a, int b, int c) fn) =>
+    _park(ffi.NativeCallable<_CUIU>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b,
+                int c) =>
+            fn(p.address, a, b, c)));
+
+ffi.Pointer<ffi.Void> evUUUU(
+        void Function(int proxy, int a, int b, int c, int e) fn) =>
+    _park(ffi.NativeCallable<_CUUUU>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b,
+                int c, int e) =>
+            fn(p.address, a, b, c, e)));
+
+ffi.Pointer<ffi.Void> evUUUUU(
+        void Function(int proxy, int a, int b, int c, int e, int f) fn) =>
+    _park(ffi.NativeCallable<_CUUUUU>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b,
+                int c, int e, int f) =>
+            fn(p.address, a, b, c, e, f)));
+
+/// `uoff` — `wl_pointer.enter`: serial, surface, surface-local x/y.
+ffi.Pointer<ffi.Void> evUPII(
+        void Function(int proxy, int a, ffi.Pointer<ffi.Void> b, int c, int e)
+            fn) =>
+    _park(ffi.NativeCallable<_CUPII>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a,
+                ffi.Pointer<ffi.Void> b, int c, int e) =>
+            fn(p.address, a, b, c, e)));
+
+/// `uoa` — `wl_keyboard.enter`: serial, surface, the keys already down.
+ffi.Pointer<ffi.Void> evUPP(
+        void Function(int proxy, int a, ffi.Pointer<ffi.Void> b,
+                ffi.Pointer<ffi.Void> c)
+            fn) =>
+    _park(ffi.NativeCallable<_CUPP>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a,
+                ffi.Pointer<ffi.Void> b, ffi.Pointer<ffi.Void> c) =>
+            fn(p.address, a, b, c)));
+
+/// `uuffff` — `zwp_relative_pointer_v1.relative_motion`.
+ffi.Pointer<ffi.Void> evUUIIII(
+        void Function(int proxy, int a, int b, int c, int e, int f, int g)
+            fn) =>
+    _park(ffi.NativeCallable<_CUUIIII>.isolateLocal(
+        (ffi.Pointer<ffi.Void> d, ffi.Pointer<ffi.Void> p, int a, int b,
+                int c, int e, int f, int g) =>
+            fn(p.address, a, b, c, e, f, g)));
+
+/// `wl_fixed_t` (signed 24.8) to a double.
+double wlFixedToDouble(int fixed) => fixed / 256.0;
+
+/// A double to `wl_fixed_t`, for `fixed` request arguments.
+int wlDoubleToFixed(double value) => (value * 256.0).round();

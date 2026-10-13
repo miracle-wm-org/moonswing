@@ -1,5 +1,6 @@
 #!/bin/sh
-# System-wide ScreenCast portal registration, run from the snap's install,
+# System-wide portal registration (ScreenCast and InputCapture, one backend
+# name), run from the snap's install,
 # post-refresh and remove hooks. Staged as $SNAP/bin/moonswing-portal-setup.
 #
 # Classic confinement runs hooks unconfined in the host namespace, so root can

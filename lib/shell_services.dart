@@ -46,6 +46,10 @@ enum ShellService {
   /// The xdg-desktop-portal ScreenCast backend.
   screencast,
 
+  /// The xdg-desktop-portal InputCapture backend, which shares the ScreenCast
+  /// backend's bus name.
+  inputCapture,
+
   /// The polkit authentication agent: the registration that lets anything on
   /// the desktop ask for administrator rights at all.
   polkit,

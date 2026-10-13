@@ -46,6 +46,7 @@ void main() {
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);
+      expect(config.inputCapture.enabled, isTrue);
       expect(config.power.keyAction, PowerKeyAction.menu);
       expect(config.power.inhibitLogind, isTrue);
       // With no agent registered polkitd cannot prompt at all, so every
@@ -143,6 +144,7 @@ void main() {
       expect(config.screenshare.enabled, isTrue);
       expect(config.screenshare.previewFps, 10);
       expect(config.screenshare.maxFps, 0);
+      expect(config.inputCapture.enabled, isTrue);
       // The shipped default intercepts the machine's power button and shows
       // the power menu, holding logind's lock so it cannot power off behind
       // the dialog.

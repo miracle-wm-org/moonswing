@@ -5,7 +5,7 @@ import 'package:ffi/ffi.dart';
 import 'wl_ffi.dart';
 import 'wl_types.dart';
 
-/// The `wl_interface` graph for the capture protocols, hand-transcribed from the
+/// The `wl_interface` graph for the capture and input-capture protocols, hand-transcribed from the
 /// XMLs in `protocol/` — exactly what `wayland-scanner` would emit as C, built
 /// once into calloc'd memory that is deliberately never freed: libwayland holds
 /// the pointers for the life of every proxy.
@@ -29,6 +29,11 @@ class WlProtocolInterfaces {
     wlShmPool = w.coreInterface('wl_shm_pool_interface');
     wlBuffer = w.coreInterface('wl_buffer_interface');
     wlPointer = w.coreInterface('wl_pointer_interface');
+    wlCompositor = w.coreInterface('wl_compositor_interface');
+    wlSurface = w.coreInterface('wl_surface_interface');
+    wlRegion = w.coreInterface('wl_region_interface');
+    wlSeat = w.coreInterface('wl_seat_interface');
+    wlKeyboard = w.coreInterface('wl_keyboard_interface');
 
     // Phase 1: allocate every ext interface so cross-references (session →
     // frame, list → handle, …) can be written in phase 2 regardless of order.
@@ -41,6 +46,16 @@ class WlProtocolInterfaces {
     copyCaptureCursorSession = calloc<WlInterface>();
     toplevelList = calloc<WlInterface>();
     toplevelHandle = calloc<WlInterface>();
+    layerShell = calloc<WlInterface>();
+    layerSurface = calloc<WlInterface>();
+    xdgPopupStub = calloc<WlInterface>();
+    relativePointerManager = calloc<WlInterface>();
+    relativePointer = calloc<WlInterface>();
+    pointerConstraints = calloc<WlInterface>();
+    lockedPointer = calloc<WlInterface>();
+    confinedPointer = calloc<WlInterface>();
+    xdgOutputManager = calloc<WlInterface>();
+    xdgOutput = calloc<WlInterface>();
 
     final ffi.Pointer<WlInterface> nil = ffi.nullptr;
 
@@ -160,6 +175,126 @@ class WlProtocolInterfaces {
         _msg('identifier', 's', [nil]),
       ],
     );
+
+    // --- The input-capture protocols (`lib/input_capture/`). ---
+
+    _fill(
+      layerShell,
+      'zwlr_layer_shell_v1',
+      4,
+      methods: [
+        _msg('get_layer_surface', 'no?ous',
+            [layerSurface, wlSurface, wlOutput, nil, nil]),
+        _msg('destroy', '3', []),
+      ],
+      events: [],
+    );
+    _fill(
+      layerSurface,
+      'zwlr_layer_surface_v1',
+      4,
+      methods: [
+        _msg('set_size', 'uu', [nil, nil]),
+        _msg('set_anchor', 'u', [nil]),
+        _msg('set_exclusive_zone', 'i', [nil]),
+        _msg('set_margin', 'iiii', [nil, nil, nil, nil]),
+        _msg('set_keyboard_interactivity', 'u', [nil]),
+        _msg('get_popup', 'o', [xdgPopupStub]),
+        _msg('ack_configure', 'u', [nil]),
+        _msg('destroy', '', []),
+        _msg('set_layer', '2u', [nil]),
+      ],
+      events: [
+        _msg('configure', 'uuu', [nil, nil, nil]),
+        _msg('closed', '', []),
+      ],
+    );
+    // Named so `get_popup`'s argument has an interface to point at, and
+    // nothing more: no xdg-shell object is ever made on this connection, and
+    // libwayland reads only the name of an `o` argument's interface.
+    _fill(xdgPopupStub, 'xdg_popup', 1, methods: [], events: []);
+    _fill(
+      relativePointerManager,
+      'zwp_relative_pointer_manager_v1',
+      1,
+      methods: [
+        _msg('destroy', '', []),
+        _msg('get_relative_pointer', 'no', [relativePointer, wlPointer]),
+      ],
+      events: [],
+    );
+    _fill(
+      relativePointer,
+      'zwp_relative_pointer_v1',
+      1,
+      methods: [_msg('destroy', '', [])],
+      events: [
+        _msg('relative_motion', 'uuffff', [nil, nil, nil, nil, nil, nil]),
+      ],
+    );
+    _fill(
+      pointerConstraints,
+      'zwp_pointer_constraints_v1',
+      1,
+      methods: [
+        _msg('destroy', '', []),
+        _msg('lock_pointer', 'noo?ou',
+            [lockedPointer, wlSurface, wlPointer, wlRegion, nil]),
+        _msg('confine_pointer', 'noo?ou',
+            [confinedPointer, wlSurface, wlPointer, wlRegion, nil]),
+      ],
+      events: [],
+    );
+    _fill(
+      lockedPointer,
+      'zwp_locked_pointer_v1',
+      1,
+      methods: [
+        _msg('destroy', '', []),
+        _msg('set_cursor_position_hint', 'ff', [nil, nil]),
+        _msg('set_region', '?o', [wlRegion]),
+      ],
+      events: [
+        _msg('locked', '', []),
+        _msg('unlocked', '', []),
+      ],
+    );
+    _fill(
+      confinedPointer,
+      'zwp_confined_pointer_v1',
+      1,
+      methods: [
+        _msg('destroy', '', []),
+        _msg('set_region', '?o', [wlRegion]),
+      ],
+      events: [
+        _msg('confined', '', []),
+        _msg('unconfined', '', []),
+      ],
+    );
+    _fill(
+      xdgOutputManager,
+      'zxdg_output_manager_v1',
+      3,
+      methods: [
+        _msg('destroy', '', []),
+        _msg('get_xdg_output', 'no', [xdgOutput, wlOutput]),
+      ],
+      events: [],
+    );
+    _fill(
+      xdgOutput,
+      'zxdg_output_v1',
+      3,
+      methods: [_msg('destroy', '', [])],
+      events: [
+        _msg('logical_position', 'ii', [nil, nil]),
+        _msg('logical_size', 'ii', [nil, nil]),
+        _msg('done', '', []),
+        _msg('name', '2s', [nil]),
+        _msg('description', '2s', [nil]),
+      ],
+    );
   }
 
   static WlProtocolInterfaces? _i;
@@ -173,6 +308,11 @@ class WlProtocolInterfaces {
   late final ffi.Pointer<WlInterface> wlShmPool;
   late final ffi.Pointer<WlInterface> wlBuffer;
   late final ffi.Pointer<WlInterface> wlPointer;
+  late final ffi.Pointer<WlInterface> wlCompositor;
+  late final ffi.Pointer<WlInterface> wlSurface;
+  late final ffi.Pointer<WlInterface> wlRegion;
+  late final ffi.Pointer<WlInterface> wlSeat;
+  late final ffi.Pointer<WlInterface> wlKeyboard;
 
   // Ext (hand-built).
   late final ffi.Pointer<WlInterface> captureSource;
@@ -184,6 +324,16 @@ class WlProtocolInterfaces {
   late final ffi.Pointer<WlInterface> copyCaptureCursorSession;
   late final ffi.Pointer<WlInterface> toplevelList;
   late final ffi.Pointer<WlInterface> toplevelHandle;
+  late final ffi.Pointer<WlInterface> layerShell;
+  late final ffi.Pointer<WlInterface> layerSurface;
+  late final ffi.Pointer<WlInterface> xdgPopupStub;
+  late final ffi.Pointer<WlInterface> relativePointerManager;
+  late final ffi.Pointer<WlInterface> relativePointer;
+  late final ffi.Pointer<WlInterface> pointerConstraints;
+  late final ffi.Pointer<WlInterface> lockedPointer;
+  late final ffi.Pointer<WlInterface> confinedPointer;
+  late final ffi.Pointer<WlInterface> xdgOutputManager;
+  late final ffi.Pointer<WlInterface> xdgOutput;
 
   static (String, String, List<ffi.Pointer<WlInterface>>) _msg(
           String name, String signature, List<ffi.Pointer<WlInterface>> types) =>

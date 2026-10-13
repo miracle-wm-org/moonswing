@@ -213,5 +213,11 @@ inhibit_logind = true
 enabled = true
 preview_fps = 10
 max_fps = 0
+
+# Lets a keyboard-and-mouse sharing app (DeskFlow, Input Leap) take this
+# machine's input when the pointer is pushed off a screen edge, after you allow
+# it. Super+Shift+Escape always takes the keyboard and mouse back.
+[input_capture]
+enabled = true
 ''';
 }

@@ -1,9 +1,8 @@
 import 'dart:async';
 
-import 'package:dbus/dbus.dart';
-
 import '../pipewire/spa_pod.dart';
 import '../pipewire/video_stream.dart';
+import '../portal_bus.dart';
 import 'capture_connection.dart';
 import 'capture_host.dart';
 import 'capture_session.dart';
@@ -12,8 +11,8 @@ import 'portal_frontend.dart';
 import 'screencast_log.dart';
 import 'screencast_portal.dart';
 
-const String kScreencastBusName =
-    'org.freedesktop.impl.portal.desktop.moonswing';
+/// The backend name — shared with InputCapture, see `lib/portal_bus.dart`.
+const String kScreencastBusName = kPortalBusName;
 
 ScreencastService? _service;
 
@@ -59,35 +58,33 @@ Future<void> startScreencastService({
     throw StateError('cannot reach the display');
   }
 
-  DBusClient? client;
+  if (!connection.supported) {
+    throw StateError('compositor lacks ext-image-copy-capture-v1 '
+        '(on miracle-wm, that is MirAL >= 5.6)');
+  }
+
+  // The name is shared with the InputCapture backend; whichever starts first
+  // claims it. Null is the one graceful decline: somebody else owns it.
+  final bus = await PortalBus.acquire();
+  if (bus == null) {
+    screencastLog('unavailable: $kScreencastBusName is already taken');
+    return;
+  }
+  final client = bus.client;
+  ScreenCastPortalBackend? served;
   try {
-    if (!connection.supported) {
-      throw StateError('compositor lacks ext-image-copy-capture-v1 '
-          '(on miracle-wm, that is MirAL >= 5.6)');
-    }
-
-    client = DBusClient.session();
-    final reply = await client.requestName(kScreencastBusName,
-        flags: {DBusRequestNameFlag.doNotQueue});
-    if (reply != DBusRequestNameReply.primaryOwner &&
-        reply != DBusRequestNameReply.alreadyOwner) {
-      // The one graceful decline: yield the name to whoever owns it.
-      screencastLog('unavailable: $kScreencastBusName is already taken');
-      await client.close();
-      return;
-    }
-
     final engine = ShellScreencastEngine(connection, picker,
         maxFrameRate: maxFrameRate, driveWithGlib: attachToGlibLoop);
     final backend = ScreenCastPortalBackend(client, engine);
     await backend.init();
-    await client.registerObject(backend);
+    bus.serve(backend);
+    served = backend;
 
     // Through the host's fan-out rather than `connection.onDied` directly:
     // that is one callback and there are two features listening now.
     CaptureHost.addDiedListener(backend.closeAllSessions);
 
-    _service = ScreencastService._(connection, client, backend);
+    _service = ScreencastService._(connection, bus, backend);
     screencastLog('portal backend up as $kScreencastBusName '
         '(windows: ${connection.windowCaptureSupported})');
 
@@ -101,11 +98,10 @@ Future<void> startScreencastService({
     // restarts somebody else's service. Holding `ShellService.screencast` on a
     // loader for that would report the shell's own work as unfinished.
     if (reconcileFrontend) {
-      final bus = client;
       unawaited(() async {
         try {
           await reconcilePortalFrontend(
-            client: bus,
+            client: client,
             backendSourceTypes: engine.availableSourceTypes,
           );
         } catch (e) {
@@ -114,17 +110,17 @@ Future<void> startScreencastService({
       }());
     }
   } catch (_) {
-    final failedClient = client;
-    if (failedClient != null) unawaited(failedClient.close());
+    final part = served;
+    unawaited(part != null ? bus.withdraw(part) : bus.release());
     rethrow;
   }
 }
 
 class ScreencastService {
-  ScreencastService._(this.connection, this._client, this._backend);
+  ScreencastService._(this.connection, this._bus, this._backend);
 
   final CaptureConnection connection;
-  final DBusClient _client;
+  final PortalBus _bus;
   final ScreenCastPortalBackend _backend;
 
   /// Drives the Wayland connection and every running PipeWire loop by hand.
@@ -138,7 +134,7 @@ class ScreencastService {
   Future<void> dispose() async {
     CaptureHost.removeDiedListener(_backend.closeAllSessions);
     await _backend.dispose();
-    await _client.close();
+    await _bus.withdraw(_backend);
     // Deliberately not `connection.dispose()`: [CaptureHost] owns it and the
     // shell's screenshot and recording features are still using it.
     _service = null;

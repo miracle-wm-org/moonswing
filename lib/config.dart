@@ -404,6 +404,30 @@ class ScreenshareConfig {
   int get hashCode => Object.hash(enabled, previewFps, maxFps);
 }
 
+/// Input capture — the shell's xdg-desktop-portal InputCapture backend, which
+/// lets a keyboard-and-mouse sharing application (DeskFlow, Input Leap) take
+/// over this machine's input while the pointer is on another computer.
+class InputCaptureConfig {
+  /// Whether to serve InputCapture at all. Off leaves the interface to another
+  /// backend, or to nobody.
+  final bool enabled;
+
+  const InputCaptureConfig({this.enabled = true});
+
+  factory InputCaptureConfig.fromMap(Map<String, dynamic>? map) {
+    if (map == null) return const InputCaptureConfig();
+    return InputCaptureConfig(enabled: map.boolOr('enabled', true));
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is InputCaptureConfig && other.enabled == enabled;
+
+  @override
+  int get hashCode => enabled.hashCode;
+}
+
 /// The lock screen: its wallpaper and the chrome drawn over it.
 ///
 /// Unlike [BackgroundConfig] this holds a single wallpaper rather than a
@@ -715,6 +739,10 @@ class AppConfig {
   final ShortcutsConfig shortcuts;
   final ScreenshareConfig screenshare;
 
+  /// Never null — an absent `[input_capture]` section is the default (serve
+  /// it), not "no input-capture config".
+  final InputCaptureConfig inputCapture;
+
   /// What the physical power button does. Never null — an absent `[power]`
   /// section is the default (show the power menu), not "no power config".
   final PowerConfig power;
@@ -743,6 +771,7 @@ class AppConfig {
     this.lock = const LockConfig(),
     this.shortcuts = const ShortcutsConfig(),
     this.screenshare = const ScreenshareConfig(),
+    this.inputCapture = const InputCaptureConfig(),
     this.power = const PowerConfig(),
     this.polkit = const PolkitConfig(),
     this.google = const GoogleConfig(),
@@ -833,6 +862,8 @@ class AppConfig {
       lock: LockConfig.fromMap(map.tableOrNull('lock')),
       shortcuts: ShortcutsConfig.fromMap(map.tableOrNull('shortcuts')),
       screenshare: ScreenshareConfig.fromMap(map.tableOrNull('screenshare')),
+      inputCapture:
+          InputCaptureConfig.fromMap(map.tableOrNull('input_capture')),
       power: PowerConfig.fromMap(map.tableOrNull('power')),
       polkit: PolkitConfig.fromMap(map.tableOrNull('polkit')),
       google: GoogleConfig.fromMap(map.tableOrNull('google')),
@@ -853,6 +884,7 @@ class AppConfig {
           other.lock == lock &&
           other.shortcuts == shortcuts &&
           other.screenshare == screenshare &&
+          other.inputCapture == inputCapture &&
           other.power == power &&
           other.polkit == polkit &&
           other.google == google &&
@@ -873,6 +905,7 @@ class AppConfig {
         lock,
         shortcuts,
         screenshare,
+        inputCapture,
         power,
         polkit,
         google,

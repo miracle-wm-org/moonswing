@@ -71,6 +71,14 @@ void munmapPtr(ffi.Pointer<ffi.Uint8> addr, int length) =>
 
 void closeFd(int fd) => _close(fd);
 
+// int dup2(int oldfd, int newfd);
+final _dup2 = _process.lookupFunction<ffi.Int32 Function(ffi.Int32, ffi.Int32),
+    int Function(int, int)>('dup2');
+
+/// Makes [newFd] refer to what [oldFd] does, closing whatever [newFd] was.
+/// Returns false on failure.
+bool dup2Fd(int oldFd, int newFd) => _dup2(oldFd, newFd) >= 0;
+
 /// Pointer-to-pointer copy — the frame path must never round-trip pixels
 /// through a Dart list.
 void memcpyPtr(ffi.Pointer<ffi.Void> dest, ffi.Pointer<ffi.Void> src, int n) =>
