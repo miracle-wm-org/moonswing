@@ -29,6 +29,7 @@ import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/overlay_search_field.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/tab_focus_traversal.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
@@ -142,7 +143,13 @@ class _TodoOverlayState extends State<TodoOverlay> {
 
   /// Whether the standup card is open. A notifier for [_editing]'s reason.
   final ValueNotifier<bool> _standup = ValueNotifier(false);
-  final FocusNode _focusNode = FocusNode(debugLabel: 'todo board');
+
+  /// The board's key listener. Skipped by Tab, or it would be a stop of its
+  /// own with nothing drawn as focused.
+  final FocusNode _focusNode = FocusNode(
+    debugLabel: 'todo board',
+    skipTraversal: true,
+  );
 
   /// The search field's, owned here so the key handler can read and clear it.
   final TextEditingController _searchText = TextEditingController();
@@ -318,23 +325,26 @@ class _TodoOverlayState extends State<TodoOverlay> {
     return Directionality(
       textDirection: TextDirection.ltr,
       // No WidgetsApp above any shell window, so the editing keys a text field
-      // needs are supplied here, as the settings overlay does.
+      // needs are supplied here, as the settings overlay does, and so is Tab
+      // between the editor's fields.
       child: DefaultTextEditingShortcuts(
-        child: DefaultTextStyle(
-          style: TextStyle(
-            fontFamily: theme.fontFamily,
-            fontSize: ShellFontSizes.body,
-            color: theme.popupForeground,
-          ),
-          // Hears every key the fields inside let through. Not autofocused:
-          // the search field is, so the board opens ready to be searched.
-          child: KeyboardListener(
-            focusNode: _focusNode,
-            onKeyEvent: _onKey,
-            // Opaque popups, for the settings overlay's reason: the editor's
-            // dropdowns float over dense text.
-            child: OpaquePopupScope(
-              child: Overlay(initialEntries: [_panelEntry]),
+        child: TabFocusTraversal(
+          child: DefaultTextStyle(
+            style: TextStyle(
+              fontFamily: theme.fontFamily,
+              fontSize: ShellFontSizes.body,
+              color: theme.popupForeground,
+            ),
+            // Hears every key the fields inside let through. Not autofocused:
+            // the search field is, so the board opens ready to be searched.
+            child: KeyboardListener(
+              focusNode: _focusNode,
+              onKeyEvent: _onKey,
+              // Opaque popups, for the settings overlay's reason: the editor's
+              // dropdowns float over dense text.
+              child: OpaquePopupScope(
+                child: Overlay(initialEntries: [_panelEntry]),
+              ),
             ),
           ),
         ),
@@ -1720,11 +1730,16 @@ class _EditorLayer extends StatelessWidget {
                   double.infinity,
                 ),
               ),
-              child: _TodoEditor(
-                store: store,
-                existing: existing,
-                column: existing?.column ?? request.column!,
-                onDone: onDone,
+              // A scope of its own, so Tab cycles through the editor's
+              // fields and never leaves for the board's search behind the
+              // scrim.
+              child: FocusScope(
+                child: _TodoEditor(
+                  store: store,
+                  existing: existing,
+                  column: existing?.column ?? request.column!,
+                  onDone: onDone,
+                ),
               ),
             ),
           ),
