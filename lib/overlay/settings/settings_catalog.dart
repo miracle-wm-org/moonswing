@@ -786,6 +786,13 @@ abstract final class SettingsCatalog {
         'While every one is closed, they are re-read every two minutes.',
     const ['stocks', 'ticker', 'quote', 'interval', 'update', 'poll'],
   );
+  static final stocksScroll = _module(
+    'modules.stocks.scroll',
+    'Scroll',
+    'Crawls the whole watchlist along the bar. Off, the strip stands still '
+        'and shows the first ticker on the list.',
+    const ['stocks', 'ticker', 'crawl', 'scroll', 'marquee', 'static'],
+  );
   static final stocksScrollSpeed = _module(
     'modules.stocks.scroll_speed',
     'Scroll speed',
@@ -2322,6 +2329,7 @@ abstract final class SettingsCatalog {
     notificationsSoundVolume,
     stocksSymbols,
     stocksRefreshSeconds,
+    stocksScroll,
     stocksScrollSpeed,
     stocksWidth,
     screenshotDirectory,

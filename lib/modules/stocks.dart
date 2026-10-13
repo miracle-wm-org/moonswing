@@ -71,7 +71,7 @@ class StockTicker extends StatefulWidget {
   /// Injected by tests, which seed a store rather than reaching the network.
   final StockStore store;
 
-  /// `[modules.stocks]` — the crawl's window and pace.
+  /// `[modules.stocks]` — whether the strip crawls, and its window and pace.
   final StockConfig config;
 
   /// Opens a quote's page. Injected by tests; the default is the desktop's
@@ -180,6 +180,10 @@ class _StockTickerState extends State<StockTicker>
                 : (store.error.isNotEmpty ? store.error : 'No quotes'),
         hovered: _hovered,
       );
+    } else if (!widget.config.scroll) {
+      // Standing still, the strip is one quote sized to its own text: a fixed
+      // window would only pad it, and the rest of the list is the click.
+      content = _CrawlItem(quote: quotes.first, theme: theme);
     } else {
       content = TickerCrawl(
         maxWidth: widget.config.width,

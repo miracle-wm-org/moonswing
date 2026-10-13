@@ -430,7 +430,8 @@ card says so.
 
 Your watchlist crawling along the bar the way the ticker runs along the bottom
 of a financial news channel: each symbol, its price, and its move today in green
-or red. Hover the strip to hold it still. Click it for the list itself, where you
+or red. Hover the strip to hold it still, or set `scroll = false` to have it
+stand still on the first ticker of the list for good. Click it for the list itself, where you
 can **search by symbol or company name** and add what you find, reorder the list
 with the arrows on a row, remove a ticker with its ×, or click a row to open its
 page on Yahoo Finance.
@@ -447,6 +448,7 @@ disagree.
 [modules.stocks]
 symbols = ["^GSPC", "^DJI", "^IXIC", "AAPL", "MSFT", "BTC-USD"]
 refresh_seconds = 15
+scroll = true
 scroll_speed = 40
 width = 320
 ```
@@ -455,8 +457,9 @@ width = 320
 | ----------------- | ---------------- | ------- | --------------------------------------------------------------------------------------------- |
 | `symbols`         | array of strings | `[]`    | The watchlist, in crawl order, as Yahoo Finance spells each symbol                             |
 | `refresh_seconds` | int              | `15`    | How often prices are re-read while a market on the list is trading (5–3600)                    |
+| `scroll`          | bool             | `true`  | Whether the strip crawls. `false` shows only the first ticker on the list, standing still      |
 | `scroll_speed`    | float            | `40`    | How fast the strip crawls, in pixels a second (5–400)                                          |
-| `width`           | float            | `320`   | How wide the strip is in a horizontal bar (80–2000). A watchlist narrower than this sits still |
+| `width`           | float            | `320`   | How wide the crawling strip is in a horizontal bar (80–2000). A watchlist narrower than this sits still |
 
 Symbols are Yahoo Finance's: `AAPL` for a US stock, `^GSPC` for the S&P 500,
 `BRK-B` for a class of share, `SAP.DE` for a stock on another exchange,
