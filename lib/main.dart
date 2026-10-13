@@ -83,6 +83,10 @@ import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/input_capture/consent_controller.dart';
+import 'package:moonswing/input_capture/consent_dialog.dart';
+import 'package:moonswing/input_capture/input_capture_log.dart';
+import 'package:moonswing/input_capture/input_capture_service.dart';
 import 'package:moonswing/polkit/auth_controller.dart';
 import 'package:moonswing/polkit/auth_dialog.dart';
 import 'package:moonswing/polkit/auth_session.dart';
@@ -201,6 +205,7 @@ void main() async {
 
   screencastLog = (message) => debugPrint('screencast: $message');
   polkitLog = (message) => debugPrint('polkit: $message');
+  inputCaptureLog = (message) => debugPrint('input-capture: $message');
   appScopeLog = (message) => debugPrint('app-scope: $message');
 
   // Miracle may not be running yet (or at all). The manager keeps the shell
@@ -350,6 +355,21 @@ void _startShellServices({
     );
   } else {
     services.skip(ShellService.screencast);
+  }
+
+  // Serves the InputCapture portal on the same backend name, so a keyboard and
+  // mouse sharing app (DeskFlow) can take this machine's input past a screen
+  // edge once the user allows it. No libeis, or a compositor without layer
+  // shell, relative pointer and pointer constraints, throws: recorded `failed`.
+  if (appConfig.inputCapture.enabled) {
+    services.run(
+      ShellService.inputCapture,
+      () => startInputCaptureService(
+        consent: InputCaptureConsentController.instance,
+      ),
+    );
+  } else {
+    services.skip(ShellService.inputCapture);
   }
 
   // Registers the shell as this session's polkit authentication agent, so a
@@ -584,7 +604,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// clicks. One per monitor; tapping any opens the one panel, on that monitor.
   final Map<String, LayershellWindowController> _badges = {};
 
-  /// Ten of the eleven root-owned overlays — the full-screen ones; the
+  /// Eleven of the twelve root-owned overlays — the full-screen ones; the
   /// notification panel is the exception. Each [_OverlayWindow] carries the
   /// controller, its [PopupCoordinator] registration and the closing notifier.
   ///
@@ -615,6 +635,16 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     policy: TransientPolicy.modal,
   );
 
+  /// The input-capture consent prompt. Modal, for the screencast picker's
+  /// reason: dismissing it is the refusal, and only its controller may answer.
+  final _OverlayWindow _inputCaptureConsent = _OverlayWindow(
+    policy: TransientPolicy.modal,
+  );
+
+  /// The request the open consent prompt is answering, captured at window
+  /// creation for [_screencastRequest]'s reason.
+  InputCaptureConsentRequest? _inputCaptureRequest;
+
   /// The power menu: the physical power button's default (`[power] key_action =
   /// "menu"`) and what the bar's power icon opens outright. Modal like the two
   /// pickers: it holds a shutdown, so the only ways out are its own Cancel path.
@@ -635,7 +665,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// request would otherwise render into the window the old one is leaving.
   PolkitAuthSession? _polkitSession;
 
-  /// The notification panel — the eleventh root-owned overlay, and the only one
+  /// The notification panel — the twelfth root-owned overlay, and the only one
   /// that is not full-screen. The bell and the badge share no widget ancestry,
   /// so both ask the root instead. `late final` because it brings its own
   /// window, a column down one output edge.
@@ -783,6 +813,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       (PowerController.instance, _onPowerKeyPressed),
       (PowerMenuController.instance, _onPowerMenuToggled),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
+      (InputCaptureConsentController.instance, _onInputCaptureConsentChanged),
       (PolkitAuthController.instance, _onPolkitAuthChanged),
       (CaptureSelectionController.instance, _onCaptureSelectionChanged),
       (WindowSwitcherController.instance, _onSwitcherChanged),
@@ -1182,6 +1213,36 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     } else if (_screencastPicker.isOpen) {
       _screencastPicker.closing.value = true;
     }
+  }
+
+  /// An application asked to capture the keyboard and mouse (or the question
+  /// was answered, or withdrawn by the portal).
+  void _onInputCaptureConsentChanged() {
+    if (!mounted) return;
+    final request = InputCaptureConsentController.instance.pending;
+    if (request != null) {
+      if (_inputCaptureConsent.isOpen) return;
+      // No monitor: the compositor puts it on the focused output.
+      _inputCaptureRequest = request;
+      _inputCaptureConsent.open();
+      _refreshWindows();
+    } else if (_inputCaptureConsent.isOpen) {
+      _inputCaptureConsent.closing.value = true;
+    }
+  }
+
+  /// Called by [InputCaptureConsentDialog] once its fade-out has finished.
+  void _onInputCaptureConsentClosed() {
+    if (!mounted) return;
+    final removed = _inputCaptureConsent.take();
+    if (removed == null) return;
+    _inputCaptureRequest = null;
+    // A prompt torn down unanswered still owes the portal a reply — a no.
+    InputCaptureConsentController.instance.cancel();
+    _refreshWindows();
+    _destroyAfterFrame([removed]);
+    // A request that arrived while this one was animating out.
+    _onInputCaptureConsentChanged();
   }
 
   /// A capture module asked the user to choose what to capture.
@@ -2094,6 +2155,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // listeners are already removed, so neither notify reaches this dying State.
     FilePickerController.instance.complete(null);
     ScreencastPickerController.instance.cancel();
+    // `CreateSession`/`Start` blocked on the consent prompt, likewise: no.
+    InputCaptureConsentController.instance.cancel();
     // The most expensive debt to default on: an unanswered `BeginAuthentication`
     // blocks whatever asked for privileges until its own timeout. Cancelled is
     // the answer, because a shell going away has not authenticated anybody.
@@ -2151,6 +2214,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       _keybinds,
       _todo,
       _screencastPicker,
+      _inputCaptureConsent,
       _filePicker,
       _powerMenu,
       _polkitPrompt,
@@ -2590,6 +2654,29 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                       onCancel: ScreencastPickerController.instance.cancel,
                     );
                   },
+                ),
+              );
+            },
+          ),
+      // The input-capture consent prompt, open only while an application's
+      // portal request is waiting on an answer. Single window like the
+      // launcher, so it lives outside the per-monitor loop.
+      if (_inputCaptureConsent.controller case final prompt?)
+        if (_inputCaptureRequest != null)
+          (
+            controller: prompt,
+            builder: (_) {
+              // Re-read, as everything mutable in this list is.
+              final request = _inputCaptureRequest;
+              if (request == null) return const SizedBox.shrink();
+              return _windowChrome(
+                InputCaptureConsentDialog(
+                  request: request,
+                  closingNotifier: _inputCaptureConsent.closing,
+                  onClosed: _onInputCaptureConsentClosed,
+                  onAllow: () =>
+                      InputCaptureConsentController.instance.complete(true),
+                  onDeny: InputCaptureConsentController.instance.cancel,
                 ),
               );
             },

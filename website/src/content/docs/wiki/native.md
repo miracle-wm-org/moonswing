@@ -24,7 +24,7 @@ plumbing: `processLibrary`, soname fallback, `g_signal_connect_data`, `g_unix_fd
 - **Everything below the UI is Flutter-free on purpose**, so `tool/screencast_spike.dart`
   compiles the whole stack as a `dart compile exe` binary — the only way to exercise it against
   a live compositor. Use the `*Log` gates rather than `debugPrint`.
-- **Only the `ext-*` protocols are hand-transcribed**; core interfaces come from libwayland's
+- **Only the non-core protocols are hand-transcribed**; core interfaces come from libwayland's
   exported `wl_*_interface` symbols. A wrong signature is memory corruption inside libwayland,
   not an exception, which is why `test/wl_interfaces_test.dart` diffs the tables against the
   XML in `protocol/`. Copy a new XML there and extend the test.
@@ -34,6 +34,29 @@ plumbing: `processLibrary`, soname fallback, `g_signal_connect_data`, `g_unix_fd
 - Frames never go per-pixel through Dart: libc `memcpy` into a `pw_buffer`, or one bulk copy
   plus `ImageDescriptor.raw`.
 
+## Input capture
+
+The InputCapture portal backend (`lib/input_capture/`) is what DeskFlow and Input Leap use to
+take this machine's keyboard and mouse while the pointer is on another computer. Nothing in the
+compositor does barriers or capture for the shell, so it is built from pieces every wlroots-style
+compositor has:
+
+- **Its own Wayland connection** with surfaces of its own: a transparent one-pixel strip along
+  each armed edge, and while capturing, a transparent surface on every output. Pointer focus,
+  keyboard focus and pointer locks are all per-client, so these cannot share the screencast
+  connection.
+- **A barrier is crossed by pushing, not by arriving.** The compositor clamps the cursor to the
+  screen, so the shell watches *relative* motion while the pointer is on a strip, and any push
+  outward crosses.
+- **Every output is covered while capturing**, not only the crossed one. The pointer lock that
+  should hold the cursor still is not to be relied on — sway never grants one to a layer
+  surface — and relative motion only reaches the client whose surface is under the cursor.
+- **Input goes out over libeis**, dlopened like PAM. One EIS context per session; the socket
+  is a raw fd, which `package:dbus` cannot send, so `lib/native/raw_fd_handle.dart` dup2s it
+  onto a descriptor `dart:io` owns.
+- **Super+Shift+Escape** always ends a capture and disables the session, so an application that
+  hangs holding the keyboard cannot keep it.
+
 ## Exercising it
 
 ```sh
@@ -42,5 +65,8 @@ dart compile exe tool/screencast_spike.dart -o /tmp/spike
 WAYLAND_DISPLAY=wayland-99 /tmp/spike --capture   # frames from each output
 WAYLAND_DISPLAY=wayland-99 /tmp/spike --portal    # the real backend, auto-accepting
 
+WAYLAND_DISPLAY=wayland-99 /tmp/spike --input-capture  # the InputCapture backend
+
 python3 tool/portal_client_test.py                # drives the portal contract
+python3 tool/input_capture_client_test.py         # InputCapture, through the frontend
 ```

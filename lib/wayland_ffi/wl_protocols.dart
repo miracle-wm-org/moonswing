@@ -72,6 +72,10 @@ class WlOutputFfi extends WlProxy {
   int width = 0;
   int height = 0;
   int refreshMHz = 0;
+
+  /// `wl_output.scale` — the integer buffer scale, for turning the mode into
+  /// a logical size when no xdg-output says what it is.
+  int scale = 1;
   String make = '';
   String model = '';
 
@@ -105,7 +109,10 @@ class WlOutputFfi extends WlProxy {
     // done
     ev0((p) => proxyByAddress<WlOutputFfi>(p)?.onDone?.call()),
     // scale
-    evI((p, scale) {}),
+    evI((p, scale) {
+      final o = proxyByAddress<WlOutputFfi>(p);
+      if (o != null && scale > 0) o.scale = scale;
+    }),
     // name
     evS((p, name) => proxyByAddress<WlOutputFfi>(p)?.connector = name),
     // description

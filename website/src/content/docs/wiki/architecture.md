@@ -8,7 +8,7 @@ sidebar:
 Moonswing is one Flutter process that draws an entire session: `wlr-layer-shell`
 panels, a wallpaper and desktop-icon surface, full-screen overlays, popups, an on-screen
 display and a lock screen. It is also the session's notification daemon, its
-StatusNotifierItem tray host, its `xdg-desktop-portal` ScreenCast backend, its polkit
+StatusNotifierItem tray host, its `xdg-desktop-portal` ScreenCast and InputCapture backend, its polkit
 authentication agent and its session locker.
 
 It is built on Flutter's experimental windowing API, tracking `master`.
@@ -24,7 +24,7 @@ happened before the first window exists.
 
 **Below it**, from a post-frame callback, `ShellServices` runs everything else — outputs,
 shortcuts, the miracle-wm IPC connection, notifications, tray, PulseAudio, backlight,
-ScreenCast, polkit, the logind inhibitor and the app index — each on its own event-loop
+ScreenCast, InputCapture, polkit, the logind inhibitor and the app index — each on its own event-loop
 turn. Registration order is turn order, so I/O-bound tasks go first and the FFI-heavy app
 index last. Consumers read `ShellServicesScope` and show a loader until a `ServiceStatus`
 settles.
@@ -114,6 +114,7 @@ without `==` the notifier behind `LiveConfigScope` could never refuse one.
 | `osd/` | The volume/brightness card, its store and its sources |
 | `capture/` | Screenshots and recording: targets, selection, ffmpeg, store |
 | `screencast/` | The ScreenCast portal backend, capture sessions, the consent picker |
+| `input_capture/` | The InputCapture portal backend: barriers, the capture surfaces, the EI socket, the consent prompt |
 | `polkit/`, `power/`, `lock/` | Authentication agent, power-key policy and menu, session lock |
 | `native/`, `wayland_ffi/`, `pipewire/` | dlopen plumbing, libwayland bindings, libpipewire + SPA |
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
