@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/overlay/settings/shell.dart';
+import 'package:moonswing/overlay/settings/shell/modules.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 
 void main() {
@@ -65,6 +66,22 @@ void main() {
       expect(isShellCategory(SettingsRoute.background.shellCategory!), isTrue);
       expect(isShellCategory(SettingsRoute.desktop.shellCategory!), isTrue);
       expect(isShellCategory(SettingsRoute.modules.shellCategory!), isTrue);
+      expect(isShellCategory(SettingsRoute.stocks.shellCategory!), isTrue);
+      expect(moduleSettingsPageByKey(SettingsRoute.stocks.module), isNotNull);
+    });
+
+    // A module page is part of the route's identity: the root compares an
+    // incoming route against the open one, and "the clock's page" is not "the
+    // module list".
+    test('the module is part of a route\'s value', () {
+      expect(SettingsRoute.module('clock'), SettingsRoute.module('clock'));
+      expect(SettingsRoute.module('clock'), isNot(SettingsRoute.modules));
+      expect(SettingsRoute.module('clock'), isNot(SettingsRoute.module('dock')));
+      expect(
+        SettingsRoute.module('clock').hashCode,
+        SettingsRoute.module('clock').hashCode,
+      );
+      expect(SettingsRoute.modules.module, isNull);
     });
 
     test('an unknown title is not a category', () {

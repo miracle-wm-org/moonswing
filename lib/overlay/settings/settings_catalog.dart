@@ -2136,22 +2136,53 @@ abstract final class SettingsCatalog {
     ],
   );
 
+  /// The title of each module's page in Module Settings, by its
+  /// `[modules.<key>]` config key.
+  ///
+  /// Here rather than in `modules.dart` because a module row's search result
+  /// names its page — "Shell › Module Settings › Clock" — and this file imports
+  /// no page. `modules.dart` reads its page titles from this table, so the two
+  /// cannot disagree.
+  static const Map<String, String> moduleTitles = {
+    'workspaces': 'Workspaces',
+    'weather': 'Weather',
+    'battery': 'Battery',
+    'clock': 'Clock',
+    'media_player': 'Media player',
+    'system_tray': 'System tray',
+    'dock': 'Dock',
+    'system_monitor': 'System monitor',
+    'network': 'Network',
+    'notifications': 'Notifications',
+    'github': 'GitHub',
+    'stocks': 'Stock market',
+    'screenshot': 'Screenshot',
+    'screen_recorder': 'Screen recorder',
+  };
+
+  /// A row on one module's page. The page is the id's middle segment — the
+  /// `[modules.<key>]` the row writes — so a row cannot be routed to another
+  /// module's page than the one whose config it edits.
   static SettingsField _module(
     String id,
     String label,
     String description,
     List<String> tags,
-  ) => shellField(
-    id,
-    label,
-    section: 'Module Settings',
-    description: description,
-    // The module's own name is always among the tags, because the group
-    // heading is what a user reads the row under and it is nowhere in the
-    // label: "Show date" says nothing about a clock, and "Icon size" is four
-    // different rows.
-    tags: tags,
-  );
+  ) {
+    final key = id.split('.')[1];
+    return SettingsField(
+      id: id,
+      label: label,
+      section: 'Shell › $kModuleSettingsCategory › ${moduleTitles[key] ?? key}',
+      route: SettingsRoute.module(key),
+      description: description,
+      // The module's own name is always among the tags, because the page
+      // title is what a user reads the row under and it is nowhere in the
+      // label: "Show date" says nothing about a clock, and "Icon size" is four
+      // different rows.
+      tags: tags,
+    );
+  }
 
   /// Every entry, in the order the panes present them.
   ///
@@ -2297,7 +2328,9 @@ abstract final class SettingsCatalog {
   /// Every `[modules.*]` row, in the order `modules.dart` renders them.
   ///
   /// Split out because that file builds its table *from* this one — the
-  /// setting's config path is its id, split on the dots.
+  /// setting's config path is its id, split on the dots, and its page is the
+  /// middle segment. `test/settings_search_test.dart` holds the two to the same
+  /// rows, so a row added to a page cannot be left out of the search.
   static final List<SettingsField> moduleFields = [
     workspacesShowAppIcons,
     workspacesIconSize,
@@ -2310,6 +2343,8 @@ abstract final class SettingsCatalog {
     weatherRefreshMinutes,
     batteryPollSeconds,
     clockShowDate,
+    clockTimerSound,
+    clockTimerVolume,
     mediaPlayerMaxTextWidth,
     systemTrayIconSize,
     systemTrayCollapsedOverlap,
@@ -2327,6 +2362,11 @@ abstract final class SettingsCatalog {
     networkPollSeconds,
     notificationsSound,
     notificationsSoundVolume,
+    githubRefreshSeconds,
+    githubShowCount,
+    githubParticipatingOnly,
+    githubIncludeRead,
+    githubMarkReadOnOpen,
     stocksSymbols,
     stocksRefreshSeconds,
     stocksScroll,

@@ -19,6 +19,7 @@ import 'package:moonswing/overlay/settings/shell/volume_sound.dart';
 
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/theme/theme_store.dart';
 
 /// Settings page for moonswing's own configuration (`config.toml`).
@@ -28,11 +29,26 @@ import 'package:moonswing/theme/theme_store.dart';
 /// change straight back to disk. The running shell is not live-reloaded, so a
 /// persistent banner reminds the user to restart for changes to take effect.
 class ShellSettingsPage extends StatefulWidget {
-  const ShellSettingsPage({super.key, this.initialCategory});
+  const ShellSettingsPage({
+    super.key,
+    this.initialCategory,
+    this.initialModule,
+    this.store,
+  });
 
   /// A `_ShellCategory` title to open directly, e.g. `Background`. Null lands
   /// on the category list, which is the behaviour every existing caller wants.
   final String? initialCategory;
+
+  /// A `[modules.<key>]` config key whose page to open over the module list —
+  /// see [SettingsRoute.module]. Read only when [initialCategory] is Module
+  /// Settings.
+  final String? initialModule;
+
+  /// The store to edit instead of [ConfigStore.instance], which no widget test
+  /// initialises.
+  @visibleForTesting
+  final ConfigStore? store;
 
   @override
   _ShellSettingsPageState createState() => _ShellSettingsPageState();
@@ -41,7 +57,7 @@ class ShellSettingsPage extends StatefulWidget {
 class _ShellSettingsPageState extends State<ShellSettingsPage> {
   // The process-wide store shared with the running shell. Not disposed here —
   // its lifetime is the whole process, and mutating it live-updates the shell.
-  final ConfigStore _store = ConfigStore.instance;
+  late final ConfigStore _store = widget.store ?? ConfigStore.instance;
 
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
 
@@ -61,22 +77,23 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
     highlight.addListener(_onJumpRequested);
   }
 
-  /// Takes the Shell pane to the category a search result named.
+  /// Takes the Shell pane to the category — and, for a module row, the
+  /// module's page — a search result named.
   ///
-  /// Always pops to the landing page and pushes again, even when the category is
+  /// Always pops to the landing page and pushes again, even when the page is
   /// the one already showing: the row that claims the jump does so from its own
-  /// first build, so re-entering the category is what guarantees there is one.
-  /// Both routes are instant, so this is one frame with nothing to see.
+  /// first build, so re-entering the page is what guarantees there is one.
+  /// Every route is instant, so this is one frame with nothing to see.
   void _onJumpRequested() {
-    final target = _highlight?.target;
-    final category = _shellCategoryByTitle(target?.field.route.shellCategory);
+    final route = _highlight?.target?.field.route;
+    final category = _shellCategoryByTitle(route?.shellCategory);
     if (category == null) return;
     final navigator = _navigator.currentState;
     if (navigator == null) return;
     navigator.popUntil((route) => route.isFirst);
-    navigator.push(
-      _categoryRoute(_ShellCategoryView(category: category, store: _store)),
-    );
+    for (final view in _viewsFor(category, route?.module, _store)) {
+      navigator.push(_categoryRoute(view));
+    }
   }
 
   @override
@@ -111,8 +128,14 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
     // Audio page and searched for a theme colour — has nothing to push onto,
     // so the pending target seeds the initial route instead. `_onJumpRequested`
     // covers the other order, where the pane is already built.
-    final pending = _highlight?.target?.field.route.shellCategory;
-    final initial = _shellCategoryByTitle(pending ?? widget.initialCategory);
+    // The pending target's route wins only when it names a Shell category; the
+    // category and the module are taken from the same route either way.
+    final pending = _highlight?.target?.field.route;
+    final fromJump = pending?.shellCategory != null;
+    final initial = _shellCategoryByTitle(
+      fromJump ? pending!.shellCategory : widget.initialCategory,
+    );
+    final initialModule = fromJump ? pending!.module : widget.initialModule;
     // A nested Navigator lets the Shell pane drill from the category menu into
     // a single category's settings and back, while the outer Settings bar and
     // sidebar (owned by SettingsOverlay) stay put around this pane.
@@ -125,9 +148,11 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
           pageBuilder: (context, _, _) => _ShellHome(store: store),
         ),
         // A deep link pushes the category *on top of* the landing page rather
-        // than replacing it, so Back still goes where the user expects.
+        // than replacing it — and a module's page on top of the module list —
+        // so Back still goes where the user expects.
         if (initial != null)
-          _categoryRoute(_ShellCategoryView(category: initial, store: store)),
+          for (final view in _viewsFor(initial, initialModule, store))
+            _categoryRoute(view),
       ],
     );
   }
@@ -148,6 +173,39 @@ _ShellCategory? _shellCategoryByTitle(String? title) {
 /// shell can emit actually lands somewhere.
 bool isShellCategory(String title) => _shellCategoryByTitle(title) != null;
 
+/// The views a route stacks over the landing page, bottom first: the
+/// category's own, and — when it is Module Settings and [module] names a page —
+/// that module's page over the module list.
+List<Widget> _viewsFor(
+  _ShellCategory category,
+  String? module,
+  ConfigStore store,
+) {
+  final build = category.build;
+  if (build == null) {
+    final page = moduleSettingsPageByKey(module);
+    return [
+      _ModuleList(store: store),
+      if (page != null) _modulePageView(page, store),
+    ];
+  }
+  return [
+    _SettingsPageView(
+      title: category.title,
+      route: SettingsRoute(shellCategory: category.title),
+      sliver: build(store),
+    ),
+  ];
+}
+
+/// One module's page, pushed from the module list.
+Widget _modulePageView(ModuleSettingsPage page, ConfigStore store) =>
+    _SettingsPageView(
+      title: page.title,
+      route: page.route,
+      sliver: ModuleSettingsSection(store: store, page: page),
+    );
+
 /// One selectable settings category shown on the Shell landing page and pushed
 /// as its own view when tapped.
 class _ShellCategory {
@@ -155,18 +213,28 @@ class _ShellCategory {
     required this.title,
     required this.subtitle,
     required this.icon,
-    required this.build,
+    required Widget Function(ConfigStore store) this.build,
   });
+
+  /// Module Settings: a list of the modules rather than a page of rows, each
+  /// module pushing a page of its own over it.
+  const _ShellCategory.modules({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+  }) : build = null;
 
   final String title;
   final String subtitle;
   final FaIconData icon;
 
   /// Builds the category's body as a **sliver**, for the [CustomScrollView] in
-  /// [_ShellCategoryView] — [SliverSettingsSection] in the ordinary case. The
+  /// [_SettingsPageView] — [SliverSettingsSection] in the ordinary case. The
   /// signature is unchanged from when these returned boxes; only the contract
   /// is, because a sliver is a widget like any other.
-  final Widget Function(ConfigStore store) build;
+  ///
+  /// Null for [_ShellCategory.modules], which pushes [_ModuleList] instead.
+  final Widget Function(ConfigStore store)? build;
 }
 
 const List<_ShellCategory> _shellCategories = [
@@ -176,11 +244,10 @@ const List<_ShellCategory> _shellCategories = [
     icon: FontAwesomeIcons.palette,
     build: _buildAppearance,
   ),
-  _ShellCategory(
-    title: 'Module Settings',
-    subtitle: 'Per-module options',
+  _ShellCategory.modules(
+    title: kModuleSettingsCategory,
+    subtitle: 'A page of options for each module',
     icon: FontAwesomeIcons.puzzlePiece,
-    build: _buildModules,
   ),
   _ShellCategory(
     title: 'Panels & Layout',
@@ -227,7 +294,6 @@ const List<_ShellCategory> _shellCategories = [
 ];
 
 Widget _buildAppearance(ConfigStore store) => AppearanceSection(store: store);
-Widget _buildModules(ConfigStore store) => ModulesSection(store: store);
 Widget _buildPanels(ConfigStore store) => PanelsSection(store: store);
 Widget _buildBackground(ConfigStore store) => BackgroundSection(store: store);
 Widget _buildDesktop(ConfigStore store) => DesktopSection(store: store);
@@ -245,44 +311,110 @@ class _ShellHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return _MenuView(
+      title: 'Moonswing',
+      canPop: false,
+      entries: [
+        for (final category in _shellCategories)
+          _MenuEntry(
+            title: category.title,
+            subtitle: category.subtitle,
+            icon: category.icon,
+            // Only the category's own view: a module's page is reached from
+            // the list this pushes.
+            view: () => _viewsFor(category, null, store).first,
+          ),
+      ],
+    );
+  }
+}
+
+/// Module Settings: a back button over a tappable row per module, each pushing
+/// that module's page.
+///
+/// A list rather than one page of every module's rows, which grew a section per
+/// module until finding one meant scrolling past all the others.
+class _ModuleList extends StatelessWidget {
+  const _ModuleList({required this.store});
+
+  final ConfigStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    return _MenuView(
+      title: kModuleSettingsCategory,
+      canPop: true,
+      entries: [
+        for (final page in moduleSettingsPages)
+          _MenuEntry(
+            title: page.title,
+            subtitle: page.subtitle,
+            icon: page.icon,
+            view: () => _modulePageView(page, store),
+          ),
+      ],
+    );
+  }
+}
+
+/// One row of a [_MenuView]: what its card shows, and the view it pushes.
+class _MenuEntry {
+  const _MenuEntry({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.view,
+  });
+
+  final String title;
+  final String subtitle;
+  final FaIconData icon;
+
+  /// Built when the card is tapped, not when the menu is.
+  final Widget Function() view;
+}
+
+/// A header over a column of [_CategoryCard]s, each pushing its entry's view
+/// onto the pane's nested [Navigator].
+class _MenuView extends StatelessWidget {
+  const _MenuView({
+    required this.title,
+    required this.canPop,
+    required this.entries,
+  });
+
+  final String title;
+
+  /// Whether the header carries a back button — every menu but the landing
+  /// page, which has nothing beneath it.
+  final bool canPop;
+
+  final List<_MenuEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-          child: Text(
-            'Moonswing',
-            style: TextStyle(
-              fontSize: 16,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
+        _PageHeader(title: title, canPop: canPop),
         Container(height: 1, color: theme.divider),
         Expanded(
-          // Eight cards do not need laziness, but `SliverList` gives each one
-          // its own repaint boundary for free, which is what a hover on one of
-          // them needs — see [SettingsRow].
+          // A handful of cards do not need laziness, but `SliverList` gives
+          // each one its own repaint boundary for free, which is what a hover
+          // on one of them needs — see [SettingsRow].
           child: CustomScrollView(
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 sliver: SliverList.list(
                   children: [
-                    for (final category in _shellCategories)
+                    for (final entry in entries)
                       _CategoryCard(
-                        category: category,
-                        onTap: () => Navigator.of(context).push(
-                          _categoryRoute(
-                            _ShellCategoryView(
-                              category: category,
-                              store: store,
-                            ),
-                          ),
-                        ),
+                        entry: entry,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).push(_categoryRoute(entry.view())),
                       ),
                   ],
                 ),
@@ -295,13 +427,66 @@ class _ShellHome extends StatelessWidget {
   }
 }
 
-/// Detail view: a back button + category title header over the category's
-/// existing settings section.
-class _ShellCategoryView extends StatelessWidget {
-  const _ShellCategoryView({required this.category, required this.store});
+/// A pushed view's title, with a back button when there is somewhere to go
+/// back to.
+class _PageHeader extends StatelessWidget {
+  const _PageHeader({required this.title, required this.canPop});
 
-  final _ShellCategory category;
-  final ConfigStore store;
+  final String title;
+  final bool canPop;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final label = Text(
+      title,
+      style: TextStyle(
+        fontSize: 16,
+        fontFamily: theme.fontFamily,
+        color: theme.popupForeground,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+    if (!canPop) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
+        child: label,
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
+      child: Row(
+        children: [
+          SettingsIconButton(
+            icon: FontAwesomeIcons.arrowLeft,
+            size: 14,
+            onTap: () => Navigator.of(context).pop(),
+          ),
+          const SizedBox(width: 8),
+          label,
+        ],
+      ),
+    );
+  }
+}
+
+/// Detail view: a back button + title header over one page of settings — a
+/// Shell category's, or one module's.
+class _SettingsPageView extends StatelessWidget {
+  const _SettingsPageView({
+    required this.title,
+    required this.route,
+    required this.sliver,
+  });
+
+  final String title;
+
+  /// The address of this page, compared against a search jump's route to tell
+  /// whether the jump is for a row on it.
+  final SettingsRoute route;
+
+  /// The page's body, as a sliver — see [_ShellCategory.build].
+  final Widget sliver;
 
   @override
   Widget build(BuildContext context) {
@@ -318,32 +503,12 @@ class _ShellCategoryView extends StatelessWidget {
     final jumping =
         target != null &&
         target.field.highlights &&
-        target.field.route.shellCategory == category.title;
+        target.field.route.shellCategory == route.shellCategory &&
+        target.field.route.module == route.module;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
-          child: Row(
-            children: [
-              SettingsIconButton(
-                icon: FontAwesomeIcons.arrowLeft,
-                size: 14,
-                onTap: () => Navigator.of(context).pop(),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                category.title,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
+        _PageHeader(title: title, canPop: true),
         Container(height: 1, color: theme.divider),
         Expanded(
           // No `ListenableBuilder` here, deliberately. [ConfigStore] notifies on
@@ -381,7 +546,7 @@ class _ShellCategoryView extends StatelessWidget {
             slivers: [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                sliver: category.build(store),
+                sliver: sliver,
               ),
             ],
           ),
@@ -406,12 +571,12 @@ PageRoute<T> _categoryRoute<T>(Widget child) {
   );
 }
 
-/// Tappable, hover-aware row on the landing page. Styled after the sidebar's
+/// Tappable, hover-aware row on a [_MenuView]. Styled after the sidebar's
 /// [_SidebarItem]: icon + title + subtitle + trailing chevron.
 class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({required this.category, required this.onTap});
+  const _CategoryCard({required this.entry, required this.onTap});
 
-  final _ShellCategory category;
+  final _MenuEntry entry;
   final VoidCallback onTap;
 
   @override
@@ -427,7 +592,7 @@ class _CategoryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            category.title,
+            entry.title,
             style: TextStyle(
               fontSize: ShellFontSizes.label,
               fontFamily: theme.fontFamily,
@@ -437,7 +602,7 @@ class _CategoryCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            category.subtitle,
+            entry.subtitle,
             style: TextStyle(
               fontSize: ShellFontSizes.secondary,
               fontFamily: theme.fontFamily,
@@ -469,7 +634,7 @@ class _CategoryCard extends StatelessWidget {
             child: Row(
               children: [
                 FaIcon(
-                  category.icon,
+                  entry.icon,
                   size: ShellFontSizes.title,
                   color: hovered
                       ? theme.accentText

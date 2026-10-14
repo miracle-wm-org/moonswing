@@ -111,7 +111,7 @@ class _StocksWidgetState extends State<StocksWidget> {
     if (open != null) {
       open();
     } else {
-      SettingsController.instance.open(SettingsRoute.modules);
+      SettingsController.instance.open(SettingsRoute.stocks);
     }
   }
 
