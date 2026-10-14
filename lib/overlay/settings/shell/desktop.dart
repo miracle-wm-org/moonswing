@@ -8,6 +8,8 @@ import 'package:moonswing/desktop/desktop_actions.dart';
 import 'package:moonswing/desktop/desktop_layout.dart';
 import 'package:moonswing/desktop/desktop_store.dart';
 import 'package:moonswing/launcher/app_index.dart';
+import 'package:moonswing/news/news_config.dart';
+import 'package:moonswing/news/news_source.dart';
 import 'package:moonswing/overlay/file_picker.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -75,6 +77,18 @@ class _DesktopSectionState extends State<DesktopSection> {
 
   @override
   Widget build(BuildContext context) {
+    return SliverMainAxisGroup(
+      slivers: [
+        _grid(),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        // Its own section, and outside the grid's builder: the news card's
+        // feeds are `[news]`, which [DesktopStore] knows nothing about.
+        NewsSettingsSection(store: widget.store),
+      ],
+    );
+  }
+
+  Widget _grid() {
     return ListenableBuilder(
       listenable: _desktop,
       builder: (context, _) {
@@ -298,6 +312,105 @@ class _DesktopItemRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The News widget's `[news]` table: which outlets it reads, and how often.
+///
+/// Presets are chips; a feed of the user's own is a URL in a list under them.
+/// Both are the one `sources` key, so each control rewrites only its own half
+/// of it and leaves the other's entries where they were.
+class NewsSettingsSection extends StatelessWidget {
+  const NewsSettingsSection({super.key, required this.store});
+
+  final ConfigStore store;
+
+  static const List<String> _sourcesPath = ['news', 'sources'];
+  static const List<String> _refreshPath = ['news', 'refresh_minutes'];
+
+  /// `sources` as the widget reads it — an absent key is the default pair,
+  /// not an empty list — normalized the same way.
+  List<String> _sources() =>
+      NewsConfig.fromMap(store.get<Map<String, dynamic>>(const ['news'])).sources;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverSettingsSection(
+      label: 'News widget',
+      children: [
+        SettingsRow.field(
+          SettingsCatalog.newsSources,
+          alignTop: true,
+          // Selected on a spelling of the list: a fresh `List` per read has no
+          // value equality, so a bare selector would report a change on every
+          // notify. The join is the signature, as on the Modules page.
+          control: StoreSelector<String>(
+            listenable: store,
+            selector: () => _sources().join('\u0000'),
+            builder: (context, _) {
+              final sources = _sources();
+              return SettingsChipToggles<String>(
+                options: [for (final preset in kNewsPresets) preset.id],
+                selected: sources.where((s) => newsPreset(s) != null).toSet(),
+                labelOf: (id) => newsPreset(id)?.name ?? id,
+                onChanged: (selected) => store.set(_sourcesPath, [
+                  // Presets in the order Settings offers them, then every
+                  // feed of the user's own exactly where it was.
+                  for (final preset in kNewsPresets)
+                    if (selected.contains(preset.id)) preset.id,
+                  for (final s in sources)
+                    if (newsPreset(s) == null) s,
+                ]),
+              );
+            },
+          ),
+        ),
+        StoreSelector<String>(
+          listenable: store,
+          selector: () => _sources().join('\u0000'),
+          builder: (context, _) {
+            final sources = _sources();
+            return SettingsStringListEditor(
+              label: 'Other feeds',
+              addLabel: 'Add feed',
+              addHint: 'https://example.com/rss.xml',
+              width: null,
+              items: [
+                for (final s in sources)
+                  if (newsPreset(s) == null) s,
+              ],
+              onChanged: (custom) => store.set(_sourcesPath, [
+                for (final s in sources)
+                  if (newsPreset(s) != null) s,
+                // A typed address that names no feed is kept out of the file
+                // rather than written and silently ignored.
+                for (final s in custom)
+                  if (parseNewsSource(s) != null) s.trim(),
+              ]),
+            );
+          },
+        ),
+        SettingsRow.field(
+          SettingsCatalog.newsRefreshMinutes,
+          control: ConfigValue<num>(
+            store: store,
+            path: _refreshPath,
+            fallback: NewsConfig.defaultRefreshMinutes,
+            builder: (context, value) => SettingsNumberField(
+              value: value!,
+              isInt: true,
+              onChanged: (v) => store.set(
+                _refreshPath,
+                v.toInt().clamp(
+                  NewsConfig.minRefreshMinutes,
+                  NewsConfig.maxRefreshMinutes,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

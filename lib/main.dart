@@ -52,6 +52,8 @@ import 'package:moonswing/emoji/emoji_controller.dart';
 import 'package:moonswing/emoji/emoji_picker_overlay.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_service.dart';
+import 'package:moonswing/news/news_service.dart';
+import 'package:moonswing/news/news_store.dart';
 import 'package:moonswing/google/google_todo_sync.dart';
 import 'package:moonswing/input_trigger/input_trigger_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_store.dart';
@@ -122,6 +124,7 @@ import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/desktop/widgets/media_player_widget.dart';
 import 'package:moonswing/desktop/widgets/fortune_widget.dart';
 import 'package:moonswing/desktop/widgets/moon_widget.dart';
+import 'package:moonswing/desktop/widgets/news_widget.dart';
 import 'package:moonswing/desktop/widgets/stocks_widget.dart';
 import 'package:moonswing/desktop/widgets/tux_widget.dart';
 import 'package:moonswing/desktop/widgets/weather_widget.dart';
@@ -183,6 +186,7 @@ void main() async {
   DesktopWidgetRegistry.register(tuxDesktopWidget);
   DesktopWidgetRegistry.register(analogClockDesktopWidget);
   DesktopWidgetRegistry.register(stocksDesktopWidget);
+  DesktopWidgetRegistry.register(newsDesktopWidget);
 
   // The only awaits before the first frame, and they have to be: every native
   // window's geometry comes out of them. Everything else starts in
@@ -327,11 +331,15 @@ void _startShellServices({
   // The CalDAV calendars the Calendar tab can show: reads `[caldav]`, and
   // fetches nothing until the tab is open with a calendar chosen.
   startCalDavCalendarService();
+  // The news card's feeds: reads `[news]`, and fetches nothing until a news
+  // card is on the desktop.
+  startNewsService();
   // Timers do not count a suspend, so a meeting that started or ended while the
   // lid was shut is caught up on waking rather than an hour late.
   watchResume(() {
     TodoStore.instance.resumed();
     GoogleTodoSync.instance.resumed();
+    NewsStore.instance.resumed();
   });
   // The GitHub account, likewise: a file read and no network until a consumer
   // takes a lease, so Settings › Accounts opens knowing whether it is linked.

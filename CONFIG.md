@@ -1470,7 +1470,7 @@ Items on a cell that does not exist on a smaller monitor are drawn in the neares
 
 Alongside the icons, the grid holds **widgets** — cards that take a rectangle of cells rather than a single one, and that you resize by dragging a corner. Right-click bare desktop and choose **Add widget…** to place one; right-click a widget for **Remove**. Widgets are dragged from anywhere on the card, and their own buttons still work: a press that moves is a drag, one that does not is a click.
 
-Seven types ship:
+Eight types ship:
 
 | `type` | Name | What it draws |
 | ------ | ---- | ------------- |
@@ -1481,6 +1481,7 @@ Seven types ship:
 | `tux` | Tux | A penguin with something nice to say each day |
 | `analog_clock` | Analog clock | The time on a dial, with an hour hand and a minute hand and no second hand |
 | `stocks` | Stock market | Your watchlist: each ticker's price, its move today and where it sits in the day's range |
+| `news` | News | The latest headlines from AP, Reuters and other wire services and broadcasters, newest first |
 
 ```toml
 [[desktop.widgets]]
@@ -1542,6 +1543,45 @@ It is drawn in your theme — the card is the theme's popup surface, the text it
 red are darkened or lightened just enough to read on whatever `popup_background`
 the theme has. With no tickers on the list it offers a button to the setting
 that holds them.
+
+### The news widget
+
+The latest headlines, newest first, each with the outlet it came from and when it
+went up. Click a story to open it in your browser. The same story carried by two
+sources is shown once. The arrows in the corner read the feeds again straight
+away; otherwise they are read every `refresh_minutes`, and not at all while no
+news card is on the desktop.
+
+Out of the box it reads the **Associated Press** and **Reuters**, the two wire
+services most of the press reprints. Neither publishes an RSS feed of its own any
+more, so both are read through Google News, which indexes them: the headlines are
+theirs, and a click goes through Google's redirect to the story on their site.
+NPR, the BBC and PBS NewsHour are a click away in **Settings → Shell → Desktop →
+News widget**, and any other RSS or Atom feed can be added there by its address.
+
+```toml
+[news]
+sources = ["ap", "reuters", "npr", "https://example.com/rss.xml"]
+refresh_minutes = 15
+```
+
+| Key               | Type             | Default             | Description                                                              |
+| ----------------- | ---------------- | ------------------- | ------------------------------------------------------------------------ |
+| `sources`         | array of strings | `["ap", "reuters"]` | What to read: the short names below, or a feed's `https://` address       |
+| `refresh_minutes` | int              | `15`                | How often the feeds are read again while a news card is on screen (5–1440) |
+
+| Short name | Source |
+| ---------- | ------ |
+| `ap`       | The Associated Press, through Google News |
+| `reuters`  | Reuters, through Google News |
+| `npr`      | NPR News |
+| `bbc`      | BBC News — World |
+| `pbs`      | PBS NewsHour |
+
+An entry that is neither a short name nor an `http`/`https` address is ignored.
+An empty list is taken at its word and the card offers to choose some. When one
+source cannot be reached its last stories stay on the card and the reason is
+written under them; click it to try again.
 
 ## Lock Screen
 
