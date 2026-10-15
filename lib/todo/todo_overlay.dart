@@ -29,6 +29,8 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/overlay_search_field.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/tab_focus_traversal.dart';
@@ -146,6 +148,15 @@ class _TodoOverlayState extends State<TodoOverlay> {
     // Opening the board is when somebody is about to read it: whatever
     // changed on the phone since the last poll is fetched now.
     _sync.syncIfStale();
+    widget.closingNotifier.addListener(_onClosing);
+  }
+
+  /// A date picker goes as the board starts its exit, however that was asked
+  /// for — the bar button flips [TodoOverlay.closingNotifier] directly — rather
+  /// than outliving the fade as a popup of a window on its way out.
+  void _onClosing() {
+    if (!widget.closingNotifier.value || !mounted) return;
+    PopupCoordinator.instance.dismissChildren(TransientScope.maybeOf(context));
   }
 
   void _openAccounts() {
@@ -305,8 +316,14 @@ class _TodoOverlayState extends State<TodoOverlay> {
       return;
     }
     if (key != LogicalKeyboardKey.escape) return;
-    // Escape backs out one layer at a time: a card menu, the editor, then the
-    // search, then the board.
+    // Escape backs out one layer at a time: a date picker, a card menu, the
+    // editor, then the search, then the board. The picker is a popup window
+    // of the board's, so it is the coordinator that knows it is open.
+    if (PopupCoordinator.instance.dismissChildren(
+      TransientScope.maybeOf(context),
+    )) {
+      return;
+    }
     if (_menu.value != null) {
       _menu.value = null;
     } else if (_editing.value != null) {
@@ -326,6 +343,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
 
   @override
   void dispose() {
+    widget.closingNotifier.removeListener(_onClosing);
     _focusNode.dispose();
     _searchFocus.dispose();
     _searchText.dispose();
@@ -363,7 +381,11 @@ class _TodoOverlayState extends State<TodoOverlay> {
               // Opaque popups, for the settings overlay's reason: the editor's
               // dropdowns float over dense text.
               child: OpaquePopupScope(
-                child: Overlay(initialEntries: [_panelEntry]),
+                // A click anywhere on the board closes an open date picker —
+                // a popup window of its own, which nothing else here can see.
+                child: PopupDismissArea(
+                  child: Overlay(initialEntries: [_panelEntry]),
+                ),
               ),
             ),
           ),
@@ -1949,6 +1971,10 @@ class _TodoEditorState extends State<_TodoEditor> {
     final draft = _validate();
     final today = dateOnly(widget.store.now);
     final parsedDue = parseDate(_due.text);
+    // The pickers' weeks start where the Calendar tab's do. Absent in a test
+    // that pumps the board alone.
+    final weekStart =
+        LiveConfigScope.maybeOf(context)?.calendar.weekStart ?? DateTime.sunday;
     return Container(
       decoration: BoxDecoration(
         color: opaquePopupFill(theme),
@@ -2015,6 +2041,14 @@ class _TodoEditorState extends State<_TodoEditor> {
                     hint: 'YYYY-MM-DD',
                     onChanged: (_) {},
                   ),
+                ),
+                const SizedBox(width: 4),
+                SettingsDatePickerButton(
+                  selected: parsedDue,
+                  today: today,
+                  weekStart: weekStart,
+                  tooltip: 'Pick the due date',
+                  onPicked: (day) => _due.text = formatDate(day),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -2096,6 +2130,14 @@ class _TodoEditorState extends State<_TodoEditor> {
                           hint: 'YYYY-MM-DD',
                           onChanged: (_) {},
                         ),
+                      ),
+                      const SizedBox(width: 4),
+                      SettingsDatePickerButton(
+                        selected: parseDate(_start.text),
+                        today: today,
+                        weekStart: weekStart,
+                        tooltip: 'Pick the first scheduled day',
+                        onPicked: (day) => _start.text = formatDate(day),
                       ),
                     ],
                   ),

@@ -252,4 +252,34 @@ void main() {
           containsAll(<TransientHandle>[directory, flyout]));
     });
   });
+
+  group('dismissChildren', () {
+    test('dismisses what is open inside the parent, and not the parent', () {
+      final board = openOne('board');
+      final picker = openOne('picker', parent: board);
+      final menu = openOne('menu', parent: picker);
+      // A tooltip, so opening it does not itself dismiss the board.
+      final other = openOne('other', policy: TransientPolicy.tooltip);
+
+      expect(coordinator.dismissChildren(board), isTrue);
+      expect(log, ['menu', 'picker']);
+      expect(board.closing, isFalse);
+      expect(other.closing, isFalse);
+      expect(menu.closing, isTrue);
+    });
+
+    test('reports nothing to do once its children are closing', () {
+      final board = openOne('board');
+      openOne('picker', parent: board);
+      expect(coordinator.dismissChildren(board), isTrue);
+      expect(coordinator.dismissChildren(board), isFalse);
+      expect(log, ['picker']);
+    });
+
+    test('a null parent dismisses nothing', () {
+      openOne('board');
+      expect(coordinator.dismissChildren(null), isFalse);
+      expect(log, isEmpty);
+    });
+  });
 }
