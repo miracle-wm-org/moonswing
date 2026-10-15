@@ -1,9 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:toml/toml.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
+import 'package:moonswing/theme/builtin_themes.dart';
 
 /// A rimmed bar draws its rim along its *inner* edge too — the edge every menu
 /// comes out of — and the compositor places a bar popup **below** the panel, so
@@ -284,6 +286,66 @@ void main() {
     });
   });
 
+  group('a theme switch keeps the bar\'s modules mounted', () {
+    // The regression: the clip and the rim wrap the modules only for some
+    // themes, so a switch that added or dropped one moved the modules to a
+    // different depth and the framework rebuilt every one of them. The clock
+    // hosts the settings overlay and closes it from `dispose`, so picking
+    // Dracula over Glassy in a panel opened from the clock closed the panel.
+    setUp(PanelRimBreaks.instance.clearAll);
+    tearDown(PanelRimBreaks.instance.clearAll);
+
+    ThemeConfig shipped(String slug) => ThemeConfig.fromMap(
+        TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
+
+    Widget bar(ThemeConfig theme, Widget content) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: Center(
+            child: SizedBox(
+              width: 700,
+              height: 32,
+              child: PanelContentFrame(
+                theme: theme,
+                anchor: 'top',
+                panel: null,
+                content: content,
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('across every shape a shipped theme gives the bar',
+        (tester) async {
+      final glassy = shipped('glassy');
+      final dracula = shipped('dracula');
+      final carbon = shipped('carbon');
+      // The three shapes, or this would pass without exercising anything:
+      // rounded, square and plain, and square with its own rim.
+      expect(panelCornerRadius(theme: glassy), isNot(BorderRadius.zero));
+      expect(panelCornerRadius(theme: dracula), BorderRadius.zero);
+      expect(panelPaintsOwnRim(dracula), isFalse);
+      expect(panelPaintsOwnRim(carbon), isTrue);
+
+      var created = 0;
+      var disposed = 0;
+      var taps = 0;
+      final probe = _LifecycleProbe(
+        onInit: () => created++,
+        onDispose: () => disposed++,
+        onTap: () => taps++,
+      );
+      for (final theme in [glassy, dracula, carbon, glassy, carbon, dracula]) {
+        await tester.pumpWidget(bar(theme, probe));
+      }
+      expect(created, 1);
+      expect(disposed, 0);
+
+      // And it is still the same module taking the clicks.
+      await tester.tap(find.byType(_LifecycleProbe));
+      expect(taps, 1);
+    });
+  });
+
   group('the store', () {
     setUp(PanelRimBreaks.instance.clearAll);
     tearDown(PanelRimBreaks.instance.clearAll);
@@ -318,4 +380,41 @@ void main() {
       expect(notifications, 3, reason: 'nothing left to clear');
     });
   });
+}
+
+/// A module stand-in that reports its own `initState` and `dispose`.
+class _LifecycleProbe extends StatefulWidget {
+  const _LifecycleProbe({
+    required this.onInit,
+    required this.onDispose,
+    required this.onTap,
+  });
+
+  final VoidCallback onInit;
+  final VoidCallback onDispose;
+  final VoidCallback onTap;
+
+  @override
+  State<_LifecycleProbe> createState() => _LifecycleProbeState();
+}
+
+class _LifecycleProbeState extends State<_LifecycleProbe> {
+  @override
+  void initState() {
+    super.initState();
+    widget.onInit();
+  }
+
+  @override
+  void dispose() {
+    widget.onDispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: const SizedBox.expand(),
+      );
 }

@@ -2861,10 +2861,6 @@ class _PanelMainState extends State<PanelMain> {
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
     final theme = ThemeScope.of(context);
-    final radius = panelCornerRadius(
-      anchor: widget.panelConfig.anchor,
-      theme: theme,
-    );
     final Widget content = Padding(
       padding: vertical
           ? EdgeInsets.fromLTRB(0, pad, 0, pad)
@@ -2904,13 +2900,14 @@ class _PanelMainState extends State<PanelMain> {
                 theme: theme,
                 includeRim: !paintsOwnRim,
               ),
-              child: panelWithRim(
+              // Clip and rim come and go with the theme; the frame keeps the
+              // modules mounted across that, or a switch disposes every one —
+              // and the clock's settings overlay with it.
+              child: PanelContentFrame(
                 theme: theme,
                 anchor: widget.panelConfig.anchor,
                 panel: View.maybeOf(context),
-                content: radius == BorderRadius.zero
-                    ? content
-                    : ClipRRect(borderRadius: radius, child: content),
+                content: content,
               ),
             ),
           ),
