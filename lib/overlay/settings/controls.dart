@@ -162,16 +162,46 @@ class SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final roomy = SettingsPaneStyle.of(context).roomy;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SettingsSectionHeading(label: label, trailing: trailing, info: info),
         const SizedBox(height: 8),
-        ...children,
+        if (children.isNotEmpty)
+          Container(
+            width: double.infinity,
+            padding: settingsCardPadding(roomy: roomy),
+            decoration: settingsCardDecoration(theme),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: children,
+            ),
+          ),
       ],
     );
   }
 }
+
+/// The card a section's rows sit on.
+///
+/// The rows used to run straight down the pane's background with nothing to
+/// say where one group ended and the next began, so a page read as one long
+/// column of labels. A faint wash — the foreground at a few percent rather than
+/// [ThemeConfig.controlSurface], which is what the fields and list rows *inside*
+/// the card are filled with and would make them vanish into it — plus the
+/// theme's hairline, groups a section without competing with its controls.
+BoxDecoration settingsCardDecoration(ThemeConfig theme) => BoxDecoration(
+  color: theme.popupForeground.withValues(alpha: 0.035),
+  borderRadius: BorderRadius.circular(ShellRadii.card),
+  border: Border.all(color: theme.divider),
+);
+
+/// The inset inside [settingsCardDecoration].
+EdgeInsets settingsCardPadding({required bool roomy}) => roomy
+    ? const EdgeInsets.fromLTRB(16, 8, 16, 8)
+    : const EdgeInsets.fromLTRB(14, 6, 14, 6);
 
 /// The heading row [SettingsSection] and [SliverSettingsSection] share.
 ///
@@ -250,18 +280,19 @@ class SliverSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final group = _group();
+    final roomy = SettingsPaneStyle.of(context).roomy;
+    final group = _group(context, roomy);
     // A roomy pane stacks its sections straight on top of one another, so the
     // gap between them is the section's own: trailing, so the first heading
     // stays level with the page's top padding.
-    if (!SettingsPaneStyle.of(context).roomy) return group;
+    if (!roomy) return group;
     return SliverPadding(
       padding: const EdgeInsets.only(bottom: 20),
       sliver: group,
     );
   }
 
-  Widget _group() => SliverMainAxisGroup(
+  Widget _group(BuildContext context, bool roomy) => SliverMainAxisGroup(
     slivers: [
       SliverToBoxAdapter(
         child: Padding(
@@ -273,15 +304,28 @@ class SliverSettingsSection extends StatelessWidget {
           ),
         ),
       ),
-      // `SliverList.list`, not `.builder`: these children are declarative tables
-      // whose construction is trivial. What is expensive is element inflation and
-      // layout, and `SliverChildListDelegate` is already lazy in exactly that.
-      //
-      // `addRepaintBoundaries` stays on, so a [SettingsRow] child ends up inside
-      // two boundaries. That is the right trade: [SettingsRow] cannot drop its
-      // own, because it is also used nested inside the *box* sections on the
-      // audio and display pages, where nothing else would supply one.
-      SliverList.list(children: children),
+      // The box section's card, as a sliver decoration so the list inside it
+      // stays lazy: a `Container` here would need the children as one box.
+      // `DecoratedSliver` paints from the sliver's geometry, so the card's
+      // rounded ends scroll with it rather than pinning to the viewport.
+      if (children.isNotEmpty)
+        DecoratedSliver(
+          decoration: settingsCardDecoration(ThemeScope.of(context)),
+          sliver: SliverPadding(
+            padding: settingsCardPadding(roomy: roomy),
+            // `SliverList.list`, not `.builder`: these children are declarative
+            // tables whose construction is trivial. What is expensive is element
+            // inflation and layout, and `SliverChildListDelegate` is already
+            // lazy in exactly that.
+            //
+            // `addRepaintBoundaries` stays on, so a [SettingsRow] child ends up
+            // inside two boundaries. That is the right trade: [SettingsRow]
+            // cannot drop its own, because it is also used nested inside the
+            // *box* sections on the audio and display pages, where nothing else
+            // would supply one.
+            sliver: SliverList.list(children: children),
+          ),
+        ),
     ],
   );
 }
@@ -297,11 +341,11 @@ class SettingsSectionLabel extends StatelessWidget {
     return Text(
       text.toUpperCase(),
       style: TextStyle(
-        fontSize: 11,
+        fontSize: ShellFontSizes.caption,
         fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.5),
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.5,
+        color: theme.popupForeground.withValues(alpha: 0.6),
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.8,
       ),
     );
   }
@@ -315,7 +359,7 @@ class SettingsSectionLabel extends StatelessWidget {
 /// walks away from the user as the list grows, while the heading stays put and
 /// the button lands in the same column as the rows' icons.
 class SettingsSubLabel extends StatelessWidget {
-  const SettingsSubLabel(this.text, {super.key, this.trailing});
+  const SettingsSubLabel(this.text, {super.key, this.trailing, this.info});
 
   final String text;
 
@@ -323,11 +367,14 @@ class SettingsSubLabel extends StatelessWidget {
   /// heading with nothing to add to.
   final Widget? trailing;
 
+  /// What the list is, behind a [SettingsInfoTip] beside the heading.
+  final String? info;
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final label = Text(
-      text,
+    final text = Text(
+      this.text,
       style: TextStyle(
         fontSize: 13,
         fontFamily: theme.fontFamily,
@@ -335,6 +382,16 @@ class SettingsSubLabel extends StatelessWidget {
         fontWeight: FontWeight.w600,
       ),
     );
+    final info = this.info;
+    final Widget label = info == null
+        ? text
+        : Row(
+            children: [
+              Flexible(child: text),
+              const SizedBox(width: 4),
+              SettingsInfoTip(info),
+            ],
+          );
     final trailing = this.trailing;
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 2),
@@ -375,10 +432,14 @@ class SettingsHint extends StatelessWidget {
 ///
 /// The default is the dense layout every Shell page is built for. A pane made
 /// of long runs of near-identical rows — Window Manager, where a category is a
-/// dozen numbers in a column — asks for [roomy] instead, and moves what used to
-/// be paragraphs of [SettingsHint] under the rows into a [SettingsInfoTip]
-/// beside each label ([fieldInfo]), so the rows sit further apart and the page
-/// still ends up shorter.
+/// dozen numbers in a column — asks for [roomy] instead, so the rows sit
+/// further apart.
+///
+/// Every catalogued row explains itself by default ([fieldInfo]): its
+/// description goes behind a [SettingsInfoTip] beside the label, which is the
+/// one place prose about a setting lives. Paragraphs of [SettingsHint] under
+/// the rows were the older way, and they pushed each label further from the
+/// row below it than from its own control.
 ///
 /// Read by [SettingsRow], [SettingsListRow] and [SliverSettingsSection], so a
 /// pane sets it once at the top rather than threading a flag through every
@@ -387,7 +448,7 @@ class SettingsPaneStyle extends InheritedWidget {
   const SettingsPaneStyle({
     super.key,
     this.roomy = false,
-    this.fieldInfo = false,
+    this.fieldInfo = true,
     required super.child,
   });
 
@@ -733,7 +794,21 @@ class _SettingsTooltipState extends State<SettingsTooltip> {
   }
 }
 
-/// A labelled form row: the label on the left, the [control] on the right.
+/// The width of a [SettingsRow]'s label column.
+///
+/// A form reads label-then-value, so the value goes directly after the label
+/// rather than at the far edge of the pane: with the label stretched across the
+/// row, a wide pane put the two half a screen apart and the eye had to track
+/// across the gap to pair them. A fixed column also lines every control on a
+/// page up under the one above it, so a page is two columns to scan rather
+/// than a ragged edge. Gives way on a row too narrow for it and its control.
+const double kSettingsLabelWidth = 220;
+
+/// The gap between a [SettingsRow]'s label column and its control.
+const double kSettingsLabelGap = 16;
+
+/// A labelled form row: the label in a fixed column on the left, the [control]
+/// directly beside it — see [kSettingsLabelWidth].
 ///
 /// It carries a [RepaintBoundary], and that is load-bearing. A settings page
 /// scrolls in a `SingleChildScrollView`, whose viewport is a repaint boundary
@@ -810,10 +885,26 @@ class SettingsRow extends StatelessWidget {
     final text = Text(
       label,
       style: TextStyle(
-        fontSize: 13,
+        fontSize: ShellFontSizes.body,
         fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.85),
+        color: theme.popupForeground.withValues(alpha: 0.9),
       ),
+    );
+    // The tip hugs the label's last word rather than sitting at the column's
+    // far edge, for the reason the column exists at all: it explains *this*
+    // label, and an icon out in the gap reads as belonging to the control.
+    final labelCell = Padding(
+      padding: EdgeInsets.only(top: alignTop ? 10 : 0),
+      child: info == null
+          ? text
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(child: text),
+                const SizedBox(width: 4),
+                SettingsInfoTip(info),
+              ],
+            ),
     );
     return RepaintBoundary(
       child: _SettingsRowHighlight(
@@ -822,34 +913,55 @@ class SettingsRow extends StatelessWidget {
         // `UrgencyFlash`'s rule, for a flash that fires once per search jump.
         searchId: searchId,
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: style.roomy ? 10 : 6),
-          child: Row(
-            crossAxisAlignment: alignTop
-                ? CrossAxisAlignment.start
-                : CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: EdgeInsets.only(top: alignTop ? 10 : 0),
-                  child: info == null
-                      ? text
-                      : Row(
-                          children: [
-                            Flexible(child: text),
-                            const SizedBox(width: 6),
-                            SettingsInfoTip(info),
-                          ],
-                        ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              control,
-            ],
+          padding: EdgeInsets.symmetric(vertical: style.roomy ? 10 : 7),
+          child: _SettingsRowLayout(
+            alignTop: alignTop,
+            label: labelCell,
+            control: control,
           ),
         ),
       ),
     );
   }
+}
+
+/// [SettingsRow]'s two columns: the label at [kSettingsLabelWidth], the
+/// control after it at its own width, left-aligned.
+///
+/// The control is laid out first, at its own width — every control in the
+/// library is sized by its content — and the label column is what gives way
+/// when a narrow pane cannot hold both, so a wide control squeezes its own
+/// row's label rather than the page's column.
+///
+/// Deliberately not a `LayoutBuilder` sizing the column off the row's width.
+/// A `LayoutBuilder` rebuilds a dirty descendant *during its own layout*, so a
+/// hover anywhere in the control marks the row needing layout, and a relayout
+/// steps straight over the [RepaintBoundary] the row exists to provide — the
+/// whole section re-records for one tinted icon.
+class _SettingsRowLayout extends StatelessWidget {
+  const _SettingsRowLayout({
+    required this.alignTop,
+    required this.label,
+    required this.control,
+  });
+
+  final bool alignTop;
+  final Widget label;
+  final Widget control;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: alignTop
+        ? CrossAxisAlignment.start
+        : CrossAxisAlignment.center,
+    children: [
+      Flexible(
+        child: SizedBox(width: kSettingsLabelWidth, child: label),
+      ),
+      const SizedBox(width: kSettingsLabelGap),
+      control,
+    ],
+  );
 }
 
 /// Pulses a [SettingsRow] the settings search has just jumped to, and scrolls it

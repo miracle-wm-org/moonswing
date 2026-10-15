@@ -127,8 +127,8 @@ Widget miracleEnumDropdown<T>({
   ),
 );
 
-/// A right-aligned read-only value, for a row the configuration reports but
-/// nothing can change.
+/// A read-only value, for a row the configuration reports but nothing can
+/// change. Beside its label like any other row's value.
 class MiracleReadOnly extends StatelessWidget {
   const MiracleReadOnly(this.text, {super.key});
 
@@ -137,15 +137,12 @@ class MiracleReadOnly extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: ShellFontSizes.secondary,
-          fontFamily: theme.fontFamily,
-          color: theme.popupForeground.withValues(alpha: 0.75),
-        ),
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: ShellFontSizes.secondary,
+        fontFamily: theme.fontFamily,
+        color: theme.popupForeground.withValues(alpha: 0.75),
       ),
     );
   }

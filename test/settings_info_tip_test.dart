@@ -114,17 +114,25 @@ void main() {
     expect(find.text('Explained here.'), findsNothing);
   });
 
-  testWidgets('a catalogued row explains itself only where the pane asks', (
+  testWidgets('a catalogued row explains itself unless the pane opts out', (
     tester,
   ) async {
     final row = SettingsRow.field(_field, control: const SizedBox(width: 40));
     await _pump(tester, row);
-    expect(_infoIcon, findsNothing);
-
-    await _pump(tester, SettingsPaneStyle(fieldInfo: true, child: row));
     expect(_infoIcon, findsOneWidget);
     await _hover(tester, find.byType(SettingsInfoTip));
     expect(find.text('What the test setting does.'), findsOneWidget);
+
+    await _pump(tester, SettingsPaneStyle(fieldInfo: false, child: row));
+    expect(_infoIcon, findsNothing);
+  });
+
+  testWidgets('the tip sits by the label, not out in the gap', (tester) async {
+    final row = SettingsRow.field(_field, control: const SizedBox(width: 40));
+    await _pump(tester, row);
+    final label = tester.getRect(find.text('Test setting'));
+    final icon = tester.getRect(_infoIcon);
+    expect(icon.left - label.right, lessThan(8));
   });
 
   testWidgets('an explicit info wins over the description', (tester) async {
