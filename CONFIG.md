@@ -481,22 +481,39 @@ coloured by the first ticker's move.
 ### Notifications
 
 A bell that shakes and shows a count when a notification arrives, and opens the
-notification panel on click — a full-height surface that sweeps in from the right
-edge over everything else on screen, and back out the same way when dismissed,
-listing what has arrived with each notification's actions, a **mark everything
-read** button and a **Clear all**. The shell is the desktop's notification
-daemon, so this is where notifications from every application land.
+**notification panel** on click: a panel docked against the right edge of the
+screen whose bar you clicked (or the left — see `side`), listing what has
+arrived with each notification's actions, a **mark everything read** button and
+a **Clear all**. The shell is the desktop's notification daemon, so this is where
+notifications from every application land.
+
+The panel is built like the [clipboard history](#clipboard) and behaves like it.
+It slides out of its edge and back into it, **never takes keyboard focus**, and
+stays open until you close it with its ×, click the bell again, or press the
+`open_notifications` shortcut — clicking anything else, or opening another menu,
+leaves it where it is. Clicking a notification that opens something closes it,
+out of that thing's way. While it is open it **reserves its width**: windows are
+moved out of its way rather than drawn under it. If the clipboard history is
+docked against the same edge, the two open side by side.
 
 ```toml
 [modules.notifications]
 sound = "chime"
 sound_volume = 0.7
+side = "right"
+width = 400
 ```
 
-| Key            | Type   | Default   | What it does                                        |
-| -------------- | ------ | --------- | --------------------------------------------------- |
-| `sound`        | string | `"chime"` | What plays when a notification arrives — see below. |
-| `sound_volume` | float  | `0.7`     | How loud it plays, from 0 to 1. Clamped.            |
+| Key            | Type   | Default   | What it does                                                                                       |
+| -------------- | ------ | --------- | -------------------------------------------------------------------------------------------------- |
+| `sound`        | string | `"chime"` | What plays when a notification arrives — see below.                                                |
+| `sound_volume` | float  | `0.7`     | How loud it plays, from 0 to 1. Clamped.                                                           |
+| `side`         | string | `"right"` | Which edge of the screen the panel docks against: `"left"` or `"right"`                            |
+| `width`        | int    | `400`     | How wide the panel is, in pixels (240–1200) — and so how much of the screen it takes from windows |
+
+`side` and `width` are read when the panel opens, so a change applies the next
+time you open it. They are read whether or not any bar carries the bell: the
+floating notification card opens the same panel.
 
 `sound` takes four kinds of answer, tried in this order:
 
@@ -705,7 +722,8 @@ max_item_mb = 32
 | `max_item_mb` | int    | `32`     | Anything copied that is bigger than this, in megabytes, is not kept (1–1024)                      |
 
 `side` and `width` are read when the panel opens, so a change applies the next
-time you open it. A file you copy is kept as its path, not its contents, so
+time you open it. Docked against the same edge as the [notification
+panel](#notifications), the two open side by side. A file you copy is kept as its path, not its contents, so
 `max_item_mb` is about pictures and media copied directly — a screenshot, an
 image copied out of a browser.
 
@@ -1436,7 +1454,7 @@ The last three deliberately travel past the resting state and come back, which i
 
 Two notes on what is *not* animated. The **scrim never moves** — it is the size of your display, so anything transforming or layering it would cost a full-screen composite every frame, and it arrives by its own alpha instead. And the **settings panel arrives a half again more slowly** than the other overlays, as it always has, because it is a workspace rather than a card you are chasing: that is a proportion of whatever you set here, not a duration of its own, so it still moves when you move `overlay_animation_duration`.
 
-The **notification panel keeps its own entrance**, and these keys do not reach it. It is a full-height surface butted against the screen edge rather than a card in the middle of one, so it slides out of that edge and is thrown back into it; a centre-pivoted scale there opens a transparent strip along the screen edge that reads as the panel having come loose.
+The **docked panels — the notification panel and the clipboard history — keep their own entrance**, and these keys do not reach them. Each is a full-height surface butted against the screen edge rather than a card in the middle of one, so it slides out of that edge and back into it; a centre-pivoted scale there opens a transparent strip along the screen edge that reads as the panel having come loose.
 
 Themes written before these keys existed get `scale` at 160 ms on `ease_out`, which is exactly what every overlay played before there was a choice.
 

@@ -156,19 +156,18 @@ void main() {
       expect(find.text('Clear all'), findsOneWidget);
     });
 
-    testWidgets('the way out is a drawer closing, not an X', (tester) async {
+    testWidgets('the way out is the close button in the header',
+        (tester) async {
       final closing = ValueNotifier(false);
       addTearDown(closing.dispose);
 
       await tester.pumpWidget(panel(closing));
       await tester.pumpAndSettle();
 
-      final close = _glyph(FontAwesomeIcons.arrowRightToBracket);
+      // The clipboard history's X, in the same place: the two docked panels
+      // close the same way.
+      final close = _glyph(FontAwesomeIcons.xmark);
       expect(close, findsOneWidget);
-      // The panel leaves by sliding back into the edge it is anchored to, and
-      // this is the arrow that says so. An X says the thing under it is being
-      // thrown away, which is what Clear all does.
-      expect(_glyph(FontAwesomeIcons.xmark), findsNothing);
 
       await tester.tap(close);
       await tester.pump();

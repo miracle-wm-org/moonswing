@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/request_controller.dart';
 
 /// The seam between anything that wants the notification panel open and
@@ -13,6 +14,15 @@ import 'package:moonswing/request_controller.dart';
 /// Making the root the owner is also what makes there be *one* panel: two hosts
 /// each opening their own copy would put two full-height surfaces on the same
 /// output edge.
+/// The side the panel docks against when `[modules.notifications]` names none:
+/// the right, where it has always been, and opposite the clipboard history's
+/// default, so the two open side by side on separate edges.
+const DockSide kDefaultNotificationPanelSide = DockSide.right;
+
+/// Its width when none is named: room for a two-word summary on one line and
+/// a row of action buttons.
+const int kDefaultNotificationPanelWidth = 400;
+
 class NotificationPanelController extends SignalController {
   NotificationPanelController._();
 
@@ -38,10 +48,37 @@ class NotificationPanelController extends SignalController {
   /// [toggle] and lets the root decide.
   void setOpen(bool value) => _open.value = value;
 
-  /// Asks the shell to open the panel, or to close it if it is already up.
-  /// The root decides which — the controller carries no window state beyond
-  /// the flag it is *told*.
-  void toggle() => signal();
+  /// The connector name of the output the last [toggle] came from, or null
+  /// when the caller did not know it — a shortcut, or a bar whose output is
+  /// still being enumerated — and the compositor then picks the focused one.
+  String? get output => _output;
+  String? _output;
+
+  /// The edge the panel docks against, `[modules.notifications] side`.
+  DockSide get side => _side;
+  DockSide _side = kDefaultNotificationPanelSide;
+
+  /// How wide it is, `[modules.notifications] width` — and so how much of the
+  /// output it reserves.
+  int get width => _width;
+  int _width = kDefaultNotificationPanelWidth;
+
+  /// Pushed by the module's `fromMap`, which runs whether or not any bar
+  /// carries the bell: the floating badge opens the same panel. Read by the
+  /// root when it creates the window, so an edit moves the next panel, not
+  /// the one already docked. Never signals — it is not a request.
+  void configure({required DockSide side, required int width}) {
+    _side = side;
+    _width = width;
+  }
+
+  /// Asks the shell to open the panel on [output], or to close it if it is
+  /// already up. The root decides which — the controller carries no window
+  /// state beyond the flag it is *told*.
+  void toggle({String? output}) {
+    _output = output;
+    signal();
+  }
 
   @override
   void dispose() {

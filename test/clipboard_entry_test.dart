@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/clipboard/clipboard_config.dart';
 import 'package:moonswing/clipboard/clipboard_entry.dart';
 import 'package:moonswing/clipboard/wl_clipboard.dart';
+import 'package:moonswing/docked_panel.dart';
 
 void main() {
   group('pickClipboardType', () {
@@ -218,7 +219,7 @@ void main() {
     test('defaults: the left edge, kept across restarts', () {
       const config = ClipboardConfig();
       expect(ClipboardConfig.fromMap(null), config);
-      expect(config.side, ClipboardSide.left);
+      expect(config.side, DockSide.left);
       expect(config.persist, isTrue);
     });
 
@@ -230,12 +231,12 @@ void main() {
         'persist': 'yes',
         'max_item_mb': 4,
       });
-      expect(config.side, ClipboardSide.right);
+      expect(config.side, DockSide.right);
       expect(config.width, 240, reason: 'clamped to the floor');
       expect(config.maxEntries, 25);
       expect(config.persist, isTrue, reason: 'a wrongly-typed value is absent');
       expect(config.maxItemBytes, 4 * 1024 * 1024);
-      expect(ClipboardConfig.fromMap({'side': 'top'}).side, ClipboardSide.left);
+      expect(ClipboardConfig.fromMap({'side': 'top'}).side, DockSide.left);
     });
   });
 

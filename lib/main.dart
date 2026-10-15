@@ -12,7 +12,6 @@ import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/app_scope.dart';
 import 'package:moonswing/caldav/caldav_service.dart';
-import 'package:moonswing/clipboard/clipboard_config.dart';
 import 'package:moonswing/clipboard/clipboard_panel.dart';
 import 'package:moonswing/clipboard/clipboard_panel_controller.dart';
 import 'package:moonswing/clipboard/clipboard_store.dart';
@@ -22,6 +21,7 @@ import 'package:moonswing/capture/selector_overlay.dart';
 import 'package:moonswing/capture/window_targets.dart';
 import 'package:moonswing/desktop/desktop_surface.dart';
 import 'package:moonswing/display_provider.dart';
+import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/overlay/file_picker.dart';
 import 'package:moonswing/overlay/file_picker_controller.dart';
 import 'package:moonswing/overlay/settings_route.dart';
@@ -624,8 +624,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   final Map<String, LayershellWindowController> _badges = {};
 
   /// Eleven of the thirteen root-owned overlays — the full-screen ones; the
-  /// notification panel and the clipboard history are the exceptions. Each [_OverlayWindow] carries the
-  /// controller, its [PopupCoordinator] registration and the closing notifier.
+  /// notification panel and the clipboard history, the two docked panels, are
+  /// the exceptions. Each [_OverlayWindow] carries the controller, its
+  /// [PopupCoordinator] registration and the closing notifier.
   ///
   /// The two pickers are modal: dismissing a consent prompt is a denial, and
   /// only its controller may resolve it.
@@ -663,7 +664,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// The edge the open clipboard panel was docked against, captured at window
   /// creation: the content slides in from the edge the window is on, and a
   /// settings edit while it is open must not tell it otherwise.
-  ClipboardSide _clipboardSide = ClipboardSide.left;
+  DockSide _clipboardSide = DockSide.left;
   final _OverlayWindow _screencastPicker = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -702,12 +703,20 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   PolkitAuthSession? _polkitSession;
 
   /// The notification panel — the twelfth root-owned overlay, and one of the
-  /// two that are not full-screen (the clipboard history is the other). The bell and the badge share no widget ancestry,
-  /// so both ask the root instead. `late final` because it brings its own
-  /// window, a column down one output edge.
+  /// two that are not full-screen (the clipboard history is the other). The
+  /// bell and the badge share no widget ancestry, so both ask the root instead.
+  /// `late final` because it brings its own window, a column docked against
+  /// one output edge — the clipboard history's shape, and its non-dismissable
+  /// policy for the same reason: it reserves its width, so a click on a window
+  /// beside it taking it down would move every window back under the pointer.
   late final _OverlayWindow _notifications = _OverlayWindow(
+    policy: TransientPolicy.modal,
     create: _createNotificationWindow,
   );
+
+  /// The edge the open notification panel was docked against, captured at
+  /// window creation for [_clipboardSide]'s reason.
+  DockSide _notificationSide = kDefaultNotificationPanelSide;
 
   /// The page the open (or about-to-open) settings overlay was asked for. Null
   /// is the default landing page.
@@ -1044,8 +1053,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
   /// Creates the badge windows when there is something to report and destroys
   /// them when there is not — [_onOsdChanged]'s shape and early return. The panel
-  /// counts as "reported": it is a column down the same edge, so leaving the
-  /// badge up would put it under the thing it exists to open.
+  /// counts as "reported": the badge exists to open it, and on its default
+  /// side it is a column down the badge's own edge.
   ///
   /// Silencing takes the badge away entirely, and it is the loudest thing
   /// silencing has to take: a card that plants itself in the corner of every
@@ -1086,37 +1095,31 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     _destroyAfterFrame(removed);
   }
 
-  /// The notification panel's own window: full-height against the output's right
-  /// edge, a quarter of its width.
-  ///
-  /// [spanFullOutput] here and not on the badge, because this surface is meant to
-  /// cover the bars. `onDemand` keyboard is what lets its Escape binding fire —
-  /// not `exclusive`, which would hold the keyboard off the focused window.
+  /// The notification panel's window, `[modules.notifications]`'s side and
+  /// width — the clipboard history's shape (see [_createDockedWindow]).
   LayershellWindowController _createNotificationWindow(
     ffi.Pointer<ffi.NativeType>? monitor,
   ) {
-    final controller = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: const [
-        LayerShellEdge.right,
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-      ],
-      width: notificationPanelWidth(getScreenSize().width),
-      // height omitted: top+bottom anchoring makes this full-height.
-      keyboardMode: LayerShellKeyboardMode.onDemand,
-      monitor: monitor,
+    final controller = NotificationPanelController.instance;
+    _notificationSide = controller.side;
+    return _createDockedWindow(
+      monitor,
+      side: controller.side,
+      width: controller.width,
     );
-    spanFullOutput(controller);
-    return controller;
   }
 
-  /// The bell module asked for the panel. No monitor, so the compositor puts it
-  /// on the focused output — the right rule for a trigger that could be on any
-  /// bar on any display.
+  /// The bell module or the shortcut asked for the panel. The bell names the
+  /// output it is on, so the panel docks against the screen whose bar was
+  /// clicked; the shortcut names none, and the compositor puts it on the
+  /// focused output.
   void _onNotificationPanelToggled() {
     if (!mounted) return;
-    _toggleNotificationPanel();
+    _toggleNotificationPanel(
+      monitor: _monitorForConnector(
+        NotificationPanelController.instance.output,
+      ),
+    );
   }
 
   /// Toggles the panel, opening it on [monitor] when one is named. The badge
@@ -1142,7 +1145,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   }
 
   /// Called by [NotificationPanel] once its exit animation has finished — from
-  /// the bell, its own close button, Escape, or the [PopupCoordinator].
+  /// the bell, the badge, the shortcut, its own close button, or a
+  /// notification opening what it is about.
   void _onNotificationPanelClosed() {
     if (!mounted) return;
     final removed = _notifications.take();
@@ -1777,38 +1781,51 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         ?.gdkMonitor;
   }
 
-  /// The clipboard history's window: full-height against the configured edge
-  /// of the output, `[modules.clipboard] width` wide.
+  /// The window for a docked panel — the clipboard history or the
+  /// notification panel: full-height against [side] of the output, [width]
+  /// wide.
   ///
-  /// Three choices make it what it is, and none is the notification panel's:
+  /// Three choices make it what it is:
   ///
-  /// - **Keyboard `none`.** The panel's whole use is pasting into the window
-  ///   the user is already in; a surface that took focus on every click would
-  ///   take it off that window.
+  /// - **Keyboard `none`.** Both panels are used beside the window the user is
+  ///   working in; a surface that took focus on every click would take it off
+  ///   that window.
   /// - **An exclusive zone of its own width**, so the compositor moves windows
   ///   out of its way. Hence no [spanFullOutput] either: a positive zone is
-  ///   placed clear of the bars' zones by the compositor, which is right for a
-  ///   dock beside them.
+  ///   placed clear of the zones already reserved — the bars', and the other
+  ///   docked panel's when both are open against one edge, which is what puts
+  ///   them side by side rather than one over the other.
   /// - **The top layer**, a dock's: above windows, below the overlays.
+  LayershellWindowController _createDockedWindow(
+    ffi.Pointer<ffi.NativeType>? monitor, {
+    required DockSide side,
+    required int width,
+  }) {
+    return LayershellWindowController(
+      layer: LayerShellLayer.top,
+      anchorEdges: [
+        side == DockSide.left ? LayerShellEdge.left : LayerShellEdge.right,
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+      ],
+      width: width,
+      // height omitted: top+bottom anchoring makes this full-height.
+      exclusiveZone: width,
+      keyboardMode: LayerShellKeyboardMode.none,
+      monitor: monitor,
+    );
+  }
+
+  /// The clipboard history's window, `[modules.clipboard]`'s side and width.
   LayershellWindowController _createClipboardWindow(
     ffi.Pointer<ffi.NativeType>? monitor,
   ) {
     final config = ClipboardHistoryStore.instance.config;
     _clipboardSide = config.side;
-    return LayershellWindowController(
-      layer: LayerShellLayer.top,
-      anchorEdges: [
-        config.side == ClipboardSide.left
-            ? LayerShellEdge.left
-            : LayerShellEdge.right,
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-      ],
+    return _createDockedWindow(
+      monitor,
+      side: config.side,
       width: config.width,
-      // height omitted: top+bottom anchoring makes this full-height.
-      exclusiveZone: config.width,
-      keyboardMode: LayerShellKeyboardMode.none,
-      monitor: monitor,
     );
   }
 
@@ -2613,6 +2630,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
           controller: notifications,
           builder: (_) => _windowChrome(
             NotificationPanel(
+              side: _notificationSide,
               closingNotifier: _notifications.closing,
               onClosed: _onNotificationPanelClosed,
             ),
@@ -3139,8 +3157,8 @@ class _OverlayWindow {
 
   /// Builds the native window for the monitor [open] was asked for.
   ///
-  /// Null is the full-screen backdrop all but one of these want; the notification
-  /// panel supplies its own. What [_OverlayWindow] owns is the bookkeeping, which
+  /// Null is the full-screen backdrop all but two of these want; the docked
+  /// panels supply their own. What [_OverlayWindow] owns is the bookkeeping, which
   /// does not care what shape the surface is.
   final LayershellWindowController Function(
     ffi.Pointer<ffi.NativeType>? monitor,
