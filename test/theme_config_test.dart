@@ -20,6 +20,7 @@ void main() {
         'panel_border_width': [1, 2],
         'popup_radius': 'round',
         'popup_border_width': {'a': 1},
+        'overlay_radius': 'round',
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
@@ -28,6 +29,7 @@ void main() {
       // shipped card shape rather than on the panel's flush-and-square one.
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
+      expect(theme.overlayRadius, 12.0);
     });
 
     test('a negative value clamps to zero', () {
@@ -37,6 +39,7 @@ void main() {
         'panel_border_width': -0.5,
         'popup_radius': -1.0,
         'popup_border_width': -0.5,
+        'overlay_radius': -1.0,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
@@ -45,6 +48,7 @@ void main() {
       // card with no rim — and a negative one is the nearest thing to it.
       expect(theme.popupRadius, 0.0);
       expect(theme.popupBorderWidth, 0.0);
+      expect(theme.overlayRadius, 0.0);
     });
 
     test('an absurd value clamps to the ceiling', () {
@@ -54,12 +58,14 @@ void main() {
         'panel_border_width': 999,
         'popup_radius': 1e9,
         'popup_border_width': 999,
+        'overlay_radius': 1e9,
       });
       expect(theme.panelMargin, 256);
       expect(theme.panelRadius, 64.0);
       expect(theme.panelBorderWidth, 16.0);
       expect(theme.popupRadius, 64.0);
       expect(theme.popupBorderWidth, 16.0);
+      expect(theme.overlayRadius, 64.0);
     });
 
     test('NaN falls back rather than propagating', () {
@@ -72,12 +78,14 @@ void main() {
         'panel_border_width': double.nan,
         'popup_radius': double.nan,
         'popup_border_width': double.nan,
+        'overlay_radius': double.nan,
       });
       expect(theme.panelMargin, 0);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
+      expect(theme.overlayRadius, 12.0);
     });
 
     test('infinity falls back rather than clamping', () {
@@ -138,6 +146,10 @@ void main() {
 
     test('popup_radius', () {
       expect(base, isNot(const ThemeConfig(popupRadius: 12.0)));
+    });
+
+    test('overlay_radius', () {
+      expect(base, isNot(const ThemeConfig(overlayRadius: 24.0)));
     });
 
     test('popup_border', () {

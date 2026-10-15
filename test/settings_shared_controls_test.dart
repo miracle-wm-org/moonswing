@@ -62,9 +62,6 @@ void main() {
 
   testWidgets('SettingsListRow text carries the theme font', (tester) async {
     await tester.pumpWidget(_host(SettingsListRow(
-      onMoveUp: () {},
-      onMoveDown: () {},
-      onRemove: () {},
       trailing: const SettingsBadge('Active'),
       child: const Text('English (US)',
           style: TextStyle(fontFamily: _kFamily)),

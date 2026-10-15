@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/app_info.dart' show AppIconImage;
 import 'package:moonswing/capture/capture_config.dart'
     show
         RecorderConfig,
@@ -13,6 +14,8 @@ import 'package:moonswing/capture/capture_sound.dart'
 import 'package:moonswing/clipboard/clipboard_config.dart'
     show ClipboardConfig;
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/desktop/app_chooser.dart' show showAppChooser;
+import 'package:moonswing/launcher/app_index.dart';
 import 'package:moonswing/modules/battery.dart' show BatteryConfig;
 import 'package:moonswing/modules/clock.dart' show ClockConfig;
 import 'package:moonswing/modules/dock.dart' show DockConfig;
@@ -29,6 +32,7 @@ import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/shell/weather_location.dart';
 import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/scopes.dart';
 import 'package:moonswing/stocks/stock_config.dart' show StockConfig;
 import 'package:moonswing/system/system_monitor_config.dart'
     show SystemMonitorConfig;
@@ -36,7 +40,15 @@ import 'package:moonswing/timers/timer_sound.dart'
     show kDefaultTimerVolume, kTimerSoundHint;
 
 /// Which control edits a module setting row.
-enum _Kind { toggle, number, segmented, text, stringList, weatherLocation }
+enum _Kind {
+  toggle,
+  number,
+  segmented,
+  text,
+  stringList,
+  appList,
+  weatherLocation,
+}
 
 /// One `[modules.*]` row: its catalogue entry, and which control edits it.
 ///
@@ -53,7 +65,8 @@ class _ModuleSetting {
     : kind = _Kind.toggle,
       isInt = false,
       options = null,
-      addHint = null;
+      addHint = null,
+      addLabel = null;
 
   const _ModuleSetting.number(
     this.field, {
@@ -61,7 +74,8 @@ class _ModuleSetting {
     required this.isInt,
   }) : kind = _Kind.number,
        options = null,
-       addHint = null;
+       addHint = null,
+       addLabel = null;
 
   const _ModuleSetting.segmented(
     this.field, {
@@ -69,7 +83,8 @@ class _ModuleSetting {
     required String this.defaultValue,
   }) : kind = _Kind.segmented,
        isInt = false,
-       addHint = null;
+       addHint = null,
+       addLabel = null;
 
   /// A free-typed string — a path, in the only two rows that use it.
   ///
@@ -81,13 +96,25 @@ class _ModuleSetting {
     : kind = _Kind.text,
       defaultValue = null,
       isInt = false,
-      options = null;
+      options = null,
+      addLabel = null;
 
-  const _ModuleSetting.stringList(this.field, {this.addHint})
+  const _ModuleSetting.stringList(this.field, {this.addHint, this.addLabel})
     : kind = _Kind.stringList,
       defaultValue = null,
       isInt = false,
       options = null;
+
+  /// A list of installed applications by desktop id — the dock's pins — shown
+  /// by name and icon and added from the application chooser, rather than
+  /// typed as `firefox_firefox`.
+  const _ModuleSetting.appList(this.field)
+    : kind = _Kind.appList,
+      defaultValue = null,
+      isInt = false,
+      options = null,
+      addHint = null,
+      addLabel = null;
 
   /// The weather location picker.
   ///
@@ -99,12 +126,17 @@ class _ModuleSetting {
       defaultValue = null,
       isInt = false,
       options = null,
-      addHint = null;
+      addHint = null,
+      addLabel = null;
 
   /// The catalogue entry: the row's label, and the config path it edits.
   final SettingsField field;
 
   final _Kind kind;
+
+  /// Whether the control is a [SettingsList], which is laid out under its
+  /// label rather than beside it.
+  bool get isList => kind == _Kind.stringList || kind == _Kind.appList;
 
   /// The `[modules.*]` key this row writes, from the entry's id.
   ///
@@ -112,7 +144,7 @@ class _ModuleSetting {
   /// `weather_location.dart`.
   List<String> get path => field.id.split('.');
 
-  /// The module's compiled-in default. Null only for [_Kind.stringList], whose
+  /// The module's compiled-in default. Null for the list kinds, whose
   /// absent-value state is the empty list [ConfigStore.getList] returns.
   final Object? defaultValue;
 
@@ -125,6 +157,9 @@ class _ModuleSetting {
   /// Placeholder text: a [_Kind.stringList] row's free-form adder, or the
   /// compiled-in default a [_Kind.text] row falls back to when it is empty.
   final String? addHint;
+
+  /// A [_Kind.stringList] row's add-row label; a bare "Add" when null.
+  final String? addLabel;
 }
 
 /// One module's page in Shell › Module Settings: the card on the module list
@@ -295,6 +330,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.stringList(
         SettingsCatalog.systemTrayHiddenItems,
         addHint: 'SNI id or title',
+        addLabel: 'Hide an item',
       ),
     ],
   ),
@@ -312,7 +348,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.dockShowAppDirectory,
         defaultValue: const DockConfig().showAppDirectory,
       ),
-      _ModuleSetting.stringList(SettingsCatalog.dockApps, addHint: 'app id'),
+      _ModuleSetting.appList(SettingsCatalog.dockApps),
     ],
   ),
   ModuleSettingsPage._(
@@ -427,6 +463,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.stringList(
         SettingsCatalog.stocksSymbols,
         addHint: 'symbol, e.g. AAPL',
+        addLabel: 'Add symbol',
       ),
       _ModuleSetting.number(
         SettingsCatalog.stocksRefreshSeconds,
@@ -567,14 +604,18 @@ class ModuleSettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final settings = page._settings;
     return SliverSettingsSection(
       label: page.title,
+      // A list that ends its module's page — the dock's apps, the tray's
+      // hidden items — takes the rest of the pane.
+      fillLast: settings.isNotEmpty && settings.last.isList,
       children: [
-        for (final setting in page._settings)
+        for (final setting in settings)
           SettingsRow.field(
             setting.field,
-            // The list editors are tall; their label sits at the top.
-            alignTop: setting.kind == _Kind.stringList,
+            // A list is read across the pane's width, under its label.
+            stacked: setting.isList,
             control: _control(setting),
           ),
       ],
@@ -648,6 +689,16 @@ class ModuleSettingsSection extends StatelessWidget {
             items: store.getList<String>(path),
             onChanged: (list) => store.set(path, list),
             addHint: setting.addHint,
+            addLabel: setting.addLabel,
+          ),
+        );
+      case _Kind.appList:
+        return StoreSelector<String>(
+          listenable: store,
+          selector: () => store.getList<String>(path).join('\u0000'),
+          builder: (context, _) => AppListEditor(
+            ids: store.getList<String>(path),
+            onChanged: (list) => store.set(path, list),
           ),
         );
       case _Kind.weatherLocation:
@@ -655,5 +706,82 @@ class ModuleSettingsSection extends StatelessWidget {
         // them, so the selector is on the label rather than on a key.
         return WeatherLocationField(store: store);
     }
+  }
+}
+
+/// A list of installed applications, stored by desktop id: each row is the
+/// application's own icon and name, and the add row opens the application
+/// chooser.
+///
+/// Names and icons come from [AppIndex], which this listens to, so a list
+/// opened before the index has been built fills in when it lands. An id that
+/// names nothing installed is kept and shown as itself, marked — it is still
+/// in the file, and the dock skips it.
+class AppListEditor extends StatelessWidget {
+  const AppListEditor({
+    super.key,
+    required this.ids,
+    required this.onChanged,
+    this.addLabel = 'Add application',
+  });
+
+  final List<String> ids;
+  final ValueChanged<List<String>> onChanged;
+  final String addLabel;
+
+  /// The rows hold no `GAppInfo` pointer, only strings copied off the entries,
+  /// so the index needs no lease for this; the chooser takes one while it is
+  /// up, as the desktop page's does.
+  Future<String?> _choose(BuildContext context) async {
+    final index = AppIndex.instance;
+    index.acquire();
+    try {
+      final app = await showAppChooser(context, apps: index.searchable);
+      return app?.id;
+    } finally {
+      index.release();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: AppIndex.instance,
+      builder: (context, _) {
+        final theme = ThemeScope.of(context);
+        final apps = AppIndex.instance.apps;
+        final byId = {for (final app in apps) app.id: app};
+        return SettingsStringListEditor(
+          items: ids,
+          onChanged: onChanged,
+          addLabel: addLabel,
+          emptyText: 'No applications pinned yet.',
+          choose: _choose,
+          labelOf: (id) => byId[id]?.name,
+          // The id is what the file holds; the name is what to read.
+          detailOf: (id) {
+            if (byId.containsKey(id)) return id;
+            // With no index yet there is nothing to say an id is missing.
+            return apps.isEmpty ? null : 'Not installed';
+          },
+          iconOf: (id) {
+            final app = byId[id];
+            if (app == null) {
+              return FaIcon(
+                FontAwesomeIcons.circleQuestion,
+                size: 14,
+                color: theme.popupForeground.withValues(alpha: 0.4),
+              );
+            }
+            return AppIconImage(
+              iconName: app.iconName,
+              name: app.name,
+              size: 18,
+              foreground: theme.popupForeground,
+            );
+          },
+        );
+      },
+    );
   }
 }

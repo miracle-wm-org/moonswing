@@ -276,7 +276,7 @@ layout = "de"
       var writes = 0;
       config.addListener(() => writes++);
 
-      store.moveBy(0, 1);
+      store.move(0, 1);
       expect(store.sources, const [_de, _us]);
       expect(writes, 1);
 
@@ -293,7 +293,7 @@ layout = "de"
       expect(writes, 3);
     });
 
-    test('a move off either end is refused', () async {
+    test('a move off either end, or to where it is, is refused', () async {
       final store = await leased(await configWith('''
 [[keyboard.sources]]
 layout = "us"
@@ -301,9 +301,13 @@ layout = "us"
 [[keyboard.sources]]
 layout = "de"
 '''));
-      store.moveBy(0, -1);
-      store.moveBy(1, 1);
+      var writes = 0;
+      store.addListener(() => writes++);
+      store.move(0, -1);
+      store.move(1, 2);
+      store.move(1, 1);
       expect(store.sources, const [_us, _de]);
+      expect(writes, 0);
     });
   });
 

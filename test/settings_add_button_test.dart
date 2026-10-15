@@ -2,15 +2,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/config.dart';
-import 'package:moonswing/keyboard/xkb_catalog.dart';
-import 'package:moonswing/overlay/settings/keyboard/input_source_picker.dart';
-import 'package:moonswing/search_list.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 
-/// Pins where an add button sits: at the **top** of the list it adds to, on
-/// the right. Every one of these used to be a block under its list, which is
-/// the one place that walks away from the user as the list grows.
+/// Pins where a heading's add button sits: on the right of the heading, for
+/// a collection that is not a [SettingsList]. A list's own adder is its last
+/// row — see `settings_list_test.dart`.
 Future<void> _pump(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(
     Directionality(
@@ -77,121 +74,5 @@ void main() {
     await _pump(tester, const SettingsSubLabel('Available'));
     expect(find.byType(SettingsAddButton), findsNothing);
     expect(find.text('Available'), findsOneWidget);
-  });
-
-  testWidgets('the Input Sources adder is a right-aligned section action',
-      (tester) async {
-    // The keyboard page's own adder: a section whose whole body *is* the
-    // collection, so the button rides the section heading, and the card grows
-    // leftwards from it rather than being sized to it.
-    late final AnchoredSearchDropdown<XkbEntry> dropdown;
-    await _pump(
-      tester,
-      SettingsSection(
-        label: 'Input Sources',
-        trailing: InputSourcePicker(
-          catalog: parseXkbRulesList('! layout\n  us  English (US)\n'),
-          existing: const [],
-          onSelected: (_) {},
-        ),
-        children: const [Text('English (US)')],
-      ),
-    );
-    final label = tester.getRect(find.text('INPUT SOURCES'));
-    final button = tester.getRect(find.text('Add Input Source'));
-    expect(button.left, greaterThan(label.right));
-    expect(button.bottom,
-        lessThanOrEqualTo(tester.getRect(find.text('English (US)')).top));
-
-    dropdown = tester.widget(find.byType(AnchoredSearchDropdown<XkbEntry>));
-    expect(dropdown.alignRight, isTrue);
-    expect(dropdown.matchTriggerWidth, isFalse);
-  });
-
-  group('the string-list editor', () {
-    testWidgets('puts its adder above the rows, not under them',
-        (tester) async {
-      await _pump(
-        tester,
-        SettingsStringListEditor(
-          label: 'Left modules',
-          addLabel: 'Add module',
-          items: const ['clock', 'workspaces', 'battery'],
-          suggestions: const ['clock', 'workspaces', 'battery', 'weather'],
-          onChanged: (_) {},
-          width: null,
-        ),
-      );
-      final button = tester.getRect(find.text('Add module'));
-      for (final item in ['clock', 'workspaces', 'battery']) {
-        expect(tester.getRect(find.text(item)).top, greaterThan(button.bottom),
-            reason: '"$item" is above the add button');
-      }
-    });
-
-    testWidgets('with no heading the adder is still top-right',
-        (tester) async {
-      await _pump(
-        tester,
-        SettingsStringListEditor(
-          items: const ['discord', 'steam'],
-          addHint: 'SNI id or title',
-          onChanged: (_) {},
-        ),
-      );
-      final button = tester.getRect(find.byType(SettingsAddButton));
-      final row = tester.getRect(find.text('discord'));
-      expect(button.bottom, lessThanOrEqualTo(row.top));
-      // Right-aligned inside the editor's own 260px column.
-      final column = tester.getRect(find.byType(SettingsStringListEditor));
-      expect(button.right, closeTo(column.right, 1));
-    });
-
-    testWidgets('the free-form field is revealed by the button, and closes',
-        (tester) async {
-      await _pump(
-        tester,
-        SettingsStringListEditor(
-          items: const ['discord'],
-          addHint: 'SNI id or title',
-          onChanged: (_) {},
-        ),
-      );
-      expect(find.text('SNI id or title'), findsNothing);
-
-      await tester.tap(find.byType(SettingsAddButton));
-      await tester.pump();
-      expect(find.text('SNI id or title'), findsOneWidget);
-      // Above the row it will produce, so the field stays put as the list
-      // grows under it.
-      expect(
-        tester.getRect(find.text('SNI id or title')).bottom,
-        lessThanOrEqualTo(tester.getRect(find.text('discord')).top),
-      );
-
-      await tester.tap(find.byType(SettingsAddButton));
-      await tester.pump();
-      expect(find.text('SNI id or title'), findsNothing);
-    });
-
-    testWidgets('a typed value is appended and the field stays open',
-        (tester) async {
-      List<String>? emitted;
-      await _pump(
-        tester,
-        SettingsStringListEditor(
-          items: const ['discord'],
-          addHint: 'SNI id or title',
-          onChanged: (list) => emitted = list,
-        ),
-      );
-      await tester.tap(find.byType(SettingsAddButton));
-      await tester.pump();
-      await tester.enterText(find.byType(EditableText), 'steam');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
-      await tester.pump();
-      expect(emitted, ['discord', 'steam']);
-      expect(find.byType(EditableText), findsOneWidget);
-    });
   });
 }

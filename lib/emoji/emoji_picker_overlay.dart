@@ -398,12 +398,8 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
       onTap: () {},
       child: SizedBox(
         width: kEmojiCardWidth,
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.popupBackground,
-            borderRadius: BorderRadius.circular(ShellRadii.card + 4),
-            border: Border.all(color: theme.accent, width: 1.5),
-          ),
+        child: OverlayCard(
+          color: theme.popupBackground,
           padding: const EdgeInsets.all(kEmojiCardPadding),
           child: Column(
             mainAxisSize: MainAxisSize.min,

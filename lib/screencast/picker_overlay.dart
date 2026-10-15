@@ -161,12 +161,8 @@ class _ScreencastPickerOverlayState extends State<ScreencastPickerOverlay> {
       onTap: () {},
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: kPickerCardWidth),
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.popupBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.accent, width: 1.5),
-          ),
+        child: OverlayCard(
+          color: theme.popupBackground,
           padding: const EdgeInsets.all(18),
           child: Column(
             mainAxisSize: MainAxisSize.min,

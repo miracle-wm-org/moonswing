@@ -263,6 +263,18 @@ abstract final class SettingsCatalog {
     tags: const ['menu', 'motion', 'transition', 'speed', 'timing', 'ms'],
   );
 
+  static final overlayRadius = shellField(
+    'theme.overlay_radius',
+    'Overlay corner radius',
+    section: 'Appearance',
+    description:
+        'How far the card of a full-screen overlay — the settings panel, the '
+        'todo board, the launcher — is rounded.',
+    tags: const [
+      'settings', 'todo', 'launcher', 'emoji', 'card', 'rounded', 'corners',
+    ],
+  );
+
   static final overlayAnimation = shellField(
     'theme.overlay_animation',
     'Overlay animation',
@@ -2277,6 +2289,7 @@ abstract final class SettingsCatalog {
     popupShadowOffsetY,
     popupAnimation,
     popupAnimationDuration,
+    overlayRadius,
     for (final colour in themeColors) colour.field,
     ...moduleFields,
     panelHeight,

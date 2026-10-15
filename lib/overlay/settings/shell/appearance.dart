@@ -443,6 +443,24 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   ),
                 ),
                 SettingsRow.field(
+                  SettingsCatalog.overlayRadius,
+                  info:
+                      'The settings panel, the todo board, the launcher, the '
+                      'emoji picker and the screen-share picker. The power '
+                      'menu, the window switcher, the cheat sheet and the '
+                      'prompts are drawn as popups, and follow the popup '
+                      'radius above.',
+                  control: SettingsNumberField(
+                    key: ValueKey('overlay_radius-$active'),
+                    value: current['overlay_radius'] as num? ?? 12,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                      'overlay_radius',
+                      v.toDouble().clamp(0.0, 64.0),
+                    ),
+                  ),
+                ),
+                SettingsRow.field(
                   SettingsCatalog.overlayAnimation,
                   info:
                       'How a full-screen overlay arrives — the settings panel, '

@@ -321,15 +321,14 @@ class KeyboardStore extends ChangeNotifier {
     _writeSources([..._sources]..removeAt(index));
   }
 
-  /// Moves the source at [index] by [delta] places.
-  void moveBy(int index, int delta) {
-    final target = index + delta;
-    if (index < 0 || index >= _sources.length) return;
-    if (target < 0 || target >= _sources.length) return;
+  /// Moves the source at [from] so it ends up at [to] — the drop of a drag on
+  /// the Keyboard page. A move to where it already is, or off either end, is
+  /// refused rather than written.
+  void move(int from, int to) {
+    if (from < 0 || from >= _sources.length) return;
+    if (to < 0 || to >= _sources.length || to == from) return;
     final next = [..._sources];
-    final held = next[index];
-    next[index] = next[target];
-    next[target] = held;
+    next.insert(to, next.removeAt(from));
     _writeSources(next);
   }
 

@@ -1179,6 +1179,8 @@ popup_shadow_offset_y = 6.0
 popup_animation      = "slide"
 popup_animation_duration = 140
 
+overlay_radius       = 12.0
+
 overlay_animation    = "scale"
 overlay_animation_duration = 160
 overlay_animation_exit_ratio = 1.0
@@ -1224,6 +1226,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_shadow_offset_y`| `6.0`         | Vertical displacement; positive is down, negative is up                    |
 | `popup_animation`      | `slide`       | How a popup arrives, and — reversed — how it leaves (see below)             |
 | `popup_animation_duration` | `140`     | How long that entrance runs, in milliseconds; the exit takes four fifths of it |
+| `overlay_radius`       | `12.0`        | Corner rounding of a full-screen overlay's card: settings, the todo board, the launcher (see below) |
 | `overlay_animation`    | `scale`       | How a full-screen overlay arrives, and — reversed — how it leaves (see below) |
 | `overlay_animation_duration` | `160`   | How long *that* entrance runs, in milliseconds                             |
 | `overlay_animation_exit_ratio` | `1.0` | What fraction of the entrance the overlay's exit takes                     |
@@ -1298,6 +1301,14 @@ Nothing says the shadow has to read as one. Give it a colour off the palette rat
 A bar popup never paints its shadow over the bar: on the joined edge the margin is clamped to `popup_gap`, so at a small gap the shadow fills it and stops, and at `0` the surface is flush and the shadow is cut exactly at the join. A gap of `popup_shadow_blur + popup_shadow_spread` or more leaves the shadow untouched.
 
 Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
+
+### Overlays
+
+`overlay_radius` is `popup_radius` for the cards the full-screen overlays centre on the dimmed screen: the settings panel, the todo board, the launcher, the emoji picker and the screen-share picker. It is a key of its own because the two are different sizes of thing — a radius that suits a three-row menu looks like a pill on a card half the size of the screen, and one that suits the settings panel turns a tooltip into a circle. `0` squares the cards off. Whatever is inside a card is clipped to the curve, so a large radius cuts into the content's corners rather than letting it spill past them.
+
+The power menu, the window switcher, the keybind cheat sheet and the two consent prompts are drawn as popups that happen to be centred, and follow `popup_radius` along with the rest of the popup keys.
+
+Themes written before this key existed get `12.0`, which is the radius every one of those overlays drew before it could be changed.
 
 ### About `popup_animation`
 
