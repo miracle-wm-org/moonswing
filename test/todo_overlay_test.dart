@@ -544,7 +544,8 @@ void main() {
     final copied = <String>[];
     await pump(
       tester,
-      [_item('a', TodoColumn.inbox), _item('b', TodoColumn.todo)],
+      // A column clear of the menu, which opens over the one beside it.
+      [_item('a', TodoColumn.inbox), _item('b', TodoColumn.inProgress)],
       copy: (text) async {
         copied.add(text);
         return ClipboardResult.copied;

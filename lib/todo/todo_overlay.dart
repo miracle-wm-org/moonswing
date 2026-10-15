@@ -8,6 +8,8 @@
 // a card's right-click menu, and the editor that creates and changes one. The
 // backups card over it is `todo_backup_panel.dart`.
 
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -41,11 +43,15 @@ import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_standup_panel.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
-/// How much of the output the board takes. Most of it: five columns of cards
-/// want width, and the scrim left around the edge is what says it is an
-/// overlay rather than an application window.
-const double kTodoPanelWidthFraction = 0.94;
-const double kTodoPanelHeightFraction = 0.9;
+/// How much of the output the board takes: enough for five columns of cards,
+/// with a wide margin of scrim to say it is an overlay rather than an
+/// application window. The fractions alone would make a 4K desktop's board a
+/// field of empty column, so the result is capped; a floor keeps five columns
+/// readable on a small laptop, and fitting on screen beats the floor.
+const double kTodoPanelWidthFraction = 0.8;
+const double kTodoPanelHeightFraction = 0.8;
+const Size kTodoPanelMinSize = Size(1000, 600);
+const Size kTodoPanelMaxSize = Size(1760, 1080);
 
 /// The gap between two cards, which is also where a drop indicator is drawn.
 const double kTodoCardGap = 8;
@@ -57,10 +63,24 @@ const double kTodoEditorWidth = 540;
 const double kTodoSearchWidth = 320;
 
 /// The board's panel size for an overlay surface of [available] logical pixels.
-Size todoPanelSize(Size available) => Size(
-  available.width * kTodoPanelWidthFraction,
-  available.height * kTodoPanelHeightFraction,
-);
+Size todoPanelSize(Size available) {
+  double fit(double space, double fraction, double floor, double cap) =>
+      (space * fraction).clamp(math.min(floor, space), cap);
+  return Size(
+    fit(
+      available.width,
+      kTodoPanelWidthFraction,
+      kTodoPanelMinSize.width,
+      kTodoPanelMaxSize.width,
+    ),
+    fit(
+      available.height,
+      kTodoPanelHeightFraction,
+      kTodoPanelMinSize.height,
+      kTodoPanelMaxSize.height,
+    ),
+  );
+}
 
 /// What the editor was opened for: an existing item, or a new one in a column.
 @immutable
@@ -1558,9 +1578,13 @@ class _Fact extends StatelessWidget {
           color: iconColor ?? tint,
         ),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: ShellFontSizes.caption, color: tint),
+        // Wraps rather than overflowing when a column is narrower than the
+        // label: a small board on a laptop is still five columns.
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: ShellFontSizes.caption, color: tint),
+          ),
         ),
       ],
     );
