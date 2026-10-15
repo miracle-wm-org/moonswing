@@ -22,12 +22,6 @@ class MiracleStartupSection extends StatelessWidget {
       slivers: [
         SliverSettingsSection(
           label: 'Startup applications',
-          trailing: SettingsAddButton(
-            label: 'Add application',
-            onTap: () => store.editStructure(
-              (config) => config.startupApps.add(const StartupApp(command: '')),
-            ),
-          ),
           info:
               'Run once the compositor is ready for clients. moonswing '
               'itself is usually one of these.',
@@ -37,30 +31,29 @@ class MiracleStartupSection extends StatelessWidget {
               signature: _appsSignature,
               builder: (context, config) {
                 final apps = config.startupApps;
-                if (apps.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: SettingsHint('Nothing is launched at startup.'),
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    for (var i = 0; i < apps.length; i++)
-                      _AppCard(
-                        key: ValueKey('app:${store.structureRevision}:$i'),
-                        app: apps[i],
-                        onChanged: (next) => _editApp(i, next),
-                        onMoveUp: i > 0 ? () => _moveApp(i, -1) : null,
-                        onMoveDown: i < apps.length - 1
-                            ? () => _moveApp(i, 1)
-                            : null,
-                        onRemove: () => store.editStructure(
-                          (config) => config.startupApps.removeAt(i),
-                        ),
-                      ),
-                  ],
+                return SettingsList(
+                  itemCount: apps.length,
+                  // The cards are fields; only the grip drags.
+                  handleOnly: true,
+                  itemKey: (i) => ValueKey('app:${store.structureRevision}:$i'),
+                  emptyText: 'Nothing is launched at startup.',
+                  onReorder: (from, to) => store.editStructure(
+                    (config) => reorderInPlace(config.startupApps, from, to),
+                  ),
+                  onRemove: (i) => store.editStructure(
+                    (config) => config.startupApps.removeAt(i),
+                  ),
+                  itemBuilder: (context, i) => _AppCard(
+                    app: apps[i],
+                    onChanged: (next) => _editApp(i, next),
+                  ),
+                  adder: SettingsListAddRow(
+                    label: 'Add application',
+                    onTap: () => store.editStructure(
+                      (config) =>
+                          config.startupApps.add(const StartupApp(command: '')),
+                    ),
+                  ),
                 );
               },
             ),
@@ -68,14 +61,7 @@ class MiracleStartupSection extends StatelessWidget {
         ),
         SliverSettingsSection(
           label: 'Environment variables',
-          trailing: SettingsAddButton(
-            label: 'Add variable',
-            onTap: () => store.editStructure(
-              (config) => config.environmentVariables.add(
-                const EnvironmentVariable(key: '', value: ''),
-              ),
-            ),
-          ),
+          fillLast: true,
           info:
               'Set for every application miracle launches, and for the '
               'compositor itself.',
@@ -85,30 +71,30 @@ class MiracleStartupSection extends StatelessWidget {
               signature: _variablesSignature,
               builder: (context, config) {
                 final variables = config.environmentVariables;
-                if (variables.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: SettingsHint('No variables set.'),
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    for (var i = 0; i < variables.length; i++)
-                      _VariableCard(
-                        key: ValueKey('env:${store.structureRevision}:$i'),
-                        variable: variables[i],
-                        onChanged: (next) => _editVariable(i, next),
-                        onMoveUp: i > 0 ? () => _moveVariable(i, -1) : null,
-                        onMoveDown: i < variables.length - 1
-                            ? () => _moveVariable(i, 1)
-                            : null,
-                        onRemove: () => store.editStructure(
-                          (config) => config.environmentVariables.removeAt(i),
-                        ),
+                return SettingsList(
+                  itemCount: variables.length,
+                  handleOnly: true,
+                  itemKey: (i) => ValueKey('env:${store.structureRevision}:$i'),
+                  emptyText: 'No variables set.',
+                  onReorder: (from, to) => store.editStructure(
+                    (config) =>
+                        reorderInPlace(config.environmentVariables, from, to),
+                  ),
+                  onRemove: (i) => store.editStructure(
+                    (config) => config.environmentVariables.removeAt(i),
+                  ),
+                  itemBuilder: (context, i) => _VariableCard(
+                    variable: variables[i],
+                    onChanged: (next) => _editVariable(i, next),
+                  ),
+                  adder: SettingsListAddRow(
+                    label: 'Add variable',
+                    onTap: () => store.editStructure(
+                      (config) => config.environmentVariables.add(
+                        const EnvironmentVariable(key: '', value: ''),
                       ),
-                  ],
+                    ),
+                  ),
                 );
               },
             ),
@@ -124,30 +110,12 @@ class MiracleStartupSection extends StatelessWidget {
     apps[index] = app;
   });
 
-  void _moveApp(int index, int delta) => store.editStructure((config) {
-    final apps = config.startupApps;
-    final target = index + delta;
-    if (target < 0 || target >= apps.length) return;
-    final moved = apps[index];
-    apps[index] = apps[target];
-    apps[target] = moved;
-  });
-
   void _editVariable(int index, EnvironmentVariable variable) =>
       store.edit((config) {
         final variables = config.environmentVariables;
         if (index >= variables.length) return;
         variables[index] = variable;
       });
-
-  void _moveVariable(int index, int delta) => store.editStructure((config) {
-    final variables = config.environmentVariables;
-    final target = index + delta;
-    if (target < 0 || target >= variables.length) return;
-    final moved = variables[index];
-    variables[index] = variables[target];
-    variables[target] = moved;
-  });
 }
 
 /// The four booleans on a startup entry: the label, the reader, the writer.
@@ -179,110 +147,80 @@ StartupApp _setInSystemdScope(StartupApp app, bool value) =>
     app.copyWith(inSystemdScope: value);
 
 class _AppCard extends StatelessWidget {
-  const _AppCard({
-    super.key,
-    required this.app,
-    required this.onChanged,
-    required this.onRemove,
-    this.onMoveUp,
-    this.onMoveDown,
-  });
+  const _AppCard({required this.app, required this.onChanged});
 
   final StartupApp app;
   final ValueChanged<StartupApp> onChanged;
-  final VoidCallback onRemove;
-  final VoidCallback? onMoveUp;
-  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
-    return SettingsListRow(
-      onMoveUp: onMoveUp,
-      onMoveDown: onMoveDown,
-      onRemove: onRemove,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SettingsCommitField(
-            initial: app.command,
-            hint: 'e.g. nm-applet',
-            onCommitted: (text) => onChanged(app.copyWith(command: text)),
-          ),
-          const SizedBox(height: 6),
-          // Pills rather than four labelled [SettingsToggle] rows: toggles
-          // inside a list row make a card taller than the viewport by the
-          // third application. These are the same pills a multiple choice is
-          // drawn with everywhere else in this pane.
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              for (final (label, read, write) in _kAppFlags)
-                SettingsOptionButton(
-                  label: label,
-                  selected: read(app),
-                  onTap: () => onChanged(write(app, !read(app))),
-                ),
-            ],
-          ),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SettingsCommitField(
+          initial: app.command,
+          hint: 'e.g. nm-applet',
+          onCommitted: (text) => onChanged(app.copyWith(command: text)),
+        ),
+        const SizedBox(height: 6),
+        // Pills rather than four labelled [SettingsToggle] rows: toggles
+        // inside a list row make a card taller than the viewport by the
+        // third application. These are the same pills a multiple choice is
+        // drawn with everywhere else in this pane.
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final (label, read, write) in _kAppFlags)
+              SettingsOptionButton(
+                label: label,
+                selected: read(app),
+                onTap: () => onChanged(write(app, !read(app))),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
 
 class _VariableCard extends StatelessWidget {
-  const _VariableCard({
-    super.key,
-    required this.variable,
-    required this.onChanged,
-    required this.onRemove,
-    this.onMoveUp,
-    this.onMoveDown,
-  });
+  const _VariableCard({required this.variable, required this.onChanged});
 
   final EnvironmentVariable variable;
   final ValueChanged<EnvironmentVariable> onChanged;
-  final VoidCallback onRemove;
-  final VoidCallback? onMoveUp;
-  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return SettingsListRow(
-      onMoveUp: onMoveUp,
-      onMoveDown: onMoveDown,
-      onRemove: onRemove,
-      child: Row(
-        children: [
-          Expanded(
-            child: SettingsCommitField(
-              initial: variable.key,
-              hint: 'NAME',
-              onCommitted: (text) => onChanged(variable.copyWith(key: text)),
+    return Row(
+      children: [
+        Expanded(
+          child: SettingsCommitField(
+            initial: variable.key,
+            hint: 'NAME',
+            onCommitted: (text) => onChanged(variable.copyWith(key: text)),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Text(
+            '=',
+            style: TextStyle(
+              fontSize: ShellFontSizes.body,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground.withValues(alpha: 0.5),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              '=',
-              style: TextStyle(
-                fontSize: ShellFontSizes.body,
-                fontFamily: theme.fontFamily,
-                color: theme.popupForeground.withValues(alpha: 0.5),
-              ),
-            ),
+        ),
+        Expanded(
+          child: SettingsCommitField(
+            initial: variable.value,
+            hint: 'value',
+            onCommitted: (text) => onChanged(variable.copyWith(value: text)),
           ),
-          Expanded(
-            child: SettingsCommitField(
-              initial: variable.value,
-              hint: 'value',
-              onCommitted: (text) => onChanged(variable.copyWith(value: text)),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

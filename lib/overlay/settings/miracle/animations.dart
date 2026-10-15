@@ -210,22 +210,13 @@ class _EventCard extends StatelessWidget {
                 // Only where there is something to restore. `isDefault` is
                 // miracle's own answer to "has the user touched this", so the
                 // button appears exactly when it would do something.
-                if (!event.isDefault) ...[
+                if (!event.isDefault)
                   SettingsActionButton(
                     label: 'Restore default',
                     compact: true,
                     onTap: () =>
                         _withEvent((event) => event.reset(), structural: true),
                   ),
-                  const SizedBox(width: 8),
-                ],
-                SettingsAddButton(
-                  label: 'Add animation',
-                  onTap: () => _withEvent(
-                    (event) => event.parts.add(_kNewPart),
-                    structural: true,
-                  ),
-                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -239,28 +230,38 @@ class _EventCard extends StatelessWidget {
                 ),
               ),
             ),
-            if (parts.isEmpty)
-              const SettingsHint(
-                'No animations, so this event happens instantly however long '
-                'the duration says.',
-              )
-            else
-              for (var i = 0; i < parts.length; i++)
-                _PartCard(
-                  part: parts[i],
-                  onChanged: (next) => _withEvent((event) {
-                    final parts = event.parts;
-                    if (i >= parts.length) return;
-                    parts[i] = next;
-                  }),
-                  onRemove: () => _withEvent(
-                    (event) {
-                      if (i >= event.parts.length) return;
-                      event.parts.removeAt(i);
-                    },
-                    structural: true,
-                  ),
+            const SizedBox(height: 4),
+            SettingsList(
+              itemCount: parts.length,
+              // The cards are pickers and numbers; only the grip drags.
+              handleOnly: true,
+              emptyText:
+                  'No animations, so this event happens instantly however '
+                  'long the duration says.',
+              onReorder: (from, to) => _withEvent(
+                (event) => reorderInPlace(event.parts, from, to),
+                structural: true,
+              ),
+              onRemove: (i) => _withEvent((event) {
+                if (i >= event.parts.length) return;
+                event.parts.removeAt(i);
+              }, structural: true),
+              itemBuilder: (context, i) => _PartCard(
+                part: parts[i],
+                onChanged: (next) => _withEvent((event) {
+                  final parts = event.parts;
+                  if (i >= parts.length) return;
+                  parts[i] = next;
+                }),
+              ),
+              adder: SettingsListAddRow(
+                label: 'Add animation',
+                onTap: () => _withEvent(
+                  (event) => event.parts.add(_kNewPart),
+                  structural: true,
                 ),
+              ),
+            ),
           ],
         ),
       ),
@@ -269,79 +270,70 @@ class _EventCard extends StatelessWidget {
 }
 
 class _PartCard extends StatelessWidget {
-  const _PartCard({
-    required this.part,
-    required this.onChanged,
-    required this.onRemove,
-  });
+  const _PartCard({required this.part, required this.onChanged});
 
   final BuiltInAnimation part;
   final ValueChanged<BuiltInAnimation> onChanged;
-  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return SettingsListRow(
-      onRemove: onRemove,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: SettingsDropdown<AnimationType>(
-                  items: _typeItems,
-                  selected: part.type,
-                  onSelected: (next) => onChanged(part.copyWith(type: next)),
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: SettingsDropdown<AnimationType>(
+                items: _typeItems,
+                selected: part.type,
+                onSelected: (next) => onChanged(part.copyWith(type: next)),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SettingsDropdown<EaseFunction>(
-                  items: _easeItems,
-                  selected: part.function,
-                  onSelected: (next) =>
-                      onChanged(part.copyWith(function: next)),
-                ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SettingsDropdown<EaseFunction>(
+                items: _easeItems,
+                selected: part.function,
+                onSelected: (next) => onChanged(part.copyWith(function: next)),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(
-                'Easing coefficients',
-                style: TextStyle(
-                  fontSize: ShellFontSizes.caption,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.5),
-                ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text(
+              'Easing coefficients',
+              style: TextStyle(
+                fontSize: ShellFontSizes.caption,
+                fontFamily: theme.fontFamily,
+                color: theme.popupForeground.withValues(alpha: 0.5),
               ),
-              const SizedBox(width: 4),
-              const SettingsInfoTip(
-                'Most curves ignore these. easings.net shows what each curve '
-                'does with them.',
+            ),
+            const SizedBox(width: 4),
+            const SettingsInfoTip(
+              'Most curves ignore these. easings.net shows what each curve '
+              'does with them.',
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Wrap(
+          spacing: 10,
+          runSpacing: 6,
+          children: [
+            for (final (name, read, write) in _kCoefficients)
+              _CoefficientField(
+                label: name,
+                value: read(part),
+                // Every one of these can legitimately be negative: an
+                // overshooting curve is written with one.
+                onChanged: (next) => onChanged(write(part, next)),
               ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Wrap(
-            spacing: 10,
-            runSpacing: 6,
-            children: [
-              for (final (name, read, write) in _kCoefficients)
-                _CoefficientField(
-                  label: name,
-                  value: read(part),
-                  // Every one of these can legitimately be negative: an
-                  // overshooting curve is written with one.
-                  onChanged: (next) => onChanged(write(part, next)),
-                ),
-            ],
-          ),
-        ],
-      ),
+          ],
+        ),
+      ],
     );
   }
 }

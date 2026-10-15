@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
@@ -132,15 +133,32 @@ layout = "de"
     var writes = 0;
     config.addListener(() => writes++);
 
-    // Three icon buttons per row, in order: move up, move down, remove.
-    // The first row's "move down".
-    await tester.tap(find.byType(SettingsIconButton).at(1));
+    // The first row, dragged by its grip below the second: one write, on
+    // the drop, however many rows it passed on the way.
+    final grip = find.byWidgetPredicate(
+      (w) =>
+          w is FaIcon &&
+          w.icon == const FaIcon(FontAwesomeIcons.gripVertical).icon,
+    );
+    final gesture = await tester.startGesture(tester.getCenter(grip.first));
+    await gesture.moveBy(const Offset(0, 20));
+    await tester.pump();
+    await gesture.moveBy(const Offset(0, 40));
+    await tester.pump();
+    expect(writes, 0);
+    await gesture.up();
     await tester.pumpAndSettle();
     expect(writes, 1);
     expect(store.sources, const [_de, _us]);
 
     // The (new) first row's remove.
-    await tester.tap(find.byType(SettingsIconButton).at(2));
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (w) => w is SettingsIconButton && w.icon == FontAwesomeIcons.xmark,
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
     expect(writes, 2);
     expect(store.sources, const [_us]);

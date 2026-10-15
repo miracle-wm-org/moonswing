@@ -128,6 +128,7 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
   Widget _sourcesSection(ThemeConfig theme) {
     final busy = _store.pending != null;
     final activeIndex = _store.activeIndex;
+    final sources = _store.sources;
     return SettingsSection(
       label: 'Input Sources',
       info:
@@ -135,66 +136,58 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
           '/etc/default/keyboard for every account and the console — and needs '
           'administrator approval through the polkit action '
           'org.freedesktop.locale1.set-keyboard.',
-      // The adder goes on the heading row, not under the list: an adder below
-      // a collection walks down the pane every time it is used.
-      trailing: InputSourcePicker(
-        catalog: _store.catalog,
-        existing: _store.sources,
-        onSelected: _store.addSource,
-      ),
       children: [
-        if (_store.sources.isEmpty)
-          const SettingsHint(
-            'No input sources yet. Add one to switch between layouts.',
-          )
-        else
-          for (var i = 0; i < _store.sources.length; i++)
-            _sourceRow(theme, i, activeIndex, busy),
+        SettingsList(
+          itemCount: sources.length,
+          emptyText: 'No input sources yet. Add one to switch between layouts.',
+          onReorder: _store.move,
+          onRemove: _store.removeAt,
+          trailingBuilder: (context, i) => i == activeIndex
+              ? const SettingsBadge('Active')
+              : SettingsActionButton(
+                  label: 'Use',
+                  compact: true,
+                  loading: _store.pending == sources[i],
+                  enabled: !busy,
+                  onTap: () => _store.activate(sources[i]),
+                ),
+          itemBuilder: (context, i) => _sourceText(theme, i),
+          adder: InputSourcePicker(
+            catalog: _store.catalog,
+            existing: sources,
+            onSelected: _store.addSource,
+          ),
+        ),
       ],
     );
   }
 
-  Widget _sourceRow(ThemeConfig theme, int i, int activeIndex, bool busy) {
+  Widget _sourceText(ThemeConfig theme, int i) {
     final source = _store.sources[i];
     final code = i < _store.shortCodes.length ? _store.shortCodes[i] : '';
-    final active = i == activeIndex;
-    return SettingsListRow(
-      trailing: active
-          ? const SettingsBadge('Active')
-          : SettingsActionButton(
-              label: 'Use',
-              compact: true,
-              loading: _store.pending == source,
-              enabled: !busy,
-              onTap: () => _store.activate(source),
-            ),
-      onMoveUp: () => _store.moveBy(i, -1),
-      onMoveDown: () => _store.moveBy(i, 1),
-      onRemove: () => _store.removeAt(i),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _store.describe(source),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: ShellFontSizes.body,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _store.describe(source),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: ShellFontSizes.body,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground,
           ),
-          const SizedBox(height: 2),
-          Text(
-            code.isEmpty ? source.id : '$code · ${source.id}',
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground.withValues(alpha: 0.5),
-            ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          code.isEmpty ? source.id : '$code · ${source.id}',
+          style: TextStyle(
+            fontSize: ShellFontSizes.caption,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground.withValues(alpha: 0.5),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

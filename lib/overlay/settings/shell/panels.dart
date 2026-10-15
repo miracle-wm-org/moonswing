@@ -6,6 +6,8 @@ import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/shell/modules.dart'
+    show moduleSettingsPageByKey;
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/underline_tabs.dart';
@@ -336,9 +338,9 @@ class _PanelsSectionState extends State<PanelsSection> {
           for (final slot in const ['left', 'center', 'right'])
             Padding(
               padding: const EdgeInsets.only(top: 4),
-              // The editor renders the slot's heading itself, so its "Add module"
-              // button sits on that heading's right rather than under a list the
-              // third slot had already pushed off the pane.
+              // The editor renders the slot's heading itself, over a box whose
+              // last row is "Add module": the next module lands where it was
+              // picked.
               //
               // Selected on the joined list rather than the list itself: `getList`
               // mints a fresh `List<String>` per call and `List` has no value
@@ -350,10 +352,12 @@ class _PanelsSectionState extends State<PanelsSection> {
                 builder: (context, _) => SettingsStringListEditor(
                   label: '${slot[0].toUpperCase()}${slot.substring(1)} modules',
                   addLabel: 'Add module',
+                  emptyText: 'No modules in this slot.',
                   items: store.getList<String>(p(['layout', slot])),
                   onChanged: (list) => store.set(p(['layout', slot]), list),
                   suggestions: _moduleKeys,
-                  width: null,
+                  labelOf: moduleTitle,
+                  iconOf: (key) => _moduleIcon(context, key),
                 ),
               ),
             ),
@@ -361,6 +365,44 @@ class _PanelsSectionState extends State<PanelsSection> {
       ),
     );
   }
+}
+
+/// The icons of the modules that have no settings page of their own, and so no
+/// icon on one; the rest are read off [moduleSettingsPageByKey].
+const Map<String, FaIconData> _kModuleIcons = {
+  'brightness': FontAwesomeIcons.sun,
+  'keybinds': FontAwesomeIcons.keyboard,
+  'keyboard_layout': FontAwesomeIcons.language,
+  'launcher': FontAwesomeIcons.magnifyingGlass,
+  'scratchpad': FontAwesomeIcons.layerGroup,
+  'sound_control': FontAwesomeIcons.volumeHigh,
+  'system': FontAwesomeIcons.powerOff,
+  'todo': FontAwesomeIcons.listCheck,
+};
+
+/// A module's name as a person reads it: its settings page's title where it
+/// has one, and otherwise its config key with the underscores taken out —
+/// `keyboard_layout` reads as "Keyboard layout". The key itself stays on the
+/// row's second line, since it is what `config.toml` holds.
+String moduleTitle(String key) {
+  final title = SettingsCatalog.moduleTitles[key];
+  if (title != null) return title;
+  final words = key.replaceAll('_', ' ').trim();
+  if (words.isEmpty) return key;
+  return '${words[0].toUpperCase()}${words.substring(1)}';
+}
+
+Widget _moduleIcon(BuildContext context, String key) {
+  final theme = ThemeScope.of(context);
+  return FaIcon(
+    moduleSettingsPageByKey(key)?.icon ??
+        _kModuleIcons[key] ??
+        // A key no module answers to — a typo in the file, or a module from
+        // a newer build — keeps a slot in the icon column like any other.
+        FontAwesomeIcons.puzzlePiece,
+    size: 13,
+    color: theme.accentText,
+  );
 }
 
 /// A single tab in the Panels & Layout tab strip: the shared [UnderlineTab]
