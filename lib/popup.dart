@@ -13,6 +13,7 @@
 
 import 'dart:async';
 import 'dart:ffi' as ffi;
+import 'dart:math' as math;
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
@@ -24,6 +25,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 // windowing and positioner pieces this file needs, but not the Linux-specific
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
+import 'package:moonswing/native/input_region.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/popup_surface.dart';
@@ -192,14 +194,27 @@ Rect popupAnchorRect(BuildContext context) {
 /// asking for a negative [WindowPositioner.offset], and an inset on this rect —
 /// are why that is worth stating here. The bar's rim is the bar's to leave off;
 /// see `PanelRimBreaks` (`panel_rim.dart`).
-Rect barAnchorRect(Rect widget, Size panel, String anchor) {
+Rect barAnchorRect(Rect widget, Size panel, String anchor,
+    {double? thickness}) {
   if (panel.isEmpty) return widget;
+  // A surface grown past its bar for a theme's foliage is deeper than the bar,
+  // and a popup belongs at the *bar's* inner edge, over the leaves, not at the
+  // surface's. The bar is against the screen edge, so the grown strip is on
+  // the inner side: a top bar spans `0..thickness`, a bottom one ends at the
+  // surface's far edge.
   switch (anchor) {
     case 'left':
+      return Rect.fromLTRB(
+          0, widget.top, math.min(thickness ?? panel.width, panel.width), widget.bottom);
     case 'right':
-      return Rect.fromLTRB(0, widget.top, panel.width, widget.bottom);
-    default: // 'top', 'bottom'
-      return Rect.fromLTRB(widget.left, 0, widget.right, panel.height);
+      final t = math.min(thickness ?? panel.width, panel.width);
+      return Rect.fromLTRB(panel.width - t, widget.top, panel.width, widget.bottom);
+    case 'bottom':
+      final t = math.min(thickness ?? panel.height, panel.height);
+      return Rect.fromLTRB(widget.left, panel.height - t, widget.right, panel.height);
+    default: // 'top'
+      return Rect.fromLTRB(
+          widget.left, 0, widget.right, math.min(thickness ?? panel.height, panel.height));
   }
 }
 
@@ -216,6 +231,7 @@ Rect barAnchorRectFor(BuildContext context, String anchor) {
     box.localToGlobal(Offset.zero) & box.size,
     MediaQuery.sizeOf(context),
     anchor,
+    thickness: BarScope.thicknessOf(context),
   );
 }
 
@@ -276,6 +292,58 @@ void setPanelMargin(
   // Once the surface is mapped a margin change only queues a resize, so a live
   // theme edit would otherwise sit unsent until something else forced a frame.
   controller.tryForceCommit();
+}
+
+/// Grows a panel's surface [reach] px past its bar, for what a theme hangs off
+/// the bar's inner edge, and hands that strip back to whatever is beneath it.
+///
+/// The bar keeps its [thickness] against the screen edge and its exclusive zone
+/// (set at creation) does not move: windows tile up to the bar, and the
+/// overhang lies over them. The strip is cut out of the surface's input region
+/// first, and the surface grows **only if that worked** — an overhang that took
+/// the pointer would swallow every click on the windows under the leaves. A
+/// [reach] of 0 gives the surface back its whole input region and its old size.
+///
+/// Answers the reach actually applied.
+int setPanelReach(
+  LayershellWindowController controller, {
+  required String anchor,
+  required int thickness,
+  required int reach,
+}) {
+  if (controller.isDestroyed) return 0;
+  final handle = controller.windowHandle;
+  var applied = reach < 0 ? 0 : reach;
+  if (applied > 0) {
+    final ok = setInputRegion(
+      handle,
+      panelInputRect(
+        anchor: anchor,
+        thickness: thickness.toDouble(),
+        reach: applied.toDouble(),
+      ),
+    );
+    if (!ok) applied = 0;
+  }
+  if (applied == 0) setInputRegion(handle, null);
+  final depth = thickness + applied;
+  final window = GtkWindow.fromHandle(handle);
+  final vertical = anchor == 'left' || anchor == 'right';
+  // The size request is a floor, so it has to move down as well as up or the
+  // surface could never shrink back to the bar.
+  if (vertical) {
+    window.setSizeRequest(depth, -1);
+  } else {
+    window.setSizeRequest(-1, depth);
+  }
+  final current = window.getSize();
+  if (vertical) {
+    window.resize(depth, math.max(1, current.height.round()));
+  } else {
+    window.resize(math.max(1, current.width.round()), depth);
+  }
+  controller.tryForceCommit();
+  return applied;
 }
 
 /// Lends [parent] keyboard focus for as long as a popup that types needs it,

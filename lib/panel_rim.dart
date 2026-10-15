@@ -256,12 +256,22 @@ Widget panelWithRim({
         width: theme.panelBorderWidth,
         radius: radius,
         anchor: anchor,
-        gap: PanelRimBreaks.instance.of(panel),
+        gap: _rimGap(theme, PanelRimBreaks.instance.of(panel)),
       ),
       child: child,
     ),
     child: content,
   );
+}
+
+/// The stretch of rim to leave out for [mouth]: the mouth itself, and on a
+/// theme that grows roots off its popups (`popup_roots`), the roots either side
+/// of it too — a root breaks *through* the bar's rim rather than being crossed
+/// by it. The roots are `lib/decor/panel_decor.dart`'s.
+PanelRimBreak? _rimGap(ThemeConfig theme, PanelRimBreak? mouth) {
+  if (mouth == null) return null;
+  if (theme.popupRoots <= 0 || theme.popupGap > 0) return mouth;
+  return (mouth.$1 - theme.popupRoots, mouth.$2 + theme.popupRoots);
 }
 
 /// A bar's modules, inside whatever the theme wraps them in, kept mounted

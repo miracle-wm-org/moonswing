@@ -51,6 +51,16 @@ inside a full-size surface swallows every click in the gap. The exclusive zone s
 height: per `wlr-layer-shell` the zone *includes* the margin, so adding it would reserve it
 twice.
 
+**One surface opts into an input region: a bar with foliage.** A theme that hangs leaves past
+the bar (`panel_overhang`) grows the bar's surface by that much and hands the strip back
+through `gtk_widget_input_shape_combine_region` on the toplevel — GDK sends it as
+`wl_surface.set_input_region` with the next commit, and a layer-shell window is never
+client-side-decorated, so nothing in GTK replaces it. The surface grows **only if the region
+was set**: an overhang that took the pointer would swallow every click on the windows under
+the leaves. The exclusive zone stays the bar's, so windows tile up to the bar and the leaves
+hang over them; a popup is anchored to the bar's edge, not the surface's (`BarScope.thickness`).
+Every other surface keeps the rule above.
+
 ## Popups
 
 Nothing in the stack says a popup should go away. The Linux popup controller takes no

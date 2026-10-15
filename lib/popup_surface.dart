@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/decor/material_decoration.dart';
 import 'package:moonswing/scopes.dart';
 
 /// A popup card's corner rounding, from [ThemeConfig.popupRadius].
@@ -432,9 +433,38 @@ Decoration popupDecoration({
   bool opaque = false,
   String? attach,
 }) {
+  // A card made of something is the plain card with its rim taken out and
+  // the materials laid over it. An explicit `border` is a rim that carries
+  // meaning (the kill confirmation's accent), which no texture may dress up,
+  // so that card stays plain.
+  if (border == null && theme.popupHasMaterial) {
+    final materialRim = theme.popupBorderTexture.paints && theme.popupBorderWidth > 0;
+    final rimless = _plainPopupDecoration(
+        theme: theme, opaque: opaque, attach: attach, includeRim: !materialRim);
+    return MaterialCardDecoration(
+      base: rimless,
+      theme: theme,
+      attach: attach,
+      rim: materialRim
+          ? (_popupBorder(theme, attach)?.dimensions as EdgeInsets? ??
+              EdgeInsets.zero)
+          : EdgeInsets.zero,
+    );
+  }
+  return _plainPopupDecoration(
+      theme: theme, border: border, opaque: opaque, attach: attach);
+}
+
+Decoration _plainPopupDecoration({
+  required ThemeConfig theme,
+  Border? border,
+  bool opaque = false,
+  String? attach,
+  bool includeRim = true,
+}) {
   final radius = popupCornerRadius(theme, attach: attach);
   final shadow = popupShadow(theme);
-  final rim = border ?? _popupBorder(theme, attach);
+  final rim = border ?? (includeRim ? _popupBorder(theme, attach) : null);
   if (attach != null && theme.popupAttachRadius > 0) {
     // The one thing a BoxDecoration cannot draw: the flare is a concave fillet
     // rather than a corner radius, and it paints outside the card's own box.
@@ -453,7 +483,8 @@ Decoration popupDecoration({
         // The explicit override's side when there is one — it is a rim that
         // carries meaning rather than chrome — and the theme's otherwise. Not
         // `rim?.top`: that is the side an attached card has just dropped.
-        side: border?.top ?? _popupSide(theme),
+        side: border?.top ??
+            (includeRim ? _popupSide(theme) : BorderSide.none),
       ),
       shadows: shadow == null ? null : [shadow],
     );
@@ -481,6 +512,7 @@ Decoration popupDecoration({
 bool decorationClips(Decoration decoration) => switch (decoration) {
       BoxDecoration(:final borderRadius) => borderRadius != null,
       ShapeDecoration() => true,
+      MaterialCardDecoration(:final base) => decorationClips(base),
       _ => false,
     };
 

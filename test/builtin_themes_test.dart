@@ -7,6 +7,8 @@ import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/theme/builtin_themes.dart';
+import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// The shipped theme [slug], parsed the way the store parses it off disk.
@@ -61,6 +63,18 @@ void main() {
       'overlay_animation_duration',
       'overlay_animation_exit_ratio',
       'overlay_animation_curve',
+      'panel_texture',
+      'panel_end_texture',
+      'panel_end_length',
+      'panel_bevel',
+      'panel_image',
+      'panel_foliage',
+      'foliage_density',
+      'panel_overhang',
+      'popup_texture',
+      'popup_border_texture',
+      'popup_image',
+      'popup_roots',
     };
     for (final entry in kBuiltInThemes.entries) {
       final map = TomlDocument.parse(entry.value).toMap();
@@ -120,39 +134,66 @@ void main() {
         reason: 'a rim with a transparent colour draws nothing');
   });
 
-  test('forest floats on a lit rim, and spends its hue once', () {
-    final forest =
-        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['forest']!).toMap());
-    // Like glassy it floats — but for the opposite reason. Glassy needs a rim
-    // because a translucent bar has no edge of its own; this one is nearly
-    // opaque and the rim is the picture, so it has to be visible on both the
-    // bar and the cards, and the two have to be the same rim.
+  test('forest is made of something', () {
+    final forest = _shipped('forest');
+    // A timber beam on capstones, carved: the one shipped theme whose bar is
+    // a material rather than a colour.
+    expect(forest.panelTexture, SurfaceMaterial.wood);
+    expect(forest.panelEndTexture, SurfaceMaterial.stone);
+    expect(forest.panelEndLength, greaterThan(0));
+    expect(forest.panelBevel, greaterThan(0));
+    expect(forest.panelHasDecor, isTrue);
+    // The wood is the picture, so nothing fades under it, and it is opaque so
+    // the grain is not the wallpaper's.
+    expect(forest.panelGradient, isFalse);
+    expect(forest.panelTextureColor.a, 1.0);
+    // Floating, so the leaves hang from something that is visibly hung.
     expect(forest.panelMargin, greaterThan(0));
-    expect(forest.panelRadius, greaterThan(0));
-    expect(forest.panelBorderWidth, greaterThan(0));
-    expect(forest.panelBorder.a, greaterThan(0),
-        reason: 'a rim with a transparent colour draws nothing');
-    expect(forest.popupBorder, forest.panelBorder);
-    expect(forest.popupRadius, forest.panelRadius);
-    // Floating means all four corners round.
     expect(panelCornerRadius(theme: forest),
         BorderRadius.circular(forest.panelRadius));
+  });
 
-    // The single-hue rule: every surface is green, and the accent is the only
-    // *saturated* one. `muted` reusing the accent — which is what moonswing
-    // used to do, at 1.8:1 on its own card — would put the theme's one vivid
-    // green on its least important text, so it is pinned apart from it.
-    for (final surface in [
-      forest.workspaceBackground,
-      forest.popupBackground,
-      forest.controlSurface,
-      forest.surfaceHover,
-      forest.surfacePressed,
-    ]) {
-      expect(surface.g, greaterThan(surface.r), reason: 'a forest surface');
-      expect(surface.g, greaterThan(surface.b), reason: 'a forest surface');
+  test('forest is overgrown, and the overgrowth hangs over the windows', () {
+    final forest = _shipped('forest');
+    expect(forest.panelFoliage, FoliageStyle.wildwood);
+    expect(forest.panelReach, greaterThan(0),
+        reason: 'the leaves need room past the bar to hang into');
+    // Berries are the notification colour's family: the one warm note.
+    expect(forest.foliageBloom.r, greaterThan(forest.foliageBloom.b));
+    expect(forest.foliageColor.g, greaterThan(forest.foliageColor.r));
+  });
+
+  test('every forest menu is a trunk growing out of the beam', () {
+    final forest = _shipped('forest');
+    expect(forest.popupGap, 0.0, reason: 'a trunk grows out of the bar');
+    expect(forest.popupAttachRadius, greaterThan(0),
+        reason: "a trunk's foot flares");
+    expect(forest.popupBorderTexture, SurfaceMaterial.bark);
+    expect(forest.popupBorderWidth, greaterThan(4),
+        reason: 'bark a hairline thick is not bark');
+    expect(forest.popupRoots, greaterThan(0));
+    expect(forest.popupEffect, PopupEffect.sprout);
+    expect(forest.popupHasMaterial, isTrue);
+    // The card is read, so its own grain is a ghost.
+    expect(forest.popupTextureColor.a, lessThan(0.25));
+    // Its text still reads on the heartwood.
+    expect(_contrast(forest.popupForeground, forest.popupBackground),
+        greaterThan(7.0));
+    // And on the beam: parchment on oak.
+    expect(_contrast(forest.foreground, forest.panelTextureColor),
+        greaterThan(4.5));
+    // A rimmed bar that attaches its menus breaks its rim for them.
+    expect(panelPaintsOwnRim(forest), isTrue);
+  });
+
+  test('only forest is made of anything', () {
+    for (final slug in kBuiltInThemes.keys) {
+      if (slug == 'forest') continue;
+      final theme = _shipped(slug);
+      expect(theme.panelHasDecor, isFalse, reason: slug);
+      expect(theme.popupHasMaterial, isFalse, reason: slug);
+      expect(theme.panelReach, 0, reason: slug);
     }
-    expect(forest.muted, isNot(forest.accent));
   });
 
   test('dracula is flat: a solid Dracula background, no purple fade', () {
@@ -313,7 +354,7 @@ void main() {
   });
 
   test('midnight floats, and its popups are made of the bar', () {
-    // glassy's and forest's rule: a bar lifted off the screen edge cannot open
+    // glassy's rule: a bar lifted off the screen edge cannot open
     // a menu glued to it, and a menu should read as a pane dropped out of the
     // pane it came from — same gap, same corner, same rim, same weight of rim.
     final midnight = _shipped('midnight');

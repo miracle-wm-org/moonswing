@@ -1121,7 +1121,7 @@ Five themes ship with the shell and are written into that directory the first ti
 | Name       | Looks like                                                        |
 | ---------- | ----------------------------------------------------------------- |
 | `glassy`   | Cool translucent surfaces that let the wallpaper through. The default. |
-| `forest`   | Pine and moss over a near-black green, floating on a lit sage rim. |
+| `forest`   | A carved oak beam on mossy capstones, overgrown with ivy, moss and ferns that hang over your windows — and every menu a bark-rimmed trunk that sprouts out of the beam on spreading roots. |
 | `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
 | `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
 | `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
@@ -1232,6 +1232,24 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `overlay_animation_exit_ratio` | `1.0` | What fraction of the entrance the overlay's exit takes                     |
 | `overlay_animation_curve` | `ease_out` | The easing the overlay's animation is paced on                             |
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
+| `panel_texture`        | `none`        | What the bar is made of: `none`, `wood`, `stone`, `bark` or `moss` (see below) |
+| `panel_texture_color`  | `#6B4A2E`     | The tint the bar's material is drawn in; its **alpha is the material's strength** |
+| `panel_end_texture`    | `none`        | A second material capping each end of the bar                               |
+| `panel_end_color`      | `#6E726B`     | The tint of the end caps; alpha is their strength                           |
+| `panel_end_length`     | `0.0`         | How far along the bar each cap reaches; `0` draws none                      |
+| `panel_bevel`          | `0.0`         | How deeply the bar's edges are carved, from `0` (flat) to `1`               |
+| `panel_image`          | `""`          | A picture tiled over the bar in place of `panel_texture` (see below)        |
+| `panel_foliage`        | `none`        | What grows off the bar: `none`, `ivy`, `moss` or `wildwood` (see below)     |
+| `foliage_color`        | `#3E7A3A`     | The canopy's colour; every leaf is jittered off it                          |
+| `foliage_bloom`        | `#E0A13A`     | Berries and flowers among the leaves                                        |
+| `foliage_density`      | `1.0`         | How much grows, as a multiple of the style's own amount; `0`–`3`            |
+| `panel_overhang`       | `0`           | How far the foliage may hang past the bar, over the windows beneath; `0`–`160` |
+| `popup_texture`        | `none`        | What a popup card is made of, under its content                             |
+| `popup_texture_color`  | `#206B4A2E`   | Its tint; alpha is its strength, and a card is read, so keep it low          |
+| `popup_border_texture` | `none`        | What a popup card's rim is made of, in place of `popup_border`'s flat colour |
+| `popup_border_texture_color` | `#5A4030` | The rim material's tint                                                  |
+| `popup_image`          | `""`          | A picture tiled over a popup card in place of `popup_texture`               |
+| `popup_roots`          | `0.0`         | How far roots spread along the bar from an attached popup; read only at gap `0` |
 
 Note that `divider` is used both as a hairline *and* as a background fill for quiet rows, so it wants enough alpha to read as a surface.
 
@@ -1302,6 +1320,47 @@ A bar popup never paints its shadow over the bar: on the joined edge the margin 
 
 Popup *sizes* are not themable. Each module fixes its own width, and some of them fix it deliberately: the sound popup pins its width because a popup that resizes after it has been placed walks away from the button that opened it.
 
+### Materials, pictures and foliage
+
+Everything above is colour and shape. These keys say what a surface is *made of*, and what grows on it. Every one of them is off at its default, and off means absent — a theme that spells none of them is painted exactly as it was before they existed, with not one extra layer.
+
+**Materials.** `panel_texture`, `panel_end_texture`, `popup_texture` and `popup_border_texture` each name one of five materials:
+
+| Value   | What it looks like                                                                 |
+| ------- | ---------------------------------------------------------------------------------- |
+| `none`  | No texture; the surface is its colour alone                                         |
+| `wood`  | Timber planks: grain running the length of the surface, knots the grain bends round, butt joints and nails |
+| `stone` | Coursed stone: rounded, uneven blocks in a dark mortar bed, with moss in the joints |
+| `bark`  | Ridged bark plates with deep fissures running along the trunk, and the odd patch of lichen |
+| `moss`  | A soft bed of fine moss                                                             |
+
+None of them is an image file. Each is drawn once, from seeded arithmetic, as a seamless tile in the tint you give it (`*_color`), cached, and repeated across the surface — the same tile for every bar on every monitor, so a material costs nothing per frame. The tint's **alpha is the material's strength**: opaque paints over the surface's own fill, and `#20…` is a grain glimpsed through it. Grain runs along the bar, and on a popup's rim it runs *away* from the bar, the way bark runs up a trunk.
+
+`panel_end_texture` caps each end of the bar in a second material for `panel_end_length` pixels — capstones on a beam — with an uneven seam and a shadow where it sits on the bar. `panel_bevel` carves the bar's two long edges, a lit lip on the edge facing the top of the screen and a shadow on the other, which is what turns a textured strip into a beam with a thickness.
+
+`popup_border_texture` paints a popup's rim (`popup_border_width` thick) in a material instead of `popup_border`'s flat colour, shaded as the outside of a cylinder — bark around a dark card is a trunk. The kill confirmation's accent rim is never dressed up: it carries meaning.
+
+**Pictures.** `panel_image` and `popup_image` tile a picture of your own over the bar or a card instead of the material, at one picture pixel to one logical pixel. A path is absolute, starts with `~/`, or is relative to the themes directory — so a theme and its pictures can travel as one folder. The material is painted until the picture loads, and for good if it will not; the Appearance page says why under the field and offers a retry.
+
+**Foliage.** `panel_foliage` grows plants off the bar's inner edge, into `panel_overhang` pixels past it:
+
+| Value      | What grows                                                                     |
+| ---------- | ------------------------------------------------------------------------------ |
+| `none`     | Nothing                                                                         |
+| `ivy`      | Long trailing vines of ivy, dense where they leave the bar                      |
+| `moss`     | Fine strands of hanging moss and the odd small leaf — the quietest              |
+| `wildwood` | Vines, moss, ferns springing from the bar's ends, clumps of leaves along its edge, and berries and flowers in `foliage_bloom` |
+
+**Gravity is the bar's edge.** A top bar's vines hang; above a bottom bar the same plants stand up and arc over at the tip; off a side bar they leave sideways and droop. What grows is seeded by the bar's length, so every bar of the same size grows the same plants on every start. The leaves rustle when the pointer arrives on the bar and when a popup opens out of it, and are perfectly still — no animation running at all — the rest of the time.
+
+**The overhang is real surface, and it does not take your clicks.** The bar's surface is grown by `panel_overhang` to hold the leaves, and that strip is cut out of the surface's *input region*: a click on a hanging leaf lands on the window behind it. The exclusive zone does not grow, so windows still tile right up to the bar and the leaves hang over them. Should the shell be unable to set an input region, it does not grow the surface at all and nothing hangs — a strip of leaves that swallowed every click beneath it would be a broken bar, not a decorated one. Leaves reach onto the bar itself only as a fringe on its inner edge, so a module is overhung, never hidden.
+
+**Roots.** At `popup_gap = 0`, `popup_roots` spreads roots along the bar from either side of an open popup, in `popup_border_texture`, with a foot where the card leaves the bar — so a menu reads as a trunk growing out of the bar rather than a card pressed against it. The bar's rim breaks to let them through. They grow in as the popup opens and draw back as it closes.
+
+**`sprout`** is the `popup_animation` that goes with all of this: the card pushes out of the bar narrow and crowned, thickens to its full width as it lengthens — wearing its bark rim the whole way — and settles with a small sway.
+
+`forest` uses every one of these keys; it is the place to start reading a theme that does.
+
 ### Overlays
 
 `overlay_radius` is `popup_radius` for the cards the full-screen overlays centre on the dimmed screen: the settings panel, the todo board, the launcher, the emoji picker and the screen-share picker. It is a key of its own because the two are different sizes of thing — a radius that suits a three-row menu looks like a pill on a card half the size of the screen, and one that suits the settings panel turns a tooltip into a circle. `0` squares the cards off. Whatever is inside a card is clipped to the curve, so a large radius cuts into the content's corners rather than letting it spill past them.
@@ -1323,6 +1382,7 @@ Themes written before this key existed get `12.0`, which is the radius every one
 | `grow`   | Unrolls out of the bar, growing from the edge the two share                |
 | `flip`   | Swings open about that same edge, as though hinged there                   |
 | `spin`   | Turns a few degrees as it scales into place, under a fade                  |
+| `sprout` | Grows out of the bar like a trunk: narrow and crowned first, thickening as it lengthens, settling with a sway |
 
 `slide`, `grow` and `flip` take their direction from the bar the popup was opened from, so a bottom bar's menus rise and a top bar's drop. A menu anchored to the *pointer* — the desktop's context menu, an app-directory category flyout — has no bar to travel out of and is treated as hanging below its anchor, which is where the compositor puts it.
 

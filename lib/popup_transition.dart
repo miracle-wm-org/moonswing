@@ -12,11 +12,15 @@
 ///    could route its close around it.
 library;
 
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/decor/material_textures.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// How far a sliding popup travels, in logical pixels.
@@ -37,6 +41,12 @@ const double _kGrowFrom = 0.55;
 
 /// The angle, in radians, a [PopupEffect.flip] card is hinged open through.
 const double _kFlipRadians = 1.05; // ~60°.
+
+/// The fraction of its width a [PopupEffect.sprout] card starts out as.
+const double _kSproutGirthFrom = 0.3;
+
+/// The sway, in radians, a [PopupEffect.sprout] card settles through.
+const double _kSproutSwayRadians = 0.035;
 
 /// The angle, in radians, a [PopupEffect.spin] card turns through.
 const double _kSpinRadians = 0.14; // ~8°.
@@ -279,6 +289,49 @@ class _PopupTransitionState extends State<PopupTransition>
             child: child,
           ),
         );
+      case PopupEffect.sprout:
+        // Settled: the card exactly as built, with no clip layer at rest.
+        if (t >= 1.0) return child;
+        // Length leads and girth follows, which is what makes it a trunk
+        // rising rather than a card unrolling: it pushes out of the bar thin,
+        // then thickens to its full width as it lengthens.
+        final length = t;
+        final girth = _kSproutGirthFrom +
+            (1 - _kSproutGirthFrom) *
+                Curves.easeInOut.transform(((t - 0.12) / 0.88).clamp(0.0, 1.0));
+        // And a little sway about its foot as it settles, gone at rest.
+        final sway = _kSproutSwayRadians *
+            math.sin(t * math.pi * 2.4) *
+            (1 - t);
+        return Transform.rotate(
+          angle: widget.edge == 'bottom' || widget.edge == 'right' ? -sway : sway,
+          alignment: _joinAlignment,
+          child: Builder(builder: (context) {
+            final clipper = SproutClipper(
+              edge: widget.edge ?? 'top',
+              length: length,
+              girth: girth,
+            );
+            final theme = ThemeScope.maybeOf(context);
+            return ClipPath(
+              clipper: clipper,
+              // The growing trunk wears its bark on the way up, not only once
+              // it has arrived: a theme with a material rim strokes the clip's
+              // own outline in it.
+              child: theme == null || !theme.popupBorderTexture.paints
+                  ? child
+                  : CustomPaint(
+                      foregroundPainter: _SproutBarkPainter(
+                        clipper: clipper,
+                        theme: theme,
+                        devicePixelRatio:
+                            MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0,
+                      ),
+                      child: child,
+                    ),
+            );
+          }),
+        );
       case PopupEffect.spin:
         return Opacity(
           opacity: t,
@@ -292,4 +345,121 @@ class _PopupTransitionState extends State<PopupTransition>
         );
     }
   }
+}
+
+/// The outline a [PopupEffect.sprout] card is revealed through: a trunk
+/// [length] of the way out of the join on [edge], [girth] of the card's width,
+/// with a crowned tip and a foot that flares into the bar.
+///
+/// The crown is carried *past* the card's far edge as [length] reaches 1, so at
+/// full length and full girth the clip is the whole card and nothing of its
+/// corners is shaved.
+class SproutClipper extends CustomClipper<Path> {
+  const SproutClipper({
+    required this.edge,
+    required this.length,
+    required this.girth,
+  });
+
+  final String edge;
+  final double length;
+  final double girth;
+
+  @override
+  Path getClip(Size size) {
+    final horizontal = edge == 'left' || edge == 'right';
+    final across = horizontal ? size.height : size.width;
+    final along = horizontal ? size.width : size.height;
+    final w = across * girth.clamp(0.0, 1.0);
+    final crown = w / 2;
+    final reach = (along + crown) * length.clamp(0.0, 1.0);
+    final c = across / 2;
+    // The foot flares into the bar the way a trunk's does.
+    final foot = math.min(10.0, across * 0.08) * (1 - girth).clamp(0.0, 1.0) + 2;
+    final shoulder = math.max(0.0, reach - crown);
+    final path = Path()
+      ..moveTo(c - w / 2 - foot, 0)
+      ..quadraticBezierTo(c - w / 2, 0, c - w / 2, math.min(foot * 1.4, shoulder))
+      ..lineTo(c - w / 2, shoulder)
+      ..arcToPoint(Offset(c + w / 2, shoulder),
+          radius: Radius.elliptical(w / 2, math.max(0.01, math.min(crown, reach))),
+          clockwise: false)
+      ..lineTo(c + w / 2, math.min(foot * 1.4, shoulder))
+      ..quadraticBezierTo(c + w / 2, 0, c + w / 2 + foot, 0)
+      ..close();
+    // Built for a join along the top; turned onto the real edge.
+    final m = Matrix4.identity();
+    switch (edge) {
+      case 'bottom':
+        m.setEntry(1, 1, -1.0);
+        m.setEntry(1, 3, size.height);
+      case 'left':
+        m.setEntry(0, 0, 0.0);
+        m.setEntry(0, 1, 1.0);
+        m.setEntry(1, 0, 1.0);
+        m.setEntry(1, 1, 0.0);
+      case 'right':
+        m.setEntry(0, 0, 0.0);
+        m.setEntry(0, 1, -1.0);
+        m.setEntry(0, 3, size.width);
+        m.setEntry(1, 0, 1.0);
+        m.setEntry(1, 1, 0.0);
+      default:
+        break;
+    }
+    return path.transform(m.storage);
+  }
+
+  @override
+  bool shouldReclip(SproutClipper old) =>
+      old.edge != edge || old.length != length || old.girth != girth;
+}
+
+/// The bark on a sprouting card's edge: [SproutClipper]'s outline stroked in
+/// the theme's rim material, twice the rim's width so the clip leaves exactly
+/// the rim's width inside it.
+class _SproutBarkPainter extends CustomPainter {
+  _SproutBarkPainter({
+    required this.clipper,
+    required this.theme,
+    required this.devicePixelRatio,
+  });
+
+  final SproutClipper clipper;
+  final ThemeConfig theme;
+  final double devicePixelRatio;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = theme.popupBorderWidth;
+    if (width <= 0) return;
+    final bark = resolveSurfaceImage(
+      material: theme.popupBorderTexture,
+      tint: theme.popupBorderTextureColor,
+      devicePixelRatio: devicePixelRatio,
+    );
+    final path = clipper.getClip(size);
+    final across = clipper.edge != 'left' && clipper.edge != 'right';
+    final paint = bark == null
+        ? (Paint()..color = theme.popupBorder)
+        : materialPaint(bark.image,
+            pixelScale: bark.pixelScale * 2,
+            across: across,
+            opacity: theme.popupBorderTextureColor.a);
+    canvas.drawPath(
+      path,
+      paint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width * 2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SproutBarkPainter old) =>
+      old.clipper != clipper ||
+      old.theme != theme ||
+      old.devicePixelRatio != devicePixelRatio;
+
+  @override
+  bool? hitTest(Offset position) => false;
 }
