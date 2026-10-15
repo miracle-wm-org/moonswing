@@ -5,6 +5,21 @@ import 'package:moonswing/request_controller.dart';
 /// The Shell category that lists every module, each pushing its own page.
 const String kModuleSettingsCategory = 'Module Settings';
 
+/// The overview's top tab ids, in the order the tab strip draws them.
+///
+/// The overview — the panel the clock opens — is the one window the calendar,
+/// the monitor, the settings, the todo board and the shortcut sheet live in,
+/// so a bar button that used to open a surface of its own names one of these
+/// instead (see [SettingsController.toggle]).
+abstract final class OverviewTab {
+  static const String calendar = 'calendar';
+  static const String system = 'system';
+  static const String systemInfo = 'systeminfo';
+  static const String settings = 'settings';
+  static const String todo = 'todo';
+  static const String shortcuts = 'shortcuts';
+}
+
 /// Which page of the settings overlay to land on.
 ///
 /// The overlay's own tab and category are private state seeded in `initState`, so
@@ -25,8 +40,11 @@ class SettingsRoute {
   const SettingsRoute.module(String key)
     : this(shellCategory: kModuleSettingsCategory, module: key);
 
-  /// One of the overlay's top tab ids: `calendar`, `system`, `systeminfo`,
-  /// `settings`.
+  /// One of the overview's tabs other than Settings, with the settings sidebar
+  /// left on its first category — where it would be had nothing named one.
+  const SettingsRoute.tab(String tab) : this(tab: tab, category: 'network');
+
+  /// One of the [OverviewTab] ids.
   final String tab;
 
   /// One of the settings sidebar ids: `network`, `bluetooth`, `display`,
@@ -106,9 +124,13 @@ class SettingsRoute {
       Object.hash(tab, category, shellCategory, miracleCategory, module);
 }
 
-/// The seam between "something deep in a surface wants the settings overlay
-/// open at a particular page" and `_MoonswingRootState`, which owns the
-/// window.
+/// The seam between "something deep in a surface wants the overview open at a
+/// particular page" and `_MoonswingRootState`, which owns the window.
+///
+/// Two requests share it, because they share the window: [open] names a page
+/// and never closes anything, [toggle] is a bar button's — the clock's, the
+/// todo button's, the keyboard icon's — and the root decides from the open
+/// overview's tab whether it opens, switches or closes.
 ///
 /// A [SignalController] with a payload. (Why not `InputTriggerStore`: see
 /// the base.)
@@ -121,9 +143,20 @@ class SettingsController extends SignalController {
   factory SettingsController.forTesting() => SettingsController._();
 
   SettingsRoute? _pending;
+  String? _pendingToggle;
+  String? _output;
 
   /// The route the root has not acted on yet, or null.
   SettingsRoute? get pending => _pending;
+
+  /// The [OverviewTab] a bar button toggled that the root has not acted on
+  /// yet, or null.
+  String? get pendingToggle => _pendingToggle;
+
+  /// The connector name (`DP-1`) of the output the last [toggle] came from, or
+  /// null when the caller did not know it yet — the root then lets the
+  /// compositor pick the focused output, which is where a click just happened.
+  String? get output => _output;
 
   /// Asks the shell to show the settings overlay at [route].
   ///
@@ -132,9 +165,27 @@ class SettingsController extends SignalController {
   /// background…" that dismissed the settings would be nonsense.
   void open([SettingsRoute route = const SettingsRoute()]) {
     _pending = route;
+    _pendingToggle = null;
+    _output = null;
     signal();
   }
 
-  /// Called by the root once it has acted on [pending].
-  void consume() => _pending = null;
+  /// A bar button's press: opens the overview at [tab] on [output] if it is
+  /// not up, switches it to [tab] if it is showing another, and closes it if
+  /// [tab] is the one showing.
+  ///
+  /// The output is the clicked bar's because the overview is a workspace
+  /// asked for by pointing at one particular screen.
+  void toggle(String tab, {String? output}) {
+    _pending = null;
+    _pendingToggle = tab;
+    _output = output;
+    signal();
+  }
+
+  /// Called by the root once it has acted on [pending] or [pendingToggle].
+  void consume() {
+    _pending = null;
+    _pendingToggle = null;
+  }
 }

@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:layer_shell/layer_shell.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/module.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/popup.dart';
-import 'package:moonswing/overlay/overlay.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_provider.dart';
 import 'package:moonswing/timers/timer_sound.dart';
@@ -63,9 +62,18 @@ class ClockConfig {
 }
 
 class Clock extends StatefulWidget {
-  const Clock({super.key, required this.config, this.timers});
+  const Clock({
+    super.key,
+    required this.config,
+    this.timers,
+    this.overview,
+  });
 
   final ClockConfig config;
+
+  /// What a click on the date and time pokes. Defaults to the singleton the
+  /// root listens to; a widget test passes its own.
+  final SettingsController? overview;
 
   /// Where the running timers and stopwatches come from, defaulting to the
   /// singleton. Injected by widget tests, which drive a store with no ticker
@@ -77,14 +85,11 @@ class Clock extends StatefulWidget {
 }
 
 // ignore: library_private_types_in_public_api
-class ClockState extends State<Clock>
-    with LayerShellHost<Clock>, PopupHost<Clock> {
+class ClockState extends State<Clock> with PopupHost<Clock> {
   late String _timeString;
   late String _dateString;
   Timer? _timer;
   bool _hovered = false;
-
-  final ValueNotifier<bool> _closingNotifier = ValueNotifier(false);
 
   TimersStore get _timers => widget.timers ?? TimersStore.instance;
 
@@ -151,58 +156,18 @@ class ClockState extends State<Clock>
     _timer?.cancel();
     _timers.removeListener(_onTimersChanged);
     closePopup();
-    closeLayerWindow();
-    _closingNotifier.dispose();
     super.dispose();
   }
 
-  void _toggleOverlay(BuildContext context) {
-    if (isLayerWindowOpen) {
-      _beginCloseOverlay();
-    } else {
-      _openOverlay(context);
-    }
-  }
-
-  void _openOverlay(BuildContext context) {
-    _closingNotifier.value = false;
-
-    final controller = LayershellWindowController(
-      layer: LayerShellLayer.overlay,
-      anchorEdges: [
-        LayerShellEdge.top,
-        LayerShellEdge.bottom,
-        LayerShellEdge.left,
-        LayerShellEdge.right,
-      ],
-      keyboardMode: LayerShellKeyboardMode.onDemand,
+  /// The overview, on its calendar, on this bar's output. The root owns the
+  /// window — the clock used to host one of its own, which made it a second
+  /// overview beside the one the todo and keyboard buttons open, and tied the
+  /// panel's lifetime to this widget's.
+  void _toggleOverview(BuildContext context) {
+    (widget.overview ?? SettingsController.instance).toggle(
+      OverviewTab.calendar,
+      output: DisplayScope.of(context)?.name,
     );
-    // Full-screen means the whole output, panels included.
-    spanFullOutput(controller);
-
-    openLayerWindow(
-      context,
-      controller: controller,
-      // The coordinator gets the fade-out, not the teardown: dismissing this
-      // straight to closeLayerWindow would make the overlay vanish instead of
-      // playing the exit SettingsOverlay owns.
-      onDismissRequested: _beginCloseOverlay,
-      child: ThemeProvider(
-        child: SettingsOverlay(
-          closingNotifier: _closingNotifier,
-          onClosed: _onOverlayClosed,
-        ),
-      ),
-    );
-  }
-
-  void _beginCloseOverlay() {
-    _closingNotifier.value = true;
-    // SettingsOverlay plays its fade-out then calls _onOverlayClosed.
-  }
-
-  void _onOverlayClosed() {
-    closeLayerWindow();
   }
 
   static const _months = [
@@ -243,7 +208,7 @@ class ClockState extends State<Clock>
           onExit: (_) => setState(() => _hovered = false),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTapDown: (_) => _toggleOverlay(context),
+            onTapDown: (_) => _toggleOverview(context),
             child: Container(
               decoration: BoxDecoration(
                 color: _hovered ? theme.surfaceHover : null,

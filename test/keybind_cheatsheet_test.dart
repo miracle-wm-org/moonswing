@@ -10,13 +10,13 @@ import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
-import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
-import 'package:moonswing/keybinds/keybind_cheatsheet_overlay.dart';
+import 'package:moonswing/keybinds/keybind_cheatsheet.dart';
 import 'package:moonswing/keybinds/keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybinds.dart';
 import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/modules/keybinds.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/scopes.dart';
 
 Keybind _bind({
@@ -75,6 +75,21 @@ class FakeKeybindSource implements KeybindSource {
     return result!;
   }
 }
+
+/// [sheet] where the overview puts it: under a node that closes on any Escape
+/// that reaches it, which is the overview's own key listener in miniature.
+Widget _inOverview(ValueNotifier<bool> closing, Widget sheet) => Focus(
+  autofocus: true,
+  onKeyEvent: (node, event) {
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.escape) {
+      closing.value = true;
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  },
+  child: sheet,
+);
 
 void main() {
   group('the store', () {
@@ -163,11 +178,9 @@ void main() {
 
   group('the sheet', () {
     late ValueNotifier<bool> closing;
-    late int closed;
 
     setUp(() {
       closing = ValueNotifier(false);
-      closed = 0;
     });
 
     tearDown(() => closing.dispose());
@@ -187,15 +200,16 @@ void main() {
             child: SizedBox(
               width: 1000,
               height: 700,
-              child: KeybindCheatsheetOverlay(
-                closingNotifier: closing,
-                onClosed: () => closed++,
-                store: resolved,
-                // Unbound unless a test asks otherwise: the sheet then draws
-                // the shell's own rows on their defaults and offers no
-                // editing, which is what a widget test with no config file
-                // behind it has to get.
-                shellStore: shellStore ?? ShellKeybindStore.forTesting(),
+              child: _inOverview(
+                closing,
+                KeybindCheatsheet(
+                  store: resolved,
+                  // Unbound unless a test asks otherwise: the sheet then draws
+                  // the shell's own rows on their defaults and offers no
+                  // editing, which is what a widget test with no config file
+                  // behind it has to get.
+                  shellStore: shellStore ?? ShellKeybindStore.forTesting(),
+                ),
               ),
             ),
           ),
@@ -208,7 +222,6 @@ void main() {
     testWidgets('draws every binding under its own section', (tester) async {
       await pump(tester);
 
-      expect(find.text('Keyboard shortcuts'), findsOneWidget);
       expect(find.text('WINDOWS'), findsOneWidget);
       expect(find.text('WORKSPACES'), findsOneWidget);
       expect(find.text('APPLICATIONS & COMMANDS'), findsOneWidget);
@@ -231,28 +244,18 @@ void main() {
       expect(find.byType(KeyCapChip), findsWidgets);
     });
 
-    testWidgets('Escape plays the exit and hands the window back',
-        (tester) async {
+    testWidgets('leaves Escape to the overview it sits in', (tester) async {
       await pump(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
-      expect(closed, 1);
+      expect(closing.value, isTrue);
     });
 
-    testWidgets('a click on the backdrop closes it', (tester) async {
-      await pump(tester);
-      // No input-region support means this surface eats every click on the
-      // output; the backdrop is a mouse-only user's way out.
-      await tester.tapAt(const Offset(4, 4));
-      await tester.pumpAndSettle();
-      expect(closed, 1);
-    });
-
-    testWidgets('a click on the card does not', (tester) async {
+    testWidgets('a click on a row closes nothing', (tester) async {
       await pump(tester);
       await tester.tap(find.text('Close the focused window'));
       await tester.pumpAndSettle();
-      expect(closed, 0);
+      expect(closing.value, isFalse);
     });
 
     testWidgets('shows why it is empty, and offers to ask again',
@@ -355,13 +358,14 @@ void main() {
             child: SizedBox(
               width: 1000,
               height: 700,
-              child: KeybindCheatsheetOverlay(
-                closingNotifier: closing,
-                onClosed: () {},
-                store: KeybindStore.forTesting(
-                  source: FakeKeybindSource(result: _keybinds),
+              child: _inOverview(
+                closing,
+                KeybindCheatsheet(
+                  store: KeybindStore.forTesting(
+                    source: FakeKeybindSource(result: _keybinds),
+                  ),
+                  shellStore: shellStore,
                 ),
-                shellStore: shellStore,
               ),
             ),
           ),
@@ -385,13 +389,14 @@ void main() {
             child: SizedBox(
               width: 1000,
               height: 700,
-              child: KeybindCheatsheetOverlay(
-                closingNotifier: closing,
-                onClosed: () {},
-                store: KeybindStore.forTesting(
-                  source: FakeKeybindSource(result: _keybinds),
+              child: _inOverview(
+                closing,
+                KeybindCheatsheet(
+                  store: KeybindStore.forTesting(
+                    source: FakeKeybindSource(result: _keybinds),
+                  ),
+                  shellStore: shellStore,
                 ),
-                shellStore: shellStore,
               ),
             ),
           ),
@@ -470,11 +475,11 @@ void main() {
       // The sheet is still up: while a row is listening, Escape is the way out
       // of the capture, not out of the sheet.
       expect(find.text('Press keys…'), findsNothing);
-      expect(find.text('Keyboard shortcuts'), findsOneWidget);
+      expect(find.text('WINDOWS'), findsOneWidget);
       expect(store.specFor(ShellShortcut.openSettings), kDefaultOpenSettings);
       expect(closing.value, isFalse);
 
-      // And once nothing is listening, Escape closes it again.
+      // And once nothing is listening, Escape goes on to close the overview.
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(closing.value, isTrue);
@@ -613,9 +618,9 @@ void main() {
   });
 
   group('the bar module', () {
-    testWidgets('the keyboard icon asks the root for the sheet',
+    testWidgets('the keyboard icon asks the root for the Shortcuts tab',
         (tester) async {
-      final controller = KeybindCheatsheetController.forTesting();
+      final controller = SettingsController.forTesting();
       var signals = 0;
       controller.addListener(() => signals++);
       addTearDown(controller.dispose);
@@ -637,6 +642,7 @@ void main() {
       await tester.pump();
 
       expect(signals, 1);
+      expect(controller.pendingToggle, OverviewTab.shortcuts);
     });
   });
 }

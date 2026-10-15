@@ -62,12 +62,8 @@ import 'package:moonswing/news/news_store.dart';
 import 'package:moonswing/google/google_todo_sync.dart';
 import 'package:moonswing/input_trigger/input_trigger_service.dart';
 import 'package:moonswing/input_trigger/input_trigger_store.dart';
-import 'package:moonswing/keybinds/keybind_cheatsheet_controller.dart';
-import 'package:moonswing/keybinds/keybind_cheatsheet_overlay.dart';
 import 'package:moonswing/keybinds/keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
-import 'package:moonswing/todo/todo_controller.dart';
-import 'package:moonswing/todo/todo_overlay.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
 import 'package:moonswing/todo/todo_store.dart';
 import 'package:moonswing/scratchpad/scratchpad_store.dart';
@@ -623,13 +619,18 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// clicks. One per monitor; tapping any opens the one panel, on that monitor.
   final Map<String, LayershellWindowController> _badges = {};
 
-  /// Eleven of the thirteen root-owned overlays — the full-screen ones; the
+  /// Nine of the eleven root-owned overlays — the full-screen ones; the
   /// notification panel and the clipboard history, the two docked panels, are
   /// the exceptions. Each [_OverlayWindow] carries the controller, its
   /// [PopupCoordinator] registration and the closing notifier.
   ///
   /// The two pickers are modal: dismissing a consent prompt is a denial, and
   /// only its controller may resolve it.
+  ///
+  /// [_settings] is the overview: the clock's panel, and since the todo board
+  /// and the keybind cheat sheet became two of its tabs, the window their bar
+  /// buttons open too — one window for all three, which is what lets a press
+  /// of one switch a panel another opened rather than stack a second over it.
   final _OverlayWindow _settings = _OverlayWindow();
   final _OverlayWindow _launcher = _OverlayWindow(acquiresAppIndex: true);
   final _OverlayWindow _appChooser = _OverlayWindow(acquiresAppIndex: true);
@@ -638,16 +639,6 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// copies a character and nothing is owed an answer, so anything wanting the
   /// screen may displace it.
   final _OverlayWindow _emojiPicker = _OverlayWindow();
-
-  /// The miracle keybind cheat sheet, opened by the bar's keyboard icon. A menu
-  /// policy like the emoji picker: it is a thing to read, it owes nobody an
-  /// answer, and anything wanting the screen may displace it.
-  final _OverlayWindow _keybinds = _OverlayWindow();
-
-  /// The todo board, opened by the bar's checklist icon on the output that
-  /// icon is on. A menu policy like the cheat sheet's: everything on it is
-  /// saved as it happens, so anything wanting the screen may displace it.
-  final _OverlayWindow _todo = _OverlayWindow();
 
   /// The clipboard history, opened by the bar's clipboard icon and docked
   /// against one edge of the output that icon is on. Not an overlay in the
@@ -702,7 +693,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// request would otherwise render into the window the old one is leaving.
   PolkitAuthSession? _polkitSession;
 
-  /// The notification panel — the twelfth root-owned overlay, and one of the
+  /// The notification panel — one of the root-owned overlays, and one of the
   /// two that are not full-screen (the clipboard history is the other). The
   /// bell and the badge share no widget ancestry, so both ask the root instead.
   /// `late final` because it brings its own window, a column docked against
@@ -726,6 +717,16 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// tab in `initState`, so retargeting means closing and reopening; this holds
   /// the destination across those two frames.
   SettingsRoute? _pendingSettingsRoute;
+
+  /// The output [_pendingSettingsRoute] is to open on, when a bar button asked
+  /// for it; null is the default placement.
+  String? _pendingSettingsOutput;
+
+  /// The open overview's tab, written by the overview as the user moves
+  /// between tabs and by [_onSettingsToggled] to switch it in place.
+  final ValueNotifier<String> _settingsTab = ValueNotifier(
+    OverviewTab.calendar,
+  );
 
   /// Monitor keys whose background surface currently takes keyboard focus for
   /// an in-place desktop rename. Empty is the normal state.
@@ -857,8 +858,6 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       (InputTriggerStore.instance, _onSettingsTriggered),
       (LauncherController.instance, _onLauncherTriggered),
       (EmojiPickerController.instance, _onEmojiPickerTriggered),
-      (KeybindCheatsheetController.instance, _onKeybindsTriggered),
-      (TodoController.instance, _onTodoTriggered),
       (ClipboardPanelController.instance, _onClipboardTriggered),
       (PowerController.instance, _onPowerKeyPressed),
       (PowerMenuController.instance, _onPowerMenuToggled),
@@ -1726,47 +1725,6 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     );
   }
 
-  /// The bar's keyboard icon was pressed. Toggles the way the launcher's does.
-  void _onKeybindsTriggered() {
-    if (!mounted) return;
-    if (_keybinds.isOpen) {
-      _keybinds.closing.value = true;
-    } else {
-      _openKeybinds();
-    }
-  }
-
-  /// Opens the keybind cheat sheet as a full-screen overlay-layer window.
-  ///
-  /// No monitor, for [_openLauncher]'s reason: miracle places the surface on the
-  /// focused output, which is the one the user is looking at — and on a
-  /// multi-head shell every bar carries the same icon, so a fixed monitor would
-  /// answer half of them on the wrong screen.
-  void _openKeybinds() {
-    _keybinds.open();
-    _refreshWindows();
-  }
-
-  /// Called by [KeybindCheatsheetOverlay] once its fade-out has finished.
-  void _onKeybindsClosed() {
-    if (!mounted) return;
-    final removed = _keybinds.take();
-    if (removed == null) return;
-    _refreshWindows();
-    _destroyAfterFrame([removed]);
-  }
-
-  /// The bar's todo button was pressed. Toggles the way the cheat sheet does.
-  void _onTodoTriggered() {
-    if (!mounted) return;
-    if (_todo.isOpen) {
-      _todo.closing.value = true;
-      return;
-    }
-    _todo.open(monitor: _monitorForConnector(TodoController.instance.output));
-    _refreshWindows();
-  }
-
   /// The monitor a bar button's click came from, by connector — which is also
   /// how [_surfaces] is keyed. Not found (outputs still being enumerated, a GDK
   /// that reports no connector) is null, and the compositor then puts the
@@ -1854,22 +1812,23 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     _destroyAfterFrame([removed]);
   }
 
-  /// Called by [TodoOverlay] once its fade-out has finished.
-  void _onTodoClosed() {
-    if (!mounted) return;
-    final removed = _todo.take();
-    if (removed == null) return;
-    _refreshWindows();
-    _destroyAfterFrame([removed]);
-  }
-
   /// Opens the settings overlay as a single full-monitor layer-shell window on
-  /// the first connected monitor, on the overlay layer with `onDemand` keyboard
-  /// focus so its text fields and Escape-to-close work.
-  void _openSettings([SettingsRoute? route]) {
+  /// the overlay layer with `onDemand` keyboard focus so its text fields and
+  /// Escape-to-close work.
+  ///
+  /// On [output] when a bar button named the one it was clicked on — and,
+  /// should that not be found, wherever the compositor puts it, the focused
+  /// output being where the click just was. Otherwise the first connected
+  /// monitor.
+  void _openSettings([SettingsRoute? route, String? output]) {
     if (_surfaces.isEmpty) return;
     _settingsRoute = route;
-    _settings.open(monitor: _surfaces.values.first.monitor.gdkMonitor);
+    _settingsTab.value = route?.tab ?? OverviewTab.calendar;
+    _settings.open(
+      monitor: output != null
+          ? _monitorForConnector(output)
+          : _surfaces.values.first.monitor.gdkMonitor,
+    );
     _refreshWindows();
   }
 
@@ -1886,8 +1845,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // finished its fade-out, so reopen at the requested page.
     final pending = _pendingSettingsRoute;
     if (pending != null) {
+      final output = _pendingSettingsOutput;
       _pendingSettingsRoute = null;
-      _openSettings(pending);
+      _pendingSettingsOutput = null;
+      _openSettings(pending, output);
     }
   }
 
@@ -1897,9 +1858,17 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// screen is closed and reopened, because it seeds its tab in `initState`.
   void _onSettingsRouteRequested() {
     if (!mounted) return;
-    final route = SettingsController.instance.pending;
+    final controller = SettingsController.instance;
+    final toggled = controller.pendingToggle;
+    if (toggled != null) {
+      final output = controller.output;
+      controller.consume();
+      _onSettingsToggled(toggled, output);
+      return;
+    }
+    final route = controller.pending;
     if (route == null) return;
-    SettingsController.instance.consume();
+    controller.consume();
 
     if (!_settings.isOpen) {
       _openSettings(route);
@@ -1907,7 +1876,37 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     }
     if (_settingsRoute == route) return;
     _pendingSettingsRoute = route;
+    _pendingSettingsOutput = null;
     _settings.closing.value = true;
+  }
+
+  /// A bar button — the clock, the todo button, the keyboard icon — asked for
+  /// [tab] of the overview, from the bar on [output].
+  ///
+  /// Not up: it opens there, on that tab. Up on another tab: it switches in
+  /// place, through [_settingsTab], keeping where the user moved it and
+  /// whatever the other tabs hold. Up on this tab: it closes, which is the
+  /// toggle the three buttons have always been.
+  ///
+  /// On its way out — most often because the press that asked is the one
+  /// that dismissed it, on another monitor's bar — it comes back on that tab
+  /// and that output once the fade has finished, rather than the press being
+  /// lost.
+  void _onSettingsToggled(String tab, String? output) {
+    if (!_settings.isOpen) {
+      _openSettings(SettingsRoute.tab(tab), output);
+      return;
+    }
+    if (_settings.closing.value) {
+      _pendingSettingsRoute = SettingsRoute.tab(tab);
+      _pendingSettingsOutput = output;
+      return;
+    }
+    if (_settingsTab.value == tab) {
+      _settings.closing.value = true;
+      return;
+    }
+    _settingsTab.value = tab;
   }
 
   /// "Add application…" / "Add file or folder…" from the desktop's empty-space
@@ -2358,8 +2357,6 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       _launcher,
       _appChooser,
       _emojiPicker,
-      _keybinds,
-      _todo,
       _clipboard,
       _screencastPicker,
       _inputCaptureConsent,
@@ -2371,6 +2368,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       overlay.dispose();
     }
     _liveConfig.dispose();
+    _settingsTab.dispose();
     _selectionClosing.dispose();
     _switcherClosing.dispose();
     super.dispose();
@@ -2641,18 +2639,29 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       if (_settings.controller case final settings?)
         (
           controller: settings,
-          builder: (_) => _windowChrome(
+          builder: (_) {
             // For the Window Manager pane, which edits miracle-wm's own file
             // and so is greyed out on any other compositor.
-            MiracleScope(
+            final content = MiracleScope(
               manager: widget.miracle,
               child: SettingsOverlay(
                 closingNotifier: _settings.closing,
                 onClosed: _onSettingsClosed,
                 route: _settingsRoute,
+                tab: _settingsTab,
               ),
-            ),
-          ),
+            );
+            // Read here, not captured: the scope is what makes a popup opened
+            // from inside — the todo board's date pickers — a popup *of the
+            // overview*, so opening one does not dismiss it as it would any
+            // other surface outside its chain.
+            final handle = _settings.handle;
+            return _windowChrome(
+              handle == null
+                  ? content
+                  : TransientScope(handle: handle, child: content),
+            );
+          },
         ),
       // The application chooser opened by the desktop's "Add application…".
       // A single window, like the launcher, so it lives outside the loop.
@@ -2742,40 +2751,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
             ),
           ),
         ),
-      // The keybind cheat sheet, registered beside the emoji picker and for the
-      // same reason: it opens and closes all day, so it goes late in this list.
-      if (_keybinds.controller case final sheet?)
-        (
-          controller: sheet,
-          builder: (_) => _windowChrome(
-            KeybindCheatsheetOverlay(
-              closingNotifier: _keybinds.closing,
-              onClosed: _onKeybindsClosed,
-            ),
-          ),
-        ),
-      // The todo board, beside the cheat sheet and for the same reason.
-      if (_todo.controller case final board?)
-        (
-          controller: board,
-          builder: (_) {
-            final content = TodoOverlay(
-              closingNotifier: _todo.closing,
-              onClosed: _onTodoClosed,
-            );
-            // Read here, not captured: the scope is what makes the editor's
-            // date pickers popups *of the board*, so opening one does not
-            // dismiss the board as it would any other surface outside its
-            // chain.
-            final handle = _todo.handle;
-            return _windowChrome(
-              handle == null
-                  ? content
-                  : TransientScope(handle: handle, child: content),
-            );
-          },
-        ),
-      // The clipboard history, beside the todo board and for the same reason.
+      // The clipboard history, beside the emoji picker and for the same reason.
       if (_clipboard.controller case final clipboard?)
         (
           controller: clipboard,

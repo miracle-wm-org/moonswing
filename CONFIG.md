@@ -96,10 +96,10 @@ Each key is an ordered array of module names. Valid module names are:
 - `"network"` - Network connectivity (ethernet or WiFi name and IP address)
 - `"weather"` - Weather display
 - `"notifications"` - Notification bell and the notification panel
-- `"clock"` - Date and time
+- `"clock"` - Date and time; click it for the overview (see Clock below)
 - `"dock"` - Application launcher dock
 - `"scratchpad"` - Shows or hides the window manager's scratchpad (requires Miracle WM)
-- `"todo"` - The todo board, with a count of what is due today
+- `"todo"` - Opens the overview on its todo board, with a count of what is due today
 - `"clipboard"` - Your clipboard history, in a panel docked against one side of the screen
 
 A module omitted from all sections of all panels is disabled entirely. You can place any module in any section and in any order. The same module can appear in multiple panels.
@@ -148,6 +148,21 @@ timer_volume = 0.7
 | `show_date`    | bool   | `true`   | Whether to show the date alongside time               |
 | `timer_sound`  | string | `"ding"` | What rings when a countdown reaches zero — see below. |
 | `timer_volume` | float  | `0.7`    | How loud it rings, from 0 to 1. Clamped.              |
+
+#### The overview
+
+Clicking the date and time opens the **overview**: one panel with a tab each for
+the **Calendar**, the system **Monitor**, **System Info**, **Settings**, the
+**Todo** board and the keyboard **Shortcuts**. The todo button and the keyboard
+icon open the same panel on their own tab rather than a screen of their own, so
+it is the one place all of them live. The panel opens on the screen whose bar
+was clicked.
+
+A press of one of those three buttons switches an open overview to its tab, or
+closes it if that tab is already showing. **Escape** or the **✕** closes it.
+
+Drag the strip of tabs to move the panel; it stays where you leave it the next
+time it opens, until the shell restarts. It cannot be resized.
 
 #### When a timer is up
 
@@ -743,8 +758,9 @@ a retry; the icon in the bar dims.
 
 ### Todo
 
-The checklist icon opens the todo board on the screen whose bar you clicked. It
-is a board of five columns — **Inbox**, **Todo**, **In Progress**, **Finished**
+The checklist icon opens the overview on its **Todo** tab, on the screen whose
+bar you clicked (see The overview, under Clock). It is a
+board of five columns — **Inbox**, **Todo**, **In Progress**, **Finished**
 and **Abandoned** — and a card is moved between them by dragging it. The **+**
 at the top of a column adds a card there; clicking a card opens it to edit its
 title, details, column, due date and repetition, and to read its history. Every
@@ -773,7 +789,7 @@ The search field at the top of the board filters every column down to the
 cards that match, and highlights what matched. It looks for any piece of text —
 the middle of a word counts, and case does not — in a card's title and details;
 with several words, a card has to contain all of them. **Ctrl+F** returns to the
-field, and **Escape** clears it before it closes the board.
+field, and **Escape** clears it before it closes the overview.
 
 A web address in a card's title or details is a link: clicking it opens the
 address in your browser rather than the card. While a GitHub account is signed
@@ -958,7 +974,7 @@ If the window that is picked is on another workspace, the shell switches to that
 
 ### Changing one without editing the file
 
-The keyboard icon on the bar opens the shortcut sheet, and every one of the above is listed on it under **Shell**, alongside every binding the window manager has configured. Click one and press the combination you want:
+The keyboard icon on the bar opens the overview on its **Shortcuts** tab, and every one of the above is listed on it under **Shell**, alongside every binding the window manager has configured. Click one and press the combination you want:
 
 - **Esc** stops listening and changes nothing;
 - **Backspace** clears the shortcut, the same as writing `""` below;
@@ -1244,7 +1260,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_shadow_offset_y`| `6.0`         | Vertical displacement; positive is down, negative is up                    |
 | `popup_animation`      | `slide`       | How a popup arrives, and — reversed — how it leaves (see below)             |
 | `popup_animation_duration` | `140`     | How long that entrance runs, in milliseconds; the exit takes four fifths of it |
-| `overlay_radius`       | `12.0`        | Corner rounding of a full-screen overlay's card: settings, the todo board, the launcher (see below) |
+| `overlay_radius`       | `12.0`        | Corner rounding of a full-screen overlay's card: the overview, the launcher (see below) |
 | `overlay_animation`    | `scale`       | How a full-screen overlay arrives, and — reversed — how it leaves (see below) |
 | `overlay_animation_duration` | `160`   | How long *that* entrance runs, in milliseconds                             |
 | `overlay_animation_exit_ratio` | `1.0` | What fraction of the entrance the overlay's exit takes                     |
@@ -1381,9 +1397,9 @@ None of them is an image file. Each is drawn once, from seeded arithmetic, as a 
 
 ### Overlays
 
-`overlay_radius` is `popup_radius` for the cards the full-screen overlays centre on the dimmed screen: the settings panel, the todo board, the launcher, the emoji picker and the screen-share picker. It is a key of its own because the two are different sizes of thing — a radius that suits a three-row menu looks like a pill on a card half the size of the screen, and one that suits the settings panel turns a tooltip into a circle. `0` squares the cards off. Whatever is inside a card is clipped to the curve, so a large radius cuts into the content's corners rather than letting it spill past them.
+`overlay_radius` is `popup_radius` for the cards the full-screen overlays centre on the dimmed screen: the overview (the calendar, settings and todo board), the launcher, the emoji picker and the screen-share picker. It is a key of its own because the two are different sizes of thing — a radius that suits a three-row menu looks like a pill on a card half the size of the screen, and one that suits the settings panel turns a tooltip into a circle. `0` squares the cards off. Whatever is inside a card is clipped to the curve, so a large radius cuts into the content's corners rather than letting it spill past them.
 
-The power menu, the window switcher, the keybind cheat sheet and the two consent prompts are drawn as popups that happen to be centred, and follow `popup_radius` along with the rest of the popup keys.
+The power menu, the window switcher and the two consent prompts are drawn as popups that happen to be centred, and follow `popup_radius` along with the rest of the popup keys.
 
 Themes written before this key existed get `12.0`, which is the radius every one of those overlays drew before it could be changed.
 
@@ -1412,7 +1428,7 @@ Themes written before this key existed get `slide`.
 
 ### About the overlay animation
 
-The four `overlay_animation*` keys are `popup_animation`'s counterpart one layer up: how the **full-screen overlays** arrive. That is the settings panel, the launcher, the emoji picker, the power menu, the keybind cheat sheet, the authentication prompt and the screen-share picker — everything that dims the screen and puts a card in the middle of it. Until these keys existed they all did exactly one thing, at exactly one pace.
+The four `overlay_animation*` keys are `popup_animation`'s counterpart one layer up: how the **full-screen overlays** arrive. That is the overview, the launcher, the emoji picker, the power menu, the authentication prompt and the screen-share picker — everything that dims the screen and puts a card in the middle of it. Until these keys existed they all did exactly one thing, at exactly one pace.
 
 They are separate from the popup keys on purpose. A menu is furniture you are already reaching past, and an overlay is a surface you asked for; a theme that wants a snappy bar and a stately settings panel has to be able to say both.
 

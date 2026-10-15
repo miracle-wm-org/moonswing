@@ -17,15 +17,15 @@ import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_token_store.dart';
 import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
-import 'package:moonswing/todo/todo_controller.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
-import 'package:moonswing/todo/todo_overlay.dart';
+import 'package:moonswing/todo/todo_board.dart';
 import 'package:moonswing/todo/todo_standup_panel.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
@@ -84,12 +84,14 @@ Widget _maybeScoped(TransientHandle? board, Widget child) =>
 
 void main() {
   late ValueNotifier<bool> closing;
-  late int closed;
   late DateTime now;
+
+  // Escapes that got past the board to the overview around it.
+  late int escapesPast;
 
   setUp(() {
     closing = ValueNotifier(false);
-    closed = 0;
+    escapesPast = 0;
     now = DateTime(2026, 9, 24, 12);
   });
 
@@ -105,6 +107,7 @@ void main() {
     GithubLinkStore? githubLinks,
     Future<ClipboardResult> Function(String text)? copy,
     TransientHandle? board,
+    bool active = true,
   }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
@@ -132,14 +135,25 @@ void main() {
           githubLinks: githubLinks,
           child: _maybeScoped(
             board,
-            TodoOverlay(
-              closingNotifier: closing,
-              onClosed: () => closed++,
-              store: store,
-              sync: sync,
-              onOpenAccounts: onOpenAccounts ?? () {},
-              onOpenLink: onOpenLink ?? (_) {},
-              copy: copy ?? (_) async => ClipboardResult.copied,
+            // The overview's key listener in miniature, so a test can tell
+            // an Escape the board answered from one it let go.
+            Focus(
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.escape) {
+                  escapesPast++;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: TodoBoard(
+                closingNotifier: closing,
+                active: active,
+                store: store,
+                sync: sync,
+                onOpenAccounts: onOpenAccounts ?? () {},
+                onOpenLink: onOpenLink ?? (_) {},
+                copy: copy ?? (_) async => ClipboardResult.copied,
+              ),
             ),
           ),
         ),
@@ -154,12 +168,9 @@ void main() {
       _item('a', TodoColumn.inbox),
       _item('b', TodoColumn.inProgress, due: DateTime(2026, 9, 24)),
     ]);
+    // No heading of its own: the overview's tab says "Todo".
     for (final column in TodoColumn.values) {
-      // "Todo" is also the board's own heading.
-      expect(
-        find.text(column.label),
-        findsNWidgets(column == TodoColumn.todo ? 2 : 1),
-      );
+      expect(find.text(column.label), findsOneWidget);
     }
     expect(find.text('Card a'), findsOneWidget);
     expect(find.text('Body of a'), findsOneWidget);
@@ -414,11 +425,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Edit item'), findsNothing);
     expect(closing.value, isFalse);
+    // Answered here: the overview's own Escape would close everything.
+    expect(escapesPast, 0);
 
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(closing.value, isTrue);
-    expect(closed, 1);
   });
 
   testWidgets('the editor has a date picker beside each date field', (
@@ -519,6 +531,21 @@ void main() {
     expect(pickerDismissed, 1);
     expect(board.closing, isFalse);
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('becoming the visible tab hands the search the keyboard', (
+    tester,
+  ) async {
+    await pump(tester, [_item('a', TodoColumn.inbox)], active: false);
+    // The overview takes the keyboard back when the user leaves the tab.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      isNot('todo search'),
+    );
+    await pump(tester, [_item('a', TodoColumn.inbox)]);
+    expect(FocusManager.instance.primaryFocus?.debugLabel, 'todo search');
   });
 
   testWidgets('the editor opens with its title focused, not the search', (
@@ -745,8 +772,8 @@ void main() {
     await tester.tap(find.text('Set up in Settings…'));
     await tester.pumpAndSettle();
     expect(opened, 1);
-    // Settings opens over where the board was.
-    expect(closing.value, isTrue);
+    // The overview switches to Settings in place: nothing closes.
+    expect(closing.value, isFalse);
   });
 
   testWidgets('a linked board says so, and why a sync did not get through', (
@@ -1121,7 +1148,7 @@ void main() {
   testWidgets('the bar button asks for the board on its own output', (
     tester,
   ) async {
-    final controller = TodoController.forTesting();
+    final controller = SettingsController.forTesting();
     addTearDown(controller.dispose);
     final store = TodoStore.forTesting(
       items: [_item('a', TodoColumn.todo, due: DateTime(2026, 9, 23))],
@@ -1145,6 +1172,7 @@ void main() {
     controller.addListener(() => signals++);
     await tester.tap(find.byType(TodoButton));
     expect(signals, 1);
+    expect(controller.pendingToggle, OverviewTab.todo);
     // No DisplayScope above it: the root falls back to the focused output.
     expect(controller.output, isNull);
   });
