@@ -113,7 +113,10 @@ class MaterialCardDecoration extends Decoration {
 
 class _MaterialCardPainter extends BoxPainter {
   _MaterialCardPainter(this.decoration, this.base, VoidCallback? onChanged)
-      : super(onChanged);
+      : super(onChanged) {
+    // A tile or picture landing after the card first painted.
+    if (onChanged != null) MaterialTextures.instance.addListener(onChanged);
+  }
 
   final MaterialCardDecoration decoration;
   final BoxPainter base;
@@ -222,6 +225,8 @@ class _MaterialCardPainter extends BoxPainter {
 
   @override
   void dispose() {
+    final changed = onChanged;
+    if (changed != null) MaterialTextures.instance.removeListener(changed);
     base.dispose();
     super.dispose();
   }

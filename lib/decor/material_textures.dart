@@ -19,9 +19,19 @@ import 'package:moonswing/theme/surface_material.dart';
 
 /// The generated tiles and the loaded pictures, shared by every surface.
 ///
-/// Notifies when a picture finishes loading (or fails to), which is the only
-/// thing about it that ever changes on its own; a tile is made synchronously,
-/// on first ask, and never changes after.
+/// Notifies when a tile is drawn or a picture finishes loading (or fails to),
+/// which is all that ever changes on its own; a tile never changes after.
+///
+/// A tile is rasterized **asynchronously**, through `Picture.toImage`, never
+/// `toImageSync`. On the Skia backend the shell runs on, `toImageSync` hands
+/// back a deferred GPU image rasterized later on the raster thread, and with
+/// more than one of them shaded across the shell's several FlutterViews it
+/// corrupted the engine — a SIGSEGV or SIGILL inside `libflutter_linux_gtk.so`
+/// within seconds of start-up, on the UI thread or the raster thread, which is
+/// what made Forest (wood, stone and bark at once) crash the shell for good
+/// while any one material alone survived. So a surface asking for a tile not
+/// yet drawn gets null for a frame or two and paints plain, and repaints when
+/// this notifies.
 class MaterialTextures extends ChangeNotifier {
   MaterialTextures._();
 
@@ -34,6 +44,10 @@ class MaterialTextures extends ChangeNotifier {
 
   final Map<(SurfaceMaterial, int, int), ui.Image> _tiles = {};
 
+  /// Tiles being rasterized, so a surface repainting meanwhile does not start
+  /// a second copy of the same one.
+  final Set<(SurfaceMaterial, int, int)> _drawing = {};
+
   final Map<String, ui.Image> _pictures = {};
   final Set<String> _loading = {};
   final Map<String, String> _failures = {};
@@ -42,9 +56,9 @@ class MaterialTextures extends ChangeNotifier {
   /// the shell at start-up so this file need not reach for the store.
   String? baseDirectory;
 
-  /// [material]'s tile in [tint] at [devicePixelRatio], drawn now if this is
-  /// the first ask. Null for [SurfaceMaterial.none], and null where no image
-  /// can be made at all.
+  /// [material]'s tile in [tint] at [devicePixelRatio], or null while it is
+  /// drawn — the first ask starts it, and [addListener] hears it land. Null
+  /// for [SurfaceMaterial.none], and for good where no image can be made.
   ui.Image? tile(SurfaceMaterial material, Color tint, double devicePixelRatio) {
     if (!material.paints) return null;
     // Half-step buckets: a fractional scale is drawn a touch sharper rather
@@ -58,21 +72,37 @@ class MaterialTextures extends ChangeNotifier {
       _tiles[key] = cached;
       return cached;
     }
+    if (!_drawing.add(key)) return null;
+    _draw(key, material, Color(opaque), dpr);
+    return null;
+  }
+
+  Future<void> _draw(
+    (SurfaceMaterial, int, int) key,
+    SurfaceMaterial material,
+    Color tint,
+    double dpr,
+  ) async {
     final size = materialTileSize(material);
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
     canvas.scale(dpr);
-    paintMaterialTile(canvas, material, Color(opaque));
+    paintMaterialTile(canvas, material, tint);
     final picture = recorder.endRecording();
-    ui.Image image;
+    final ui.Image image;
     try {
-      image = picture.toImageSync(
+      image = await picture.toImage(
         (size.width * dpr).round(),
         (size.height * dpr).round(),
       );
+    } catch (_) {
+      // Left in [_drawing]: a tile that cannot be made is not retried on
+      // every repaint, and the surface stays plain.
+      return;
     } finally {
       picture.dispose();
     }
+    _drawing.remove(key);
     if (_tiles.length >= _tileLimit) {
       // Dropped, not disposed: a painter built a frame ago may still hold it,
       // and a shader made from a disposed image throws. The GC frees it once
@@ -80,7 +110,7 @@ class MaterialTextures extends ChangeNotifier {
       _tiles.remove(_tiles.keys.first);
     }
     _tiles[key] = image;
-    return image;
+    notifyListeners();
   }
 
   /// The picture at [path] once loaded, or null while it loads and for good
@@ -136,6 +166,7 @@ class MaterialTextures extends ChangeNotifier {
   @visibleForTesting
   void reset() {
     _tiles.clear();
+    _drawing.clear();
     _pictures.clear();
     _failures.clear();
     _loading.clear();

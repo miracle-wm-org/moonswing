@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
@@ -242,9 +244,35 @@ void main() {
   group('textures', () {
     setUp(MaterialTextures.instance.reset);
 
+    // Asked for, a tile is null until it has been rasterized; then it lands,
+    // notifies, and is the same image for every later ask.
+    Future<ui.Image?> drawn(
+        WidgetTester tester, SurfaceMaterial m, Color tint, double dpr) async {
+      final textures = MaterialTextures.instance;
+      var landed = textures.tile(m, tint, dpr);
+      if (landed != null || !m.paints) return landed;
+      await tester.runAsync(() async {
+        for (var i = 0; i < 200 && landed == null; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          landed = textures.tile(m, tint, dpr);
+        }
+      });
+      return landed;
+    }
+
     testWidgets('a tile is drawn once and shared', (tester) async {
-      final a = MaterialTextures.instance
-          .tile(SurfaceMaterial.wood, const Color(0xFF6E4A2A), 2.0)!;
+      var notified = 0;
+      void count() => notified++;
+      MaterialTextures.instance.addListener(count);
+      addTearDown(() => MaterialTextures.instance.removeListener(count));
+      expect(
+          MaterialTextures.instance
+              .tile(SurfaceMaterial.wood, const Color(0xFF6E4A2A), 2.0),
+          isNull,
+          reason: 'never drawn synchronously');
+      final a = (await drawn(tester, SurfaceMaterial.wood,
+          const Color(0xFF6E4A2A), 2.0))!;
+      expect(notified, 1);
       final size = materialTileSize(SurfaceMaterial.wood);
       expect(a.width, (size.width * 2).round());
       expect(a.height, (size.height * 2).round());
@@ -253,8 +281,10 @@ void main() {
       expect(identical(a, b), isTrue);
       expect(MaterialTextures.instance.tileCount, 1);
       // The alpha is the strength, not part of the tile.
-      MaterialTextures.instance
-          .tile(SurfaceMaterial.wood, const Color(0x206E4A2A), 2.0);
+      expect(
+          MaterialTextures.instance
+              .tile(SurfaceMaterial.wood, const Color(0x206E4A2A), 2.0),
+          same(a));
       expect(MaterialTextures.instance.tileCount, 1);
       expect(
           MaterialTextures.instance
@@ -264,8 +294,7 @@ void main() {
 
     testWidgets('every material draws', (tester) async {
       for (final m in SurfaceMaterial.values.where((m) => m.paints)) {
-        expect(
-            MaterialTextures.instance.tile(m, const Color(0xFF6B5340), 1.0),
+        expect(await drawn(tester, m, const Color(0xFF6B5340), 1.0),
             isNotNull,
             reason: m.slug);
       }
