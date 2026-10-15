@@ -64,6 +64,13 @@ class PowerSection extends StatelessWidget {
               children: [
                 SettingsRow.field(
                   SettingsCatalog.powerKeyAction,
+                  info:
+                      'The power menu offers Lock, Log Out, Sleep, Restart and '
+                      'Shut Down over the desktop; any of those five can be '
+                      'run by the button directly instead. The shell can only '
+                      'answer the button on a compositor that reports it — '
+                      'everything Mir-based does. Everywhere else the key '
+                      'keeps doing whatever the system does with it.',
                   control: SizedBox(
                     width: _pickerWidth,
                     child: SettingsDropdown<String>(
@@ -74,16 +81,17 @@ class PowerSection extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SettingsHint(
-                  'The power menu offers Lock, Log Out, Sleep, Restart and '
-                  'Shut Down over the desktop; any of those five can be run by '
-                  'the button directly instead. The shell can only answer the '
-                  'button on a compositor that reports it — everything '
-                  'Mir-based does. Everywhere else the key keeps doing '
-                  'whatever the system does with it.',
-                ),
                 SettingsRow.field(
                   SettingsCatalog.powerInhibitLogind,
+                  info: action != PowerKeyAction.none
+                      ? 'systemd-logind watches the power button too, and '
+                            'powers the machine off on a press. The shell '
+                            'holds its handle-power-key lock so that cannot '
+                            'happen behind the power menu — turn it off only '
+                            'if logind.conf already says '
+                            'HandlePowerKey=ignore.'
+                      : 'Nothing is held while the button is left to the '
+                            'system.',
                   control: ConfigValue<bool>(
                     store: store,
                     path: const ['power', 'inhibit_logind'],
@@ -94,17 +102,6 @@ class PowerSection extends StatelessWidget {
                           store.set(['power', 'inhibit_logind'], v),
                     ),
                   ),
-                ),
-                SettingsHint(
-                  action != PowerKeyAction.none
-                      ? 'systemd-logind watches the power button too, and '
-                            'powers the machine off on a press. The shell '
-                            'holds its handle-power-key lock so that cannot '
-                            'happen behind the power menu — turn it off only '
-                            'if logind.conf already says '
-                            'HandlePowerKey=ignore.'
-                      : 'Nothing is held while the button is left to the '
-                            'system.',
                 ),
               ],
             );

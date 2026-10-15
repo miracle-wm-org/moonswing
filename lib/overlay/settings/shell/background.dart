@@ -238,13 +238,10 @@ class _BackgroundSectionState extends State<BackgroundSection> {
 
     return SliverMainAxisGroup(
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: const SettingsSectionHeading(label: 'Background'),
-          ),
-        ),
-        SliverList.list(
+        // The two rows on a section card like every other page's; the grids
+        // below stay off it, being collections rather than rows.
+        SliverSettingsSection(
+          label: 'Background',
           children: [
             SettingsRow.field(
               SettingsCatalog.backgroundFit,
@@ -261,6 +258,9 @@ class _BackgroundSectionState extends State<BackgroundSection> {
             ),
             SettingsRow.field(
               SettingsCatalog.backgroundIntervalMinutes,
+              info:
+                  '${SettingsCatalog.backgroundIntervalMinutes.description} '
+                  'Selected wallpapers rotate on this interval, in order.',
               control: ConfigValue<num>(
                 store: store,
                 path: const ['background', 'interval_minutes'],
@@ -275,12 +275,11 @@ class _BackgroundSectionState extends State<BackgroundSection> {
                 ),
               ),
             ),
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: SettingsHint(
-                'Selected wallpapers rotate on this interval, in order.',
-              ),
-            ),
+          ],
+        ),
+        SliverList.list(
+          children: [
+            const SizedBox(height: 8),
             SettingsSubLabel(
               'Shown',
               // On the heading rather than under the grid: the grid is the tallest
@@ -307,10 +306,11 @@ class _BackgroundSectionState extends State<BackgroundSection> {
           ),
         SliverList.list(
           children: [
-            SettingsSubLabel('Available'),
-            const SettingsHint(
-              'Wallpapers installed on this system are always listed here. '
-              'Only the ones you added yourself can be removed.',
+            const SettingsSubLabel(
+              'Available',
+              info:
+                  'Wallpapers installed on this system are always listed '
+                  'here. Only the ones you added yourself can be removed.',
             ),
             if (available.isEmpty)
               _loadingSystem

@@ -79,7 +79,7 @@ class _LockSectionState extends State<LockSection> {
                   SettingsCatalog.lockBackground,
                   alignTop: true,
                   control: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Row(
@@ -107,7 +107,6 @@ class _LockSectionState extends State<LockSection> {
                           path.isEmpty
                               ? 'Default wallpaper'
                               : path.split('/').last,
-                          textAlign: TextAlign.right,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -160,6 +159,9 @@ class _LockSectionState extends State<LockSection> {
         ),
         SettingsRow.field(
           SettingsCatalog.lockBlurSigma,
+          info:
+              'How strongly the wallpaper blurs once the password field '
+              'appears. Set to 0 to leave it sharp.',
           control: ConfigValue<num>(
             store: store,
             path: const ['lock', 'blur_sigma'],
@@ -173,10 +175,6 @@ class _LockSectionState extends State<LockSection> {
               ], v.toDouble().clamp(0.0, 100.0)),
             ),
           ),
-        ),
-        const SettingsHint(
-          'How strongly the wallpaper blurs once the password field appears. '
-          'Set to 0 to leave it sharp.',
         ),
       ],
     );

@@ -224,9 +224,18 @@ layout = "de"
     expect(store.sources.last, const InputSource('fr', variant: 'azerty'));
   });
 
-  testWidgets('the footer says this edits the whole machine', (tester) async {
+  testWidgets('the sources section says this edits the whole machine', (
+    tester,
+  ) async {
     await pump(tester, seeded());
-    expect(find.textContaining('/etc/default/keyboard'), findsOneWidget);
+    // Behind the section's info tip rather than a paragraph under the page.
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is SettingsInfoTip && w.message.contains('/etc/default/keyboard'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an empty list says what to do about it', (tester) async {

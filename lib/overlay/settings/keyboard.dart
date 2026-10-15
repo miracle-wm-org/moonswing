@@ -96,13 +96,6 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
           _sourcesSection(theme),
           const SizedBox(height: 20),
           _activeSection(theme),
-          const SizedBox(height: 20),
-          const SettingsHint(
-            'Changing the layout applies to the whole system — it is written to '
-            '/etc/default/keyboard for every account and the console — and needs '
-            'administrator approval through the polkit action '
-            'org.freedesktop.locale1.set-keyboard.',
-          ),
         ],
       ),
     );
@@ -137,6 +130,11 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
     final activeIndex = _store.activeIndex;
     return SettingsSection(
       label: 'Input Sources',
+      info:
+          'Changing the layout applies to the whole system — it is written to '
+          '/etc/default/keyboard for every account and the console — and needs '
+          'administrator approval through the polkit action '
+          'org.freedesktop.locale1.set-keyboard.',
       // The adder goes on the heading row, not under the list: an adder below
       // a collection walks down the pane every time it is used.
       trailing: InputSourcePicker(
@@ -243,15 +241,13 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
     );
   }
 
-  Widget _readOnly(ThemeConfig theme, String text) => Align(
-    alignment: Alignment.centerRight,
-    child: Text(
-      text,
-      style: TextStyle(
-        fontSize: ShellFontSizes.secondary,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.75),
-      ),
+  // Beside its label like any other value, not pushed to the far edge.
+  Widget _readOnly(ThemeConfig theme, String text) => Text(
+    text,
+    style: TextStyle(
+      fontSize: ShellFontSizes.secondary,
+      fontFamily: theme.fontFamily,
+      color: theme.popupForeground.withValues(alpha: 0.75),
     ),
   );
 }

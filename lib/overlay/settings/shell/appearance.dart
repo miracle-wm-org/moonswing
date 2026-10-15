@@ -53,6 +53,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       slivers: [
         SliverSettingsSection(
           label: 'Theme',
+          info:
+              'Themes are files in ${_themes.directory}. '
+              'Drop one in to add it by hand.',
           // On the section's heading rather than under the swatch grid: the
           // grid is a Wrap that grows a row per handful of themes, so the one
           // control that adds another was drifting down the pane as it filled.
@@ -81,27 +84,27 @@ class _AppearanceSectionState extends State<AppearanceSection> {
               listenable: _themes,
               builder: (context, _) {
                 final active = _themes.activeName;
-                return Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: [
-                    for (final summary in _themes.themes)
-                      _ThemeCard(
-                        summary: summary,
-                        selected: summary.slug == active,
-                        onTap: () => _themes.select(summary.slug),
-                        onDelete: summary.builtIn
-                            ? null
-                            : () => _themes.delete(summary.slug),
-                      ),
-                  ],
+                return Padding(
+                  // Breathing room the rows' own padding gives them inside the
+                  // section card.
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final summary in _themes.themes)
+                        _ThemeCard(
+                          summary: summary,
+                          selected: summary.slug == active,
+                          onTap: () => _themes.select(summary.slug),
+                          onDelete: summary.builtIn
+                              ? null
+                              : () => _themes.delete(summary.slug),
+                        ),
+                    ],
+                  ),
                 );
               },
-            ),
-            const SizedBox(height: 6),
-            SettingsHint(
-              'Themes are files in ${_themes.directory}. '
-              'Drop one in to add it by hand.',
             ),
           ],
         ),
@@ -126,23 +129,26 @@ class _AppearanceSectionState extends State<AppearanceSection> {
             return SliverSettingsSection(
               label: 'Edit $displayName',
               children: [
-                if (builtIn) ...[
-                  const SettingsHint(
-                    'This theme ships with the shell and is read-only — the '
-                    'next update would overwrite your changes. Duplicate it to '
-                    'make it yours.',
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: SettingsOptionButton(
-                      label: 'Duplicate to edit',
-                      selected: false,
-                      onTap: _duplicate,
+                // A notice rather than a hint: this is not an explanation of a
+                // setting but the reason none of them below will take, and the
+                // way out of it is the button on the same strip.
+                if (builtIn)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: SettingsNotice(
+                      icon: FontAwesomeIcons.lock,
+                      title: 'Read-only theme',
+                      message:
+                          'This theme ships with the shell — the next update '
+                          'would overwrite your changes. Duplicate it to make '
+                          'it yours.',
+                      action: SettingsOptionButton(
+                        label: 'Duplicate to edit',
+                        selected: false,
+                        onTap: _duplicate,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                ],
                 SettingsRow.field(
                   SettingsCatalog.themeName,
                   control: SettingsCommitField(
@@ -202,6 +208,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 ),
                 SettingsRow.field(
                   SettingsCatalog.fontSize,
+                  info:
+                      "The size of the shell's body text, and with it every "
+                      'other size — labels, captions and headings keep their '
+                      'proportions either side of it, in the panels and in '
+                      'everything they open. Bar thickness is its own setting, '
+                      'under Panels & Layout: a much larger font wants a '
+                      'taller bar to sit in.',
                   control: SettingsNumberField(
                     key: ValueKey('font_size-$active'),
                     value: current['font_size'] as num? ?? ShellFontSizes.body,
@@ -216,16 +229,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                const SettingsHint(
-                  "The size of the shell's body text, and with it every other "
-                  'size — labels, captions and headings keep their proportions '
-                  'either side of it, in the panels and in everything they '
-                  'open. Bar thickness is its own setting, under Panels & '
-                  'Layout: a much larger font wants a taller bar to sit in.',
-                ),
-                const SizedBox(height: 8),
                 SettingsRow.field(
                   SettingsCatalog.panelGradient,
+                  info:
+                      'Off paints the bar as a flat panel background. On fades '
+                      'it from the accent across to that colour, with every '
+                      "stop at the panel background's alpha — so the bar has "
+                      'one opacity.',
                   // Renders its value too, so it follows the store like the
                   // font row does.
                   control: StoreSelector<bool>(
@@ -240,14 +250,12 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                const SettingsHint(
-                  'Off paints the bar as a flat panel background. On fades it '
-                  'from the accent across to that colour, with every stop at '
-                  "the panel background's alpha — so the bar has one opacity.",
-                ),
-                const SizedBox(height: 8),
                 SettingsRow.field(
                   SettingsCatalog.panelMargin,
+                  info:
+                      'Floats the bar off the screen edges. The gap is real — '
+                      'windows will not tile into it, and clicks that land '
+                      'there reach the desktop.',
                   control: SettingsNumberField(
                     key: ValueKey('panel_margin-$active'),
                     value: current['panel_margin'] as num? ?? 0,
@@ -258,6 +266,11 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 ),
                 SettingsRow.field(
                   SettingsCatalog.panelRadius,
+                  info:
+                      "How far the bar's corners are rounded. A floating bar "
+                      'rounds all four; one with no margin rounds only the two '
+                      "facing the screen, so the display's own corners stay "
+                      'square.',
                   control: SettingsNumberField(
                     key: ValueKey('panel_radius-$active'),
                     value: current['panel_radius'] as num? ?? 0,
@@ -280,15 +293,6 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                const SettingsHint(
-                  'A margin floats the bar off the screen edges. The gap is '
-                  'real — windows will not tile into it, and clicks that land '
-                  'there reach the desktop. A floating bar rounds all four '
-                  'corners; one with no margin rounds only the two facing the '
-                  "screen, so the display's own corners stay square. The "
-                  'border draws only at a width above zero.',
-                ),
-                const SizedBox(height: 8),
                 SettingsRow.field(
                   SettingsCatalog.popupRadius,
                   control: SettingsNumberField(
@@ -438,19 +442,15 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const SettingsHint(
-                  'Below is the same choice for the full-screen overlays — the '
-                  'settings panel, the launcher, the emoji picker, the power '
-                  'menu and the prompts. The effect and the curve multiply out: '
-                  'a rise on an elastic and a flip on a linear are both '
-                  'sentences these two rows can say. The exit is whichever you '
-                  'pick, played backwards, for the fraction of the entrance the '
-                  'ratio names.',
-                ),
-                const SizedBox(height: 8),
                 SettingsRow.field(
                   SettingsCatalog.overlayAnimation,
+                  info:
+                      'How a full-screen overlay arrives — the settings panel, '
+                      'the launcher, the emoji picker, the power menu and the '
+                      'prompts — and, played backwards, how it leaves. The '
+                      'effect and the curve multiply out: a rise on an elastic '
+                      'and a flip on a linear are both sentences these two '
+                      'rows can say.',
                   control: SettingsDropdown<OverlayEffect>(
                     key: ValueKey('overlay_animation-$active'),
                     // `description` rather than `detail`, for the reason the
@@ -521,21 +521,22 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const SettingsHint(
-                  'The wash behind the settings and launcher panels is the '
-                  'overlay scrim below. There is no blur control: a shell '
-                  'surface is transparent and the compositor owns what is '
-                  'under it, so translucency comes from the alpha channel of '
-                  'the colours below.',
-                ),
-                const SizedBox(height: 8),
                 // The palette's labels live in [SettingsCatalog] rather than
                 // in a map here, so the search index and these rows are the
                 // same list read twice — see [ThemeColorSetting].
                 for (final colour in SettingsCatalog.themeColors)
                   SettingsRow.field(
                     colour.field,
+                    // The one colour row with more to say than its catalogue
+                    // line: why a translucent overlay has no blur to go with
+                    // it.
+                    info: colour.key == 'scrim'
+                        ? '${colour.field.description} There is no blur '
+                              'control: a shell surface is transparent and the '
+                              'compositor owns what is under it, so '
+                              'translucency comes from the alpha channel of '
+                              'the colours.'
+                        : null,
                     control: SettingsColorField(
                       key: ValueKey('${colour.key}-$active'),
                       initial: current[colour.key] as String? ?? '#000000',

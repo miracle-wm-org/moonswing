@@ -106,21 +106,25 @@ class _DesktopSectionState extends State<DesktopSection> {
         return SliverSettingsSection(
           label: 'Desktop',
           children: [
+            // Enabling the grid is what creates the background surface when
+            // there is no wallpaper, and that surface is built at startup.
             SettingsRow.field(
               SettingsCatalog.desktopEnabled,
+              info:
+                  '${SettingsCatalog.desktopEnabled.description} Turning it on '
+                  'or off takes effect after a restart when no wallpaper is '
+                  'configured.',
               control: SettingsToggle(
                 value: config.enabled,
                 onChanged: (v) => _setGrid((c) => _copyDesktop(c, enabled: v)),
               ),
             ),
-            // Enabling the grid is what creates the background surface when
-            // there is no wallpaper, and that surface is built at startup.
-            const SettingsHint(
-              'Turning desktop icons on or off takes effect after a restart '
-              'when no wallpaper is configured.',
-            ),
             SettingsRow.field(
               SettingsCatalog.desktopCellWidth,
+              info:
+                  '${SettingsCatalog.desktopCellWidth.description} The number '
+                  'of columns and rows is derived from each monitor, so the '
+                  'same icons fit displays of different sizes.',
               control: SettingsNumberField(
                 value: config.cellWidth,
                 isInt: true,
@@ -171,10 +175,6 @@ class _DesktopSectionState extends State<DesktopSection> {
                 onChanged: (v) =>
                     _setGrid((c) => _copyDesktop(c, showLabels: v)),
               ),
-            ),
-            const SettingsHint(
-              'The number of columns and rows is derived from each monitor, so '
-              'the same icons fit displays of different sizes.',
             ),
             SettingsSubLabel(
               'Pinned items',
