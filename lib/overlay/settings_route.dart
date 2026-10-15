@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 
 import 'package:moonswing/request_controller.dart';
 
+/// The Shell category that lists every module, each pushing its own page.
+const String kModuleSettingsCategory = 'Module Settings';
+
 /// Which page of the settings overlay to land on.
 ///
 /// The overlay's own tab and category are private state seeded in `initState`, so
@@ -14,7 +17,13 @@ class SettingsRoute {
     this.category = 'shell',
     this.shellCategory,
     this.miracleCategory,
+    this.module,
   });
+
+  /// One module's own page inside Shell › Module Settings, named by its
+  /// `[modules.<key>]` config key — `clock`, `screen_recorder`.
+  const SettingsRoute.module(String key)
+    : this(shellCategory: kModuleSettingsCategory, module: key);
 
   /// One of the overlay's top tab ids: `calendar`, `system`, `systeminfo`,
   /// `settings`.
@@ -39,6 +48,15 @@ class SettingsRoute {
   /// separate.
   final String? miracleCategory;
 
+  /// A `[modules.<key>]` config key inside [kModuleSettingsCategory], e.g.
+  /// `clock`: that module's page is pushed over the module list. Null lands on
+  /// the list itself.
+  ///
+  /// Keyed on the config key rather than the page's title, because the key is
+  /// already in every module row's id — the catalogue derives this field from
+  /// it, so a row cannot point at another module's page.
+  final String? module;
+
   /// Where "Change background…" on the desktop goes.
   static const SettingsRoute background =
       SettingsRoute(shellCategory: 'Background');
@@ -46,10 +64,13 @@ class SettingsRoute {
   /// Where the desktop grid's own settings live.
   static const SettingsRoute desktop = SettingsRoute(shellCategory: 'Desktop');
 
-  /// Where every `[modules.*]` option lives — the stock market widget's
-  /// "Manage tickers", for one, whose watchlist is a row there.
+  /// The list of modules, each of which pushes its own page.
   static const SettingsRoute modules =
-      SettingsRoute(shellCategory: 'Module Settings');
+      SettingsRoute(shellCategory: kModuleSettingsCategory);
+
+  /// Where the stock market widget's "Manage tickers" goes — the watchlist is
+  /// a row on that module's page.
+  static const SettingsRoute stocks = SettingsRoute.module('stocks');
 
   /// Where the keyboard layout popup's "Keyboard settings…" footer goes.
   ///
@@ -77,11 +98,12 @@ class SettingsRoute {
       other.tab == tab &&
       other.category == category &&
       other.shellCategory == shellCategory &&
-      other.miracleCategory == miracleCategory;
+      other.miracleCategory == miracleCategory &&
+      other.module == module;
 
   @override
   int get hashCode =>
-      Object.hash(tab, category, shellCategory, miracleCategory);
+      Object.hash(tab, category, shellCategory, miracleCategory, module);
 }
 
 /// The seam between "something deep in a surface wants the settings overlay

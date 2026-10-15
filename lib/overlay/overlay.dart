@@ -477,7 +477,10 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       case 'accounts':
         return const AccountsSettingsPage();
       case 'shell':
-        return ShellSettingsPage(initialCategory: widget.route?.shellCategory);
+        return ShellSettingsPage(
+          initialCategory: widget.route?.shellCategory,
+          initialModule: widget.route?.module,
+        );
       default:
         return const SizedBox.shrink();
     }

@@ -225,6 +225,8 @@ void main() {
         expect(field.id, startsWith('modules.'));
         expect(field.id.split('.'), hasLength(3));
         expect(field.route.shellCategory, 'Module Settings');
+        // And it lands on its own module's page, named by the same key.
+        expect(field.route.module, field.id.split('.')[1]);
       }
       // Every module row carries its module's own name among its tags: the
       // group heading is what a user reads the row under, and it is in neither

@@ -1,4 +1,5 @@
 import 'package:flutter/widgets.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/capture/capture_config.dart'
     show
@@ -25,6 +26,7 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/shell/weather_location.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/stocks/stock_config.dart' show StockConfig;
 import 'package:moonswing/system/system_monitor_config.dart'
     show SystemMonitorConfig;
@@ -123,317 +125,423 @@ class _ModuleSetting {
   final String? addHint;
 }
 
-/// A sub-labelled run of rows — one per module.
-class _ModuleGroup {
-  const _ModuleGroup(this.label, this.settings);
+/// One module's page in Shell › Module Settings: the card on the module list
+/// that pushes it, and the rows it renders.
+class ModuleSettingsPage {
+  const ModuleSettingsPage._(
+    this.key,
+    this.subtitle,
+    this.icon,
+    this._settings,
+  );
 
-  final String label;
-  final List<_ModuleSetting> settings;
+  /// The `[modules.<key>]` config key — what [SettingsRoute.module] names the
+  /// page by, and the middle segment of every row id on it.
+  final String key;
+
+  /// From [SettingsCatalog.moduleTitles], which is where a search result reads
+  /// it too.
+  String get title => SettingsCatalog.moduleTitles[key] ?? key;
+
+  /// The card's second line on the module list.
+  final String subtitle;
+
+  final FaIconData icon;
+
+  final List<_ModuleSetting> _settings;
+
+  /// The catalogue entries of the rows on this page, in order.
+  Iterable<SettingsField> get fields => _settings.map((s) => s.field);
+
+  /// The route a jump to this page carries.
+  SettingsRoute get route => SettingsRoute.module(key);
 }
 
-/// Every row the section renders, in order. Not `const` because reading a
-/// field off a const config object is not a constant expression.
-final List<_ModuleGroup> _moduleGroups = [
-  _ModuleGroup('Workspaces', [
-    _ModuleSetting.toggle(
-      SettingsCatalog.workspacesShowAppIcons,
-      defaultValue: const WorkspacesConfig().showAppIcons,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.workspacesIconSize,
-      defaultValue: const WorkspacesConfig().iconSize,
-      isInt: true,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.workspacesMaxIcons,
-      defaultValue: const WorkspacesConfig().maxIcons,
-      isInt: true,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.workspacesFlashUrgent,
-      defaultValue: const WorkspacesConfig().flashUrgent,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.workspacesUrgentFlashSeconds,
-      defaultValue: const WorkspacesConfig().urgentFlashSeconds,
-      isInt: false,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.workspacesShowPolicyToggle,
-      defaultValue: const WorkspacesConfig().showPolicyToggle,
-    ),
-  ]),
-  _ModuleGroup('Weather', [
-    _ModuleSetting.weatherLocation(SettingsCatalog.weatherLocation),
-    _ModuleSetting.segmented(
-      SettingsCatalog.weatherUnit,
-      options: const ['fahrenheit', 'celsius'],
-      defaultValue: const WeatherConfig().unit,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.weatherRefreshMinutes,
-      defaultValue: const WeatherConfig().refreshMinutes,
-      isInt: true,
-    ),
-  ]),
-  _ModuleGroup('Battery', [
-    _ModuleSetting.number(
-      SettingsCatalog.batteryPollSeconds,
-      defaultValue: const BatteryConfig().pollSeconds,
-      isInt: true,
-    ),
-  ]),
-  _ModuleGroup('Clock', [
-    _ModuleSetting.toggle(
-      SettingsCatalog.clockShowDate,
-      defaultValue: const ClockConfig().showDate,
-    ),
-    // Free-typed for the reason the chime's and the shutter's rows are: the
-    // shipped alarms are four of the answers, and a name out of the machine's
-    // sound theme and a path to a file of the user's own are the two a fixed
-    // list cannot hold.
-    _ModuleSetting.text(
-      SettingsCatalog.clockTimerSound,
-      addHint: kTimerSoundHint,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.clockTimerVolume,
-      defaultValue: kDefaultTimerVolume,
-      isInt: false,
-    ),
-  ]),
-  _ModuleGroup('Media player', [
-    _ModuleSetting.number(
-      SettingsCatalog.mediaPlayerMaxTextWidth,
-      defaultValue: const MediaPlayerConfig().maxTextWidth,
-      isInt: false,
-    ),
-  ]),
-  _ModuleGroup('System tray', [
-    _ModuleSetting.number(
-      SettingsCatalog.systemTrayIconSize,
-      defaultValue: const SystemTrayConfig().iconSize,
-      isInt: false,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.systemTrayCollapsedOverlap,
-      defaultValue: const SystemTrayConfig().collapsedOverlap,
-      isInt: false,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.systemTrayExpandedSpacing,
-      defaultValue: const SystemTrayConfig().expandedSpacing,
-      isInt: false,
-    ),
-    _ModuleSetting.stringList(
-      SettingsCatalog.systemTrayHiddenItems,
-      addHint: 'SNI id or title',
-    ),
-  ]),
-  _ModuleGroup('Dock', [
-    _ModuleSetting.number(
-      SettingsCatalog.dockIconSize,
-      defaultValue: const DockConfig().iconSize,
-      isInt: true,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.dockShowAppDirectory,
-      defaultValue: const DockConfig().showAppDirectory,
-    ),
-    _ModuleSetting.stringList(SettingsCatalog.dockApps, addHint: 'app id'),
-  ]),
-  _ModuleGroup('System monitor', [
-    _ModuleSetting.number(
-      SettingsCatalog.systemMonitorPollSeconds,
-      defaultValue: const SystemMonitorConfig().pollSeconds,
-      isInt: true,
-    ),
-    _ModuleSetting.segmented(
-      SettingsCatalog.systemMonitorTempUnit,
-      options: const ['celsius', 'fahrenheit'],
-      defaultValue: const SystemMonitorConfig().tempUnit,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.systemMonitorHistorySamples,
-      defaultValue: const SystemMonitorConfig().historySamples,
-      isInt: true,
-    ),
-    // "machine" makes the process rows sum to the total CPU gauge; "core" is
-    // top-style, where 100% is one saturated core.
-    _ModuleSetting.segmented(
-      SettingsCatalog.systemMonitorCpuPercentMode,
-      options: const ['machine', 'core'],
-      defaultValue: const SystemMonitorConfig().cpuPercentMode.name,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.systemMonitorShowKernelThreads,
-      defaultValue: const SystemMonitorConfig().showKernelThreads,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.systemMonitorConfirmKill,
-      defaultValue: const SystemMonitorConfig().confirmKill,
-    ),
-  ]),
-  _ModuleGroup('Network', [
-    _ModuleSetting.number(
-      SettingsCatalog.networkPollSeconds,
-      defaultValue: const NetworkConfig().pollSeconds,
-      isInt: true,
-    ),
-  ]),
-  _ModuleGroup('Notifications', [
-    // A free-typed string rather than a segmented control: the shipped sounds
-    // are only five of the answers, and the other two — a name out of the
-    // machine's sound theme, and a path to a file of the user's own — are
-    // exactly the ones a fixed list cannot hold. The hint names the shipped
-    // set, so the common answers are still one glance away.
-    _ModuleSetting.text(
-      SettingsCatalog.notificationsSound,
-      addHint: kNotificationSoundHint,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.notificationsSoundVolume,
-      defaultValue: kDefaultNotificationSoundVolume,
-      isInt: false,
-    ),
-  ]),
-  _ModuleGroup('GitHub', [
-    _ModuleSetting.number(
-      SettingsCatalog.githubRefreshSeconds,
-      defaultValue: const GithubConfig().refreshSeconds,
-      isInt: true,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.githubShowCount,
-      defaultValue: const GithubConfig().showCount,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.githubParticipatingOnly,
-      defaultValue: const GithubConfig().participatingOnly,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.githubIncludeRead,
-      defaultValue: const GithubConfig().includeRead,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.githubMarkReadOnOpen,
-      defaultValue: const GithubConfig().markReadOnOpen,
-    ),
-    // `client_id` and `scopes` are deliberately not here. Neither is a
-    // preference: one is an OAuth app the user registered and the other is
-    // what that app may do, and both are typed once into `config.toml` by
-    // somebody who has read what they mean.
-  ]),
-  _ModuleGroup('Stock market', [
-    // The same list the strip's popup edits: an add there is a row here, and
-    // a symbol typed here is quoted on the next poll.
-    _ModuleSetting.stringList(
-      SettingsCatalog.stocksSymbols,
-      addHint: 'symbol, e.g. AAPL',
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.stocksRefreshSeconds,
-      defaultValue: const StockConfig().refreshSeconds,
-      isInt: true,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.stocksScroll,
-      defaultValue: const StockConfig().scroll,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.stocksScrollSpeed,
-      defaultValue: const StockConfig().scrollSpeed,
-      isInt: false,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.stocksWidth,
-      defaultValue: const StockConfig().width,
-      isInt: false,
-    ),
-  ]),
-  _ModuleGroup('Screenshot', [
-    _ModuleSetting.text(
-      SettingsCatalog.screenshotDirectory,
-      addHint: '~/$kDefaultScreenshotDirectory',
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.screenshotCopyToClipboard,
-      defaultValue: const ScreenshotConfig().copyToClipboard,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.screenshotDelaySeconds,
-      defaultValue: const ScreenshotConfig().delaySeconds,
-      isInt: true,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.screenshotShowCursor,
-      defaultValue: const ScreenshotConfig().showCursor,
-    ),
-    // Free-typed for the reason the chime's row is: the shipped shutters are
-    // four of the answers, and a name out of the machine's sound theme and a
-    // path to a file of the user's own are the two a fixed list cannot hold.
-    _ModuleSetting.text(
-      SettingsCatalog.screenshotShutterSound,
-      addHint: kShutterSoundHint,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.screenshotShutterVolume,
-      defaultValue: kDefaultShutterVolume,
-      isInt: false,
-    ),
-  ]),
-  _ModuleGroup('Screen recorder', [
-    _ModuleSetting.text(
-      SettingsCatalog.recorderDirectory,
-      addHint: '~/$kDefaultRecordingDirectory',
-    ),
-    _ModuleSetting.segmented(
-      SettingsCatalog.recorderContainer,
-      options: kRecorderContainers,
-      defaultValue: const RecorderConfig().container,
-    ),
-    _ModuleSetting.number(
-      SettingsCatalog.recorderFps,
-      defaultValue: const RecorderConfig().fps,
-      isInt: true,
-    ),
-    // Lower is better and larger. Named as the encoder names it, because it is
-    // handed to ffmpeg verbatim and a "quality: 8/10" scale invented here
-    // would be a second thing to explain.
-    _ModuleSetting.number(
-      SettingsCatalog.recorderQuality,
-      defaultValue: const RecorderConfig().quality,
-      isInt: true,
-    ),
-    _ModuleSetting.toggle(
-      SettingsCatalog.recorderShowCursor,
-      defaultValue: const RecorderConfig().showCursor,
-    ),
-  ]),
+/// The page for the `[modules.<key>]` named [key], or null.
+ModuleSettingsPage? moduleSettingsPageByKey(String? key) {
+  if (key == null) return null;
+  for (final page in moduleSettingsPages) {
+    if (page.key == key) return page;
+  }
+  return null;
+}
+
+/// Every module page, in the order the module list shows them, and every row on
+/// each. Not `const` because reading a field off a const config object is not a
+/// constant expression.
+final List<ModuleSettingsPage> moduleSettingsPages = [
+  ModuleSettingsPage._(
+    'workspaces',
+    'App icons and urgency',
+    FontAwesomeIcons.tableCellsLarge,
+    [
+      _ModuleSetting.toggle(
+        SettingsCatalog.workspacesShowAppIcons,
+        defaultValue: const WorkspacesConfig().showAppIcons,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.workspacesIconSize,
+        defaultValue: const WorkspacesConfig().iconSize,
+        isInt: true,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.workspacesMaxIcons,
+        defaultValue: const WorkspacesConfig().maxIcons,
+        isInt: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.workspacesFlashUrgent,
+        defaultValue: const WorkspacesConfig().flashUrgent,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.workspacesUrgentFlashSeconds,
+        defaultValue: const WorkspacesConfig().urgentFlashSeconds,
+        isInt: false,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.workspacesShowPolicyToggle,
+        defaultValue: const WorkspacesConfig().showPolicyToggle,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'weather',
+    'Location, unit and refresh',
+    FontAwesomeIcons.cloudSun,
+    [
+      _ModuleSetting.weatherLocation(SettingsCatalog.weatherLocation),
+      _ModuleSetting.segmented(
+        SettingsCatalog.weatherUnit,
+        options: const ['fahrenheit', 'celsius'],
+        defaultValue: const WeatherConfig().unit,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.weatherRefreshMinutes,
+        defaultValue: const WeatherConfig().refreshMinutes,
+        isInt: true,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'battery',
+    'How often the level is read',
+    FontAwesomeIcons.batteryHalf,
+    [
+      _ModuleSetting.number(
+        SettingsCatalog.batteryPollSeconds,
+        defaultValue: const BatteryConfig().pollSeconds,
+        isInt: true,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'clock',
+    'Date and the timer alarm',
+    FontAwesomeIcons.clock,
+    [
+      _ModuleSetting.toggle(
+        SettingsCatalog.clockShowDate,
+        defaultValue: const ClockConfig().showDate,
+      ),
+      // Free-typed for the reason the chime's and the shutter's rows are: the
+      // shipped alarms are four of the answers, and a name out of the machine's
+      // sound theme and a path to a file of the user's own are the two a fixed
+      // list cannot hold.
+      _ModuleSetting.text(
+        SettingsCatalog.clockTimerSound,
+        addHint: kTimerSoundHint,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.clockTimerVolume,
+        defaultValue: kDefaultTimerVolume,
+        isInt: false,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'media_player',
+    'Track title width',
+    FontAwesomeIcons.music,
+    [
+      _ModuleSetting.number(
+        SettingsCatalog.mediaPlayerMaxTextWidth,
+        defaultValue: const MediaPlayerConfig().maxTextWidth,
+        isInt: false,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'system_tray',
+    'Icon spacing and hidden items',
+    FontAwesomeIcons.inbox,
+    [
+      _ModuleSetting.number(
+        SettingsCatalog.systemTrayIconSize,
+        defaultValue: const SystemTrayConfig().iconSize,
+        isInt: false,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.systemTrayCollapsedOverlap,
+        defaultValue: const SystemTrayConfig().collapsedOverlap,
+        isInt: false,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.systemTrayExpandedSpacing,
+        defaultValue: const SystemTrayConfig().expandedSpacing,
+        isInt: false,
+      ),
+      _ModuleSetting.stringList(
+        SettingsCatalog.systemTrayHiddenItems,
+        addHint: 'SNI id or title',
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'dock',
+    'Pinned apps and icon size',
+    FontAwesomeIcons.rocket,
+    [
+      _ModuleSetting.number(
+        SettingsCatalog.dockIconSize,
+        defaultValue: const DockConfig().iconSize,
+        isInt: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.dockShowAppDirectory,
+        defaultValue: const DockConfig().showAppDirectory,
+      ),
+      _ModuleSetting.stringList(SettingsCatalog.dockApps, addHint: 'app id'),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'system_monitor',
+    'Sampling, units and processes',
+    FontAwesomeIcons.gaugeHigh,
+    [
+      _ModuleSetting.number(
+        SettingsCatalog.systemMonitorPollSeconds,
+        defaultValue: const SystemMonitorConfig().pollSeconds,
+        isInt: true,
+      ),
+      _ModuleSetting.segmented(
+        SettingsCatalog.systemMonitorTempUnit,
+        options: const ['celsius', 'fahrenheit'],
+        defaultValue: const SystemMonitorConfig().tempUnit,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.systemMonitorHistorySamples,
+        defaultValue: const SystemMonitorConfig().historySamples,
+        isInt: true,
+      ),
+      // "machine" makes the process rows sum to the total CPU gauge; "core" is
+      // top-style, where 100% is one saturated core.
+      _ModuleSetting.segmented(
+        SettingsCatalog.systemMonitorCpuPercentMode,
+        options: const ['machine', 'core'],
+        defaultValue: const SystemMonitorConfig().cpuPercentMode.name,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.systemMonitorShowKernelThreads,
+        defaultValue: const SystemMonitorConfig().showKernelThreads,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.systemMonitorConfirmKill,
+        defaultValue: const SystemMonitorConfig().confirmKill,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'network',
+    'How often the connection is read',
+    FontAwesomeIcons.wifi,
+    [
+      _ModuleSetting.number(
+        SettingsCatalog.networkPollSeconds,
+        defaultValue: const NetworkConfig().pollSeconds,
+        isInt: true,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'notifications',
+    'Sound and volume',
+    FontAwesomeIcons.bell,
+    [
+      // A free-typed string rather than a segmented control: the shipped sounds
+      // are only five of the answers, and the other two — a name out of the
+      // machine's sound theme, and a path to a file of the user's own — are
+      // exactly the ones a fixed list cannot hold. The hint names the shipped
+      // set, so the common answers are still one glance away.
+      _ModuleSetting.text(
+        SettingsCatalog.notificationsSound,
+        addHint: kNotificationSoundHint,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.notificationsSoundVolume,
+        defaultValue: kDefaultNotificationSoundVolume,
+        isInt: false,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'github',
+    'What is listed, and how often',
+    FontAwesomeIcons.github,
+    [
+      _ModuleSetting.number(
+        SettingsCatalog.githubRefreshSeconds,
+        defaultValue: const GithubConfig().refreshSeconds,
+        isInt: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.githubShowCount,
+        defaultValue: const GithubConfig().showCount,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.githubParticipatingOnly,
+        defaultValue: const GithubConfig().participatingOnly,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.githubIncludeRead,
+        defaultValue: const GithubConfig().includeRead,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.githubMarkReadOnOpen,
+        defaultValue: const GithubConfig().markReadOnOpen,
+      ),
+      // `client_id` and `scopes` are deliberately not here. Neither is a
+      // preference: one is an OAuth app the user registered and the other is
+      // what that app may do, and both are typed once into `config.toml` by
+      // somebody who has read what they mean.
+    ],
+  ),
+  ModuleSettingsPage._(
+    'stocks',
+    'Watchlist and crawl',
+    FontAwesomeIcons.chartLine,
+    [
+      // The same list the strip's popup edits: an add there is a row here, and
+      // a symbol typed here is quoted on the next poll.
+      _ModuleSetting.stringList(
+        SettingsCatalog.stocksSymbols,
+        addHint: 'symbol, e.g. AAPL',
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.stocksRefreshSeconds,
+        defaultValue: const StockConfig().refreshSeconds,
+        isInt: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.stocksScroll,
+        defaultValue: const StockConfig().scroll,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.stocksScrollSpeed,
+        defaultValue: const StockConfig().scrollSpeed,
+        isInt: false,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.stocksWidth,
+        defaultValue: const StockConfig().width,
+        isInt: false,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'screenshot',
+    'Folder, delay and shutter',
+    FontAwesomeIcons.camera,
+    [
+      _ModuleSetting.text(
+        SettingsCatalog.screenshotDirectory,
+        addHint: '~/$kDefaultScreenshotDirectory',
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.screenshotCopyToClipboard,
+        defaultValue: const ScreenshotConfig().copyToClipboard,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.screenshotDelaySeconds,
+        defaultValue: const ScreenshotConfig().delaySeconds,
+        isInt: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.screenshotShowCursor,
+        defaultValue: const ScreenshotConfig().showCursor,
+      ),
+      // Free-typed for the reason the chime's row is: the shipped shutters are
+      // four of the answers, and a name out of the machine's sound theme and a
+      // path to a file of the user's own are the two a fixed list cannot hold.
+      _ModuleSetting.text(
+        SettingsCatalog.screenshotShutterSound,
+        addHint: kShutterSoundHint,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.screenshotShutterVolume,
+        defaultValue: kDefaultShutterVolume,
+        isInt: false,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'screen_recorder',
+    'Folder, format and quality',
+    FontAwesomeIcons.video,
+    [
+      _ModuleSetting.text(
+        SettingsCatalog.recorderDirectory,
+        addHint: '~/$kDefaultRecordingDirectory',
+      ),
+      _ModuleSetting.segmented(
+        SettingsCatalog.recorderContainer,
+        options: kRecorderContainers,
+        defaultValue: const RecorderConfig().container,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.recorderFps,
+        defaultValue: const RecorderConfig().fps,
+        isInt: true,
+      ),
+      // Lower is better and larger. Named as the encoder names it, because it is
+      // handed to ffmpeg verbatim and a "quality: 8/10" scale invented here
+      // would be a second thing to explain.
+      _ModuleSetting.number(
+        SettingsCatalog.recorderQuality,
+        defaultValue: const RecorderConfig().quality,
+        isInt: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.recorderShowCursor,
+        defaultValue: const RecorderConfig().showCursor,
+      ),
+    ],
+  ),
 ];
 
-/// Per-module options: every row is declared in [_moduleGroups] and rendered
-/// by one loop.
-class ModulesSection extends StatelessWidget {
-  const ModulesSection({super.key, required this.store});
+/// One module's options: every row is declared on its [ModuleSettingsPage] in
+/// [moduleSettingsPages] and rendered by one loop.
+class ModuleSettingsSection extends StatelessWidget {
+  const ModuleSettingsSection({
+    super.key,
+    required this.store,
+    required this.page,
+  });
 
   final ConfigStore store;
+  final ModuleSettingsPage page;
 
   @override
   Widget build(BuildContext context) {
     return SliverSettingsSection(
-      label: 'Modules',
+      label: page.title,
       children: [
-        for (final group in _moduleGroups) ...[
-          SettingsSubLabel(group.label),
-          for (final setting in group.settings)
-            SettingsRow.field(
-              setting.field,
-              // The list editors are tall; their label sits at the top.
-              alignTop: setting.kind == _Kind.stringList,
-              control: _control(setting),
-            ),
-        ],
+        for (final setting in page._settings)
+          SettingsRow.field(
+            setting.field,
+            // The list editors are tall; their label sits at the top.
+            alignTop: setting.kind == _Kind.stringList,
+            control: _control(setting),
+          ),
       ],
     );
   }
@@ -442,7 +550,8 @@ class ModulesSection extends StatelessWidget {
   ///
   /// Every one is inside a [ConfigValue] rather than under a page-level
   /// `ListenableBuilder`: [ConfigStore] notifies on every `set`, so a digit typed
-  /// into one number field used to rebuild all thirty-two rows. The controls that
+  /// into one number field used to rebuild every module's rows, back when they
+  /// were all one page. The controls that
   /// own a `TextEditingController` are wrapped too — the selector's `==` check
   /// means a notify that did not move *this* key does not reach them at all.
   Widget _control(_ModuleSetting setting) {
