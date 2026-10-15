@@ -109,6 +109,7 @@ without `==` the notifier behind `LiveConfigScope` could never refuse one.
 | `theme/` | `ThemeConfig`, `ThemeStore`, `ThemeProvider`, built-in themes, tokens, fonts |
 | `launcher/`, `emoji/` | The two search overlays: index, pure ranking, controller, card |
 | `weather/`, `moon/`, `media/`, `fortune/`, `tux/`, `clock/` | Data layers behind a bar module and/or desktop widget |
+| `news/` | The news widget's feeds: presets, the RSS/Atom parse, the leased store |
 | `system/` | UI-free `/proc` and `/sys` sampling |
 | `timers/` | Countdowns and stopwatches |
 | `osd/` | The volume/brightness card, its store and its sources |

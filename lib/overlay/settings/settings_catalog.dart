@@ -1010,6 +1010,38 @@ abstract final class SettingsCatalog {
     description: 'Writes each pinned item’s name under its icon.',
     tags: const ['desktop', 'icons', 'names', 'text', 'captions'],
   );
+  static final newsSources = shellField(
+    'news.sources',
+    'News sources',
+    section: 'Desktop',
+    description:
+        'The outlets the News widget reads, merged newest first. AP and '
+        'Reuters are read through Google News, which indexes both; any other '
+        'RSS or Atom feed can be added by its address.',
+    tags: const [
+      'news',
+      'headlines',
+      'feed',
+      'rss',
+      'atom',
+      'ap',
+      'associated press',
+      'reuters',
+      'npr',
+      'bbc',
+      'pbs',
+      'widget',
+    ],
+  );
+  static final newsRefreshMinutes = shellField(
+    'news.refresh_minutes',
+    'News refresh (minutes)',
+    section: 'Desktop',
+    description:
+        'How often the News widget reads its feeds again while it is on the '
+        'desktop.',
+    tags: const ['news', 'headlines', 'interval', 'update', 'poll', 'widget'],
+  );
   static final desktopItems = _shellPane(
     'Desktop',
     'Pinned items',
@@ -2225,6 +2257,8 @@ abstract final class SettingsCatalog {
     desktopIconSize,
     desktopShowLabels,
     desktopItems,
+    newsSources,
+    newsRefreshMinutes,
     lockBackground,
     lockFit,
     lockShowUsername,
