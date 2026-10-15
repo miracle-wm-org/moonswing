@@ -1578,9 +1578,13 @@ class _Fact extends StatelessWidget {
           color: iconColor ?? tint,
         ),
         const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(fontSize: ShellFontSizes.caption, color: tint),
+        // Wraps rather than overflowing when a column is narrower than the
+        // label: a small board on a laptop is still five columns.
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: ShellFontSizes.caption, color: tint),
+          ),
         ),
       ],
     );
