@@ -25,6 +25,8 @@ import 'package:moonswing/modules/network.dart' show NetworkConfig;
 import 'package:moonswing/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:moonswing/modules/weather.dart' show WeatherConfig;
 import 'package:moonswing/modules/workspaces.dart' show WorkspacesConfig;
+import 'package:moonswing/notification_panel_controller.dart'
+    show kDefaultNotificationPanelSide, kDefaultNotificationPanelWidth;
 import 'package:moonswing/notification_sound.dart'
     show kDefaultNotificationSoundVolume, kNotificationSoundHint;
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -402,9 +404,21 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ),
   ModuleSettingsPage._(
     'notifications',
-    'Sound and volume',
+    'Panel side, width and sound',
     FontAwesomeIcons.bell,
     [
+      // Read when the panel opens, the clipboard history's rule: an edit here
+      // moves the next one, not the one already docked.
+      _ModuleSetting.segmented(
+        SettingsCatalog.notificationsSide,
+        options: const ['left', 'right'],
+        defaultValue: kDefaultNotificationPanelSide.configName,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.notificationsWidth,
+        defaultValue: kDefaultNotificationPanelWidth,
+        isInt: true,
+      ),
       // A free-typed string rather than a segmented control: the shipped sounds
       // are only five of the answers, and the other two — a name out of the
       // machine's sound theme, and a path to a file of the user's own — are

@@ -684,6 +684,21 @@ abstract final class SettingsCatalog {
     const ['notifications', 'sound', 'volume', 'loud', 'quiet', 'chime'],
   );
 
+  static final notificationsSide = _module(
+    'modules.notifications.side',
+    'Panel side',
+    'Which edge of the screen the notification panel docks against. Windows '
+        'are moved out of its way while it is open.',
+    const ['notifications', 'panel', 'left', 'right', 'side', 'dock'],
+  );
+  static final notificationsWidth = _module(
+    'modules.notifications.width',
+    'Panel width',
+    'How wide the notification panel is, in pixels — which is also how much '
+        'of the screen it takes from your windows while it is open.',
+    const ['notifications', 'panel', 'width', 'size'],
+  );
+
   static final networkPollSeconds = _module(
     'modules.network.poll_seconds',
     'Poll (seconds)',
@@ -2445,6 +2460,8 @@ abstract final class SettingsCatalog {
     systemMonitorShowKernelThreads,
     systemMonitorConfirmKill,
     networkPollSeconds,
+    notificationsSide,
+    notificationsWidth,
     notificationsSound,
     notificationsSoundVolume,
     githubRefreshSeconds,

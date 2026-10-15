@@ -1,9 +1,9 @@
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/popup.dart';
@@ -18,28 +18,19 @@ import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_provider.dart';
 import 'package:moonswing/theme/tokens.dart';
 
-/// How wide the panel is on an output [screenWidth] logical pixels across.
-///
-/// A fraction of the screen clamped at both ends, rather than the bare
-/// `width / 5` this was: a fifth of a 1366px laptop is 273px, which wraps a
-/// two-word summary and stacks the action buttons one per row, while a fifth of
-/// an ultrawide covers what the user was reading.
-///
-/// Pure, so `test/notification_panel_test.dart` can pin both ends.
-int notificationPanelWidth(double screenWidth) =>
-    (screenWidth / 4).round().clamp(360, 560);
-
 /// `[modules.notifications]`.
 ///
-/// Both keys are about the chime, which is the only thing about notifications
-/// this module decides: the panel is the root's, the daemon is the shell's, and
-/// the silence switch is a `[notifications]` key because it is a decision about
-/// the machine rather than about a bar module.
+/// Two keys are about the chime and two about where the panel docks. The panel
+/// itself is the root's, the daemon is the shell's, and the silence switch is a
+/// `[notifications]` key because it is a decision about the machine rather than
+/// about a bar module.
 @immutable
 class NotificationsConfig {
   const NotificationsConfig({
     this.sound = kDefaultNotificationSound,
     this.soundVolume = kDefaultNotificationSoundVolume,
+    this.side = kDefaultNotificationPanelSide,
+    this.width = kDefaultNotificationPanelWidth,
   });
 
   /// A shipped voice's slug, a sound-theme name, a path, or `none`.
@@ -50,6 +41,13 @@ class NotificationsConfig {
   /// volume of 40 handed to mpv is a different kind of surprise.
   final double soundVolume;
 
+  /// The edge of the output the panel docks against. Right by default.
+  final DockSide side;
+
+  /// How wide the panel is, in logical pixels — and so how much of the output
+  /// it takes from the windows beside it, since it reserves its own width.
+  final int width;
+
   factory NotificationsConfig.fromMap(Map<String, dynamic>? map) {
     const defaults = NotificationsConfig();
     if (map == null) return defaults;
@@ -57,6 +55,16 @@ class NotificationsConfig {
       sound: map.stringOrNull('sound') ?? defaults.sound,
       soundVolume: map.doubleOr('sound_volume', defaults.soundVolume,
           min: 0.0, max: 1.0),
+      side: DockSide.parse(
+        map.stringOrNull('side'),
+        fallback: defaults.side,
+      ),
+      width: map.intOr(
+        'width',
+        defaults.width,
+        min: kDockedPanelMinWidth,
+        max: kDockedPanelMaxWidth,
+      ),
     );
   }
 
@@ -69,10 +77,12 @@ class NotificationsConfig {
       identical(this, other) ||
       other is NotificationsConfig &&
           other.sound == sound &&
-          other.soundVolume == soundVolume;
+          other.soundVolume == soundVolume &&
+          other.side == side &&
+          other.width == width;
 
   @override
-  int get hashCode => Object.hash(sound, soundVolume);
+  int get hashCode => Object.hash(sound, soundVolume, side, width);
 }
 
 /// Bell icon widget that lives in the bar. Lights up and shakes when
@@ -306,7 +316,13 @@ class _NotificationsState extends State<Notifications>
         active: isOpen,
         // Tap-down, like every other popup toggle in the shell: the ancestor
         // `PopupDismissArea` Listener fires before any descendant recognizer.
-        onTapDown: (_) => NotificationPanelController.instance.toggle(),
+        onTapDown: (_) => NotificationPanelController.instance.toggle(
+          // The connector, so the panel docks against the screen whose bar
+          // was clicked; null while outputs are still being enumerated, and
+          // the compositor then picks the focused output — where the click
+          // just happened.
+          output: DisplayScope.of(context)?.name,
+        ),
         // Right-click silences and unsilences. A gesture rather than a menu
         // because it is one boolean with one obvious inverse, and the panel's
         // own switch is the discoverable half of the pair — the tooltip on a
@@ -380,20 +396,11 @@ class _BrokenDot extends StatelessWidget {
   }
 }
 
-/// How long the panel takes to arrive.
-const Duration kNotificationPanelEnter = Duration(milliseconds: 300);
-
-/// How long it takes to leave — deliberately a little over half that.
-///
-/// The *motion* is symmetrical (see [_NotificationPanelState]); the pacing is
-/// not. An entrance presents a surface the user has not read yet and is paced to
-/// be followed, while a dismissal is the user saying they are done.
-const Duration kNotificationPanelExit = ShellDurations.overlayFade;
-
-/// Full-height Layer Shell panel anchored to the right side of the screen.
-///
-/// Arrives on creation by the animation it leaves by, played backwards (see
-/// [_NotificationPanelState]), and is destroyed once the leaving half is over.
+/// The notification panel: a column docked against one edge of the output,
+/// listing what has arrived. Shaped like the clipboard history and drawn by the
+/// same frame (`lib/docked_panel.dart`) — it slides out of its edge, takes no
+/// keyboard, reserves its own width, and stays until its close button, the bell
+/// or the shortcut takes it down.
 ///
 /// Owned by `_MoonswingRootState` rather than the bell module — both things
 /// that ask for it (the bell and the floating badge) ask the root, which is what
@@ -404,14 +411,18 @@ const Duration kNotificationPanelExit = ShellDurations.overlayFade;
 class NotificationPanel extends StatefulWidget {
   const NotificationPanel({
     super.key,
+    this.side = kDefaultNotificationPanelSide,
     required this.closingNotifier,
     required this.onClosed,
   });
 
+  /// The edge the window is docked against, which the panel slides in from.
+  final DockSide side;
+
   /// Flipped by whoever wants the panel gone — the bell, the header's close
-  /// button, Escape, or the [PopupCoordinator] on a click elsewhere. Flipping
-  /// it starts the exit animation; [onClosed] is what tears the window down
-  /// once that animation is over.
+  /// button, the shortcut, or a notification opening what it is about.
+  /// Flipping it starts the exit; [onClosed] is what tears the window down
+  /// once that is over.
   final ValueNotifier<bool> closingNotifier;
   final VoidCallback onClosed;
 
@@ -419,102 +430,16 @@ class NotificationPanel extends StatefulWidget {
   State<NotificationPanel> createState() => _NotificationPanelState();
 }
 
-/// One animation, played both ways.
-///
-/// The exit is the design — a beat of wind-up, then the panel takes off to the
-/// right, shrinking towards and fading into the edge it is anchored to — and the
-/// entrance is that same animation run backwards: the panel arrives out of the
-/// right edge, swells against it and settles. One controller and one set of
-/// tweens describe both, so the way in cannot drift from the way out, and an
-/// effect cannot describe a leaving it has no arriving for.
-///
-/// Only the *pace* differs, through the controller's `reverseDuration`: the
-/// controller's value reads as the panel's presence (1 at rest, 0 away), forward
-/// is the entrance and reverse the exit.
-///
-/// Every part of that motion is pinned to `Alignment.centerRight` or moves the
-/// panel further *off* the screen — in both directions, arriving as much as
-/// leaving. This surface is butted against the output's right edge, so anything
-/// moving the content left — an overshoot, an anticipation dip, a centre-pivoted
-/// scale — opens a transparent strip along the screen edge that reads as the
-/// panel having detached from it. The swell below is the one thing that grows,
-/// and it grows towards that edge.
-class _NotificationPanelState extends State<NotificationPanel>
-    with TickerProviderStateMixin {
-  /// The panel's presence: 1 at rest, 0 gone.
-  late final AnimationController _controller;
-
-  /// How far *out* the panel is — the progress the exit is written against, and
-  /// so the entrance's own progress read backwards. Every tween below hangs off
-  /// this rather than off [_controller], which is what makes the two halves the
-  /// same animation rather than two that resemble each other.
-  late final Animation<double> _away;
-
-  late final Animation<Offset> _slide;
-  late final Animation<double> _scale;
-  late final Animation<double> _fade;
-
-  /// Set by the dismissal that started the exit. A second dismissal mid-exit
-  /// must not restart the animation — and must not queue a second `onClosed`,
-  /// which would tear the window down twice.
-  bool _leaving = false;
-
+class _NotificationPanelState extends State<NotificationPanel> {
   @override
   void initState() {
     super.initState();
-
-    _controller = AnimationController(
-      vsync: this,
-      duration: kNotificationPanelEnter,
-      reverseDuration: kNotificationPanelExit,
-    );
-    _away = ReverseAnimation(_controller);
-
-    // Held in place through the wind-up, then thrown clear — and, arriving,
-    // carried in from clear of the surface and set down. A full panel width is
-    // more than enough to clear the surface, because the scale below is pulling
-    // it towards that edge at the same time.
-    _slide = Tween<Offset>(
-      begin: Offset.zero,
-      end: const Offset(1.0, 0.0),
-    ).animate(CurvedAnimation(
-      parent: _away,
-      curve: const Interval(0.22, 1.0, curve: Curves.easeInCubic),
-    ));
-    // Squash and stretch: a short swell against the edge, then away — and on
-    // the way in, the swell is what the panel settles out of. The swell is
-    // clipped by the surface rather than drawn outside it, so it reads as the
-    // panel gathering itself rather than as it growing.
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween(begin: 1.0, end: 1.04)
-            .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 22,
-      ),
-      TweenSequenceItem(
-        tween: Tween(begin: 1.04, end: 0.86)
-            .chain(CurveTween(curve: Curves.easeInCubic)),
-        weight: 78,
-      ),
-    ]).animate(_away);
-    // Late in the exit, so the panel is visibly *leaving* rather than merely
-    // dissolving where it stood; early in the entrance, so it is solid by the
-    // time it is over the surface it covers.
-    _fade = Tween<double>(begin: 1.0, end: 0.0).animate(CurvedAnimation(
-      parent: _away,
-      curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
-    ));
-
-    _controller.forward();
-    widget.closingNotifier.addListener(_onClosingRequested);
     NotificationStore.instance.addListener(_onStoreChanged);
   }
 
   @override
   void dispose() {
-    widget.closingNotifier.removeListener(_onClosingRequested);
     NotificationStore.instance.removeListener(_onStoreChanged);
-    _controller.dispose();
     super.dispose();
   }
 
@@ -522,203 +447,84 @@ class _NotificationPanelState extends State<NotificationPanel>
     if (mounted) setState(() {});
   }
 
-  void _onClosingRequested() {
-    if (!widget.closingNotifier.value) return;
-    if (_leaving) return;
-    _leaving = true;
-    // Reversing rather than driving a second controller: a dismissal that
-    // lands mid-entrance turns the panel around from wherever it had got to,
-    // instead of snapping it back to rest to leave from.
-    _controller.reverse().then((_) => widget.onClosed());
-  }
-
-  /// Escape is a dismissal like any other: it flips the notifier and lets the
-  /// exit animation run, rather than closing the window from under itself.
-  KeyEventResult _onKeyEvent(FocusNode _, KeyEvent event) {
-    if (event is KeyDownEvent &&
-        event.logicalKey == LogicalKeyboardKey.escape) {
-      widget.closingNotifier.value = true;
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
+  void _close() => widget.closingNotifier.value = true;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final items = NotificationStore.instance.items;
+    final store = NotificationStore.instance;
+    final items = store.items;
 
-    return Focus(
-      autofocus: true,
-      onKeyEvent: _onKeyEvent,
-      child: Directionality(
-        textDirection: TextDirection.ltr,
-        // The panel's own text root, one tier up from the shell's body size: this
-        // surface is read at arm's length rather than scanned like a bar module,
-        // and every size below is a ratio to this one, so a theme's `font_size`
-        // still moves all of it together.
-        child: DefaultTextStyle(
-          style: TextStyle(
-            fontFamily: theme.fontFamily,
-            fontSize: ShellFontSizes.label,
-            color: theme.popupForeground,
+    return DockedPanel(
+      side: widget.side,
+      closingNotifier: widget.closingNotifier,
+      onClosed: widget.onClosed,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(theme, items.length),
+          Container(height: 1, color: theme.divider),
+          // Above the list, not inside it: with the daemon down the list is
+          // empty, and an empty state reading "all caught up" is a lie the
+          // user would act on.
+          if (store.daemonUnavailable) ...[
+            NotificationDaemonBanner(theme: theme),
+            Container(height: 1, color: theme.divider),
+          ],
+          NotificationSilenceRow(theme: theme),
+          Container(height: 1, color: theme.divider),
+          Expanded(
+            child: items.isEmpty
+                ? const DockedPanelEmpty(
+                    // A plain bell, not a crossed-out one: on this surface the
+                    // crossed bell is the silence switch's glyph, and an empty
+                    // inbox is not the same claim as a silenced one.
+                    icon: FontAwesomeIcons.bell,
+                    title: 'You are all caught up',
+                    message: 'Notifications from your applications appear '
+                        'here. Click one to open what it is about.',
+                  )
+                : _buildList(items),
           ),
-          // The three transitions the panel arrives and leaves by, in that
-          // order: the same widgets for both halves, because both halves are
-          // one animation. The scale is pinned to the edge the surface is
-          // anchored to — a centre-pivoted one on a full-height edge-anchored
-          // surface pulls the panel off that edge and shows a gap, which is the
-          // whole difference between a flourish and a hole in the screen.
-          child: SlideTransition(
-            position: _slide,
-            child: ScaleTransition(
-              scale: _scale,
-              alignment: Alignment.centerRight,
-              child: FadeTransition(
-                opacity: _fade,
-                // Deliberately not a PopupCard. This is a full-height surface
-                // anchored to the screen's right edge, not a floating card:
-                // rounding it would cut wallpaper wedges out of the display's
-                // corners and a rim would draw a line down the screen edge.
-                //
-                // Opaque whatever the theme says, the settings overlay's
-                // `overlayPanelFill` rule: this is a column of prose read over
-                // whatever window is behind it, and a translucent fill puts that
-                // window's text straight through it. Only the alpha is
-                // overridden, so a palette still tints the panel.
-                child: Container(
-                  color: theme.popupBackground.withValues(alpha: 1.0),
-                  child: Column(
-                    children: [
-                      _buildHeader(theme, items.length),
-                      Container(height: 1, color: theme.divider),
-                      // Above the list, not inside it: with the daemon down
-                      // the list is empty, and an empty state reading "No
-                      // notifications" is a lie the user would act on.
-                      if (NotificationStore.instance.daemonUnavailable) ...[
-                        NotificationDaemonBanner(theme: theme),
-                        Container(height: 1, color: theme.divider),
-                      ],
-                      NotificationSilenceRow(theme: theme),
-                      Container(height: 1, color: theme.divider),
-                      Expanded(
-                        child: items.isEmpty
-                            ? _buildEmpty(theme)
-                            : _buildList(theme, items),
-                      ),
-                      // At the foot, out of the way of the list: it is a
-                      // setting checked now and then, not something read on
-                      // every opening the way the notifications are.
-                      Container(height: 1, color: theme.divider),
-                      NotificationSoundRow(theme: theme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+          // At the foot, out of the way of the list: it is a setting checked
+          // now and then, not something read on every opening the way the
+          // notifications are.
+          Container(height: 1, color: theme.divider),
+          NotificationSoundRow(theme: theme),
+        ],
       ),
     );
   }
 
-  /// The header: what this panel is, how much is in it, and the three ways out.
+  /// The header: what this panel is, how much is in it, and the ways to act on
+  /// all of it.
   ///
-  /// Set at [ShellFontSizes.heading] with a count under it: a bold 15px word over
-  /// a list of unlabelled cards said what the surface was called and nothing
-  /// about what was in it. "Clear all" is a bordered button rather than a tinted
-  /// word, because it destroys every item on the list.
-  ///
-  /// The two icons are deliberately not the same weight of act. Marking
-  /// everything read is reversible in the only sense that matters — nothing is
-  /// removed, the messages are all still on the list — so it is an icon; the
-  /// destructive one keeps its border and its word.
+  /// The two acts are deliberately not the same weight. Marking everything read
+  /// is reversible in the only sense that matters — nothing is removed — so it
+  /// is an icon; "Clear all" destroys every item on the list, so it keeps its
+  /// border and its word.
   Widget _buildHeader(ThemeConfig theme, int count) {
-    final unread = NotificationStore.instance.unreadCount;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 16, 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Notifications',
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.heading,
-                    fontWeight: FontWeight.bold,
-                    color: theme.popupForeground,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _countLabel(count, unread),
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.secondary,
-                    color: theme.popupForeground.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (count > 0) ...[
-            HoverRegion(
-              onTap: () => NotificationStore.instance.dismissAll(),
-              builder: (context, hovered) => Container(
-                height: ShellSizes.iconButton + 6,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  // A tint of the accent the label is lettered in, never
-                  // `surface_hover` at full strength: that key is the accent
-                  // itself in the shipped palette, so the word disappeared
-                  // into its own button under the pointer.
-                  color: hovered ? theme.accent.withValues(alpha: 0.18) : null,
-                  border: Border.all(
-                    color: theme.accent.withValues(alpha: hovered ? 0.9 : 0.5),
-                  ),
-                  borderRadius: BorderRadius.circular(ShellRadii.control),
-                ),
-                child: Text(
-                  'Clear all',
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.label,
-                    color: theme.accentText,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-          ],
-          // Only when there is something to mark. A permanently-present button
-          // that does nothing on most presses is how a user learns not to
-          // trust the pair of them.
-          if (unread > 0) ...[
-            SettingsIconButton(
-              icon: FontAwesomeIcons.checkDouble,
-              box: ShellSizes.iconButton + 6,
-              size: ShellFontSizes.label,
-              color: theme.notificationBadge,
-              onTap: NotificationStore.instance.markAllRead,
-            ),
-            const SizedBox(width: 2),
-          ],
-          // A drawer closing, not a window being destroyed. The panel is a
-          // column butted against the output's right edge and it leaves by
-          // sliding back into that edge, so the glyph is an arrow going the
-          // same way — an X says the thing under it is being thrown away,
-          // which is what the button beside it does.
+    final store = NotificationStore.instance;
+    final unread = store.unreadCount;
+    return DockedPanelHeader(
+      title: 'Notifications',
+      summary: _countLabel(count, unread),
+      onClose: _close,
+      actions: [
+        if (count > 0)
+          DockedPanelTextButton(label: 'Clear all', onTap: store.dismissAll),
+        // Only when there is something to mark. A permanently-present button
+        // that does nothing on most presses is how a user learns not to trust
+        // the pair of them.
+        if (unread > 0)
           SettingsIconButton(
-            icon: FontAwesomeIcons.arrowRightToBracket,
+            icon: FontAwesomeIcons.checkDouble,
             box: ShellSizes.iconButton + 6,
-            size: ShellFontSizes.title,
-            color: theme.popupForeground,
-            onTap: () => widget.closingNotifier.value = true,
+            size: ShellFontSizes.label,
+            color: theme.notificationBadge,
+            onTap: store.markAllRead,
           ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -736,68 +542,18 @@ class _NotificationPanelState extends State<NotificationPanel>
     return '$total, $unread unread';
   }
 
-  /// The empty state, which is also the panel's instructions.
-  ///
-  /// A greyed glyph over a greyed line reads as the panel having failed rather
-  /// than as there being nothing to show. The second line is what makes it a
-  /// statement: notifications *will* appear here.
-  Widget _buildEmpty(ThemeConfig theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // A plain bell, not a crossed-out one: on this surface the crossed
-            // bell is the silence switch's glyph, and an empty inbox is not the
-            // same claim as a silenced one — a user who had just silenced
-            // notifications would read the big version of that glyph as the
-            // panel reporting the switch back to them.
-            FaIcon(
-              FontAwesomeIcons.bell,
-              size: 44,
-              color: theme.popupForeground.withValues(alpha: 0.28),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'You are all caught up',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: ShellFontSizes.title,
-                fontWeight: FontWeight.bold,
-                color: theme.popupForeground.withValues(alpha: 0.8),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Notifications from your applications appear here. '
-              'Press Escape to close this panel.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: ShellFontSizes.label,
-                height: 1.45,
-                color: theme.popupForeground.withValues(alpha: 0.55),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// The list. Cards are separated by a gap rather than by a hairline: at the
-  /// sizes they are now set in, a rule between two three-line blocks reads as
-  /// a table, and what is wanted is a stack of separate messages.
-  Widget _buildList(ThemeConfig theme, List<NotificationItem> items) {
+  /// The list. Cards are separated by a gap rather than by a hairline, the
+  /// clipboard history's spacing: a stack of separate messages, not a table.
+  Widget _buildList(List<NotificationItem> items) {
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
       itemCount: items.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, i) => _NotificationCard(
+        key: ValueKey(items[i].id),
         item: items[i],
-        theme: theme,
         // Out of the way of whatever the notification just opened.
-        onActivated: () => widget.closingNotifier.value = true,
+        onActivated: _close,
       ),
     );
   }
@@ -836,7 +592,7 @@ class NotificationSilenceRow extends StatelessWidget {
         onTap: store.toggleSilenced,
         builder: (context, hovered) => Container(
           color: hovered ? theme.surfaceHover.atMostAlpha(0.16) : null,
-          padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
           child: Row(
             children: [
               FaIcon(
@@ -854,7 +610,7 @@ class NotificationSilenceRow extends StatelessWidget {
                     Text(
                       'Silence notifications',
                       style: TextStyle(
-                        fontSize: ShellFontSizes.label,
+                        fontSize: ShellFontSizes.body,
                         color: theme.popupForeground,
                       ),
                     ),
@@ -954,7 +710,7 @@ class NotificationSoundRow extends StatelessWidget {
       onTap: () => sound.playNow(force: true),
       builder: (context, hovered) => Container(
         color: hovered ? theme.surfaceHover.atMostAlpha(0.16) : null,
-        padding: const EdgeInsets.fromLTRB(20, 12, 16, 12),
+        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
         child: Row(
           children: [
             FaIcon(
@@ -976,7 +732,7 @@ class NotificationSoundRow extends StatelessWidget {
                   Text(
                     'Notification sound',
                     style: TextStyle(
-                      fontSize: ShellFontSizes.label,
+                      fontSize: ShellFontSizes.body,
                       color: theme.popupForeground,
                     ),
                   ),
@@ -1053,7 +809,7 @@ class NotificationDaemonBanner extends StatelessWidget {
                 Text(
                   'Notifications are not working',
                   style: TextStyle(
-                    fontSize: ShellFontSizes.label,
+                    fontSize: ShellFontSizes.body,
                     fontWeight: FontWeight.bold,
                     color: theme.popupForeground,
                   ),
@@ -1114,7 +870,7 @@ class _RetryButton extends StatelessWidget {
         child: const Text(
           'Retry',
           style: TextStyle(
-            fontSize: ShellFontSizes.label,
+            fontSize: ShellFontSizes.body,
             color: kErrorColor,
           ),
         ),
@@ -1123,15 +879,13 @@ class _RetryButton extends StatelessWidget {
   }
 }
 
-/// One notification, as a card.
+/// One notification, as a card — the clipboard history's card: the control
+/// surface, a hover tint, a hairline border, and its own repaint boundary.
 ///
-/// A card rather than a row on a ruled list, and everything below follows from
-/// that. The list is what the user came to read, so the summary is set at
-/// [ShellFontSizes.title] and the body at the panel's own body size, with the
-/// app name a caption above them rather than the same weight as the message.
-/// The whole card is the dismiss target's neighbour, and the actions are real
-/// buttons: at the sizes this used, a "Reply" the size of a footnote was a
-/// control the pointer had to be aimed at.
+/// An unread card is ringed in the badge colour rather than tinted, where the
+/// clipboard rings the entry on the clipboard now in the accent: the body text
+/// is the thing the user came to read, and a wash under prose is the one place
+/// this palette's loudest colour must not go.
 ///
 /// Clicking the card itself is clicking the notification: it takes the
 /// sender's default action, or opens the application it came from — see
@@ -1140,13 +894,12 @@ class _RetryButton extends StatelessWidget {
 /// either does only what it says.
 class _NotificationCard extends StatelessWidget {
   const _NotificationCard({
+    super.key,
     required this.item,
-    required this.theme,
     required this.onActivated,
   });
 
   final NotificationItem item;
-  final ThemeConfig theme;
 
   /// Called when a click on the card opened something, so the panel can get
   /// out of its way.
@@ -1154,161 +907,182 @@ class _NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final actionWidgets = <Widget>[];
-    for (int i = 0; i + 1 < item.actions.length; i += 2) {
-      final key = item.actions[i];
-      final label = item.actions[i + 1];
-      if (key == 'default') continue;
-      actionWidgets.add(
-        HoverRegion(
-          onTap: () => NotificationStore.instance.invokeAction(item.id, key),
-          builder: (context, hovered) => Container(
-            height: ShellSizes.minTapTarget + 6,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              // The accent's own tint at two strengths, like "Clear all"
-              // above and every other accent-lettered chip in the shell. The
-              // resting fill used to be `surface_hover`, which in the shipped
-              // palette is exactly the accent this label is drawn in — the
-              // action read as a blank slab until the pointer reached it.
-              color: theme.accent.withValues(alpha: hovered ? 0.22 : 0.1),
-              border: Border.all(
-                color: theme.accent.withValues(alpha: hovered ? 0.9 : 0.4),
-              ),
-              borderRadius: BorderRadius.circular(ShellRadii.control),
-            ),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: ShellFontSizes.label,
-                color: theme.accentText,
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
+    final theme = ThemeScope.of(context);
     // Built outside the hover builder, so a pointer crossing the card moves a
     // decoration rather than re-shaping the summary and body.
-    final content = _cardContent(actionWidgets);
-    return HoverRegion(
-      onTap: () {
-        if (NotificationStore.instance.activate(item.id)) onActivated();
-      },
-      builder: (context, hovered) => Container(
-        padding: const EdgeInsets.fromLTRB(16, 14, 10, 14),
-        decoration: BoxDecoration(
-          color: hovered
-              ? Color.alphaBlend(
-                  theme.surfaceHover.atMostAlpha(0.16),
-                  theme.workspaceBackground.atMostAlpha(0.5),
-                )
-              : theme.workspaceBackground.atMostAlpha(0.5),
-          borderRadius: BorderRadius.circular(ShellRadii.card),
-          // An unread card is ringed in the badge colour rather than tinted: the
-          // body text on it is the thing the user came to read, and a wash under
-          // prose is the one place this palette's loudest colour must not go.
-          border: Border.all(
-            color: item.read
-                ? theme.divider
+    final content = _cardContent(theme);
+    // Its own boundary: a hover tints one card, and without this the whole
+    // panel would be re-recorded for it.
+    return RepaintBoundary(
+      child: HoverRegion(
+        onTap: () {
+          if (NotificationStore.instance.activate(item.id)) onActivated();
+        },
+        builder: (context, hovered) => Container(
+          padding: const EdgeInsets.fromLTRB(12, 6, 4, 10),
+          decoration: dockedPanelCardDecoration(
+            context,
+            hovered: hovered,
+            ring: item.read
+                ? null
                 : theme.notificationBadge.withValues(alpha: 0.75),
           ),
+          child: content,
         ),
-        child: content,
       ),
     );
   }
 
-  Widget _cardContent(List<Widget> actionWidgets) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _cardContent(ThemeConfig theme) {
+    final muted = theme.popupForeground.withValues(alpha: 0.6);
+    final actions = <Widget>[
+      for (var i = 0; i + 1 < item.actions.length; i += 2)
+        if (item.actions[i] != 'default')
+          _ActionChip(
+            label: item.actions[i + 1],
+            onTap: () => NotificationStore.instance.invokeAction(
+              item.id,
+              item.actions[i],
+            ),
+          ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(
+        // The meta row, the clipboard card's: who sent it, and the one button
+        // that acts on the card rather than through it.
+        SizedBox(
+          height: ShellSizes.iconButton,
+          child: Row(
+            children: [
+              if (!item.read) ...[
+                // The same dot the rest of the shell means by unread, and the
+                // same colour the bell and the floating card wear. It is what
+                // survives the card being read over a photograph, where a
+                // border alone can vanish.
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: theme.notificationBadge,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 7),
+              ],
+              Expanded(
+                child: Text(
+                  item.appName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.caption,
+                    color: muted,
+                  ),
+                ),
+              ),
+              SettingsIconButton(
+                icon: FontAwesomeIcons.xmark,
+                size: ShellFontSizes.caption,
+                color: muted,
+                onTap: () => NotificationStore.instance.dismiss(item.id),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  if (!item.read) ...[
-                    // The same dot the rest of the shell means by unread,
-                    // and the same colour the bell and the floating card
-                    // wear. It is what survives the card being read over a
-                    // photograph, where a border alone can vanish.
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: theme.notificationBadge,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 7),
-                  ],
-                  Flexible(
-                    child: Text(
-                      item.appName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: ShellFontSizes.caption,
-                        letterSpacing: 0.6,
-                        fontWeight: FontWeight.bold,
-                        color: theme.accentText.withValues(alpha: 0.9),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
               Text(
                 item.summary,
                 style: TextStyle(
-                  fontSize: ShellFontSizes.title,
-                  height: 1.25,
-                  fontWeight: FontWeight.bold,
+                  fontSize: ShellFontSizes.label,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
                   color: theme.popupForeground,
                 ),
               ),
               if (item.body.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   item.body,
-                  // Six lines rather than four: the point of a wider panel
-                  // set in a larger type is that the message is readable
-                  // here instead of only in the application it came from.
                   maxLines: 6,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: ShellFontSizes.label,
-                    height: 1.45,
+                    fontSize: ShellFontSizes.body,
+                    height: 1.3,
                     color: theme.popupForeground.withValues(alpha: 0.85),
                   ),
                 ),
               ],
-              if (actionWidgets.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Wrap(spacing: 8, runSpacing: 8, children: actionWidgets),
+              if (actions.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(spacing: 6, runSpacing: 6, children: actions),
               ],
             ],
           ),
-        ),
-        const SizedBox(width: 8),
-        SettingsIconButton(
-          icon: FontAwesomeIcons.xmark,
-          box: ShellSizes.iconButton,
-          size: ShellFontSizes.label,
-          color: theme.popupForeground.withValues(alpha: 0.55),
-          onTap: () => NotificationStore.instance.dismiss(item.id),
         ),
       ],
     );
   }
 }
 
+/// One of a notification's own actions, as a real button.
+///
+/// The accent's own tint at two strengths, like "Clear all" and every other
+/// accent-lettered chip in the shell. The resting fill used to be
+/// `surface_hover`, which in the shipped palette is exactly the accent this
+/// label is drawn in — the action read as a blank slab until the pointer
+/// reached it.
+class _ActionChip extends StatelessWidget {
+  const _ActionChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return HoverRegion(
+      onTap: onTap,
+      builder: (context, hovered) => Container(
+        height: ShellSizes.iconButton + 4,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: theme.accent.withValues(alpha: hovered ? 0.22 : 0.1),
+          border: Border.all(
+            color: theme.accent.withValues(alpha: hovered ? 0.9 : 0.4),
+          ),
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: ShellFontSizes.body,
+            color: theme.accentText,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 final Module notificationsModule = Module.simple<NotificationsConfig>(
   configKey: 'notifications',
-  fromMap: NotificationsConfig.fromMap,
+  fromMap: (map) {
+    final config = NotificationsConfig.fromMap(map);
+    // The controller, not the bell, owns where the panel docks: the root reads
+    // it when it creates the panel, and the floating badge opens that panel on
+    // a shell with no bell in any bar.
+    NotificationPanelController.instance.configure(
+      side: config.side,
+      width: config.width,
+    );
+    return config;
+  },
   builder: (_, config) => Notifications(config: config),
 );

@@ -1,11 +1,13 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/modules/notifications.dart';
+import 'package:moonswing/notification_panel_controller.dart';
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/scopes.dart';
 
@@ -16,10 +18,15 @@ import 'package:moonswing/scopes.dart';
 Widget _panel({
   required ValueNotifier<bool> closing,
   required VoidCallback onClosed,
+  DockSide side = DockSide.right,
 }) {
   return ThemeScope(
     theme: const ThemeConfig(),
-    child: NotificationPanel(closingNotifier: closing, onClosed: onClosed),
+    child: NotificationPanel(
+      side: side,
+      closingNotifier: closing,
+      onClosed: onClosed,
+    ),
   );
 }
 
@@ -34,8 +41,8 @@ void main() {
   _activationTests(store);
 
   group('NotificationPanel dismissal', () {
-    testWidgets('Escape asks for the exit rather than closing outright',
-        (tester) async {
+    testWidgets('the close button asks for the exit rather than closing '
+        'outright', (tester) async {
       final closing = ValueNotifier(false);
       addTearDown(closing.dispose);
       var closed = 0;
@@ -45,10 +52,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.tap(find.byIcon(FontAwesomeIcons.xmark.data));
       await tester.pump();
 
-      // The window is not torn down under the animation: the key flips the
+      // The window is not torn down under the animation: the button flips the
       // notifier, and `onClosed` only lands once the panel has left.
       expect(closing.value, isTrue);
       expect(closed, 0);
@@ -57,17 +64,23 @@ void main() {
       expect(closed, 1);
     });
 
-    testWidgets('a key that is not Escape is left alone', (tester) async {
+    // A docked panel takes no keyboard, so nothing on it may wait for a key:
+    // Escape would never arrive.
+    testWidgets('it takes no focus of its own', (tester) async {
       final closing = ValueNotifier(false);
       addTearDown(closing.dispose);
 
       await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
       await tester.pumpAndSettle();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
-      await tester.pump();
-
-      expect(closing.value, isFalse);
+      expect(
+        find.descendant(
+          of: find.byType(NotificationPanel),
+          matching: find.byWidgetPredicate((w) => w is Focus && w.autofocus),
+        ),
+        findsNothing,
+      );
+      expect(find.textContaining('Escape'), findsNothing);
     });
 
     testWidgets('a second dismissal mid-exit does not close twice',
@@ -83,9 +96,9 @@ void main() {
 
       closing.value = true;
       await tester.pump();
-      await tester.pump(kNotificationPanelExit ~/ 2);
-      // Escape while the panel is already on its way out: the notifier is
-      // already true, and even a fresh flip must not queue a second teardown.
+      await tester.pump(kDockedPanelExit ~/ 2);
+      // Asked again while the panel is already on its way out: even a fresh
+      // flip must not queue a second teardown.
       closing.value = false;
       closing.value = true;
       await tester.pumpAndSettle();
@@ -106,163 +119,152 @@ void main() {
       closing.value = true;
       await tester.pump();
       // One frame short of the exit's own duration, it is still going.
-      await tester.pump(
-        kNotificationPanelExit - const Duration(milliseconds: 16),
-      );
+      await tester.pump(kDockedPanelExit - const Duration(milliseconds: 16));
       expect(closed, 0);
 
       await tester.pumpAndSettle();
       expect(closed, 1);
-      expect(kNotificationPanelExit, lessThan(kNotificationPanelEnter));
+      expect(kDockedPanelExit, lessThan(kDockedPanelEnter));
     });
   });
 
   group('NotificationPanel animation geometry', () {
-    // The one FadeTransition in the panel is the animation's own, and its box
-    // is the whole surface — so its global rect is the panel as painted,
-    // ancestor transforms included.
+    // The one SlideTransition in the panel is the docked frame's own, and its
+    // box is the whole surface — so its global rect is the panel as painted.
     Finder panelSurface() {
-      final panel = find.byType(FadeTransition);
+      final panel = find.byType(SlideTransition);
       expect(panel, findsOneWidget);
       return panel;
     }
 
-    testWidgets('the exit never pulls away from the edge it is anchored to',
-        (tester) async {
-      final closing = ValueNotifier(false);
-      addTearDown(closing.dispose);
+    for (final side in DockSide.values) {
+      // The edge the surface is butted against: the right edge of a panel on
+      // the right never comes in from it, and the left edge of one on the left
+      // never comes in from that. Anything moving the panel inwards opens a
+      // strip between it and the screen edge.
+      double outer(Rect rect) =>
+          side == DockSide.right ? rect.right : -rect.left;
 
-      await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
-      await tester.pumpAndSettle();
-
-      final panel = panelSurface();
-      final surfaceRight = tester.getRect(panel).right;
-
-      closing.value = true;
-      await tester.pump();
-      for (var elapsed = Duration.zero;
-          elapsed < kNotificationPanelExit + const Duration(milliseconds: 32);
-          elapsed += const Duration(milliseconds: 8)) {
-        // Every part of the exit either scales towards the right edge or moves
-        // the panel further off it. Anything that moved it left would open a
-        // transparent strip along the screen edge.
-        expect(
-          tester.getRect(panel).right,
-          greaterThanOrEqualTo(surfaceRight - 0.01),
-          reason: 'panel detached from the screen edge at $elapsed',
-        );
-        await tester.pump(const Duration(milliseconds: 8));
-      }
-    });
-
-    testWidgets('the entrance never pulls away from it either', (tester) async {
-      final closing = ValueNotifier(false);
-      addTearDown(closing.dispose);
-
-      await tester.pumpWidget(_panel(closing: closing, onClosed: () {}));
-      final panel = panelSurface();
-      await tester.pump();
-
-      // The entrance is the exit backwards, so it inherits the exit's one
-      // rule: a centre-pivoted scale or a dip to the left here would open a
-      // gap along the screen edge that closes as the panel settles.
-      final seen = <Duration, double>{};
-      for (var elapsed = Duration.zero;
-          elapsed < kNotificationPanelEnter + const Duration(milliseconds: 32);
-          elapsed += const Duration(milliseconds: 8)) {
-        seen[elapsed] = tester.getRect(panel).right;
-        await tester.pump(const Duration(milliseconds: 8));
-      }
-
-      await tester.pumpAndSettle();
-      final surfaceRight = tester.getRect(panel).right;
-      seen.forEach((elapsed, right) {
-        expect(
-          right,
-          greaterThanOrEqualTo(surfaceRight - 0.01),
-          reason: 'panel detached from the screen edge at $elapsed',
-        );
-      });
-
-      // The entrance plays once: nothing about it is still ticking at rest.
-      expect(SchedulerBinding.instance.transientCallbackCount, 0);
-    });
-
-    testWidgets('the entrance is the exit played backwards', (tester) async {
-      // A quarter, half and three quarters of the way in, the panel is where
-      // the exit has it at the mirrored point of its own — shorter — run. One
-      // animation played both ways is what makes this hold; two that merely
-      // resembled each other would drift.
-      const progress = <double>[0.25, 0.5, 0.75];
-
-      // Keyed apart, or the second `pumpWidget` would update the first panel's
-      // State in place and leave it listening to a disposed notifier.
-      Future<Map<double, Rect>> run(String phase, bool leaving) async {
+      testWidgets('docked ${side.name}, the exit never pulls away from its '
+          'edge', (tester) async {
         final closing = ValueNotifier(false);
         addTearDown(closing.dispose);
-        await tester.pumpWidget(KeyedSubtree(
-          key: ValueKey(phase),
-          child: _panel(closing: closing, onClosed: () {}),
-        ));
-        final panel = panelSurface();
 
-        if (leaving) {
-          await tester.pumpAndSettle();
-          closing.value = true;
+        await tester.pumpWidget(
+          _panel(closing: closing, onClosed: () {}, side: side),
+        );
+        await tester.pumpAndSettle();
+
+        final panel = panelSurface();
+        final rest = outer(tester.getRect(panel));
+
+        closing.value = true;
+        await tester.pump();
+        for (var elapsed = Duration.zero;
+            elapsed < kDockedPanelExit + const Duration(milliseconds: 32);
+            elapsed += const Duration(milliseconds: 8)) {
+          expect(
+            outer(tester.getRect(panel)),
+            greaterThanOrEqualTo(rest - 0.01),
+            reason: 'panel detached from the screen edge at $elapsed',
+          );
+          await tester.pump(const Duration(milliseconds: 8));
         }
-        // The frame the ticker starts on: it elapses nothing, so the pumps
-        // below are measured from here.
+      });
+
+      testWidgets('docked ${side.name}, the entrance never pulls away from '
+          'it either', (tester) async {
+        final closing = ValueNotifier(false);
+        addTearDown(closing.dispose);
+
+        await tester.pumpWidget(
+          _panel(closing: closing, onClosed: () {}, side: side),
+        );
+        final panel = panelSurface();
         await tester.pump();
 
-        final rects = <double, Rect>{};
-        var elapsed = Duration.zero;
-        // A quarter of the way in is three quarters of the way out, so the
-        // leaving half walks the same points in the opposite order.
-        for (final p in leaving ? progress.reversed : progress) {
-          final at = leaving
-              ? kNotificationPanelExit * (1 - p)
-              : kNotificationPanelEnter * p;
-          await tester.pump(at - elapsed);
-          elapsed = at;
-          rects[p] = tester.getRect(panel);
+        final seen = <Duration, double>{};
+        for (var elapsed = Duration.zero;
+            elapsed < kDockedPanelEnter + const Duration(milliseconds: 32);
+            elapsed += const Duration(milliseconds: 8)) {
+          seen[elapsed] = outer(tester.getRect(panel));
+          await tester.pump(const Duration(milliseconds: 8));
         }
+
         await tester.pumpAndSettle();
-        return rects;
-      }
+        final rest = outer(tester.getRect(panel));
+        seen.forEach((elapsed, edge) {
+          expect(
+            edge,
+            greaterThanOrEqualTo(rest - 0.01),
+            reason: 'panel detached from the screen edge at $elapsed',
+          );
+        });
 
-      final arriving = await run('entering', false);
-      final departing = await run('leaving', true);
-
-      for (final p in progress) {
-        expect(
-          arriving[p]!,
-          _rectCloseTo(departing[p]!),
-          reason: 'the panel is elsewhere at $p of the way in',
-        );
-      }
-    });
+        // The entrance plays once: nothing about it is still ticking at rest.
+        expect(SchedulerBinding.instance.transientCallbackCount, 0);
+      });
+    }
   });
 
-  group('notificationPanelWidth', () {
-    // A quarter of the output, which on the common sizes is where a column of
-    // prose reads comfortably against a bar module's popup.
-    test('is a fraction of the output', () {
-      expect(notificationPanelWidth(1920), 480);
-      expect(notificationPanelWidth(1600), 400);
+  group('NotificationsConfig panel keys', () {
+    test('docks on the right at the default width when nothing is said', () {
+      const config = NotificationsConfig();
+      expect(NotificationsConfig.fromMap(null), config);
+      expect(config.side, DockSide.right);
+      expect(config.width, kDefaultNotificationPanelWidth);
     });
 
-    // The floor is what the card's own type needs; a fifth of a 1366px laptop
-    // was 273, which wrapped two-word summaries.
-    test('has a floor a small display cannot go under', () {
-      expect(notificationPanelWidth(1366), 360);
-      expect(notificationPanelWidth(800), 360);
+    test('reads a side and a width', () {
+      final config = NotificationsConfig.fromMap(const {
+        'side': 'left',
+        'width': 480,
+      });
+      expect(config.side, DockSide.left);
+      expect(config.width, 480);
     });
 
-    // The ceiling stops a quarter of an ultrawide from covering what the user
-    // was reading.
-    test('has a ceiling a wide one cannot go over', () {
-      expect(notificationPanelWidth(3440), 560);
-      expect(notificationPanelWidth(5120), 560);
+    // A typo costs the key, never the table — and the fallback is this
+    // panel's own default, not the clipboard's.
+    test('an unknown side keeps the right', () {
+      expect(
+        NotificationsConfig.fromMap(const {'side': 'top'}).side,
+        DockSide.right,
+      );
+    });
+
+    test('a width is clamped, and a float is taken', () {
+      expect(
+        NotificationsConfig.fromMap(const {'width': 10}).width,
+        kDockedPanelMinWidth,
+      );
+      expect(
+        NotificationsConfig.fromMap(const {'width': 99999}).width,
+        kDockedPanelMaxWidth,
+      );
+      expect(NotificationsConfig.fromMap(const {'width': 420.0}).width, 420);
+    });
+
+    test('the side and width take part in equality', () {
+      expect(
+        const NotificationsConfig(side: DockSide.left),
+        isNot(const NotificationsConfig()),
+      );
+      expect(
+        const NotificationsConfig(width: 500),
+        isNot(const NotificationsConfig()),
+      );
+    });
+
+    test('loading the module tells the root where the panel docks', () {
+      final controller = NotificationPanelController.instance;
+      addTearDown(() => controller.configure(
+            side: kDefaultNotificationPanelSide,
+            width: kDefaultNotificationPanelWidth,
+          ));
+      notificationsModule.loadConfig(const {'side': 'left', 'width': 300});
+      expect(controller.side, DockSide.left);
+      expect(controller.width, 300);
     });
   });
 
@@ -382,29 +384,6 @@ void main() {
       expectTint(tester, 'Clear all');
     });
   });
-}
-
-/// The two halves are the same animation, not the same arithmetic: a rect a
-/// hundredth of a pixel out is the same frame.
-Matcher _rectCloseTo(Rect expected) => _RectCloseTo(expected);
-
-class _RectCloseTo extends Matcher {
-  const _RectCloseTo(this.expected);
-
-  final Rect expected;
-
-  @override
-  bool matches(Object? item, Map<dynamic, dynamic> matchState) =>
-      item is Rect &&
-      (item.left - expected.left).abs() < 0.01 &&
-      (item.top - expected.top).abs() < 0.01 &&
-      (item.right - expected.right).abs() < 0.01 &&
-      (item.bottom - expected.bottom).abs() < 0.01;
-
-  @override
-  Description describe(Description description) =>
-      description.add('within 0.01 of $expected');
-
 }
 
 /// Clicking a notification is clicking the thing it is about.

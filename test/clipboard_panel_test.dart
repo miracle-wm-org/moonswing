@@ -15,6 +15,7 @@ import 'package:moonswing/clipboard/clipboard_panel_controller.dart';
 import 'package:moonswing/clipboard/clipboard_store.dart';
 import 'package:moonswing/clipboard/wl_clipboard.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/modules/clipboard.dart';
 import 'package:moonswing/scopes.dart';
 
@@ -89,7 +90,7 @@ void main() {
     await tester.pumpWidget(
       _host(
         ClipboardPanel(
-          side: ClipboardSide.left,
+          side: DockSide.left,
           closingNotifier: notifier,
           onClosed: onClosed ?? () {},
           store: store,

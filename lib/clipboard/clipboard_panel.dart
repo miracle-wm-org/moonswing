@@ -2,32 +2,22 @@
 // listing everything copied, newest first. A click on an entry puts it back on
 // the clipboard, ready to paste wherever the user's focus already is.
 //
-// The window is the root's (`_createClipboardWindow` in `main.dart`), and its
-// shape is the feature:
-//
-// - **It never takes the keyboard.** Keyboard mode `none`, like a bar: the
-//   point of a clipboard history is to paste into the window you are working
-//   in, and a panel that took focus on every click would take it off that
-//   window. So there is no Escape and no search field here; everything is a
-//   click or the scroll wheel, both of which reach a surface without focus.
-// - **It stays until asked to go.** Its own close button, or the bar button
-//   again. The coordinator registration is non-dismissable, so neither a click
-//   elsewhere nor another popup opening takes it down.
-// - **It reserves its width.** An exclusive zone the width of the panel, so
-//   the compositor moves windows out of its way rather than under it.
+// A docked panel (`lib/docked_panel.dart`), whose shape is the feature: it
+// never takes the keyboard, so pasting goes into the window the user is
+// already in; it stays until its own close button or the bar button takes it
+// down; and it reserves its width, so windows are moved out of its way.
 
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-import 'package:moonswing/clipboard/clipboard_config.dart';
 import 'package:moonswing/clipboard/clipboard_entry.dart';
 import 'package:moonswing/clipboard/clipboard_store.dart';
+import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
-import 'package:moonswing/popup.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -50,7 +40,7 @@ class ClipboardPanel extends StatefulWidget {
   });
 
   /// The edge the window is docked against, which the panel slides in from.
-  final ClipboardSide side;
+  final DockSide side;
 
   /// Flipped by whoever wants the panel gone — its close button or the bar
   /// button. Starts the exit; [onClosed] tears the window down after it.
@@ -67,12 +57,7 @@ class ClipboardPanel extends StatefulWidget {
   State<ClipboardPanel> createState() => _ClipboardPanelState();
 }
 
-class _ClipboardPanelState extends State<ClipboardPanel>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<Offset> _slide;
-  bool _leaving = false;
-
+class _ClipboardPanelState extends State<ClipboardPanel> {
   ClipboardHistoryStore get _store =>
       widget.store ?? ClipboardHistoryStore.instance;
 
@@ -82,126 +67,80 @@ class _ClipboardPanelState extends State<ClipboardPanel>
     // The panel's own lease, so the history keeps recording while it is open
     // even if the bar that opened it goes away (a monitor unplugged).
     _store.acquire();
-    _controller = AnimationController(
-      vsync: this,
-      duration: ShellDurations.slow,
-      // An exit is the user being done; it does not need the entrance's pace.
-      reverseDuration: ShellDurations.base,
-    );
-    // Out of, and back into, the edge the panel is docked against: anything
-    // moving the other way would open a strip between the panel and the screen
-    // edge — the notification panel's rule.
-    final away = widget.side == ClipboardSide.left ? -1.0 : 1.0;
-    _slide = Tween<Offset>(begin: Offset(away, 0), end: Offset.zero).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
-    _controller.forward();
-    widget.closingNotifier.addListener(_onClosingRequested);
   }
 
   @override
   void dispose() {
-    widget.closingNotifier.removeListener(_onClosingRequested);
-    _controller.dispose();
     _store.release();
     super.dispose();
-  }
-
-  void _onClosingRequested() {
-    if (!widget.closingNotifier.value || _leaving) return;
-    _leaving = true;
-    _controller.reverse().then((_) => widget.onClosed());
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final store = _store;
-    // The inner edge, the one that faces the windows, gets the divider line;
-    // the outer one is the screen edge and a line there would be drawn on
-    // nothing.
-    final inner = BorderSide(color: theme.divider);
-    return PopupDismissArea(
-      // A click in the panel is a click elsewhere as far as any bar popup is
-      // concerned. The panel's own registration refuses dismissal, so it is
-      // the one thing this leaves open.
-      child: DefaultTextStyle.merge(
-        style: TextStyle(
-          fontSize: ShellFontSizes.body,
-          color: theme.popupForeground,
-        ),
-        child: ClipRect(
-          child: SlideTransition(
-            position: _slide,
-            child: Container(
-              // Opaque whatever the theme says — the notification panel's rule:
-              // this is read over whatever window would otherwise show
-              // through, and the reserved zone means there is never anything
-              // under it worth seeing.
-              decoration: BoxDecoration(
-                color: theme.popupBackground.withValues(alpha: 1.0),
-                border: widget.side == ClipboardSide.left
-                    ? Border(right: inner)
-                    : Border(left: inner),
-              ),
-              child: ListenableBuilder(
-                listenable: store,
-                builder: (context, _) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ClipboardHeader(
-                      store: store,
-                      onClose: () => widget.closingNotifier.value = true,
-                    ),
-                    Container(height: 1, color: theme.divider),
-                    if (store.error case final error?)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                        child: SettingsBanner(
-                          title: store.unsupported
-                              ? 'Not recording what you copy'
-                              : 'Clipboard history stopped',
-                          message: error,
-                          action: SettingsActionButton(
-                            label: 'Retry',
-                            compact: true,
-                            onTap: store.retry,
-                          ),
-                        ),
-                      ),
-                    if (store.copyError case final error?)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                        child: SettingsBanner(
-                          title: 'Could not copy',
-                          message: error,
-                          action: SettingsIconButton(
-                            icon: FontAwesomeIcons.xmark,
-                            onTap: store.dismissCopyError,
-                          ),
-                        ),
-                      ),
-                    Expanded(child: _buildBody(theme, store)),
-                  ],
+    return DockedPanel(
+      side: widget.side,
+      closingNotifier: widget.closingNotifier,
+      onClosed: widget.onClosed,
+      child: ListenableBuilder(
+        listenable: store,
+        builder: (context, _) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ClipboardHeader(
+              store: store,
+              onClose: () => widget.closingNotifier.value = true,
+            ),
+            Container(height: 1, color: theme.divider),
+            if (store.error case final error?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: SettingsBanner(
+                  title: store.unsupported
+                      ? 'Not recording what you copy'
+                      : 'Clipboard history stopped',
+                  message: error,
+                  action: SettingsActionButton(
+                    label: 'Retry',
+                    compact: true,
+                    onTap: store.retry,
+                  ),
                 ),
               ),
-            ),
-          ),
+            if (store.copyError case final error?)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: SettingsBanner(
+                  title: 'Could not copy',
+                  message: error,
+                  action: SettingsIconButton(
+                    icon: FontAwesomeIcons.xmark,
+                    onTap: store.dismissCopyError,
+                  ),
+                ),
+              ),
+            Expanded(child: _buildBody(store)),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildBody(ThemeConfig theme, ClipboardHistoryStore store) {
+  Widget _buildBody(ClipboardHistoryStore store) {
     if (!store.loaded) {
       return const Center(child: LoadingIndicator(size: 22));
     }
     final entries = store.entries;
-    if (entries.isEmpty) return _ClipboardEmpty(theme: theme);
+    if (entries.isEmpty) {
+      return const DockedPanelEmpty(
+        icon: FontAwesomeIcons.clipboard,
+        title: 'Nothing copied yet',
+        message:
+            'Text, pictures and files you copy appear here. Click one to '
+            'copy it again, then paste it wherever you like.',
+      );
+    }
     final now = (widget.now ?? DateTime.now)();
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
@@ -239,7 +178,6 @@ class _ClipboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     final entries = store.entries;
     final pinned = entries.where((e) => e.pinned).length;
     final count = entries.length;
@@ -249,116 +187,16 @@ class _ClipboardHeader extends StatelessWidget {
             count == 1 ? '1 item' : '$count items',
             if (pinned > 0) '$pinned pinned',
           ].join(', ');
-    final clearable = count > pinned;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 10, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Clipboard',
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.heading,
-                    fontWeight: FontWeight.bold,
-                    color: theme.popupForeground,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  summary,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.secondary,
-                    color: theme.popupForeground.withValues(alpha: 0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Only while there is something it would remove: pinned entries are
-          // exactly the ones "Clear" keeps.
-          if (clearable) ...[
-            HoverRegion(
-              onTap: store.clear,
-              builder: (context, hovered) => Container(
-                height: ShellSizes.iconButton + 4,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: hovered ? theme.accent.withValues(alpha: 0.18) : null,
-                  border: Border.all(
-                    color: theme.accent.withValues(alpha: hovered ? 0.9 : 0.5),
-                  ),
-                  borderRadius: BorderRadius.circular(ShellRadii.control),
-                ),
-                child: Text(
-                  'Clear',
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.body,
-                    color: theme.accentText,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-          ],
-          SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
-            box: ShellSizes.iconButton + 6,
-            size: ShellFontSizes.title,
-            color: theme.popupForeground,
-            onTap: onClose,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// The empty state, which is also the panel's instructions.
-class _ClipboardEmpty extends StatelessWidget {
-  const _ClipboardEmpty({required this.theme});
-
-  final ThemeConfig theme;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FaIcon(
-              FontAwesomeIcons.clipboard,
-              size: 40,
-              color: theme.popupForeground.withValues(alpha: 0.28),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Nothing copied yet',
-              style: TextStyle(
-                fontSize: ShellFontSizes.label,
-                fontWeight: FontWeight.w600,
-                color: theme.popupForeground.withValues(alpha: 0.75),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Text, pictures and files you copy appear here. Click one to '
-              'copy it again, then paste it wherever you like.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: ShellFontSizes.secondary,
-                height: 1.4,
-                color: theme.popupForeground.withValues(alpha: 0.55),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return DockedPanelHeader(
+      title: 'Clipboard',
+      summary: summary,
+      onClose: onClose,
+      actions: [
+        // Only while there is something it would remove: pinned entries are
+        // exactly the ones "Clear" keeps.
+        if (count > pinned)
+          DockedPanelTextButton(label: 'Clear', onTap: store.clear),
+      ],
     );
   }
 }
@@ -398,16 +236,10 @@ class ClipboardCard extends StatelessWidget {
         onTap: () => store.copy(entry),
         builder: (context, hovered) => Container(
           padding: const EdgeInsets.fromLTRB(12, 6, 4, 10),
-          decoration: BoxDecoration(
-            color: hovered
-                ? theme.surfaceHover.atMostAlpha(0.14)
-                : theme.controlSurface,
-            borderRadius: BorderRadius.circular(ShellRadii.card),
-            border: Border.all(
-              color: current
-                  ? theme.accent.withValues(alpha: 0.7)
-                  : theme.divider,
-            ),
+          decoration: dockedPanelCardDecoration(
+            context,
+            hovered: hovered,
+            ring: current ? theme.accent.withValues(alpha: 0.7) : null,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

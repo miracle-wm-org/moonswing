@@ -5,25 +5,11 @@
 // creates the panel's window, and the history store reads the rest.
 
 import 'package:moonswing/config_reader.dart';
-
-/// Which edge of the output the history panel is docked against.
-enum ClipboardSide {
-  left,
-  right;
-
-  /// The config spelling, for the settings row and the round trip.
-  String get configName => name;
-
-  static ClipboardSide parse(String? raw) =>
-      switch (raw?.trim().toLowerCase()) {
-        'right' => ClipboardSide.right,
-        _ => ClipboardSide.left,
-      };
-}
+import 'package:moonswing/docked_panel.dart';
 
 class ClipboardConfig {
   const ClipboardConfig({
-    this.side = ClipboardSide.left,
+    this.side = DockSide.left,
     this.width = 360,
     this.maxEntries = 100,
     this.persist = true,
@@ -31,7 +17,7 @@ class ClipboardConfig {
   });
 
   /// The edge the panel is docked against. Left by default.
-  final ClipboardSide side;
+  final DockSide side;
 
   /// How wide the panel is, in logical pixels — and so how much of the output
   /// it takes from the windows beside it, since the panel reserves exactly its
@@ -57,10 +43,13 @@ class ClipboardConfig {
   factory ClipboardConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const ClipboardConfig();
     return ClipboardConfig(
-      side: ClipboardSide.parse(map.stringOrNull('side')),
-      // Floored so the cards still have room for a line of text, capped so a
-      // typo cannot hand the whole output to the panel.
-      width: map.intOr('width', 360, min: 240, max: 1200),
+      side: DockSide.parse(map.stringOrNull('side')),
+      width: map.intOr(
+        'width',
+        360,
+        min: kDockedPanelMinWidth,
+        max: kDockedPanelMaxWidth,
+      ),
       maxEntries: map.intOr('max_entries', 100, min: 1, max: 1000),
       persist: map.boolOr('persist', true),
       maxItemMb: map.intOr('max_item_mb', 32, min: 1, max: 1024),
