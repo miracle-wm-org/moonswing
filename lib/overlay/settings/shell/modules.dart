@@ -11,6 +11,8 @@ import 'package:moonswing/capture/capture_config.dart'
         kRecorderContainers;
 import 'package:moonswing/capture/capture_sound.dart'
     show kDefaultShutterVolume, kShutterSoundHint;
+import 'package:moonswing/clipboard/clipboard_config.dart'
+    show ClipboardConfig;
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/desktop/app_chooser.dart' show showAppChooser;
 import 'package:moonswing/launcher/app_index.dart';
@@ -481,6 +483,39 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.stocksWidth,
         defaultValue: const StockConfig().width,
         isInt: false,
+      ),
+    ],
+  ),
+  ModuleSettingsPage._(
+    'clipboard',
+    'Side, width and what is kept',
+    FontAwesomeIcons.clipboard,
+    [
+      // Read when the panel opens: an edit here moves the next one, not the
+      // one already docked.
+      _ModuleSetting.segmented(
+        SettingsCatalog.clipboardSide,
+        options: const ['left', 'right'],
+        defaultValue: const ClipboardConfig().side.configName,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.clipboardWidth,
+        defaultValue: const ClipboardConfig().width,
+        isInt: true,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.clipboardMaxEntries,
+        defaultValue: const ClipboardConfig().maxEntries,
+        isInt: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.clipboardPersist,
+        defaultValue: const ClipboardConfig().persist,
+      ),
+      _ModuleSetting.number(
+        SettingsCatalog.clipboardMaxItemMb,
+        defaultValue: const ClipboardConfig().maxItemMb,
+        isInt: true,
       ),
     ],
   ),
