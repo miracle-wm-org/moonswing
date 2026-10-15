@@ -49,7 +49,16 @@ enum PopupEffect {
 
   /// A small rotation and scale about the card's centre, under a fade.
   spin('spin', 'Spin',
-      'The card turns a few degrees as it scales into place, under a fade.');
+      'The card turns a few degrees as it scales into place, under a fade.'),
+
+  /// The card grows out of the bar like a trunk out of the ground: it pushes
+  /// out of the join narrow and crowned, thickens to its full girth as it
+  /// lengthens, and settles with a small sway. No fade — a trunk is solid the
+  /// whole way up.
+  sprout('sprout', 'Sprout',
+      'The card grows out of the bar like a trunk: narrow and crowned at '
+          'first, thickening as it lengthens, with a small sway as it '
+          'settles.');
 
   const PopupEffect(this.slug, this.label, this.description);
 

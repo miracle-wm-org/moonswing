@@ -86,6 +86,9 @@ import 'package:moonswing/osd/osd.dart';
 import 'package:moonswing/osd/osd_service.dart';
 import 'package:moonswing/osd/osd_store.dart';
 import 'package:moonswing/osd/volume_sound.dart';
+import 'package:moonswing/decor/material_textures.dart';
+import 'package:moonswing/decor/panel_decor.dart';
+import 'package:moonswing/native/input_region.dart';
 import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup.dart';
@@ -203,6 +206,8 @@ void main() async {
   // Seeds the shipped themes into ~/.config/moonswing/themes on first run
   // and resolves the one config.toml names, before anything paints.
   startThemeService(store);
+  // A theme's pictures (`panel_image`, `popup_image`) resolve beside it.
+  MaterialTextures.instance.baseDirectory = ThemeStore.instance.directory;
 
   // Reads the pinned desktop icons, so the grid paints with the background
   // surface's first frame. Like the theme store it watches ConfigStore for its
@@ -824,6 +829,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// layer surface that often makes the bars flicker.
   int _panelMargin = 0;
 
+  /// How far past the bar the panel surfaces currently reach, for the same
+  /// reason [_panelMargin] is cached.
+  int _panelReach = 0;
+
   @override
   void initState() {
     super.initState();
@@ -870,6 +879,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // before the first surface is built and no bar is created flush and then
     // nudged.
     _panelMargin = ThemeStore.instance.theme.panelMargin;
+    _panelReach = ThemeStore.instance.theme.panelReach;
 
     // Mirrors folded into one, or a cloned display shows every surface twice.
     for (final monitor in distinctMonitors(listMonitors())) {
@@ -942,6 +952,17 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         anchor: panelConfig.anchor,
         margin: _panelMargin,
       );
+      // Grown past the bar only where the theme hangs something off it, and
+      // only once the overhang has been handed back to the windows beneath.
+      // A theme with nothing to hang leaves the surface exactly as created.
+      if (_panelReach > 0) {
+        setPanelReach(
+          controller,
+          anchor: panelConfig.anchor,
+          thickness: panelConfig.height,
+          reach: _panelReach,
+        );
+      }
       panels[entry.key] = controller;
     }
 
@@ -2223,16 +2244,31 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// look broken. No [setState] — nothing in the tree reads [_panelMargin].
   void _onThemeChanged() {
     if (!mounted) return;
-    final next = ThemeStore.instance.theme.panelMargin;
-    if (next == _panelMargin) return;
-    _panelMargin = next;
+    final theme = ThemeStore.instance.theme;
+    final margin = theme.panelMargin;
+    final reach = theme.panelReach;
+    if (margin == _panelMargin && reach == _panelReach) return;
+    final marginMoved = margin != _panelMargin;
+    final reachMoved = reach != _panelReach;
+    _panelMargin = margin;
+    _panelReach = reach;
     for (final surfaces in _surfaces.values) {
       surfaces.panels.forEach((key, controller) {
         // Startup geometry, like _createSurfaces and _effectivePanel: the
         // anchor a surface was built with cannot change without recreating it.
         final panelConfig = widget.appConfig.panels[key];
         if (panelConfig == null) return;
-        setPanelMargin(controller, anchor: panelConfig.anchor, margin: next);
+        if (marginMoved) {
+          setPanelMargin(controller, anchor: panelConfig.anchor, margin: margin);
+        }
+        if (reachMoved) {
+          setPanelReach(
+            controller,
+            anchor: panelConfig.anchor,
+            thickness: panelConfig.height,
+            reach: reach,
+          );
+        }
       });
     }
   }
@@ -2876,6 +2912,15 @@ class PanelMain extends StatefulWidget {
 }
 
 class _PanelMainState extends State<PanelMain> {
+  /// Ticks when the pointer arrives on the bar, for [PanelFoliage].
+  final ValueNotifier<int> _rustle = ValueNotifier(0);
+
+  @override
+  void dispose() {
+    _rustle.dispose();
+    super.dispose();
+  }
+
   Widget _buildModule(String name) {
     final module = Module.lookup(name);
     if (module == null) return const SizedBox.shrink();
@@ -2978,8 +3023,16 @@ class _PanelMainState extends State<PanelMain> {
     // opaque to hits.
     final paintsOwnRim = panelPaintsOwnRim(theme);
 
+    final anchor = widget.panelConfig.anchor;
+    final thickness = widget.panelConfig.height.toDouble();
+    final radius = panelCornerRadius(anchor: anchor, theme: theme);
+    final view = View.maybeOf(context);
+
     return BarScope(
-      anchor: widget.panelConfig.anchor,
+      anchor: anchor,
+      // The bar's own depth, which is less than the surface's when the theme
+      // hangs foliage past it — what a popup is anchored to.
+      thickness: thickness,
       child: DefaultTextStyle(
         style: TextStyle(
           fontFamily: theme.fontFamily,
@@ -2988,27 +3041,70 @@ class _PanelMainState extends State<PanelMain> {
         ),
         child: Directionality(
           textDirection: TextDirection.ltr,
-          child: SizedBox.expand(
-            // DecoratedBox, not Container: Container applies the decoration's
-            // padding — the border's thickness — to its child, silently
-            // insetting every module and changing what padding_horizontal means.
-            // The clip is conditional so a square bar adds no extra layer.
-            child: DecoratedBox(
-              decoration: panelBackgroundDecoration(
-                anchor: widget.panelConfig.anchor,
-                theme: theme,
-                includeRim: !paintsOwnRim,
-              ),
-              // Clip and rim come and go with the theme; the frame keeps the
-              // modules mounted across that, or a switch disposes every one —
-              // and the clock's settings overlay with it.
-              child: PanelContentFrame(
-                theme: theme,
-                anchor: widget.panelConfig.anchor,
-                panel: View.maybeOf(context),
-                content: content,
-              ),
-            ),
+          // Always a Stack, whatever the theme: the bar is one child and the
+          // foliage over it another, and a structure that came and went with
+          // the theme would move the modules to a new depth.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final bar = panelBarRect(
+                surface: constraints.biggest,
+                anchor: anchor,
+                thickness: thickness,
+              );
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fromRect(
+                    rect: bar,
+                    // The pointer arriving on the bar stirs its leaves; a
+                    // listener only, never a target.
+                    child: MouseRegion(
+                      opaque: false,
+                      onEnter: (_) => _rustle.value++,
+                      // DecoratedBox, not Container: Container applies the
+                      // decoration's padding — the border's thickness — to its
+                      // child, silently insetting every module and changing
+                      // what padding_horizontal means.
+                      child: DecoratedBox(
+                        decoration: panelBackgroundDecoration(
+                          anchor: anchor,
+                          theme: theme,
+                          includeRim: !paintsOwnRim,
+                        ),
+                        // The material, caps, carve and roots, under the
+                        // modules; nothing at all on a plain theme.
+                        child: PanelSurfaceDecor(
+                          theme: theme,
+                          anchor: anchor,
+                          radius: radius,
+                          panel: view,
+                          // Clip and rim come and go with the theme; the
+                          // frame keeps the modules mounted across that, or a
+                          // switch disposes every one — and the clock's
+                          // settings overlay with it.
+                          child: PanelContentFrame(
+                            theme: theme,
+                            anchor: anchor,
+                            panel: view,
+                            content: content,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // What grows off the bar, over it and over the overhang.
+                  Positioned.fill(
+                    child: PanelFoliage(
+                      theme: theme,
+                      anchor: anchor,
+                      thickness: thickness,
+                      panel: view,
+                      rustle: _rustle,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

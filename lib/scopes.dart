@@ -61,12 +61,25 @@ class BarScope extends InheritedWidget {
   const BarScope({
     super.key,
     required this.anchor,
+    this.thickness,
     required super.child,
   });
 
   /// The side of the screen this bar is anchored to.
   /// One of: `'top'`, `'bottom'`, `'left'`, `'right'`.
   final String anchor;
+
+  /// How deep the bar itself is, or null for "the whole surface".
+  ///
+  /// The surface is deeper than the bar when the theme hangs foliage past it
+  /// (`panel_overhang`), and a popup has to open at the bar's edge rather than
+  /// the surface's — see `barAnchorRect`.
+  final double? thickness;
+
+  /// [thickness] for the bar behind [context], or null. Registers no
+  /// dependency: the depth is startup geometry and never changes for a bar.
+  static double? thicknessOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<BarScope>()?.thickness;
 
   /// The anchor itself — every caller wants the value, not the widget.
   static String of(BuildContext context) =>
@@ -76,7 +89,8 @@ class BarScope extends InheritedWidget {
       context.dependOnInheritedWidgetOfExactType<BarScope>()?.anchor;
 
   @override
-  bool updateShouldNotify(BarScope old) => anchor != old.anchor;
+  bool updateShouldNotify(BarScope old) =>
+      anchor != old.anchor || thickness != old.thickness;
 }
 
 /// Provides [WaylandOutput] for the display this bar is rendered on.

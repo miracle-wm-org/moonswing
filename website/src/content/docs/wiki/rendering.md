@@ -42,6 +42,37 @@ would re-run `Module.loadAll`.
   painted beneath it, which in an overlay window is nothing — it changed no pixel while costing
   a full-output Gaussian per frame.
 
+## Materials and foliage
+
+A theme can say what a surface is *made of* — wood, stone, bark, moss, or a picture of your
+own — and what grows off the bar. All of it lives in `lib/decor/`, and all of it is off by
+default: a theme naming none of it builds no painter, no tile, no ticker and no bigger surface.
+
+- **A material is a tile drawn once.** `material_tiles.dart` draws each one from seeded
+  arithmetic (`seeded_random.dart` — mulberry32, so the sequence is a contract rather than an
+  SDK detail) as a seamless tile, and `MaterialTextures` caches it as one `ui.Image` for the
+  process; every bar on every monitor, every card and every root paints the same image through
+  an `ImageShader`. Seamless is earned: anything near an edge is drawn again a tile over, and
+  anything that wanders (a grain line, a bark ridge) wanders on periodic noise. Tiles are never
+  assets, for the reason the shipped themes and sounds are not.
+- **The tint's alpha is the strength.** A shader's output is modulated by the paint's opacity,
+  so the tile is generated opaque and `#20…` is the same tile glimpsed through the fill.
+- **What sits under the modules and what sits over them is the design.** `PanelSurfaceDecor`
+  paints material, end caps, bevel and roots *under* the modules; `PanelFoliage` paints the
+  leaves *over* everything, reaching onto the bar only as a fringe on its inner edge. Both
+  answer no hit tests.
+- **Gravity is the anchor.** Foliage is grown in one frame — x along the bar, y away from it —
+  and the anchor only says which way is down in it. One integrator hangs a top bar's vines,
+  stands a bottom bar's stems up and droops a side bar's sideways.
+- **Every plant is its own picture, rooted where it leaves the bar.** A rustle is one rotation
+  per plant about its root, never a re-record. It runs on a ticker created by the pointer
+  arriving or a popup opening, and disposed when the last leaf is still.
+- **A popup is a trunk only by decoration.** `MaterialCardDecoration` wraps the card
+  `popupDecoration` would have built, rim removed, and paints the material and a material rim
+  over it — answering `padding`, clip path and hit test exactly as the plain card would. The
+  roots are the *bar's* paint, keyed on the same `PanelRimBreaks` record the rim breaks on,
+  because the compositor never lets a popup paint over its bar.
+
 ## Repaint discipline
 
 Panels, overlays and the desktop surface have **no repaint boundary of their own**, so any

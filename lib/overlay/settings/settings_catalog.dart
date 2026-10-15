@@ -322,6 +322,116 @@ abstract final class SettingsCatalog {
     ],
   );
 
+  // Materials, pictures and foliage — what the bar and its menus are made of.
+
+  static final panelTexture = shellField(
+    'theme.panel_texture',
+    'Panel material',
+    section: 'Appearance',
+    description:
+        'What the bar is made of — wood, stone, bark or moss — painted over '
+        'its colour.',
+    tags: const ['bar', 'texture', 'wood', 'stone', 'bark', 'moss', 'material'],
+  );
+
+  static final panelEndTexture = shellField(
+    'theme.panel_end_texture',
+    'Panel end caps',
+    section: 'Appearance',
+    description: 'A second material capping each end of the bar.',
+    tags: const ['bar', 'texture', 'ends', 'caps', 'stone', 'material'],
+  );
+
+  static final panelEndLength = shellField(
+    'theme.panel_end_length',
+    'Panel end cap length',
+    section: 'Appearance',
+    description: 'How far along the bar each end cap reaches. Zero draws none.',
+    tags: const ['bar', 'texture', 'ends', 'caps'],
+  );
+
+  static final panelBevel = shellField(
+    'theme.panel_bevel',
+    'Panel bevel',
+    section: 'Appearance',
+    description:
+        'How deeply the bar’s edges are carved, from 0 (flat) to 1.',
+    tags: const ['bar', 'depth', 'carve', 'emboss', '3d', 'edge'],
+  );
+
+  static final panelImage = shellField(
+    'theme.panel_image',
+    'Panel picture',
+    section: 'Appearance',
+    description:
+        'A picture tiled over the bar in place of its material: a path, '
+        'absolute, under ~/, or beside the theme file.',
+    tags: const ['bar', 'image', 'picture', 'photo', 'texture', 'file'],
+  );
+
+  static final panelFoliage = shellField(
+    'theme.panel_foliage',
+    'Foliage',
+    section: 'Appearance',
+    description:
+        'What grows off the bar: ivy, hanging moss, or a whole wildwood.',
+    tags: const ['bar', 'leaves', 'plants', 'vines', 'ivy', 'moss', 'nature'],
+  );
+
+  static final foliageDensity = shellField(
+    'theme.foliage_density',
+    'Foliage density',
+    section: 'Appearance',
+    description: 'How much grows, as a multiple of the style’s own amount.',
+    tags: const ['bar', 'leaves', 'plants', 'amount'],
+  );
+
+  static final panelOverhang = shellField(
+    'theme.panel_overhang',
+    'Foliage overhang',
+    section: 'Appearance',
+    description:
+        'How far the foliage may hang past the bar, over the windows below. '
+        'Clicks on it reach the window underneath.',
+    tags: const ['bar', 'leaves', 'hang', 'overhang', 'reach'],
+  );
+
+  static final popupTexture = shellField(
+    'theme.popup_texture',
+    'Popup material',
+    section: 'Appearance',
+    description: 'What a menu card is made of, faintly, under its content.',
+    tags: const ['menu', 'card', 'texture', 'wood', 'material'],
+  );
+
+  static final popupBorderTexture = shellField(
+    'theme.popup_border_texture',
+    'Popup rim material',
+    section: 'Appearance',
+    description:
+        'What a menu card’s rim is made of. Bark around a dark card is a '
+        'trunk.',
+    tags: const ['menu', 'card', 'rim', 'border', 'bark', 'texture', 'trunk'],
+  );
+
+  static final popupImage = shellField(
+    'theme.popup_image',
+    'Popup picture',
+    section: 'Appearance',
+    description: 'A picture tiled over a menu card in place of its material.',
+    tags: const ['menu', 'card', 'image', 'picture', 'texture', 'file'],
+  );
+
+  static final popupRoots = shellField(
+    'theme.popup_roots',
+    'Popup roots',
+    section: 'Appearance',
+    description:
+        'How far roots spread along the bar from an attached menu, in its rim '
+        'material. Zero grows none.',
+    tags: const ['menu', 'roots', 'trunk', 'tree', 'attach'],
+  );
+
   /// The palette, in the order the Appearance pane draws it.
   static final List<ThemeColorSetting> themeColors = [
     ThemeColorSetting(
@@ -443,6 +553,55 @@ abstract final class SettingsCatalog {
         'popup_shadow_color',
         'Popup shadow',
         'The shadow under a menu card. Fully transparent turns it off.',
+      ),
+    ),
+    ThemeColorSetting(
+      'panel_texture_color',
+      _color(
+        'panel_texture_color',
+        'Panel material tint',
+        'The colour the bar’s material is drawn in. Its alpha is how strongly '
+            'it shows over the bar’s own fill.',
+      ),
+    ),
+    ThemeColorSetting(
+      'panel_end_color',
+      _color(
+        'panel_end_color',
+        'Panel end cap tint',
+        'The colour the end caps’ material is drawn in.',
+      ),
+    ),
+    ThemeColorSetting(
+      'foliage_color',
+      _color(
+        'foliage_color',
+        'Foliage',
+        'The canopy’s colour. Every leaf is jittered off it.',
+      ),
+    ),
+    ThemeColorSetting(
+      'foliage_bloom',
+      _color(
+        'foliage_bloom',
+        'Foliage blooms',
+        'Berries and flowers among the leaves.',
+      ),
+    ),
+    ThemeColorSetting(
+      'popup_texture_color',
+      _color(
+        'popup_texture_color',
+        'Popup material tint',
+        'The colour a menu card’s material is drawn in; alpha is its strength.',
+      ),
+    ),
+    ThemeColorSetting(
+      'popup_border_texture_color',
+      _color(
+        'popup_border_texture_color',
+        'Popup rim material tint',
+        'The colour a menu card’s rim material is drawn in.',
       ),
     ),
     ThemeColorSetting(
@@ -2290,6 +2449,18 @@ abstract final class SettingsCatalog {
     popupAnimation,
     popupAnimationDuration,
     overlayRadius,
+    panelTexture,
+    panelEndTexture,
+    panelEndLength,
+    panelBevel,
+    panelImage,
+    panelFoliage,
+    foliageDensity,
+    panelOverhang,
+    popupTexture,
+    popupBorderTexture,
+    popupImage,
+    popupRoots,
     for (final colour in themeColors) colour.field,
     ...moduleFields,
     panelHeight,

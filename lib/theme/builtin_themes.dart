@@ -25,99 +25,114 @@ const Map<String, String> kBuiltInThemes = {
 };
 
 const String _forest = '''
-# Forest — pine and moss over a near-black green, with a lit rim.
+# Forest — a timber beam on capstones, overgrown, with every menu a trunk.
 #
-# The palette is one hue held throughout: every surface is a green so dark it
-# reads as black until something is laid beside it, and the only saturated
-# green in the theme is the accent. That is what keeps a single-hue theme from
-# looking tinted — the colour is spent where it means something (the active
-# workspace, a pressed control, the bright end of the bar) and withheld
-# everywhere else.
+# The one shipped theme that is made of something. The bar is a plank of
+# oak (panel_texture) carved with a lit top edge and a shadowed lip
+# (panel_bevel), sitting on a mossy capstone at each end (panel_end_*), and
+# the woods have got to it: ivy hangs off its inner edge, moss drips from it,
+# ferns spring from the stones and amber berries catch the light among the
+# leaves (panel_foliage). The leaves hang past the bar and over the windows
+# beneath it — the bar's surface grows by panel_overhang to hold them, and
+# that strip is cut out of its input region, so the leaves are paint and a
+# click on one lands on the window behind it.
 #
-# It is a *floating* theme, like glassy, but for the opposite reason: glassy
-# needs a rim because a translucent bar has no edge of its own, while this one
-# is nearly opaque and wants the rim as the one lit line in the picture. The
-# bar and the popups therefore carry the same 1px sage edge and the same 10px
-# corner, so a menu reads as a pane dropped out of the pane it came from.
+# Every menu is a tree. It is attached (popup_gap = 0) so it grows out of the
+# bar rather than floating by it; its join flares like a trunk's foot
+# (popup_attach_radius); its rim is a thick band of bark (popup_border_*)
+# around a dark heartwood card with the faintest grain in it; roots spread
+# along the beam on either side of it (popup_roots); and it *grows* into
+# place, narrow and crowned at first and thickening as it rises
+# (popup_animation = "sprout"), while the leaves around its mouth shiver.
+#
+# None of it is an asset. The wood, the stones, the bark and every leaf are
+# drawn from seeded arithmetic (lib/decor/), so this file is the whole theme.
 name = "Forest"
 
 font = "Ubuntu Sans"
 font_size = 13.0
 
-# Sea green against pale birch. The accent is dark enough that kOnAccent's
-# white sits on it at better than 4:1, which is what lets it fill a button
-# rather than only outline one.
+# Sea green: the one saturated green, spent on what is active. Dark enough to
+# carry kOnAccent's white, so it fills a button rather than only outlining one.
 accent               = "#2E8B57"
-foreground           = "#E8F2EA"
-surface_hover        = "#1F4433"
-surface_pressed      = "#2A6B4C"
-workspace_background = "#101A15"
-popup_background     = "#F2121C16"
-popup_foreground     = "#E8F2EA"
-control_surface      = "#1A2A21"
-slider_track         = "#2A6B4C"
-# Secondary text is a desaturated sage rather than the accent: this theme's
-# accent is a fill colour, and reusing it for muted labels would put the one
-# saturated green in the palette on the least important text in the shell.
-muted                = "#8AA79A"
-divider              = "#33E8F2EA"
+# Birch-pale parchment, which holds its contrast on oak and on heartwood alike.
+foreground           = "#F4EDDD"
+# Moss over wood: a hovered button on the beam is a patch of moss on it.
+surface_hover        = "#4A6B35"
+surface_pressed      = "#5E8743"
+workspace_background = "#2B3A22"
+popup_background     = "#F51A1610"
+popup_foreground     = "#F4EDDD"
+control_surface      = "#2C2A1E"
+slider_track         = "#4A5E35"
+# Lichen: a pale, greyed sage for the secondary tier, never the accent.
+muted                = "#B5B39A"
+divider              = "#33F4EDDD"
 
-# Amber against a theme that is one green held throughout — the complementary
-# hue, which is why it carries across a screen of pine and moss.
-notification_badge   = "#F5A524"
-notification_badge_foreground = "#10231A"
-scrim                = "#88101A15"
+# Amber — the berries' colour, so "unread" is the warmest thing in the woods.
+notification_badge   = "#F0A53A"
+notification_badge_foreground = "#231708"
+scrim                = "#8A0E120B"
 
-# The bar fades sea green -> pine -> forest floor, all at panel_background's
-# alpha, so the bright end sits against the screen edge and the fade cannot
-# band across the middle.
-panel_background     = "#EE0E1712"
-panel_gradient       = true
+# The beam is opaque oak: the panel's own fill is the dark under the grain,
+# and the gradient is off because the wood is the picture.
+panel_background     = "#FF1E150D"
+panel_gradient       = false
 
-# A 6px gap on every anchored edge, cut by a real gtk-layer-shell margin so
-# nothing tiles into it and a click that lands there still reaches the desktop.
-# The rim is the point of the theme: a hairline of lit sage around a dark bar.
+# A floating beam, so the leaves hang from something that is visibly hung.
 panel_margin         = 6
-panel_radius         = 10.0
-panel_border         = "#594FB183"
-panel_border_width   = 1.0
+panel_radius         = 7.0
+# A dark bark line round the beam, broken where a trunk grows out of it.
+panel_border         = "#E61A0F07"
+panel_border_width   = 1.5
 
-# The same material as the bar: same corner, same rim.
-popup_radius         = 10.0
-popup_border         = "#594FB183"
-popup_border_width   = 1.0
+panel_texture        = "wood"
+panel_texture_color  = "#FF6E4A2A"
+panel_end_texture    = "stone"
+panel_end_color      = "#FF6C7166"
+panel_end_length     = 54.0
+panel_bevel          = 0.85
+panel_image          = ""
 
-# Its popups float too, for glassy's reason: this bar is lifted off the
-# screen by panel_margin, so a menu glued to it would be the only thing in the
-# picture touching anything, and matching that margin keeps the two gaps
-# equal. It would also cost the rim on the joined edge — the one
-# lit line this theme is built around — which an attached popup drops so no
-# seam crosses the join. popup_attach_radius is therefore unread here, and
-# spelled only because every theme spells every key.
-popup_gap            = 6.0
-popup_attach_radius  = 0.0
+panel_foliage        = "wildwood"
+foliage_color        = "#3F7D38"
+foliage_bloom        = "#E8A33C"
+foliage_density      = 1.0
+# How far the leaves may hang over the windows below the beam.
+panel_overhang       = 64
 
-# The lift is tinted with the theme's own darkest green rather than pure black,
-# so a card floating over a wallpaper drops a shadow that belongs to the
-# palette instead of a grey one.
-popup_shadow_color   = "#73060C09"
-popup_shadow_blur    = 20.0
-popup_shadow_spread  = -1.0
+# The menu is the trunk: a thick bark rim around heartwood with a ghost of
+# grain, its corners rounded like a trunk seen side on, and a foot that flares
+# into the beam.
+popup_radius         = 12.0
+popup_gap            = 0.0
+popup_attach_radius  = 14.0
+popup_border         = "#FF4A3322"
+popup_border_width   = 9.0
+popup_texture        = "wood"
+popup_texture_color  = "#1C7A5636"
+popup_border_texture = "bark"
+popup_border_texture_color = "#FF6B5340"
+popup_image          = ""
+popup_roots          = 34.0
+
+# Shade under the canopy: a deep, soft shadow tinted with the forest floor.
+popup_shadow_color   = "#99070A05"
+popup_shadow_blur    = 22.0
+popup_shadow_spread  = -2.0
 popup_shadow_offset_x = 0.0
-popup_shadow_offset_y = 8.0
+popup_shadow_offset_y = 10.0
 
-# A floating card has no join to travel out of, so it grows into place from its
-# own centre instead — the softer arrival this theme's rounder corners want.
-popup_animation      = "scale"
-popup_animation_duration = 140
+# Unhurried, because a tree is: the trunk takes a third of a second to rise.
+popup_animation      = "sprout"
+popup_animation_duration = 320
 
-overlay_radius       = 12.0
+overlay_radius       = 14.0
 
-# The overlays lift into place, a little more slowly than the default and
-# leaving faster than they came — the same unhurried arrival the floating
-# bar and its 10px corners are after.
+# The overlays lift into place, a little more slowly than the default, and
+# leave faster than they came.
 overlay_animation    = "rise"
-overlay_animation_duration = 200
+overlay_animation_duration = 220
 overlay_animation_exit_ratio = 0.8
 overlay_animation_curve = "ease_out"
 ''';
@@ -193,6 +208,27 @@ overlay_animation    = "zoom"
 overlay_animation_duration = 170
 overlay_animation_exit_ratio = 0.85
 overlay_animation_curve = "overshoot"
+# Made of nothing but colour: no material, no end caps, no carve, no picture,
+# nothing growing off the bar and no roots under the menus. Spelled anyway,
+# because a shipped theme leans on no default.
+panel_texture        = "none"
+panel_texture_color  = "#FF6B4A2E"
+panel_end_texture    = "none"
+panel_end_color      = "#FF6E726B"
+panel_end_length     = 0.0
+panel_bevel          = 0.0
+panel_image          = ""
+panel_foliage        = "none"
+foliage_color        = "#FF3E7A3A"
+foliage_bloom        = "#FFE0A13A"
+foliage_density      = 1.0
+panel_overhang       = 0
+popup_texture        = "none"
+popup_texture_color  = "#206B4A2E"
+popup_border_texture = "none"
+popup_border_texture_color = "#FF5A4030"
+popup_image          = ""
+popup_roots          = 0.0
 ''';
 
 const String _glassy = '''
@@ -296,6 +332,27 @@ overlay_animation    = "fade"
 overlay_animation_duration = 220
 overlay_animation_exit_ratio = 1.0
 overlay_animation_curve = "ease_in_out"
+# Made of nothing but colour: no material, no end caps, no carve, no picture,
+# nothing growing off the bar and no roots under the menus. Spelled anyway,
+# because a shipped theme leans on no default.
+panel_texture        = "none"
+panel_texture_color  = "#FF6B4A2E"
+panel_end_texture    = "none"
+panel_end_color      = "#FF6E726B"
+panel_end_length     = 0.0
+panel_bevel          = 0.0
+panel_image          = ""
+panel_foliage        = "none"
+foliage_color        = "#FF3E7A3A"
+foliage_bloom        = "#FFE0A13A"
+foliage_density      = 1.0
+panel_overhang       = 0
+popup_texture        = "none"
+popup_texture_color  = "#206B4A2E"
+popup_border_texture = "none"
+popup_border_texture_color = "#FF5A4030"
+popup_image          = ""
+popup_roots          = 0.0
 ''';
 
 const String _midnight = '''
@@ -411,6 +468,27 @@ overlay_animation    = "scale"
 overlay_animation_duration = 260
 overlay_animation_exit_ratio = 0.75
 overlay_animation_curve = "emphasized"
+# Made of nothing but colour: no material, no end caps, no carve, no picture,
+# nothing growing off the bar and no roots under the menus. Spelled anyway,
+# because a shipped theme leans on no default.
+panel_texture        = "none"
+panel_texture_color  = "#FF6B4A2E"
+panel_end_texture    = "none"
+panel_end_color      = "#FF6E726B"
+panel_end_length     = 0.0
+panel_bevel          = 0.0
+panel_image          = ""
+panel_foliage        = "none"
+foliage_color        = "#FF3E7A3A"
+foliage_bloom        = "#FFE0A13A"
+foliage_density      = 1.0
+panel_overhang       = 0
+popup_texture        = "none"
+popup_texture_color  = "#206B4A2E"
+popup_border_texture = "none"
+popup_border_texture_color = "#FF5A4030"
+popup_image          = ""
+popup_roots          = 0.0
 ''';
 
 const String _carbon = '''
@@ -566,4 +644,25 @@ overlay_animation    = "unfold"
 overlay_animation_duration = 140
 overlay_animation_exit_ratio = 0.75
 overlay_animation_curve = "ease_out"
+# Made of nothing but colour: no material, no end caps, no carve, no picture,
+# nothing growing off the bar and no roots under the menus. Spelled anyway,
+# because a shipped theme leans on no default.
+panel_texture        = "none"
+panel_texture_color  = "#FF6B4A2E"
+panel_end_texture    = "none"
+panel_end_color      = "#FF6E726B"
+panel_end_length     = 0.0
+panel_bevel          = 0.0
+panel_image          = ""
+panel_foliage        = "none"
+foliage_color        = "#FF3E7A3A"
+foliage_bloom        = "#FFE0A13A"
+foliage_density      = 1.0
+panel_overhang       = 0
+popup_texture        = "none"
+popup_texture_color  = "#206B4A2E"
+popup_border_texture = "none"
+popup_border_texture_color = "#FF5A4030"
+popup_image          = ""
+popup_roots          = 0.0
 ''';

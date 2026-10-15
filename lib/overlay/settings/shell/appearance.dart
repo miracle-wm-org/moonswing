@@ -4,12 +4,15 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings/settings_search.dart' show SettingsField;
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/font_catalog.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/decor/material_textures.dart';
 import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/theme_store.dart';
 
 /// Theme picker + editor.
@@ -539,6 +542,81 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                // What the bar and its menus are made of. Every one of these
+                // is off at its default, so a theme that names none of them is
+                // drawn exactly as it always was.
+                _materialRow(
+                  SettingsCatalog.panelTexture,
+                  'panel_texture',
+                  current,
+                  active,
+                ),
+                _materialRow(
+                  SettingsCatalog.panelEndTexture,
+                  'panel_end_texture',
+                  current,
+                  active,
+                ),
+                _numberRow(SettingsCatalog.panelEndLength, 'panel_end_length',
+                    current, active, max: 256),
+                _numberRow(
+                    SettingsCatalog.panelBevel, 'panel_bevel', current, active,
+                    max: 1),
+                _pictureRow(
+                    SettingsCatalog.panelImage, 'panel_image', current, active),
+                SettingsRow.field(
+                  SettingsCatalog.panelFoliage,
+                  control: SettingsDropdown<FoliageStyle>(
+                    key: ValueKey('panel_foliage-$active'),
+                    items: [
+                      for (final style in FoliageStyle.values)
+                        SettingsDropdownItem<FoliageStyle>(
+                          value: style,
+                          label: style.label,
+                          description: style.description,
+                        ),
+                    ],
+                    selected: FoliageStyle.fromSlug(
+                            current['panel_foliage'] as String?) ??
+                        FoliageStyle.none,
+                    onSelected: (v) => _themes.edit('panel_foliage', v.slug),
+                  ),
+                ),
+                _numberRow(SettingsCatalog.foliageDensity, 'foliage_density',
+                    current, active, max: 3),
+                SettingsRow.field(
+                  SettingsCatalog.panelOverhang,
+                  info:
+                      'The bar’s surface grows by this much to hold what '
+                      'hangs off it, and the strip is handed back to the '
+                      'windows underneath: a click on a leaf reaches the '
+                      'window behind it, and windows still tile right up to '
+                      'the bar.',
+                  control: SettingsNumberField(
+                    key: ValueKey('panel_overhang-$active'),
+                    value: current['panel_overhang'] as num? ?? 0,
+                    isInt: true,
+                    onChanged: (v) => _themes.edit(
+                        'panel_overhang', v.toInt().clamp(0, 160)),
+                  ),
+                ),
+                _materialRow(
+                  SettingsCatalog.popupTexture,
+                  'popup_texture',
+                  current,
+                  active,
+                ),
+                _materialRow(
+                  SettingsCatalog.popupBorderTexture,
+                  'popup_border_texture',
+                  current,
+                  active,
+                ),
+                _pictureRow(
+                    SettingsCatalog.popupImage, 'popup_image', current, active),
+                _numberRow(
+                    SettingsCatalog.popupRoots, 'popup_roots', current, active,
+                    max: 96),
                 // The palette's labels live in [SettingsCatalog] rather than
                 // in a map here, so the search index and these rows are the
                 // same list read twice — see [ThemeColorSetting].
@@ -570,6 +648,86 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       ],
     );
   }
+
+  /// A row choosing one [SurfaceMaterial] for [key].
+  Widget _materialRow(SettingsField field, String key,
+          Map<String, dynamic> current, String active) =>
+      SettingsRow.field(
+        field,
+        control: SettingsDropdown<SurfaceMaterial>(
+          key: ValueKey('$key-$active'),
+          items: [
+            for (final m in SurfaceMaterial.values)
+              SettingsDropdownItem<SurfaceMaterial>(
+                value: m,
+                label: m.label,
+                description: m.description,
+              ),
+          ],
+          selected: SurfaceMaterial.fromSlug(current[key] as String?) ??
+              SurfaceMaterial.none,
+          onSelected: (v) => _themes.edit(key, v.slug),
+        ),
+      );
+
+  /// A row editing a non-negative number [key], clamped to [max] as
+  /// `ThemeConfig` clamps it.
+  Widget _numberRow(SettingsField field, String key,
+          Map<String, dynamic> current, String active,
+          {required double max}) =>
+      SettingsRow.field(
+        field,
+        control: SettingsNumberField(
+          key: ValueKey('$key-$active'),
+          value: current[key] as num? ?? 0,
+          isInt: false,
+          onChanged: (v) => _themes.edit(key, v.toDouble().clamp(0.0, max)),
+        ),
+      );
+
+  /// A row naming a picture file for [key], and saying so when it will not
+  /// load — a failure is a visible state, with a retry.
+  Widget _pictureRow(SettingsField field, String key,
+          Map<String, dynamic> current, String active) =>
+      SettingsRow.field(
+        field,
+        control: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SettingsCommitField(
+              key: ValueKey('$key-$active'),
+              width: 260,
+              initial: current[key] as String? ?? '',
+              hint: 'None',
+              onCommitted: (v) => _themes.edit(key, v.trim()),
+            ),
+            ListenableBuilder(
+              listenable: MaterialTextures.instance,
+              builder: (context, _) {
+                final failure = MaterialTextures.instance
+                    .failureFor(_themes.theme.toMap()[key] as String? ?? '');
+                if (failure == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(child: SettingsHint(failure)),
+                      const SizedBox(width: 8),
+                      SettingsOptionButton(
+                        label: 'Retry',
+                        selected: false,
+                        onTap: MaterialTextures.instance.retryFailed,
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      );
 }
 
 /// One theme in the picker: a strip of its own colours, its name, and a tick

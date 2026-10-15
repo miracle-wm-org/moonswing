@@ -8,6 +8,7 @@ import 'package:flutter/painting.dart' show HSLColor;
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/theme/popup_effect.dart';
+import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// The theme selected when `config.toml` names none, and the one every
@@ -46,6 +47,8 @@ enum _ThemeKeyKind {
   effect,
   overlayEffect,
   overlayCurve,
+  material,
+  foliage,
 }
 
 /// One TOML theme key: its spelling, its kind, its clamp range, and where it
@@ -101,6 +104,12 @@ class _ThemeKey {
       case _ThemeKeyKind.overlayCurve:
         return OverlayCurve.fromSlug(map.stringOrNull(key)) ??
             fallback as OverlayCurve;
+      case _ThemeKeyKind.material:
+        return SurfaceMaterial.fromSlug(map.stringOrNull(key)) ??
+            fallback as SurfaceMaterial;
+      case _ThemeKeyKind.foliage:
+        return FoliageStyle.fromSlug(map.stringOrNull(key)) ??
+            fallback as FoliageStyle;
     }
   }
 
@@ -116,6 +125,10 @@ class _ThemeKey {
         return (value as OverlayEffect).slug;
       case _ThemeKeyKind.overlayCurve:
         return (value as OverlayCurve).slug;
+      case _ThemeKeyKind.material:
+        return (value as SurfaceMaterial).slug;
+      case _ThemeKeyKind.foliage:
+        return (value as FoliageStyle).slug;
       default:
         return value;
     }
@@ -414,6 +427,118 @@ class ThemeConfig {
   // the filter had an empty backdrop and changed no pixel while every animated
   // frame paid for a full-output Gaussian. Translucency comes from alpha instead.
 
+
+  // -------------------------------------------------------------------------
+  // Materials, pictures and foliage
+  //
+  // Everything below is off at its default, and off means *absent*: no tile is
+  // generated, no painter is built, no surface grows. A theme that spells none
+  // of these is painted exactly as it was before they existed.
+  // -------------------------------------------------------------------------
+
+  /// What the bar is made of, painted over [panelBackground] (and over the
+  /// gradient, when [panelGradient] is on). See `lib/decor/`.
+  final SurfaceMaterial panelTexture;
+
+  /// The tint [panelTexture] is generated in. Its **alpha is the material's
+  /// strength** over the bar's own fill: opaque replaces it, and a low alpha
+  /// is a grain glimpsed through the colour.
+  final Color panelTextureColor;
+
+  /// What the two *ends* of the bar are made of — capstones on a beam, brass
+  /// on mahogany. Painted over [panelEndLength] at each end of the bar's main
+  /// axis, with a seam where the two materials meet.
+  final SurfaceMaterial panelEndTexture;
+
+  /// The tint [panelEndTexture] is generated in; alpha is its strength.
+  final Color panelEndColor;
+
+  /// How far along the bar each end cap reaches, in logical pixels. 0 paints
+  /// no caps whatever [panelEndTexture] says.
+  final double panelEndLength;
+
+  /// How deeply the bar is carved: a light bevel along the edge facing the
+  /// light and a shadow along the one facing away, from 0 (flat) to 1. What
+  /// turns a textured strip into a beam with a thickness.
+  final double panelBevel;
+
+  /// A picture tiled over the bar in place of [panelTexture] — absolute, `~/`,
+  /// or relative to the themes directory. Empty is none. Until it has loaded,
+  /// and for good if it will not, the material is painted instead: a missing
+  /// file costs the picture, never the bar.
+  final String panelImage;
+
+  /// What grows off the bar's inner edge. Read only when [panelOverhang] is
+  /// above zero, because that is the room it has to grow into.
+  final FoliageStyle panelFoliage;
+
+  /// The leaves' base colour. Every leaf is jittered off it in hue and
+  /// lightness, so this is the colour of the canopy, not of any one leaf.
+  final Color foliageColor;
+
+  /// Berries and flowers: the one warm note in a green picture.
+  final Color foliageBloom;
+
+  /// How much grows, as a multiplier on the style's own recipe. 1 is the
+  /// recipe as written.
+  final double foliageDensity;
+
+  /// How far past the bar's inner edge its foliage may reach, in logical
+  /// pixels — over the windows beneath it.
+  ///
+  /// This **grows the bar's surface** by that much, and the growth is cut out
+  /// of the surface's *input region*, so a click on a hanging leaf reaches the
+  /// window under it. The exclusive zone does not move: windows still tile up
+  /// to the bar itself, and the foliage hangs over them. If the shell cannot
+  /// set an input region the surface is not grown and nothing hangs, because
+  /// a strip of leaves that swallowed every click beneath it would be a
+  /// broken bar rather than a decorated one.
+  final int panelOverhang;
+
+  /// What a popup card is made of, under its content. Alpha of
+  /// [popupTextureColor] is its strength over [popupBackground] — a card is
+  /// read, so a theme keeps this low.
+  final SurfaceMaterial popupTexture;
+
+  /// The tint [popupTexture] is generated in; alpha is its strength.
+  final Color popupTextureColor;
+
+  /// What a popup's *rim* is made of: [popupBorderWidth] of bark around a
+  /// smooth card is a trunk. Painted in place of [popupBorder]'s flat colour.
+  final SurfaceMaterial popupBorderTexture;
+
+  /// The tint [popupBorderTexture] is generated in.
+  final Color popupBorderTextureColor;
+
+  /// A picture tiled over a popup card in place of [popupTexture]. Resolved
+  /// and degraded the way [panelImage] is.
+  final String popupImage;
+
+  /// How far roots spread along the bar from either side of an attached
+  /// popup's mouth, in logical pixels, painted in [popupBorderTexture] — so a
+  /// menu reads as a trunk growing out of the bar rather than a card glued to
+  /// it. Read only at [popupGap] 0, where there is a join to grow from.
+  final double popupRoots;
+
+  /// How far this bar's surface reaches past the bar: [panelOverhang] when
+  /// something grows into it, and 0 otherwise — an overhang with nothing in it
+  /// would be a margin of surface for no paint.
+  int get panelReach => panelFoliage.grows ? panelOverhang : 0;
+
+  /// Whether the bar paints anything over its fill at all.
+  bool get panelHasDecor =>
+      panelTexture.paints ||
+      panelImage.isNotEmpty ||
+      (panelEndTexture.paints && panelEndLength > 0) ||
+      panelBevel > 0 ||
+      (popupRoots > 0 && popupGap <= 0);
+
+  /// Whether a popup card is anything but a flat fill and a flat rim.
+  bool get popupHasMaterial =>
+      popupTexture.paints ||
+      popupImage.isNotEmpty ||
+      (popupBorderTexture.paints && popupBorderWidth > 0);
+
   final String fontFamily;
 
   /// The shell's body text size, and through it every other size in the shell.
@@ -505,6 +630,24 @@ class ThemeConfig {
     this.scrim = const Color(0x882C2C2C),
     this.fontFamily = 'Ubuntu Sans',
     this.fontSize = ShellFontSizes.body,
+    this.panelTexture = SurfaceMaterial.none,
+    this.panelTextureColor = const Color(0xFF6B4A2E),
+    this.panelEndTexture = SurfaceMaterial.none,
+    this.panelEndColor = const Color(0xFF6E726B),
+    this.panelEndLength = 0.0,
+    this.panelBevel = 0.0,
+    this.panelImage = '',
+    this.panelFoliage = FoliageStyle.none,
+    this.foliageColor = const Color(0xFF3E7A3A),
+    this.foliageBloom = const Color(0xFFE0A13A),
+    this.foliageDensity = 1.0,
+    this.panelOverhang = 0,
+    this.popupTexture = SurfaceMaterial.none,
+    this.popupTextureColor = const Color(0x206B4A2E),
+    this.popupBorderTexture = SurfaceMaterial.none,
+    this.popupBorderTextureColor = const Color(0xFF5A4030),
+    this.popupImage = '',
+    this.popupRoots = 0.0,
   });
 
   /// Every theme key, in the order [toMap] writes them; the colour subsequence is
@@ -594,6 +737,38 @@ class ThemeConfig {
     _ThemeKey(
         'overlay_animation_curve', _ThemeKeyKind.overlayCurve, (t) => t.overlayCurve),
     _ThemeKey('scrim', _ThemeKeyKind.color, (t) => t.scrim),
+    _ThemeKey('panel_texture', _ThemeKeyKind.material, (t) => t.panelTexture),
+    _ThemeKey(
+        'panel_texture_color', _ThemeKeyKind.color, (t) => t.panelTextureColor),
+    _ThemeKey(
+        'panel_end_texture', _ThemeKeyKind.material, (t) => t.panelEndTexture),
+    _ThemeKey('panel_end_color', _ThemeKeyKind.color, (t) => t.panelEndColor),
+    _ThemeKey('panel_end_length', _ThemeKeyKind.number, (t) => t.panelEndLength,
+        min: 0.0, max: 256.0),
+    _ThemeKey('panel_bevel', _ThemeKeyKind.number, (t) => t.panelBevel,
+        min: 0.0, max: 1.0),
+    _ThemeKey('panel_image', _ThemeKeyKind.text, (t) => t.panelImage),
+    _ThemeKey('panel_foliage', _ThemeKeyKind.foliage, (t) => t.panelFoliage),
+    _ThemeKey('foliage_color', _ThemeKeyKind.color, (t) => t.foliageColor),
+    _ThemeKey('foliage_bloom', _ThemeKeyKind.color, (t) => t.foliageBloom),
+    // A multiplier on a recipe, so 0 is a bare bar and the ceiling is where a
+    // bar is more leaf than bar — and every plant is a path the painter walks.
+    _ThemeKey('foliage_density', _ThemeKeyKind.number, (t) => t.foliageDensity,
+        min: 0.0, max: 3.0),
+    // The surface grows by this much, so the ceiling is a generous fringe
+    // rather than a curtain: past it the leaves are no longer hanging off a bar.
+    _ThemeKey('panel_overhang', _ThemeKeyKind.integer, (t) => t.panelOverhang,
+        min: 0.0, max: 160.0),
+    _ThemeKey('popup_texture', _ThemeKeyKind.material, (t) => t.popupTexture),
+    _ThemeKey(
+        'popup_texture_color', _ThemeKeyKind.color, (t) => t.popupTextureColor),
+    _ThemeKey('popup_border_texture', _ThemeKeyKind.material,
+        (t) => t.popupBorderTexture),
+    _ThemeKey('popup_border_texture_color', _ThemeKeyKind.color,
+        (t) => t.popupBorderTextureColor),
+    _ThemeKey('popup_image', _ThemeKeyKind.text, (t) => t.popupImage),
+    _ThemeKey('popup_roots', _ThemeKeyKind.number, (t) => t.popupRoots,
+        min: 0.0, max: 96.0),
   ];
 
   static Color _parseColor(String? hex, Color fallback) {
@@ -666,6 +841,24 @@ class ThemeConfig {
       overlayExitRatio: v('overlay_animation_exit_ratio'),
       overlayCurve: v('overlay_animation_curve'),
       scrim: v('scrim'),
+      panelTexture: v('panel_texture'),
+      panelTextureColor: v('panel_texture_color'),
+      panelEndTexture: v('panel_end_texture'),
+      panelEndColor: v('panel_end_color'),
+      panelEndLength: v('panel_end_length'),
+      panelBevel: v('panel_bevel'),
+      panelImage: (v<String>('panel_image')).trim(),
+      panelFoliage: v('panel_foliage'),
+      foliageColor: v('foliage_color'),
+      foliageBloom: v('foliage_bloom'),
+      foliageDensity: v('foliage_density'),
+      panelOverhang: v('panel_overhang'),
+      popupTexture: v('popup_texture'),
+      popupTextureColor: v('popup_texture_color'),
+      popupBorderTexture: v('popup_border_texture'),
+      popupBorderTextureColor: v('popup_border_texture_color'),
+      popupImage: (v<String>('popup_image')).trim(),
+      popupRoots: v('popup_roots'),
     );
   }
 
