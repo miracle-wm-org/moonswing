@@ -120,4 +120,4 @@ without `==` the notifier behind `LiveConfigScope` could never refuse one.
 | `native/`, `wayland_ffi/`, `pipewire/` | dlopen plumbing, libwayland bindings, libpipewire + SPA |
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
 | `default_apps/` | Settings › Default Apps: which application opens each kind of file, through GIO's `mimeapps.list` |
-| `keybinds/` | The cheat sheet behind the bar's keyboard icon — the compositor's bindings, read only, and the shell's own, editable in place |
+| `keybinds/` | The cheat sheet the bar's keyboard icon opens as the overview's Shortcuts tab — the compositor's bindings, read only, and the shell's own, editable in place |

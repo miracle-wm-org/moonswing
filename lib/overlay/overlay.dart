@@ -1,8 +1,11 @@
 // ignore_for_file: library_private_types_in_public_api
 
+import 'dart:math' as math;
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/keybinds/keybind_cheatsheet.dart';
 import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
@@ -29,6 +32,7 @@ import 'package:moonswing/overlay/system_info/system_info_tab.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/tab_focus_traversal.dart';
+import 'package:moonswing/todo/todo_board.dart';
 
 /// The panel is a share of the display rather than a fixed box, so it reads the
 /// same on a 1080p laptop and on a 4K desktop. 16:10 is a little squarer than
@@ -81,8 +85,8 @@ Size overlayPanelSize(Size available) {
 /// the scrim [FadeOverlayScaffold] paints behind it instead.
 Color overlayPanelFill(ThemeConfig theme) => opaquePopupFill(theme);
 
-/// One top-level tab in the overlay. Adding a tab is one entry here plus one
-/// child in the [IndexedStack] that [_SettingsOverlayState] builds.
+/// One top-level tab in the overlay. Adding a tab is one entry here, an
+/// [OverviewTab] id, and one case in [_SettingsOverlayState._buildTab].
 class _OverlayTab {
   const _OverlayTab({
     required this.id,
@@ -97,25 +101,54 @@ class _OverlayTab {
 
 const List<_OverlayTab> _tabs = [
   _OverlayTab(
-    id: 'calendar',
+    id: OverviewTab.calendar,
     label: 'Calendar',
     icon: FontAwesomeIcons.calendarDays,
   ),
-  _OverlayTab(id: 'system', label: 'Monitor', icon: FontAwesomeIcons.microchip),
   _OverlayTab(
-    id: 'systeminfo',
+    id: OverviewTab.system,
+    label: 'Monitor',
+    icon: FontAwesomeIcons.microchip,
+  ),
+  _OverlayTab(
+    id: OverviewTab.systemInfo,
     label: 'System Info',
     icon: FontAwesomeIcons.circleInfo,
   ),
-  _OverlayTab(id: 'settings', label: 'Settings', icon: FontAwesomeIcons.gear),
+  _OverlayTab(
+    id: OverviewTab.settings,
+    label: 'Settings',
+    icon: FontAwesomeIcons.gear,
+  ),
+  // The board and the cheat sheet used to be full-screen windows of their
+  // own, opened by their bar buttons. They are tabs so that the overview is
+  // the one place a workspace opens: one window, one close, one position.
+  _OverlayTab(
+    id: OverviewTab.todo,
+    label: 'Todo',
+    icon: FontAwesomeIcons.listCheck,
+  ),
+  _OverlayTab(
+    id: OverviewTab.shortcuts,
+    label: 'Shortcuts',
+    icon: FontAwesomeIcons.keyboard,
+  ),
 ];
 
+/// Whether [tab] is one of the overview's tab ids.
+bool isOverviewTab(String tab) => _tabs.any((t) => t.id == tab);
+
+/// The overview: the clock's panel, and the window the todo and keyboard
+/// buttons open on their own tabs.
+///
+/// One card on a scrim, moved by dragging its tab strip and never resized.
 class SettingsOverlay extends StatefulWidget {
   const SettingsOverlay({
     super.key,
     required this.closingNotifier,
     required this.onClosed,
     this.route,
+    this.tab,
   });
 
   final ValueNotifier<bool> closingNotifier;
@@ -124,6 +157,13 @@ class SettingsOverlay extends StatefulWidget {
   /// Where to open. Null keeps the historical behaviour — the calendar tab,
   /// which is what clicking the clock most plausibly means.
   final SettingsRoute? route;
+
+  /// The visible tab, shared with the root: this overlay writes every change
+  /// of tab into it, and switches to whatever the root writes. It is how a bar
+  /// button retargets an open overview in place — or, finding its own tab
+  /// already showing, closes it — without the close-and-reopen a [route]
+  /// needs.
+  final ValueNotifier<String>? tab;
 
   @override
   _SettingsOverlayState createState() => _SettingsOverlayState();
@@ -155,13 +195,39 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   late String _selectedTab;
   late String _selectedCategory;
 
+  /// The tabs that have been shown since the overlay opened. A tab is built
+  /// the first time it is visited and kept from then on, so the overview does
+  /// not pay for a todo board, a keybind round trip and a process walk every
+  /// time somebody clicks the clock to read the date.
+  final Set<String> _visited = {};
+
+  /// Where the panel is, as an offset from the centre of the output. Shared
+  /// with [FadeOverlayScaffold], which positions the card from it, so a drag
+  /// relayouts one box and rebuilds nothing.
+  late final ValueNotifier<Offset> _offset = ValueNotifier(_lastOffset);
+
+  /// Where the panel was last left, so the next overview opens there. For the
+  /// session only: a position is about the windows on screen right now, and a
+  /// remembered one on a smaller monitor is clamped back onto it anyway.
+  static Offset _lastOffset = Offset.zero;
+
+  /// How far the panel can move from the centre each way and stay on screen,
+  /// as of the last layout.
+  Offset _maxOffset = Offset.zero;
+
   @override
   void initState() {
     super.initState();
     // Seeded once. The body is an IndexedStack built inside an Overlay entry,
     // so a route is a starting point rather than a live address — the root
-    // reopens the overlay to retarget it.
-    _selectedTab = widget.route?.tab ?? 'calendar';
+    // reopens the overlay to retarget it, except to another tab alone, which
+    // goes through [SettingsOverlay.tab].
+    final tab = widget.route?.tab;
+    _selectedTab = tab != null && isOverviewTab(tab)
+        ? tab
+        : OverviewTab.calendar;
+    widget.tab?.value = _selectedTab;
+    widget.tab?.addListener(_onTabRequested);
     _selectedCategory = widget.route?.category ?? 'network';
     // The Window Manager pane is greyed out on any other compositor, so a
     // route into it lands where a route naming nothing would.
@@ -184,14 +250,25 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
           // themes playing exactly what they played before.
           durationScale: ShellDurations.overlayEntrance.inMilliseconds /
               ShellDurations.overlayFade.inMilliseconds,
+          // Moved by dragging the tab strip; see [_moveBy].
+          offset: _offset,
           // No backdrop-tap dismiss, deliberately: the settings panel is a
           // workspace, and a stray click on the scrim losing an in-progress
           // edit would be worse than needing Escape or the close button.
           child: LayoutBuilder(
             // As the scaffold's child this is built once per surface-size
             // change, not on every animation frame.
-            builder: (context, constraints) =>
-                _buildPanel(theme, overlayPanelSize(constraints.biggest)),
+            builder: (context, constraints) {
+              final available = constraints.biggest;
+              final size = overlayPanelSize(available);
+              _maxOffset = Offset(
+                math.max(0.0, (available.width - size.width) / 2),
+                math.max(0.0, (available.height - size.height) / 2),
+              );
+              // Its own layer, so a drag moves a recorded picture instead of
+              // re-recording a workspace of text on every pointer event.
+              return RepaintBoundary(child: _buildPanel(theme, size));
+            },
           ),
         );
       },
@@ -204,8 +281,47 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   void _selectTab(String tab) {
-    _selectedTab = tab;
+    if (tab == _selectedTab || !isOverviewTab(tab)) return;
+    _setTab(tab);
+    // The keyboard comes back to the panel's own listener, off whatever field
+    // the tab being left had it in: a hidden tab is behind the IndexedStack's
+    // `ExcludeFocus`, and Escape has to keep reaching somebody. A tab that
+    // wants it — the board's search — takes it once it is shown.
+    _focusNode.requestFocus();
     _panelEntry.markNeedsBuild();
+  }
+
+  /// Records [tab] as the visible one, here and in [SettingsOverlay.tab].
+  void _setTab(String tab) {
+    _selectedTab = tab;
+    widget.tab?.value = tab;
+  }
+
+  /// The root wrote a tab into [SettingsOverlay.tab].
+  void _onTabRequested() {
+    final tab = widget.tab?.value;
+    if (tab != null) _selectTab(tab);
+  }
+
+  /// A page of the Settings tab, from inside the overview — the todo board's
+  /// "Open Accounts settings". In place, since the overview is already where
+  /// that page is.
+  void _openSettingsPage(SettingsRoute route) {
+    _selectedCategory = route.category;
+    if (_selectedTab != OverviewTab.settings) {
+      _selectTab(OverviewTab.settings);
+    } else {
+      _panelEntry.markNeedsBuild();
+    }
+  }
+
+  /// A drag on the tab strip, clamped so that the whole panel stays on screen.
+  void _moveBy(Offset delta) {
+    final next = _offset.value + delta;
+    _offset.value = Offset(
+      next.dx.clamp(-_maxOffset.dx, _maxOffset.dx),
+      next.dy.clamp(-_maxOffset.dy, _maxOffset.dy),
+    );
   }
 
   void _requestClose() {
@@ -219,7 +335,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   /// and category are this widget's, while the pane's route is a nested
   /// `Navigator`'s and a row's offset is a `Scrollable`'s.
   void _jumpToSetting(SettingsField field) {
-    _selectedTab = field.route.tab;
+    _setTab(field.route.tab);
     _selectedCategory = field.route.category;
     // Published *before* the rebuild, so a Shell pane being built for the
     // first time — the user was on Audio, say — can seed its initial route
@@ -234,6 +350,9 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
 
   @override
   void dispose() {
+    widget.tab?.removeListener(_onTabRequested);
+    _lastOffset = _offset.value;
+    _offset.dispose();
     _focusNode.dispose();
     _searchFocus.dispose();
     _highlight.dispose();
@@ -278,7 +397,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
                 // search bar is the Settings tab's alone.
                 if (event.logicalKey == LogicalKeyboardKey.keyF &&
                     HardwareKeyboard.instance.isControlPressed &&
-                    _selectedTab == 'settings') {
+                    _selectedTab == OverviewTab.settings) {
                   _searchFocus.requestFocus();
                 }
               },
@@ -307,6 +426,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   Widget _buildPanel(ThemeConfig theme, Size size) {
+    _visited.add(_selectedTab);
     return SizedBox(
       width: size.width,
       height: size.height,
@@ -315,61 +435,18 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header: the tab bar, plus the close button.
-            Container(
-              padding: const EdgeInsets.only(
-                left: 16,
-                right: 12,
-                top: 8,
-                bottom: 0,
-              ),
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: theme.divider)),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Row(
-                      children: [
-                        for (final tab in _tabs)
-                          UnderlineTab(
-                            label: tab.label,
-                            icon: tab.icon,
-                            selected: _selectedTab == tab.id,
-                            onTap: () => _selectTab(tab.id),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: HoverRegion(
-                      onTap: _requestClose,
-                      builder: (context, hovered) => Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(ShellRadii.control),
-                          color: hovered
-                              ? theme.surfaceHover
-                              : const Color(0x00000000),
-                        ),
-                        child: Center(
-                          child: Text(
-                            '✕',
-                            style: TextStyle(
-                              fontSize: ShellFontSizes.title,
-                              color: theme.popupForeground.withValues(
-                                alpha: hovered ? 0.9 : 0.6,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            // Header: the tab bar, plus the close button — and the handle the
+            // panel is moved by. A pan rather than a drag on press, so a click
+            // on a tab is still a click: the tab's tap wins unless the pointer
+            // travels past the slop first.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanUpdate: (details) => _moveBy(details.delta),
+              child: MouseRegion(
+                // The tabs and the close button keep their own pointer cursor;
+                // the strip between and beside them says it can be dragged.
+                cursor: SystemMouseCursors.move,
+                child: _buildHeader(theme),
               ),
             ),
             // Body. An IndexedStack rather than a switch: the settings tab hosts
@@ -381,16 +458,18 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
             // The flip side is that every tab stays alive once built, so a tab
             // that polls must be told when it is not the visible one and stop.
             // That is what SystemTab.active and CalendarTab.active are for — the
-            // latter drives the world clocks' one-second timer.
+            // latter drives the world clocks' one-second timer. A tab not yet
+            // visited is not built at all; see [_visited].
             Expanded(
               child: IndexedStack(
                 index: _tabs.indexWhere((t) => t.id == _selectedTab),
                 sizing: StackFit.expand,
                 children: [
-                  CalendarTab(active: _selectedTab == 'calendar'),
-                  SystemTab(active: _selectedTab == 'system'),
-                  const SystemInfoTab(),
-                  _buildSettingsBody(theme),
+                  for (final tab in _tabs)
+                    if (_visited.contains(tab.id))
+                      _buildTab(tab.id, theme)
+                    else
+                      const SizedBox.shrink(),
                 ],
               ),
             ),
@@ -398,6 +477,92 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         ),
       ),
     );
+  }
+
+  /// The tab strip and the close button.
+  Widget _buildHeader(ThemeConfig theme) {
+    return Container(
+      padding: const EdgeInsets.only(
+        left: 16,
+        right: 12,
+        top: 8,
+        bottom: 0,
+      ),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: theme.divider)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                for (final tab in _tabs)
+                  UnderlineTab(
+                    label: tab.label,
+                    icon: tab.icon,
+                    selected: _selectedTab == tab.id,
+                    onTap: () => _selectTab(tab.id),
+                  ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: HoverRegion(
+              onTap: _requestClose,
+              builder: (context, hovered) => Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(ShellRadii.control),
+                  color: hovered
+                      ? theme.surfaceHover
+                      : const Color(0x00000000),
+                ),
+                child: Center(
+                  child: Text(
+                    '✕',
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.title,
+                      color: theme.popupForeground.withValues(
+                        alpha: hovered ? 0.9 : 0.6,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTab(String tab, ThemeConfig theme) {
+    final active = _selectedTab == tab;
+    switch (tab) {
+      case OverviewTab.calendar:
+        return CalendarTab(active: active);
+      case OverviewTab.system:
+        return SystemTab(active: active);
+      case OverviewTab.systemInfo:
+        return const SystemInfoTab();
+      case OverviewTab.settings:
+        return _buildSettingsBody(theme);
+      case OverviewTab.todo:
+        return TodoBoard(
+          // The overview's own: Escape with nothing left on the board to back
+          // out of closes the overview, and a date picker goes as it leaves.
+          closingNotifier: widget.closingNotifier,
+          active: active,
+          onOpenAccounts: () => _openSettingsPage(SettingsRoute.accounts),
+        );
+      case OverviewTab.shortcuts:
+        return const KeybindCheatsheet();
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _buildSettingsBody(ThemeConfig theme) {

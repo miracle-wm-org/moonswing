@@ -31,6 +31,7 @@ class FadeOverlayScaffold extends StatefulWidget {
     required this.onClosed,
     this.durationScale = 1.0,
     this.onBackdropTap,
+    this.offset,
     required this.child,
   });
 
@@ -54,6 +55,17 @@ class FadeOverlayScaffold extends StatefulWidget {
   /// dismiss-on-backdrop a mouse-only user has no way out. Null for overlays
   /// that handle (or refuse) backdrop clicks themselves.
   final VoidCallback? onBackdropTap;
+
+  /// How far the card sits from the centre of the surface, for a card the
+  /// user has moved. Null is the centre for good.
+  ///
+  /// Applied as the card's *position* — never a transform over it, and never
+  /// inside the [OverlayTransition], whose render objects hit-test against
+  /// their own untranslated box and would drop every click on a card dragged
+  /// off it. Clamped at layout, so whatever is asked for, the card stays on
+  /// the surface; a move costs a relayout of this one box, which re-lays its
+  /// child out only if the constraints changed, and they do not.
+  final ValueListenable<Offset>? offset;
 
   /// The centred card.
   final Widget child;
@@ -220,8 +232,8 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
         // Built outside the scrim's builder, and driven by transition widgets
         // rather than by a rebuild of this scaffold: the card, the `Center` and
         // the transform stop being rebuilt on every frame of the animation.
-        Center(
-          child: OverlayTransition(
+        _placeCard(
+          OverlayTransition(
             effect: _effect ?? OverlayEffect.scale,
             geometry: _geometry ?? kAlwaysCompleteAnimation,
             opacity: opacity ?? kAlwaysCompleteAnimation,
@@ -242,6 +254,54 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
     }
     return backdrop;
   }
+
+  Widget _placeCard(Widget card) {
+    final offset = widget.offset;
+    if (offset == null) return Center(child: card);
+    // Fills the stack, so the delegate is handed the whole surface to place
+    // the card in — and so a click anywhere on it reaches the card wherever it
+    // has been moved to.
+    return Positioned.fill(
+      child: CustomSingleChildLayout(
+        delegate: _CardPlacement(offset),
+        child: card,
+      ),
+    );
+  }
+}
+
+/// Centres the card, moves it by [offset], and keeps it on the surface.
+class _CardPlacement extends SingleChildLayoutDelegate {
+  // The listenable is the relayout trigger, so a drag never rebuilds anything.
+  _CardPlacement(this.offset) : super(relayout: offset);
+
+  final ValueListenable<Offset> offset;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen();
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) =>
+      placeOverlayCard(size, childSize, offset.value);
+
+  @override
+  bool shouldRelayout(_CardPlacement oldDelegate) =>
+      oldDelegate.offset != offset;
+}
+
+/// Where a card of [card] size sits on a surface of [surface] size when it has
+/// been moved [offset] from the centre: the centre plus the offset, clamped so
+/// no edge of the card leaves the surface. A card larger than the surface is
+/// pinned to its top left rather than pushed off it.
+@visibleForTesting
+Offset placeOverlayCard(Size surface, Size card, Offset offset) {
+  final maxX = math.max(0.0, surface.width - card.width);
+  final maxY = math.max(0.0, surface.height - card.height);
+  return Offset(
+    (maxX / 2 + offset.dx).clamp(0.0, maxX),
+    (maxY / 2 + offset.dy).clamp(0.0, maxY),
+  );
 }
 
 /// The card a full-screen overlay centres on its scrim: [color], rounded to the

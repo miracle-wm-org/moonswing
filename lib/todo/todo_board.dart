@@ -1,5 +1,6 @@
-// The todo board: five columns of cards over a scrim, in its own full-screen
-// layer-shell window on the output whose bar was clicked.
+// The todo board: five columns of cards, the overview's Todo tab. The bar's
+// checklist button opens the overview on that tab, on the output whose bar was
+// clicked; the board has no window of its own.
 //
 // It reads nothing itself. [TodoStore] owns the database, the history of moves
 // and the day turning over; `todo_model.dart` owns every date rule, and
@@ -7,8 +8,6 @@
 // panel, the search field, the columns, the cards, drag and drop between them,
 // a card's right-click menu, and the editor that creates and changes one. The
 // backups card over it is `todo_backup_panel.dart`.
-
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -27,7 +26,6 @@ import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings_route.dart';
-import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/overlay_search_field.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
@@ -45,16 +43,6 @@ import 'package:moonswing/todo/todo_search.dart';
 import 'package:moonswing/todo/todo_standup_panel.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
-/// How much of the output the board takes: enough for five columns of cards,
-/// with a wide margin of scrim to say it is an overlay rather than an
-/// application window. The fractions alone would make a 4K desktop's board a
-/// field of empty column, so the result is capped; a floor keeps five columns
-/// readable on a small laptop, and fitting on screen beats the floor.
-const double kTodoPanelWidthFraction = 0.8;
-const double kTodoPanelHeightFraction = 0.8;
-const Size kTodoPanelMinSize = Size(1000, 600);
-const Size kTodoPanelMaxSize = Size(1760, 1080);
-
 /// The gap between two cards, which is also where a drop indicator is drawn.
 const double kTodoCardGap = 8;
 
@@ -63,26 +51,6 @@ const double kTodoEditorWidth = 540;
 
 /// The search field's width in the header.
 const double kTodoSearchWidth = 320;
-
-/// The board's panel size for an overlay surface of [available] logical pixels.
-Size todoPanelSize(Size available) {
-  double fit(double space, double fraction, double floor, double cap) =>
-      (space * fraction).clamp(math.min(floor, space), cap);
-  return Size(
-    fit(
-      available.width,
-      kTodoPanelWidthFraction,
-      kTodoPanelMinSize.width,
-      kTodoPanelMaxSize.width,
-    ),
-    fit(
-      available.height,
-      kTodoPanelHeightFraction,
-      kTodoPanelMinSize.height,
-      kTodoPanelMaxSize.height,
-    ),
-  );
-}
 
 /// What the editor was opened for: an existing item, or a new one in a column.
 @immutable
@@ -96,13 +64,18 @@ class _EditRequest {
 
 /// The todo board and its backdrop.
 ///
-/// Follows the [FadeOverlayScaffold] close handshake: the owner flips
-/// [closingNotifier], this plays its exit animation, then calls [onClosed].
-class TodoOverlay extends StatefulWidget {
-  const TodoOverlay({
+/// The board, as the overview's Todo tab lays it out: the header, the columns,
+/// and the layers over them.
+///
+/// It draws no card, scrim or close button of its own — the overview it sits
+/// in has all three. [closingNotifier] is the overview's: the board flips it
+/// when Escape has nothing left on the board to back out of, and listens to it
+/// so a date picker goes as the overview starts its exit.
+class TodoBoard extends StatefulWidget {
+  const TodoBoard({
     super.key,
     required this.closingNotifier,
-    required this.onClosed,
+    this.active = true,
     this.store,
     this.sync,
     this.onOpenAccounts,
@@ -111,7 +84,11 @@ class TodoOverlay extends StatefulWidget {
   });
 
   final ValueNotifier<bool> closingNotifier;
-  final VoidCallback onClosed;
+
+  /// Whether this is the overview's visible tab. Becoming it hands the board's
+  /// search field the keyboard, so the tab opens ready to be searched as the
+  /// board's own window used to.
+  final bool active;
 
   /// Defaults to the singleton; a widget test passes one over a temporary
   /// directory.
@@ -120,8 +97,8 @@ class TodoOverlay extends StatefulWidget {
   /// The task-list sync. Defaults to the singleton.
   final TodoCalDavSync? sync;
 
-  /// Opens Settings › Accounts. Injected by tests; the default asks the root
-  /// through [SettingsController].
+  /// Opens Settings › Accounts. The overview passes its own tab switch; the
+  /// default asks the root through [SettingsController].
   final VoidCallback? onOpenAccounts;
 
   /// What a click on a link in a card's title or body does with its address.
@@ -135,10 +112,10 @@ class TodoOverlay extends StatefulWidget {
   final Future<ClipboardResult> Function(String text) copy;
 
   @override
-  State<TodoOverlay> createState() => _TodoOverlayState();
+  State<TodoBoard> createState() => _TodoBoardState();
 }
 
-class _TodoOverlayState extends State<TodoOverlay> {
+class _TodoBoardState extends State<TodoBoard> {
   late final TodoStore _store = widget.store ?? TodoStore.instance;
   late final TodoCalDavSync _sync = widget.sync ?? TodoCalDavSync.instance;
 
@@ -149,11 +126,27 @@ class _TodoOverlayState extends State<TodoOverlay> {
     // changed on the phone since the last poll is fetched now.
     _sync.syncIfStale();
     widget.closingNotifier.addListener(_onClosing);
+    if (widget.active) _focusSearchSoon();
   }
 
-  /// A date picker goes as the board starts its exit, however that was asked
-  /// for — the bar button flips [TodoOverlay.closingNotifier] directly — rather
-  /// than outliving the fade as a popup of a window on its way out.
+  @override
+  void didUpdateWidget(TodoBoard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _focusSearchSoon();
+  }
+
+  /// Gives the search field the keyboard once this frame has laid out —
+  /// before it, the tab is still behind the overview's `ExcludeFocus` and a
+  /// request would be refused.
+  void _focusSearchSoon() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.active) _searchFocus.requestFocus();
+    });
+  }
+
+  /// A date picker goes as the overview starts its exit, however that was
+  /// asked for — a bar button flips [TodoBoard.closingNotifier] directly —
+  /// rather than outliving the fade as a popup of a window on its way out.
   void _onClosing() {
     if (!widget.closingNotifier.value || !mounted) return;
     PopupCoordinator.instance.dismissChildren(TransientScope.maybeOf(context));
@@ -166,7 +159,6 @@ class _TodoOverlayState extends State<TodoOverlay> {
     } else {
       SettingsController.instance.open(SettingsRoute.accounts);
     }
-    _requestClose();
   }
 
   /// Whether the backups card is open. A notifier for [_editing]'s reason.
@@ -175,7 +167,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
   /// Whether the standup card is open. A notifier for [_editing]'s reason.
   final ValueNotifier<bool> _standup = ValueNotifier(false);
 
-  /// The board's key listener. Skipped by Tab, or it would be a stop of its
+  /// The board's key handler. Skipped by Tab, or it would be a stop of its
   /// own with nothing drawn as focused.
   final FocusNode _focusNode = FocusNode(
     debugLabel: 'todo board',
@@ -212,48 +204,23 @@ class _TodoOverlayState extends State<TodoOverlay> {
   /// into the nearest one: a dragged card's feedback, and the editor's
   /// dropdowns.
   late final OverlayEntry _panelEntry = OverlayEntry(
-    builder: (context) => FadeOverlayScaffold(
-      closing: widget.closingNotifier,
-      onClosed: widget.onClosed,
-      // A click on the scrim closes the board — it holds nothing unsaved —
-      // but not while the editor is open, which does.
-      onBackdropTap: () {
-        if (_menu.value != null) {
-          _menu.value = null;
-        } else if (_editing.value == null &&
-            !_backups.value &&
-            !_standup.value) {
-          _requestClose();
-        }
-      },
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final size = todoPanelSize(constraints.biggest);
-          return SizedBox(
-            width: size.width,
-            height: size.height,
-            child: _TodoPanel(
-              store: _store,
-              board: _board,
-              search: _search,
-              folds: _folds,
-              searchField: _buildSearchField(context),
-              editing: _editing,
-              onEditorDone: _closeEditor,
-              menu: _menu,
-              layersKey: _layersKey,
-              copyError: _copyError,
-              onCopy: _copy,
-              backups: _backups,
-              standup: _standup,
-              sync: _sync,
-              onOpenAccounts: _openAccounts,
-              onClose: _requestClose,
-              onOpenLink: widget.onOpenLink,
-            ),
-          );
-        },
-      ),
+    builder: (context) => _TodoPanel(
+      store: _store,
+      board: _board,
+      search: _search,
+      folds: _folds,
+      searchField: _buildSearchField(context),
+      editing: _editing,
+      onEditorDone: _closeEditor,
+      menu: _menu,
+      layersKey: _layersKey,
+      copyError: _copyError,
+      onCopy: _copy,
+      backups: _backups,
+      standup: _standup,
+      sync: _sync,
+      onOpenAccounts: _openAccounts,
+      onOpenLink: widget.onOpenLink,
     ),
   );
 
@@ -303,8 +270,10 @@ class _TodoOverlayState extends State<TodoOverlay> {
     );
   }
 
-  void _onKey(KeyEvent event) {
-    if (event is! KeyDownEvent) return;
+  /// Handled, so the overview's own Escape and Ctrl+F — it is an ancestor —
+  /// never hear a key the board has already answered.
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final key = event.logicalKey;
     if (key == LogicalKeyboardKey.keyF &&
         HardwareKeyboard.instance.isControlPressed &&
@@ -313,16 +282,16 @@ class _TodoOverlayState extends State<TodoOverlay> {
         !_backups.value &&
         !_standup.value) {
       _focusSearch();
-      return;
+      return KeyEventResult.handled;
     }
-    if (key != LogicalKeyboardKey.escape) return;
+    if (key != LogicalKeyboardKey.escape) return KeyEventResult.ignored;
     // Escape backs out one layer at a time: a date picker, a card menu, the
     // editor, then the search, then the board. The picker is a popup window
     // of the board's, so it is the coordinator that knows it is open.
     if (PopupCoordinator.instance.dismissChildren(
       TransientScope.maybeOf(context),
     )) {
-      return;
+      return KeyEventResult.handled;
     }
     if (_menu.value != null) {
       _menu.value = null;
@@ -339,6 +308,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
     } else {
       _requestClose();
     }
+    return KeyEventResult.handled;
   }
 
   @override
@@ -374,8 +344,8 @@ class _TodoOverlayState extends State<TodoOverlay> {
               color: theme.popupForeground,
             ),
             // Hears every key the fields inside let through. Not autofocused:
-            // the search field is, so the board opens ready to be searched.
-            child: KeyboardListener(
+            // the search field is given the keyboard instead (see [active]).
+            child: Focus(
               focusNode: _focusNode,
               onKeyEvent: _onKey,
               // Opaque popups, for the settings overlay's reason: the editor's
@@ -395,7 +365,7 @@ class _TodoOverlayState extends State<TodoOverlay> {
   }
 }
 
-/// The solid card: header, the five columns, and the editor over them.
+/// The board's content: header, the five columns, and the editor over them.
 class _TodoPanel extends StatelessWidget {
   const _TodoPanel({
     required this.store,
@@ -413,7 +383,6 @@ class _TodoPanel extends StatelessWidget {
     required this.standup,
     required this.sync,
     required this.onOpenAccounts,
-    required this.onClose,
     required this.onOpenLink,
   });
 
@@ -439,89 +408,77 @@ class _TodoPanel extends StatelessWidget {
   final GlobalKey layersKey;
   final ValueNotifier<String?> copyError;
   final ValueChanged<String> onCopy;
-  final VoidCallback onClose;
   final ValueChanged<String> onOpenLink;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return OverlayCard(
-      // Always opaque, whatever alpha the theme gives popups: this is a
-      // workspace of small text, like the settings panel.
-      color: opaquePopupFill(theme),
-      // The card swallows its own clicks, so a click between two columns is
-      // not a click on the scrim.
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {},
-        child: Stack(
-          key: layersKey,
-          children: [
-            Positioned.fill(
-              child: ListenableBuilder(
-                listenable: board,
-                builder: (context, _) => _buildBoard(context, theme),
-              ),
-            ),
-            Positioned.fill(
-              child: ValueListenableBuilder<_EditRequest?>(
-                valueListenable: editing,
-                builder: (context, request, _) => request == null
-                    ? const SizedBox.shrink()
-                    : _EditorLayer(
-                        // Keyed on the request, so opening a different item
-                        // seeds a fresh set of fields.
-                        key: ObjectKey(request),
-                        store: store,
-                        request: request,
-                        onDone: onEditorDone,
-                      ),
-              ),
-            ),
-            Positioned.fill(
-              child: ValueListenableBuilder<bool>(
-                valueListenable: backups,
-                builder: (context, open, _) => !open
-                    ? const SizedBox.shrink()
-                    : TodoBackupLayer(
-                        store: store,
-                        sync: sync,
-                        onDone: () => backups.value = false,
-                        onOpenAccounts: onOpenAccounts,
-                      ),
-              ),
-            ),
-            Positioned.fill(
-              child: ValueListenableBuilder<bool>(
-                valueListenable: standup,
-                builder: (context, open, _) => !open
-                    ? const SizedBox.shrink()
-                    : TodoStandupLayer(
-                        store: store,
-                        onDone: () => standup.value = false,
-                        onOpenLink: onOpenLink,
-                      ),
-              ),
-            ),
-            // Last, so a menu opened over a card is over everything.
-            Positioned.fill(
-              child: ValueListenableBuilder<_CardMenuRequest?>(
-                valueListenable: menu,
-                builder: (context, request, _) => request == null
-                    ? const SizedBox.shrink()
-                    : _CardMenuLayer(
-                        request: request,
-                        onCopy: (text) {
-                          menu.value = null;
-                          onCopy(text);
-                        },
-                        onDismiss: () => menu.value = null,
-                      ),
-              ),
-            ),
-          ],
+    return Stack(
+      key: layersKey,
+      children: [
+        Positioned.fill(
+          child: ListenableBuilder(
+            listenable: board,
+            builder: (context, _) => _buildBoard(context, theme),
+          ),
         ),
-      ),
+        Positioned.fill(
+          child: ValueListenableBuilder<_EditRequest?>(
+            valueListenable: editing,
+            builder: (context, request, _) => request == null
+                ? const SizedBox.shrink()
+                : _EditorLayer(
+                    // Keyed on the request, so opening a different item
+                    // seeds a fresh set of fields.
+                    key: ObjectKey(request),
+                    store: store,
+                    request: request,
+                    onDone: onEditorDone,
+                  ),
+          ),
+        ),
+        Positioned.fill(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: backups,
+            builder: (context, open, _) => !open
+                ? const SizedBox.shrink()
+                : TodoBackupLayer(
+                    store: store,
+                    sync: sync,
+                    onDone: () => backups.value = false,
+                    onOpenAccounts: onOpenAccounts,
+                  ),
+          ),
+        ),
+        Positioned.fill(
+          child: ValueListenableBuilder<bool>(
+            valueListenable: standup,
+            builder: (context, open, _) => !open
+                ? const SizedBox.shrink()
+                : TodoStandupLayer(
+                    store: store,
+                    onDone: () => standup.value = false,
+                    onOpenLink: onOpenLink,
+                  ),
+          ),
+        ),
+        // Last, so a menu opened over a card is over everything.
+        Positioned.fill(
+          child: ValueListenableBuilder<_CardMenuRequest?>(
+            valueListenable: menu,
+            builder: (context, request, _) => request == null
+                ? const SizedBox.shrink()
+                : _CardMenuLayer(
+                    request: request,
+                    onCopy: (text) {
+                      menu.value = null;
+                      onCopy(text);
+                    },
+                    onDismiss: () => menu.value = null,
+                  ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -542,7 +499,6 @@ class _TodoPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _Header(
-          onClose: onClose,
           onBackups: () => backups.value = true,
           // Disabled while the board did not read: it has nothing true to say.
           onStandup: store.editable ? () => standup.value = true : null,
@@ -671,14 +627,12 @@ class _TodoPanel extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   const _Header({
-    required this.onClose,
     required this.onBackups,
     required this.onStandup,
     required this.search,
     required this.searchField,
   });
 
-  final VoidCallback onClose;
   final VoidCallback onBackups;
   final VoidCallback? onStandup;
   final TodoBoardSearch search;
@@ -688,26 +642,15 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 10, 12, 10),
+      // No title, icon or close button: the overview's tab strip above says
+      // where this is and carries the one ✕, so the row is the search and the
+      // board's own tools.
+      padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
       child: Row(
         children: [
-          FaIcon(
-            FontAwesomeIcons.listCheck,
-            size: ShellFontSizes.title,
-            color: theme.accentText,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Todo',
-              style: TextStyle(
-                fontSize: ShellFontSizes.heading,
-                fontWeight: FontWeight.w600,
-                color: theme.popupForeground,
-              ),
-            ),
-          ),
-          if (search.active) ...[
+          searchField,
+          const SizedBox(width: 12),
+          if (search.active)
             Text(
               _describeMatches(search.matches?.length ?? 0),
               style: TextStyle(
@@ -715,10 +658,7 @@ class _Header extends StatelessWidget {
                 color: theme.popupForeground.withValues(alpha: 0.6),
               ),
             ),
-            const SizedBox(width: 12),
-          ],
-          searchField,
-          const SizedBox(width: 8),
+          const Spacer(),
           if (onStandup case final onStandup?) ...[
             _HeaderButton(
               tooltip:
@@ -740,15 +680,6 @@ class _Header extends StatelessWidget {
               FontAwesomeIcons.cloudArrowUp,
               size: ShellFontSizes.body,
               color: color,
-            ),
-          ),
-          const SizedBox(width: 4),
-          _HeaderButton(
-            tooltip: 'Close',
-            onTap: onClose,
-            builder: (color) => Text(
-              '✕',
-              style: TextStyle(fontSize: ShellFontSizes.title, color: color),
             ),
           ),
         ],

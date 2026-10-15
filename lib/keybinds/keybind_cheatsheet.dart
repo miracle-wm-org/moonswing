@@ -1,5 +1,5 @@
-// The keybind cheat sheet: every shortcut on this machine, drawn as key caps,
-// centred over a scrim in its own full-screen layer-shell window.
+// The keybind cheat sheet: every shortcut on this machine, drawn as key caps —
+// the overview's Shortcuts tab, which the bar's keyboard icon opens.
 //
 // Two sources, and the sheet is careful about which is which. The compositor's
 // bindings come from miracle over IPC and are *read only* here — they are
@@ -13,7 +13,7 @@
 // trip for the machine and its failure state, [ShellKeybindStore] owns the
 // shell's half and the writes back, and `keybind_model.dart` and
 // `shell_keybinds.dart` own every decision about what a binding *reads* as — so
-// this file is the card, the caps and the two columns, and a widget test drives
+// this file is the sheet, the caps and the two columns, and a widget test drives
 // all of them with no compositor behind it.
 
 import 'package:flutter/services.dart';
@@ -30,27 +30,20 @@ import 'package:moonswing/keybinds/shell_keybinds.dart';
 import 'package:moonswing/keybinds/shortcut_capture.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/miracle_manager.dart';
-import 'package:moonswing/overlay_fade_scaffold.dart';
-import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/shell_text_root.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 
-/// The widest the card is allowed to get.
+/// The widest the sheet is allowed to get inside its tab; it is centred in
+/// whatever is left.
 ///
-/// Two columns of shortcuts and no more: a sheet stretched across a 4K output
-/// puts a row's description and its caps a foot apart, which is the one thing a
-/// glanceable sheet cannot afford.
+/// Two columns of shortcuts and no more: a sheet stretched across a wide
+/// overview puts a row's description and its caps a foot apart, which is the
+/// one thing a glanceable sheet cannot afford.
 const double kCheatsheetMaxWidth = 940;
 
-/// The tallest the card is allowed to get; past it the rows scroll.
-///
-/// Left to the output's height alone the sheet ran nearly floor to ceiling on
-/// a tall display, which reads as a page rather than a glance.
-const double kCheatsheetMaxHeight = 620;
-
-/// Below this the card drops to a single column — a rotated or small display,
+/// Below this the sheet drops to a single column — a rotated or small display,
 /// where two columns would be two ellipsised ones.
 const double kCheatsheetTwoColumnWidth = 640;
 
@@ -61,21 +54,17 @@ const double kCheatsheetColumnGap = 28;
 /// the same baseline as a row of equal-height keys.
 const double kKeyCapHeight = 22;
 
-/// The keybind cheat sheet and its backdrop.
+/// The keybind cheat sheet, as the overview's Shortcuts tab lays it out.
 ///
-/// Follows the [FadeOverlayScaffold] close handshake: the owner flips
-/// [closingNotifier], this plays its exit animation, then calls [onClosed].
-class KeybindCheatsheetOverlay extends StatefulWidget {
-  const KeybindCheatsheetOverlay({
+/// It draws no card or scrim and closes nothing: the overview around it has
+/// both, and an Escape this sheet does not answer — every one but a capture's
+/// — is the overview's to close it on.
+class KeybindCheatsheet extends StatefulWidget {
+  const KeybindCheatsheet({
     super.key,
-    required this.closingNotifier,
-    required this.onClosed,
     this.store,
     this.shellStore,
   });
-
-  final ValueNotifier<bool> closingNotifier;
-  final VoidCallback onClosed;
 
   /// The store this leases. Defaults to the singleton; a widget test passes its
   /// own, which is what keeps this testable with no IPC socket behind it.
@@ -88,11 +77,10 @@ class KeybindCheatsheetOverlay extends StatefulWidget {
   final ShellKeybindStore? shellStore;
 
   @override
-  State<KeybindCheatsheetOverlay> createState() =>
-      _KeybindCheatsheetOverlayState();
+  State<KeybindCheatsheet> createState() => _KeybindCheatsheetState();
 }
 
-class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
+class _KeybindCheatsheetState extends State<KeybindCheatsheet> {
   late final KeybindStore _store = widget.store ?? KeybindStore.instance;
   late final ShellKeybindStore _shellStore =
       widget.shellStore ?? ShellKeybindStore.instance;
@@ -106,7 +94,7 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
 
   /// The sheet's own focus, held rather than left implicit: a row that has
   /// finished capturing has to hand the keyboard *back*, or the Escape that
-  /// closes the sheet would land on a node that no longer exists.
+  /// closes the overview would land on a node that no longer exists.
   final FocusNode _sheetFocus = FocusNode(debugLabel: 'keybind cheat sheet');
 
   @override
@@ -114,7 +102,9 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
     super.initState();
     // The lease *is* the request: the first one refreshes, so the sheet always
     // shows what the compositor is applying now rather than what it applied
-    // before the last `reload_config`.
+    // before the last `reload_config`. The overview builds a tab the first
+    // time it is shown, so this is the first look at Shortcuts, not every
+    // opening of the overview.
     _store.acquire();
   }
 
@@ -126,9 +116,6 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
     super.dispose();
   }
 
-  /// Escape, and the backdrop: play the exit and go.
-  void _requestClose() => widget.closingNotifier.value = true;
-
   /// Takes the keyboard back from a row that has stopped capturing.
   void _restoreFocus() {
     if (!mounted) return;
@@ -137,18 +124,14 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
-    // Escape is the only key this window takes. Everything else — including the
-    // scroll keys the list itself handles — belongs below.
-    if (event.logicalKey == LogicalKeyboardKey.escape) {
-      // A row listening for a press owns Escape and answers it itself. This is
-      // the case where the row lost the keyboard without finishing — Escape
-      // then means "stop listening", not "close the sheet", or the user's way
-      // out of a capture would be to close the whole sheet.
-      if (_capturing.value != null) {
-        _capturing.value = null;
-        return KeyEventResult.handled;
-      }
-      _requestClose();
+    // A row listening for a press owns Escape and answers it itself. This is
+    // the case where the row lost the keyboard without finishing — Escape then
+    // means "stop listening", not "close the overview", or the user's way out
+    // of a capture would be to close the whole thing. Any other Escape, and
+    // every other key, goes on up: the overview closes on the former.
+    if (event.logicalKey == LogicalKeyboardKey.escape &&
+        _capturing.value != null) {
+      _capturing.value = null;
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -167,38 +150,20 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
         decoration: TextDecoration.none,
         fontWeight: FontWeight.normal,
       ),
+      // Not autofocused: the overview holds the keyboard until a row asks for
+      // it, and this node is where a row gives it back.
       child: Focus(
         focusNode: _sheetFocus,
-        autofocus: true,
         onKeyEvent: _onKey,
-        child: FadeOverlayScaffold(
-          closing: widget.closingNotifier,
-          onClosed: widget.onClosed,
-          // The shell has no input-region support, so this surface swallows
-          // every click on the monitor; without dismiss-on-backdrop a
-          // mouse-only user would have no way out.
-          onBackdropTap: _requestClose,
-          child: Padding(
-            // Never flush against the edges of a small output; what is outside
-            // this is backdrop, so a click there still dismisses.
-            padding: const EdgeInsets.all(32),
-            child: GestureDetector(
-              // The card is not the backdrop: a click that lands between two
-              // rows must not close the sheet.
-              behavior: HitTestBehavior.opaque,
-              onTap: () {},
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: kCheatsheetMaxWidth,
-                  maxHeight: kCheatsheetMaxHeight,
-                ),
-                child: PopupCard(
-                  padding: const EdgeInsets.fromLTRB(24, 18, 24, 18),
-                  child: ListenableBuilder(
-                    listenable: _store,
-                    builder: (context, _) => _buildCard(theme),
-                  ),
-                ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: kCheatsheetMaxWidth),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: ListenableBuilder(
+                listenable: _store,
+                builder: (context, _) => _buildSheet(theme),
               ),
             ),
           ),
@@ -207,10 +172,9 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
     );
   }
 
-  Widget _buildCard(ThemeConfig theme) {
+  Widget _buildSheet(ThemeConfig theme) {
     final result = _store.result;
     return Column(
-      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _CheatsheetHeader(
@@ -243,6 +207,9 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
         Flexible(
           child: RepaintBoundary(
             child: SingleChildScrollView(
+              // The last row clear of the overview's bottom edge, inside the
+              // scroll view so the rows still run to it as they scroll.
+              padding: const EdgeInsets.only(bottom: 18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
@@ -373,7 +340,12 @@ class _KeybindCheatsheetOverlayState extends State<KeybindCheatsheetOverlay> {
   }
 }
 
-/// The title row, and what the Action Key resolves to on this machine.
+/// What the Action Key resolves to on this machine, and whether a refresh is
+/// in flight.
+///
+/// No title and no "Esc to close": the overview's tab strip says what this is
+/// and carries the close button, so the row is the one fact the sheet cannot
+/// leave out.
 class _CheatsheetHeader extends StatelessWidget {
   const _CheatsheetHeader({required this.actionKey, required this.refreshing});
 
@@ -387,73 +359,31 @@ class _CheatsheetHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+    final style = TextStyle(
+      fontSize: ShellFontSizes.secondary,
+      color: theme.muted,
+    );
+    return Row(
       children: [
-        Row(
-          children: [
-            FaIcon(
-              FontAwesomeIcons.keyboard,
-              size: 18,
-              color: theme.accentText,
-            ),
-            const SizedBox(width: 10),
-            // Expanded rather than a Spacer after it: the title is the piece
-            // that gives, so a narrow output ellipsises it instead of pushing
-            // "Esc to close" off the card.
-            Expanded(
-              child: Text(
-                'Keyboard shortcuts',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.title,
-                  fontWeight: FontWeight.w600,
-                  color: theme.popupForeground,
-                ),
-              ),
-            ),
-            if (refreshing) ...[
-              const LoadingIndicator(size: 12),
-              const SizedBox(width: 10),
-            ],
-            Text(
-              'Esc to close',
-              style: TextStyle(
-                fontSize: ShellFontSizes.caption,
-                color: theme.muted,
-              ),
-            ),
-          ],
-        ),
-        // Said once, on its own line, rather than fifty times down the rows:
-        // every row carries the key the Action Key resolved *to*, so this is
-        // the line that connects miracle's own word for it to the caps below.
+        // Said once, rather than fifty times down the rows: every row carries
+        // the key the Action Key resolved *to*, so this is the line that
+        // connects miracle's own word for it to the caps below.
         if (actionKey case final key?) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(
-                'Action Key',
-                style: TextStyle(
-                  fontSize: ShellFontSizes.secondary,
-                  color: theme.muted,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                '=',
-                style: TextStyle(
-                  fontSize: ShellFontSizes.secondary,
-                  color: theme.muted,
-                ),
-              ),
-              const SizedBox(width: 6),
-              KeyCapChip(cap: KeyCap(key)),
-            ],
-          ),
+          Text('Action Key', style: style),
+          const SizedBox(width: 6),
+          Text('=', style: style),
+          const SizedBox(width: 6),
+          KeyCapChip(cap: KeyCap(key)),
         ],
+        const Spacer(),
+        // Height held either way, so the indicator coming and going does not
+        // move the rows.
+        SizedBox(
+          height: kKeyCapHeight,
+          child: refreshing
+              ? const Center(child: LoadingIndicator(size: 12))
+              : null,
+        ),
       ],
     );
   }
