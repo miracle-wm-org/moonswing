@@ -111,6 +111,8 @@ popup_shadow_offset_y = 8.0
 popup_animation      = "scale"
 popup_animation_duration = 140
 
+overlay_radius       = 12.0
+
 # The overlays lift into place, a little more slowly than the default and
 # leaving faster than they came — the same unhurried arrival the floating
 # bar and its 10px corners are after.
@@ -181,6 +183,8 @@ popup_shadow_offset_y = 6.0
 # Attached to the bar, so it slides out of it.
 popup_animation      = "slide"
 popup_animation_duration = 140
+
+overlay_radius       = 12.0
 
 # Overlays come towards you and settle a fraction past their resting size.
 # The overshoot is read backwards on the way out, so they dip before they
@@ -282,6 +286,8 @@ popup_shadow_offset_y = 10.0
 # of the seam a translucent fill draws over a moving wallpaper.
 popup_animation      = "fade"
 popup_animation_duration = 140
+
+overlay_radius       = 12.0
 
 # Glass dissolves rather than moves: opacity alone, eased at both ends and
 # given longer than the default, because a fade with nothing else in it is
@@ -395,6 +401,8 @@ popup_shadow_offset_y = 0.0
 # take glassy's way out and simply fade.
 popup_animation      = "slide"
 popup_animation_duration = 140
+
+overlay_radius       = 12.0
 
 # The statliest arrival of the shipped themes, on the asymmetric curve:
 # a sharp departure into a long settle, and out again in three quarters of
@@ -548,6 +556,8 @@ popup_shadow_offset_y = 0.0
 # other two attached themes play, and the one that reads as the bar opening.
 popup_animation      = "slide"
 popup_animation_duration = 140
+
+overlay_radius       = 12.0
 
 # Overlays unfold out of their own middle, keeping their width — the
 # flat-panel counterpart to the popups this theme attaches to the bar,

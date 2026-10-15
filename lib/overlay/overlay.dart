@@ -307,97 +307,95 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   Widget _buildPanel(ThemeConfig theme, Size size) {
-    return Container(
+    return SizedBox(
       width: size.width,
       height: size.height,
-      decoration: BoxDecoration(
+      child: OverlayCard(
         color: overlayPanelFill(theme),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.accent, width: 1.5),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: the tab bar, plus the close button.
-          Container(
-            padding: const EdgeInsets.only(
-              left: 16,
-              right: 12,
-              top: 8,
-              bottom: 0,
-            ),
-            decoration: BoxDecoration(
-              border: Border(bottom: BorderSide(color: theme.divider)),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      for (final tab in _tabs)
-                        UnderlineTab(
-                          label: tab.label,
-                          icon: tab.icon,
-                          selected: _selectedTab == tab.id,
-                          onTap: () => _selectTab(tab.id),
-                        ),
-                    ],
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: the tab bar, plus the close button.
+            Container(
+              padding: const EdgeInsets.only(
+                left: 16,
+                right: 12,
+                top: 8,
+                bottom: 0,
+              ),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: theme.divider)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        for (final tab in _tabs)
+                          UnderlineTab(
+                            label: tab.label,
+                            icon: tab.icon,
+                            selected: _selectedTab == tab.id,
+                            onTap: () => _selectTab(tab.id),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: HoverRegion(
-                    onTap: _requestClose,
-                    builder: (context, hovered) => Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(ShellRadii.control),
-                        color: hovered
-                            ? theme.surfaceHover
-                            : const Color(0x00000000),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '✕',
-                          style: TextStyle(
-                            fontSize: ShellFontSizes.title,
-                            color: theme.popupForeground.withValues(
-                              alpha: hovered ? 0.9 : 0.6,
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: HoverRegion(
+                      onTap: _requestClose,
+                      builder: (context, hovered) => Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(ShellRadii.control),
+                          color: hovered
+                              ? theme.surfaceHover
+                              : const Color(0x00000000),
+                        ),
+                        child: Center(
+                          child: Text(
+                            '✕',
+                            style: TextStyle(
+                              fontSize: ShellFontSizes.title,
+                              color: theme.popupForeground.withValues(
+                                alpha: hovered ? 0.9 : 0.6,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          // Body. An IndexedStack rather than a switch: the settings tab hosts
-          // ShellSettingsPage, which owns a nested Navigator. Rebuilding the
-          // body on every tab change would tear that down, dropping the user
-          // back to the category landing page — and would lose the calendar's
-          // selected month and day the same way.
-          //
-          // The flip side is that every tab stays alive once built, so a tab
-          // that polls must be told when it is not the visible one and stop.
-          // That is what SystemTab.active and CalendarTab.active are for — the
-          // latter drives the world clocks' one-second timer.
-          Expanded(
-            child: IndexedStack(
-              index: _tabs.indexWhere((t) => t.id == _selectedTab),
-              sizing: StackFit.expand,
-              children: [
-                CalendarTab(active: _selectedTab == 'calendar'),
-                SystemTab(active: _selectedTab == 'system'),
-                const SystemInfoTab(),
-                _buildSettingsBody(theme),
-              ],
+            // Body. An IndexedStack rather than a switch: the settings tab hosts
+            // ShellSettingsPage, which owns a nested Navigator. Rebuilding the
+            // body on every tab change would tear that down, dropping the user
+            // back to the category landing page — and would lose the calendar's
+            // selected month and day the same way.
+            //
+            // The flip side is that every tab stays alive once built, so a tab
+            // that polls must be told when it is not the visible one and stop.
+            // That is what SystemTab.active and CalendarTab.active are for — the
+            // latter drives the world clocks' one-second timer.
+            Expanded(
+              child: IndexedStack(
+                index: _tabs.indexWhere((t) => t.id == _selectedTab),
+                sizing: StackFit.expand,
+                children: [
+                  CalendarTab(active: _selectedTab == 'calendar'),
+                  SystemTab(active: _selectedTab == 'system'),
+                  const SystemInfoTab(),
+                  _buildSettingsBody(theme),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -423,88 +423,81 @@ class _TodoPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        // Always opaque, whatever alpha the theme gives popups: this is a
-        // workspace of small text, like the settings panel.
-        color: opaquePopupFill(theme),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: theme.accent, width: 1.5),
-      ),
+    return OverlayCard(
+      // Always opaque, whatever alpha the theme gives popups: this is a
+      // workspace of small text, like the settings panel.
+      color: opaquePopupFill(theme),
       // The card swallows its own clicks, so a click between two columns is
       // not a click on the scrim.
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {},
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(11),
-          child: Stack(
-            key: layersKey,
-            children: [
-              Positioned.fill(
-                child: ListenableBuilder(
-                  listenable: board,
-                  builder: (context, _) => _buildBoard(context, theme),
-                ),
+        child: Stack(
+          key: layersKey,
+          children: [
+            Positioned.fill(
+              child: ListenableBuilder(
+                listenable: board,
+                builder: (context, _) => _buildBoard(context, theme),
               ),
-              Positioned.fill(
-                child: ValueListenableBuilder<_EditRequest?>(
-                  valueListenable: editing,
-                  builder: (context, request, _) => request == null
-                      ? const SizedBox.shrink()
-                      : _EditorLayer(
-                          // Keyed on the request, so opening a different item
-                          // seeds a fresh set of fields.
-                          key: ObjectKey(request),
-                          store: store,
-                          request: request,
-                          onDone: onEditorDone,
-                        ),
-                ),
+            ),
+            Positioned.fill(
+              child: ValueListenableBuilder<_EditRequest?>(
+                valueListenable: editing,
+                builder: (context, request, _) => request == null
+                    ? const SizedBox.shrink()
+                    : _EditorLayer(
+                        // Keyed on the request, so opening a different item
+                        // seeds a fresh set of fields.
+                        key: ObjectKey(request),
+                        store: store,
+                        request: request,
+                        onDone: onEditorDone,
+                      ),
               ),
-              Positioned.fill(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: backups,
-                  builder: (context, open, _) => !open
-                      ? const SizedBox.shrink()
-                      : TodoBackupLayer(
-                          store: store,
-                          sync: sync,
-                          onDone: () => backups.value = false,
-                          onOpenAccounts: onOpenAccounts,
-                        ),
-                ),
+            ),
+            Positioned.fill(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: backups,
+                builder: (context, open, _) => !open
+                    ? const SizedBox.shrink()
+                    : TodoBackupLayer(
+                        store: store,
+                        sync: sync,
+                        onDone: () => backups.value = false,
+                        onOpenAccounts: onOpenAccounts,
+                      ),
               ),
-              Positioned.fill(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: standup,
-                  builder: (context, open, _) => !open
-                      ? const SizedBox.shrink()
-                      : TodoStandupLayer(
-                          store: store,
-                          onDone: () => standup.value = false,
-                          onOpenLink: onOpenLink,
-                        ),
-                ),
+            ),
+            Positioned.fill(
+              child: ValueListenableBuilder<bool>(
+                valueListenable: standup,
+                builder: (context, open, _) => !open
+                    ? const SizedBox.shrink()
+                    : TodoStandupLayer(
+                        store: store,
+                        onDone: () => standup.value = false,
+                        onOpenLink: onOpenLink,
+                      ),
               ),
-              // Last, so a menu opened over a card is over everything.
-              Positioned.fill(
-                child: ValueListenableBuilder<_CardMenuRequest?>(
-                  valueListenable: menu,
-                  builder: (context, request, _) => request == null
-                      ? const SizedBox.shrink()
-                      : _CardMenuLayer(
-                          request: request,
-                          onCopy: (text) {
-                            menu.value = null;
-                            onCopy(text);
-                          },
-                          onDismiss: () => menu.value = null,
-                        ),
-                ),
+            ),
+            // Last, so a menu opened over a card is over everything.
+            Positioned.fill(
+              child: ValueListenableBuilder<_CardMenuRequest?>(
+                valueListenable: menu,
+                builder: (context, request, _) => request == null
+                    ? const SizedBox.shrink()
+                    : _CardMenuLayer(
+                        request: request,
+                        onCopy: (text) {
+                          menu.value = null;
+                          onCopy(text);
+                        },
+                        onDismiss: () => menu.value = null,
+                      ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
