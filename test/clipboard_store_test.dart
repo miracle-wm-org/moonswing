@@ -43,10 +43,10 @@ void main() {
     return store;
   }
 
-  Future<void> copyText(String text) async {
+  Future<void> copyText(ClipboardHistoryStore store, String text) async {
     clipboard.offer({'text/plain;charset=utf-8': text, 'TEXT': text});
     clipboard.emit();
-    await settle();
+    await settle(store);
   }
 
   test(
@@ -58,33 +58,41 @@ void main() {
 
       store.acquire();
       expect(notified, 0, reason: 'acquire runs inside initState');
-      await settle();
+      await settle(store);
       expect(clipboard.watching, isTrue);
       expect(store.loaded, isTrue);
 
       store.acquire();
-      await settle();
+      await settle(store);
       expect(clipboard.watches, 1, reason: 'one watcher however many leases');
 
       store.release();
       expect(clipboard.watching, isTrue);
       store.release();
-      await settle();
+      await settle(store);
       expect(clipboard.watching, isFalse);
+
+      // A lease taken again starts the watcher without waiting on anything —
+      // and still says nothing from inside the acquirer's initState.
+      final before = notified;
+      store.acquire();
+      expect(notified, before);
+      expect(clipboard.watching, isTrue);
+      store.release();
     },
   );
 
   test('records text, newest first, and a repeat moves to the top', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
+    await settle(store);
 
-    await copyText('first');
-    await copyText('second');
+    await copyText(store, 'first');
+    await copyText(store, 'second');
     expect(store.entries.map((e) => e.text), ['second', 'first']);
     expect(store.entries.first.mime, kClipboardTextMime);
 
-    await copyText('first');
+    await copyText(store, 'first');
     expect(store.entries.map((e) => e.text), ['first', 'second']);
     expect(store.entries, hasLength(2));
   });
@@ -92,18 +100,18 @@ void main() {
   test('ignores a cleared selection, blank text and a secret', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
+    await settle(store);
 
-    await copyText('kept');
+    await copyText(store, 'kept');
     clipboard.emit(ClipboardChange.cleared);
-    await settle();
-    await copyText('   \n');
+    await settle(store);
+    await copyText(store, '   \n');
     clipboard.offer({'text/plain': 'hunter2', kSecretClipboardHint: 'secret'});
     clipboard.emit();
-    await settle();
+    await settle(store);
     clipboard.offer({'text/plain': 'hunter2'});
     clipboard.emit(ClipboardChange.sensitive);
-    await settle();
+    await settle(store);
 
     expect(store.entries.map((e) => e.text), ['kept']);
   });
@@ -111,18 +119,18 @@ void main() {
   test('keeps a picture as a file, and copied files as their paths', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
+    await settle(store);
 
     final png = Uint8List.fromList([0x89, 0x50, 0x4E, 0x47, 1, 2, 3]);
     clipboard.offer({'image/png': png, 'text/html': '<img>'});
     clipboard.emit();
-    await settle();
+    await settle(store);
     clipboard.offer({
       'text/uri-list': 'file:///home/me/clip.mp4\r\n',
       'text/plain': '/home/me/clip.mp4',
     });
     clipboard.emit();
-    await settle();
+    await settle(store);
 
     final [files, image] = store.entries;
     expect(files.kind, ClipboardKind.files);
@@ -135,10 +143,10 @@ void main() {
   test('a uri-list of web links is text', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
+    await settle(store);
     clipboard.offer({'text/uri-list': 'https://example.com/\r\n'});
     clipboard.emit();
-    await settle();
+    await settle(store);
     expect(store.entries.single.kind, ClipboardKind.text);
     expect(store.entries.single.text, 'https://example.com/');
   });
@@ -146,23 +154,23 @@ void main() {
   test('anything over max_item_mb is not recorded', () async {
     final store = makeStore(config: const ClipboardConfig(maxItemMb: 1));
     store.acquire();
-    await settle();
+    await settle(store);
     clipboard.offer({'image/png': Uint8List(1024 * 1024 + 1)});
     clipboard.emit();
-    await settle();
+    await settle(store);
     expect(store.entries, isEmpty);
   });
 
   test('trims the oldest past max_entries, never a pinned one', () async {
     final store = makeStore(config: const ClipboardConfig(maxEntries: 2));
     store.acquire();
-    await settle();
+    await settle(store);
 
-    await copyText('a');
+    await copyText(store, 'a');
     store.togglePin(store.entries.single);
-    await copyText('b');
-    await copyText('c');
-    await copyText('d');
+    await copyText(store, 'b');
+    await copyText(store, 'c');
+    await copyText(store, 'd');
     expect(store.entries.map((e) => e.text), ['d', 'c', 'a']);
     expect(store.entries.last.pinned, isTrue);
 
@@ -173,17 +181,17 @@ void main() {
   test('removing a picture deletes its file', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
+    await settle(store);
     clipboard.offer({
       'image/png': Uint8List.fromList([1, 2, 3]),
     });
     clipboard.emit();
-    await settle();
+    await settle(store);
     final path = store.payloadPath(store.entries.single)!;
     expect(File(path).existsSync(), isTrue);
 
     store.remove(store.entries.single);
-    await settle();
+    await settle(store);
     expect(store.entries, isEmpty);
     expect(File(path).existsSync(), isFalse);
   });
@@ -191,14 +199,14 @@ void main() {
   test('copy puts an entry back as its own type and moves it up', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
-    await copyText('older');
+    await settle(store);
+    await copyText(store, 'older');
     clipboard.offer({
       'image/png': Uint8List.fromList([9, 9, 9]),
     });
     clipboard.emit();
-    await settle();
-    await copyText('newest');
+    await settle(store);
+    await copyText(store, 'newest');
 
     final image = store.entries[1];
     expect(await store.copy(image), ClipboardResult.copied);
@@ -215,15 +223,15 @@ void main() {
     // The watcher then reports the shell's own copy: one entry, not two.
     clipboard.offer({kClipboardTextMime: 'older'});
     clipboard.emit();
-    await settle();
+    await settle(store);
     expect(store.entries.where((e) => e.text == 'older'), hasLength(1));
   });
 
   test('a copy that fails says so', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
-    await copyText('x');
+    await settle(store);
+    await copyText(store, 'x');
     clipboard.writeResult = ClipboardResult.unavailable;
     await store.copy(store.entries.single);
     expect(store.copyError, contains('wl-clipboard'));
@@ -234,16 +242,16 @@ void main() {
   test('a dead watcher is a visible state, and Retry starts another', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
+    await settle(store);
     clipboard.fail(
       const ClipboardWatchFailure('no data-control', unsupported: true),
     );
-    await settle();
+    await settle(store);
     expect(store.error, 'no data-control');
     expect(store.unsupported, isTrue);
 
     store.retry();
-    await settle();
+    await settle(store);
     expect(store.error, isNull);
     expect(clipboard.watches, 2);
     expect(clipboard.watching, isTrue);
@@ -252,13 +260,13 @@ void main() {
   test('the history survives a restart', () async {
     final first = makeStore();
     first.acquire();
-    await settle();
-    await copyText('remember me');
+    await settle(first);
+    await copyText(first, 'remember me');
     clipboard.offer({
       'image/png': Uint8List.fromList([4, 5, 6]),
     });
     clipboard.emit();
-    await settle();
+    await settle(first);
     first.togglePin(first.entries.last);
     await first.flush();
 
@@ -277,13 +285,13 @@ void main() {
     () async {
       final first = makeStore();
       first.acquire();
-      await settle();
-      await copyText('text survives');
+      await settle(first);
+      await copyText(first, 'text survives');
       clipboard.offer({
         'image/png': Uint8List.fromList([1]),
       });
       clipboard.emit();
-      await settle();
+      await settle(first);
       await first.flush();
       await File(first.payloadPath(first.entries.first)!).delete();
       // A stray file nothing names is swept.
@@ -307,16 +315,16 @@ void main() {
   test('persist = false starts empty and leaves no index', () async {
     final first = makeStore();
     first.acquire();
-    await settle();
-    await copyText('yesterday');
+    await settle(first);
+    await copyText(first, 'yesterday');
     await first.flush();
     expect(File('${dir.path}/clipboard/history.json').existsSync(), isTrue);
 
     final second = makeStore(config: const ClipboardConfig(persist: false));
     second.acquire();
-    await settle();
+    await settle(second);
     expect(second.entries, isEmpty);
-    await copyText('today');
+    await copyText(second, 'today');
     await second.flush();
     expect(File('${dir.path}/clipboard/history.json').existsSync(), isFalse);
   });
@@ -324,14 +332,14 @@ void main() {
   test('turning persist off deletes the saved index at once', () async {
     final store = makeStore();
     store.acquire();
-    await settle();
-    await copyText('x');
+    await settle(store);
+    await copyText(store, 'x');
     await store.flush();
     final index = File('${dir.path}/clipboard/history.json');
     expect(index.existsSync(), isTrue);
 
     store.configure(const ClipboardConfig(persist: false));
-    await settle();
+    await settle(store);
     expect(index.existsSync(), isFalse);
     expect(store.entries, hasLength(1), reason: 'the session keeps its list');
   });

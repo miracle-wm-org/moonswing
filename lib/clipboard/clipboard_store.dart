@@ -103,7 +103,7 @@ class ClipboardHistoryStore extends ChangeNotifier {
       // Turning persistence off is a request that the history stop being on
       // disk, so the index goes now rather than at the next start.
       _saveTimer?.cancel();
-      unawaited(_deleteFile(_indexPath));
+      _track(_deleteFile(_indexPath));
     }
     final trimmed = _trim();
     if (trimmed || persistTurnedOn) _scheduleSave();
@@ -172,7 +172,7 @@ class ClipboardHistoryStore extends ChangeNotifier {
   /// `initState`.
   void acquire() {
     _leases++;
-    if (_leases == 1) unawaited(_start());
+    if (_leases == 1) _track(_start());
   }
 
   /// Give one back. The last one stops the watcher; the history stays.
@@ -187,11 +187,21 @@ class ClipboardHistoryStore extends ChangeNotifier {
     _failure = null;
     _stop();
     _notify();
-    if (_leases > 0) unawaited(_start());
+    if (_leases > 0) _track(_start());
   }
 
   Future<void> _start() async {
-    await (_loading ??= _load());
+    // Only the first start waits for anything: a restart — after a failure,
+    // or a lease taken again after the last one went — goes straight to the
+    // watcher, in the same turn as whatever asked. Which is why the notify is
+    // in here: a restart reached from `acquire` runs inside the acquirer's
+    // `initState`, and nothing it does may notify there.
+    if (!_loaded) {
+      await (_loading ??= _load());
+      // The load may have brought entries in; this is the first anybody hears
+      // of them, and it is safely after `initState`.
+      _notify();
+    }
     if (_leases == 0 || _watch != null || _disposed) return;
     _watch = _backend.watch().listen(
       _onChange,
@@ -205,9 +215,6 @@ class ClipboardHistoryStore extends ChangeNotifier {
       onDone: () => _watch = null,
       cancelOnError: true,
     );
-    // The load may have brought entries in; this is the first anybody hears
-    // of them, and it is safely after `initState`.
-    _notify();
   }
 
   void _stop() {
@@ -226,7 +233,7 @@ class ClipboardHistoryStore extends ChangeNotifier {
     // password manager's copy is never read at all.
     if (change != ClipboardChange.data) return;
     _capturePending = true;
-    if (!_capturing) unawaited(_drainCaptures());
+    if (!_capturing) _track(_drainCaptures());
   }
 
   /// One capture at a time, and the newest change wins: a burst of copies
@@ -541,7 +548,7 @@ class ClipboardHistoryStore extends ChangeNotifier {
 
   void _deletePayload(ClipboardEntry entry) {
     final path = payloadPath(entry);
-    if (path != null) unawaited(_deleteFile(path));
+    if (path != null) _track(_deleteFile(path));
   }
 
   static Future<void> _deleteFile(String path) async {
@@ -594,6 +601,25 @@ class ClipboardHistoryStore extends ChangeNotifier {
   /// Waits for the first load. For tests.
   @visibleForTesting
   Future<void> get ready => _loading ??= _load();
+
+  /// The store's own background work — a start, a capture, a file deletion —
+  /// that nothing awaits. Tracked so a test can wait for exactly that work to
+  /// finish rather than for a guess at how long it takes.
+  final Set<Future<void>> _inFlight = {};
+
+  void _track(Future<void> work) {
+    _inFlight.add(work);
+    unawaited(work.whenComplete(() => _inFlight.remove(work)));
+  }
+
+  /// Completes once no tracked work is running, including work started while
+  /// waiting (a capture queued behind another). For tests.
+  @visibleForTesting
+  Future<void> get idle async {
+    while (_inFlight.isNotEmpty) {
+      await Future.wait(_inFlight.toList());
+    }
+  }
 
   void _notify() {
     if (!_disposed) notifyListeners();

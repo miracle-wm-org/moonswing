@@ -62,7 +62,7 @@ void main() {
   Future<void> seed(WidgetTester tester, List<Object> offers) async {
     await tester.runAsync(() async {
       store.acquire();
-      await settle();
+      await settle(store);
       for (final offer in offers) {
         clipboard.offer(
           offer is String
@@ -70,7 +70,7 @@ void main() {
               : offer as Map<String, Object>,
         );
         clipboard.emit();
-        await settle();
+        await settle(store);
       }
     });
     addTearDown(store.release);
@@ -211,7 +211,7 @@ void main() {
           missing: true,
         ),
       );
-      await settle();
+      await settle(store);
     });
     await pumpPanel(tester);
 
@@ -221,26 +221,32 @@ void main() {
     expect(find.text('kept'), findsOneWidget);
 
     await tester.tap(find.text('Retry'));
-    await tester.runAsync(settle);
+    // The restart needs no I/O — the history is already loaded — so the fake
+    // clock's own microtasks carry it.
+    await tester.pump();
     await tester.pump();
     expect(find.text('Clipboard history stopped'), findsNothing);
     expect(clipboard.watching, isTrue);
   });
 
   group('ClipboardButton', () {
+    // Each starts the history first, in real time: a first lease taken under
+    // the tester's fake clock would load the history there, where its file
+    // reads only move when the clock is pumped.
     testWidgets('holds a lease while it is on a bar', (tester) async {
+      await seed(tester, const []);
       final controller = ClipboardPanelController.forTesting();
       addTearDown(controller.dispose);
       await tester.pumpWidget(
         _host(ClipboardButton(controller: controller, store: store)),
       );
-      expect(store.leaseCount, 1);
+      expect(store.leaseCount, 2);
       await tester.pumpWidget(_host(const SizedBox()));
-      expect(store.leaseCount, 0);
-      await tester.runAsync(settle);
+      expect(store.leaseCount, 1);
     });
 
     testWidgets('a press asks the root to toggle the panel', (tester) async {
+      await seed(tester, const []);
       final controller = ClipboardPanelController.forTesting();
       addTearDown(controller.dispose);
       await tester.pumpWidget(
@@ -258,7 +264,6 @@ void main() {
       await tester.pump();
       expect(controller.isOpen.value, isTrue);
       await tester.pumpWidget(_host(const SizedBox()));
-      await tester.runAsync(settle);
     });
   });
 }

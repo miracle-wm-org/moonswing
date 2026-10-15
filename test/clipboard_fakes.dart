@@ -4,6 +4,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:moonswing/clipboard/clipboard_store.dart';
 import 'package:moonswing/clipboard/wl_clipboard.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart' show ClipboardResult;
 
@@ -68,10 +71,12 @@ class FakeClipboard implements ClipboardBackend {
   }
 }
 
-/// Lets the store's async capture run to the end — real file writes
-/// included, which a microtask turn does not wait for.
-Future<void> settle() async {
-  for (var i = 0; i < 10; i++) {
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-  }
+/// Lets everything [store] has in flight finish: the watcher's events reach
+/// it, then every start, capture and file deletion they began runs to its end.
+/// Waits on the work itself rather than on a span of time, which a loaded CI
+/// runner can always outlast.
+Future<void> settle(ClipboardHistoryStore store) async {
+  await pumpEventQueue();
+  await store.idle;
+  await pumpEventQueue();
 }
