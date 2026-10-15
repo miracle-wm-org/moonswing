@@ -34,7 +34,6 @@ class MiracleIncludesSection extends StatelessWidget {
                 items: List<String>.from(config.includes),
                 addLabel: 'Add file',
                 addHint: '~/.config/miracle-wm/bindings.yaml',
-                width: null,
                 onChanged: (next) => store.editStructure((config) {
                   final includes = config.includes;
                   includes.clear();
@@ -46,6 +45,7 @@ class MiracleIncludesSection extends StatelessWidget {
         ),
         SliverSettingsSection(
           label: 'Plugins',
+          fillLast: true,
           info:
               'Shared objects miracle loads at startup. Each is a path to a '
               '.so, or to a directory of them.',
@@ -58,7 +58,6 @@ class MiracleIncludesSection extends StatelessWidget {
                 items: [for (final plugin in config.plugins) plugin.path],
                 addLabel: 'Add plugin',
                 addHint: '/usr/lib/miracle-wm/plugins/example.so',
-                width: null,
                 onChanged: (next) => store.editStructure((config) {
                   final plugins = config.plugins;
                   plugins.clear();

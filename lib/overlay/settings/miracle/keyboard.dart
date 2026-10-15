@@ -165,14 +165,13 @@ class MiracleKeyboardSection extends StatelessWidget {
               config.keymap.isSet ? config.keymap.options.join(' ') : '',
           builder: (context, config) => SettingsRow.field(
             SettingsCatalog.miracleKeymapOptions,
-            alignTop: true,
+            stacked: true,
             control: SettingsStringListEditor(
               items: config.keymap.isSet
                   ? List<String>.from(config.keymap.options)
                   : const <String>[],
               addLabel: 'Add option',
               addHint: 'caps:swapescape',
-              width: 300,
               onChanged: (next) => store.edit((config) {
                 if (!config.keymap.isSet) return;
                 final options = config.keymap.options;

@@ -78,18 +78,6 @@ class MiracleKeyBindingsSection extends StatelessWidget {
       slivers: [
         SliverSettingsSection(
           label: 'Custom key bindings',
-          trailing: SettingsAddButton(
-            label: 'Add binding',
-            onTap: () => store.editStructure(
-              (config) => config.customKeyCommands.add(
-                const CustomKeyCommand(
-                  key: _kNewBindingKey,
-                  command: '',
-                  modifiers: {Modifier.primary},
-                ),
-              ),
-            ),
-          ),
           info:
               'Each of these runs a shell command. The Action Key stands for '
               'whatever you set it to under General, so a binding written '
@@ -100,19 +88,37 @@ class MiracleKeyBindingsSection extends StatelessWidget {
               signature: _customSignature,
               builder: (context, config) {
                 final commands = config.customKeyCommands;
-                if (commands.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: SettingsHint('No custom bindings yet.'),
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    for (var i = 0; i < commands.length; i++)
-                      _customCard(context, config, i),
-                  ],
+                return SettingsList(
+                  itemCount: commands.length,
+                  // The cards are pickers and a field; only the grip drags.
+                  handleOnly: true,
+                  // Keyed on the store's structure revision as well as the
+                  // position: see `MiracleConfigStore.editStructure` for what
+                  // the field on a card would otherwise show after the row
+                  // above it is deleted.
+                  itemKey: (i) =>
+                      ValueKey('custom:${store.structureRevision}:$i'),
+                  emptyText: 'No custom bindings yet.',
+                  onReorder: (from, to) => store.editStructure(
+                    (config) =>
+                        reorderInPlace(config.customKeyCommands, from, to),
+                  ),
+                  onRemove: (i) => store.editStructure(
+                    (config) => config.customKeyCommands.removeAt(i),
+                  ),
+                  itemBuilder: (context, i) => _customCard(context, config, i),
+                  adder: SettingsListAddRow(
+                    label: 'Add binding',
+                    onTap: () => store.editStructure(
+                      (config) => config.customKeyCommands.add(
+                        const CustomKeyCommand(
+                          key: _kNewBindingKey,
+                          command: '',
+                          modifiers: {Modifier.primary},
+                        ),
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
@@ -120,18 +126,7 @@ class MiracleKeyBindingsSection extends StatelessWidget {
         ),
         SliverSettingsSection(
           label: 'Built-in command overrides',
-          trailing: SettingsAddButton(
-            label: 'Add override',
-            onTap: () => store.editStructure(
-              (config) => config.builtInKeyCommandOverrides.add(
-                const KeyCommandOverride(
-                  key: _kNewBindingKey,
-                  command: BuiltInKeyCommand.terminal,
-                  modifiers: {Modifier.primary},
-                ),
-              ),
-            ),
-          ),
+          fillLast: true,
           info:
               "Each of these replaces the default binding for one of miracle's "
               'own commands. A command with no override here keeps whatever '
@@ -142,22 +137,38 @@ class MiracleKeyBindingsSection extends StatelessWidget {
               signature: _overrideSignature,
               builder: (context, config) {
                 final overrides = config.builtInKeyCommandOverrides;
-                if (overrides.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.only(top: 8),
-                    child: SettingsHint(
+                return SettingsList(
+                  itemCount: overrides.length,
+                  handleOnly: true,
+                  itemKey: (i) =>
+                      ValueKey('override:${store.structureRevision}:$i'),
+                  emptyText:
                       'No overrides yet — every built-in command is on its '
                       'default binding.',
+                  onReorder: (from, to) => store.editStructure(
+                    (config) => reorderInPlace(
+                      config.builtInKeyCommandOverrides,
+                      from,
+                      to,
                     ),
-                  );
-                }
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const SizedBox(height: 8),
-                    for (var i = 0; i < overrides.length; i++)
+                  ),
+                  onRemove: (i) => store.editStructure(
+                    (config) => config.builtInKeyCommandOverrides.removeAt(i),
+                  ),
+                  itemBuilder: (context, i) =>
                       _overrideCard(context, config, i),
-                  ],
+                  adder: SettingsListAddRow(
+                    label: 'Add override',
+                    onTap: () => store.editStructure(
+                      (config) => config.builtInKeyCommandOverrides.add(
+                        const KeyCommandOverride(
+                          key: _kNewBindingKey,
+                          command: BuiltInKeyCommand.terminal,
+                          modifiers: {Modifier.primary},
+                        ),
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
@@ -170,10 +181,6 @@ class MiracleKeyBindingsSection extends StatelessWidget {
   Widget _customCard(BuildContext context, MiracleConfig config, int index) {
     final binding = config.customKeyCommands[index];
     return _BindingCard(
-      // Keyed on the store's structure revision as well as the position: see
-      // `MiracleConfigStore.editStructure` for what the field on this card
-      // would otherwise show after the row above it is deleted.
-      key: ValueKey('custom:${store.structureRevision}:$index'),
       shortcut: describeShortcut(
         binding.modifiers,
         miracleKeyLabel(binding.key),
@@ -187,13 +194,6 @@ class MiracleKeyBindingsSection extends StatelessWidget {
           _editCustom(index, (binding) => binding.copyWith(key: next)),
       onAction: (next) =>
           _editCustom(index, (binding) => binding.copyWith(action: next)),
-      onMoveUp: index > 0 ? () => _moveCustom(index, -1) : null,
-      onMoveDown: index < config.customKeyCommands.length - 1
-          ? () => _moveCustom(index, 1)
-          : null,
-      onRemove: () => store.editStructure(
-        (config) => config.customKeyCommands.removeAt(index),
-      ),
       target: _LabelledControl(
         label: 'Runs',
         child: SettingsCommitField(
@@ -209,7 +209,6 @@ class MiracleKeyBindingsSection extends StatelessWidget {
   Widget _overrideCard(BuildContext context, MiracleConfig config, int index) {
     final override = config.builtInKeyCommandOverrides[index];
     return _BindingCard(
-      key: ValueKey('override:${store.structureRevision}:$index'),
       shortcut: describeShortcut(
         override.modifiers,
         miracleKeyLabel(override.key),
@@ -225,13 +224,6 @@ class MiracleKeyBindingsSection extends StatelessWidget {
           _editOverride(index, (override) => override.copyWith(key: next)),
       onAction: (next) =>
           _editOverride(index, (override) => override.copyWith(action: next)),
-      onMoveUp: index > 0 ? () => _moveOverride(index, -1) : null,
-      onMoveDown: index < config.builtInKeyCommandOverrides.length - 1
-          ? () => _moveOverride(index, 1)
-          : null,
-      onRemove: () => store.editStructure(
-        (config) => config.builtInKeyCommandOverrides.removeAt(index),
-      ),
       target: _LabelledControl(
         label: 'Runs',
         child: SettingsDropdown<BuiltInKeyCommand>(
@@ -263,24 +255,6 @@ class MiracleKeyBindingsSection extends StatelessWidget {
     if (index >= overrides.length) return;
     overrides[index] = update(overrides[index]);
   });
-
-  void _moveCustom(int index, int delta) => store.editStructure((config) {
-    final commands = config.customKeyCommands;
-    final target = index + delta;
-    if (target < 0 || target >= commands.length) return;
-    final moved = commands[index];
-    commands[index] = commands[target];
-    commands[target] = moved;
-  });
-
-  void _moveOverride(int index, int delta) => store.editStructure((config) {
-    final overrides = config.builtInKeyCommandOverrides;
-    final target = index + delta;
-    if (target < 0 || target >= overrides.length) return;
-    final moved = overrides[index];
-    overrides[index] = overrides[target];
-    overrides[target] = moved;
-  });
 }
 
 /// One binding, whatever it runs.
@@ -290,7 +264,6 @@ class MiracleKeyBindingsSection extends StatelessWidget {
 /// under it are the same four for both lists.
 class _BindingCard extends StatelessWidget {
   const _BindingCard({
-    super.key,
     required this.shortcut,
     required this.modifiers,
     required this.keysym,
@@ -299,9 +272,6 @@ class _BindingCard extends StatelessWidget {
     required this.onModifiers,
     required this.onKey,
     required this.onAction,
-    required this.onRemove,
-    this.onMoveUp,
-    this.onMoveDown,
   });
 
   final String shortcut;
@@ -315,77 +285,69 @@ class _BindingCard extends StatelessWidget {
   final ValueChanged<Set<Modifier>> onModifiers;
   final ValueChanged<int> onKey;
   final ValueChanged<KeyboardAction> onAction;
-  final VoidCallback onRemove;
-  final VoidCallback? onMoveUp;
-  final VoidCallback? onMoveDown;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return SettingsListRow(
-      onMoveUp: onMoveUp,
-      onMoveDown: onMoveDown,
-      onRemove: onRemove,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            shortcut,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: ShellFontSizes.body,
-              fontFamily: theme.fontFamily,
-              fontWeight: FontWeight.w600,
-              color: theme.popupForeground,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          shortcut,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: ShellFontSizes.body,
+            fontFamily: theme.fontFamily,
+            fontWeight: FontWeight.w600,
+            color: theme.popupForeground,
           ),
-          const SizedBox(height: 8),
-          // What it does, then which key and when, on one line: the three
-          // fields somebody edits together, and a card a line shorter.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 3, child: target),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: _LabelledControl(
-                  label: 'Key',
-                  child: SettingsDropdown<int>(
-                    items: _keyItemsWith(keysym),
-                    selected: keysym,
-                    onSelected: onKey,
-                  ),
+        ),
+        const SizedBox(height: 8),
+        // What it does, then which key and when, on one line: the three
+        // fields somebody edits together, and a card a line shorter.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 3, child: target),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: _LabelledControl(
+                label: 'Key',
+                child: SettingsDropdown<int>(
+                  items: _keyItemsWith(keysym),
+                  selected: keysym,
+                  onSelected: onKey,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: _LabelledControl(
-                  label: 'Fires on',
-                  child: SettingsDropdown<KeyboardAction>(
-                    items: _actionItems,
-                    selected: action,
-                    onSelected: onAction,
-                  ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: _LabelledControl(
+                label: 'Fires on',
+                child: SettingsDropdown<KeyboardAction>(
+                  items: _actionItems,
+                  selected: action,
+                  onSelected: onAction,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _LabelledControl(
-            label: 'Held with',
-            child: SettingsChipToggles<Modifier>(
-              options: kModifiersInDisplayOrder,
-              selected: modifiers,
-              labelOf: modifierLabel,
-              alignment: WrapAlignment.start,
-              onChanged: onModifiers,
             ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _LabelledControl(
+          label: 'Held with',
+          child: SettingsChipToggles<Modifier>(
+            options: kModifiersInDisplayOrder,
+            selected: modifiers,
+            labelOf: modifierLabel,
+            alignment: WrapAlignment.start,
+            onChanged: onModifiers,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

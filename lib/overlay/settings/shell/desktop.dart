@@ -14,6 +14,7 @@ import 'package:moonswing/overlay/file_picker.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The Desktop category: grid geometry plus the list of pinned items.
 ///
@@ -176,32 +177,42 @@ class _DesktopSectionState extends State<DesktopSection> {
                     _setGrid((c) => _copyDesktop(c, showLabels: v)),
               ),
             ),
-            SettingsSubLabel(
-              'Pinned items',
-              // Both adders sit on the heading, above the list rather than
-              // below it: this list grows with every pin, and the buttons that
-              // grow it were walking down the pane with it.
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: SettingsSubLabel('Pinned items'),
+            ),
+            // Unordered: an item's place is its grid cell, which the desktop
+            // itself is where to move, so these rows neither drag nor number.
+            SettingsList(
+              itemCount: items.length,
+              emptyText: 'Nothing pinned yet.',
+              removeTooltip: 'Unpin',
+              onRemove: (i) => _desktop.removeItem(items[i].target),
+              itemKey: (i) => ValueKey(items[i].target),
+              iconBuilder: (context, i) => _DesktopItemIcon(item: items[i]),
+              itemBuilder: (context, i) => _DesktopItemText(
+                item: items[i],
+                missing: missing.contains(items[i].target),
+              ),
+              // Two places a pin comes from, side by side as the last row.
+              adder: Row(
                 children: [
-                  SettingsAddButton(
-                    label: 'Application…',
-                    onTap: _addApplication,
+                  Expanded(
+                    child: SettingsListAddRow(
+                      label: 'Application…',
+                      onTap: _addApplication,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  SettingsAddButton(label: 'File or folder…', onTap: _addFiles),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: SettingsListAddRow(
+                      label: 'File or folder…',
+                      onTap: _addFiles,
+                    ),
+                  ),
                 ],
               ),
             ),
-            if (items.isEmpty)
-              const SettingsHint('Nothing pinned yet.')
-            else
-              for (final item in items)
-                _DesktopItemRow(
-                  item: item,
-                  missing: missing.contains(item.target),
-                  onRemove: () => _desktop.removeItem(item.target),
-                ),
           ],
         );
       },
@@ -234,13 +245,30 @@ DesktopConfig _copyDesktop(
   );
 }
 
-/// One pinned item: its label, its path, and a remove button.
-class _DesktopItemRow extends StatelessWidget {
-  const _DesktopItemRow({
-    required this.item,
-    required this.missing,
-    required this.onRemove,
-  });
+/// A pinned item's kind, as the leading icon of its row.
+class _DesktopItemIcon extends StatelessWidget {
+  const _DesktopItemIcon({required this.item});
+
+  final DesktopItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return FaIcon(
+      switch (item.kind) {
+        DesktopItemKind.app => FontAwesomeIcons.rocket,
+        DesktopItemKind.folder => FontAwesomeIcons.solidFolder,
+        DesktopItemKind.file => FontAwesomeIcons.file,
+      },
+      size: 13,
+      color: theme.accentText,
+    );
+  }
+}
+
+/// A pinned item's label over its path.
+class _DesktopItemText extends StatelessWidget {
+  const _DesktopItemText({required this.item, required this.missing});
 
   final DesktopItem item;
 
@@ -249,69 +277,35 @@ class _DesktopItemRow extends StatelessWidget {
   /// for a syscall.
   final bool missing;
 
-  final VoidCallback onRemove;
-
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      // Not a [SettingsRow], but it hosts a [SettingsIconButton] that hovers —
-      // see [SettingsRow] for the rule.
-      child: RepaintBoundary(
-        child: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              child: FaIcon(
-                switch (item.kind) {
-                  DesktopItemKind.app => FontAwesomeIcons.rocket,
-                  DesktopItemKind.folder => FontAwesomeIcons.solidFolder,
-                  DesktopItemKind.file => FontAwesomeIcons.file,
-                },
-                size: 12,
-                color: theme.accentText,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    labelForItem(item),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontFamily: theme.fontFamily,
-                      color: theme.popupForeground,
-                    ),
-                  ),
-                  Text(
-                    item.target,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontFamily: theme.fontFamily,
-                      // A target that has gone missing is called out here rather
-                      // than dropped, matching how the desktop dims it.
-                      color: missing ? const Color(0xFFE06C75) : theme.muted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            SettingsIconButton(
-              icon: FontAwesomeIcons.trash,
-              size: 12,
-              onTap: onRemove,
-            ),
-          ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          labelForItem(item),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground,
+          ),
         ),
-      ),
+        Text(
+          item.target,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            fontFamily: theme.fontFamily,
+            // A target that has gone missing is called out here rather
+            // than dropped, matching how the desktop dims it.
+            color: missing ? kErrorColor : theme.muted,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -375,7 +369,12 @@ class NewsSettingsSection extends StatelessWidget {
               label: 'Other feeds',
               addLabel: 'Add feed',
               addHint: 'https://example.com/rss.xml',
-              width: null,
+              emptyText: 'No feeds of your own.',
+              iconOf: (_) => FaIcon(
+                FontAwesomeIcons.rss,
+                size: 12,
+                color: ThemeScope.of(context).accentText,
+              ),
               items: [
                 for (final s in sources)
                   if (newsPreset(s) == null) s,

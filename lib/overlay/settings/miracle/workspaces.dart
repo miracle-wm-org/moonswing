@@ -21,16 +21,7 @@ class MiracleWorkspacesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return SliverSettingsSection(
       label: 'Workspaces',
-      trailing: SettingsAddButton(
-        label: 'Add workspace',
-        onTap: () => store.editStructure((config) {
-          // Numbered from the count rather than left blank: a configuration
-          // with neither a number nor a name matches no workspace at all,
-          // which miracle reports as a warning on the next load.
-          final next = config.workspaceConfigs.length + 1;
-          config.workspaceConfigs.add(WorkspaceConfig(number: next));
-        }),
-      ),
+      fillLast: true,
       info:
           'Each entry configures one workspace. At least one of the number and '
           'the name has to be filled in, or miracle has nothing to match the '
@@ -41,30 +32,34 @@ class MiracleWorkspacesSection extends StatelessWidget {
           signature: _signature,
           builder: (context, config) {
             final workspaces = config.workspaceConfigs;
-            if (workspaces.isEmpty) {
-              return const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: SettingsHint('No workspaces are configured.'),
-              );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const SizedBox(height: 8),
-                for (var i = 0; i < workspaces.length; i++)
-                  _WorkspaceCard(
-                    key: ValueKey('workspace:${store.structureRevision}:$i'),
-                    workspace: workspaces[i],
-                    onChanged: (next) => _edit(i, next),
-                    onMoveUp: i > 0 ? () => _move(i, -1) : null,
-                    onMoveDown: i < workspaces.length - 1
-                        ? () => _move(i, 1)
-                        : null,
-                    onRemove: () => store.editStructure(
-                      (config) => config.workspaceConfigs.removeAt(i),
-                    ),
-                  ),
-              ],
+            return SettingsList(
+              itemCount: workspaces.length,
+              // The cards are fields; only the grip drags.
+              handleOnly: true,
+              itemKey: (i) =>
+                  ValueKey('workspace:${store.structureRevision}:$i'),
+              emptyText: 'No workspaces are configured.',
+              onReorder: (from, to) => store.editStructure(
+                (config) => reorderInPlace(config.workspaceConfigs, from, to),
+              ),
+              onRemove: (i) => store.editStructure(
+                (config) => config.workspaceConfigs.removeAt(i),
+              ),
+              itemBuilder: (context, i) => _WorkspaceCard(
+                workspace: workspaces[i],
+                onChanged: (next) => _edit(i, next),
+              ),
+              adder: SettingsListAddRow(
+                label: 'Add workspace',
+                onTap: () => store.editStructure((config) {
+                  // Numbered from the count rather than left blank: a
+                  // configuration with neither a number nor a name matches no
+                  // workspace at all, which miracle reports as a warning on
+                  // the next load.
+                  final next = config.workspaceConfigs.length + 1;
+                  config.workspaceConfigs.add(WorkspaceConfig(number: next));
+                }),
+              ),
             );
           },
         ),
@@ -77,32 +72,13 @@ class MiracleWorkspacesSection extends StatelessWidget {
     if (index >= workspaces.length) return;
     workspaces[index] = workspace;
   });
-
-  void _move(int index, int delta) => store.editStructure((config) {
-    final workspaces = config.workspaceConfigs;
-    final target = index + delta;
-    if (target < 0 || target >= workspaces.length) return;
-    final moved = workspaces[index];
-    workspaces[index] = workspaces[target];
-    workspaces[target] = moved;
-  });
 }
 
 class _WorkspaceCard extends StatelessWidget {
-  const _WorkspaceCard({
-    super.key,
-    required this.workspace,
-    required this.onChanged,
-    required this.onRemove,
-    this.onMoveUp,
-    this.onMoveDown,
-  });
+  const _WorkspaceCard({required this.workspace, required this.onChanged});
 
   final WorkspaceConfig workspace;
   final ValueChanged<WorkspaceConfig> onChanged;
-  final VoidCallback onRemove;
-  final VoidCallback? onMoveUp;
-  final VoidCallback? onMoveDown;
 
   /// Digits only. The number is a [SettingsCommitField] rather than a
   /// [SettingsNumberField] because both fields here have to be *clearable* —
@@ -115,62 +91,57 @@ class _WorkspaceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return SettingsListRow(
-      onMoveUp: onMoveUp,
-      onMoveDown: onMoveDown,
-      onRemove: onRemove,
-      child: Row(
-        children: [
-          Text(
-            'Number',
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground.withValues(alpha: 0.6),
-            ),
+    return Row(
+      children: [
+        Text(
+          'Number',
+          style: TextStyle(
+            fontSize: ShellFontSizes.caption,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground.withValues(alpha: 0.6),
           ),
-          const SizedBox(width: 6),
-          SettingsCommitField(
-            width: 70,
-            initial: workspace.number?.toString() ?? '',
-            hint: 'any',
-            inputFormatters: _digits,
+        ),
+        const SizedBox(width: 6),
+        SettingsCommitField(
+          width: 70,
+          initial: workspace.number?.toString() ?? '',
+          hint: 'any',
+          inputFormatters: _digits,
+          onCommitted: (text) {
+            final trimmed = text.trim();
+            if (trimmed.isEmpty) {
+              onChanged(workspace.copyWith(clearNumber: true));
+              return;
+            }
+            final parsed = int.tryParse(trimmed);
+            if (parsed != null) onChanged(workspace.copyWith(number: parsed));
+          },
+        ),
+        const SizedBox(width: 12),
+        Text(
+          'Name',
+          style: TextStyle(
+            fontSize: ShellFontSizes.caption,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground.withValues(alpha: 0.6),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: SettingsCommitField(
+            initial: workspace.name ?? '',
+            hint: 'unnamed',
             onCommitted: (text) {
               final trimmed = text.trim();
-              if (trimmed.isEmpty) {
-                onChanged(workspace.copyWith(clearNumber: true));
-                return;
-              }
-              final parsed = int.tryParse(trimmed);
-              if (parsed != null) onChanged(workspace.copyWith(number: parsed));
+              onChanged(
+                trimmed.isEmpty
+                    ? workspace.copyWith(clearName: true)
+                    : workspace.copyWith(name: trimmed),
+              );
             },
           ),
-          const SizedBox(width: 12),
-          Text(
-            'Name',
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Expanded(
-            child: SettingsCommitField(
-              initial: workspace.name ?? '',
-              hint: 'unnamed',
-              onCommitted: (text) {
-                final trimmed = text.trim();
-                onChanged(
-                  trimmed.isEmpty
-                      ? workspace.copyWith(clearName: true)
-                      : workspace.copyWith(name: trimmed),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
