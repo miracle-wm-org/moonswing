@@ -12,6 +12,10 @@ import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/app_scope.dart';
 import 'package:moonswing/caldav/caldav_service.dart';
+import 'package:moonswing/clipboard/clipboard_config.dart';
+import 'package:moonswing/clipboard/clipboard_panel.dart';
+import 'package:moonswing/clipboard/clipboard_panel_controller.dart';
+import 'package:moonswing/clipboard/clipboard_store.dart';
 import 'package:moonswing/capture/capture_store.dart';
 import 'package:moonswing/capture/selection_controller.dart';
 import 'package:moonswing/capture/selector_overlay.dart';
@@ -26,6 +30,7 @@ import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/monitor_watcher.dart';
 import 'package:moonswing/modules/battery.dart';
+import 'package:moonswing/modules/clipboard.dart';
 import 'package:moonswing/modules/dock.dart';
 import 'package:moonswing/modules/github.dart';
 import 'package:moonswing/modules/keybinds.dart';
@@ -175,6 +180,7 @@ void main() async {
   Module.register(scratchpadModule);
   Module.register(todoModule);
   Module.register(stocksModule);
+  Module.register(clipboardModule);
 
   // The desktop grid's own registry, populated the same way: `[[desktop.widgets]]`
   // names a type, and lookup happens at render time. See
@@ -612,8 +618,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// clicks. One per monitor; tapping any opens the one panel, on that monitor.
   final Map<String, LayershellWindowController> _badges = {};
 
-  /// Eleven of the twelve root-owned overlays — the full-screen ones; the
-  /// notification panel is the exception. Each [_OverlayWindow] carries the
+  /// Eleven of the thirteen root-owned overlays — the full-screen ones; the
+  /// notification panel and the clipboard history are the exceptions. Each [_OverlayWindow] carries the
   /// controller, its [PopupCoordinator] registration and the closing notifier.
   ///
   /// The two pickers are modal: dismissing a consent prompt is a denial, and
@@ -636,6 +642,23 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// icon is on. A menu policy like the cheat sheet's: everything on it is
   /// saved as it happens, so anything wanting the screen may displace it.
   final _OverlayWindow _todo = _OverlayWindow();
+
+  /// The clipboard history, opened by the bar's clipboard icon and docked
+  /// against one edge of the output that icon is on. Not an overlay in the
+  /// full-screen sense: a column that reserves its width, takes no keyboard,
+  /// and stays until its own close button or the icon takes it down — so it
+  /// refuses the coordinator's dismissals. Its policy is
+  /// [TransientPolicy.modal]'s two booleans for a different reason: nothing is
+  /// owed an answer, the user simply asked for it to stay.
+  late final _OverlayWindow _clipboard = _OverlayWindow(
+    policy: TransientPolicy.modal,
+    create: _createClipboardWindow,
+  );
+
+  /// The edge the open clipboard panel was docked against, captured at window
+  /// creation: the content slides in from the edge the window is on, and a
+  /// settings edit while it is open must not tell it otherwise.
+  ClipboardSide _clipboardSide = ClipboardSide.left;
   final _OverlayWindow _screencastPicker = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -673,8 +696,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// request would otherwise render into the window the old one is leaving.
   PolkitAuthSession? _polkitSession;
 
-  /// The notification panel — the twelfth root-owned overlay, and the only one
-  /// that is not full-screen. The bell and the badge share no widget ancestry,
+  /// The notification panel — the twelfth root-owned overlay, and one of the
+  /// two that are not full-screen (the clipboard history is the other). The bell and the badge share no widget ancestry,
   /// so both ask the root instead. `late final` because it brings its own
   /// window, a column down one output edge.
   late final _OverlayWindow _notifications = _OverlayWindow(
@@ -818,6 +841,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       (EmojiPickerController.instance, _onEmojiPickerTriggered),
       (KeybindCheatsheetController.instance, _onKeybindsTriggered),
       (TodoController.instance, _onTodoTriggered),
+      (ClipboardPanelController.instance, _onClipboardTriggered),
       (PowerController.instance, _onPowerKeyPressed),
       (PowerMenuController.instance, _onPowerMenuToggled),
       (ScreencastPickerController.instance, _onScreencastPickChanged),
@@ -1714,20 +1738,82 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       _todo.closing.value = true;
       return;
     }
-    // The output the click came from, by connector — which is also how
-    // [_surfaces] is keyed. Not found (outputs still being enumerated, a GDK
-    // that reports no connector) falls back to no monitor at all, and the
-    // compositor puts the board on the focused output: where the click was.
-    final output = TodoController.instance.output;
-    final monitor = output == null || output.isEmpty
-        ? null
-        : (_surfaces[output]?.monitor ??
-              _surfaces.values
-                  .where((s) => s.monitor.connector == output)
-                  .firstOrNull
-                  ?.monitor);
-    _todo.open(monitor: monitor?.gdkMonitor);
+    _todo.open(monitor: _monitorForConnector(TodoController.instance.output));
     _refreshWindows();
+  }
+
+  /// The monitor a bar button's click came from, by connector — which is also
+  /// how [_surfaces] is keyed. Not found (outputs still being enumerated, a GDK
+  /// that reports no connector) is null, and the compositor then puts the
+  /// window on the focused output: where the click was.
+  ffi.Pointer<ffi.NativeType>? _monitorForConnector(String? output) {
+    if (output == null || output.isEmpty) return null;
+    return (_surfaces[output]?.monitor ??
+            _surfaces.values
+                .where((s) => s.monitor.connector == output)
+                .firstOrNull
+                ?.monitor)
+        ?.gdkMonitor;
+  }
+
+  /// The clipboard history's window: full-height against the configured edge
+  /// of the output, `[modules.clipboard] width` wide.
+  ///
+  /// Three choices make it what it is, and none is the notification panel's:
+  ///
+  /// - **Keyboard `none`.** The panel's whole use is pasting into the window
+  ///   the user is already in; a surface that took focus on every click would
+  ///   take it off that window.
+  /// - **An exclusive zone of its own width**, so the compositor moves windows
+  ///   out of its way. Hence no [spanFullOutput] either: a positive zone is
+  ///   placed clear of the bars' zones by the compositor, which is right for a
+  ///   dock beside them.
+  /// - **The top layer**, a dock's: above windows, below the overlays.
+  LayershellWindowController _createClipboardWindow(
+    ffi.Pointer<ffi.NativeType>? monitor,
+  ) {
+    final config = ClipboardHistoryStore.instance.config;
+    _clipboardSide = config.side;
+    return LayershellWindowController(
+      layer: LayerShellLayer.top,
+      anchorEdges: [
+        config.side == ClipboardSide.left
+            ? LayerShellEdge.left
+            : LayerShellEdge.right,
+        LayerShellEdge.top,
+        LayerShellEdge.bottom,
+      ],
+      width: config.width,
+      // height omitted: top+bottom anchoring makes this full-height.
+      exclusiveZone: config.width,
+      keyboardMode: LayerShellKeyboardMode.none,
+      monitor: monitor,
+    );
+  }
+
+  /// The bar's clipboard button was pressed. Toggles: a press while the panel
+  /// is up closes it, wherever it is docked.
+  void _onClipboardTriggered() {
+    if (!mounted) return;
+    if (_clipboard.isOpen) {
+      _clipboard.closing.value = true;
+      return;
+    }
+    _clipboard.open(
+      monitor: _monitorForConnector(ClipboardPanelController.instance.output),
+    );
+    ClipboardPanelController.instance.setOpen(true);
+    _refreshWindows();
+  }
+
+  /// Called by [ClipboardPanel] once its exit has finished.
+  void _onClipboardClosed() {
+    if (!mounted) return;
+    final removed = _clipboard.take();
+    if (removed == null) return;
+    ClipboardPanelController.instance.setOpen(false);
+    _refreshWindows();
+    _destroyAfterFrame([removed]);
   }
 
   /// Called by [TodoOverlay] once its fade-out has finished.
@@ -2221,6 +2307,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       _emojiPicker,
       _keybinds,
       _todo,
+      _clipboard,
       _screencastPicker,
       _inputCaptureConsent,
       _filePicker,
@@ -2621,6 +2708,18 @@ class _MoonswingRootState extends State<MoonswingRoot> {
             TodoOverlay(
               closingNotifier: _todo.closing,
               onClosed: _onTodoClosed,
+            ),
+          ),
+        ),
+      // The clipboard history, beside the todo board and for the same reason.
+      if (_clipboard.controller case final clipboard?)
+        (
+          controller: clipboard,
+          builder: (_) => _windowChrome(
+            ClipboardPanel(
+              side: _clipboardSide,
+              closingNotifier: _clipboard.closing,
+              onClosed: _onClipboardClosed,
             ),
           ),
         ),

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/modules/battery.dart';
 import 'package:moonswing/modules/brightness.dart';
+import 'package:moonswing/modules/clipboard.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/modules/dock.dart';
 import 'package:moonswing/modules/github.dart';
@@ -52,6 +53,7 @@ void main() {
       scratchpadModule,
       todoModule,
       stocksModule,
+      clipboardModule,
     ];
     for (final module in modules) {
       Module.register(module);
@@ -79,6 +81,7 @@ void main() {
       'scratchpad',
       'todo',
       'stocks',
+      'clipboard',
     ];
     for (final key in expected) {
       expect(Module.lookup(key), isNotNull, reason: key);

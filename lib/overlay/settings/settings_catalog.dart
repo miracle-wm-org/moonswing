@@ -808,6 +808,43 @@ abstract final class SettingsCatalog {
     const ['stocks', 'ticker', 'crawl', 'width', 'size'],
   );
 
+  static final clipboardSide = _module(
+    'modules.clipboard.side',
+    'Side',
+    'Which edge of the screen the clipboard history docks against. Windows '
+        'are moved out of its way while it is open.',
+    const ['clipboard', 'history', 'panel', 'left', 'right', 'side', 'dock'],
+  );
+  static final clipboardWidth = _module(
+    'modules.clipboard.width',
+    'Width',
+    'How wide the clipboard history is, in pixels — which is also how much '
+        'of the screen it takes from your windows while it is open.',
+    const ['clipboard', 'history', 'panel', 'width', 'size'],
+  );
+  static final clipboardMaxEntries = _module(
+    'modules.clipboard.max_entries',
+    'Entries kept',
+    'How many things the history remembers before the oldest are dropped. '
+        'Pinned entries are kept on top of this.',
+    const ['clipboard', 'history', 'limit', 'entries', 'items', 'count'],
+  );
+  static final clipboardPersist = _module(
+    'modules.clipboard.persist',
+    'Keep across restarts',
+    'Saves the history so it is still there after the shell restarts. Off, '
+        'it starts empty every time.',
+    const ['clipboard', 'history', 'save', 'persist', 'disk', 'privacy'],
+  );
+  static final clipboardMaxItemMb = _module(
+    'modules.clipboard.max_item_mb',
+    'Largest item (MB)',
+    'Anything copied that is bigger than this is not remembered. Copied files '
+        'are remembered as their paths, so this is about pictures and media '
+        'copied directly.',
+    const ['clipboard', 'history', 'size', 'limit', 'image', 'video'],
+  );
+
   static final recorderDirectory = _module(
     'modules.screen_recorder.directory',
     'Save to',
@@ -2188,6 +2225,7 @@ abstract final class SettingsCatalog {
     'notifications': 'Notifications',
     'github': 'GitHub',
     'stocks': 'Stock market',
+    'clipboard': 'Clipboard',
     'screenshot': 'Screenshot',
     'screen_recorder': 'Screen recorder',
   };
@@ -2406,6 +2444,11 @@ abstract final class SettingsCatalog {
     stocksScroll,
     stocksScrollSpeed,
     stocksWidth,
+    clipboardSide,
+    clipboardWidth,
+    clipboardMaxEntries,
+    clipboardPersist,
+    clipboardMaxItemMb,
     screenshotDirectory,
     screenshotCopyToClipboard,
     screenshotDelaySeconds,

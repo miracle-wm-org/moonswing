@@ -100,6 +100,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"dock"` - Application launcher dock
 - `"scratchpad"` - Shows or hides the window manager's scratchpad (requires Miracle WM)
 - `"todo"` - The todo board, with a count of what is due today
+- `"clipboard"` - Your clipboard history, in a panel docked against one side of the screen
 
 A module omitted from all sections of all panels is disabled entirely. You can place any module in any section and in any order. The same module can appear in multiple panels.
 
@@ -665,6 +666,62 @@ of its window tree altogether. Every stashed window is shown and hidden together
 
 If the shell cannot reach the window manager, the icon dims and its label says
 why; the next click tries again.
+
+### Clipboard
+
+The clipboard icon opens your **clipboard history**: a panel docked against the
+left edge of the screen whose bar you clicked (or the right — see `side`),
+listing everything you have copied, newest first. Text, pictures, and files
+copied in a file manager — videos, documents, folders — are all kept, each on a
+card showing what it is, its size and when you copied it.
+
+**Click a card to copy it again**, then paste it wherever you like. The card
+moves to the top and says *Copied*; the top card, outlined, is what is on the
+clipboard now. The pin keeps an entry when the history fills up and when you
+press **Clear**; the bin forgets one entry.
+
+The panel **never takes keyboard focus**, so copying from it leaves the window
+you were typing in exactly as it was — click a card, click back into your
+document, paste. It stays open until you close it with its ×, or click the
+clipboard icon again; clicking anything else, or opening another menu, leaves it
+where it is. While it is open it **reserves its width**: windows are moved out
+of its way rather than drawn under it.
+
+```toml
+[modules.clipboard]
+side = "left"
+width = 360
+max_entries = 100
+persist = true
+max_item_mb = 32
+```
+
+| Key           | Type   | Default  | Description                                                                                       |
+| ------------- | ------ | -------- | ------------------------------------------------------------------------------------------------- |
+| `side`        | string | `"left"` | Which edge of the screen the panel docks against: `"left"` or `"right"`                           |
+| `width`       | int    | `360`    | How wide the panel is, in pixels (240–1200) — and so how much of the screen it takes from windows |
+| `max_entries` | int    | `100`    | How many entries are kept before the oldest go (1–1000). Pinned entries are kept on top of this   |
+| `persist`     | bool   | `true`   | Keep the history across restarts. `false` starts it empty every time the shell starts            |
+| `max_item_mb` | int    | `32`     | Anything copied that is bigger than this, in megabytes, is not kept (1–1024)                      |
+
+`side` and `width` are read when the panel opens, so a change applies the next
+time you open it. A file you copy is kept as its path, not its contents, so
+`max_item_mb` is about pictures and media copied directly — a screenshot, an
+image copied out of a browser.
+
+The history is recorded while any bar carries the clipboard icon, and not at
+all otherwise. It is kept in `~/.local/state/moonswing/clipboard/` (or under
+`$XDG_STATE_HOME`), readable by you alone. Anything a password manager marks as
+not to be remembered — KeePassXC does — is never recorded.
+
+**It needs `wl-paste` and `wl-copy`, from the `wl-clipboard` package**, and a
+compositor offering the wlr- or ext-data-control protocol, which is what lets
+something other than the focused window see what was copied. Without either,
+the panel says which is missing, keeps what it has already recorded, and offers
+a retry; the icon in the bar dims.
+
+**The module is not in the default layout** — add `"clipboard"` to a panel's
+`left`, `center` or `right` list, or use **Settings → Shell → Panels & Layout**.
 
 ### Todo
 
