@@ -263,3 +263,61 @@ Widget panelWithRim({
     child: content,
   );
 }
+
+/// A bar's modules, inside whatever the theme wraps them in, kept mounted
+/// across a theme switch.
+///
+/// The theme decides how many widgets stand between the bar's decoration and
+/// its modules: a [ClipRRect] only while `panel_radius` is non-zero (so a square
+/// bar adds no clip layer), and [panelWithRim]'s painter only for a rimmed bar
+/// that attaches its popups. Either one coming or going moves [content] to a
+/// different depth, and an unkeyed subtree that moves is *rebuilt*, not moved —
+/// every module in the bar was disposed and created again. That is not just
+/// lost state: a module's `dispose` closes what it has open, and the clock
+/// hosts the settings overlay, so picking Dracula over Glassy (12 → 0) in a
+/// settings panel opened from the clock took the panel down under the pointer.
+///
+/// [GlobalKey] on [content] is what makes it a move: the framework reparents a
+/// globally-keyed subtree to wherever its key turns up in the same frame, state
+/// and render objects included. The wrappers stay conditional, so every theme
+/// keeps exactly the layers it had.
+class PanelContentFrame extends StatefulWidget {
+  const PanelContentFrame({
+    super.key,
+    required this.theme,
+    required this.anchor,
+    required this.panel,
+    required this.content,
+  });
+
+  final ThemeConfig theme;
+  final String anchor;
+
+  /// The panel's own `FlutterView`, which [PanelRimBreaks] is keyed on.
+  final Object? panel;
+
+  /// The modules.
+  final Widget content;
+
+  @override
+  State<PanelContentFrame> createState() => _PanelContentFrameState();
+}
+
+class _PanelContentFrameState extends State<PanelContentFrame> {
+  final GlobalKey _content = GlobalKey(debugLabel: 'panel content');
+
+  @override
+  Widget build(BuildContext context) {
+    final radius =
+        panelCornerRadius(anchor: widget.anchor, theme: widget.theme);
+    final Widget content = KeyedSubtree(key: _content, child: widget.content);
+    return panelWithRim(
+      theme: widget.theme,
+      anchor: widget.anchor,
+      panel: widget.panel,
+      content: radius == BorderRadius.zero
+          ? content
+          : ClipRRect(borderRadius: radius, child: content),
+    );
+  }
+}
