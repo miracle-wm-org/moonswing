@@ -23,6 +23,7 @@ import 'package:moonswing/search_list.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
+export 'package:moonswing/overlay/settings/settings_date_picker.dart';
 export 'package:moonswing/overlay/settings/settings_list.dart';
 
 /// Themed form controls shared by the panels inside the settings overlay.

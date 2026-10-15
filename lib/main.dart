@@ -2617,12 +2617,22 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       if (_todo.controller case final board?)
         (
           controller: board,
-          builder: (_) => _windowChrome(
-            TodoOverlay(
+          builder: (_) {
+            final content = TodoOverlay(
               closingNotifier: _todo.closing,
               onClosed: _onTodoClosed,
-            ),
-          ),
+            );
+            // Read here, not captured: the scope is what makes the editor's
+            // date pickers popups *of the board*, so opening one does not
+            // dismiss the board as it would any other surface outside its
+            // chain.
+            final handle = _todo.handle;
+            return _windowChrome(
+              handle == null
+                  ? content
+                  : TransientScope(handle: handle, child: content),
+            );
+          },
         ),
       // The screen-share consent picker, open only while an application's portal
       // request is waiting on an answer. Single window like the launcher, so it
@@ -2957,6 +2967,10 @@ class _OverlayWindow {
   TransientHandle? _handle;
 
   bool get isOpen => controller != null;
+
+  /// The window's registration while it is open, for a [TransientScope] over
+  /// content that opens popups of its own.
+  TransientHandle? get handle => _handle;
 
   /// Creates the native window and registers with the coordinator.
   ///

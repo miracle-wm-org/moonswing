@@ -17,6 +17,8 @@ import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_token_store.dart';
 import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
@@ -76,6 +78,10 @@ Future<void> sendCtrl(WidgetTester tester, LogicalKeyboardKey key) async {
   await tester.pumpAndSettle();
 }
 
+/// [child] under the board's [TransientScope], as the shell builds it.
+Widget _maybeScoped(TransientHandle? board, Widget child) =>
+    board == null ? child : TransientScope(handle: board, child: child);
+
 void main() {
   late ValueNotifier<bool> closing;
   late int closed;
@@ -98,6 +104,7 @@ void main() {
     ValueChanged<TodoCalDavSync>? withSync,
     GithubLinkStore? githubLinks,
     Future<ClipboardResult> Function(String text)? copy,
+    TransientHandle? board,
   }) async {
     tester.view.physicalSize = const Size(1600, 1000);
     tester.view.devicePixelRatio = 1;
@@ -123,14 +130,17 @@ void main() {
         theme: const ThemeConfig(),
         child: AccountsScope(
           githubLinks: githubLinks,
-          child: TodoOverlay(
-            closingNotifier: closing,
-            onClosed: () => closed++,
-            store: store,
-            sync: sync,
-            onOpenAccounts: onOpenAccounts ?? () {},
-            onOpenLink: onOpenLink ?? (_) {},
-            copy: copy ?? (_) async => ClipboardResult.copied,
+          child: _maybeScoped(
+            board,
+            TodoOverlay(
+              closingNotifier: closing,
+              onClosed: () => closed++,
+              store: store,
+              sync: sync,
+              onOpenAccounts: onOpenAccounts ?? () {},
+              onOpenLink: onOpenLink ?? (_) {},
+              copy: copy ?? (_) async => ClipboardResult.copied,
+            ),
           ),
         ),
       ),
@@ -409,6 +419,106 @@ void main() {
     await tester.pumpAndSettle();
     expect(closing.value, isTrue);
     expect(closed, 1);
+  });
+
+  testWidgets('the editor has a date picker beside each date field', (
+    tester,
+  ) async {
+    await pump(tester, [
+      _item('a', TodoColumn.inbox, due: DateTime(2026, 9, 30)),
+    ]);
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    final pickers = find.byType(SettingsDatePickerButton);
+    expect(pickers, findsOneWidget);
+    // It opens on what the field holds, and on the calendar's week.
+    final due = tester.widget<SettingsDatePickerButton>(pickers);
+    expect(due.selected, DateTime(2026, 9, 30));
+    expect(due.today, DateTime(2026, 9, 24));
+    expect(due.weekStart, DateTime.sunday);
+
+    // The first scheduled day gets one too, once the item repeats.
+    await tester.tap(find.byType(SettingsToggle));
+    await tester.pumpAndSettle();
+    expect(pickers, findsNWidgets(2));
+    expect(
+      tester.widget<SettingsDatePickerButton>(pickers.at(1)).selected,
+      DateTime(2026, 9, 24),
+    );
+
+    // A pick lands in the field it belongs to.
+    tester
+        .widget<SettingsDatePickerButton>(pickers.first)
+        .onPicked(DateTime(2026, 10, 2));
+    await tester.pump();
+    expect(find.text('2026-10-02'), findsOneWidget);
+    expect(
+      tester.widget<SettingsDatePickerButton>(pickers.first).selected,
+      DateTime(2026, 10, 2),
+    );
+  });
+
+  testWidgets('Escape closes an open date picker before the editor', (
+    tester,
+  ) async {
+    // The board's own registration, and a picker opened as a popup of it.
+    final board = PopupCoordinator.instance.open(
+      owner: Object(),
+      onDismiss: () {},
+    );
+    addTearDown(() => PopupCoordinator.instance.close(board));
+
+    await pump(tester, [_item('a', TodoColumn.inbox)], board: board);
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit item'), findsOneWidget);
+
+    // Opened after the click that opened the editor, which would have closed
+    // it: a click on the board closes a picker.
+    var pickerDismissed = 0;
+    final picker = PopupCoordinator.instance.open(
+      owner: Object(),
+      parent: board,
+      onDismiss: () => pickerDismissed++,
+    );
+    addTearDown(() => PopupCoordinator.instance.close(picker));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(pickerDismissed, 1);
+    expect(find.text('Edit item'), findsOneWidget);
+
+    // Gone (it is closing), so the next Escape is the editor's.
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(pickerDismissed, 1);
+    expect(find.text('Edit item'), findsNothing);
+    expect(closing.value, isFalse);
+  });
+
+  testWidgets('a date picker closes as the board starts its exit', (
+    tester,
+  ) async {
+    final board = PopupCoordinator.instance.open(
+      owner: Object(),
+      onDismiss: () {},
+    );
+    addTearDown(() => PopupCoordinator.instance.close(board));
+    await pump(tester, [_item('a', TodoColumn.inbox)], board: board);
+    var pickerDismissed = 0;
+    final picker = PopupCoordinator.instance.open(
+      owner: Object(),
+      parent: board,
+      onDismiss: () => pickerDismissed++,
+    );
+    addTearDown(() => PopupCoordinator.instance.close(picker));
+
+    // The bar button's way: the notifier, not the coordinator.
+    closing.value = true;
+    await tester.pump();
+    expect(pickerDismissed, 1);
+    expect(board.closing, isFalse);
+    await tester.pumpAndSettle();
   });
 
   testWidgets('the editor opens with its title focused, not the search', (

@@ -356,6 +356,11 @@ class TransientScope extends InheritedWidget {
 /// Translucent, so a click on a panel's empty space dismisses too. It cannot
 /// catch a click on an ordinary application window; nothing available to the
 /// shell can.
+///
+/// Inside a surface that is itself registered with the coordinator — an
+/// overlay given a [TransientScope], which the todo board is so its date
+/// pickers can open as popups of it — the click spares that surface's chain:
+/// a click on the board closes the picker, never the board.
 class PopupDismissArea extends StatelessWidget {
   const PopupDismissArea({super.key, required this.child});
 
@@ -366,7 +371,10 @@ class PopupDismissArea extends StatelessWidget {
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) =>
-          PopupCoordinator.instance.dismissFromPointerDown(event),
+          PopupCoordinator.instance.dismissFromPointerDown(
+            event,
+            within: TransientScope.maybeOf(context),
+          ),
       child: child,
     );
   }

@@ -152,6 +152,23 @@ class PopupCoordinator extends ChangeNotifier {
     }
   }
 
+  /// Dismisses what is open inside [parent], leaving [parent] itself open, and
+  /// says whether there was anything to dismiss.
+  ///
+  /// For a surface's Escape, which backs out one layer at a time: a popup
+  /// opened from it goes before anything of its own does.
+  bool dismissChildren(TransientHandle? parent) {
+    if (parent == null) return false;
+    final children = [
+      for (final child in _childrenOf(parent))
+        if (!child.closing && isDismissable(child)) child,
+    ];
+    for (final child in children) {
+      dismiss(child);
+    }
+    return children.isNotEmpty;
+  }
+
   /// Dismisses everything, ignoring [TransientPolicy.dismissable].
   ///
   /// For session lock, which hides every other surface anyway: a popup left

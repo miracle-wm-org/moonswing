@@ -130,4 +130,47 @@ void main() {
     expect(dismissed, 1);
     await gesture.up();
   });
+
+  testWidgets('inside a registered surface, a press spares its chain', (
+    tester,
+  ) async {
+    var boardDismissed = 0;
+    var pickerDismissed = 0;
+    var otherDismissed = 0;
+    final board = register(owner: Object(), onDismiss: () => boardDismissed++);
+    final pickerOwner = Object();
+    final picker = PopupCoordinator.instance.open(
+      owner: pickerOwner,
+      parent: board,
+      onDismiss: () => pickerDismissed++,
+    );
+    registered.add(picker);
+    // A tooltip, so registering it does not itself dismiss the board.
+    register(
+      owner: Object(),
+      policy: TransientPolicy.tooltip,
+      onDismiss: () => otherDismissed++,
+    );
+    // The area under the scope, the way the todo board has it.
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: TransientScope(
+          handle: board,
+          child: const PopupDismissArea(
+            child: SizedBox(width: 200, height: 60),
+          ),
+        ),
+      ),
+    );
+    final gesture = await tester.startGesture(const Offset(400, 300));
+    await tester.pump();
+
+    expect(boardDismissed, 0);
+    expect(pickerDismissed, 1);
+    expect(otherDismissed, 1);
+    // A second click on the picker's button is a close, not a reopen.
+    expect(PopupCoordinator.instance.consumeReopenGuard(pickerOwner), isTrue);
+    await gesture.up();
+  });
 }
