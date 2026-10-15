@@ -259,12 +259,8 @@ class _LauncherOverlayState extends State<LauncherOverlay> {
       onTap: () {},
       child: SizedBox(
         width: kLauncherCardWidth,
-        child: Container(
-          decoration: BoxDecoration(
-            color: theme.popupBackground,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: theme.accent, width: 1.5),
-          ),
+        child: OverlayCard(
+          color: theme.popupBackground,
           padding: const EdgeInsets.all(10),
           child: Column(
             mainAxisSize: MainAxisSize.min,

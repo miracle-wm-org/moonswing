@@ -56,6 +56,7 @@ void main() {
       'popup_shadow_offset_x',
       'popup_shadow_offset_y',
       'popup_animation_duration',
+      'overlay_radius',
       'overlay_animation',
       'overlay_animation_duration',
       'overlay_animation_exit_ratio',

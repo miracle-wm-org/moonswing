@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -239,5 +241,63 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
       );
     }
     return backdrop;
+  }
+}
+
+/// The card a full-screen overlay centres on its scrim: [color], rounded to the
+/// theme's `overlay_radius` and rimmed in the accent, with [child] clipped to
+/// the inside of that rim.
+///
+/// The clip is what lets the radius be the user's. A card's content is laid out
+/// in its box, not its outline, so at the 12 every overlay used to hard-code a
+/// header's divider or a highlighted row in a corner fell inside the curve by
+/// luck — and at a larger radius would be drawn out past it onto the scrim.
+class OverlayCard extends StatelessWidget {
+  const OverlayCard({
+    super.key,
+    required this.color,
+    this.padding = EdgeInsets.zero,
+    required this.child,
+  });
+
+  /// The fill. Each overlay picks its own: the workspaces force it opaque, the
+  /// search cards keep the theme's alpha.
+  final Color color;
+
+  /// Inside the clip, so content kept off the edge by it is still cut by the
+  /// curve rather than poking past it.
+  final EdgeInsetsGeometry padding;
+
+  final Widget child;
+
+  /// The accent rim's thickness.
+  static const double borderWidth = 1.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final radius = theme.overlayRadius;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+        border: Border.all(color: theme.accent, width: borderWidth),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(borderWidth),
+        // Concentric with the rim's inner edge. On a square card the clip is
+        // switched off rather than left out: a zero-radius clip is still a clip
+        // layer, for nothing, but dropping the widget would change the depth of
+        // everything under it — and the settings panel is one of these cards,
+        // so typing a radius into it would remount the pane being typed in.
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(
+            math.max(0.0, radius - borderWidth),
+          ),
+          clipBehavior: radius > borderWidth ? Clip.antiAlias : Clip.none,
+          child: Padding(padding: padding, child: child),
+        ),
+      ),
+    );
   }
 }

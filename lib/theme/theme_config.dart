@@ -335,6 +335,17 @@ class ThemeConfig {
       milliseconds:
           (popupAnimationDuration * ShellDurations.popupExitFraction).round());
 
+  /// The corner rounding of a full-screen overlay's card — the settings panel,
+  /// the todo board, the launcher, the emoji picker and the screen-share picker.
+  ///
+  /// Separate from [popupRadius] because the two are different sizes of thing:
+  /// a radius that suits a three-row menu reads as a pill on a card half the
+  /// size of the output, and one that suits the settings panel makes a tooltip
+  /// a circle. The overlays drawn as a [popupRadius] card — the power menu, the
+  /// window switcher, the cheat sheet and the two consent prompts — are popups
+  /// that happen to be centred, and keep that key.
+  final double overlayRadius;
+
   /// Which animation a full-screen overlay plays as it opens, and — reversed —
   /// as it closes.
   ///
@@ -486,6 +497,7 @@ class ThemeConfig {
     this.popupShadowOffsetY = 6.0,
     this.popupEffect = PopupEffect.slide,
     this.popupAnimationDuration = _kDefaultPopupDurationMs,
+    this.overlayRadius = 12.0,
     this.overlayEffect = OverlayEffect.scale,
     this.overlayAnimationDuration = _kDefaultOverlayDurationMs,
     this.overlayExitRatio = 1.0,
@@ -566,6 +578,8 @@ class ThemeConfig {
     _ThemeKey('popup_animation_duration', _ThemeKeyKind.integer,
         (t) => t.popupAnimationDuration,
         min: 0.0, max: 2000.0),
+    _ThemeKey('overlay_radius', _ThemeKeyKind.number, (t) => t.overlayRadius,
+        min: 0.0, max: 64.0),
     _ThemeKey(
         'overlay_animation', _ThemeKeyKind.overlayEffect, (t) => t.overlayEffect),
     _ThemeKey('overlay_animation_duration', _ThemeKeyKind.integer,
@@ -646,6 +660,7 @@ class ThemeConfig {
       popupShadowOffsetY: v('popup_shadow_offset_y'),
       popupEffect: v('popup_animation'),
       popupAnimationDuration: v('popup_animation_duration'),
+      overlayRadius: v('overlay_radius'),
       overlayEffect: v('overlay_animation'),
       overlayAnimationDuration: v('overlay_animation_duration'),
       overlayExitRatio: v('overlay_animation_exit_ratio'),
