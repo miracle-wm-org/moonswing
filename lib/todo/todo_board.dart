@@ -146,7 +146,8 @@ class _TodoBoardState extends State<TodoBoard> {
 
   /// A date picker goes as the overview starts its exit, however that was
   /// asked for — a bar button flips [TodoBoard.closingNotifier] directly —
-  /// rather than outliving the fade as a popup of a window on its way out.
+  /// rather than sitting over the fade: it floats in the overview's own
+  /// overlay, outside the card that fades.
   void _onClosing() {
     if (!widget.closingNotifier.value || !mounted) return;
     PopupCoordinator.instance.dismissChildren(TransientScope.maybeOf(context));
@@ -286,8 +287,10 @@ class _TodoBoardState extends State<TodoBoard> {
     }
     if (key != LogicalKeyboardKey.escape) return KeyEventResult.ignored;
     // Escape backs out one layer at a time: a date picker, a card menu, the
-    // editor, then the search, then the board. The picker is a popup window
-    // of the board's, so it is the coordinator that knows it is open.
+    // editor, then the search, then the board. The picker floats in the
+    // window's root overlay, out of the board's reach, and registers with the
+    // coordinator as a child of the board, so it is the coordinator that knows
+    // it is open.
     if (PopupCoordinator.instance.dismissChildren(
       TransientScope.maybeOf(context),
     )) {
@@ -351,11 +354,7 @@ class _TodoBoardState extends State<TodoBoard> {
               // Opaque popups, for the settings overlay's reason: the editor's
               // dropdowns float over dense text.
               child: OpaquePopupScope(
-                // A click anywhere on the board closes an open date picker —
-                // a popup window of its own, which nothing else here can see.
-                child: PopupDismissArea(
-                  child: Overlay(initialEntries: [_panelEntry]),
-                ),
+                child: Overlay(initialEntries: [_panelEntry]),
               ),
             ),
           ),

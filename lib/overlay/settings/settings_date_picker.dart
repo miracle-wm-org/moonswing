@@ -1,27 +1,23 @@
-// ignore_for_file: invalid_use_of_internal_member
 // The date picker: a month of days on a card of its own, opened from a
 // calendar button beside a date field.
 //
-// A *true* popup — a native window parented to whatever surface the button is
-// on, through [PopupHost] — rather than a float in the root overlay the way
-// [AnchoredSearchDropdown] is: the card is themed and animated as every other
-// popup in the shell is, is free to open past the edge of the form that opened
-// it, and closes on a click anywhere else because [PopupCoordinator] closes it,
-// not because the form remembered to.
+// A float in the window's root overlay, as [AnchoredSearchDropdown] is, and
+// not a native popup window: see [SettingsDatePickerButton] for why.
 library;
+
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:layer_shell/layer_shell.dart';
 
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/shell_text_root.dart';
-import 'package:moonswing/theme/theme_provider.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// One day's cell in [SettingsDatePickerCard].
@@ -222,14 +218,32 @@ class _DayCell extends StatelessWidget {
   }
 }
 
+/// The gap between the calendar button and the card it opens.
+const double _kPickerGap = 4;
+
 /// The calendar button beside a date field, opening a [SettingsDatePickerCard]
-/// in a popup anchored under it.
+/// anchored under it.
 ///
-/// It owns the popup and nothing else: the field stays the value, so a date can
+/// It owns the card and nothing else: the field stays the value, so a date can
 /// still be typed, and a pick is handed to [onPicked] for the caller to write
-/// into it. The popup closes on a pick, on a second click of the button (the
-/// coordinator's reopen guard), on a click anywhere else in the window's
-/// [PopupDismissArea], and when the button goes away.
+/// into it. The card closes on a pick, on a click anywhere else in the window
+/// (the button included, so a second click toggles it shut), when the form
+/// under it scrolls, when the [PopupCoordinator] asks — Escape and the board's
+/// exit, through `dismissChildren` — and when the button goes away.
+///
+/// **The card floats in the window's own root [Overlay], never in a popup
+/// window of its own.** This button lives in the overview, a full-screen
+/// overlay-layer surface, and a native popup is a separate compositor surface
+/// whose stacking is the compositor's call, not the shell's: parented to a
+/// surface covering the whole output, it never showed, and the button looked
+/// dead. Nothing outside the window is worth reaching from a form that already
+/// spans the output — the reason the board's card menu and every settings
+/// dropdown float in-window too.
+///
+/// It is still registered with the coordinator, as a child of the
+/// [TransientScope] it was opened under, so a surface that backs out one layer
+/// at a time sees it as the layer above it, and a click on another surface
+/// (a bar) closes it with everything else.
 class SettingsDatePickerButton extends StatefulWidget {
   const SettingsDatePickerButton({
     super.key,
@@ -253,68 +267,115 @@ class SettingsDatePickerButton extends StatefulWidget {
       _SettingsDatePickerButtonState();
 }
 
-class _SettingsDatePickerButtonState extends State<SettingsDatePickerButton>
-    with PopupHost<SettingsDatePickerButton> {
+class _SettingsDatePickerButtonState extends State<SettingsDatePickerButton> {
+  OverlayEntry? _entry;
+  TransientHandle? _handle;
+
+  /// The scroll position the button sits in, while the card is open. The card
+  /// is placed once, at open, against where the button was; a form scrolled
+  /// under it would leave it pointing at some other field.
+  ScrollPosition? _hostScroll;
+
   @override
   void dispose() {
-    closePopup();
+    _close(rebuild: false);
     super.dispose();
   }
 
-  void _toggle(BuildContext context) {
-    if (isPopupOpen) {
-      closePopup();
+  void _toggle() => _entry != null ? _close() : _open();
+
+  void _open() {
+    if (_entry != null) return;
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final button = context.findRenderObject();
+    final overlayBox = overlay.context.findRenderObject();
+    if (button is! RenderBox || !button.hasSize || overlayBox is! RenderBox) {
       return;
     }
-    final button = popupAnchorRect(context);
-    openPopup(
-      context,
-      // The button's rect grown a few pixels top and bottom, so the card stands
-      // off it by the same gap whether it opens below or is flipped above.
-      anchorRect: Rect.fromLTRB(
-        button.left,
-        button.top - 4,
-        button.right,
-        button.bottom + 4,
-      ),
-      parentAnchor: WindowPositionerAnchor.bottomLeft,
-      childAnchor: WindowPositionerAnchor.topLeft,
-      constraintAdjustment: const WindowPositionerConstraintAdjustment(
-        flipY: true,
-        slideX: true,
-      ),
-      // Loose: the card's fixed cells give it its size.
-      preferredConstraints: const BoxConstraints(maxWidth: 360, maxHeight: 360),
-      // Its own view, so its own theme, live, and its own text root — nothing
-      // above the popup's content supplies either.
-      child: ThemeProvider(
-        child: Builder(
-          builder: (context) {
-            final theme = ThemeScope.of(context);
-            return ShellTextRoot(
-              style: TextStyle(
-                color: theme.popupForeground,
-                fontSize: ShellFontSizes.body,
-              ),
-              // Opaque, for the reason forms are: it opens over the fields of
-              // the form that opened it.
-              child: OpaquePopupScope(
-                child: PopupCard(
-                  child: SettingsDatePickerCard(
-                    selected: widget.selected,
-                    today: widget.today,
-                    weekStart: widget.weekStart,
-                    onPicked: (day) {
-                      closePopup();
-                      widget.onPicked(day);
-                    },
+    final anchor =
+        button.localToGlobal(Offset.zero, ancestor: overlayBox) & button.size;
+    final entry = OverlayEntry(
+      builder: (context) => _buildCard(context, anchor),
+    );
+    _entry = entry;
+    // Registered before it shows, so whatever it displaces is already on its
+    // way out — and parented to the surface it opens over, so it is not one
+    // of them.
+    _handle = PopupCoordinator.instance.open(
+      owner: this,
+      parent: TransientScope.maybeOf(context),
+      onDismiss: _close,
+    );
+    overlay.insert(entry);
+    _hostScroll = Scrollable.maybeOf(context)?.position
+      ?..isScrollingNotifier.addListener(_onHostScroll);
+    setState(() {});
+  }
+
+  void _onHostScroll() {
+    if (_entry != null) _close();
+  }
+
+  /// Idempotent, because three things can ask: a pick, a click elsewhere, and
+  /// the coordinator — whose `dismiss` arrives here as `onDismiss`.
+  void _close({bool rebuild = true}) {
+    _hostScroll?.isScrollingNotifier.removeListener(_onHostScroll);
+    _hostScroll = null;
+    final handle = _handle;
+    _handle = null;
+    PopupCoordinator.instance.close(handle);
+    final entry = _entry;
+    if (entry == null) return;
+    _entry = null;
+    entry.remove();
+    if (rebuild && mounted) setState(() {});
+  }
+
+  Widget _buildCard(BuildContext context, Rect anchor) {
+    final theme = ThemeScope.of(context);
+    return Stack(
+      children: [
+        // A press anywhere off the card closes it, the button's own included —
+        // the barrier is over the button, which is what makes a second click
+        // a toggle. On the press, as every dismiss in the shell is.
+        Positioned.fill(
+          child: Listener(
+            behavior: HitTestBehavior.opaque,
+            onPointerDown: (_) => _close(),
+          ),
+        ),
+        Positioned.fill(
+          child: CustomSingleChildLayout(
+            delegate: _DatePickerLayout(anchor),
+            // Absorbs clicks on the card's own chrome, which would otherwise
+            // fall through to the barrier.
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              child: ShellTextRoot(
+                style: TextStyle(
+                  color: theme.popupForeground,
+                  fontSize: ShellFontSizes.body,
+                ),
+                // Opaque, for the reason forms are: it opens over the fields
+                // of the form that opened it.
+                child: OpaquePopupScope(
+                  child: PopupCard(
+                    child: SettingsDatePickerCard(
+                      selected: widget.selected,
+                      today: widget.today,
+                      weekStart: widget.weekStart,
+                      onPicked: (day) {
+                        _close();
+                        widget.onPicked(day);
+                      },
+                    ),
                   ),
                 ),
               ),
-            );
-          },
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -324,26 +385,60 @@ class _SettingsDatePickerButtonState extends State<SettingsDatePickerButton>
     return SettingsTooltip(
       message: widget.tooltip,
       child: HoverRegion(
-        // On the press, as every popup toggle is: the reopen guard is armed and
-        // consumed inside the one pointer-down.
-        onTapDown: (_) => _toggle(context),
-        builder: (context, hovered) => Container(
-          width: ShellSizes.iconButton + 6,
-          height: ShellSizes.iconButton + 6,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: hovered ? theme.surfaceHover : theme.controlSurface,
-            borderRadius: BorderRadius.circular(ShellRadii.control),
-          ),
-          child: FaIcon(
-            FontAwesomeIcons.calendarDays,
-            size: 13,
-            color: hovered
-                ? theme.accentText
-                : theme.popupForeground.withValues(alpha: 0.75),
-          ),
-        ),
+        // On the press, as every popup toggle is. Only the open: once the card
+        // is up the barrier is over this button, and it is what closes it.
+        onTapDown: (_) => _toggle(),
+        builder: (context, hovered) {
+          final lit = hovered || _entry != null;
+          return Container(
+            width: ShellSizes.iconButton + 6,
+            height: ShellSizes.iconButton + 6,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: lit ? theme.surfaceHover : theme.controlSurface,
+              borderRadius: BorderRadius.circular(ShellRadii.control),
+            ),
+            child: FaIcon(
+              FontAwesomeIcons.calendarDays,
+              size: 13,
+              color: lit
+                  ? theme.accentText
+                  : theme.popupForeground.withValues(alpha: 0.75),
+            ),
+          );
+        },
       ),
     );
   }
+}
+
+/// Places the card under the button, its left edges aligned — flipped above
+/// the button when it does not fit below but does above, and slid back inside
+/// the window where it would hang off the side. What the native positioner's
+/// `flipY` and `slideX` did, against the card's measured size.
+class _DatePickerLayout extends SingleChildLayoutDelegate {
+  const _DatePickerLayout(this.anchor);
+
+  /// The button, in the overlay's coordinates.
+  final Rect anchor;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      constraints.loosen();
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final below = anchor.bottom + _kPickerGap;
+    final above = anchor.top - _kPickerGap - childSize.height;
+    final fitsBelow = below + childSize.height <= size.height;
+    final y = fitsBelow || above < 0 ? below : above;
+    return Offset(
+      anchor.left.clamp(0, math.max(0, size.width - childSize.width)),
+      y.clamp(0, math.max(0, size.height - childSize.height)),
+    );
+  }
+
+  @override
+  bool shouldRelayout(_DatePickerLayout oldDelegate) =>
+      oldDelegate.anchor != anchor;
 }
