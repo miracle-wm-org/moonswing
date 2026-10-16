@@ -404,8 +404,9 @@ Path _root({
 /// Builds **no painter at all** for a theme with none of it, and no ticker
 /// until a theme with roots has a popup to grow them for: an idle bar on a
 /// plain theme is the [child] and nothing else. The [child] is handed through
-/// unrebuilt, so a root growing repaints this layer without rebuilding a
-/// single module.
+/// unrebuilt and behind a repaint boundary of its own, so a root growing
+/// repaints this layer without rebuilding a single module, and a module
+/// repainting re-records none of this.
 class PanelSurfaceDecor extends StatefulWidget {
   const PanelSurfaceDecor({
     super.key,
@@ -528,7 +529,11 @@ class _PanelSurfaceDecorState extends State<PanelSurfaceDecor>
               repaint: _repaint,
             )
           : null,
-      child: widget.child,
+      // The modules repaint on their own layer — a clock's second, a hover —
+      // without re-recording the wood, stones and carve under them, which
+      // repaint only when a tile lands or a root grows. Present on every
+      // theme, so switching one never moves the modules to a new depth.
+      child: RepaintBoundary(child: widget.child),
     );
   }
 }
@@ -565,11 +570,20 @@ class _LivePanelDecorPainter extends PanelDecorPainter {
 /// The leaves, over the bar and over the overhang below it, with a rustle when
 /// the pointer arrives on the bar or a popup opens out of it.
 ///
-/// The plan is grown when the bar's length, the theme or the anchor changes,
-/// never per frame; each plant is recorded once as its own picture. At rest
-/// the whole canopy is one picture-cached layer behind a [RepaintBoundary],
-/// and there is no ticker: a rustle creates one and disposes it when the last
-/// leaf is still.
+/// The plan is grown when the bar's size, the theme, the anchor or the pixel
+/// ratio changes, never per frame. Each plant is then **rasterized once** into
+/// an image of its own, laid on the device-pixel grid where it rests, and every
+/// frame after that — at rest or rustling — is a blit per plant. A plant's
+/// vector picture is thousands of operations a canopy over (every leaf a
+/// gradient, a clip, a blurred shadow and its veins), and the GTK embedder
+/// rasters the whole surface again for any change anywhere on it — a clock
+/// tick, a hover, a root growing — so replaying those pictures was the bar's
+/// cost on every frame it drew, and sixty of them a second through a rustle.
+/// The pictures stay only as the stand-in for the frame or two before the
+/// images land: `toImage`, never `toImageSync` (see [MaterialTextures]).
+///
+/// There is no ticker at rest: a rustle creates one and disposes it when the
+/// last leaf is still.
 class PanelFoliage extends StatefulWidget {
   const PanelFoliage({
     super.key,
@@ -595,13 +609,37 @@ class PanelFoliage extends StatefulWidget {
 
   @override
   State<PanelFoliage> createState() => _PanelFoliageState();
+
+  /// How many plants [state] draws from rasterized images, or null while it
+  /// still draws their pictures.
+  @visibleForTesting
+  static int? debugRasterized(State<PanelFoliage> state) =>
+      (state as _PanelFoliageState)._images?.length;
+}
+
+/// One plant rasterized where it rests: [rect] is in the surface's logical
+/// pixels and lies on its device-pixel grid, so drawing [image] into it at rest
+/// resamples nothing.
+class _SprigImage {
+  _SprigImage(this.image, this.rect);
+
+  final ui.Image image;
+  final Rect rect;
+
+  late final Rect source =
+      Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
 }
 
 class _PanelFoliageState extends State<PanelFoliage>
     with SingleTickerProviderStateMixin {
   FoliagePlan _plan = FoliagePlan.empty;
   List<ui.Picture> _pictures = const [];
+  List<_SprigImage>? _images;
   Object? _planKey;
+
+  /// Bumped with every plan, so images rasterized for one that has since been
+  /// replaced are dropped when they land.
+  int _generation = 0;
 
   AnimationController? _sway;
 
@@ -632,10 +670,20 @@ class _PanelFoliageState extends State<PanelFoliage>
     PanelRimBreaks.instance.removeListener(_onBreak);
     _sway?.dispose();
     _tick.dispose();
+    _dropPlan();
+    super.dispose();
+  }
+
+  void _dropPlan() {
+    _generation++;
     for (final p in _pictures) {
       p.dispose();
     }
-    super.dispose();
+    _pictures = const [];
+    for (final i in _images ?? const <_SprigImage>[]) {
+      i.image.dispose();
+    }
+    _images = null;
   }
 
   void _onPointer() => _rustle(null, strength: 0.7);
@@ -657,9 +705,9 @@ class _PanelFoliageState extends State<PanelFoliage>
       ..addListener(() => _tick.value++)
       ..addStatusListener((s) {
         if (s != AnimationStatus.completed) return;
-        // Still again: the ticker goes, and the layer can be cached. After
-        // this notification rather than inside it — a controller disposed
-        // from its own status callback is still mid-dispatch.
+        // Still again: the ticker goes. After this notification rather than
+        // inside it — a controller disposed from its own status callback is
+        // still mid-dispatch.
         final done = _sway;
         _sway = null;
         _tick.value++;
@@ -672,7 +720,7 @@ class _PanelFoliageState extends State<PanelFoliage>
     ctrl.forward(from: 0);
   }
 
-  void _ensurePlan(Size surface) {
+  void _ensurePlan(Size surface, Matrix4 frame, double devicePixelRatio) {
     final theme = widget.theme;
     final vertical = widget.anchor == 'left' || widget.anchor == 'right';
     final length = vertical ? surface.height : surface.width;
@@ -684,15 +732,13 @@ class _PanelFoliageState extends State<PanelFoliage>
       theme.foliageDensity,
       theme.panelEndLength,
       widget.anchor,
-      length.round(),
-      reach.round(),
+      surface,
       widget.thickness,
+      devicePixelRatio,
     );
     if (key == _planKey) return;
     _planKey = key;
-    for (final p in _pictures) {
-      p.dispose();
-    }
+    _dropPlan();
     _plan = growFoliage(
       style: theme.panelFoliage,
       length: length,
@@ -705,6 +751,66 @@ class _PanelFoliageState extends State<PanelFoliage>
       endCaps: theme.panelEndTexture.paints ? theme.panelEndLength : 0,
     );
     _pictures = [for (final s in _plan.sprigs) recordSprig(s)];
+    if (_pictures.isNotEmpty) {
+      _rasterize(_generation, frame, devicePixelRatio);
+    }
+  }
+
+  /// Rasterizes every plant of the current plan onto the device-pixel grid of
+  /// a surface mapped by [frame], and swaps the images in once all have landed
+  /// — one repaint, not one per plant.
+  Future<void> _rasterize(int generation, Matrix4 frame, double dpr) async {
+    final plan = _plan;
+    final pictures = _pictures;
+    final pending = <Future<_SprigImage>>[];
+    for (var i = 0; i < plan.sprigs.length; i++) {
+      final s = plan.sprigs[i];
+      // The plant's reach, plus the shadow every leaf casts: offset by under
+      // two pixels and blurred by a sigma of 1.3, so six is ample.
+      final canonical = s.bounds.inflate(6).shift(s.root);
+      final r = MatrixUtils.transformRect(frame, canonical);
+      final rect = Rect.fromLTRB(
+        (r.left * dpr).floorToDouble() / dpr,
+        (r.top * dpr).floorToDouble() / dpr,
+        (r.right * dpr).ceilToDouble() / dpr,
+        (r.bottom * dpr).ceilToDouble() / dpr,
+      );
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder)
+        ..scale(dpr)
+        ..translate(-rect.left, -rect.top)
+        ..transform(frame.storage)
+        ..translate(s.root.dx, s.root.dy)
+        ..drawPicture(pictures[i]);
+      final placed = recorder.endRecording();
+      pending.add(placed
+          .toImage(
+            math.max(1, (rect.width * dpr).round()),
+            math.max(1, (rect.height * dpr).round()),
+          )
+          .then((image) => _SprigImage(image, rect))
+          .whenComplete(placed.dispose));
+    }
+    final List<_SprigImage> images;
+    try {
+      images = await Future.wait(pending);
+    } catch (_) {
+      // The pictures stay, which paint the same canopy at their old cost.
+      return;
+    }
+    if (!mounted || generation != _generation) {
+      for (final i in images) {
+        i.image.dispose();
+      }
+      return;
+    }
+    _images = images;
+    // Nothing paints the vector pictures again until the plan changes.
+    for (final p in _pictures) {
+      p.dispose();
+    }
+    _pictures = const [];
+    _tick.value++;
   }
 
   @override
@@ -712,22 +818,24 @@ class _PanelFoliageState extends State<PanelFoliage>
     if (widget.theme.panelReach <= 0 || !widget.theme.panelFoliage.grows) {
       return const SizedBox.shrink();
     }
+    final dpr = MediaQuery.maybeDevicePixelRatioOf(context) ?? 1.0;
     return IgnorePointer(
       child: RepaintBoundary(
         child: LayoutBuilder(builder: (context, constraints) {
           final size = constraints.biggest;
           if (size.isEmpty || !size.isFinite) return const SizedBox.shrink();
-          _ensurePlan(size);
+          final frame = foliageFrame(
+            anchor: widget.anchor,
+            surface: size,
+            thickness: widget.thickness,
+          );
+          _ensurePlan(size, frame, dpr);
           return CustomPaint(
             size: size,
             isComplex: true,
             painter: _FoliagePainter(
               state: this,
-              frame: foliageFrame(
-                anchor: widget.anchor,
-                surface: size,
-                thickness: widget.thickness,
-              ),
+              frame: frame,
               repaint: _tick,
             ),
           );
@@ -746,35 +854,59 @@ class _FoliagePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final plan = state._plan;
-    final pictures = state._pictures;
     if (plan.sprigs.isEmpty) return;
+    final images = state._images;
+    final pictures = state._pictures;
     final sway = state._sway;
     final t = sway == null ? 1.0 : sway.value;
     // Seconds into the rustle, and how much of it is left: a quick shiver that
     // dies away, each plant at its own pace.
     final seconds = t * 2.4;
     final decay = math.exp(-seconds * 1.7) * (1 - t);
-    canvas.save();
-    canvas.transform(frame.storage);
+    final swaying = sway != null && decay > 0.001;
+    // A rotation in the canonical frame turns the other way on the surface
+    // wherever the frame reflects.
+    final m = frame.storage;
+    final handed = m[0] * m[5] - m[4] * m[1] < 0 ? -1.0 : 1.0;
+    final blit = Paint()..filterQuality = FilterQuality.low;
     for (var i = 0; i < plan.sprigs.length; i++) {
       final s = plan.sprigs[i];
-      canvas.save();
-      canvas.translate(s.root.dx, s.root.dy);
-      if (sway != null && decay > 0.001) {
+      var angle = 0.0;
+      if (swaying) {
         final at = state._epicentre;
         final near = at == null ? 1.0 : math.exp(-(s.root.dx - at).abs() / 160);
         final omega = 7.5 + (s.phase % 1.0) * 3;
-        final angle = s.kind.sway *
+        angle = s.kind.sway *
             state._strength *
             near *
             decay *
             math.sin(omega * seconds + s.phase);
-        canvas.rotate(angle);
       }
-      canvas.drawPicture(pictures[i]);
-      canvas.restore();
+      if (images != null) {
+        final image = images[i];
+        if (angle == 0) {
+          canvas.drawImageRect(image.image, image.source, image.rect, blit);
+          continue;
+        }
+        final root = MatrixUtils.transformPoint(frame, s.root);
+        canvas
+          ..save()
+          ..translate(root.dx, root.dy)
+          ..rotate(angle * handed)
+          ..translate(-root.dx, -root.dy)
+          ..drawImageRect(image.image, image.source, image.rect, blit)
+          ..restore();
+        continue;
+      }
+      // Before the images land: the plant's own picture, about its root.
+      canvas
+        ..save()
+        ..transform(frame.storage)
+        ..translate(s.root.dx, s.root.dy)
+        ..rotate(angle)
+        ..drawPicture(pictures[i])
+        ..restore();
     }
-    canvas.restore();
   }
 
   @override

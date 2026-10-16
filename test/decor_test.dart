@@ -1,5 +1,7 @@
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
@@ -20,6 +22,8 @@ import 'package:moonswing/theme/builtin_themes.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/theme_config.dart';
+
+import 'paint_counter.dart';
 
 ThemeConfig _shipped(String slug) =>
     ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
@@ -508,6 +512,124 @@ void main() {
       expect(tester.binding.transientCallbackCount, 0);
     });
 
+    // Every plant becomes an image laid on the device-pixel grid, and the
+    // canopy drawn from them is the canopy its vector pictures drew.
+    testWidgets('the leaves are rasterized once, and look the same',
+        (tester) async {
+      final forest = _shipped('forest');
+      final rustle = ValueNotifier(0);
+      addTearDown(rustle.dispose);
+      await tester.pumpWidget(bar(forest, rustle: rustle));
+      final state = tester.state<State<PanelFoliage>>(find.byType(PanelFoliage));
+      await tester.runAsync(() async {
+        for (var i = 0;
+            i < 200 && PanelFoliage.debugRasterized(state) == null;
+            i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+      });
+      await tester.pump();
+
+      // The same plan, painted the way it was before it was rasterized.
+      const size = Size(800, 32.0 + 64);
+      expect(forest.panelReach, 64);
+      final plan = growFoliage(
+        style: forest.panelFoliage,
+        length: size.width,
+        thickness: 32,
+        reach: size.height - 32,
+        anchor: 'top',
+        leaf: forest.foliageColor,
+        bloom: forest.foliageBloom,
+        density: forest.foliageDensity,
+        endCaps: forest.panelEndLength,
+      );
+      expect(PanelFoliage.debugRasterized(state), plan.sprigs.length);
+      expect(plan.sprigs.length, greaterThan(20));
+      final dpr = tester.view.devicePixelRatio;
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder)
+        ..scale(dpr)
+        ..transform(foliageFrame(anchor: 'top', surface: size, thickness: 32)
+            .storage);
+      for (final s in plan.sprigs) {
+        canvas
+          ..save()
+          ..translate(s.root.dx, s.root.dy);
+        paintSprig(canvas, s);
+        canvas.restore();
+      }
+      final reference = recorder.endRecording();
+      addTearDown(reference.dispose);
+      final boundary = tester.renderObject<RenderRepaintBoundary>(find
+          .descendant(
+              of: find.byType(PanelFoliage),
+              matching: find.byType(RepaintBoundary))
+          .first);
+
+      late ByteData before;
+      late ByteData after;
+      await tester.runAsync(() async {
+        Future<ByteData> bytes(ui.Image image) async {
+          final data = (await image.toByteData())!;
+          image.dispose();
+          return data;
+        }
+
+        before = await bytes(await reference.toImage(
+            (size.width * dpr).round(), (size.height * dpr).round()));
+        after = await bytes(await boundary.toImage(pixelRatio: dpr));
+      });
+      expect(after.lengthInBytes, before.lengthInBytes);
+      var drawn = 0;
+      var off = 0;
+      for (var i = 0; i < before.lengthInBytes; i++) {
+        final a = before.getUint8(i);
+        if (a != 0) drawn++;
+        if ((a - after.getUint8(i)).abs() > 8) off++;
+      }
+      expect(drawn, greaterThan(1000), reason: 'the canopy painted at all');
+      expect(off / drawn, lessThan(0.01));
+
+      // And a rustle swings the images about their roots, then rests.
+      rustle.value++;
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('a module repainting re-records none of the decor under it',
+        (tester) async {
+      final tick = ValueNotifier(0);
+      addTearDown(tick.dispose);
+      await tester.pumpWidget(Directionality(
+        textDirection: TextDirection.ltr,
+        child: RepaintBoundary(
+          child: PaintCounter(
+            child: SizedBox(
+              width: 800,
+              height: 32,
+              child: PanelSurfaceDecor(
+                theme: _shipped('forest'),
+                anchor: 'top',
+                radius: BorderRadius.zero,
+                panel: null,
+                child: CustomPaint(painter: _Ticking(tick)),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      final counter =
+          tester.renderObject<RenderPaintCounter>(find.byType(PaintCounter));
+      final painted = counter.paints;
+      tick.value++;
+      await tester.pump();
+      expect(_Ticking.paints, greaterThan(1), reason: 'the module repainted');
+      expect(counter.paints, painted);
+    });
+
     testWidgets('a module under the leaves still takes the click',
         (tester) async {
       var taps = 0;
@@ -533,6 +655,19 @@ void main() {
       expect(painter.gap, (300 - forest.popupRoots, 420 + forest.popupRoots));
     });
   });
+}
+
+/// A module that repaints, as a clock does once a second.
+class _Ticking extends CustomPainter {
+  _Ticking(Listenable tick) : super(repaint: tick);
+
+  static int paints = 0;
+
+  @override
+  void paint(Canvas canvas, Size size) => paints++;
+
+  @override
+  bool shouldRepaint(_Ticking old) => false;
 }
 
 class _FakeContext implements BuildContext {

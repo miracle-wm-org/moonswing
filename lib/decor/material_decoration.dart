@@ -121,6 +121,26 @@ class _MaterialCardPainter extends BoxPainter {
   final MaterialCardDecoration decoration;
   final BoxPainter base;
 
+  /// The card's outline, the rim's inside edge and the band between them, for
+  /// the rect they were last worked out for. Kept because the band is a path
+  /// boolean, and a card repaints whenever anything in it does — every hover
+  /// down a menu — while its box stays where it is.
+  Rect? _rect;
+  TextDirection? _dir;
+  late Path _outer;
+  late Path _inner;
+  late Path _band;
+
+  void _shape(Rect rect, TextDirection dir) {
+    if (rect == _rect && dir == _dir) return;
+    _rect = rect;
+    _dir = dir;
+    _outer = decoration.base.getClipPath(rect, dir);
+    if (decoration.rim == EdgeInsets.zero) return;
+    _inner = decoration.innerPath(rect, dir);
+    _band = Path.combine(PathOperation.difference, _outer, _inner);
+  }
+
   @override
   void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
     // Shadow and fill, exactly as the plain card.
@@ -132,7 +152,8 @@ class _MaterialCardPainter extends BoxPainter {
     final dpr = configuration.devicePixelRatio ?? 1.0;
     final dir = configuration.textDirection ?? TextDirection.ltr;
     final rect = offset & size;
-    final outer = d.base.getClipPath(rect, dir);
+    _shape(rect, dir);
+    final outer = _outer;
 
     // The card's own material, under the content.
     final card = resolveSurfaceImage(
@@ -156,8 +177,8 @@ class _MaterialCardPainter extends BoxPainter {
     }
 
     if (d.rim == EdgeInsets.zero) return;
-    final inner = d.innerPath(rect, dir);
-    final band = Path.combine(PathOperation.difference, outer, inner);
+    final inner = _inner;
+    final band = _band;
     final bark = resolveSurfaceImage(
       material: theme.popupBorderTexture,
       tint: theme.popupBorderTextureColor,
