@@ -508,6 +508,93 @@ void main() {
     expect(closing.value, isFalse);
   });
 
+  testWidgets('the calendar button opens the picker and a pick fills the '
+      'field', (tester) async {
+    await pump(tester, [
+      _item('a', TodoColumn.inbox, due: DateTime(2026, 9, 30)),
+    ]);
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    final card = find.byType(SettingsDatePickerCard);
+    expect(card, findsNothing);
+    final registered = PopupCoordinator.instance.openHandles.length;
+
+    await tester.tap(find.byType(SettingsDatePickerButton));
+    await tester.pumpAndSettle();
+    // In the board's own window, on the month the field holds.
+    expect(card, findsOneWidget);
+    expect(find.text('September 2026'), findsOneWidget);
+
+    await tester.tap(find.descendant(of: card, matching: find.text('15')));
+    await tester.pumpAndSettle();
+    expect(card, findsNothing);
+    expect(find.text('2026-09-15'), findsOneWidget);
+    expect(find.text('Edit item'), findsOneWidget);
+    expect(PopupCoordinator.instance.openHandles, hasLength(registered));
+  });
+
+  testWidgets('a press off the date picker closes it and nothing else', (
+    tester,
+  ) async {
+    await pump(tester, [_item('a', TodoColumn.inbox)]);
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+    final button = find.byType(SettingsDatePickerButton);
+    final card = find.byType(SettingsDatePickerCard);
+    final registered = PopupCoordinator.instance.openHandles.length;
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(card, findsOneWidget);
+    // The button again: a toggle, not a reopen. The press lands on the
+    // barrier over it, which is what closes the card.
+    await tester.tap(button, warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(card, findsNothing);
+
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(card, findsOneWidget);
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+    expect(card, findsNothing);
+    expect(find.text('Edit item'), findsOneWidget);
+    expect(PopupCoordinator.instance.openHandles, hasLength(registered));
+  });
+
+  testWidgets('a picker opened from the button is the board\'s, for Escape', (
+    tester,
+  ) async {
+    final board = PopupCoordinator.instance.open(
+      owner: Object(),
+      onDismiss: () {},
+    );
+    addTearDown(() => PopupCoordinator.instance.close(board));
+    await pump(tester, [_item('a', TodoColumn.inbox)], board: board);
+    await tester.tap(find.text('Card a'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(SettingsDatePickerButton));
+    await tester.pumpAndSettle();
+    final card = find.byType(SettingsDatePickerCard);
+    expect(card, findsOneWidget);
+    // Opening it spared the board it opened over.
+    expect(board.closing, isFalse);
+    final picker = PopupCoordinator.instance.openHandles.last;
+    expect(picker.parent, board);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(card, findsNothing);
+    expect(find.text('Edit item'), findsOneWidget);
+    expect(PopupCoordinator.instance.openHandles, isNot(contains(picker)));
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Edit item'), findsNothing);
+    expect(closing.value, isFalse);
+  });
+
   testWidgets('a date picker closes as the board starts its exit', (
     tester,
   ) async {
