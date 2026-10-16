@@ -423,7 +423,7 @@ class _SproutBarkPainter extends CustomPainter {
     required this.clipper,
     required this.theme,
     required this.devicePixelRatio,
-  });
+  }) : super(repaint: MaterialTextures.instance);
 
   final SproutClipper clipper;
   final ThemeConfig theme;
