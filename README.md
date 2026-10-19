@@ -28,6 +28,7 @@ This project may be entirely unstable. The snap will be the only supported packa
 from my end. The config format is subject to change at any time.
 
 ![Moonswing demo](demo.png)
+![Moonswing demo ](demo2.png)
 
 ## Install
 
