@@ -42,7 +42,7 @@ SettingsField _color(String key, String label, String description) =>
       tags: const ['colour', 'color', 'palette', 'theme'],
     );
 
-/// A hardware pane — one of the first five sidebar entries. These are lists of
+/// A hardware pane — one of the first six sidebar entries. These are lists of
 /// whatever the machine happens to have rather than tables of named fields, so
 /// the entry carries no id and the result jumps to the pane itself.
 SettingsField _pane(
@@ -70,6 +70,21 @@ SettingsField _shellPane(
   '',
   label,
   section: section,
+  description: description,
+  tags: tags,
+);
+
+/// A row of the Power pane.
+SettingsField _power(
+  String key,
+  String label, {
+  required String description,
+  List<String> tags = const <String>[],
+}) => SettingsField(
+  id: 'power_profile.$key',
+  label: label,
+  section: 'Power',
+  route: SettingsRoute.power,
   description: description,
   tags: tags,
 );
@@ -1633,6 +1648,158 @@ abstract final class SettingsCatalog {
   ];
 
   // -------------------------------------------------------------------------
+  // Power
+  //
+  // The machine's power mode and the kernel knobs beneath it. Not `[power]`
+  // config — that section is the power *button*, under Shell — so these ids
+  // are `power_profile.*`, and none of them names a key in `config.toml`.
+  // -------------------------------------------------------------------------
+
+  static final powerPane = _pane(
+    'power',
+    'Power',
+    'Power mode and CPU tuning',
+    description:
+        'Switch between power saver, balanced and performance, and tune the '
+        'CPU and firmware power settings beneath them.',
+    tags: const [
+      'power',
+      'battery',
+      'energy',
+      'performance',
+      'profile',
+      'power-profiles-daemon',
+      'tuned',
+    ],
+  );
+
+  static final powerMode = _power(
+    'mode',
+    'Power mode',
+    description:
+        'Power Saver, Balanced or Performance — one choice the profile daemon '
+        'applies to every power control the hardware has.',
+    tags: const [
+      'power saver',
+      'battery saver',
+      'low power',
+      'balanced',
+      'performance',
+      'profile',
+      'power-profiles-daemon',
+      'powerprofilesctl',
+      'eco',
+    ],
+  );
+
+  static final powerBatteryAware = _power(
+    'battery_aware',
+    'Adapt on battery',
+    description:
+        'Lets power-profiles-daemon save more power within each mode while '
+        'the machine runs on battery.',
+    tags: const ['battery', 'battery aware', 'unplugged', 'ac'],
+  );
+
+  static final powerTunedProfile = _power(
+    'tuned_profile',
+    'TuneD profile',
+    description:
+        'Any of TuneD\'s profiles — throughput, latency, virtual guest, a '
+        'vendor\'s or your own — beyond the three power modes.',
+    tags: const ['tuned', 'tuned-adm', 'profile', 'latency', 'throughput'],
+  );
+
+  static final powerPlatformProfile = _power(
+    'platform_profile',
+    'Platform profile',
+    description:
+        'The firmware\'s own fan and power-limit curve: quiet, cool, '
+        'balanced, performance, or whatever the vendor offers.',
+    tags: const ['acpi', 'firmware', 'fan', 'quiet', 'cool', 'thermal', 'bios'],
+  );
+
+  static final powerGovernor = _power(
+    'cpu_governor',
+    'CPU governor',
+    description:
+        'How the kernel picks a CPU frequency: powersave, performance, '
+        'schedutil, ondemand…',
+    tags: const [
+      'cpu',
+      'cpufreq',
+      'governor',
+      'frequency',
+      'schedutil',
+      'ondemand',
+      'powersave',
+    ],
+  );
+
+  static final powerEnergyPreference = _power(
+    'energy_preference',
+    'Energy preference',
+    description:
+        'The hint a modern CPU uses to trade speed for power by itself, from '
+        'performance to power.',
+    tags: const [
+      'epp',
+      'energy performance preference',
+      'intel_pstate',
+      'amd-pstate',
+      'hwp',
+      'cpu',
+    ],
+  );
+
+  static final powerBoost = _power(
+    'turbo_boost',
+    'Turbo boost',
+    description:
+        'Lets the CPU run above its base clock for short bursts. Off is '
+        'cooler and quieter.',
+    tags: const [
+      'turbo',
+      'boost',
+      'no_turbo',
+      'cpu',
+      'overclock',
+      'precision boost',
+    ],
+  );
+
+  static final powerMaxFrequency = _power(
+    'max_frequency',
+    'Maximum CPU speed',
+    description:
+        'Caps every core at a share of its top frequency, for a cooler and '
+        'quieter machine.',
+    tags: const [
+      'cpu',
+      'frequency',
+      'clock',
+      'cap',
+      'limit',
+      'scaling_max_freq',
+      'mhz',
+      'ghz',
+      'throttle',
+    ],
+  );
+
+  /// The Power rows, in the order the pane renders them.
+  static final List<SettingsField> powerFields = [
+    powerMode,
+    powerBatteryAware,
+    powerTunedProfile,
+    powerPlatformProfile,
+    powerGovernor,
+    powerEnergyPreference,
+    powerBoost,
+    powerMaxFrequency,
+  ];
+
+  // -------------------------------------------------------------------------
   // Default Apps
   // -------------------------------------------------------------------------
 
@@ -2516,6 +2683,8 @@ abstract final class SettingsCatalog {
     caldavAccount,
     githubAccount,
     ..._hardware,
+    powerPane,
+    ...powerFields,
     defaultAppsPane,
     ...defaultAppFields,
     ...miracleFields,
