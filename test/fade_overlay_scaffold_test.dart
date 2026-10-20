@@ -12,6 +12,7 @@ Widget _host({
   VoidCallback? onBackdropTap,
   ValueListenable<Offset>? offset,
   VoidCallback? onCardTap,
+  Widget Function(BuildContext, Animation<double>)? foreground,
 }) {
   return Directionality(
     textDirection: TextDirection.ltr,
@@ -22,6 +23,7 @@ Widget _host({
         onClosed: onClosed,
         onBackdropTap: onBackdropTap,
         offset: offset,
+        foreground: foreground,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onCardTap,
@@ -196,5 +198,58 @@ void main() {
       await tester.tapAt(const Offset(400, 300));
       expect(backdrop, 1);
     });
+  });
+
+  testWidgets('the foreground floats over the card, fading with it, and '
+      'leaves the card reachable around what it draws', (tester) async {
+    final closing = ValueNotifier(false);
+    addTearDown(closing.dispose);
+    Animation<double>? given;
+    var taps = 0;
+    var floated = 0;
+    await tester.pumpWidget(_host(
+      closing: closing,
+      onClosed: () {},
+      onCardTap: () => taps++,
+      foreground: (context, opacity) {
+        given = opacity;
+        return Stack(
+          children: [
+            Positioned(
+              left: 0,
+              top: 0,
+              width: 30,
+              height: 30,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => floated++,
+              ),
+            ),
+            // Over the card's top-left corner.
+            Positioned(
+              left: 350,
+              top: 250,
+              width: 20,
+              height: 20,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => floated++,
+              ),
+            ),
+          ],
+        );
+      },
+    ));
+    await tester.pump();
+    expect(given!.value, lessThan(1));
+    await tester.pumpAndSettle();
+    expect(given!.value, 1);
+
+    await tester.tapAt(const Offset(355, 255));
+    expect((floated, taps), (1, 0), reason: 'the foreground is above the card');
+    await tester.tapAt(const Offset(400, 300));
+    expect((floated, taps), (1, 1), reason: 'and nowhere else');
+    await tester.tapAt(const Offset(10, 10));
+    expect(floated, 2);
   });
 }

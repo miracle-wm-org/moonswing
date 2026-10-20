@@ -949,7 +949,11 @@ class TodoStore extends ChangeNotifier {
   /// Creates a note and returns its id, or null when the store is not
   /// [editable]. Notes share the board's database and its search index, and
   /// have no column: they are text to be found again, not work to be done.
-  String? addNote({String title = '', required String body}) {
+  String? addNote({
+    String title = '',
+    required String body,
+    NotePlacement placement = const NotePlacement(),
+  }) {
     if (!editable) return null;
     final now = _now();
     final note = NoteItem(
@@ -958,6 +962,7 @@ class TodoStore extends ChangeNotifier {
       body: body,
       created: now,
       updated: now,
+      placement: placement,
     );
     _commitNotes([note, ..._notes]);
     return note.id;
@@ -974,6 +979,32 @@ class TodoStore extends ChangeNotifier {
       edited,
       for (final n in _notes)
         if (n.id != id) n,
+    ]);
+  }
+
+  /// Moves, recolours or resizes a note — [dx]/[dy] from the overview
+  /// panel's centre. Not an edit: [NoteItem.updated] and the order the notes
+  /// are drawn in stay as they were. An unchanged placement is not a write.
+  void restyleNote(
+    String id, {
+    double? dx,
+    double? dy,
+    StickyColor? color,
+    StickySize? size,
+  }) {
+    assert((dx == null) == (dy == null));
+    final current = note(id);
+    if (!editable || current == null) return;
+    final placement = current.placement.copyWith(
+      dx: dx,
+      dy: dy,
+      color: color,
+      size: size,
+    );
+    if (placement == current.placement) return;
+    _commitNotes([
+      for (final n in _notes)
+        n.id == id ? n.copyWith(placement: placement) : n,
     ]);
   }
 

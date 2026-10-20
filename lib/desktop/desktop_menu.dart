@@ -16,11 +16,16 @@ class DesktopMenuEntry {
     this.icon,
     this.enabled = true,
     this.selected = false,
+    this.iconColor,
   });
 
   final String label;
   final VoidCallback onTap;
   final FaIconData? icon;
+
+  /// Draws [icon] in this colour rather than the row's, for a row whose icon
+  /// *is* what it chooses — a sticky note's paper.
+  final Color? iconColor;
 
   /// A disabled row is shown greyed rather than hidden, so the menu's shape
   /// does not change between items and the user can see what is unavailable.
@@ -167,7 +172,13 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
               if (entry.icon case final icon?) ...[
                 SizedBox(
                   width: 16,
-                  child: FaIcon(icon, size: 12, color: foreground),
+                  child: FaIcon(
+                    icon,
+                    size: 12,
+                    color: entry.enabled
+                        ? (entry.iconColor ?? foreground)
+                        : foreground,
+                  ),
                 ),
                 const SizedBox(width: 8),
               ],

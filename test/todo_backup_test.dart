@@ -41,6 +41,33 @@ void main() {
       expect(backup.summary, '2 cards and 1 note');
     });
 
+    test('a sticky note keeps its place; a bad colour costs the colour', () {
+      final placed = _note('n', DateTime(2026, 9, 21)).copyWith(
+        placement: const NotePlacement(
+          dx: 12.5,
+          dy: -300,
+          color: StickyColor.orange,
+          size: StickySize.large,
+        ),
+      );
+      final plain = _note('p', DateTime(2026, 9, 22));
+      final encoded = encodeTodoBackup(const [], [placed, plain]);
+      expect(decodeTodoBackup(encoded).notes, [placed, plain]);
+      // A note nobody has placed writes no placement at all.
+      final json = jsonDecode(encoded) as Map;
+      expect((json['notes'] as List).last as Map, isNot(contains('sticky')));
+
+      final odd = decodeTodoBackup(
+        encoded
+            .replaceFirst('"orange"', '"tartan"')
+            .replaceFirst('-300.0', '"far"'),
+      ).notes.first.placement;
+      expect(odd.color, StickyColor.yellow);
+      expect(odd.size, StickySize.large);
+      // Half a position is no position.
+      expect(odd.isPlaced, isFalse);
+    });
+
     test('cards keep board order; notes are written oldest first', () {
       final older = _note('old', DateTime(2026, 1, 1));
       final newer = _note('new', DateTime(2026, 6, 1));

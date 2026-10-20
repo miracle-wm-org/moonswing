@@ -23,7 +23,8 @@ import 'package:moonswing/todo/todo_standup.dart';
 ///     again.
 ///  4. `entries.remote`: the task a card is on the synced CalDAV task list;
 ///     `remote_tombstones`: tasks deleted here and still owed a delete there.
-const int kTodoSchemaVersion = 4;
+///  5. `entries.sticky`: a note's colour, size and place on the overview.
+const int kTodoSchemaVersion = 5;
 
 /// The oldest SQLite with FTS5's `trigram` tokenizer, as
 /// `sqlite3_libversion_number` spells it.
@@ -304,7 +305,8 @@ class TodoDatabase {
           recurrence   TEXT,
           history      TEXT NOT NULL DEFAULT '[]',
           external     TEXT,
-          remote       TEXT
+          remote       TEXT,
+          sticky       TEXT
         )''');
       db.execute('CREATE INDEX entries_order ON entries(kind, position)');
       // `trigram`, not the default word tokenizer: "any string" includes the
@@ -352,6 +354,9 @@ class TodoDatabase {
       if (from < 4) {
         db.execute('ALTER TABLE entries ADD COLUMN remote TEXT');
         _createTombstones(db);
+      }
+      if (from < 5) {
+        db.execute('ALTER TABLE entries ADD COLUMN sticky TEXT');
       }
       db.userVersion = kTodoSchemaVersion;
     });
@@ -451,13 +456,7 @@ class TodoDatabase {
         final upsert = _db.prepare(_kUpsertNote);
         try {
           for (final note in changes.notes) {
-            upsert.execute([
-              note.id,
-              note.title,
-              note.body,
-              note.created.toUtc().toIso8601String(),
-              note.updated.toUtc().toIso8601String(),
-            ]);
+            upsert.execute(_noteParameters(note));
           }
         } finally {
           upsert.close();
@@ -661,13 +660,7 @@ class TodoDatabase {
       final note = _db.prepare(_kUpsertNote);
       try {
         for (final n in notes) {
-          note.execute([
-            n.id,
-            n.title,
-            n.body,
-            n.created.toUtc().toIso8601String(),
-            n.updated.toUtc().toIso8601String(),
-          ]);
+          note.execute(_noteParameters(n));
         }
       } finally {
         note.close();
@@ -759,13 +752,25 @@ const String _kUpsertTodo =
     remote = excluded.remote''';
 
 const String _kUpsertNote = '''
-  INSERT INTO entries(id, kind, title, body, created, updated)
-  VALUES (?, 'note', ?, ?, ?, ?)
+  INSERT INTO entries(id, kind, title, body, created, updated, sticky)
+  VALUES (?, 'note', ?, ?, ?, ?, ?)
   ON CONFLICT(id) DO UPDATE SET
     kind = 'note',
     title = excluded.title,
     body = excluded.body,
-    updated = excluded.updated''';
+    updated = excluded.updated,
+    sticky = excluded.sticky''';
+
+/// A note's row. Its placement is NULL while it is the default, so a note
+/// nobody has placed reads the same as one written before there were places.
+List<Object?> _noteParameters(NoteItem note) => [
+  note.id,
+  note.title,
+  note.body,
+  note.created.toUtc().toIso8601String(),
+  note.updated.toUtc().toIso8601String(),
+  note.placement.isDefault ? null : jsonEncode(note.placement.toJson()),
+];
 
 /// A card's row, spelled by [TodoItem.toJson] so the database and the old file
 /// cannot disagree about how a date or a move is written.
@@ -816,6 +821,8 @@ NoteItem? _noteFromRow(Row row) {
         _parseMoment(row['updated']) ??
         created ??
         DateTime.fromMillisecondsSinceEpoch(0),
+    // A cell that will not parse costs the placement, never the note.
+    placement: NotePlacement.fromJson(_decodeJson(row['sticky'])),
   );
 }
 
