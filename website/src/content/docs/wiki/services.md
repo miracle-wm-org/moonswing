@@ -72,6 +72,31 @@ chosen application declares them. Every write is read back, because GIO writes o
 generic `mimeapps.list` and a desktop-specific `miracle-wm-mimeapps.list` outranks it — a
 choice that did not take is a banner naming that file, never a silent no-op.
 
+## Power modes are the daemon's; the knobs under them are root's
+
+Settings › Power has two levels. **Power Mode** — Power Saver, Balanced, Performance — is
+power-profiles-daemon's `ActiveProfile`, written over the system bus. The daemon maps the one
+choice onto every control the hardware has (the ACPI platform profile, the CPU's
+energy/performance preference, AMD's panel power savings), keeps it across reboots, and allows
+it for the active session without a password. TuneD's `tuned-ppd` answers the same interface,
+and where TuneD is the daemon its whole catalogue of profiles is offered beside the three
+modes. The pane also shows what the daemon reports and nothing else does: which drivers
+implement the mode, why performance is degraded (a lap, heat), which applications hold a mode,
+and — on daemons new enough to have it — whether it adapts on battery. The mode on screen is
+always the one the daemon reads back, never the one asked for, so a hold or a refusal shows as
+what it is.
+
+**Fine Tuning** is the kernel beneath it: the platform profile with every choice the firmware
+offers, the cpufreq governor, the energy/performance preference, turbo boost, and a frequency
+cap given as a share of each core's maximum so it means the same thing on a hybrid CPU. Each is
+a sysfs file any user can read and only root can write, so edits are held until **Apply** and
+written in one `pkexec` run — one administrator prompt, through the shell's own polkit agent,
+however many knobs moved. The script is fixed text; every path is checked against an allow-list
+and every value against the knob's own choices before anything runs, and they reach it as
+arguments, never spliced in. These writes last until reboot, and the profile daemon rewrites
+the platform profile and energy preference whenever the mode changes; the pane re-reads them
+after every mode change, so what it shows is what the kernel holds.
+
 ## polkit
 
 **The shell never authenticates anybody itself.** Only the setuid-root

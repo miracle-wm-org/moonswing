@@ -45,7 +45,7 @@ npm run build && npm run preview
 
 **Rendering backend (`linux/runner/my_application.cc`).** Impeller's GLES backend is the engine's Linux default and is switched **off in the runner**, not on the command line. It must stay a compiled-in default — `--no-enable-impeller` reaches the engine as an env var and so cannot help the snap or a `make install` build. `MOONSWING_IMPELLER=1` is the way back; re-measure with it after an engine bump, since this is expected to be temporary.
 
-Build deps: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`. Runtime, for lock only: `libgtk-session-lock0`, `libpam`; for input capture, `libeis1` — all `dlopen`ed, so the shell builds without them.
+Build deps: `libgtk3`, `gtk-layer-shell`, `libasound2-dev`, `libmpv-dev`. Runtime, for lock only: `libgtk-session-lock0`, `libpam`; for input capture, `libeis1` — all `dlopen`ed, so the shell builds without them. Settings › Power uses `power-profiles-daemon` (or `tuned-ppd`) for its modes and `pkexec` for Fine Tuning; both are reached at run time and missing either is a visible state.
 
 ## Pull requests
 
@@ -312,6 +312,7 @@ All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shar
 | `scratchpad/` | The window manager's scratchpad: the one store the bar button and both `[shortcuts]` keys send miracle's `scratchpad show` / `move scratchpad` through. No count or shown state — miracle keeps stashed windows out of `GET_TREE` |
 | `switcher/` | Alt+Tab: the open-window list over `ext-foreign-toplevel-list`, its recency order, the overlay and the switch itself |
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
+| `power_profile/` | Settings › Power: the power mode over power-profiles-daemon's D-Bus API (either of its two names; tuned-ppd answers it too), TuneD's own profile catalogue where TuneD runs, and the sysfs knobs beneath both — ACPI platform profile, cpufreq governor, EPP, turbo, a `scaling_max_freq` cap as a percentage — read directly and written as root through **one** `pkexec /bin/sh` per Apply (`power_tuning.dart`: a fixed script, an allow-list of paths and values, pairs as arguments). Edits are held until Apply because every write is an admin prompt; governor goes before EPP because intel_pstate refuses a non-`performance` EPP under the `performance` governor. The mode is read back after every write, never set optimistically, and the knobs are re-read on every mode change since the daemon rewrites them |
 | `default_apps/` | Settings › Default Apps over GIO: the category table and claim rule (pure), the `g_app_info_*_default_for_type` bindings behind an interface tests fake, and the leased store. No copy of `mimeapps.list` of its own — every write is read back, and one a `$desktop-mimeapps.list` outranks is a banner naming that file |
 | `keybinds/` | The cheat sheet behind the bar's keyboard icon: miracle's own bindings over `GET_KEYBINDS` and the shell's own `[shortcuts]`, the pure models that turn either into key caps, their two stores, the key-press capture and the sheet, the overview's Shortcuts tab |
 

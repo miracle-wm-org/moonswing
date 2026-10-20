@@ -48,7 +48,8 @@ class SettingsRoute {
   final String tab;
 
   /// One of the settings sidebar ids: `network`, `bluetooth`, `display`,
-  /// `audio`, `keyboard`, `miracle`, `default_apps`, `accounts`, `shell`.
+  /// `audio`, `keyboard`, `power`, `miracle`, `default_apps`, `accounts`,
+  /// `shell`.
   final String category;
 
   /// A `_ShellCategory.title` inside the Shell pane, e.g. `Background`. Null
@@ -92,10 +93,18 @@ class SettingsRoute {
 
   /// Where the keyboard layout popup's "Keyboard settings…" footer goes.
   ///
-  /// A top-level category rather than a Shell one: the first five sidebar entries
+  /// A top-level category rather than a Shell one: the first six sidebar entries
   /// are the machine's hardware and Shell is this shell's own configuration, and
   /// an input source is the former.
   static const SettingsRoute keyboard = SettingsRoute(category: 'keyboard');
+
+  /// The machine's power mode and the CPU and firmware knobs beneath it.
+  ///
+  /// A sidebar category of its own rather than a Shell one, for
+  /// [keyboard]'s reason: it is the machine's state, not the shell's
+  /// configuration. Shell › Power Button is the other "power" page, and that
+  /// one *is* the shell's — what the physical key does.
+  static const SettingsRoute power = SettingsRoute(category: 'power');
 
   /// Where anything that needs an account linked goes — the GitHub popup's
   /// "Open Accounts settings", and any module or widget signed out of the

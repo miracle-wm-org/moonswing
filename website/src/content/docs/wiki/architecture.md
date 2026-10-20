@@ -119,5 +119,6 @@ without `==` the notifier behind `LiveConfigScope` could never refuse one.
 | `polkit/`, `power/`, `lock/` | Authentication agent, power-key policy and menu, session lock |
 | `native/`, `wayland_ffi/`, `pipewire/` | dlopen plumbing, libwayland bindings, libpipewire + SPA |
 | `input_trigger/`, `keyboard/` | Compositor global shortcuts; keyboard layout over locale1 |
+| `power_profile/` | Settings › Power: the mode over power-profiles-daemon, TuneD's profiles, and the sysfs CPU and firmware knobs written through `pkexec` |
 | `default_apps/` | Settings › Default Apps: which application opens each kind of file, through GIO's `mimeapps.list` |
 | `keybinds/` | The cheat sheet the bar's keyboard icon opens as the overview's Shortcuts tab — the compositor's bindings, read only, and the shell's own, editable in place |

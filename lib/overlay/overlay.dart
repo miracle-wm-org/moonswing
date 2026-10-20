@@ -22,6 +22,7 @@ import 'package:moonswing/overlay/settings/display.dart';
 import 'package:moonswing/overlay/settings/keyboard.dart';
 import 'package:moonswing/overlay/settings/miracle.dart';
 import 'package:moonswing/overlay/settings/network.dart';
+import 'package:moonswing/overlay/settings/power.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/settings_search_bar.dart';
@@ -620,6 +621,8 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         return const AudioSettingsPage();
       case 'keyboard':
         return const KeyboardSettingsPage();
+      case 'power':
+        return const PowerSettingsPage();
       case 'miracle':
         final miracle = MiracleScope.readOf(context);
         final page = MiracleSettingsPage(
@@ -715,6 +718,12 @@ class SettingsSidebar extends StatelessWidget {
               label: 'Keyboard',
               selected: selectedCategory == 'keyboard',
               onTap: () => onCategorySelected('keyboard'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.gaugeHigh,
+              label: 'Power',
+              selected: selectedCategory == 'power',
+              onTap: () => onCategorySelected('power'),
             ),
             _SidebarItem(
               icon: FontAwesomeIcons.wandMagicSparkles,
