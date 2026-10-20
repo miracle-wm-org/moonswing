@@ -31,6 +31,12 @@ plumbing: `processLibrary`, soname fallback, `g_signal_connect_data`, `g_unix_fd
 - **The compositor paces the stream, not a timer.** `ext-image-copy-capture` holds each copy
   until content changes, so a still screen produces no frames at all. Anything needing a
   constant rate drives its own clock and computes how many writes are *owed* from elapsed time.
+- **A cursor sent as metadata needs buffers of its own.** In the ScreenCast portal's metadata
+  cursor mode (what Chromium and Electron ask for on Linux) frames are captured without the
+  pointer and every buffer carries a `SPA_META_Cursor`, read from an
+  `ext_image_copy_capture_cursor_session_v1`. A pointer moving over a still screen produces no
+  frame to carry it, so a move is sent in a buffer with an empty picture (`chunk.size` 0, as
+  GNOME's screencast does), paced to the stream's frame rate by `CursorPacer`.
 - Frames never go per-pixel through Dart: libc `memcpy` into a `pw_buffer`, or one bulk copy
   plus `ImageDescriptor.raw`.
 

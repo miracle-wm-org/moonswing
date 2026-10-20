@@ -22,9 +22,14 @@ class _FakeCast implements ActiveCast {
 }
 
 class _FakeEngine implements ScreencastEngine {
-  _FakeEngine({this.sourceTypes = sourceTypeMonitor | sourceTypeWindow});
+  _FakeEngine({
+    this.sourceTypes = sourceTypeMonitor | sourceTypeWindow,
+    this.cursorModes =
+        cursorModeHidden | cursorModeEmbedded | cursorModeMetadata,
+  });
 
   final int sourceTypes;
+  final int cursorModes;
 
   /// Answers the next pick. Null declines.
   PickResult? answer = const PickResult([PickedMonitor('DP-1')]);
@@ -34,7 +39,7 @@ class _FakeEngine implements ScreencastEngine {
   Completer<PickResult?>? gate;
 
   PickRequest? lastRequest;
-  bool? lastPaintCursors;
+  int? lastCursorMode;
   Object? startCastError;
   final List<_FakeCast> casts = [];
   int stoppedCallbackCount = 0;
@@ -42,6 +47,9 @@ class _FakeEngine implements ScreencastEngine {
 
   @override
   int get availableSourceTypes => sourceTypes;
+
+  @override
+  int get availableCursorModes => cursorModes;
 
   @override
   Future<PickResult?> pick(PickRequest request) {
@@ -60,10 +68,10 @@ class _FakeEngine implements ScreencastEngine {
   @override
   Future<ActiveCast> startCast(
     PickResult picked, {
-    required bool paintCursors,
+    required int cursorMode,
     required void Function() onStopped,
   }) async {
-    lastPaintCursors = paintCursors;
+    lastCursorMode = cursorMode;
     _onStopped = onStopped;
     if (startCastError != null) throw startCastError!;
     final cast = _FakeCast([
@@ -210,11 +218,37 @@ void main() {
           const DBusUint32(sourceTypeMonitor | sourceTypeWindow));
     });
 
-    test('offers hidden and embedded cursors, never metadata', () async {
+    test('offers every cursor mode the engine can produce', () async {
       expect(
           _property(await backend.getProperty(
               screenCastInterface, 'AvailableCursorModes')),
+          const DBusUint32(
+              cursorModeHidden | cursorModeEmbedded | cursorModeMetadata));
+    });
+
+    test('offers no metadata when the compositor cannot report the cursor',
+        () async {
+      final noPointer = ScreenCastPortalBackend(
+          _FakeClient(),
+          _FakeEngine(cursorModes: cursorModeHidden | cursorModeEmbedded));
+      expect(
+          _property(await noPointer.getProperty(
+              screenCastInterface, 'AvailableCursorModes')),
           const DBusUint32(cursorModeHidden | cursorModeEmbedded));
+    });
+
+    test('advertises metadata even when the user forces the cursor off',
+        () async {
+      // The policy is applied at Start. Hiding the mode instead would make
+      // Chromium send no cursor_mode at all, which says nothing different
+      // and hides the mode from every other application too.
+      final forced = ScreenCastPortalBackend(_FakeClient(), _FakeEngine(),
+          cursorPolicy: () => ScreencastCursor.never);
+      expect(
+          _property(await forced.getProperty(
+              screenCastInterface, 'AvailableCursorModes')),
+          const DBusUint32(
+              cursorModeHidden | cursorModeEmbedded | cursorModeMetadata));
     });
 
     test('hides window sharing when the compositor cannot do it', () async {
@@ -319,14 +353,79 @@ void main() {
       await createSession();
       await selectSources({'cursor_mode': const DBusUint32(cursorModeEmbedded)});
       await start();
-      expect(engine.lastPaintCursors, isTrue);
+      expect(engine.lastCursorMode, cursorModeEmbedded);
+    });
+
+    test('metadata cursor mode reaches the capture layer', () async {
+      // What Chromium asks for on Linux, and so every Electron recorder.
+      await createSession();
+      await selectSources({'cursor_mode': const DBusUint32(cursorModeMetadata)});
+      await start();
+      expect(engine.lastCursorMode, cursorModeMetadata);
     });
 
     test('hidden cursor mode is the default', () async {
       await createSession();
       await selectSources({});
       await start();
-      expect(engine.lastPaintCursors, isFalse);
+      expect(engine.lastCursorMode, cursorModeHidden);
+    });
+
+    test('a mode the backend did not advertise falls back to hidden',
+        () async {
+      final noMetadata = _FakeEngine(
+          cursorModes: cursorModeHidden | cursorModeEmbedded);
+      final other = ScreenCastPortalBackend(_FakeClient(), noMetadata);
+      await other.handleMethodCall(
+          _call('CreateSession', _sessionArgs('com.example.App')));
+      await other.handleMethodCall(_call(
+          'SelectSources',
+          _sessionArgs('com.example.App',
+              {'cursor_mode': const DBusUint32(cursorModeMetadata)})));
+      await other.handleMethodCall(_call('Start', [
+        DBusObjectPath(_requestPath),
+        DBusObjectPath(_sessionPath),
+        const DBusString('com.example.App'),
+        const DBusString(''),
+        DBusDict.stringVariant(const {}),
+      ]));
+      expect(noMetadata.lastCursorMode, cursorModeHidden);
+    });
+
+    test('[screenshare] cursor overrides what the application asked for',
+        () async {
+      var policy = ScreencastCursor.always;
+      final overriding = _FakeEngine();
+      final otherClient = _FakeClient();
+      final other = ScreenCastPortalBackend(otherClient, overriding,
+          cursorPolicy: () => policy);
+
+      Future<void> share(int? mode) async {
+        await other.handleMethodCall(
+            _call('CreateSession', _sessionArgs('com.example.App')));
+        await other.handleMethodCall(_call(
+            'SelectSources',
+            _sessionArgs('com.example.App', {
+              if (mode != null) 'cursor_mode': DBusUint32(mode),
+            })));
+        await other.handleMethodCall(_call('Start', [
+          DBusObjectPath(_requestPath),
+          DBusObjectPath(_sessionPath),
+          const DBusString('com.example.App'),
+          const DBusString(''),
+          DBusDict.stringVariant(const {}),
+        ]));
+        await other.closeSession(
+            otherClient.registered.whereType<PortalSession>().single);
+      }
+
+      await share(cursorModeHidden);
+      expect(overriding.lastCursorMode, cursorModeEmbedded);
+
+      // Read at each Start, so an edit applies to the next share.
+      policy = ScreencastCursor.never;
+      await share(cursorModeMetadata);
+      expect(overriding.lastCursorMode, cursorModeHidden);
     });
 
     test('a source type the compositor cannot serve falls back to monitors',

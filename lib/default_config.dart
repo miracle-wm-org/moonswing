@@ -213,6 +213,9 @@ inhibit_logind = true
 enabled = true
 preview_fps = 10
 max_fps = 0
+# Whether a shared screen shows the pointer: "app" (as the application asked),
+# "always" or "never".
+cursor = "app"
 
 # Lets a keyboard-and-mouse sharing app (DeskFlow, Input Leap) take this
 # machine's input when the pointer is pushed off a screen edge, after you allow

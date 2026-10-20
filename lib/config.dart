@@ -22,6 +22,7 @@ import 'package:moonswing/module.dart';
 import 'package:moonswing/osd/volume_sound.dart';
 import 'package:moonswing/polkit/polkit_config.dart';
 import 'package:moonswing/power/power_config.dart';
+import 'package:moonswing/screencast/cursor_policy.dart';
 import 'package:moonswing/theme/theme_config.dart';
 
 export 'package:moonswing/default_config.dart';
@@ -377,10 +378,16 @@ class ScreenshareConfig {
   /// rate; windows fall back to 60.
   final int maxFps;
 
+  /// Whether a shared stream shows the pointer: as the application asked, or
+  /// always, or never — for a recorder that asks for no cursor and then has no
+  /// way to draw its own.
+  final ScreencastCursor cursor;
+
   const ScreenshareConfig({
     this.enabled = true,
     this.previewFps = 10,
     this.maxFps = 0,
+    this.cursor = ScreencastCursor.app,
   });
 
   factory ScreenshareConfig.fromMap(Map<String, dynamic>? map) {
@@ -389,7 +396,21 @@ class ScreenshareConfig {
       enabled: map.boolOr('enabled', true),
       previewFps: map.intOr('preview_fps', 10, min: 1, max: 60),
       maxFps: map.intOr('max_fps', 0, min: 0),
+      cursor: _readCursor(map),
     );
+  }
+
+  /// An unreadable value honours the application, which is the portal
+  /// contract and what a shell with no `cursor` key does.
+  static ScreencastCursor _readCursor(Map<String, dynamic> map) {
+    final raw = map['cursor'];
+    if (raw == null) return ScreencastCursor.app;
+    final cursor = raw is String ? ScreencastCursor.fromString(raw) : null;
+    if (cursor == null) {
+      debugPrint('config: [screenshare].cursor ("$raw") is not one of '
+          '"app", "always", "never"; using "app"');
+    }
+    return cursor ?? ScreencastCursor.app;
   }
 
   @override
@@ -398,10 +419,11 @@ class ScreenshareConfig {
       other is ScreenshareConfig &&
           other.enabled == enabled &&
           other.previewFps == previewFps &&
-          other.maxFps == maxFps;
+          other.maxFps == maxFps &&
+          other.cursor == cursor;
 
   @override
-  int get hashCode => Object.hash(enabled, previewFps, maxFps);
+  int get hashCode => Object.hash(enabled, previewFps, maxFps, cursor);
 }
 
 /// Input capture — the shell's xdg-desktop-portal InputCapture backend, which

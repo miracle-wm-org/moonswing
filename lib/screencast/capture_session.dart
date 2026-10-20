@@ -22,6 +22,18 @@ const List<int> _formatPreference = [
   shmFormatAbgr8888,
 ];
 
+/// A fresh `ext_image_capture_source_v1` for an output or a toplevel —
+/// exactly one of the two. A source can back several sessions, but each
+/// session here makes and destroys its own, so their lifetimes stay separate.
+ExtImageCaptureSourceV1 createCaptureSource(
+  CaptureConnection connection, {
+  WlOutputFfi? output,
+  ExtForeignToplevelHandleV1? toplevel,
+}) =>
+    output != null
+        ? connection.outputSourceManager!.createSource(output)
+        : connection.toplevelSourceManager!.createSource(toplevel!);
+
 /// One captured frame. [data] points into the session's mapped shm buffer and
 /// is only valid inside the `onFrame` callback — the next capture overwrites
 /// it. Consumers copy out (PipeWire: memcpy into a pw_buffer; previews: into
@@ -72,9 +84,22 @@ class CaptureSession {
   })  : _output = null,
         _toplevel = toplevel;
 
+  /// Frames that are the cursor's image: the copy-capture session a cursor
+  /// session hands out. The compositor holds each capture until the image
+  /// changes, so this costs nothing while the shape stays the same.
+  CaptureSession.forCursor(
+    this._connection,
+    ExtImageCopyCaptureCursorSessionV1 cursor,
+  )   : _output = null,
+        _toplevel = null,
+        _cursor = cursor,
+        paintCursors = false,
+        minFrameInterval = null;
+
   final CaptureConnection _connection;
   final WlOutputFfi? _output;
   final ExtForeignToplevelHandleV1? _toplevel;
+  ExtImageCopyCaptureCursorSessionV1? _cursor;
   final bool paintCursors;
 
   /// Preview throttle; null = streaming (re-capture immediately on ready).
@@ -131,13 +156,17 @@ class CaptureSession {
   void start() {
     assert(!_started);
     _started = true;
-    final manager = _connection.copyCaptureManager!;
-    final source = _output != null
-        ? _connection.outputSourceManager!.createSource(_output)
-        : _connection.toplevelSourceManager!.createSource(_toplevel!);
-    _source = source;
-    final session = manager.createSession(
-        source, paintCursors ? ExtImageCopyCaptureManagerV1.optionPaintCursors : 0);
+    final ExtImageCopyCaptureSessionV1 session;
+    if (_cursor case final cursor?) {
+      // The cursor session owns the source; this only borrows its image.
+      session = cursor.getCaptureSession();
+    } else {
+      final source = createCaptureSource(_connection,
+          output: _output, toplevel: _toplevel);
+      _source = source;
+      session = _connection.copyCaptureManager!.createSession(source,
+          paintCursors ? ExtImageCopyCaptureManagerV1.optionPaintCursors : 0);
+    }
     _session = session;
 
     session.onShmFormat = (format) {
@@ -352,6 +381,7 @@ class CaptureSession {
     _destroyFrame();
     _session?.destroy();
     _session = null;
+    _cursor = null;
     _source?.destroy();
     _source = null;
     _releaseBuffer();

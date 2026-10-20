@@ -1,4 +1,5 @@
 import '../wayland_ffi/wl_ffi.dart';
+import '../wayland_ffi/wl_input_protocols.dart';
 import '../wayland_ffi/wl_interfaces.dart';
 import '../wayland_ffi/wl_protocols.dart';
 
@@ -35,6 +36,11 @@ class CaptureConnection {
   ExtForeignToplevelImageCaptureSourceManagerV1? toplevelSourceManager;
   ExtImageCopyCaptureManagerV1? copyCaptureManager;
   ExtForeignToplevelListV1? _toplevelList;
+  WlSeatFfi? _seat;
+
+  /// The seat's pointer, for nothing but naming whose cursor a cursor session
+  /// reports: this connection has no surfaces, so it never receives an event.
+  WlPointerFfi? pointer;
 
   final List<WlOutputFfi> outputs = [];
   final List<ExtForeignToplevelHandleV1> toplevels = [];
@@ -56,6 +62,11 @@ class CaptureConnection {
   bool get windowCaptureSupported =>
       supported && toplevelSourceManager != null && _toplevelList != null;
 
+  /// Whether the cursor can be reported beside a capture rather than painted
+  /// into it — the ScreenCast portal's metadata cursor mode. Needs a pointer
+  /// to create the cursor session against.
+  bool get cursorSessionsSupported => supported && pointer != null;
+
   void _init() {
     conn.onError = () => onDied?.call();
     final ifaces = WlProtocolInterfaces.instance;
@@ -70,6 +81,16 @@ class CaptureConnection {
           outputs.add(output);
         case 'wl_shm':
           shm ??= WlShmFfi(conn, _registry.bind(name, ifaces.wlShm, 1));
+        case 'wl_seat':
+          // The first seat only, as input capture does: no compositor the shell
+          // runs on has several.
+          if (_seat != null) return;
+          final seat = WlSeatFfi(
+              conn,
+              _registry.bind(name, ifaces.wlSeat,
+                  boundVersion(version, WlSeatFfi.maxVersion, ifaces.wlSeat)));
+          seat.onCapabilities = _onSeatCapabilities;
+          _seat = seat;
         case 'ext_output_image_capture_source_manager_v1':
           outputSourceManager ??= ExtOutputImageCaptureSourceManagerV1(
               conn, _registry.bind(name, ifaces.outputSourceManager, 1));
@@ -95,7 +116,19 @@ class CaptureConnection {
     };
 
     conn.roundtrip(); // globals burst; binds happen during dispatch
-    conn.roundtrip(); // output geometry + initial toplevel burst
+    conn.roundtrip(); // output geometry, seat capabilities, initial toplevels
+  }
+
+  void _onSeatCapabilities(int caps) {
+    final hasPointer = caps & WlSeatFfi.capPointer != 0;
+    if (hasPointer && pointer == null) {
+      pointer = _seat!.getPointer();
+    } else if (!hasPointer && pointer != null) {
+      // A cursor session made against it keeps running: the pointer argument
+      // only names the seat, and the compositor reports `leave` on its own.
+      pointer!.release();
+      pointer = null;
+    }
   }
 
   void _onToplevel(ExtForeignToplevelHandleV1 handle) {

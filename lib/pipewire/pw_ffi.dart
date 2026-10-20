@@ -161,8 +161,17 @@ final class SpaBuffer extends ffi.Struct {
   external int nMetas;
   @ffi.Uint32()
   external int nDatas;
-  external ffi.Pointer<ffi.Void> metas;
+  external ffi.Pointer<SpaMeta> metas;
   external ffi.Pointer<SpaData> datas;
+}
+
+/// `struct spa_meta` — one typed region of per-buffer metadata.
+final class SpaMeta extends ffi.Struct {
+  @ffi.Uint32()
+  external int type;
+  @ffi.Uint32()
+  external int size;
+  external ffi.Pointer<ffi.Void> data;
 }
 
 final class SpaData extends ffi.Struct {

@@ -284,6 +284,89 @@ Uint8List buildVideoBuffers({
   ]);
 }
 
+/// The `Meta` param that gives every buffer a cursor: `spa_meta_cursor`, then
+/// a `spa_meta_bitmap`, then the image. Sized for a cursor up to
+/// [kCursorMetaMaxSide] square, as GNOME's is — a cursor theme at size 48 on a
+/// scale-2 output is already 96 pixels, and an image that does not fit is
+/// still sent as a position.
+Uint8List buildCursorMeta() =>
+    buildSpaObject(spaTypeObjectParamMeta, spaParamMeta, [
+      const SpaProp(spaParamMetaType, SpaId(spaMetaCursor)),
+      SpaProp(
+        spaParamMetaSize,
+        SpaChoice.range(
+          SpaInt(cursorMetaSize(kCursorMetaMaxSide, kCursorMetaMaxSide)),
+          SpaInt(cursorMetaSize(1, 1)),
+          SpaInt(cursorMetaSize(kCursorMetaMaxSide, kCursorMetaMaxSide)),
+        ),
+      ),
+    ]);
+
+/// The largest cursor image the meta is sized for, per side.
+const int kCursorMetaMaxSide = 384;
+
+/// `sizeof(struct spa_meta_cursor)`: id, flags, position, hotspot,
+/// bitmap_offset — seven 32-bit fields.
+const int kSpaMetaCursorSize = 28;
+
+/// `sizeof(struct spa_meta_bitmap)`: format, size, stride, offset.
+const int kSpaMetaBitmapSize = 20;
+
+int cursorMetaSize(int width, int height) =>
+    kSpaMetaCursorSize + kSpaMetaBitmapSize + width * height * 4;
+
+/// Fills one buffer's cursor meta ([target] is the whole `spa_meta.data`
+/// region). A hidden cursor is `id` 0, which is how `spa_meta_cursor_is_valid`
+/// reads "no cursor on this stream right now". The image goes in when it fits
+/// and is sent on every buffer rather than only when it changes: a consumer
+/// that joins late, or drops a buffer, would otherwise be left without one,
+/// and at cursor sizes the copy is noise.
+///
+/// [image] is ARGB8888 in `wl_shm` byte order, which is SPA's BGRA.
+void writeCursorMeta(
+  Uint8List target, {
+  required bool visible,
+  required int x,
+  required int y,
+  required int hotspotX,
+  required int hotspotY,
+  Uint8List? image,
+  int imageWidth = 0,
+  int imageHeight = 0,
+}) {
+  if (target.length < kSpaMetaCursorSize) return;
+  final b = ByteData.view(
+      target.buffer, target.offsetInBytes, kSpaMetaCursorSize);
+  b.setUint32(0, visible ? 1 : 0, Endian.little); // id
+  b.setUint32(4, 0, Endian.little); // flags
+  b.setInt32(8, x, Endian.little);
+  b.setInt32(12, y, Endian.little);
+  b.setInt32(16, hotspotX, Endian.little);
+  b.setInt32(20, hotspotY, Endian.little);
+
+  final imageBytes = imageWidth * imageHeight * 4;
+  final fits = visible &&
+      image != null &&
+      imageWidth > 0 &&
+      imageHeight > 0 &&
+      image.length >= imageBytes &&
+      target.length >= cursorMetaSize(imageWidth, imageHeight);
+  // bitmap_offset 0 is "no bitmap in this buffer": the consumer keeps the
+  // image it last had.
+  b.setUint32(24, fits ? kSpaMetaCursorSize : 0, Endian.little);
+  if (!fits) return;
+
+  final bitmap = ByteData.view(target.buffer,
+      target.offsetInBytes + kSpaMetaCursorSize, kSpaMetaBitmapSize);
+  bitmap.setUint32(0, spaVideoFormatBGRA, Endian.little);
+  bitmap.setUint32(4, imageWidth, Endian.little);
+  bitmap.setUint32(8, imageHeight, Endian.little);
+  bitmap.setInt32(12, imageWidth * 4, Endian.little); // stride
+  bitmap.setUint32(16, kSpaMetaBitmapSize, Endian.little); // offset
+  target.setRange(kSpaMetaCursorSize + kSpaMetaBitmapSize,
+      kSpaMetaCursorSize + kSpaMetaBitmapSize + imageBytes, image);
+}
+
 /// Maps a negotiated `wl_shm` capture format to the SPA video format with the
 /// identical little-endian byte layout.
 int? spaVideoFormatForShm(int shmFormat) => switch (shmFormat) {

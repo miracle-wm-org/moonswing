@@ -245,8 +245,61 @@ class ExtImageCopyCaptureManagerV1 extends WlProxy {
     return ExtImageCopyCaptureSessionV1(conn, ptr);
   }
 
+  /// `create_pointer_cursor_session` (opcode 1, "noo"). [pointer] is a
+  /// `wl_pointer` on this connection — it names the seat whose cursor is
+  /// reported; nothing is read from it.
+  ExtImageCopyCaptureCursorSessionV1 createPointerCursorSession(
+      ExtImageCaptureSourceV1 source, WlProxy pointer) {
+    final args = WlArgs(3)
+      ..setNewId(0)
+      ..setObject(1, source.ptr)
+      ..setObject(2, pointer.ptr);
+    final ptr = marshalConstructor(
+        1, WlProtocolInterfaces.instance.copyCaptureCursorSession, args);
+    return ExtImageCopyCaptureCursorSessionV1(conn, ptr);
+  }
+
   /// `destroy` (opcode 2).
   void destroy() => sendDestructor(2);
+}
+
+/// The pointer's cursor as it falls on one capture source: where it is, in the
+/// source's buffer coordinates, and — through [getCaptureSession] — its image.
+class ExtImageCopyCaptureCursorSessionV1 extends WlProxy {
+  ExtImageCopyCaptureCursorSessionV1(super.conn, super.ptr) {
+    addListener(_vtable);
+  }
+
+  void Function()? onEnter;
+  void Function()? onLeave;
+  void Function(int x, int y)? onPosition;
+  void Function(int x, int y)? onHotspot;
+
+  static ExtImageCopyCaptureCursorSessionV1? _of(int p) =>
+      proxyByAddress<ExtImageCopyCaptureCursorSessionV1>(p);
+
+  static final _vtable = buildVtable([
+    // enter
+    ev0((p) => _of(p)?.onEnter?.call()),
+    // leave
+    ev0((p) => _of(p)?.onLeave?.call()),
+    // position
+    evII((p, x, y) => _of(p)?.onPosition?.call(x, y)),
+    // hotspot
+    evII((p, x, y) => _of(p)?.onHotspot?.call(x, y)),
+  ]);
+
+  /// `destroy` (opcode 0).
+  void destroy() => sendDestructor(0);
+
+  /// `get_capture_session` (opcode 1, "n") — a copy-capture session whose
+  /// frames are the cursor image. At most one per cursor session.
+  ExtImageCopyCaptureSessionV1 getCaptureSession() {
+    final args = WlArgs(1)..setNewId(0);
+    final ptr = marshalConstructor(
+        1, WlProtocolInterfaces.instance.copyCaptureSession, args);
+    return ExtImageCopyCaptureSessionV1(conn, ptr);
+  }
 }
 
 class ExtImageCopyCaptureSessionV1 extends WlProxy {

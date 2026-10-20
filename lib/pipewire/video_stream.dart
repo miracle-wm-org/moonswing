@@ -7,6 +7,7 @@ import 'package:ffi/ffi.dart';
 import '../native/glib_source.dart';
 import '../native/libc.dart' as libc;
 import '../screencast/capture_session.dart';
+import '../screencast/cursor_tracker.dart';
 import '../screencast/screencast_log.dart';
 import 'pw_ffi.dart';
 import 'spa_constants.dart';
@@ -25,6 +26,11 @@ typedef _ParamChangedC = ffi.Void Function(
 /// what the portal's `Start` response carries. Frames are pushed with [pushFrame]:
 /// dequeue a pw buffer (drop the frame when the consumer has none free),
 /// pointer-to-pointer memcpy, queue.
+///
+/// With [cursorMetadata] every buffer also carries a `SPA_META_Cursor`, and
+/// [pushCursor] sends one with no picture in it (`chunk.size` 0, which is how
+/// GNOME's screencast marks a cursor-only buffer and how WebRTC and OBS read
+/// one) — the cursor moving over a still screen produces no frame to carry it.
 class PipewireVideoStream {
   PipewireVideoStream({
     required this.width,
@@ -33,6 +39,7 @@ class PipewireVideoStream {
     this.maxFrameRate = 60,
     this.name = 'moonswing-screencast',
     this.driveWithGlib = true,
+    this.cursorMetadata = false,
   });
 
   int width;
@@ -44,6 +51,10 @@ class PipewireVideoStream {
   /// The shell drives the loop from the GLib main loop; the spike tool calls
   /// [iterate] manually instead.
   final bool driveWithGlib;
+
+  /// Whether buffers carry the cursor as metadata (the portal's metadata
+  /// cursor mode) — the frames themselves then have no cursor in them.
+  final bool cursorMetadata;
 
   static bool _initialized = false;
 
@@ -234,12 +245,12 @@ class PipewireVideoStream {
     final negotiated = parseSpaFormat(bytes);
     if (negotiated == null) return;
     screencastLog('PipeWire format negotiated: $negotiated');
+    final params = [
+      buildVideoBuffers(width: negotiated.width, height: negotiated.height),
+      if (cursorMetadata) buildCursorMeta(),
+    ];
     PwFfi.instance.streamUpdateParams(
-      _stream,
-      _paramsArray(
-          [buildVideoBuffers(width: negotiated.width, height: negotiated.height)]),
-      1,
-    );
+        _stream, _paramsArray(params), params.length);
   }
 
   /// Copies pod byte buffers into native memory (kept until dispose) and
@@ -264,9 +275,10 @@ class PipewireVideoStream {
     }
   }
 
-  /// Pushes one captured frame. Returns false when dropped (not streaming,
-  /// or the consumer has no free buffer).
-  bool pushFrame(CapturedFrame frame) {
+  /// Pushes one captured frame, with [cursor] in its metadata when the stream
+  /// carries one. Returns false when dropped (not streaming, or the consumer
+  /// has no free buffer).
+  bool pushFrame(CapturedFrame frame, {CursorState? cursor}) {
     if (_disposed || _state != pwStreamStateStreaming) return false;
     final pw = PwFfi.instance;
     final pb = pw.streamDequeueBuffer(_stream);
@@ -292,8 +304,55 @@ class PipewireVideoStream {
       chunk.ref.stride = frame.stride;
       chunk.ref.flags = 0;
     }
+    if (cursor != null) _writeCursor(spaBuffer, cursor);
     pw.streamQueueBuffer(_stream, pb);
     return true;
+  }
+
+  /// Sends [cursor] in a buffer of its own, with an empty picture. Returns
+  /// false when dropped, as [pushFrame] does.
+  bool pushCursor(CursorState cursor) {
+    if (_disposed || !cursorMetadata || _state != pwStreamStateStreaming) {
+      return false;
+    }
+    final pw = PwFfi.instance;
+    final pb = pw.streamDequeueBuffer(_stream);
+    if (pb.address == 0) return false;
+    final spaBuffer = pb.ref.buffer;
+    if (spaBuffer.address != 0 && spaBuffer.ref.nDatas >= 1) {
+      final chunk = spaBuffer.ref.datas.ref.chunk;
+      if (chunk.address != 0) {
+        chunk.ref.offset = 0;
+        chunk.ref.size = 0;
+        chunk.ref.stride = width * 4;
+        chunk.ref.flags = 0;
+      }
+      _writeCursor(spaBuffer, cursor);
+    }
+    pw.streamQueueBuffer(_stream, pb);
+    return true;
+  }
+
+  void _writeCursor(ffi.Pointer<SpaBuffer> spaBuffer, CursorState cursor) {
+    if (!cursorMetadata) return;
+    final metas = spaBuffer.ref.metas;
+    if (metas.address == 0) return;
+    for (var i = 0; i < spaBuffer.ref.nMetas; i++) {
+      final meta = (metas + i).ref;
+      if (meta.type != spaMetaCursor || meta.data.address == 0) continue;
+      writeCursorMeta(
+        meta.data.cast<ffi.Uint8>().asTypedList(meta.size),
+        visible: cursor.visible,
+        x: cursor.x,
+        y: cursor.y,
+        hotspotX: cursor.hotspotX,
+        hotspotY: cursor.hotspotY,
+        image: cursor.image,
+        imageWidth: cursor.imageWidth,
+        imageHeight: cursor.imageHeight,
+      );
+      return;
+    }
   }
 
   /// Renegotiates after the capture source changed size (window resize).
