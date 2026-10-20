@@ -366,6 +366,11 @@ void _startShellServices({
       () => startScreencastService(
         picker: ScreencastPickerController.instance,
         maxFrameRate: appConfig.screenshare.maxFps,
+        // Read off the live store at each share, not snapshotted here: the
+        // section alone, since `appConfig` would re-run every module's loader.
+        cursorPolicy: () => ScreenshareConfig.fromMap(
+          ConfigStore.instance.get<Map<String, dynamic>>(['screenshare']),
+        ).cursor,
       ),
     );
   } else {

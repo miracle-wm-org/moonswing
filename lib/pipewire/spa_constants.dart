@@ -22,6 +22,7 @@ const int spaTypeChoice = 19;
 // --- Object types ---
 const int spaTypeObjectFormat = 0x40003;
 const int spaTypeObjectParamBuffers = 0x40004;
+const int spaTypeObjectParamMeta = 0x40005;
 
 // --- Choice types (spa/utils/type.h enum spa_choice_type) ---
 const int spaChoiceNone = 0;
@@ -34,6 +35,7 @@ const int spaChoiceFlags = 4;
 const int spaParamEnumFormat = 3;
 const int spaParamFormat = 4;
 const int spaParamBuffers = 5;
+const int spaParamMeta = 6;
 
 // --- Format object keys (spa/param/format.h) ---
 const int spaFormatMediaType = 1;
@@ -59,6 +61,13 @@ const int spaParamBuffersSize = 3;
 const int spaParamBuffersStride = 4;
 const int spaParamBuffersAlign = 5;
 const int spaParamBuffersDataType = 6;
+
+// --- Meta object keys (spa/param/buffers.h) ---
+const int spaParamMetaType = 1;
+const int spaParamMetaSize = 2;
+
+// --- Meta types (spa/buffer/meta.h) ---
+const int spaMetaCursor = 5;
 
 // --- Data types (spa/buffer/buffer.h) ---
 const int spaDataMemFd = 2;

@@ -6,6 +6,8 @@ import '../portal_bus.dart';
 import 'capture_connection.dart';
 import 'capture_host.dart';
 import 'capture_session.dart';
+import 'cursor_pacer.dart';
+import 'cursor_tracker.dart';
 import 'pick_types.dart';
 import 'portal_frontend.dart';
 import 'screencast_log.dart';
@@ -40,11 +42,15 @@ ScreencastService? get screencastService => _service;
 /// [reconcileFrontend] repairs an xdg-desktop-portal frontend that started before
 /// this backend owned its name (see `portal_frontend.dart`). It restarts somebody
 /// else's service, so the spike tool passes false.
+///
+/// [cursorPolicy] is `[screenshare] cursor`, asked at every `Start`; absent, the
+/// application's own `cursor_mode` is honoured.
 Future<void> startScreencastService({
   required SourcePicker picker,
   bool attachToGlibLoop = true,
   int maxFrameRate = 0,
   bool reconcileFrontend = true,
+  ScreencastCursor Function()? cursorPolicy,
 }) async {
   if (!PipewireVideoStream.ensureInit()) {
     throw StateError('PipeWire not present');
@@ -75,7 +81,8 @@ Future<void> startScreencastService({
   try {
     final engine = ShellScreencastEngine(connection, picker,
         maxFrameRate: maxFrameRate, driveWithGlib: attachToGlibLoop);
-    final backend = ScreenCastPortalBackend(client, engine);
+    final backend =
+        ScreenCastPortalBackend(client, engine, cursorPolicy: cursorPolicy);
     await backend.init();
     bus.serve(backend);
     served = backend;
@@ -86,7 +93,8 @@ Future<void> startScreencastService({
 
     _service = ScreencastService._(connection, bus, backend);
     screencastLog('portal backend up as $kScreencastBusName '
-        '(windows: ${connection.windowCaptureSupported})');
+        '(windows: ${connection.windowCaptureSupported}, '
+        'cursor metadata: ${connection.cursorSessionsSupported})');
 
     // Owning the name is not the same as being *seen*. xdg-desktop-portal caches
     // this backend's `AvailableSourceTypes` when its frontend starts, and the
@@ -165,6 +173,12 @@ class ShellScreencastEngine implements ScreencastEngine {
       (_connection.windowCaptureSupported ? sourceTypeWindow : 0);
 
   @override
+  int get availableCursorModes =>
+      cursorModeHidden |
+      cursorModeEmbedded |
+      (_connection.cursorSessionsSupported ? cursorModeMetadata : 0);
+
+  @override
   Future<PickResult?> pick(PickRequest request) => _picker.pick(request);
 
   @override
@@ -173,14 +187,14 @@ class ShellScreencastEngine implements ScreencastEngine {
   @override
   Future<ActiveCast> startCast(
     PickResult picked, {
-    required bool paintCursors,
+    required int cursorMode,
     required void Function() onStopped,
   }) async {
     final cast = _ShellActiveCast(onStopped);
     try {
       for (final source in picked.sources) {
         await cast.addSource(_connection, source,
-            paintCursors: paintCursors,
+            cursorMode: cursorMode,
             maxFrameRate: maxFrameRate,
             driveWithGlib: driveWithGlib);
       }
@@ -197,6 +211,8 @@ class _ShellActiveCast implements ActiveCast {
 
   final void Function() _onStopped;
   final List<CaptureSession> _sessions = [];
+  final List<CursorTracker> _cursors = [];
+  final List<CursorPacer> _pacers = [];
   final List<PipewireVideoStream> _streams = [];
   final List<PortalStreamInfo> _streamInfos = [];
   bool _stopped = false;
@@ -207,11 +223,17 @@ class _ShellActiveCast implements ActiveCast {
   Future<void> addSource(
     CaptureConnection connection,
     PickedSource source, {
-    required bool paintCursors,
+    required int cursorMode,
     required int maxFrameRate,
     bool driveWithGlib = true,
   }) async {
+    final paintCursors = cursorMode == cursorModeEmbedded;
+    // Metadata asked for on a connection that has since lost its pointer
+    // degrades to hidden, which is what a client that offered no mode gets.
+    final cursorMetadata = cursorMode == cursorModeMetadata &&
+        connection.cursorSessionsSupported;
     final CaptureSession session;
+    CursorTracker? cursor;
     final int sourceType;
     int? x;
     int? y;
@@ -227,6 +249,7 @@ class _ShellActiveCast implements ActiveCast {
         }
         session = CaptureSession.forOutput(connection, output,
             paintCursors: paintCursors);
+        if (cursorMetadata) cursor = CursorTracker.forOutput(connection, output);
         sourceType = sourceTypeMonitor;
         x = output.x;
         y = output.y;
@@ -238,9 +261,13 @@ class _ShellActiveCast implements ActiveCast {
         }
         session = CaptureSession.forToplevel(connection, toplevel,
             paintCursors: paintCursors);
+        if (cursorMetadata) {
+          cursor = CursorTracker.forToplevel(connection, toplevel);
+        }
         sourceType = sourceTypeWindow;
     }
     _sessions.add(session);
+    if (cursor != null) _cursors.add(cursor);
 
     // The stream can only be created once the capture constraints are known
     // (size + shm format); the first onSizeChanged marks that moment.
@@ -264,16 +291,33 @@ class _ShellActiveCast implements ActiveCast {
           'unmappable shm format 0x${session.shmFormat.toRadixString(16)}');
     }
 
+    final frameRate = maxFrameRate > 0 ? maxFrameRate : refresh.clamp(1, 240);
     stream = PipewireVideoStream(
       width: width,
       height: height,
       spaVideoFormat: spaFormat,
-      maxFrameRate: maxFrameRate > 0 ? maxFrameRate : refresh.clamp(1, 240),
+      maxFrameRate: frameRate,
       driveWithGlib: driveWithGlib,
+      cursorMetadata: cursor != null,
     );
     _streams.add(stream);
     final pushTarget = stream;
-    session.onFrame = (frame) => pushTarget.pushFrame(frame);
+    final tracker = cursor;
+    if (tracker == null) {
+      session.onFrame = (frame) => pushTarget.pushFrame(frame);
+    } else {
+      final pacer = CursorPacer(
+        minInterval: Duration(microseconds: 1000000 ~/ frameRate),
+        push: () =>
+            !pushTarget.isStreaming || pushTarget.pushCursor(tracker.state),
+      );
+      _pacers.add(pacer);
+      tracker.onChanged = pacer.changed;
+      session.onFrame = (frame) {
+        if (pushTarget.pushFrame(frame, cursor: tracker.state)) pacer.sent();
+      };
+      tracker.start();
+    }
     stream.onError = (_) => _sourceStopped();
     if (!stream.start()) {
       throw StateError('PipeWire stream failed to start');
@@ -301,6 +345,14 @@ class _ShellActiveCast implements ActiveCast {
   void stop() {
     if (_stopped) return;
     _stopped = true;
+    for (final p in _pacers) {
+      p.dispose();
+    }
+    _pacers.clear();
+    for (final c in _cursors) {
+      c.dispose();
+    }
+    _cursors.clear();
     for (final s in _sessions) {
       s.dispose();
     }

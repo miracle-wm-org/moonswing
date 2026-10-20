@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/screencast/cursor_policy.dart';
 import 'package:toml/toml.dart';
 
 void main() {
@@ -9,6 +10,7 @@ void main() {
       expect(config.enabled, isTrue);
       expect(config.previewFps, 10);
       expect(config.maxFps, 0);
+      expect(config.cursor, ScreencastCursor.app);
       expect(ScreenshareConfig.fromMap(null).previewFps, 10);
     });
 
@@ -17,10 +19,27 @@ void main() {
         'enabled': false,
         'preview_fps': 5,
         'max_fps': 30,
+        'cursor': 'always',
       });
       expect(config.enabled, isFalse);
       expect(config.previewFps, 5);
       expect(config.maxFps, 30);
+      expect(config.cursor, ScreencastCursor.always);
+    });
+
+    test('an unknown cursor value honours the application', () {
+      // Neither forcing the cursor in nor out is a safe guess at a typo.
+      expect(ScreenshareConfig.fromMap({'cursor': 'sometimes'}).cursor,
+          ScreencastCursor.app);
+      expect(ScreenshareConfig.fromMap({'cursor': true}).cursor,
+          ScreencastCursor.app);
+    });
+
+    test('the cursor setting takes part in equality', () {
+      expect(const ScreenshareConfig(cursor: ScreencastCursor.never),
+          isNot(const ScreenshareConfig()));
+      expect(ScreenshareConfig.fromMap({'cursor': 'never'}),
+          const ScreenshareConfig(cursor: ScreencastCursor.never));
     });
 
     test('clamps a preview rate that would melt the picker', () {
@@ -81,11 +100,10 @@ theme = "glassy"
 enabled = true
 preview_fps = 10
 max_fps = 0
+cursor = "app"
 ''').toMap());
       const defaults = ScreenshareConfig();
-      expect(shipped.screenshare.enabled, defaults.enabled);
-      expect(shipped.screenshare.previewFps, defaults.previewFps);
-      expect(shipped.screenshare.maxFps, defaults.maxFps);
+      expect(shipped.screenshare, defaults);
     });
   });
 }

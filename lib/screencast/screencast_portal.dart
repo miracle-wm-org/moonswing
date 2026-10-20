@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 
 import '../dbus_service_object.dart';
+import 'cursor_policy.dart';
 import 'pick_types.dart';
 import 'screencast_log.dart';
+
+export 'cursor_policy.dart';
 
 /// The xdg-desktop-portal ScreenCast *backend* (`impl` side): xdg-desktop-portal
 /// itself is the only D-Bus peer, forwarding app requests here and handling
@@ -28,10 +31,6 @@ const String requestInterface = 'org.freedesktop.impl.portal.Request';
 /// `AvailableSourceTypes` bits.
 const int sourceTypeMonitor = 1;
 const int sourceTypeWindow = 2;
-
-/// `AvailableCursorModes` bits. METADATA (4) is deliberately not offered.
-const int cursorModeHidden = 1;
-const int cursorModeEmbedded = 2;
 
 /// Portal response codes.
 const int _responseSuccess = 0;
@@ -70,6 +69,10 @@ abstract class ScreencastEngine {
   /// Bitmask of [sourceTypeMonitor] | [sourceTypeWindow].
   int get availableSourceTypes;
 
+  /// Bitmask of [cursorModeHidden] | [cursorModeEmbedded] |
+  /// [cursorModeMetadata].
+  int get availableCursorModes;
+
   /// Shows the picker; null means cancelled.
   Future<PickResult?> pick(PickRequest request);
 
@@ -77,11 +80,12 @@ abstract class ScreencastEngine {
   void cancelPick();
 
   /// Builds capture sessions + PipeWire streams for the picked sources and
-  /// resolves once every node id is known. [onStopped] fires later if any
-  /// underlying source goes away (session must close).
+  /// resolves once every node id is known. [cursorMode] is one mode, already
+  /// resolved against the user's `[screenshare] cursor`. [onStopped] fires
+  /// later if any underlying source goes away (session must close).
   Future<ActiveCast> startCast(
     PickResult picked, {
-    required bool paintCursors,
+    required int cursorMode,
     required void Function() onStopped,
   });
 }
@@ -96,17 +100,28 @@ class _SessionState {
 
   int types = sourceTypeMonitor;
   bool multiple = false;
-  int cursorMode = cursorModeHidden;
+
+  /// The application's `cursor_mode`, null when it sent none.
+  int? cursorMode;
   bool started = false;
   ActiveCast? cast;
 }
 
 class ScreenCastPortalBackend extends DBusServiceObject {
-  ScreenCastPortalBackend(this._client, this._engine)
-      : super(DBusObjectPath('/org/freedesktop/portal/desktop'));
+  ScreenCastPortalBackend(this._client, this._engine,
+      {ScreencastCursor Function()? cursorPolicy})
+      : _cursorPolicy = cursorPolicy ?? _honourApp,
+        super(DBusObjectPath('/org/freedesktop/portal/desktop'));
 
   final DBusClient _client;
   final ScreencastEngine _engine;
+
+  /// `[screenshare] cursor`, read at each `Start` so an edit applies to the
+  /// next share without a restart.
+  final ScreencastCursor Function() _cursorPolicy;
+
+  static ScreencastCursor _honourApp() => ScreencastCursor.app;
+
   final Map<String, _SessionState> _sessions = {};
   StreamSubscription<DBusNameOwnerChangedEvent>? _nameOwnerSub;
 
@@ -156,8 +171,11 @@ class ScreenCastPortalBackend extends DBusServiceObject {
             DBusServiceProperty(DBusSignature('u'), () => const DBusUint32(2)),
         'AvailableSourceTypes': DBusServiceProperty(DBusSignature('u'),
             () => DBusUint32(_engine.availableSourceTypes)),
+        // Every mode the engine can produce, whatever `[screenshare] cursor`
+        // says: an application only sends a mode it saw here, and the policy
+        // is applied after, at `Start`.
         'AvailableCursorModes': DBusServiceProperty(DBusSignature('u'),
-            () => const DBusUint32(cursorModeHidden | cursorModeEmbedded)),
+            () => DBusUint32(_engine.availableCursorModes)),
       },
       onError: (call, error) {
         screencastLog('ScreenCast portal ${call.name} failed: $error');
@@ -253,7 +271,9 @@ class ScreenCastPortalBackend extends DBusServiceObject {
       cast = await _engine
           .startCast(
             picked,
-            paintCursors: state.cursorMode == cursorModeEmbedded,
+            cursorMode: resolveCursorMode(_cursorPolicy(),
+                requested: state.cursorMode,
+                available: _engine.availableCursorModes),
             onStopped: () => _closeFromBackend(sessionHandle),
           )
           .timeout(const Duration(seconds: 15));

@@ -147,6 +147,114 @@ void main() {
     });
   });
 
+  group('cursor Meta param', () {
+    final pod = buildCursorMeta();
+    final parsed = _walkObject(pod);
+    final b = ByteData.view(pod.buffer);
+
+    test('is a ParamMeta object asking for SPA_META_Cursor', () {
+      expect(parsed.objectType, spaTypeObjectParamMeta);
+      expect(parsed.objectId, spaParamMeta);
+      final (type, _, offset) = parsed.props[spaParamMetaType]!;
+      expect(type, spaTypeId);
+      expect(b.getUint32(offset, Endian.little), spaMetaCursor);
+    });
+
+    test('is sized for the largest cursor, down to a 1x1 one', () {
+      final (type, _, offset) = parsed.props[spaParamMetaSize]!;
+      expect(type, spaTypeChoice);
+      expect(b.getUint32(offset, Endian.little), spaChoiceRange);
+      // {choiceType, flags} + child header, then default, min, max.
+      final values = offset + 16;
+      final largest = 28 + 20 + kCursorMetaMaxSide * kCursorMetaMaxSide * 4;
+      expect(b.getInt32(values, Endian.little), largest);
+      expect(b.getInt32(values + 4, Endian.little), 28 + 20 + 4);
+      expect(b.getInt32(values + 8, Endian.little), largest);
+    });
+  });
+
+  group('writeCursorMeta', () {
+    // A 2x1 cursor: one opaque red, one transparent pixel, B G R A.
+    final image = Uint8List.fromList([0, 0, 255, 255, 0, 0, 0, 0]);
+
+    test('lays out spa_meta_cursor, spa_meta_bitmap and the image', () {
+      final target = Uint8List(cursorMetaSize(4, 4));
+      writeCursorMeta(target,
+          visible: true,
+          x: 640,
+          y: -3,
+          hotspotX: 1,
+          hotspotY: 2,
+          image: image,
+          imageWidth: 2,
+          imageHeight: 1);
+      final b = ByteData.view(target.buffer);
+      expect(b.getUint32(0, Endian.little), isNonZero, reason: 'id: valid');
+      expect(b.getInt32(8, Endian.little), 640);
+      // Off the top edge is a real position, not a hidden cursor.
+      expect(b.getInt32(12, Endian.little), -3);
+      expect(b.getInt32(16, Endian.little), 1);
+      expect(b.getInt32(20, Endian.little), 2);
+      expect(b.getUint32(24, Endian.little), kSpaMetaCursorSize);
+
+      expect(b.getUint32(28, Endian.little), spaVideoFormatBGRA);
+      expect(b.getUint32(32, Endian.little), 2);
+      expect(b.getUint32(36, Endian.little), 1);
+      expect(b.getInt32(40, Endian.little), 8, reason: 'stride');
+      expect(b.getUint32(44, Endian.little), kSpaMetaBitmapSize);
+      expect(target.sublist(48, 56), image);
+    });
+
+    test('a hidden cursor is id 0 and carries no bitmap', () {
+      final target = Uint8List(cursorMetaSize(4, 4))..fillRange(0, 28, 0xff);
+      writeCursorMeta(target,
+          visible: false,
+          x: 1,
+          y: 1,
+          hotspotX: 0,
+          hotspotY: 0,
+          image: image,
+          imageWidth: 2,
+          imageHeight: 1);
+      final b = ByteData.view(target.buffer);
+      expect(b.getUint32(0, Endian.little), 0);
+      expect(b.getUint32(24, Endian.little), 0);
+    });
+
+    test('an image too big for the meta still sends the position', () {
+      final target = Uint8List(cursorMetaSize(1, 1));
+      writeCursorMeta(target,
+          visible: true,
+          x: 10,
+          y: 20,
+          hotspotX: 0,
+          hotspotY: 0,
+          image: image,
+          imageWidth: 2,
+          imageHeight: 1);
+      final b = ByteData.view(target.buffer);
+      expect(b.getUint32(0, Endian.little), isNonZero);
+      expect(b.getInt32(8, Endian.little), 10);
+      expect(b.getUint32(24, Endian.little), 0, reason: 'no bitmap');
+    });
+
+    test('no image yet is a position with no bitmap', () {
+      final target = Uint8List(cursorMetaSize(4, 4));
+      writeCursorMeta(target,
+          visible: true, x: 5, y: 6, hotspotX: 0, hotspotY: 0);
+      final b = ByteData.view(target.buffer);
+      expect(b.getUint32(0, Endian.little), isNonZero);
+      expect(b.getUint32(24, Endian.little), 0);
+    });
+
+    test('a region smaller than spa_meta_cursor is left alone', () {
+      final target = Uint8List(8);
+      writeCursorMeta(target,
+          visible: true, x: 5, y: 6, hotspotX: 0, hotspotY: 0);
+      expect(target, everyElement(0));
+    });
+  });
+
   group('parseSpaFormat', () {
     test('reads back a fixed format object', () {
       final pod = buildSpaObject(spaTypeObjectFormat, spaParamFormat, const [

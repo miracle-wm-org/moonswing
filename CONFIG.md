@@ -1955,6 +1955,7 @@ Both monitors and individual windows can be shared. Frames reach the application
 | `enabled` | boolean | `true` | Whether to claim the ScreenCast backend at all. Set false to leave screen sharing to another backend such as `xdg-desktop-portal-wlr`. |
 | `preview_fps` | integer | `10` | Frame rate for the picker's live previews. Clamped to 1–60. Deliberately low: the picker captures every monitor *and* every window at once. |
 | `max_fps` | integer | `0` | Cap on the shared stream's frame rate. `0` follows the monitor's refresh rate. |
+| `cursor` | string | `"app"` | Whether the shared stream shows the pointer. `"app"` does what the application asked; `"always"` paints the pointer into every frame; `"never"` leaves it out. See [The pointer](#the-pointer) below. |
 
 ```toml
 [polkit]
@@ -1965,7 +1966,27 @@ max_attempts = 3
 enabled = true
 preview_fps = 10
 max_fps = 0
+cursor = "app"
 ```
+
+### The pointer
+
+An application asks for one of three ways to get the pointer when it starts sharing:
+
+- **hidden** — no pointer in the stream at all;
+- **embedded** — the pointer painted into every frame;
+- **metadata** — frames *without* the pointer, plus its position and image sent alongside each one, so the application draws it itself.
+
+Chrome, Chromium and every Electron app (Discord, Slack, screen recorders built on Electron) always ask for **metadata** on Linux, and draw the pointer from it. With the default `cursor = "app"` the shell gives each application the mode it asked for. If you change nothing else, the pointer shows up the way that application intends.
+
+Set `cursor` when the application's choice is the wrong one for you:
+
+- `cursor = "always"` paints the pointer in, whatever was asked. Use it for a recorder that hides the pointer, meaning to draw one of its own, and then can't. **Recordly** is one: on Wayland it has no way to see where the pointer is, so its own animated pointer never moves. With `"always"` the real pointer is in the recording instead. Turn Recordly's own pointer off, or you will see both.
+- `cursor = "never"` keeps the pointer out of every share.
+
+The setting is read each time sharing starts, so an edit applies to the next share without a restart.
+
+Metadata needs a compositor that can report the pointer for a capture (`ext-image-copy-capture-v1`'s cursor sessions, which miracle-wm has). Without that the shell does not offer metadata, and those applications fall back to sharing with no pointer.
 
 ### Requirements
 
