@@ -688,7 +688,126 @@ enum EntryKind {
   }
 }
 
+/// The paper a sticky note is cut from.
+///
+/// Stored by [wireName], never by colour value, so a palette tuned later
+/// reaches every note already on the overview.
+enum StickyColor {
+  yellow('yellow', 'Yellow'),
+  pink('pink', 'Pink'),
+  green('green', 'Green'),
+  blue('blue', 'Blue'),
+  purple('purple', 'Purple'),
+  orange('orange', 'Orange');
+
+  const StickyColor(this.wireName, this.label);
+
+  final String wireName;
+  final String label;
+
+  /// [yellow] for anything unknown: a bad value costs the colour, not the note.
+  static StickyColor fromWire(Object? value) {
+    for (final color in values) {
+      if (color.wireName == value) return color;
+    }
+    return yellow;
+  }
+}
+
+/// How big a sticky note is drawn: one of three, so a wall of them stays tidy.
+enum StickySize {
+  small('small', 'Small'),
+  medium('medium', 'Medium'),
+  large('large', 'Large');
+
+  const StickySize(this.wireName, this.label);
+
+  final String wireName;
+  final String label;
+
+  /// [medium] for anything unknown.
+  static StickySize fromWire(Object? value) {
+    for (final size in values) {
+      if (size.wireName == value) return size;
+    }
+    return medium;
+  }
+}
+
+/// Where a note sits on the overview and what it looks like there.
+///
+/// [dx]/[dy] are the note's centre measured from the *panel's* centre, so the
+/// notes travel with the panel when it is dragged. A note never placed — one
+/// restored from a backup older than sticky notes — has neither, and is given
+/// the first free spot the next time the overview lays it out.
+class NotePlacement {
+  const NotePlacement({
+    this.dx,
+    this.dy,
+    this.color = StickyColor.yellow,
+    this.size = StickySize.medium,
+  }) : assert((dx == null) == (dy == null));
+
+  final double? dx;
+  final double? dy;
+  final StickyColor color;
+  final StickySize size;
+
+  bool get isPlaced => dx != null && dy != null;
+
+  bool get isDefault => this == const NotePlacement();
+
+  NotePlacement copyWith({
+    double? dx,
+    double? dy,
+    StickyColor? color,
+    StickySize? size,
+  }) => NotePlacement(
+    dx: dx ?? this.dx,
+    dy: dy ?? this.dy,
+    color: color ?? this.color,
+    size: size ?? this.size,
+  );
+
+  Map<String, Object?> toJson() => {
+    if (isPlaced) 'dx': dx,
+    if (isPlaced) 'dy': dy,
+    'color': color.wireName,
+    'size': size.wireName,
+  };
+
+  /// The default for anything that is not a map; a bad field costs that field.
+  /// A position needs both halves, and finite ones, or it is no position.
+  static NotePlacement fromJson(Object? json) {
+    if (json is! Map) return const NotePlacement();
+    double? coordinate(Object? value) =>
+        value is num && value.isFinite ? value.toDouble() : null;
+    final dx = coordinate(json['dx']);
+    final dy = coordinate(json['dy']);
+    final placed = dx != null && dy != null;
+    return NotePlacement(
+      dx: placed ? dx : null,
+      dy: placed ? dy : null,
+      color: StickyColor.fromWire(json['color']),
+      size: StickySize.fromWire(json['size']),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is NotePlacement &&
+      other.dx == dx &&
+      other.dy == dy &&
+      other.color == color &&
+      other.size == size;
+
+  @override
+  int get hashCode => Object.hash(dx, dy, color, size);
+}
+
 /// A raw note: text to be found again later, with no column and no date.
+///
+/// Every note is a sticky note on the overview, and [placement] is where.
 class NoteItem {
   const NoteItem({
     required this.id,
@@ -696,6 +815,7 @@ class NoteItem {
     required this.body,
     required this.created,
     required this.updated,
+    this.placement = const NotePlacement(),
   });
 
   /// Unique across notes *and* todos — they share the store's id space.
@@ -707,14 +827,21 @@ class NoteItem {
   final DateTime created;
   final DateTime updated;
 
-  NoteItem copyWith({String? title, String? body, DateTime? updated}) =>
-      NoteItem(
-        id: id,
-        title: title ?? this.title,
-        body: body ?? this.body,
-        created: created,
-        updated: updated ?? this.updated,
-      );
+  final NotePlacement placement;
+
+  NoteItem copyWith({
+    String? title,
+    String? body,
+    DateTime? updated,
+    NotePlacement? placement,
+  }) => NoteItem(
+    id: id,
+    title: title ?? this.title,
+    body: body ?? this.body,
+    created: created,
+    updated: updated ?? this.updated,
+    placement: placement ?? this.placement,
+  );
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -722,6 +849,7 @@ class NoteItem {
     'body': body,
     'created': created.toUtc().toIso8601String(),
     'updated': updated.toUtc().toIso8601String(),
+    if (!placement.isDefault) 'sticky': placement.toJson(),
   };
 
   /// Null for a row with no id; anything less costs the one field, as
@@ -740,6 +868,7 @@ class NoteItem {
       body: json['body'] is String ? json['body'] as String : '',
       created: created,
       updated: moment(json['updated']) ?? created,
+      placement: NotePlacement.fromJson(json['sticky']),
     );
   }
 
@@ -750,10 +879,12 @@ class NoteItem {
       other.title == title &&
       other.body == body &&
       other.created == created &&
-      other.updated == updated;
+      other.updated == updated &&
+      other.placement == placement;
 
   @override
-  int get hashCode => Object.hash(id, title, body, created, updated);
+  int get hashCode =>
+      Object.hash(id, title, body, created, updated, placement);
 }
 
 /// One thing a search found.

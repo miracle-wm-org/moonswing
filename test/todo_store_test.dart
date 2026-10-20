@@ -257,6 +257,46 @@ void main() {
     expect(again.notes, isEmpty);
   });
 
+  test('a note is restyled without becoming an edit', () async {
+    await store.load();
+    final first = store.addNote(
+      body: 'first',
+      placement: const NotePlacement(dx: -400, dy: 0),
+    )!;
+    now = DateTime(2026, 9, 24, 9, 5);
+    final second = store.addNote(body: 'second')!;
+    expect(store.notes.map((n) => n.id), [second, first]);
+
+    now = DateTime(2026, 9, 24, 11);
+    store.restyleNote(first, dx: 300, dy: -20, color: StickyColor.green);
+    store.restyleNote(first, size: StickySize.small);
+    // Moved and recoloured, but neither brought forward nor re-dated.
+    expect(store.notes.map((n) => n.id), [second, first]);
+    final restyled = store.note(first)!;
+    expect(restyled.updated, DateTime(2026, 9, 24, 9, 0));
+    expect(
+      restyled.placement,
+      const NotePlacement(
+        dx: 300,
+        dy: -20,
+        color: StickyColor.green,
+        size: StickySize.small,
+      ),
+    );
+
+    await store.flush();
+    final again = TodoStore.forTesting(directory: dir.path, now: () => now);
+    addTearDown(again.dispose);
+    await again.load();
+    expect(again.note(first), restyled);
+    expect(again.note(second)!.placement, const NotePlacement());
+    final saved = decodeTodoBackup(backup().readAsStringSync());
+    expect(
+      saved.notes.firstWhere((n) => n.id == first).placement,
+      restyled.placement,
+    );
+  });
+
   test('the start of the day spawns recurring copies and reminds', () async {
     await store.load();
     store.add(

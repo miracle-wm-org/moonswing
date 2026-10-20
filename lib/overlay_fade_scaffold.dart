@@ -32,6 +32,7 @@ class FadeOverlayScaffold extends StatefulWidget {
     this.durationScale = 1.0,
     this.onBackdropTap,
     this.offset,
+    this.foreground,
     required this.child,
   });
 
@@ -69,6 +70,17 @@ class FadeOverlayScaffold extends StatefulWidget {
 
   /// The centred card.
   final Widget child;
+
+  /// What floats on the window *around* the card, and over it: built across
+  /// the whole surface above the card, and given the scaffold's [opacity] so
+  /// it can arrive and leave with the card.
+  ///
+  /// Never an `Opacity` over the whole of it, for the reason the scrim fades
+  /// by its own alpha (see [build]): the foreground is the size of the output.
+  /// Each thing in it fades on its own, and anything it lays out answers hits
+  /// only where it draws, so the card stays reachable around it.
+  final Widget Function(BuildContext context, Animation<double> opacity)?
+  foreground;
 
   @override
   State<FadeOverlayScaffold> createState() => _FadeOverlayScaffoldState();
@@ -240,6 +252,10 @@ class _FadeOverlayScaffoldState extends State<FadeOverlayScaffold>
             child: widget.child,
           ),
         ),
+        if (widget.foreground case final foreground?)
+          Positioned.fill(
+            child: foreground(context, opacity ?? kAlwaysCompleteAnimation),
+          ),
       ],
     );
     if (widget.onBackdropTap != null) {
@@ -294,7 +310,9 @@ class _CardPlacement extends SingleChildLayoutDelegate {
 /// been moved [offset] from the centre: the centre plus the offset, clamped so
 /// no edge of the card leaves the surface. A card larger than the surface is
 /// pinned to its top left rather than pushed off it.
-@visibleForTesting
+///
+/// Also what places anything kept relative to the card, such as the
+/// overview's sticky notes.
 Offset placeOverlayCard(Size surface, Size card, Offset offset) {
   final maxX = math.max(0.0, surface.width - card.width);
   final maxY = math.max(0.0, surface.height - card.height);

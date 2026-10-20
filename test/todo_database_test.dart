@@ -337,6 +337,7 @@ void main() {
         final raw = sqlite3.open(path);
         raw.execute('DROP TABLE standups');
         raw.execute('ALTER TABLE entries DROP COLUMN remote');
+        raw.execute('ALTER TABLE entries DROP COLUMN sticky');
         raw.execute('DROP TABLE remote_tombstones');
         raw.execute(
           "INSERT INTO meta(key, value) VALUES "
@@ -376,6 +377,7 @@ void main() {
       // Back to schema 3 by hand.
       final raw = sqlite3.open(path);
       raw.execute('ALTER TABLE entries DROP COLUMN remote');
+      raw.execute('ALTER TABLE entries DROP COLUMN sticky');
       raw.execute('DROP TABLE remote_tombstones');
       raw.userVersion = 3;
       raw.close();
@@ -409,6 +411,92 @@ void main() {
       expect(reopened.tombstones, isEmpty);
       reopened.recordRemoteLink(null);
       expect(reopened.remoteLink, isNull);
+    });
+  });
+
+  group('sticky notes', () {
+    late Directory dir;
+    final at = DateTime(2026, 10, 20, 9);
+
+    setUp(() => dir = Directory.systemTemp.createTempSync('todo_db_sticky'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('a note keeps its colour, size and place', () {
+      final db = TodoDatabase.openInMemory();
+      addTearDown(db.close);
+      final note = _note('n', 'call the plumber').copyWith(
+        placement: const NotePlacement(
+          dx: -540.5,
+          dy: 120,
+          color: StickyColor.pink,
+          size: StickySize.large,
+        ),
+      );
+      db.apply(
+        _board(const [], notes: [note, _note('plain', 'no place')]),
+        at: at,
+      );
+      final notes = {for (final n in db.readAll().notes) n.id: n};
+      expect(notes['n'], note);
+      expect(notes['plain']!.placement, const NotePlacement());
+    });
+
+    test(
+      'a placement that will not parse costs the placement, not the note',
+      () {
+        final path = '${dir.path}/notes.db';
+        final first = TodoDatabase.open(path);
+        first.apply(_board(const [], notes: [_note('n', 'kept')]), at: at);
+        first.close();
+        final raw = sqlite3.open(path);
+        raw.execute("UPDATE entries SET sticky = '{not json' WHERE id = 'n'");
+        raw.close();
+        final db = TodoDatabase.open(path);
+        addTearDown(db.close);
+        final note = db.readAll().notes.single;
+        expect(note.body, 'kept');
+        expect(note.placement, const NotePlacement());
+      },
+    );
+
+    test('a schema-4 board gains a place for every note, rows kept', () {
+      final path = '${dir.path}/notes.db';
+      final old = TodoDatabase.open(path);
+      old.apply(_board(const [], notes: [_note('n', 'Before')]), at: at);
+      old.close();
+      // Back to schema 4 by hand.
+      final raw = sqlite3.open(path);
+      raw.execute('ALTER TABLE entries DROP COLUMN sticky');
+      raw.userVersion = 4;
+      raw.close();
+
+      final db = TodoDatabase.open(path);
+      final note = db.readAll().notes.single;
+      expect(note.body, 'Before');
+      expect(note.placement.isPlaced, isFalse);
+      db.apply(
+        _board(
+          const [],
+          notes: [
+            note.copyWith(
+              placement: const NotePlacement(
+                dx: 10,
+                dy: 20,
+                color: StickyColor.blue,
+              ),
+            ),
+          ],
+        ),
+        at: at,
+      );
+      db.close();
+
+      final reopened = TodoDatabase.open(path);
+      addTearDown(reopened.close);
+      final placement = reopened.readAll().notes.single.placement;
+      expect(placement.dx, 10);
+      expect(placement.color, StickyColor.blue);
+      expect([for (final h in reopened.search('befor')) h.id], ['n']);
     });
   });
 

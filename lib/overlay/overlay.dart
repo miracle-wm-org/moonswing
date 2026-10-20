@@ -28,6 +28,8 @@ import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/settings_search_bar.dart';
 import 'package:moonswing/overlay/settings/shell.dart';
 import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/overlay/sticky_notes/overview_actions.dart';
+import 'package:moonswing/overlay/sticky_notes/sticky_note_layer.dart';
 import 'package:moonswing/overlay/system/system_tab.dart';
 import 'package:moonswing/overlay/system_info/system_info_tab.dart';
 import 'package:moonswing/hover_region.dart';
@@ -216,6 +218,10 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   /// as of the last layout.
   Offset _maxOffset = Offset.zero;
 
+  /// The sticky notes around the panel, asked to add one by the corner button
+  /// and to close its menu before an Escape closes the overview.
+  final GlobalKey<StickyNoteLayerState> _stickyNotes = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -256,6 +262,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
           // No backdrop-tap dismiss, deliberately: the settings panel is a
           // workspace, and a stray click on the scrim losing an in-progress
           // edit would be worse than needing Escape or the close button.
+          foreground: _buildForeground,
           child: LayoutBuilder(
             // As the scaffold's child this is built once per surface-size
             // change, not on every animation frame.
@@ -387,6 +394,9 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
               onKeyEvent: (event) {
                 if (event is! KeyDownEvent) return;
                 if (event.logicalKey == LogicalKeyboardKey.escape) {
+                  // A note's open menu is backed out of first, as the board
+                  // backs out of its own.
+                  if (_stickyNotes.currentState?.dismissMenu() ?? false) return;
                   _requestClose();
                   return;
                 }
@@ -423,6 +433,47 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
           ),
         ),
       ),
+    );
+  }
+
+  /// The overview's corner actions — things done in the overview rather than
+  /// on one of its tabs — and the sticky notes around the panel. The window's
+  /// rather than the panel's, so they are on every tab: the buttons stay in
+  /// the output's corner and the notes travel with the panel.
+  List<OverviewAction> get _actions => [
+    OverviewAction(
+      icon: FontAwesomeIcons.noteSticky,
+      label: 'New note',
+      onTap: () => _stickyNotes.currentState?.addNote(),
+    ),
+  ];
+
+  Widget _buildForeground(BuildContext context, Animation<double> opacity) {
+    final actions = _actions;
+    return Stack(
+      children: [
+        // Under the notes, so a note's menu barrier covers the buttons too.
+        Positioned(
+          left: kOverviewActionInset,
+          top: kOverviewActionInset,
+          child: FadeTransition(
+            opacity: opacity,
+            child: OverviewActionBar(actions: actions),
+          ),
+        ),
+        Positioned.fill(
+          child: StickyNoteLayer(
+            key: _stickyNotes,
+            offset: _offset,
+            cardSizeFor: overlayPanelSize,
+            opacity: opacity,
+            reserved: [overviewActionBarRect(actions.length)],
+            // The keyboard comes back to the panel's listener, so Escape
+            // still closes the overview once a note has let go of it.
+            onKeyboardReleased: _focusNode.requestFocus,
+          ),
+        ),
+      ],
     );
   }
 
