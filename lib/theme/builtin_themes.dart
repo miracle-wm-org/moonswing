@@ -147,10 +147,10 @@ const String _autumn = '''
 # in bark (panel_end_*). What grows off it is the harvest (panel_foliage):
 #
 #  * on a top or side bar, the two corners of the screen are framed in
-#    turning leaves: an L of maple and oak hugging the screen's edges, over
-#    the bar's ends and down the side, fullest in the corner and ragged
-#    where each arm thins out, with branches reaching in from off the screen and a few
-#    loose leaves on their way down. Every leaf is somewhere between
+#    turning leaves: a heap of maple and oak laid over the bar's ends from
+#    the screen's very edge and spilling down its side, thickest in the
+#    corner and ragged at its rim, with a few short branches buried in it
+#    and a few loose leaves on their way down. Every leaf is somewhere between
 #    foliage_color's green and foliage_bloom's orange and past it, so they
 #    come out russet, scarlet, gold, brown and claret, with the odd one
 #    still green. The middle of the bar is left bare.

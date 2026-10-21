@@ -657,116 +657,63 @@ class _Grower {
     return LeafShape.plain;
   }
 
-  /// A frame of turning leaves in each of a bar's two corners: an L that
-  /// hugs the screen's edges — over the bar's end and along under it, and
-  /// down the screen's side as far as the overhang reaches — fullest in the
-  /// corner itself and thinning out along both arms, as if a tree off the
-  /// edge of the screen were leaning into it. The middle of the bar is left
-  /// bare.
+  /// A heap of turning leaves in each of a bar's two corners, framing the
+  /// screen: a rounded mass laid over the bar's end from the screen's very
+  /// edge and spilling down the screen's side as far as the overhang
+  /// reaches, thickest in the corner and ragged at its rim, with a few short
+  /// branches under it to hold it up. The middle of the bar is left bare;
+  /// the modules at either end sit under the leaves, and their clicks still
+  /// reach them — the leaves answer no hits.
   List<Sprig> turningCorners(double density,
       {required double endCaps, required bool hangs}) {
-    final cap = endCaps > 0 ? endCaps : math.min(60.0, length * 0.08);
-    // The arm down the screen's side, and the arm along the bar.
-    final side = math.max(12.0, reach - 6);
-    final along = math.min(length * 0.3, math.max(side * 1.6, 220.0));
+    // How far the heap runs along the bar, and down the screen's side from
+    // the screen's edge (the bar's far side).
+    final down = math.max(12.0, reach - 6) + thickness;
+    final along = math.min(length * 0.25, math.max(down * 1.1, 200.0));
     final sprigs = <Sprig>[];
     for (final end in [0, 1]) {
       final inward = end == 0 ? 1.0 : -1.0;
       double at(double x) => end == 0 ? x : length - x;
 
-      // Branches coming in from off the screen, in turn: out of the very
-      // corner on a diagonal, out of the screen's side edge, and along the
-      // bar's edge out of the corner — so both arms have wood in them.
-      final boughs = math.max(3, (9 * density).round());
-      for (var i = 0; i < boughs; i++) {
-        switch (i % 3) {
-          case 0:
-            sprigs.add(bough(
-              Offset(at(rng.range(3, cap * 0.8 + 3)),
-                  rng.range(-thickness * 0.15, 0.5)),
-              dir: Offset(inward * rng.range(0.7, 2.2), 1),
-              len: math.max(side, along * 0.5) * rng.range(0.6, 1.1),
-              inward: inward,
-              hangs: hangs,
-            ));
-          case 1:
-            sprigs.add(bough(
-              Offset(at(3), rng.range(side * 0.1, side * 0.8)),
-              dir: Offset(inward, rng.range(-0.3, 0.3)),
-              len: along * rng.range(0.3, 0.7),
-              inward: inward,
-              hangs: hangs,
-              sag: 0.4,
-            ));
-          default:
-            sprigs.add(bough(
-              Offset(at(rng.range(3, cap + 3)), rng.range(2.0, 14.0)),
-              dir: Offset(inward, rng.range(-0.05, 0.12)),
-              len: along * rng.range(0.5, 1.0),
-              inward: inward,
-              hangs: hangs,
-              sag: 0.12,
-            ));
-        }
-      }
-
-      // Over the bar itself, from the screen's very edge: the frame is the
-      // screen's, not the windows', so its corner is laid over the bar's end
-      // and thins out along it. The modules there are covered, but their
-      // clicks still reach them — the leaves answer no hits.
-      final overBar = math.min(along * 0.5, cap * 2 + 90);
-      for (var i = 0; i < (16 * density).round(); i++) {
-        final t = math.pow(rng.nextDouble(), 1.6).toDouble();
-        sprigs.add(autumnClump(
-          Offset(at(t * overBar + 3), rng.range(-thickness, 2.0)),
-          anyWay: true,
-        ));
-      }
-      // And a branch or two in from beyond the screen's corner, over the
-      // bar's end and down past it.
-      for (var i = 0; i < math.max(1, (2 * density).round()); i++) {
+      // A few short, sturdy branches out of the corner, mostly buried in the
+      // leaves: what the heap hangs from, not a reach of bare wood.
+      for (var i = 0; i < math.max(2, (4 * density).round()); i++) {
+        final a = rng.range(0.15, 1.35);
         sprigs.add(bough(
-          Offset(at(3), -thickness + rng.range(2, thickness * 0.6)),
-          dir: Offset(inward * rng.range(0.6, 1.4), 1),
-          len: math.max(side, along * 0.5) * rng.range(0.7, 1.1),
+          Offset(at(3), -thickness + rng.range(2, thickness * 0.7)),
+          dir: Offset(inward * math.cos(a), math.sin(a)),
+          len: math.min(along, down) * rng.range(0.3, 0.55),
           inward: inward,
           hangs: hangs,
+          sag: 0.5,
         ));
       }
 
-      // The mat: clumps over the L, crowded into the corner, each arm thick
-      // where it leaves the corner and ragged towards its end.
-      final clumps = (40 * density).round();
+      // The heap: clumps over a quarter of an ellipse in the corner, its rim
+      // wavering so the edge is ragged rather than drawn with compasses.
+      final phase = rng.range(0, math.pi * 2);
+      final clumps = (85 * density).round();
       for (var i = 0; i < clumps; i++) {
-        final onTop = rng.chance(0.62);
-        final t = math.pow(rng.nextDouble(), 1.7).toDouble();
-        final across = math.pow(rng.nextDouble(), 1.3).toDouble();
-        final Offset spot;
-        if (onTop) {
-          final deep = side * 0.5 * (1 - t) + 14;
-          spot = Offset(t * along, across * deep);
-        } else {
-          final deep = along * 0.3 * (1 - t) + 12;
-          spot = Offset(across * deep, t * side);
-        }
+        final th = rng.range(0, math.pi / 2);
+        final rim = 0.84 + 0.16 * math.sin(th * 5 + phase);
+        final r = math.pow(rng.nextDouble(), 0.8) * rim;
+        final x = along * r * math.cos(th);
+        final y = -thickness + down * r * math.sin(th);
         sprigs.add(autumnClump(
-          Offset(at(spot.dx + 3),
-              math.max(-thickness * 0.18, math.min(spot.dy, side))),
-          // Clear of the bar, a clump's leaves may point any way; on its
-          // edge they fan away from it, so they overhang it only as a fringe.
-          anyWay: spot.dy > 17,
+          Offset(at(x + 3), math.min(y, reach - 6)),
+          // Under the bar's inner edge, leaves fan away from it, so that
+          // edge only wears a fringe beyond the heap's reach of it.
+          anyWay: y > 17 || y < 0,
         ));
       }
 
-      // A few loose leaves just outside the frame's ragged edge.
-      for (var i = 0; i < (4 * density).round(); i++) {
-        final onTop = rng.chance(0.5);
-        final t = rng.range(0.3, 1.0);
+      // A few loose leaves just past the rim.
+      for (var i = 0; i < (3 * density).round(); i++) {
+        final th = rng.range(0.1, math.pi / 2 - 0.1);
+        final r = rng.range(1.0, 1.2);
         sprigs.add(driftingLeaf(Offset(
-          at(onTop ? t * along * 1.15 : rng.range(side * 0.2, along * 0.4)),
-          onTop
-              ? rng.range(side * 0.25, side * 0.9) * (1.1 - t)
-              : math.min(side, t * side + 8),
+          at(along * r * math.cos(th) + 3),
+          math.max(4.0, math.min(reach - 10, -thickness + down * r * math.sin(th))),
         )));
       }
     }
@@ -812,7 +759,7 @@ class _Grower {
     final leaves = <LeafSpec>[];
     for (final stem in stems) {
       var side = rng.chance(0.5) ? 1.0 : -1.0;
-      for (var i = 2; i < stem.length; i += rng.range(1.5, 3.2).round()) {
+      for (var i = 2; i < stem.length; i += rng.range(1.2, 2.4).round()) {
         final t = i / stem.length;
         final size = rng.range(12, 19) * (1 - 0.3 * t);
         leaves.add(_leafAlong(stem, i, side, size, color(), shape: shape));
@@ -831,7 +778,7 @@ class _Grower {
       depth: depth,
       phase: rng.range(0, math.pi * 2),
       stems: stems,
-      stemWidth: rng.range(1.6, 2.4),
+      stemWidth: rng.range(2.4, 3.4),
       stemColor: _twigColor(depth),
       leaves: leaves,
       blooms: [
@@ -848,7 +795,7 @@ class _Grower {
     final down = math.atan2(gravity.dy, gravity.dx);
     final leaves = <LeafSpec>[];
     for (var i = 0, n = 5 + rng.nextInt(5); i < n; i++) {
-      final size = anyWay ? rng.range(13, 22) : rng.range(11, 16);
+      final size = anyWay ? rng.range(14, 23) : rng.range(11, 16);
       leaves.add(LeafSpec(
         at: Offset(rng.jitter(anyWay ? 10 : 7), rng.jitter(anyWay ? 9 : 2)),
         angle: anyWay
