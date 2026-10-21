@@ -1207,20 +1207,107 @@ class SettingsToggle extends StatelessWidget {
   }
 }
 
+/// One value out of a fixed few, as a [SettingsDropdown]: the settings form's
+/// single choice.
+///
+/// A settings row used to draw its choices as a row of [SettingsSegmented]
+/// pills, which read badly as soon as there were more than two — four words
+/// side by side in the secondary size, the lit one told apart only by its fill,
+/// and a wrap onto a second line on a narrow pane. A trigger showing the one
+/// value in use reads as a value, and its list names the rest only when asked.
+///
+/// [labelOf] defaults to the option's own spelling with its first letter
+/// capitalised, which is what [SettingsSegmented] did, so a list of config
+/// words (`'top'`, `'fill'`) needs nothing more. [descriptionOf] gives each row
+/// a sentence under its label — see [SettingsDropdownItem.description].
+class SettingsChoice<T> extends StatelessWidget {
+  const SettingsChoice({
+    super.key,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+    this.labelOf,
+    this.descriptionOf,
+  });
+
+  final List<T> options;
+  final T? value;
+  final ValueChanged<T> onChanged;
+  final String Function(T option)? labelOf;
+  final String? Function(T option)? descriptionOf;
+
+  static String _capitalised(Object? option) {
+    final text = '$option';
+    if (text.isEmpty) return text;
+    return '${text[0].toUpperCase()}${text.substring(1)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = labelOf ?? _capitalised;
+    return SettingsDropdown<T>(
+      items: [
+        for (final option in options)
+          SettingsDropdownItem(
+            value: option,
+            label: label(option),
+            description: descriptionOf?.call(option),
+          ),
+      ],
+      selected: value,
+      onSelected: onChanged,
+    );
+  }
+}
+
+/// A row of pills, one lit: the *toolbar* form of a single choice — the file
+/// picker's type filter, the calendar's Month/Week/Day — where every option is
+/// one click away and the strip sits in a header rather than a form. A settings
+/// row uses [SettingsChoice].
 class SettingsSegmented extends StatelessWidget {
   const SettingsSegmented({
     super.key,
     required this.options,
     required this.value,
     required this.onChanged,
+    this.equalWidths = false,
   });
 
   final List<String> options;
   final String value;
   final ValueChanged<String> onChanged;
 
+  /// Every pill as wide as the widest, on one line that never wraps. For a
+  /// switch whose choice reshapes what is around it (the calendar's view), so
+  /// the pills read as one fixed control rather than a run of words.
+  final bool equalWidths;
+
+  String _label(String o) => '${o[0].toUpperCase()}${o.substring(1)}';
+
   @override
   Widget build(BuildContext context) {
+    if (equalWidths) {
+      // A flex child is given the widest one's intrinsic width under an
+      // IntrinsicWidth, so equal `Expanded`s come out exactly as wide as the
+      // largest label needs.
+      return IntrinsicWidth(
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final (i, o) in options.indexed) ...[
+              if (i > 0) const SizedBox(width: 6),
+              Expanded(
+                child: SettingsOptionButton(
+                  label: _label(o),
+                  selected: o == value,
+                  onTap: () => onChanged(o),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
     return Wrap(
       spacing: 6,
       runSpacing: 6,
@@ -1228,7 +1315,7 @@ class SettingsSegmented extends StatelessWidget {
       children: [
         for (final o in options)
           SettingsOptionButton(
-            label: '${o[0].toUpperCase()}${o.substring(1)}',
+            label: _label(o),
             selected: o == value,
             onTap: () => onChanged(o),
           ),
@@ -1327,6 +1414,9 @@ class SettingsOptionButton extends StatelessWidget {
           ),
           child: Text(
             label,
+            // Centred for a pill stretched past its label by an equal-width
+            // [SettingsSegmented]; a shrink-wrapped one looks no different.
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: ShellFontSizes.secondary,
               fontFamily: theme.fontFamily,

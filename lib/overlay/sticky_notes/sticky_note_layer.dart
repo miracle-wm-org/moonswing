@@ -156,12 +156,7 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
   String? addNote() {
     if (_surface.isEmpty) return null;
     final card = _card(_surface);
-    final place = placeNewSticky(
-      _surface,
-      card,
-      _taken(card),
-      StickySize.medium,
-    );
+    final place = placeNewSticky(_surface, card, _taken(card));
     final id = _store.addNote(
       body: '',
       placement: NotePlacement(dx: place.dx, dy: place.dy),
@@ -192,12 +187,7 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
       final taken = _taken(card);
       for (final note in _notes.reversed.toList()) {
         if (note.placement.isPlaced) continue;
-        final place = placeNewSticky(
-          _surface,
-          card,
-          taken,
-          note.placement.size,
-        );
+        final place = placeNewSticky(_surface, card, taken);
         _store.restyleNote(note.id, dx: place.dx, dy: place.dy);
         taken.add(
           stickyRect(
@@ -340,8 +330,8 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
             onTap: () => _showPage(_MenuPage.colour),
           ),
           DesktopMenuEntry(
-            label: 'Size',
-            icon: FontAwesomeIcons.upRightAndDownLeftFromCenter,
+            label: 'Text size',
+            icon: FontAwesomeIcons.textHeight,
             onTap: () => _showPage(_MenuPage.size),
           ),
           DesktopMenuEntry(
@@ -369,7 +359,7 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
         ],
       ),
       _MenuPage.size => DesktopMenuCard(
-        header: 'Size',
+        header: 'Text size',
         onBack: () => _showPage(_MenuPage.root),
         entries: [
           for (final size in StickySize.values)

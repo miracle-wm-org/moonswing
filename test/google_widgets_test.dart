@@ -579,6 +579,41 @@ void main() {
 
       await tester.pumpWidget(const SizedBox());
     });
+
+    testWidgets('the view pills are equal and pinned to the end', (
+      tester,
+    ) async {
+      // Wide enough that every view's title fits: a title that is ellipsized
+      // uses all the room it is given, and hid the controls following it.
+      tester.view.physicalSize = const Size(2000, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final calendar = await calendarWith(tester);
+      await pumpTab(tester, calendar);
+
+      Rect pill(String label) => tester.getRect(
+        find.ancestor(
+          of: find.text(label),
+          matching: find.byType(SettingsOptionButton),
+        ),
+      );
+      List<Rect> pills() => [pill('Month'), pill('Week'), pill('Day')];
+
+      final atMonth = pills();
+      final today = tester.getRect(find.text('Today'));
+      expect(atMonth.map((r) => r.width).toSet(), hasLength(1));
+
+      // Each view titles the header differently (a month, a week's range,
+      // one day); none of that may move the controls.
+      for (final view in ['Week', 'Day', 'Month']) {
+        await tester.tap(find.text(view));
+        await tester.pump();
+        expect(pills(), atMonth, reason: 'after $view');
+        expect(tester.getRect(find.text('Today')), today, reason: view);
+      }
+
+      await tester.pumpWidget(const SizedBox());
+    });
   });
 
   group('Calendar tab CalDAV events', () {

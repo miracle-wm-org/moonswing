@@ -315,7 +315,7 @@ class _PanelsSectionState extends State<PanelsSection> {
               store: store,
               path: p(['anchor']),
               fallback: defaultAnchor,
-              builder: (context, value) => SettingsSegmented(
+              builder: (context, value) => SettingsChoice<String>(
                 options: const ['top', 'bottom', 'left', 'right'],
                 value: value!,
                 onChanged: (v) => store.set(p(['anchor']), v),
@@ -328,7 +328,7 @@ class _PanelsSectionState extends State<PanelsSection> {
               store: store,
               path: p(['layer']),
               fallback: 'top',
-              builder: (context, value) => SettingsSegmented(
+              builder: (context, value) => SettingsChoice<String>(
                 options: const ['background', 'bottom', 'top', 'overlay'],
                 value: value!,
                 onChanged: (v) => store.set(p(['layer']), v),

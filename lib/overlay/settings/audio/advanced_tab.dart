@@ -176,16 +176,12 @@ class _AdvancedTabState extends State<AdvancedTab> {
                   fontFamily: theme.fontFamily,
                   color: theme.muted)),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _sampleRates
-                .map((r) => SettingsOptionButton(
-                      label: '${r ~/ 1000} kHz',
-                      selected: _sampleRate == r,
-                      onTap: () => _setSampleRate(r),
-                    ))
-                .toList(),
+          SettingsChoice<int>(
+            options: _sampleRates,
+            value: _sampleRate,
+            labelOf: (r) =>
+                r % 1000 == 0 ? '${r ~/ 1000} kHz' : '${r / 1000} kHz',
+            onChanged: _setSampleRate,
           ),
           const SizedBox(height: 20),
           Text('Buffer Size (quantum)',
@@ -200,16 +196,11 @@ class _AdvancedTabState extends State<AdvancedTab> {
                   fontFamily: theme.fontFamily,
                   color: theme.muted)),
           const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _quanta
-                .map((q) => SettingsOptionButton(
-                      label: '$q',
-                      selected: _quantum == q,
-                      onTap: () => _setQuantum(q),
-                    ))
-                .toList(),
+          SettingsChoice<int>(
+            options: _quanta,
+            value: _quantum,
+            labelOf: (q) => '$q frames',
+            onChanged: _setQuantum,
           ),
         ],
         const SizedBox(height: 24),

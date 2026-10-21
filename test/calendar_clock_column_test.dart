@@ -41,6 +41,7 @@ Future<void> pumpColumn(
   required List<WorldClock> clocks,
   ValueChanged<TimeZoneName>? onAdd,
   ValueChanged<String>? onRemove,
+  void Function(int from, int to)? onReorder,
   ClockSource? clock,
 }) async {
   await tester.pumpWidget(
@@ -64,6 +65,7 @@ Future<void> pumpColumn(
                       clocks: clocks,
                       onAdd: onAdd ?? (_) {},
                       onRemove: onRemove ?? (_) {},
+                      onReorder: onReorder,
                     ),
                   ),
                 ),
@@ -192,6 +194,119 @@ void main() {
     await tester.tapAt(tester.getRect(button).topLeft + const Offset(2, 2));
     await tester.pump();
     expect(removed, 'Asia/Tokyo');
+  });
+
+  group('reordering', () {
+    const three = [
+      WorldClock(zone: 'Asia/Tokyo'),
+      WorldClock(zone: 'Europe/London'),
+      WorldClock(zone: 'Pacific/Kiritimati'),
+    ];
+
+    testWidgets('a clock dragged down lands where it is dropped',
+        (tester) async {
+      (int, int)? moved;
+      await pumpColumn(
+        tester,
+        clocks: three,
+        onReorder: (from, to) => moved = (from, to),
+      );
+      final from = tester.getCenter(find.text('Tokyo'));
+      final target = tester.getCenter(find.text('London'));
+      final gesture = await tester.startGesture(from);
+      // Past the drag slop first, then on until the held row's top is past
+      // the next row's middle.
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump();
+      await gesture.moveTo(Offset(from.dx, target.dy + 6));
+      await tester.pump();
+      // Let the passed row glide aside.
+      await tester.pump(ShellDurations.fast);
+
+      // While held, the copy under the pointer is the one visible Tokyo, and
+      // London has slid up into the slot Tokyo left.
+      expect(find.text('Tokyo'), findsNWidgets(2));
+      expect(
+        tester.getCenter(find.text('London')).dy,
+        closeTo(from.dy, 1),
+      );
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(moved, (0, 1));
+      expect(find.text('Tokyo'), findsOneWidget);
+    });
+
+    testWidgets('a clock dragged up past two lands at the top',
+        (tester) async {
+      (int, int)? moved;
+      await pumpColumn(
+        tester,
+        clocks: three,
+        onReorder: (from, to) => moved = (from, to),
+      );
+      final from = tester.getCenter(find.text('Kiritimati'));
+      final gesture = await tester.startGesture(from);
+      await gesture.moveBy(const Offset(0, -20));
+      await tester.pump();
+      await gesture.moveTo(Offset(from.dx, from.dy - 300));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(moved, (2, 0));
+    });
+
+    testWidgets('a drag dropped where it started reports nothing',
+        (tester) async {
+      var moves = 0;
+      await pumpColumn(tester, clocks: three, onReorder: (_, _) => moves++);
+      final from = tester.getCenter(find.text('London'));
+      final gesture = await tester.startGesture(from);
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump();
+      await gesture.moveTo(from);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(moves, 0);
+    });
+
+    testWidgets('nothing animates once a drag is over', (tester) async {
+      await pumpColumn(tester, clocks: three, onReorder: (_, _) {});
+      await tester.dragFrom(
+        tester.getCenter(find.text('Tokyo')),
+        const Offset(0, kWorldClockRowHeight),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.binding.transientCallbackCount, 0);
+    });
+
+    testWidgets('a reorderable row carries a grip and still removes',
+        (tester) async {
+      String? removed;
+      await pumpColumn(
+        tester,
+        clocks: three,
+        onRemove: (zone) => removed = zone,
+        onReorder: (_, _) {},
+      );
+      expect(_faIcon(FontAwesomeIcons.gripVertical), findsNWidgets(3));
+      await tester.tap(_faIcon(FontAwesomeIcons.xmark).at(1));
+      await tester.pump();
+      expect(removed, 'Europe/London');
+    });
+
+    testWidgets('without a sink the rows have no grip and do not drag',
+        (tester) async {
+      await pumpColumn(tester, clocks: three);
+      expect(_faIcon(FontAwesomeIcons.gripVertical), findsNothing);
+      final from = tester.getCenter(find.text('Tokyo'));
+      final gesture = await tester.startGesture(from);
+      await gesture.moveBy(const Offset(0, 60));
+      await tester.pump();
+      expect(find.text('Tokyo'), findsOneWidget);
+      await gesture.up();
+    });
   });
 
   group('the picker', () {
@@ -377,6 +492,24 @@ void main() {
       await tester.pump();
 
       expect(writes.single.map((c) => c.zone), ['Europe/London']);
+    });
+
+    testWidgets('dragging a clock writes the new order', (tester) async {
+      final writes = await pumpTabWith(tester, const [
+        WorldClock(zone: 'Asia/Tokyo'),
+        WorldClock(zone: 'Europe/London', label: 'Office'),
+      ]);
+
+      await tester.dragFrom(
+        tester.getCenter(find.text('Tokyo')),
+        const Offset(0, kWorldClockRowHeight),
+      );
+      await tester.pumpAndSettle();
+
+      expect(writes.single, const [
+        WorldClock(zone: 'Europe/London', label: 'Office'),
+        WorldClock(zone: 'Asia/Tokyo'),
+      ]);
     });
   });
 }
