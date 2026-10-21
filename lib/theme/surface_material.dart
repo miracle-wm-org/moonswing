@@ -96,7 +96,16 @@ enum FoliageStyle {
   /// the bloom colour. What `forest` grows.
   wildwood('wildwood', 'Wildwood',
       'Vines, moss, ferns at the ends, leaf clumps along the edge, and a '
-          'scatter of berries and flowers.');
+          'scatter of berries and flowers.'),
+
+  /// Autumn: turning boughs of maple and oak gathered in a bar's two corners,
+  /// with the odd leaf on its way down — or, on a bar the plants stand on,
+  /// pumpkin patches along its edge. The leaves are every colour between
+  /// `foliage_color`'s green and `foliage_bloom`'s orange and past it, and
+  /// the pumpkins are mostly the bloom. What `autumn` grows.
+  harvest('harvest', 'Harvest',
+      'Turning leaves in the corners of a top or side bar, and pumpkin '
+          'patches along a bottom one.');
 
   const FoliageStyle(this.slug, this.label, this.description);
 
