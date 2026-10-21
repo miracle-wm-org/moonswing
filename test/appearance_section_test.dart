@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/shell/appearance.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/font_catalog.dart';
@@ -68,6 +69,29 @@ void main() {
     );
     await tester.pump();
   }
+
+  testWidgets('the editor is one section per thing a key paints', (
+    tester,
+  ) async {
+    await pump(tester);
+    // Section headings are drawn upper-case.
+    expect(find.text('EDIT MINE'), findsOneWidget);
+    for (final group in ThemeGroup.values.skip(1)) {
+      expect(find.text(group.label.toUpperCase()), findsOneWidget);
+    }
+    // Every colour is drawn, once, whichever section it is in.
+    for (final colour in SettingsCatalog.themeColors) {
+      expect(find.byKey(ValueKey('${colour.key}-$slug')), findsOneWidget);
+    }
+    // And a row sits in its own item's section: the bar's corners come
+    // after the Bar heading and before the Popups one.
+    double top(Finder f) => tester.getTopLeft(f).dy;
+    final bar = top(find.text(ThemeGroup.bar.label.toUpperCase()));
+    final popups = top(find.text(ThemeGroup.popup.label.toUpperCase()));
+    final radius = top(find.byKey(ValueKey('panel_radius-$slug')));
+    expect(radius, greaterThan(bar));
+    expect(radius, lessThan(popups));
+  });
 
   /// The label the dropdown keyed [key] currently shows.
   Finder shown(String key, String label) => find.descendant(
