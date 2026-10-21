@@ -72,7 +72,7 @@ void main() {
       });
       expect(theme.panelTexture, SurfaceMaterial.none);
       expect(theme.panelFoliage, FoliageStyle.none);
-      expect(theme.panelOverhang, 160);
+      expect(theme.panelOverhang, 320);
       expect(theme.foliageDensity, 1.0);
       expect(theme.popupRoots, 0.0);
       expect(theme.popupBorderTexture, SurfaceMaterial.bark);
@@ -259,6 +259,28 @@ void main() {
         expect(plan.sprigs.expand((s) => s.gourds), isNotEmpty);
       });
 
+      test('the corners frame the screen, over the bar and down its side', () {
+        final plan = harvest('top', length: 1920);
+        // Over the bar's ends, as far as the screen's edge...
+        final overBar = [
+          for (final s in plan.sprigs)
+            if (s.root.dy < -32 * 0.5) s.root.dx,
+        ];
+        expect(overBar.any((x) => x < 60), isTrue);
+        expect(overBar.any((x) => x > 1920 - 60), isTrue);
+        // ...but only at the ends: a module mid-bar is never covered.
+        for (final x in overBar) {
+          expect(x < 1920 * 0.25 || x > 1920 * 0.75, isTrue, reason: '$x');
+        }
+        // And down the screen's side, hugging its edge.
+        final side = [
+          for (final s in plan.sprigs)
+            if (s.root.dy > 72 * 0.5 && (s.root.dx < 80 || s.root.dx > 1840))
+              s,
+        ];
+        expect(side, isNotEmpty);
+      });
+
       test('every stem stays in the room it has', () {
         for (final anchor in ['top', 'bottom', 'left', 'right']) {
           for (final s in harvest(anchor).sprigs) {
@@ -266,7 +288,8 @@ void main() {
               for (final p in stem) {
                 final q = s.root + p;
                 expect(q.dy, lessThanOrEqualTo(72), reason: anchor);
-                expect(q.dy, greaterThanOrEqualTo(-32 * 0.33), reason: anchor);
+                // Never past the screen's edge, which is the bar's far side.
+                expect(q.dy, greaterThanOrEqualTo(-32), reason: anchor);
                 expect(q.dx, inInclusiveRange(0, 1400), reason: anchor);
               }
             }

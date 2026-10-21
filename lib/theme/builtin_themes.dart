@@ -146,12 +146,14 @@ const String _autumn = '''
 # quiet) and carved along its edges (panel_bevel), between two sawn log ends
 # in bark (panel_end_*). What grows off it is the harvest (panel_foliage):
 #
-#  * on a top or side bar, turning boughs of maple and oak reach out of its
-#    two corners and hang over the windows — every leaf somewhere between
+#  * on a top or side bar, the two corners of the screen are framed in
+#    turning leaves: an L of maple and oak hugging the screen's edges, over
+#    the bar's ends and down the side, fullest in the corner and ragged
+#    where each arm thins out, with branches reaching in from off the screen and a few
+#    loose leaves on their way down. Every leaf is somewhere between
 #    foliage_color's green and foliage_bloom's orange and past it, so they
 #    come out russet, scarlet, gold, brown and claret, with the odd one
-#    still green — and a few loose leaves are on their way down. The middle
-#    of the bar is left bare.
+#    still green. The middle of the bar is left bare.
 #  * on a bottom bar, pumpkin patches sit along its edge: one in each corner
 #    and a few between, each a vine with its tendrils, big lobed leaves on
 #    stalks, pumpkins mostly in foliage_bloom (with a deep red one, a golden
@@ -202,8 +204,10 @@ scrim                = "#8A140C06"
 panel_background     = "#FF2A190D"
 panel_gradient       = false
 
-# A floating beam, so the boughs hang from something that is visibly hung.
-panel_margin         = 6
+# Flush with the screen's edges, so the leaves framing its corners start at
+# the corner itself rather than a margin's width inside it. The radius
+# rounds only the inner corners of a flush bar.
+panel_margin         = 0
 panel_radius         = 8.0
 # A dark line round the beam, broken where a trunk grows out of it.
 panel_border         = "#E6180C04"
@@ -225,8 +229,9 @@ foliage_color        = "#6B8A35"
 # What has turned: the leaves are toned off it, the pumpkins are it.
 foliage_bloom        = "#E2731E"
 foliage_density      = 1.0
-# How far the boughs may hang over the windows, and how tall a pumpkin grows.
-panel_overhang       = 72
+# Deep, so the frame runs a quarter of the way down a 1080p screen's sides.
+# A pumpkin stops growing long before it.
+panel_overhang       = 260
 
 # The menu is the trunk: a thick bark rim around walnut with a ghost of
 # grain, rounded like a trunk seen side on, with a foot that flares into the

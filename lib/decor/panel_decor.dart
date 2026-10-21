@@ -10,7 +10,8 @@
 ///  * [PanelFoliage] paints **over** everything — the leaves are in front of
 ///    the bar and in front of the windows below it. It reaches onto the bar
 ///    only as a fringe on the inner edge (`foliage.dart` keeps it to a third of
-///    the bar), so a module is overhung, never hidden.
+///    the bar), so a module is overhung, never hidden — save a harvest's
+///    corners, which frame the screen and so lie over the bar's two ends.
 ///
 /// Both are hit-test transparent: a painter that answered hits would swallow
 /// every click on the modules under or over it (the rule `panel_rim.dart`
