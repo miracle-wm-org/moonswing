@@ -22,6 +22,7 @@ import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/popup_transition.dart';
 import 'package:moonswing/search_list.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/font_face_warmer.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 export 'package:moonswing/overlay/settings/settings_date_picker.dart';
@@ -2610,19 +2611,8 @@ class SettingsFontField extends StatelessWidget {
       // the top of a few hundred rows.
       initialHighlight: (items) => items.indexOf(value),
       onSelected: onChanged,
-      itemBuilder: (context, family, highlighted) {
-        final theme = ThemeScope.of(context);
-        return Text(
-          family,
-          // The point of the row: what the family actually looks like.
-          style: TextStyle(
-            fontSize: 13,
-            fontFamily: family,
-            color: highlighted ? theme.accentText : theme.popupForeground,
-          ),
-          overflow: TextOverflow.ellipsis,
-        );
-      },
+      itemBuilder: (context, family, highlighted) =>
+          _FontFamilyLabel(family: family, highlighted: highlighted),
       triggerBuilder: (context, open, toggle) {
         final theme = ThemeScope.of(context);
         return Opacity(
@@ -2665,6 +2655,98 @@ class SettingsFontField extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// One row of the font list: the family's name, drawn in that family once
+/// [FontFaceWarmer] has laid it out, and in the theme's font until then.
+///
+/// The wait is a frame or two for a face nobody has scrolled past yet, and
+/// none for one already seen — which is what keeps a flick through a few
+/// hundred families from loading every one it passes inside a single frame.
+class _FontFamilyLabel extends StatefulWidget {
+  const _FontFamilyLabel({required this.family, required this.highlighted});
+
+  final String family;
+  final bool highlighted;
+
+  @override
+  State<_FontFamilyLabel> createState() => _FontFamilyLabelState();
+}
+
+class _FontFamilyLabelState extends State<_FontFamilyLabel> {
+  static final _warmer = FontFaceWarmer.instance;
+
+  late bool _warm = _warmer.isWarm(widget.family);
+
+  /// The family a request is out for, so it can be withdrawn.
+  String? _requested;
+
+  /// The style the row is laid out in once warm. The ambient default merged in
+  /// here, not left to [Text], so the warm-up lays out exactly the paragraph
+  /// the row will.
+  TextStyle _faceStyle(BuildContext context) => DefaultTextStyle.of(
+    context,
+  ).style.merge(TextStyle(fontSize: 13, fontFamily: widget.family));
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _ask();
+  }
+
+  @override
+  void didUpdateWidget(_FontFamilyLabel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.family == oldWidget.family) return;
+    _withdraw();
+    _warm = _warmer.isWarm(widget.family);
+    _ask();
+  }
+
+  @override
+  void dispose() {
+    _withdraw();
+    super.dispose();
+  }
+
+  void _ask() {
+    if (_warm || _requested == widget.family) return;
+    _withdraw();
+    _requested = widget.family;
+    _warmer.request(
+      widget.family,
+      _faceStyle(context),
+      // What [Text] itself reads, so the warm-up is laid out at its scale.
+      MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling,
+      _onWarm,
+    );
+  }
+
+  void _withdraw() {
+    final family = _requested;
+    if (family == null) return;
+    _warmer.cancel(family, _onWarm);
+    _requested = null;
+  }
+
+  void _onWarm() {
+    _requested = null;
+    if (mounted) setState(() => _warm = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final color = widget.highlighted ? theme.accentText : theme.popupForeground;
+    return Text(
+      widget.family,
+      // The point of the row: what the family actually looks like.
+      style: _warm
+          ? _faceStyle(context).copyWith(color: color)
+          : TextStyle(fontSize: 13, color: color),
+      overflow: TextOverflow.ellipsis,
     );
   }
 }

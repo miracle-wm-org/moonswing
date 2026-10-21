@@ -335,15 +335,20 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
           targetAnchor: anchor,
           followerAnchor: follower,
           offset: Offset(0, _above ? -_kGap : _kGap),
-          // Absorbs clicks on the card's own chrome, which would otherwise
-          // fall through to the barrier above — see the colour picker.
-          child: Listener(
-            behavior: HitTestBehavior.opaque,
-            child: _DropdownPopup<T>(
-              config: widget,
-              width: _triggerWidth ?? widget.width,
-              onSelected: _select,
-              onDismiss: _close,
+          // The root overlay has no repaint boundary of its own, so without
+          // this every frame of a scroll through the list re-records the whole
+          // window under it — the settings panel and all its rows.
+          child: RepaintBoundary(
+            // Absorbs clicks on the card's own chrome, which would otherwise
+            // fall through to the barrier above — see the colour picker.
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              child: _DropdownPopup<T>(
+                config: widget,
+                width: _triggerWidth ?? widget.width,
+                onSelected: _select,
+                onDismiss: _close,
+              ),
             ),
           ),
         ),
@@ -527,10 +532,7 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
           // card floats over the pane's own form rows. See [OpaquePopupScope].
           color: OpaquePopupScope.fill(context, theme),
           borderRadius: BorderRadius.circular(ShellRadii.card),
-          border: Border.all(
-            color: theme.divider,
-            width: kDropdownCardBorder,
-          ),
+          border: Border.all(color: theme.divider, width: kDropdownCardBorder),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -566,6 +568,14 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
                   itemBuilder: (context, i) {
                     final item = _filtered[i];
                     final highlighted = i == _highlighted;
+                    // Built once and handed in, so a hover flip — which a
+                    // scroll causes for every row passing under a still
+                    // pointer — repaints the fill and skips the content.
+                    final content = widget.config.itemBuilder(
+                      context,
+                      item,
+                      highlighted,
+                    );
                     return HoverRegion(
                       onTap: () => widget.onSelected(item),
                       builder: (context, hovered) => Container(
@@ -578,11 +588,7 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
                             : hovered
                             ? theme.surfaceHover
                             : const Color(0x00000000),
-                        child: widget.config.itemBuilder(
-                          context,
-                          item,
-                          highlighted,
-                        ),
+                        child: content,
                       ),
                     );
                   },
