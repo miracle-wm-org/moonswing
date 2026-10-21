@@ -32,14 +32,14 @@ const _sidebarCategories = {
 /// exported, because what is being pinned is that the two agree — see the
 /// `isShellCategory` check below, which is the one that actually reads them.
 const _shellCategories = {
-  'Appearance',
-  'Module Settings',
   'Panels & Layout',
-  'Background',
-  'Desktop',
+  'Modules',
+  'Theme',
+  'Wallpaper',
+  'Desktop Grid',
   'Lock Screen',
   'Power Button',
-  'Volume Sound',
+  'Volume & Sound',
   'Calendar',
 };
 
@@ -226,7 +226,7 @@ void main() {
       for (final field in SettingsCatalog.moduleFields) {
         expect(field.id, startsWith('modules.'));
         expect(field.id.split('.'), hasLength(3));
-        expect(field.route.shellCategory, 'Module Settings');
+        expect(field.route.shellCategory, 'Modules');
         // And it lands on its own module's page, named by the same key.
         expect(field.route.module, field.id.split('.')[1]);
       }
@@ -250,7 +250,7 @@ void main() {
       expect(keys.toSet(), hasLength(keys.length));
       for (final colour in SettingsCatalog.themeColors) {
         expect(colour.field.id, 'theme.${colour.key}');
-        expect(colour.field.route.shellCategory, 'Appearance');
+        expect(colour.field.route.shellCategory, 'Theme');
       }
     });
 

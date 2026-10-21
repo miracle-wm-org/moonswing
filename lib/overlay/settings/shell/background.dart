@@ -241,7 +241,7 @@ class _BackgroundSectionState extends State<BackgroundSection> {
         // The two rows on a section card like every other page's; the grids
         // below stay off it, being collections rather than rows.
         SliverSettingsSection(
-          label: 'Background',
+          label: 'Wallpaper',
           children: [
             SettingsRow.field(
               SettingsCatalog.backgroundFit,

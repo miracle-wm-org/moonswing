@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:moonswing/request_controller.dart';
 
 /// The Shell category that lists every module, each pushing its own page.
-const String kModuleSettingsCategory = 'Module Settings';
+const String kModuleSettingsCategory = 'Modules';
 
 /// The overview's top tab ids, in the order the tab strip draws them.
 ///
@@ -35,7 +35,7 @@ class SettingsRoute {
     this.module,
   });
 
-  /// One module's own page inside Shell › Module Settings, named by its
+  /// One module's own page inside Shell › Modules, named by its
   /// `[modules.<key>]` config key — `clock`, `screen_recorder`.
   const SettingsRoute.module(String key)
     : this(shellCategory: kModuleSettingsCategory, module: key);
@@ -52,7 +52,7 @@ class SettingsRoute {
   /// `shell`.
   final String category;
 
-  /// A `_ShellCategory.title` inside the Shell pane, e.g. `Background`. Null
+  /// A `_ShellCategory.title` inside the Shell pane, e.g. `Wallpaper`. Null
   /// lands on the category list.
   final String? shellCategory;
 
@@ -78,10 +78,11 @@ class SettingsRoute {
 
   /// Where "Change background…" on the desktop goes.
   static const SettingsRoute background =
-      SettingsRoute(shellCategory: 'Background');
+      SettingsRoute(shellCategory: 'Wallpaper');
 
   /// Where the desktop grid's own settings live.
-  static const SettingsRoute desktop = SettingsRoute(shellCategory: 'Desktop');
+  static const SettingsRoute desktop =
+      SettingsRoute(shellCategory: 'Desktop Grid');
 
   /// The list of modules, each of which pushes its own page.
   static const SettingsRoute modules =

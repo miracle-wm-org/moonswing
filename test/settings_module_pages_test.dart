@@ -1,4 +1,4 @@
-// Shell › Module Settings: a list of the modules, each pushing a page of its
+// Shell › Modules: a list of the modules, each pushing a page of its
 // own over it, rather than one page of every module's rows.
 
 import 'dart:io';
@@ -101,7 +101,7 @@ void main() {
     });
   });
 
-  group('Module Settings', () {
+  group('Modules', () {
     testWidgets('lists the modules instead of every row', (tester) async {
       await pump(
         tester,

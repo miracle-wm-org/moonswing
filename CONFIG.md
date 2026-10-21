@@ -481,7 +481,7 @@ Symbols are Yahoo Finance's: `AAPL` for a US stock, `^GSPC` for the S&P 500,
 `BRK-B` for a class of share, `SAP.DE` for a stock on another exchange,
 `EURUSD=X` for a currency pair, `BTC-USD` for a coin. Indices are shown by name
 and currency pairs as `EUR/USD`. The popup's add button writes `symbols` for you,
-and **Settings → Shell → Module Settings → Stock market** edits the same list.
+and **Settings → Shell → Modules → Stock market** edits the same list.
 
 A new watchlist starts empty; the popup offers the S&P 500, the Dow and the Nasdaq
 as a one-click start. While every market on the list is closed, prices are
@@ -1162,7 +1162,7 @@ Five themes ship with the shell and are written into that directory the first ti
 
 If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `glassy` rather than starting unstyled. A single bad value inside a theme file costs only that key.
 
-The **Appearance** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The five shipped themes are read-only there — editing one offers to duplicate it first.
+The **Theme** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The five shipped themes are read-only there — editing one offers to duplicate it first.
 
 Because the shell owns those five files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
 
@@ -1566,7 +1566,7 @@ Right-clicking an icon offers **Open**, **Open with…** (files and folders), **
 
 **Add application…** opens a searchable list of everything installed, each with its own icon — type to filter, arrow keys and Enter to pick, Escape to dismiss. It searches names, generic names and the keywords a desktop entry declares, so "internet" finds your browser. **Add file or folder…** opens the file picker, where folders are selectable as well as browsable.
 
-Everything here is also editable under **Settings → Shell → Desktop**, which is where the pinned list is easiest to manage.
+Everything here is also editable under **Settings → Shell → Desktop Grid**, which is where the pinned list is easiest to manage.
 
 ```toml
 [desktop]
@@ -1718,7 +1718,7 @@ Out of the box it reads the **Associated Press** and **Reuters**, the two wire
 services most of the press reprints. Neither publishes an RSS feed of its own any
 more, so both are read through Google News, which indexes them: the headlines are
 theirs, and a click goes through Google's redirect to the story on their site.
-NPR, the BBC and PBS NewsHour are a click away in **Settings → Shell → Desktop →
+NPR, the BBC and PBS NewsHour are a click away in **Settings → Shell → Desktop Grid →
 News widget**, and any other RSS or Atom feed can be added there by its address.
 
 ```toml
@@ -1933,7 +1933,7 @@ A volume change also makes a small sound, played through the output that just ch
 - **A path** to an audio file of your own; `~/` is expanded.
 - **`none`** (or `off`, `silent`) for no sound.
 
-A name that finds nothing is not treated as silence: Settings › Shell › Volume Sound says what is wrong, and its play button previews the sound. Both keys are live, but if the indicator *and* the sound were both off when the shell started, nothing is watching the volume until it is restarted.
+A name that finds nothing is not treated as silence: Settings › Shell › Volume & Sound says what is wrong, and its play button previews the sound. Both keys are live, but if the indicator *and* the sound were both off when the shell started, nothing is watching the volume until it is restarted.
 
 ```toml
 [osd]
