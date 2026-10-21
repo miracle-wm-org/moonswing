@@ -128,7 +128,7 @@ const List<_OverlayTab> _tabs = [
   // the one place a workspace opens: one window, one close, one position.
   _OverlayTab(
     id: OverviewTab.todo,
-    label: 'Todo',
+    label: 'Kanban',
     icon: FontAwesomeIcons.listCheck,
   ),
   _OverlayTab(
