@@ -1,10 +1,11 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
@@ -256,8 +257,8 @@ class _NotificationsState extends State<Notifications>
           // silenced bell has been told not to say. The count bubble below
           // keeps its own colour, so "silenced, and three waiting" is still
           // one glance.
-          FaIcon(
-            silenced ? FontAwesomeIcons.bellSlash : FontAwesomeIcons.bell,
+          ShellIcon(
+            silenced ? ShellGlyph.bellSlash : ShellGlyph.bell,
             size: 16,
             color: silenced
                 ? theme.foreground.withValues(alpha: 0.55)
@@ -479,7 +480,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
                     // A plain bell, not a crossed-out one: on this surface the
                     // crossed bell is the silence switch's glyph, and an empty
                     // inbox is not the same claim as a silenced one.
-                    icon: FontAwesomeIcons.bell,
+                    icon: ShellGlyph.bell,
                     title: 'You are all caught up',
                     message: 'Notifications from your applications appear '
                         'here. Click one to open what it is about.',
@@ -518,7 +519,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
         // the pair of them.
         if (unread > 0)
           SettingsIconButton(
-            icon: FontAwesomeIcons.checkDouble,
+            icon: ShellGlyph.checkDouble,
             box: ShellSizes.iconButton + 6,
             size: ShellFontSizes.label,
             color: theme.notificationBadge,
@@ -595,8 +596,8 @@ class NotificationSilenceRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
           child: Row(
             children: [
-              FaIcon(
-                silenced ? FontAwesomeIcons.bellSlash : FontAwesomeIcons.bell,
+              ShellIcon(
+                silenced ? ShellGlyph.bellSlash : ShellGlyph.bell,
                 size: ShellFontSizes.label,
                 color: silenced
                     ? theme.accentText
@@ -713,10 +714,10 @@ class NotificationSoundRow extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
         child: Row(
           children: [
-            FaIcon(
+            ShellIcon(
               silent
-                  ? FontAwesomeIcons.volumeXmark
-                  : FontAwesomeIcons.volumeHigh,
+                  ? ShellGlyph.volumeMuted
+                  : ShellGlyph.volumeHigh,
               size: ShellFontSizes.label,
               color: broken
                   ? kErrorColor
@@ -754,7 +755,7 @@ class NotificationSoundRow extends StatelessWidget {
             // Offered even while silent: pressing it then is how a user finds
             // out that "none" is what they have, rather than a broken speaker.
             SettingsIconButton(
-              icon: FontAwesomeIcons.play,
+              icon: ShellGlyph.play,
               box: ShellSizes.iconButton,
               size: ShellFontSizes.secondary,
               color: theme.popupForeground.withValues(alpha: 0.55),
@@ -795,8 +796,8 @@ class NotificationDaemonBanner extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 1),
-            child: FaIcon(
-              FontAwesomeIcons.triangleExclamation,
+            child: ShellIcon(
+              ShellGlyph.warning,
               size: 14,
               color: kErrorColor,
             ),
@@ -982,7 +983,7 @@ class _NotificationCard extends StatelessWidget {
                 ),
               ),
               SettingsIconButton(
-                icon: FontAwesomeIcons.xmark,
+                icon: ShellGlyph.close,
                 size: ShellFontSizes.caption,
                 color: muted,
                 onTap: () => NotificationStore.instance.dismiss(item.id),

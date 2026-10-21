@@ -15,8 +15,8 @@
 // reaches it without a compositor.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:miracle/miracle.dart';
 
 // ---------------------------------------------------------------------------
@@ -185,7 +185,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           for (final output in targets)
             DesktopMenuEntry(
               label: outputMenuLabel(output),
-              icon: FontAwesomeIcons.display,
+              icon: ShellGlyph.display,
               onTap: () => widget.onMoveToOutput(output.name),
             ),
         ],
@@ -202,13 +202,13 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           // does now or what it would start doing.
           DesktopMenuEntry(
             label: 'Tile new windows',
-            icon: FontAwesomeIcons.tableCells,
+            icon: ShellGlyph.grid,
             selected: workspace.policy == WindowPlacementPolicy.tile,
             onTap: () => widget.onSetPolicy(WindowPlacementPolicy.tile),
           ),
           DesktopMenuEntry(
             label: 'Float new windows',
-            icon: FontAwesomeIcons.solidClone,
+            icon: ShellGlyph.duplicate,
             selected: workspace.policy == WindowPlacementPolicy.float,
             onTap: () => widget.onSetPolicy(WindowPlacementPolicy.float),
           ),
@@ -219,7 +219,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
         // shell will have somewhere to put this.
         DesktopMenuEntry(
           label: 'Move to output…',
-          icon: FontAwesomeIcons.display,
+          icon: ShellGlyph.display,
           enabled: targets.isNotEmpty,
           onTap: () => setState(() => _choosingOutput = true),
         ),

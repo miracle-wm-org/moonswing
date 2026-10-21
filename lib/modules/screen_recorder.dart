@@ -15,7 +15,6 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/capture/capture_config.dart';
@@ -23,6 +22,8 @@ import 'package:moonswing/capture/capture_flow.dart';
 import 'package:moonswing/capture/capture_menu.dart';
 import 'package:moonswing/capture/capture_store.dart';
 import 'package:moonswing/capture/selection_controller.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/scopes.dart';
@@ -68,7 +69,7 @@ class _ScreenRecorderButtonState extends State<ScreenRecorderButton>
             actions: [
               if (_store.recording)
                 CaptureMenuAction(
-                  icon: FontAwesomeIcons.stop,
+                  icon: ShellGlyph.stop,
                   label: 'Stop recording',
                   emphasis: true,
                   onTap: _stop,
@@ -121,8 +122,8 @@ class _ScreenRecorderButtonState extends State<ScreenRecorderButton>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(
-                recording ? FontAwesomeIcons.solidCircle : FontAwesomeIcons.video,
+              ShellIcon(
+                recording ? ShellGlyph.circleFilled : ShellGlyph.video,
                 // The dot is deliberately smaller than the camera it replaces:
                 // filled at the icon's own size it is a blob, and this one has
                 // a readout beside it doing the talking.

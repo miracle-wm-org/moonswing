@@ -6,9 +6,10 @@
 // shell with four bars from opening four boards.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings_route.dart';
@@ -43,8 +44,8 @@ class TodoButton extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(
-            FontAwesomeIcons.listCheck,
+          ShellIcon(
+            ShellGlyph.listCheck,
             size: ShellFontSizes.label,
             color: theme.foreground,
           ),

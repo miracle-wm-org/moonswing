@@ -5,9 +5,10 @@
 // there can only ever be one launcher.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/launcher/launcher_controller.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/scopes.dart';
@@ -61,8 +62,8 @@ class _LauncherButtonState extends State<LauncherButton> {
             width: widget.iconSize.toDouble(),
             height: widget.iconSize.toDouble(),
             child: Center(
-              child: FaIcon(
-                FontAwesomeIcons.magnifyingGlass,
+              child: ShellIcon(
+                ShellGlyph.search,
                 size: widget.iconSize * 0.72,
                 color: theme.foreground,
               ),

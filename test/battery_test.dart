@@ -2,7 +2,7 @@
 // beside it, and the equality the store's "nothing new" guard rests on.
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/battery.dart';
 
 BatteryReading _reading(int capacity, {bool charging = false, String? time}) =>
@@ -14,24 +14,24 @@ void main() {
       for (final capacity in [0, 42, 100]) {
         expect(
           batteryIconFor(_reading(capacity, charging: true)),
-          FontAwesomeIcons.plug,
+          ShellGlyph.plug,
         );
       }
     });
 
     test('otherwise the level, in five steps', () {
-      expect(batteryIconFor(_reading(100)), FontAwesomeIcons.batteryFull);
-      expect(batteryIconFor(_reading(90)), FontAwesomeIcons.batteryFull);
+      expect(batteryIconFor(_reading(100)), ShellGlyph.batteryFull);
+      expect(batteryIconFor(_reading(90)), ShellGlyph.batteryFull);
       expect(
-          batteryIconFor(_reading(89)), FontAwesomeIcons.batteryThreeQuarters);
+          batteryIconFor(_reading(89)), ShellGlyph.batteryThreeQuarters);
       expect(
-          batteryIconFor(_reading(65)), FontAwesomeIcons.batteryThreeQuarters);
-      expect(batteryIconFor(_reading(64)), FontAwesomeIcons.batteryHalf);
-      expect(batteryIconFor(_reading(40)), FontAwesomeIcons.batteryHalf);
-      expect(batteryIconFor(_reading(39)), FontAwesomeIcons.batteryQuarter);
-      expect(batteryIconFor(_reading(15)), FontAwesomeIcons.batteryQuarter);
-      expect(batteryIconFor(_reading(14)), FontAwesomeIcons.batteryEmpty);
-      expect(batteryIconFor(_reading(0)), FontAwesomeIcons.batteryEmpty);
+          batteryIconFor(_reading(65)), ShellGlyph.batteryThreeQuarters);
+      expect(batteryIconFor(_reading(64)), ShellGlyph.batteryHalf);
+      expect(batteryIconFor(_reading(40)), ShellGlyph.batteryHalf);
+      expect(batteryIconFor(_reading(39)), ShellGlyph.batteryQuarter);
+      expect(batteryIconFor(_reading(15)), ShellGlyph.batteryQuarter);
+      expect(batteryIconFor(_reading(14)), ShellGlyph.batteryEmpty);
+      expect(batteryIconFor(_reading(0)), ShellGlyph.batteryEmpty);
     });
 
     test('no emoji is left in the rendering', () {

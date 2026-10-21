@@ -1,12 +1,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/notification_badge.dart';
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/scopes.dart';
+import 'glyph_finder.dart';
 
 /// The badge as the root hosts it: inside its own layer-shell window, whose
 /// size the root reads off [kNotificationBadgeWindowSize].
@@ -46,7 +48,7 @@ void _seed(int count, {String app = 'App', String body = ''}) {
 /// slide's room on the right — so a rect read off [NotificationBadge] is the
 /// window rather than the thing being animated.
 Rect _cardRect(WidgetTester tester) =>
-    tester.getRect(find.byType(FaIcon).first);
+    tester.getRect(find.byType(ShellIcon).first);
 
 /// The card's own fill. The card is the one [Container] in the surface sized
 /// to [kNotificationBadgeWidth]; the bubble and the glyph box are the others.
@@ -219,7 +221,7 @@ void main() {
       _seed(1);
       await tester.pumpWidget(_badge());
       await tester.pumpAndSettle();
-      expect(find.byIcon(FontAwesomeIcons.xmark.data), findsNothing);
+      expect(findGlyph(ShellGlyph.close), findsNothing);
     });
 
     // Crossing the card and leaving without a click is the user having seen

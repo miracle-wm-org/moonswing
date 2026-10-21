@@ -2,9 +2,10 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/module.dart';
@@ -627,8 +628,8 @@ class _MiracleRetryButtonState extends State<_MiracleRetryButton>
           closePopup();
           MiracleScope.of(context).connect();
         },
-        child: FaIcon(
-          FontAwesomeIcons.arrowsRotate,
+        child: ShellIcon(
+          ShellGlyph.refresh,
           size: 10,
           color: theme.foreground,
         ),

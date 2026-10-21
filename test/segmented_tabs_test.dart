@@ -1,8 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/segmented_tabs.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
@@ -10,8 +10,8 @@ import 'package:moonswing/theme/overlay_effect.dart';
 import 'tap_target.dart';
 
 const _tabs = [
-  SegmentedTab(label: 'Calendar', icon: FontAwesomeIcons.calendarDays),
-  SegmentedTab(label: 'Settings', icon: FontAwesomeIcons.gear),
+  SegmentedTab(label: 'Calendar', icon: ShellGlyph.calendarDays),
+  SegmentedTab(label: 'Settings', icon: ShellGlyph.settings),
   SegmentedTab(label: 'System Info'),
 ];
 

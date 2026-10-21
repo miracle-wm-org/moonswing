@@ -3,11 +3,13 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/config.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
+import 'glyph_finder.dart';
 
 /// The menus are pumped bare, with no WindowManager: the popup machinery
 /// belongs to the host, and these are the cards it puts inside one.
@@ -212,7 +214,7 @@ void main() {
         DesktopMenuCard(entries: [
           DesktopMenuEntry(
             label: 'Chosen',
-            icon: FontAwesomeIcons.tableCells,
+            icon: ShellGlyph.grid,
             selected: true,
             onTap: () => tapped++,
           ),
@@ -222,10 +224,10 @@ void main() {
 
       // The check, because a theme is free to make its accent quiet — and the
       // accent, because the check alone is easy to miss.
-      expect(find.byIcon(FontAwesomeIcons.check.data), findsOneWidget);
+      expect(findGlyph(ShellGlyph.check), findsOneWidget);
       expect(
         tester
-            .widget<FaIcon>(find.byIcon(FontAwesomeIcons.tableCells.data))
+            .widget<ShellIcon>(findGlyph(ShellGlyph.grid))
             .color,
         theme.accentText,
       );
@@ -244,7 +246,7 @@ void main() {
         DesktopMenuCard(entries: [
           DesktopMenuEntry(
             label: 'Chosen',
-            icon: FontAwesomeIcons.tableCells,
+            icon: ShellGlyph.grid,
             selected: true,
             onTap: () {},
           ),
@@ -265,11 +267,11 @@ void main() {
       const theme = ThemeConfig();
       expect(
         tester
-            .widget<FaIcon>(find.byIcon(FontAwesomeIcons.tableCells.data))
+            .widget<ShellIcon>(findGlyph(ShellGlyph.grid))
             .color,
         theme.popupForeground,
       );
-      expect(find.byIcon(FontAwesomeIcons.check.data), findsOneWidget);
+      expect(findGlyph(ShellGlyph.check), findsOneWidget);
     });
   });
 
@@ -277,7 +279,7 @@ void main() {
     final spec = DesktopWidgetSpec(
       type: 'fake',
       name: 'Fake widget',
-      icon: FontAwesomeIcons.shapes,
+      icon: ShellGlyph.shapes,
       builder: (context, widget) => const SizedBox.shrink(),
     );
 
@@ -347,7 +349,7 @@ void main() {
     final spec = DesktopWidgetSpec(
       type: 'fake',
       name: 'Fake widget',
-      icon: FontAwesomeIcons.shapes,
+      icon: ShellGlyph.shapes,
       minSpan: (columns: 2, rows: 1),
       maxSpan: (columns: 4, rows: 3),
       builder: (context, widget) => const SizedBox.shrink(),

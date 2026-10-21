@@ -10,7 +10,6 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/capture/capture_config.dart';
@@ -19,6 +18,8 @@ import 'package:moonswing/capture/capture_menu.dart';
 import 'package:moonswing/capture/capture_sound.dart';
 import 'package:moonswing/capture/capture_store.dart';
 import 'package:moonswing/capture/selection_controller.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/scopes.dart';
@@ -106,8 +107,8 @@ class _ScreenshotButtonState extends State<ScreenshotButton>
         return BarButton(
           active: isPopupOpen,
           onTapDown: (_) => _togglePopup(context),
-          child: FaIcon(
-            FontAwesomeIcons.camera,
+          child: ShellIcon(
+            ShellGlyph.camera,
             size: ShellFontSizes.secondary,
             // Dimmed while a shot is in flight, which is the whole feedback
             // this button gives: the shutter is a compositor round trip plus a

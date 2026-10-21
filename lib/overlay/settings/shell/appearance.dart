@@ -1,7 +1,8 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart' show SettingsField;
@@ -139,7 +140,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: SettingsNotice(
-                      icon: FontAwesomeIcons.lock,
+                      icon: ShellGlyph.lock,
                       title: 'Read-only theme',
                       message:
                           'This theme ships with the shell — the next update '
@@ -841,14 +842,14 @@ class _ThemeCard extends StatelessWidget {
                     dimension: ShellSizes.iconButtonDense,
                     child: Center(
                       child: selected
-                          ? FaIcon(
-                              FontAwesomeIcons.check,
+                          ? ShellIcon(
+                              ShellGlyph.check,
                               size: ShellFontSizes.caption,
                               color: theme.accentText,
                             )
                           : (hovered && onDelete != null)
                           ? SettingsIconButton(
-                              icon: FontAwesomeIcons.trash,
+                              icon: ShellGlyph.trash,
                               size: ShellFontSizes.caption,
                               box: ShellSizes.iconButtonDense,
                               onTap: onDelete!,
@@ -904,7 +905,7 @@ class _NewThemeRowState extends State<_NewThemeRow> {
         ),
         const SizedBox(width: 6),
         SettingsIconButton(
-          icon: FontAwesomeIcons.xmark,
+          icon: ShellGlyph.close,
           size: 12,
           onTap: widget.onCancel,
         ),

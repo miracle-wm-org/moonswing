@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/osd/volume_sound.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -58,7 +58,7 @@ class VolumeSoundSection extends StatelessWidget {
               // Offered even while silent: pressing it then is how a user
               // finds out that "none" is what they have.
               SettingsIconButton(
-                icon: FontAwesomeIcons.play,
+                icon: ShellGlyph.play,
                 size: ShellFontSizes.secondary,
                 tooltip: 'Preview',
                 color: theme.popupForeground.withValues(alpha: 0.55),

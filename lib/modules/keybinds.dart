@@ -6,9 +6,10 @@
 // keeps a shell with four bars from opening four sheets.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/scopes.dart';
@@ -37,8 +38,8 @@ class KeybindsButton extends StatelessWidget {
         OverviewTab.shortcuts,
         output: DisplayScope.of(context)?.name,
       ),
-      child: FaIcon(
-        FontAwesomeIcons.keyboard,
+      child: ShellIcon(
+        ShellGlyph.keyboard,
         size: ShellFontSizes.label,
         color: theme.foreground,
       ),

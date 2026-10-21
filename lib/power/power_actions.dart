@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:ubuntu_session/ubuntu_session.dart';
 
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/lock/lock_controller.dart';
 import 'package:moonswing/power/power_config.dart';
 
@@ -12,11 +12,11 @@ import 'package:moonswing/power/power_config.dart';
 /// There is one power surface now — the power menu, which both the physical key
 /// and the bar's power icon open — and it draws this list.
 enum PowerAction {
-  lock('Lock', FontAwesomeIcons.lock),
-  logout('Log Out', FontAwesomeIcons.arrowRightFromBracket),
-  suspend('Sleep', FontAwesomeIcons.moon),
-  reboot('Restart', FontAwesomeIcons.arrowRotateRight),
-  shutdown('Shut Down', FontAwesomeIcons.powerOff);
+  lock('Lock', ShellGlyph.lock),
+  logout('Log Out', ShellGlyph.logOut),
+  suspend('Sleep', ShellGlyph.moon),
+  reboot('Restart', ShellGlyph.redo),
+  shutdown('Shut Down', ShellGlyph.power);
 
   const PowerAction(this.label, this.icon);
 
@@ -26,10 +26,9 @@ enum PowerAction {
   /// The glyph the menu draws. Beside [label] for its reason: a verb's word and
   /// its picture belong to the verb, not to whatever surface is listing it.
   ///
-  /// [FaIconData] rather than `IconData`: it is a *wrapper* around one rather
-  /// than a subclass, and `FaIcon` — which draws these, because the plain `Icon`
-  /// clips a non-square Font Awesome glyph — takes only the wrapper.
-  final FaIconData icon;
+  /// A [ShellGlyph] rather than a font's `IconData`, so the menu follows the
+  /// theme's `icon_pack`.
+  final ShellGlyph icon;
 }
 
 /// The order the power menu lists them in: least destructive first, so the tile

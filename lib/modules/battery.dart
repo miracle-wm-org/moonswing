@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:udev/udev.dart';
@@ -61,13 +62,13 @@ class BatteryReading {
 /// Charging is the plug, which is what the emoji before it said. Anything else
 /// is the level itself: the one battery emoji was the same picture for a full
 /// pack and a dying one, and five steps is what an icon set can say instead.
-FaIconData batteryIconFor(BatteryReading reading) {
-  if (reading.charging) return FontAwesomeIcons.plug;
-  if (reading.capacity >= 90) return FontAwesomeIcons.batteryFull;
-  if (reading.capacity >= 65) return FontAwesomeIcons.batteryThreeQuarters;
-  if (reading.capacity >= 40) return FontAwesomeIcons.batteryHalf;
-  if (reading.capacity >= 15) return FontAwesomeIcons.batteryQuarter;
-  return FontAwesomeIcons.batteryEmpty;
+ShellGlyph batteryIconFor(BatteryReading reading) {
+  if (reading.charging) return ShellGlyph.plug;
+  if (reading.capacity >= 90) return ShellGlyph.batteryFull;
+  if (reading.capacity >= 65) return ShellGlyph.batteryThreeQuarters;
+  if (reading.capacity >= 40) return ShellGlyph.batteryHalf;
+  if (reading.capacity >= 15) return ShellGlyph.batteryQuarter;
+  return ShellGlyph.batteryEmpty;
 }
 
 /// The text beside [batteryIconFor]'s glyph.
@@ -333,7 +334,7 @@ class BatteryState extends State<Battery> {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(
+            ShellIcon(
               batteryIconFor(reading),
               size: 12,
               color: theme.foreground,

@@ -13,9 +13,10 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/search_list.dart';
@@ -618,8 +619,8 @@ class _ItemChrome extends StatelessWidget {
                 SizedBox(
                   width: 14,
                   child: Center(
-                    child: FaIcon(
-                      FontAwesomeIcons.gripVertical,
+                    child: ShellIcon(
+                      ShellGlyph.dragHandle,
                       size: 11,
                       color: lifted ? theme.accentText : muted,
                     ),
@@ -661,7 +662,7 @@ class _ItemChrome extends StatelessWidget {
         if (onRemove != null) ...[
           const SizedBox(width: 4),
           SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
+            icon: ShellGlyph.close,
             size: 12,
             tooltip: removeTooltip,
             onTap: onRemove,
@@ -764,8 +765,8 @@ class SettingsListAddRow extends StatelessWidget {
         SizedBox(
           width: 20,
           child: Center(
-            child: FaIcon(
-              FontAwesomeIcons.plus,
+            child: ShellIcon(
+              ShellGlyph.add,
               size: ShellFontSizes.caption,
               color: theme.accentText,
             ),
@@ -993,8 +994,8 @@ class _SettingsListAddFieldState extends State<SettingsListAddField> {
           SizedBox(
             width: 20,
             child: Center(
-              child: FaIcon(
-                FontAwesomeIcons.plus,
+              child: ShellIcon(
+                ShellGlyph.add,
                 size: ShellFontSizes.caption,
                 color: theme.accentText,
               ),
@@ -1012,12 +1013,12 @@ class _SettingsListAddFieldState extends State<SettingsListAddField> {
           ),
           const SizedBox(width: 4),
           SettingsIconButton(
-            icon: FontAwesomeIcons.check,
+            icon: ShellGlyph.check,
             tooltip: 'Add',
             onTap: _submit,
           ),
           SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
+            icon: ShellGlyph.close,
             tooltip: 'Cancel',
             onTap: _close,
           ),

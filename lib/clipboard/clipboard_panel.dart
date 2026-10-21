@@ -10,12 +10,13 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/clipboard/clipboard_entry.dart';
 import 'package:moonswing/clipboard/clipboard_store.dart';
 import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
@@ -115,7 +116,7 @@ class _ClipboardPanelState extends State<ClipboardPanel> {
                   title: 'Could not copy',
                   message: error,
                   action: SettingsIconButton(
-                    icon: FontAwesomeIcons.xmark,
+                    icon: ShellGlyph.close,
                     onTap: store.dismissCopyError,
                   ),
                 ),
@@ -134,7 +135,7 @@ class _ClipboardPanelState extends State<ClipboardPanel> {
     final entries = store.entries;
     if (entries.isEmpty) {
       return const DockedPanelEmpty(
-        icon: FontAwesomeIcons.clipboard,
+        icon: ShellGlyph.clipboard,
         title: 'Nothing copied yet',
         message:
             'Text, pictures and files you copy appear here. Click one to '
@@ -248,7 +249,7 @@ class ClipboardCard extends StatelessWidget {
                 height: ShellSizes.iconButton,
                 child: Row(
                   children: [
-                    FaIcon(
+                    ShellIcon(
                       _kindIcon(entry),
                       size: ShellFontSizes.secondary,
                       color: muted,
@@ -267,13 +268,13 @@ class ClipboardCard extends StatelessWidget {
                     ),
                     _CopiedMark(store: store, id: entry.id),
                     SettingsIconButton(
-                      icon: FontAwesomeIcons.thumbtack,
+                      icon: ShellGlyph.pin,
                       size: ShellFontSizes.caption,
                       color: entry.pinned ? theme.accentText : muted,
                       onTap: () => store.togglePin(entry),
                     ),
                     SettingsIconButton(
-                      icon: FontAwesomeIcons.trashCan,
+                      icon: ShellGlyph.trashCan,
                       size: ShellFontSizes.caption,
                       color: muted,
                       onTap: () => store.remove(entry),
@@ -292,15 +293,15 @@ class ClipboardCard extends StatelessWidget {
     );
   }
 
-  static FaIconData _kindIcon(ClipboardEntry entry) => switch (entry.kind) {
-    ClipboardKind.text => FontAwesomeIcons.alignLeft,
-    ClipboardKind.image => FontAwesomeIcons.image,
-    ClipboardKind.files => FontAwesomeIcons.folderOpen,
+  static ShellGlyph _kindIcon(ClipboardEntry entry) => switch (entry.kind) {
+    ClipboardKind.text => ShellGlyph.alignLeft,
+    ClipboardKind.image => ShellGlyph.image,
+    ClipboardKind.files => ShellGlyph.folderOpen,
     ClipboardKind.media =>
       entry.mime.toLowerCase().startsWith('video/')
-          ? FontAwesomeIcons.film
-          : FontAwesomeIcons.music,
-    ClipboardKind.binary => FontAwesomeIcons.file,
+          ? ShellGlyph.film
+          : ShellGlyph.music,
+    ClipboardKind.binary => ShellGlyph.file,
   };
 }
 
@@ -404,8 +405,8 @@ class _Thumbnail extends StatelessWidget {
               cacheHeight: (height * dpr).round(),
               filterQuality: FilterQuality.medium,
               gaplessPlayback: true,
-              errorBuilder: (context, _, _) => FaIcon(
-                FontAwesomeIcons.image,
+              errorBuilder: (context, _, _) => ShellIcon(
+                ShellGlyph.image,
                 size: 28,
                 color: theme.popupForeground.withValues(alpha: 0.3),
               ),
@@ -465,12 +466,12 @@ class _FileList extends StatelessWidget {
 
   Widget _fileRow(ThemeConfig theme, String path, {bool icon = true}) {
     final glyph = switch (fileKindForPath(path)) {
-      ClipboardFileKind.image => FontAwesomeIcons.fileImage,
-      ClipboardFileKind.video => FontAwesomeIcons.fileVideo,
-      ClipboardFileKind.audio => FontAwesomeIcons.fileAudio,
-      ClipboardFileKind.document => FontAwesomeIcons.fileLines,
-      ClipboardFileKind.folder => FontAwesomeIcons.folder,
-      ClipboardFileKind.other => FontAwesomeIcons.file,
+      ClipboardFileKind.image => ShellGlyph.fileImage,
+      ClipboardFileKind.video => ShellGlyph.fileVideo,
+      ClipboardFileKind.audio => ShellGlyph.fileAudio,
+      ClipboardFileKind.document => ShellGlyph.fileText,
+      ClipboardFileKind.folder => ShellGlyph.folder,
+      ClipboardFileKind.other => ShellGlyph.file,
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 1),
@@ -479,7 +480,7 @@ class _FileList extends StatelessWidget {
           if (icon) ...[
             SizedBox(
               width: 14,
-              child: FaIcon(
+              child: ShellIcon(
                 glyph,
                 size: ShellFontSizes.secondary,
                 color: theme.popupForeground.withValues(alpha: 0.6),

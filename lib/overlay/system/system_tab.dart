@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/system/overview_page.dart';
 import 'package:moonswing/overlay/system/process_table.dart';
 import 'package:moonswing/scopes.dart';
@@ -109,7 +109,7 @@ class _SystemTabState extends State<SystemTab> {
           // own tabs use, and a sub-tab set two points smaller than the tab
           // directly above it read as disabled rather than subordinate.
           UnderlineTab(
-            icon: FontAwesomeIcons.gaugeHigh,
+            icon: ShellGlyph.gauge,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             label: 'Overview',
             selected: _tab == _SubTab.overview,
@@ -117,7 +117,7 @@ class _SystemTabState extends State<SystemTab> {
           ),
           const SizedBox(width: 4),
           UnderlineTab(
-            icon: FontAwesomeIcons.listUl,
+            icon: ShellGlyph.listUl,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             label: 'Processes',
             selected: _tab == _SubTab.processes,

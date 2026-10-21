@@ -12,10 +12,11 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/google/google_api.dart';
 import 'package:moonswing/accounts/calendar_event_source.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/calendar/calendar_events.dart';
 import 'package:moonswing/overlay/calendar/event_layout.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -49,12 +50,12 @@ String joinLabel(GoogleEvent e) {
   return name.isEmpty ? 'Join meeting' : 'Join $name';
 }
 
-FaIconData _iconFor(String url) {
+ShellGlyph _iconFor(String url) {
   final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
   if (host == 'docs.google.com' || host == 'drive.google.com') {
-    return FontAwesomeIcons.googleDrive;
+    return ShellGlyph.googleDrive;
   }
-  return FontAwesomeIcons.link;
+  return ShellGlyph.link;
 }
 
 class EventDetailsCard extends StatelessWidget {
@@ -91,7 +92,7 @@ class EventDetailsCard extends StatelessWidget {
       color: theme.popupForeground.withValues(alpha: 0.75),
     );
 
-    Widget line(FaIconData icon, Widget child) => Padding(
+    Widget line(ShellGlyph icon, Widget child) => Padding(
       padding: const EdgeInsets.only(top: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,7 +101,7 @@ class EventDetailsCard extends StatelessWidget {
             width: 22,
             child: Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: FaIcon(
+              child: ShellIcon(
                 icon,
                 size: ShellFontSizes.secondary,
                 color: theme.popupForeground.withValues(alpha: 0.55),
@@ -116,7 +117,7 @@ class EventDetailsCard extends StatelessWidget {
       if (join != null)
         SettingsActionButton(
           label: joinLabel(event),
-          icon: FontAwesomeIcons.video,
+          icon: ShellGlyph.video,
           primary: true,
           compact: true,
           onTap: () => onOpen(join),
@@ -124,7 +125,7 @@ class EventDetailsCard extends StatelessWidget {
       if (page != null)
         SettingsActionButton(
           label: 'Open in Google Calendar',
-          icon: FontAwesomeIcons.calendar,
+          icon: ShellGlyph.calendar,
           compact: true,
           onTap: () => onOpen(page),
         ),
@@ -172,28 +173,28 @@ class EventDetailsCard extends StatelessWidget {
                 ),
               ),
               SettingsIconButton(
-                icon: FontAwesomeIcons.xmark,
+                icon: ShellGlyph.close,
                 size: 12,
                 onTap: onClose,
               ),
             ],
           ),
           line(
-            FontAwesomeIcons.clock,
+            ShellGlyph.clock,
             Text(eventWhenLabel(event), style: secondary),
           ),
           line(
-            FontAwesomeIcons.calendarDays,
+            ShellGlyph.calendarDays,
             Text(calendarName, style: secondary),
           ),
           if (showLocation)
             line(
-              FontAwesomeIcons.locationDot,
+              ShellGlyph.location,
               Text(location, style: secondary),
             ),
           if (description != null)
             line(
-              FontAwesomeIcons.alignLeft,
+              ShellGlyph.alignLeft,
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 200),
                 child: SingleChildScrollView(

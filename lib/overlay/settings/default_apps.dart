@@ -11,11 +11,12 @@
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart' show AppIconImage;
 import 'package:moonswing/default_apps/default_app_model.dart';
 import 'package:moonswing/default_apps/default_apps_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -141,7 +142,7 @@ class _DefaultAppsSettingsPageState extends State<DefaultAppsSettingsPage> {
                 onTap: _store.retry,
               )
             : SettingsIconButton(
-                icon: FontAwesomeIcons.xmark,
+                icon: ShellGlyph.close,
                 tooltip: 'Dismiss',
                 onTap: _store.clearError,
               ),
@@ -203,8 +204,8 @@ class _DefaultAppsSettingsPageState extends State<DefaultAppsSettingsPage> {
             hint: 'Filter by name or type, e.g. "png" or "text/markdown"',
             onChanged: (value) => _query.value = value,
             leading: Builder(
-              builder: (context) => FaIcon(
-                FontAwesomeIcons.magnifyingGlass,
+              builder: (context) => ShellIcon(
+                ShellGlyph.search,
                 size: 12,
                 color: ThemeScope.of(
                   context,
@@ -416,7 +417,7 @@ class DefaultAppPicker extends StatelessWidget {
       children: [
         if (choice?.userSet ?? false)
           SettingsIconButton(
-            icon: FontAwesomeIcons.arrowRotateLeft,
+            icon: ShellGlyph.undo,
             tooltip: 'Use the system default',
             onTap: onReset,
           )

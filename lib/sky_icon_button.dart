@@ -19,6 +19,8 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/weather/weather_sky.dart'
     show kSkyForeground, kSkyMutedForeground, kSkyTextShadows;
@@ -36,10 +38,10 @@ class SkyIconButton extends StatelessWidget {
 
   final VoidCallback onTap;
 
-  /// The glyph. A Material Symbol rather than a Meteocon: the packs the shell
+  /// The glyph. An interface glyph rather than a Meteocon: the packs the shell
   /// carries for weather have no interface iconography, which is the split
   /// `weather_icons.dart` documents for `kLocationIcon`.
-  final IconData icon;
+  final ShellGlyph icon;
 
   /// The pointer target, never the glyph — `ShellSizes`' rule. The glyph is
   /// drawn at a little over half of it.
@@ -58,7 +60,7 @@ class SkyIconButton extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         child: Center(
-          child: Icon(
+          child: ShellIcon(
             icon,
             size: size * 0.6,
             color: hovered ? kSkyForeground : kSkyMutedForeground,

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -177,6 +179,27 @@ void main() {
         {ShellGlyph.github, ShellGlyph.linux, ShellGlyph.googleDrive},
       );
     });
+  });
+
+  test('no font is named outside lib/icons/packs/', () {
+    // The rule that makes the key mean anything: a call site that names a
+    // font's constants has opted its surface out of the user's choice.
+    final named = RegExp(
+      r'\b(FontAwesomeIcons|Symbols|LucideIcons\w*|'
+      r'RemixIcons|Remix)\.\w',
+    );
+    final offenders = <String>[];
+    for (final entity in Directory('lib').listSync(recursive: true)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      if (entity.path.startsWith('lib/icons/packs/')) continue;
+      final lines = entity.readAsLinesSync();
+      for (var i = 0; i < lines.length; i++) {
+        final line = lines[i].trimLeft();
+        if (line.startsWith('//')) continue;
+        if (named.hasMatch(line)) offenders.add('${entity.path}:${i + 1}');
+      }
+    }
+    expect(offenders, isEmpty);
   });
 
   group('ShellIcon', () {

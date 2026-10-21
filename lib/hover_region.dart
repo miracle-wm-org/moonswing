@@ -12,7 +12,7 @@ import 'package:flutter/widgets.dart';
 /// `deferToChild`, and nearly everything a control is built from answers
 /// `hitTestSelf == false` — `Padding`, `Align`, `ConstrainedBox`, `ClipRRect`,
 /// `Row`/`Column`/`Stack`, and a `Container` with neither `color:` nor
-/// `decoration:`. So in a 26-square `Container` around an 11px `FaIcon` the only
+/// `decoration:`. So in a 26-square `Container` around an 11px icon the only
 /// render object accepting a hit is the glyph's own `RenderParagraph`: the button
 /// hovered over 26 square and fired over about 11. Emitting the detector here
 /// makes the hover box and the tap box the same rect by construction.

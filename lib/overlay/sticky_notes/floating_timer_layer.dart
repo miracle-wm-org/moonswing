@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/sticky_notes/overview_actions.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_layout.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
@@ -361,15 +362,15 @@ class FloatingTimerLayerState extends State<FloatingTimerLayer> {
               ? 'Pause'
               : 'Resume',
           icon: entry.finished
-              ? FontAwesomeIcons.arrowRotateRight
+              ? ShellGlyph.redo
               : entry.running
-              ? FontAwesomeIcons.pause
-              : FontAwesomeIcons.play,
+              ? ShellGlyph.pause
+              : ShellGlyph.play,
           onTap: () => act(_store.toggle),
         ),
         DesktopMenuEntry(
           label: 'Reset',
-          icon: FontAwesomeIcons.arrowRotateLeft,
+          icon: ShellGlyph.undo,
           // Greyed rather than gone on a finished countdown, whose reset is
           // the restart above it: the menu keeps its shape.
           enabled: !entry.finished,
@@ -379,7 +380,7 @@ class FloatingTimerLayerState extends State<FloatingTimerLayer> {
           label: entry.kind == ShellTimerKind.stopwatch
               ? 'Remove stopwatch'
               : 'Remove timer',
-          icon: FontAwesomeIcons.trashCan,
+          icon: ShellGlyph.trashCan,
           onTap: () => act(_store.stop),
         ),
       ],
@@ -539,7 +540,7 @@ class _FloatingTimerFace extends StatelessWidget {
           children: [
             Row(
               children: [
-                FaIcon(
+                ShellIcon(
                   timerKindIcon(entry.kind),
                   size: 11,
                   color: entry.finished ? theme.accentText : quiet,

@@ -2,8 +2,9 @@
 
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/modules/network.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -90,10 +91,10 @@ class _NetworkListItem extends StatelessWidget {
   final VoidCallback onTap;
 
 
-  FaIconData _icon() {
+  ShellGlyph _icon() {
     return network.type == NetworkType.ethernet
-        ? FontAwesomeIcons.ethernet
-        : FontAwesomeIcons.wifi;
+        ? ShellGlyph.ethernet
+        : ShellGlyph.wifi;
   }
 
   @override
@@ -110,7 +111,7 @@ class _NetworkListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
         child: Row(
           children: [
-            FaIcon(
+            ShellIcon(
               _icon(),
               size: 14,
               color: theme.popupForeground.withValues(
@@ -147,8 +148,8 @@ class _NetworkListItem extends StatelessWidget {
             if (n.isConnected)
               const SettingsBadge('Connected')
             else if (n.secured)
-              FaIcon(
-                FontAwesomeIcons.lock,
+              ShellIcon(
+                ShellGlyph.lock,
                 size: 11,
                 color: theme.popupForeground.withValues(alpha: 0.5),
               ),
@@ -349,7 +350,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
           child: Row(
             children: [
               SettingsIconButton(
-                icon: FontAwesomeIcons.arrowLeft,
+                icon: ShellGlyph.arrowLeft,
                 size: ShellFontSizes.label,
                 color: theme.popupForeground,
                 onTap: _cancelConnect,

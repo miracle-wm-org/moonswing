@@ -12,12 +12,13 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart'
@@ -234,8 +235,8 @@ class _BarMark extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FaIcon(
-          FontAwesomeIcons.chartLine,
+        ShellIcon(
+          ShellGlyph.chartLine,
           size: ShellFontSizes.title,
           color: color,
         ),
@@ -364,12 +365,12 @@ class _DirectionGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FaIcon(
+    return ShellIcon(
       direction > 0
-          ? FontAwesomeIcons.caretUp
+          ? ShellGlyph.caretUp
           : direction < 0
-              ? FontAwesomeIcons.caretDown
-              : FontAwesomeIcons.minus,
+              ? ShellGlyph.caretDown
+              : ShellGlyph.remove,
       size: size,
       color: color,
     );
@@ -628,8 +629,8 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 8),
       child: Row(
         children: [
-          FaIcon(
-            FontAwesomeIcons.chartLine,
+          ShellIcon(
+            ShellGlyph.chartLine,
             size: ShellFontSizes.title,
             color: theme.accentText,
           ),
@@ -671,7 +672,7 @@ class _Header extends StatelessWidget {
                   ),
           ),
           SettingsIconButton(
-            icon: FontAwesomeIcons.rotate,
+            icon: ShellGlyph.rotate,
             tooltip: 'Refresh',
             onTap: store.refresh,
           ),
@@ -722,7 +723,7 @@ class _Watchlist extends StatelessWidget {
     final symbols = store.symbols;
     if (symbols.isEmpty) {
       return _Hint(
-        icon: FontAwesomeIcons.magnifyingGlassDollar,
+        icon: ShellGlyph.searchDollar,
         title: 'Your watchlist is empty',
         body: 'Search above by symbol or company name to add a ticker.',
         theme: theme,
@@ -850,7 +851,7 @@ class _WatchRow extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SettingsIconButton(
-                      icon: FontAwesomeIcons.chevronUp,
+                      icon: ShellGlyph.chevronUp,
                       tooltip: 'Move earlier',
                       size: 10,
                       box: ShellSizes.minTapTarget,
@@ -858,7 +859,7 @@ class _WatchRow extends StatelessWidget {
                       onTap: onUp,
                     ),
                     SettingsIconButton(
-                      icon: FontAwesomeIcons.chevronDown,
+                      icon: ShellGlyph.chevronDown,
                       tooltip: 'Move later',
                       size: 10,
                       box: ShellSizes.minTapTarget,
@@ -869,7 +870,7 @@ class _WatchRow extends StatelessWidget {
                 ),
               ),
               SettingsIconButton(
-                icon: FontAwesomeIcons.xmark,
+                icon: ShellGlyph.close,
                 tooltip: 'Remove from watchlist',
                 box: ShellSizes.minTapTarget,
                 color: theme.muted,
@@ -1010,7 +1011,7 @@ class _SearchResults extends StatelessWidget {
         return const Center(child: LoadingIndicator());
       }
       return _Hint(
-        icon: FontAwesomeIcons.circleQuestion,
+        icon: ShellGlyph.help,
         title: error.isNotEmpty ? 'Search unavailable' : 'No matches',
         body: error.isNotEmpty
             ? error
@@ -1143,8 +1144,8 @@ class _ResultRow extends StatelessWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FaIcon(
-                      FontAwesomeIcons.check,
+                    ShellIcon(
+                      ShellGlyph.check,
                       size: 11,
                       color: theme.accentText,
                     ),
@@ -1159,8 +1160,8 @@ class _ResultRow extends StatelessWidget {
                   ],
                 )
               else
-                FaIcon(
-                  FontAwesomeIcons.plus,
+                ShellIcon(
+                  ShellGlyph.add,
                   size: 12,
                   color: hovered || selected ? theme.accentText : theme.muted,
                 ),
@@ -1183,7 +1184,7 @@ class _Hint extends StatelessWidget {
     this.onAction,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final String title;
   final String body;
   final ThemeConfig theme;
@@ -1202,7 +1203,7 @@ class _Hint extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(icon, size: 22, color: theme.muted),
+            ShellIcon(icon, size: 22, color: theme.muted),
             const SizedBox(height: 10),
             Text(
               title,
@@ -1285,8 +1286,8 @@ class _ErrorLine extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 4, 8, 4),
       child: Row(
         children: [
-          const FaIcon(
-            FontAwesomeIcons.triangleExclamation,
+          const ShellIcon(
+            ShellGlyph.warning,
             size: 11,
             color: kErrorColor,
           ),
@@ -1305,7 +1306,7 @@ class _ErrorLine extends StatelessWidget {
             ),
           ),
           SettingsIconButton(
-            icon: FontAwesomeIcons.rotateRight,
+            icon: ShellGlyph.rotateRight,
             tooltip: 'Try again',
             onTap: store.refresh,
           ),

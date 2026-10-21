@@ -3,8 +3,9 @@
 import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
@@ -292,17 +293,17 @@ class _BtUnpairedBadge extends StatelessWidget {
 // Device list item
 // ---------------------------------------------------------------------------
 
-FaIconData _deviceIcon(String? icon) {
+ShellGlyph _deviceIcon(String? icon) {
   switch (icon) {
     case 'audio-headset':
     case 'audio-headphones':
-      return FontAwesomeIcons.headphones;
+      return ShellGlyph.headphones;
     case 'input-keyboard':
-      return FontAwesomeIcons.keyboard;
+      return ShellGlyph.keyboard;
     case 'input-mouse':
-      return FontAwesomeIcons.computerMouse;
+      return ShellGlyph.mouse;
     default:
-      return FontAwesomeIcons.bluetooth;
+      return ShellGlyph.bluetooth;
   }
 }
 
@@ -372,7 +373,7 @@ class _BluetoothDeviceItemState extends State<_BluetoothDeviceItem> {
           children: [
             Row(
               children: [
-                FaIcon(
+                ShellIcon(
                   _deviceIcon(d.icon),
                   size: 14,
                   color: theme.popupForeground.withValues(alpha: 0.9),
@@ -611,8 +612,8 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(
-              FontAwesomeIcons.bluetooth,
+            ShellIcon(
+              ShellGlyph.bluetooth,
               size: 32,
               color: theme.popupForeground.withValues(alpha: 0.2),
             ),

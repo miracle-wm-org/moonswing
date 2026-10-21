@@ -21,13 +21,14 @@
 //   to tick — and the card is `pumpAndSettle`-able.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 // The accent pill every desktop card's empty state uses; it lives with the
 // stock strip because that is where the first one was.
@@ -227,8 +228,8 @@ class _NewsHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(_inset, 6, 4, 0),
       child: Row(
         children: [
-          FaIcon(
-            FontAwesomeIcons.solidNewspaper,
+          ShellIcon(
+            ShellGlyph.newspaper,
             size: 13,
             color: theme.accentText,
           ),
@@ -264,8 +265,8 @@ class _NewsHeader extends StatelessWidget {
               builder: (context, hovered) => SizedBox.square(
                 dimension: ShellSizes.minTapTarget,
                 child: Center(
-                  child: FaIcon(
-                    FontAwesomeIcons.arrowsRotate,
+                  child: ShellIcon(
+                    ShellGlyph.refresh,
                     size: 11,
                     color: hovered ? theme.popupForeground : theme.muted,
                   ),
@@ -366,8 +367,8 @@ class _NewsError extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(_inset, 2, _inset, 8),
         child: Row(
           children: [
-            const FaIcon(
-              FontAwesomeIcons.triangleExclamation,
+            const ShellIcon(
+              ShellGlyph.warning,
               size: 10,
               color: kErrorColor,
             ),
@@ -432,7 +433,7 @@ class _NewsHint extends StatelessWidget {
 }
 
 /// The "Add widget…" menu's icon for this type.
-const FaIconData newsDesktopWidgetIcon = FontAwesomeIcons.solidNewspaper;
+const ShellGlyph newsDesktopWidgetIcon = ShellGlyph.newspaper;
 
 /// The registry entry. Registered from `main()` beside the others.
 final DesktopWidgetSpec newsDesktopWidget = DesktopWidgetSpec(

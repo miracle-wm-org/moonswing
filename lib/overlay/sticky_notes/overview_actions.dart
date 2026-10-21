@@ -1,7 +1,8 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart' show SettingsTooltip;
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -16,7 +17,7 @@ class OverviewAction {
     this.enabled = true,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   /// What it does, shown on hover — an icon alone rarely says.
   final String label;
@@ -100,7 +101,7 @@ class _OverviewActionButton extends StatelessWidget {
               border: Border.all(color: hovered ? theme.accent : theme.divider),
             ),
             child: Center(
-              child: FaIcon(
+              child: ShellIcon(
                 action.icon,
                 size: 16,
                 color: !action.enabled

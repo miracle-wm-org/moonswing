@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
@@ -10,6 +11,8 @@ import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/timers/timer_sound.dart';
 import 'package:moonswing/timers/timer_store.dart';
 import 'package:moonswing/timers/timer_widgets.dart';
+
+import 'glyph_finder.dart';
 
 /// Every store here is hand-driven: [TimersStore.forTesting] starts no ticker,
 /// and a pending [Timer] fails the binding's end-of-test invariants.
@@ -36,10 +39,7 @@ Widget _host(Widget child, {Size size = const Size(560, 200)}) {
   );
 }
 
-/// [FaIcon.icon] answers the wrapped [IconData], not the [FaIconData] the
-/// constant is, so the comparison has to unwrap — the two never compare equal.
-Finder _icon(FaIconData icon) =>
-    find.byWidgetPredicate((w) => w is FaIcon && w.icon == icon.data);
+Finder _icon(ShellGlyph icon) => findGlyph(icon);
 
 /// The composer at the width the overview's card gives it.
 ///
@@ -156,20 +156,20 @@ void main() {
       await tester.pumpWidget(_popup(store));
 
       clock = clock.add(const Duration(seconds: 30));
-      await tester.tap(_icon(FontAwesomeIcons.pause));
+      await tester.tap(_icon(ShellGlyph.pause));
       await tester.pump();
       expect(find.text('Stopwatch · Paused'), findsOneWidget);
       expect(find.text('00:30'), findsOneWidget);
 
-      await tester.tap(_icon(FontAwesomeIcons.arrowRotateLeft));
+      await tester.tap(_icon(ShellGlyph.undo));
       await tester.pump();
       expect(find.text('00:00'), findsOneWidget);
 
-      await tester.tap(_icon(FontAwesomeIcons.play));
+      await tester.tap(_icon(ShellGlyph.play));
       await tester.pump();
       expect(store.entry(id)!.running, isTrue);
 
-      await tester.tap(_icon(FontAwesomeIcons.stop));
+      await tester.tap(_icon(ShellGlyph.stop));
       await tester.pump();
       expect(store.isEmpty, isTrue);
     });
@@ -189,7 +189,7 @@ void main() {
 
       clock = clock.add(const Duration(seconds: 30));
       final pause = find.ancestor(
-        of: _icon(FontAwesomeIcons.pause),
+        of: _icon(ShellGlyph.pause),
         matching: find.byType(SettingsIconButton),
       );
       expect(
@@ -203,7 +203,7 @@ void main() {
       await tester.tapAt(
         tester
                 .getRect(find.ancestor(
-                  of: _icon(FontAwesomeIcons.stop),
+                  of: _icon(ShellGlyph.stop),
                   matching: find.byType(SettingsIconButton),
                 ))
                 .bottomRight +
@@ -231,7 +231,7 @@ void main() {
       addTearDown(store.dispose);
       await tester.pumpWidget(bar(store));
 
-      expect(find.byType(FaIcon), findsNothing);
+      expect(find.byType(ShellIcon), findsNothing);
       expect(find.byType(Text), findsNothing);
     });
 
@@ -243,7 +243,7 @@ void main() {
       await tester.pumpWidget(bar(store));
 
       expect(find.text('1:23:45'), findsOneWidget);
-      expect(_icon(FontAwesomeIcons.hourglassHalf), findsOneWidget);
+      expect(_icon(ShellGlyph.hourglass), findsOneWidget);
 
       clock = clock.add(const Duration(seconds: 45));
       store.tick();
@@ -262,7 +262,7 @@ void main() {
 
       expect(find.text('2'), findsOneWidget);
       expect(find.text('05:00'), findsNothing);
-      expect(_icon(FontAwesomeIcons.stopwatch), findsOneWidget);
+      expect(_icon(ShellGlyph.stopwatch), findsOneWidget);
     });
 
     testWidgets('stopping the last entry takes the readout out of the bar', (
@@ -272,11 +272,11 @@ void main() {
       addTearDown(store.dispose);
       final id = store.startStopwatch();
       await tester.pumpWidget(bar(store));
-      expect(find.byType(FaIcon), findsOneWidget);
+      expect(find.byType(ShellIcon), findsOneWidget);
 
       store.stop(id);
       await tester.pump();
-      expect(find.byType(FaIcon), findsNothing);
+      expect(find.byType(ShellIcon), findsNothing);
     });
 
     testWidgets('the readout opens the popup', (tester) async {
@@ -304,11 +304,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text('05:00'), findsOneWidget);
-      expect(_icon(FontAwesomeIcons.pause), findsNWidgets(2));
-      expect(_icon(FontAwesomeIcons.stop), findsNWidgets(2));
+      expect(_icon(ShellGlyph.pause), findsNWidgets(2));
+      expect(_icon(ShellGlyph.stop), findsNWidgets(2));
       expect(find.text('Stop all'), findsOneWidget);
 
-      await tester.tap(_icon(FontAwesomeIcons.stop).first);
+      await tester.tap(_icon(ShellGlyph.stop).first);
       await tester.pump();
       expect(store.length, 1);
       expect(find.text('Stop all'), findsNothing);

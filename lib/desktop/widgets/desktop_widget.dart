@@ -8,10 +8,10 @@
 // widget is a rectangle of grid cells the user resizes.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_layout.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 
 /// What a widget's [DesktopWidgetSpec.builder] is handed.
 ///
@@ -70,7 +70,7 @@ class DesktopWidgetSpec {
   /// One line under the name in that menu.
   final String description;
 
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   /// The smallest and largest span the user may resize this widget to.
   final GridSpan minSpan;

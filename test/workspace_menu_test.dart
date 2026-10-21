@@ -1,12 +1,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/modules/workspace_menu.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:miracle/miracle.dart';
 
 import 'workspace_result.dart';
+import 'glyph_finder.dart';
 
 /// Pins the workspace button's right-click menu: the commands it builds, the
 /// outputs it offers, and the two things the card has to say out loud — which
@@ -165,17 +167,17 @@ void main() {
       // Exactly one row is marked, and it is the one the workspace is in — the
       // colour alone would not do, because a theme is free to make its accent
       // quiet.
-      expect(find.byIcon(FontAwesomeIcons.check.data), findsOneWidget);
+      expect(findGlyph(ShellGlyph.check), findsOneWidget);
       const theme = ThemeConfig();
       expect(
         tester
-            .widget<FaIcon>(find.byIcon(FontAwesomeIcons.solidClone.data))
+            .widget<ShellIcon>(findGlyph(ShellGlyph.duplicate))
             .color,
         theme.accentText,
       );
       expect(
         tester
-            .widget<FaIcon>(find.byIcon(FontAwesomeIcons.tableCells.data))
+            .widget<ShellIcon>(findGlyph(ShellGlyph.grid))
             .color,
         isNot(theme.accentText),
       );

@@ -1,8 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/system/kill_confirm.dart';
 import 'package:moonswing/scopes.dart';
@@ -386,10 +387,10 @@ class _SortHeaderState extends State<_SortHeader> {
             ),
             if (isActive) ...[
               const SizedBox(width: 4),
-              FaIcon(
+              ShellIcon(
                 widget.ascending
-                    ? FontAwesomeIcons.caretUp
-                    : FontAwesomeIcons.caretDown,
+                    ? ShellGlyph.caretUp
+                    : ShellGlyph.caretDown,
                 size: 12,
                 color: theme.accentText,
               ),
@@ -570,7 +571,7 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
       return Align(
         alignment: Alignment.centerRight,
         child: SettingsIconButton(
-          icon: FontAwesomeIcons.skull,
+          icon: ShellGlyph.skull,
           size: 13,
           onTap: widget.onKill,
         ),
@@ -586,7 +587,7 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
         child: Align(
           alignment: Alignment.centerRight,
           child: SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
+            icon: ShellGlyph.close,
             size: 13,
             onTap: widget.onKill,
           ),

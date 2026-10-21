@@ -1,10 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/osd/osd.dart';
 import 'package:moonswing/osd/osd_store.dart';
 import 'package:moonswing/scopes.dart';
+
+import 'glyph_finder.dart';
 
 /// Long enough that a test only reaches the fade-out by pumping there
 /// deliberately — [WidgetTester.pumpAndSettle] would otherwise run the hide
@@ -42,9 +44,7 @@ Future<void> withStore(Future<void> Function(OsdStore store) body) async {
   }
 }
 
-/// Font Awesome icons are [FaIconData], which `find.byIcon` cannot take; the
-/// [FaIcon] widget unwraps them to plain [IconData].
-Finder faIcon(FaIconData icon) => find.byIcon(icon.data);
+Finder faIcon(ShellGlyph icon) => findGlyph(icon);
 
 /// Width of the bar's filled portion, as a fraction of the track.
 double fillFactor(WidgetTester tester) => tester
@@ -61,7 +61,7 @@ void main() {
       store.show(OsdKind.volume, 0.75);
       await pumpOsd(tester, store);
 
-      expect(faIcon(FontAwesomeIcons.volumeHigh), findsOneWidget);
+      expect(faIcon(ShellGlyph.volumeHigh), findsOneWidget);
       expect(find.text('75%'), findsOneWidget);
       expect(fillFactor(tester), closeTo(0.75, 0.001));
       expect(opacity(tester), 1.0);
@@ -74,7 +74,7 @@ void main() {
       store.show(OsdKind.microphone, 0.6, muted: true);
       await pumpOsd(tester, store);
 
-      expect(faIcon(FontAwesomeIcons.microphoneSlash), findsOneWidget);
+      expect(faIcon(ShellGlyph.microphoneSlash), findsOneWidget);
       expect(fillFactor(tester), 0.0);
     });
   });
@@ -84,13 +84,13 @@ void main() {
     await withStore((store) async {
       store.show(OsdKind.volume, 0.3);
       await pumpOsd(tester, store);
-      expect(faIcon(FontAwesomeIcons.volumeLow), findsOneWidget);
+      expect(faIcon(ShellGlyph.volumeLow), findsOneWidget);
 
       store.show(OsdKind.brightness, 0.9);
       await tester.pump(animation);
 
-      expect(faIcon(FontAwesomeIcons.sun), findsOneWidget);
-      expect(faIcon(FontAwesomeIcons.volumeLow), findsNothing);
+      expect(faIcon(ShellGlyph.sun), findsOneWidget);
+      expect(faIcon(ShellGlyph.volumeLow), findsNothing);
       expect(find.text('90%'), findsOneWidget);
     });
   });
@@ -128,7 +128,7 @@ void main() {
 
       expect(store.current?.kind, OsdKind.brightness);
       expect(opacity(tester), 1.0);
-      expect(faIcon(FontAwesomeIcons.sun), findsOneWidget);
+      expect(faIcon(ShellGlyph.sun), findsOneWidget);
     });
   });
 }
