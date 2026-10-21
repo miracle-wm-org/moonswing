@@ -132,12 +132,14 @@ void main() {
     expect(find.text('Colour'), findsNothing, reason: 'a choice closes it');
 
     await rightClick(tester, noteRect(tester).center);
-    await tester.tap(find.text('Size'));
+    await tester.tap(find.text('Text size'));
     await tester.pump();
     await tester.tap(find.text('Large'));
     await tester.pump();
     expect(store.note(id)!.placement.size, StickySize.large);
-    expect(noteRect(tester).size, const Size(300, 300));
+    expect(noteRect(tester).size, const Size(220, 220));
+    final writing = tester.widget<EditableText>(find.byType(EditableText));
+    expect(writing.style.fontSize, stickyFontSize(StickySize.large));
 
     // Escape's half: the overview asks before closing.
     await rightClick(tester, noteRect(tester).center);
