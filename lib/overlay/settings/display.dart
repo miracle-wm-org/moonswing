@@ -1100,12 +1100,7 @@ class _DisplayCard extends StatelessWidget {
   final ValueChanged<_DisplayEdit> onEditChanged;
 
   static const _scales = [1.0, 1.25, 1.5, 1.75, 2.0];
-  static const _transforms = [
-    (0, 'Normal'),
-    (1, '90°'),
-    (2, '180°'),
-    (3, '270°'),
-  ];
+  static const _transforms = {0: 'Normal', 1: '90°', 2: '180°', 3: '270°'};
 
   @override
   Widget build(BuildContext context) {
@@ -1166,6 +1161,14 @@ class _DisplayCard extends StatelessWidget {
   }
 
   Widget _buildCardBody(ThemeConfig theme) {
+    // A scale none of the presets is (set by another tool, or fractional
+    // scaling's own arithmetic) is offered beside them rather than shown as no
+    // value at all.
+    final preset = _scales.where((s) => (edit.scale - s).abs() < 0.01);
+    final scale = preset.isEmpty ? edit.scale : preset.first;
+    final scales = preset.isEmpty
+        ? ([..._scales, edit.scale]..sort())
+        : _scales;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
@@ -1190,32 +1193,21 @@ class _DisplayCard extends StatelessWidget {
           const SizedBox(height: 14),
           _buildLabel('Scale', theme),
           const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _scales.map((s) {
-              final sel = (edit.scale - s).abs() < 0.01;
-              return SettingsOptionButton(
-                label: '$s×',
-                selected: sel,
-                onTap: () => onEditChanged(edit.copyWith(scale: s)),
-              );
-            }).toList(),
+          SettingsChoice<double>(
+            options: scales,
+            value: scale,
+            labelOf: (s) => '${(s * 100).round() / 100}×',
+            onChanged: (s) => onEditChanged(edit.copyWith(scale: s)),
           ),
           const SizedBox(height: 14),
           _buildLabel('Rotation', theme),
           const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: _transforms.map((t) {
-              final sel = edit.transform == t.$1;
-              return SettingsOptionButton(
-                label: t.$2,
-                selected: sel,
-                onTap: () => onEditChanged(edit.copyWith(transform: t.$1)),
-              );
-            }).toList(),
+          SettingsChoice<int>(
+            options: _transforms.keys.toList(),
+            value: edit.transform,
+            labelOf: (transform) => _transforms[transform]!,
+            onChanged: (transform) =>
+                onEditChanged(edit.copyWith(transform: transform)),
           ),
         ],
       ),

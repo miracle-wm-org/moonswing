@@ -1207,6 +1207,63 @@ class SettingsToggle extends StatelessWidget {
   }
 }
 
+/// One value out of a fixed few, as a [SettingsDropdown]: the settings form's
+/// single choice.
+///
+/// A settings row used to draw its choices as a row of [SettingsSegmented]
+/// pills, which read badly as soon as there were more than two — four words
+/// side by side in the secondary size, the lit one told apart only by its fill,
+/// and a wrap onto a second line on a narrow pane. A trigger showing the one
+/// value in use reads as a value, and its list names the rest only when asked.
+///
+/// [labelOf] defaults to the option's own spelling with its first letter
+/// capitalised, which is what [SettingsSegmented] did, so a list of config
+/// words (`'top'`, `'fill'`) needs nothing more. [descriptionOf] gives each row
+/// a sentence under its label — see [SettingsDropdownItem.description].
+class SettingsChoice<T> extends StatelessWidget {
+  const SettingsChoice({
+    super.key,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+    this.labelOf,
+    this.descriptionOf,
+  });
+
+  final List<T> options;
+  final T? value;
+  final ValueChanged<T> onChanged;
+  final String Function(T option)? labelOf;
+  final String? Function(T option)? descriptionOf;
+
+  static String _capitalised(Object? option) {
+    final text = '$option';
+    if (text.isEmpty) return text;
+    return '${text[0].toUpperCase()}${text.substring(1)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = labelOf ?? _capitalised;
+    return SettingsDropdown<T>(
+      items: [
+        for (final option in options)
+          SettingsDropdownItem(
+            value: option,
+            label: label(option),
+            description: descriptionOf?.call(option),
+          ),
+      ],
+      selected: value,
+      onSelected: onChanged,
+    );
+  }
+}
+
+/// A row of pills, one lit: the *toolbar* form of a single choice — the file
+/// picker's type filter, the calendar's Month/Week/Day — where every option is
+/// one click away and the strip sits in a header rather than a form. A settings
+/// row uses [SettingsChoice].
 class SettingsSegmented extends StatelessWidget {
   const SettingsSegmented({
     super.key,

@@ -138,7 +138,7 @@ class _LockSectionState extends State<LockSection> {
             store: store,
             path: const ['lock', 'fit'],
             fallback: 'fill',
-            builder: (context, value) => SettingsSegmented(
+            builder: (context, value) => SettingsChoice<String>(
               options: const ['fill', 'contain', 'natural'],
               value: value!,
               onChanged: (v) => store.set(['lock', 'fit'], v),

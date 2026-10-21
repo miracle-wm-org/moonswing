@@ -60,7 +60,7 @@ class CalendarSection extends StatelessWidget {
                 store: store,
                 path: const ['calendar', 'week_start'],
                 fallback: 'sunday',
-                builder: (context, value) => SettingsSegmented(
+                builder: (context, value) => SettingsChoice<String>(
                   options: const ['sunday', 'monday'],
                   value: value!,
                   onChanged: (v) => store.set(['calendar', 'week_start'], v),
