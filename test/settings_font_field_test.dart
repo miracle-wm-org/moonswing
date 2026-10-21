@@ -67,8 +67,9 @@ Future<void> openList(WidgetTester tester, {String on = 'Ubuntu Sans'}) async {
 bool _listOpen() => find.text('JetBrains Mono').evaluate().isNotEmpty;
 
 void main() {
-  testWidgets('shows the current family and no list until tapped',
-      (tester) async {
+  testWidgets('shows the current family and no list until tapped', (
+    tester,
+  ) async {
     await pumpField(tester, value: 'Ubuntu Sans', onChanged: (_) {});
 
     expect(find.text('Ubuntu Sans'), findsOneWidget);
@@ -91,8 +92,9 @@ void main() {
     expect(find.text('Cantarell'), findsNothing);
   });
 
-  testWidgets('a non-matching filter says so rather than showing nothing',
-      (tester) async {
+  testWidgets('a non-matching filter says so rather than showing nothing', (
+    tester,
+  ) async {
     await pumpField(tester, value: 'Ubuntu Sans', onChanged: (_) {});
     await openList(tester);
 
@@ -104,11 +106,7 @@ void main() {
 
   testWidgets('picking a row reports it and closes the list', (tester) async {
     final picked = <String>[];
-    await pumpField(
-      tester,
-      value: 'Ubuntu Sans',
-      onChanged: picked.add,
-    );
+    await pumpField(tester, value: 'Ubuntu Sans', onChanged: picked.add);
     await openList(tester);
 
     await tester.tap(find.text('JetBrains Mono'));
@@ -118,24 +116,28 @@ void main() {
     expect(_listOpen(), isFalse);
   });
 
-  testWidgets('tapping the backdrop dismisses without a change',
-      (tester) async {
+  testWidgets('tapping the backdrop dismisses without a change', (
+    tester,
+  ) async {
     final picked = <String>[];
     await pumpField(tester, value: 'Ubuntu Sans', onChanged: picked.add);
     await openList(tester);
 
     // Bottom-right corner: the full-screen dismiss layer, clear of the popup.
-    await tester.tapAt(tester.getSize(find.byType(Overlay).first).bottomRight(
-          const Offset(-5, -5),
-        ));
+    await tester.tapAt(
+      tester
+          .getSize(find.byType(Overlay).first)
+          .bottomRight(const Offset(-5, -5)),
+    );
     await tester.pump();
 
     expect(_listOpen(), isFalse);
     expect(picked, isEmpty);
   });
 
-  testWidgets('locked routes the tap to onLockedTap and opens nothing',
-      (tester) async {
+  testWidgets('locked routes the tap to onLockedTap and opens nothing', (
+    tester,
+  ) async {
     var duplicated = 0;
     final picked = <String>[];
     await pumpField(
@@ -155,8 +157,11 @@ void main() {
   });
 
   testWidgets('a theme switch closes an open list', (tester) async {
-    final selected =
-        await pumpField(tester, value: 'Ubuntu Sans', onChanged: (_) {});
+    final selected = await pumpField(
+      tester,
+      value: 'Ubuntu Sans',
+      onChanged: (_) {},
+    );
     await openList(tester);
     expect(_listOpen(), isTrue);
 
@@ -176,5 +181,27 @@ void main() {
 
     final row = tester.widget<Text>(find.text('JetBrains Mono'));
     expect(row.style?.fontFamily, 'JetBrains Mono');
+  });
+
+  testWidgets('a family not yet laid out draws in the theme font first', (
+    tester,
+  ) async {
+    // Named for this test alone: which faces are warm is process-wide.
+    const unseen = 'Never Drawn Sans';
+    await pumpField(
+      tester,
+      value: 'Cantarell',
+      onChanged: (_) {},
+      fonts: const ['Cantarell', unseen],
+    );
+    await tester.tap(find.text('Cantarell'));
+    await tester.pump();
+
+    // The frame that brings the row in does not pay for its face...
+    expect(tester.widget<Text>(find.text(unseen)).style?.fontFamily, isNull);
+
+    // ...the gap after it does, and the next frame draws it.
+    await tester.pump();
+    expect(tester.widget<Text>(find.text(unseen)).style?.fontFamily, unseen);
   });
 }
