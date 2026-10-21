@@ -153,7 +153,7 @@ timer_volume = 0.7
 
 Clicking the date and time opens the **overview**: one panel with a tab each for
 the **Calendar**, the system **Monitor**, **System Info**, **Settings**, the
-**Todo** board and the keyboard **Shortcuts**. The todo button and the keyboard
+**Kanban** board and the keyboard **Shortcuts**. The todo button and the keyboard
 icon open the same panel on their own tab rather than a screen of their own, so
 it is the one place all of them live. The panel opens on the screen whose bar
 was clicked.
@@ -758,7 +758,7 @@ a retry; the icon in the bar dims.
 
 ### Todo
 
-The checklist icon opens the overview on its **Todo** tab, on the screen whose
+The checklist icon opens the overview on its **Kanban** tab, on the screen whose
 bar you clicked (see The overview, under Clock). It is a
 board of five columns — **Inbox**, **Todo**, **In Progress**, **Finished**
 and **Abandoned** — and a card is moved between them by dragging it. The **+**

@@ -168,7 +168,7 @@ void main() {
       _item('a', TodoColumn.inbox),
       _item('b', TodoColumn.inProgress, due: DateTime(2026, 9, 24)),
     ]);
-    // No heading of its own: the overview's tab says "Todo".
+    // No heading of its own: the overview's tab says "Kanban".
     for (final column in TodoColumn.values) {
       expect(find.text(column.label), findsOneWidget);
     }
