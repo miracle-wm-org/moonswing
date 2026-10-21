@@ -10,7 +10,6 @@ import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/theme/tokens.dart';
-import 'package:moonswing/underline_tabs.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/overlay/calendar/calendar_tab.dart';
 import 'package:moonswing/overlay/settings/accounts.dart';
@@ -34,6 +33,7 @@ import 'package:moonswing/overlay/system/system_tab.dart';
 import 'package:moonswing/overlay/system_info/system_info_tab.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/segmented_tabs.dart';
 import 'package:moonswing/tab_focus_traversal.dart';
 import 'package:moonswing/todo/todo_board.dart';
 
@@ -102,11 +102,19 @@ class _OverlayTab {
   final FaIconData icon;
 }
 
+/// The header's close button, and the slot that balances it.
+const double _kCloseButtonSize = 32;
+
 const List<_OverlayTab> _tabs = [
   _OverlayTab(
     id: OverviewTab.calendar,
     label: 'Calendar',
     icon: FontAwesomeIcons.calendarDays,
+  ),
+  _OverlayTab(
+    id: OverviewTab.settings,
+    label: 'Settings',
+    icon: FontAwesomeIcons.gear,
   ),
   _OverlayTab(
     id: OverviewTab.system,
@@ -117,11 +125,6 @@ const List<_OverlayTab> _tabs = [
     id: OverviewTab.systemInfo,
     label: 'System Info',
     icon: FontAwesomeIcons.circleInfo,
-  ),
-  _OverlayTab(
-    id: OverviewTab.settings,
-    label: 'Settings',
-    icon: FontAwesomeIcons.gear,
   ),
   // The board and the cheat sheet used to be full-screen windows of their
   // own, opened by their bar buttons. They are tabs so that the overview is
@@ -532,54 +535,51 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   /// The tab strip and the close button.
+  ///
+  /// The strip is centred on the panel rather than on what is left beside the
+  /// close button, so a slot of the button's width balances it on the left; and
+  /// it scales down rather than overflow when a large `font_size` makes it wider
+  /// than the narrowest panel.
   Widget _buildHeader(ThemeConfig theme) {
     return Container(
-      padding: const EdgeInsets.only(
-        left: 16,
-        right: 12,
-        top: 8,
-        bottom: 0,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: theme.divider)),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          const SizedBox(width: _kCloseButtonSize),
           Expanded(
-            child: Row(
-              children: [
-                for (final tab in _tabs)
-                  UnderlineTab(
-                    label: tab.label,
-                    icon: tab.icon,
-                    selected: _selectedTab == tab.id,
-                    onTap: () => _selectTab(tab.id),
-                  ),
-              ],
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: SegmentedTabBar(
+                  tabs: [
+                    for (final tab in _tabs)
+                      SegmentedTab(label: tab.label, icon: tab.icon),
+                  ],
+                  selected: _tabs.indexWhere((t) => t.id == _selectedTab),
+                  onSelected: (i) => _selectTab(_tabs[i].id),
+                ),
+              ),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: HoverRegion(
-              onTap: _requestClose,
-              builder: (context, hovered) => Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(ShellRadii.control),
-                  color: hovered
-                      ? theme.surfaceHover
-                      : const Color(0x00000000),
-                ),
-                child: Center(
-                  child: Text(
-                    '✕',
-                    style: TextStyle(
-                      fontSize: ShellFontSizes.title,
-                      color: theme.popupForeground.withValues(
-                        alpha: hovered ? 0.9 : 0.6,
-                      ),
+          HoverRegion(
+            onTap: _requestClose,
+            builder: (context, hovered) => Container(
+              width: _kCloseButtonSize,
+              height: _kCloseButtonSize,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(ShellRadii.control),
+                color: hovered ? theme.surfaceHover : const Color(0x00000000),
+              ),
+              child: Center(
+                child: Text(
+                  '✕',
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.title,
+                    color: theme.popupForeground.withValues(
+                      alpha: hovered ? 0.9 : 0.6,
                     ),
                   ),
                 ),
