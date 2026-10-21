@@ -661,6 +661,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// creation: the content slides in from the edge the window is on, and a
   /// settings edit while it is open must not tell it otherwise.
   DockSide _clipboardSide = DockSide.left;
+
+  /// Its flyout, captured alongside [_clipboardSide] and for its reason.
+  DockedPanelAnimation _clipboardAnimation = const DockedPanelAnimation();
   final _OverlayWindow _screencastPicker = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -713,6 +716,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// The edge the open notification panel was docked against, captured at
   /// window creation for [_clipboardSide]'s reason.
   DockSide _notificationSide = kDefaultNotificationPanelSide;
+
+  /// Its flyout, captured alongside [_notificationSide].
+  DockedPanelAnimation _notificationAnimation = const DockedPanelAnimation();
 
   /// The page the open (or about-to-open) settings overlay was asked for. Null
   /// is the default landing page.
@@ -1106,6 +1112,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   ) {
     final controller = NotificationPanelController.instance;
     _notificationSide = controller.side;
+    _notificationAnimation = controller.animation;
     return _createDockedWindow(
       monitor,
       side: controller.side,
@@ -1785,6 +1792,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   ) {
     final config = ClipboardHistoryStore.instance.config;
     _clipboardSide = config.side;
+    _clipboardAnimation = config.animation;
     return _createDockedWindow(
       monitor,
       side: config.side,
@@ -2634,6 +2642,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
           builder: (_) => _windowChrome(
             NotificationPanel(
               side: _notificationSide,
+              animation: _notificationAnimation,
               closingNotifier: _notifications.closing,
               onClosed: _onNotificationPanelClosed,
             ),
@@ -2763,6 +2772,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
           builder: (_) => _windowChrome(
             ClipboardPanel(
               side: _clipboardSide,
+              animation: _clipboardAnimation,
               closingNotifier: _clipboard.closing,
               onClosed: _onClipboardClosed,
             ),

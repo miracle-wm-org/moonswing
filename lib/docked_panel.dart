@@ -17,17 +17,25 @@
 //   panels docked against the same edge sit side by side rather than on top of
 //   each other, since each is placed clear of the zones already reserved.
 //
-// This file is the part of that both panels draw: the slide in and out of the
-// docked edge, the opaque fill with its one inner rule, and the header.
+// This file is the part of that both panels draw: the flyout in and out of the
+// docked edge (configurable per panel — [DockedPanelAnimation]), the opaque
+// fill with its one inner rule, and the header.
+
+import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay_transition.dart'
+    show ClampedCurve, flutterCurve;
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// Which edge of the output a docked panel is against.
@@ -55,32 +63,203 @@ const int kDockedPanelMinWidth = 240;
 /// The widest: a typo must not hand the whole output to a panel.
 const int kDockedPanelMaxWidth = 1200;
 
-/// How long a docked panel takes to arrive.
-const Duration kDockedPanelEnter = ShellDurations.slow;
+/// How a docked panel arrives — and, reversed, how it leaves.
+///
+/// The flyout used to be one decision: a slide out of the docked edge on an
+/// `easeOutCubic`, 180ms in and 150 out. This names that decision and hands
+/// it to `[modules.notifications]` and `[modules.clipboard]`, each its own, the
+/// way `overlay_animation` did for the full-screen overlays.
+///
+/// Every effect is anchored on the docked edge, and that is the one rule this
+/// table keeps however it is configured: anything moving the panel *inwards*
+/// past its resting place — an overshoot on a slide, a scale about the
+/// centre — opens a strip between the panel and the screen edge, through which
+/// the wallpaper shows down the full height of the output.
+enum DockedPanelEffect {
+  /// Nothing: the panel is simply there, and simply gone. No controller and no
+  /// ticker, as `OverlayEffect.none` is.
+  none('none', 'None', 'The panel appears and disappears with no animation.'),
 
-/// How long it takes to leave: an exit is the user being done, and does not
-/// need the entrance's pace.
-const Duration kDockedPanelExit = ShellDurations.base;
+  /// Out of the docked edge and back into it. The default, and what both
+  /// panels did before the key existed.
+  slide('slide', 'Slide',
+      'The panel slides out of the edge of the screen it is docked against. '
+          'The default.'),
 
-/// The panel's frame: it slides out of [side] on creation and back into it once
-/// [closingNotifier] flips, then calls [onClosed] — which may tear the window
-/// down, so it is called exactly once.
+  /// Opacity alone, in place.
+  fade('fade', 'Fade', 'The panel fades in where it stands, and back out.'),
+
+  /// A wipe from the docked edge: the panel stays put and is uncovered, a
+  /// strip at a time, from the screen edge inwards.
+  reveal('reveal', 'Reveal',
+      'The panel stays where it is and is uncovered from the screen edge '
+          'inwards.'),
+
+  /// A horizontal scale about the docked edge: the panel unrolls out of it.
+  stretch('stretch', 'Stretch',
+      'The panel grows out of the screen edge, squeezed at first and '
+          'stretching to its full width.');
+
+  const DockedPanelEffect(this.slug, this.label, this.description);
+
+  /// How `animation` spells this effect in `config.toml`.
+  final String slug;
+
+  /// The settings UI's name for it.
+  final String label;
+
+  /// One sentence for the settings UI's dropdown.
+  final String description;
+
+  /// Whether this effect moves anything — as opposed to [fade] and [none],
+  /// which `animation_travel` and `animation_fade` say nothing about.
+  bool get moves => this == slide || this == reveal || this == stretch;
+
+  /// The effect [slug] names, or null if this build has no such effect — the
+  /// caller holds the fallback, so a typo costs the key.
+  static DockedPanelEffect? fromSlug(String? slug) {
+    final wanted = slug?.trim().toLowerCase();
+    for (final effect in DockedPanelEffect.values) {
+      if (effect.slug == wanted) return effect;
+    }
+    return null;
+  }
+}
+
+/// How long a docked panel takes to arrive, in milliseconds, when its module
+/// names no `animation_duration`.
+const int kDockedPanelEnterMs = 180;
+
+/// The longest `animation_duration` may be: a panel taking longer than this to
+/// arrive is in the way of the thing it was opened for.
+const int kDockedPanelMaxDurationMs = 2000;
+
+/// What fraction of the entrance the exit takes when no `animation_exit_ratio`
+/// is given. An exit is the user being done, and does not need the entrance's
+/// pace — four fifths, a popup's proportion.
+const double kDockedPanelExitRatio = 0.8;
+
+/// The `animation*` keys of a docked panel's `[modules.*]` table, typed.
+///
+/// Read when the panel's window is created and snapshotted by [DockedPanel]
+/// as it mounts, as `side` and `width` are: an edit applies to the next panel,
+/// never to one halfway through arriving.
+@immutable
+class DockedPanelAnimation {
+  const DockedPanelAnimation({
+    this.effect = DockedPanelEffect.slide,
+    this.curve = OverlayCurve.easeOut,
+    this.durationMs = kDockedPanelEnterMs,
+    this.exitRatio = kDockedPanelExitRatio,
+    this.travel = 1.0,
+    this.fade = false,
+  });
+
+  /// `animation`: what moves.
+  final DockedPanelEffect effect;
+
+  /// `animation_curve`: how it is paced — the overlays' table, so the same
+  /// word means the same easing on either. The exit plays it backwards.
+  final OverlayCurve curve;
+
+  /// `animation_duration`: the entrance, in milliseconds. Zero is [none].
+  final int durationMs;
+
+  /// `animation_exit_ratio`: the exit as a proportion of the entrance — a
+  /// ratio, never a second duration, so the two cannot drift apart.
+  final double exitRatio;
+
+  /// `animation_travel`: how much of the panel's width the movement covers,
+  /// from 0.05 to 1. 1 is all the way off the screen (or, for [reveal] and
+  /// [stretch], from nothing); less starts the panel part of the way in, and
+  /// reads best with [fade] on, since it otherwise appears with a jump.
+  final double travel;
+
+  /// `animation_fade`: whether a moving effect fades as well.
+  final bool fade;
+
+  /// Whether anything is drawn between shut and open. When not, the panel
+  /// builds no controller and is gone on the turn it is closed.
+  bool get animates => effect != DockedPanelEffect.none && durationMs > 0;
+
+  Duration get enter => Duration(milliseconds: durationMs);
+
+  Duration get exit => Duration(milliseconds: (durationMs * exitRatio).round());
+
+  /// Reads the `animation*` keys out of a module's table. Every one degrades
+  /// on its own: an unknown effect or curve costs that key, an out-of-range
+  /// number is clamped.
+  factory DockedPanelAnimation.fromMap(Map<String, dynamic>? map) {
+    const defaults = DockedPanelAnimation();
+    if (map == null) return defaults;
+    return DockedPanelAnimation(
+      effect: DockedPanelEffect.fromSlug(map.stringOrNull('animation')) ??
+          defaults.effect,
+      curve: OverlayCurve.fromSlug(
+            map.stringOrNull('animation_curve')?.trim().toLowerCase(),
+          ) ??
+          defaults.curve,
+      durationMs: map.intOr(
+        'animation_duration',
+        defaults.durationMs,
+        min: 0,
+        max: kDockedPanelMaxDurationMs,
+      ),
+      exitRatio: map.doubleOr(
+        'animation_exit_ratio',
+        defaults.exitRatio,
+        min: 0.0,
+        max: 2.0,
+      ),
+      travel: map.doubleOr(
+        'animation_travel',
+        defaults.travel,
+        min: 0.05,
+        max: 1.0,
+      ),
+      fade: map.boolOr('animation_fade', defaults.fade),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DockedPanelAnimation &&
+          other.effect == effect &&
+          other.curve == curve &&
+          other.durationMs == durationMs &&
+          other.exitRatio == exitRatio &&
+          other.travel == travel &&
+          other.fade == fade;
+
+  @override
+  int get hashCode =>
+      Object.hash(effect, curve, durationMs, exitRatio, travel, fade);
+}
+
+/// The panel's frame: it arrives out of [side] on creation and goes back
+/// into it once [closingNotifier] flips, then calls [onClosed] — which may
+/// tear the window down, so it is called exactly once.
 class DockedPanel extends StatefulWidget {
   const DockedPanel({
     super.key,
     required this.side,
     required this.closingNotifier,
     required this.onClosed,
+    this.animation = const DockedPanelAnimation(),
     required this.child,
   });
 
-  /// The edge the window is docked against, which the panel slides in from.
+  /// The edge the window is docked against, which the panel arrives from.
   final DockSide side;
 
   /// Flipped by whoever wants the panel gone. Starts the exit; [onClosed]
   /// tears the window down after it.
   final ValueNotifier<bool> closingNotifier;
   final VoidCallback onClosed;
+
+  /// How it arrives and leaves. Read once, as the panel mounts.
+  final DockedPanelAnimation animation;
 
   final Widget child;
 
@@ -90,8 +269,19 @@ class DockedPanel extends StatefulWidget {
 
 class _DockedPanelState extends State<DockedPanel>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<Offset> _slide;
+  /// Snapshotted, so a settings edit while the panel is up cannot change the
+  /// exit it is about to play from under it.
+  late final DockedPanelAnimation _animation = widget.animation;
+
+  /// Null under [DockedPanelEffect.none], which builds nothing that ticks.
+  AnimationController? _controller;
+
+  /// The configured curve, unclamped: what the movement reads. Each effect
+  /// clamps it where an overshoot would open a strip at the screen edge.
+  Animation<double>? _geometry;
+
+  /// The same progress held in `0..1`, for the fade.
+  Animation<double>? _opacity;
 
   /// Set by the dismissal that started the exit. A second one mid-exit must not
   /// queue a second `onClosed`, which would tear the window down twice.
@@ -100,39 +290,103 @@ class _DockedPanelState extends State<DockedPanel>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: kDockedPanelEnter,
-      reverseDuration: kDockedPanelExit,
-    );
-    // Out of, and back into, the edge the panel is docked against: anything
-    // moving the other way — an overshoot, a centre-pivoted scale — would open
-    // a strip between the panel and the screen edge.
-    final away = widget.side == DockSide.left ? -1.0 : 1.0;
-    _slide = Tween<Offset>(begin: Offset(away, 0), end: Offset.zero).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutCubic,
-        reverseCurve: Curves.easeInCubic,
-      ),
-    );
-    _controller.forward();
+    if (_animation.animates) {
+      final controller = _controller = AnimationController(
+        vsync: this,
+        duration: _animation.enter,
+        reverseDuration: _animation.exit,
+      );
+      final curve = flutterCurve(_animation.curve);
+      // Read backwards on the way out, so the default ease-out entrance leaves
+      // on the ease-in it always has.
+      _geometry = CurvedAnimation(
+        parent: controller,
+        curve: curve,
+        reverseCurve: curve.flipped,
+      );
+      final clamped = ClampedCurve(curve);
+      _opacity = CurvedAnimation(
+        parent: controller,
+        curve: clamped,
+        reverseCurve: clamped.flipped,
+      );
+      controller.forward();
+    }
     widget.closingNotifier.addListener(_onClosingRequested);
   }
 
   @override
   void dispose() {
     widget.closingNotifier.removeListener(_onClosingRequested);
-    _controller.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
   void _onClosingRequested() {
     if (!widget.closingNotifier.value || _leaving) return;
     _leaving = true;
+    final controller = _controller;
+    if (controller == null) {
+      // Nothing to play, but not from inside the notifier's own dispatch:
+      // `onClosed` takes the window off the root, and whoever flipped the flag
+      // is still part-way through the call that did it.
+      scheduleMicrotask(() {
+        if (mounted) widget.onClosed();
+      });
+      return;
+    }
     // Reversing rather than starting over: a close that lands mid-entrance
     // turns the panel around from wherever it had got to.
-    _controller.reverse().then((_) => widget.onClosed());
+    controller.reverse().then((_) => widget.onClosed());
+  }
+
+  /// [child] as the configured effect has it, at the controller's progress.
+  Widget _animated(Widget child) {
+    final geometry = _geometry;
+    final opacity = _opacity;
+    if (geometry == null || opacity == null) return child;
+    final travel = _animation.travel;
+    final left = widget.side == DockSide.left;
+    var moved = switch (_animation.effect) {
+      DockedPanelEffect.none || DockedPanelEffect.fade => child,
+      // Held at the edge past 1: an overshoot carried on would move the panel
+      // inwards and open a strip at the screen edge. Below 0 — the flipped
+      // overshoot on the way out — it only goes further off-screen.
+      DockedPanelEffect.slide => SlideTransition(
+          position: geometry.drive(
+            _DockSlide(away: left ? -travel : travel),
+          ),
+          child: child,
+        ),
+      DockedPanelEffect.reveal => ClipRect(
+          clipper: _RevealClipper(geometry, left: left, travel: travel),
+          child: child,
+        ),
+      // Free to overshoot past full width — the far edge is clipped by the
+      // window — but never below zero, which would mirror it.
+      DockedPanelEffect.stretch => AnimatedBuilder(
+          animation: geometry,
+          builder: (context, child) {
+            final t = geometry.value;
+            final scale = math.max(0.0, 1 - travel + travel * t);
+            return Transform(
+              alignment:
+                  left ? Alignment.centerLeft : Alignment.centerRight,
+              transform: Matrix4.diagonal3Values(scale, 1, 1),
+              child: child,
+            );
+          },
+          child: child,
+        ),
+    };
+    if (_animation.effect == DockedPanelEffect.fade ||
+        (_animation.fade && _animation.effect.moves)) {
+      // Bounded by the panel, never the output: the window is the panel's own
+      // width, so this layer is that column for the length of the animation
+      // and nothing at rest, where `RenderAnimatedOpacity` skips it at 1.
+      moved = FadeTransition(opacity: opacity, child: moved);
+    }
+    return moved;
   }
 
   @override
@@ -156,13 +410,12 @@ class _DockedPanelState extends State<DockedPanel>
             color: theme.popupForeground,
           ),
           child: ClipRect(
-            child: SlideTransition(
-              position: _slide,
+            child: _animated(
               // Deliberately not a PopupCard: a full-height surface against
               // the screen edge, where rounding would cut wallpaper wedges out
               // of the display's corners and a rim would draw a line down the
               // screen edge.
-              child: Container(
+              Container(
                 // Opaque whatever the theme says: this is read over whatever
                 // window would otherwise show through, and the reserved zone
                 // means there is never anything under it worth seeing. Only
@@ -181,6 +434,44 @@ class _DockedPanelState extends State<DockedPanel>
       ),
     );
   }
+}
+
+/// A slide's offset at progress `t`: [away] widths out at 0, docked at 1, and
+/// held docked past it.
+class _DockSlide extends Animatable<Offset> {
+  const _DockSlide({required this.away});
+
+  /// Signed: negative out of the left edge, positive out of the right.
+  final double away;
+
+  @override
+  Offset transform(double t) => Offset(away * (1 - math.min(t, 1.0)), 0);
+}
+
+/// The visible part of a revealing panel: a strip against the docked edge,
+/// [travel] of the width short of the whole at 0 and the whole of it from 1.
+class _RevealClipper extends CustomClipper<Rect> {
+  _RevealClipper(this.progress, {required this.left, required this.travel})
+      : super(reclip: progress);
+
+  final Animation<double> progress;
+  final bool left;
+  final double travel;
+
+  @override
+  Rect getClip(Size size) {
+    final t = progress.value.clamp(0.0, 1.0);
+    final width = size.width * (1 - travel + travel * t);
+    return left
+        ? Rect.fromLTWH(0, 0, width, size.height)
+        : Rect.fromLTWH(size.width - width, 0, width, size.height);
+  }
+
+  @override
+  bool shouldReclip(_RevealClipper oldClipper) =>
+      oldClipper.progress != progress ||
+      oldClipper.left != left ||
+      oldClipper.travel != travel;
 }
 
 /// The title, a line saying what is in the panel, whatever acts on the whole

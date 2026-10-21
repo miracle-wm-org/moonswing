@@ -31,6 +31,10 @@ Widget _panel({
   );
 }
 
+/// The default flyout's two timings, which these tests are written against.
+final Duration _enter = const DockedPanelAnimation().enter;
+final Duration _exit = const DockedPanelAnimation().exit;
+
 void main() {
   final store = NotificationStore.instance;
 
@@ -97,7 +101,7 @@ void main() {
 
       closing.value = true;
       await tester.pump();
-      await tester.pump(kDockedPanelExit ~/ 2);
+      await tester.pump(_exit ~/ 2);
       // Asked again while the panel is already on its way out: even a fresh
       // flip must not queue a second teardown.
       closing.value = false;
@@ -120,12 +124,12 @@ void main() {
       closing.value = true;
       await tester.pump();
       // One frame short of the exit's own duration, it is still going.
-      await tester.pump(kDockedPanelExit - const Duration(milliseconds: 16));
+      await tester.pump(_exit - const Duration(milliseconds: 16));
       expect(closed, 0);
 
       await tester.pumpAndSettle();
       expect(closed, 1);
-      expect(kDockedPanelExit, lessThan(kDockedPanelEnter));
+      expect(_exit, lessThan(_enter));
     });
   });
 
@@ -162,7 +166,7 @@ void main() {
         closing.value = true;
         await tester.pump();
         for (var elapsed = Duration.zero;
-            elapsed < kDockedPanelExit + const Duration(milliseconds: 32);
+            elapsed < _exit + const Duration(milliseconds: 32);
             elapsed += const Duration(milliseconds: 8)) {
           expect(
             outer(tester.getRect(panel)),
@@ -186,7 +190,7 @@ void main() {
 
         final seen = <Duration, double>{};
         for (var elapsed = Duration.zero;
-            elapsed < kDockedPanelEnter + const Duration(milliseconds: 32);
+            elapsed < _enter + const Duration(milliseconds: 32);
             elapsed += const Duration(milliseconds: 8)) {
           seen[elapsed] = outer(tester.getRect(panel));
           await tester.pump(const Duration(milliseconds: 8));

@@ -34,14 +34,18 @@ class ClipboardPanel extends StatefulWidget {
   const ClipboardPanel({
     super.key,
     required this.side,
+    this.animation = const DockedPanelAnimation(),
     required this.closingNotifier,
     required this.onClosed,
     this.store,
     this.now,
   });
 
-  /// The edge the window is docked against, which the panel slides in from.
+  /// The edge the window is docked against, which the panel arrives from.
   final DockSide side;
+
+  /// How it arrives and leaves, `[modules.clipboard] animation*`.
+  final DockedPanelAnimation animation;
 
   /// Flipped by whoever wants the panel gone — its close button or the bar
   /// button. Starts the exit; [onClosed] tears the window down after it.
@@ -82,6 +86,7 @@ class _ClipboardPanelState extends State<ClipboardPanel> {
     final store = _store;
     return DockedPanel(
       side: widget.side,
+      animation: widget.animation,
       closingNotifier: widget.closingNotifier,
       onClosed: widget.onClosed,
       child: ListenableBuilder(

@@ -954,6 +954,104 @@ abstract final class SettingsCatalog {
         'of the screen it takes from your windows while it is open.',
     const ['notifications', 'panel', 'width', 'size'],
   );
+  static final notificationsAnimation = _flyout(
+    'notifications',
+    'animation',
+    'Panel animation',
+    'How the notification panel arrives and leaves: sliding out of its edge, '
+        'fading, uncovered from the edge, stretching out of it, or not '
+        'animated at all.',
+    const [
+      'notifications',
+      'panel',
+      'animation',
+      'effect',
+      'slide',
+      'fade',
+      'reveal',
+      'stretch',
+    ],
+  );
+  static final notificationsAnimationCurve = _flyout(
+    'notifications',
+    'animation_curve',
+    'Animation easing',
+    'How the notification panel’s animation is paced. Leaving plays it '
+        'backwards. An overshoot never pulls the panel off its edge.',
+    const [
+      'notifications',
+      'panel',
+      'animation',
+      'curve',
+      'easing',
+      'bounce',
+      'elastic',
+    ],
+  );
+  static final notificationsAnimationDuration = _flyout(
+    'notifications',
+    'animation_duration',
+    'Animation duration (ms)',
+    'How long the notification panel takes to arrive, in milliseconds. 0 '
+        'turns the animation off.',
+    const [
+      'notifications',
+      'panel',
+      'animation',
+      'duration',
+      'speed',
+      'time',
+      'fast',
+      'slow',
+    ],
+  );
+  static final notificationsAnimationExitRatio = _flyout(
+    'notifications',
+    'animation_exit_ratio',
+    'Exit speed ratio',
+    'How long leaving takes, as a proportion of arriving: 1 is the same, '
+        '0.5 twice as quick.',
+    const [
+      'notifications',
+      'panel',
+      'animation',
+      'exit',
+      'close',
+      'speed',
+      'ratio',
+    ],
+  );
+  static final notificationsAnimationTravel = _flyout(
+    'notifications',
+    'animation_travel',
+    'Animation travel',
+    'How much of its width the notification panel moves through, from 0.05 '
+        'to 1. 1 starts it fully off the screen; less starts it part of the '
+        'way in, which reads best with the fade on.',
+    const [
+      'notifications',
+      'panel',
+      'animation',
+      'distance',
+      'travel',
+      'offset',
+    ],
+  );
+  static final notificationsAnimationFade = _flyout(
+    'notifications',
+    'animation_fade',
+    'Fade while moving',
+    'Fades the notification panel in and out as it slides, uncovers or '
+        'stretches.',
+    const [
+      'notifications',
+      'panel',
+      'animation',
+      'fade',
+      'opacity',
+      'transparent',
+    ],
+  );
 
   static final networkPollSeconds = _module(
     'modules.network.poll_seconds',
@@ -1104,6 +1202,110 @@ abstract final class SettingsCatalog {
     'How wide the clipboard history is, in pixels — which is also how much '
         'of the screen it takes from your windows while it is open.',
     const ['clipboard', 'history', 'panel', 'width', 'size'],
+  );
+  static final clipboardAnimation = _flyout(
+    'clipboard',
+    'animation',
+    'Panel animation',
+    'How the clipboard history arrives and leaves: sliding out of its edge, '
+        'fading, uncovered from the edge, stretching out of it, or not '
+        'animated at all.',
+    const [
+      'clipboard',
+      'history',
+      'panel',
+      'animation',
+      'effect',
+      'slide',
+      'fade',
+      'reveal',
+      'stretch',
+    ],
+  );
+  static final clipboardAnimationCurve = _flyout(
+    'clipboard',
+    'animation_curve',
+    'Animation easing',
+    'How the clipboard history’s animation is paced. Leaving plays it '
+        'backwards. An overshoot never pulls the panel off its edge.',
+    const [
+      'clipboard',
+      'history',
+      'panel',
+      'animation',
+      'curve',
+      'easing',
+      'bounce',
+      'elastic',
+    ],
+  );
+  static final clipboardAnimationDuration = _flyout(
+    'clipboard',
+    'animation_duration',
+    'Animation duration (ms)',
+    'How long the clipboard history takes to arrive, in milliseconds. 0 '
+        'turns the animation off.',
+    const [
+      'clipboard',
+      'history',
+      'panel',
+      'animation',
+      'duration',
+      'speed',
+      'time',
+      'fast',
+      'slow',
+    ],
+  );
+  static final clipboardAnimationExitRatio = _flyout(
+    'clipboard',
+    'animation_exit_ratio',
+    'Exit speed ratio',
+    'How long leaving takes, as a proportion of arriving: 1 is the same, '
+        '0.5 twice as quick.',
+    const [
+      'clipboard',
+      'history',
+      'panel',
+      'animation',
+      'exit',
+      'close',
+      'speed',
+      'ratio',
+    ],
+  );
+  static final clipboardAnimationTravel = _flyout(
+    'clipboard',
+    'animation_travel',
+    'Animation travel',
+    'How much of its width the clipboard history moves through, from 0.05 '
+        'to 1. 1 starts it fully off the screen; less starts it part of the '
+        'way in, which reads best with the fade on.',
+    const [
+      'clipboard',
+      'history',
+      'panel',
+      'animation',
+      'distance',
+      'travel',
+      'offset',
+    ],
+  );
+  static final clipboardAnimationFade = _flyout(
+    'clipboard',
+    'animation_fade',
+    'Fade while moving',
+    'Fades the clipboard history in and out as it slides, uncovers or '
+        'stretches.',
+    const [
+      'clipboard',
+      'history',
+      'panel',
+      'animation',
+      'fade',
+      'opacity',
+      'transparent',
+    ],
   );
   static final clipboardMaxEntries = _module(
     'modules.clipboard.max_entries',
@@ -2668,6 +2870,17 @@ abstract final class SettingsCatalog {
   /// A row on one module's page. The page is the id's middle segment — the
   /// `[modules.<key>]` the row writes — so a row cannot be routed to another
   /// module's page than the one whose config it edits.
+  /// One of a docked panel's `animation*` rows, which the notification panel
+  /// and the clipboard history carry alike under `[modules.<module>]`.
+  static SettingsField _flyout(
+    String module,
+    String key,
+    String label,
+    String description,
+    List<String> tags,
+  ) =>
+      _module('modules.$module.$key', label, description, tags);
+
   static SettingsField _module(
     String id,
     String label,
@@ -2885,6 +3098,12 @@ abstract final class SettingsCatalog {
     networkPollSeconds,
     notificationsSide,
     notificationsWidth,
+    notificationsAnimation,
+    notificationsAnimationCurve,
+    notificationsAnimationDuration,
+    notificationsAnimationExitRatio,
+    notificationsAnimationTravel,
+    notificationsAnimationFade,
     notificationsSound,
     notificationsSoundVolume,
     githubRefreshSeconds,
@@ -2899,6 +3118,12 @@ abstract final class SettingsCatalog {
     stocksWidth,
     clipboardSide,
     clipboardWidth,
+    clipboardAnimation,
+    clipboardAnimationCurve,
+    clipboardAnimationDuration,
+    clipboardAnimationExitRatio,
+    clipboardAnimationTravel,
+    clipboardAnimationFade,
     clipboardMaxEntries,
     clipboardPersist,
     clipboardMaxItemMb,

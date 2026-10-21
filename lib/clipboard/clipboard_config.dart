@@ -1,8 +1,8 @@
 // `[modules.clipboard]`, as a typed object.
 //
 // Beside the store rather than in `modules/clipboard.dart` because the bar
-// button is not the only reader: the root reads the side and width when it
-// creates the panel's window, and the history store reads the rest.
+// button is not the only reader: the root reads the side, width and animation
+// when it creates the panel's window, and the history store reads the rest.
 
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/docked_panel.dart';
@@ -14,6 +14,7 @@ class ClipboardConfig {
     this.maxEntries = 100,
     this.persist = true,
     this.maxItemMb = 32,
+    this.animation = const DockedPanelAnimation(),
   });
 
   /// The edge the panel is docked against. Left by default.
@@ -38,6 +39,9 @@ class ClipboardConfig {
   /// media data put on the clipboard directly.
   final int maxItemMb;
 
+  /// The `animation*` keys: how the panel flies out of its edge and back.
+  final DockedPanelAnimation animation;
+
   int get maxItemBytes => maxItemMb * 1024 * 1024;
 
   factory ClipboardConfig.fromMap(Map<String, dynamic>? map) {
@@ -53,6 +57,7 @@ class ClipboardConfig {
       maxEntries: map.intOr('max_entries', 100, min: 1, max: 1000),
       persist: map.boolOr('persist', true),
       maxItemMb: map.intOr('max_item_mb', 32, min: 1, max: 1024),
+      animation: DockedPanelAnimation.fromMap(map),
     );
   }
 
@@ -64,8 +69,10 @@ class ClipboardConfig {
           other.width == width &&
           other.maxEntries == maxEntries &&
           other.persist == persist &&
-          other.maxItemMb == maxItemMb;
+          other.maxItemMb == maxItemMb &&
+          other.animation == animation;
 
   @override
-  int get hashCode => Object.hash(side, width, maxEntries, persist, maxItemMb);
+  int get hashCode =>
+      Object.hash(side, width, maxEntries, persist, maxItemMb, animation);
 }

@@ -506,7 +506,8 @@ a **Clear all**. The shell is the desktop's notification daemon, so this is wher
 notifications from every application land.
 
 The panel is built like the [clipboard history](#clipboard) and behaves like it.
-It slides out of its edge and back into it, **never takes keyboard focus**, and
+It slides out of its edge and back into it (or [however you
+like](#the-panels-animation)), **never takes keyboard focus**, and
 stays open until you close it with its ×, click the bell again, or press the
 `open_notifications` shortcut — clicking anything else, or opening another menu,
 leaves it where it is. Clicking a notification that opens something closes it,
@@ -520,6 +521,9 @@ sound = "chime"
 sound_volume = 0.7
 side = "right"
 width = 400
+animation = "slide"
+animation_curve = "ease_out"
+animation_duration = 180
 ```
 
 | Key            | Type   | Default   | What it does                                                                                       |
@@ -528,10 +532,11 @@ width = 400
 | `sound_volume` | float  | `0.7`     | How loud it plays, from 0 to 1. Clamped.                                                           |
 | `side`         | string | `"right"` | Which edge of the screen the panel docks against: `"left"` or `"right"`                            |
 | `width`        | int    | `400`     | How wide the panel is, in pixels (240–1200) — and so how much of the screen it takes from windows |
+| `animation*`   |        |           | How the panel flies out of its edge and back — see [the panel's animation](#the-panels-animation)  |
 
-`side` and `width` are read when the panel opens, so a change applies the next
-time you open it. They are read whether or not any bar carries the bell: the
-floating notification card opens the same panel.
+`side`, `width` and the `animation` keys are read when the panel opens, so a
+change applies the next time you open it. They are read whether or not any bar
+carries the bell: the floating notification card opens the same panel.
 
 `sound` takes four kinds of answer, tried in this order:
 
@@ -585,6 +590,54 @@ list.
 
 Opening the panel does not mark anything read. Reading a notification is
 something you do, not something a window being mapped does for you.
+
+#### The panel's animation
+
+How the panel arrives and leaves is yours to choose, and the [clipboard
+history](#clipboard) takes the same six keys in its own `[modules.clipboard]`
+table, so the two can differ.
+
+```toml
+[modules.notifications]
+animation = "slide"           # none, slide, fade, reveal or stretch
+animation_curve = "ease_out"  # how it is paced
+animation_duration = 180      # milliseconds to arrive; 0 is no animation
+animation_exit_ratio = 0.8    # leaving takes this much of that
+animation_travel = 1.0        # how much of its width it moves through
+animation_fade = false        # fade as well as move
+```
+
+| Key                    | Type   | Default      | What it does                                                                                                        |
+| ---------------------- | ------ | ------------ | ------------------------------------------------------------------------------------------------------------------- |
+| `animation`            | string | `"slide"`    | What moves — see below                                                                                              |
+| `animation_curve`      | string | `"ease_out"` | How it is paced: `linear`, `ease_in`, `ease_out`, `ease_in_out`, `emphasized`, `overshoot`, `bounce` or `elastic` |
+| `animation_duration`   | int    | `180`        | How long arriving takes, in milliseconds (0–2000). `0` turns the animation off                                     |
+| `animation_exit_ratio` | float  | `0.8`        | How long leaving takes, as a proportion of arriving (0–2): `1` is the same, `0.5` twice as quick                    |
+| `animation_travel`     | float  | `1.0`        | How much of the panel's width the movement covers (0.05–1)                                                          |
+| `animation_fade`       | bool   | `false`      | Fade the panel in and out while it slides, is revealed or stretches                                                 |
+
+The effects:
+
+- **`slide`** — out of the edge of the screen it is docked against, and back
+  into it. The default.
+- **`fade`** — the panel fades in where it stands, and back out.
+- **`reveal`** — the panel stays put and is uncovered from the screen edge
+  inwards, like a blind being drawn.
+- **`stretch`** — the panel grows out of the screen edge, squeezed at first and
+  stretching to its full width.
+- **`none`** — the panel is simply there, and simply gone.
+
+Leaving plays the curve backwards, so an `ease_out` arrival is an `ease_in`
+departure and an `overshoot` arrives past its mark and leaves with a small dip
+first. The curves are the ones a theme's `overlay_animation_curve` takes.
+Whatever the curve, **the panel never comes away from the screen edge**: a
+slide that would overshoot inwards holds at the edge instead, since anything
+else would open a strip down the whole height of the screen.
+
+`animation_travel` below 1 starts the panel part of the way there — a slide
+that begins half on screen, a reveal that begins half uncovered — which reads
+best with `animation_fade = true`, since without a fade it starts with a jump.
+`animation_travel` and `animation_fade` do nothing for `fade` and `none`.
 
 ### Sound Control
 
@@ -729,6 +782,7 @@ width = 360
 max_entries = 100
 persist = true
 max_item_mb = 32
+animation = "slide"
 ```
 
 | Key           | Type   | Default  | Description                                                                                       |
@@ -738,9 +792,14 @@ max_item_mb = 32
 | `max_entries` | int    | `100`    | How many entries are kept before the oldest go (1–1000). Pinned entries are kept on top of this   |
 | `persist`     | bool   | `true`   | Keep the history across restarts. `false` starts it empty every time the shell starts            |
 | `max_item_mb` | int    | `32`     | Anything copied that is bigger than this, in megabytes, is not kept (1–1024)                      |
+| `animation*`  |        |          | How the panel flies out of its edge and back — see [the notification panel's](#the-panels-animation) |
 
-`side` and `width` are read when the panel opens, so a change applies the next
-time you open it. Docked against the same edge as the [notification
+`side`, `width` and the `animation` keys are read when the panel opens, so a
+change applies the next time you open it. The animation keys are the
+notification panel's six — [`animation`, `animation_curve`,
+`animation_duration`, `animation_exit_ratio`, `animation_travel` and
+`animation_fade`](#the-panels-animation) — set here for the clipboard history
+alone. Docked against the same edge as the [notification
 panel](#notifications), the two open side by side. A file you copy is kept as its path, not its contents, so
 `max_item_mb` is about pictures and media copied directly — a screenshot, an
 image copied out of a browser.
