@@ -6,10 +6,12 @@ import 'package:moonswing/scopes.dart';
 
 /// One tab in an underline tab strip.
 ///
-/// The overlay's top tabs, the system monitor's sub-tabs, the audio page's tab
-/// bar and the panels editor each hand-rolled this exact treatment — the 2px
-/// accent underline sitting on the header's bottom border, and the selected →
-/// hovered → rest foreground ladder. Sizes vary per strip; the treatment must not.
+/// The system monitor's sub-tabs, the audio page's tab bar and the panels editor
+/// each hand-rolled this exact treatment — the 2px accent underline sitting on
+/// the header's bottom border, and the selected → hovered → rest foreground
+/// ladder. Sizes vary per strip; the treatment must not. The overview's own
+/// top-level tabs are a `SegmentedTabBar` instead, so a strip inside a tab
+/// reads as a level below them.
 class UnderlineTab extends StatelessWidget {
   const UnderlineTab({
     super.key,
