@@ -176,6 +176,7 @@ name = "Autumn"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 # Burnt orange: the season's colour, spent on what is active. Dark enough to
 # carry kOnAccent's white, so it fills a button rather than only outlining it.
