@@ -194,10 +194,10 @@ void main() {
     expect(autumn.panelGradient, isFalse);
     // Flush, so the leaves framing the screen start at its very corners.
     expect(autumn.panelMargin, 0);
-    // The harvest: turning leaves and pumpkins, with room for the frame to
-    // run a good way down the side of the screen.
+    // The harvest: turning leaves and pumpkins, with room for the corner
+    // heaps to spill down the side of the screen.
     expect(autumn.panelFoliage, FoliageStyle.harvest);
-    expect(autumn.panelReach, greaterThan(160));
+    expect(autumn.panelReach, greaterThan(72));
     // Still green, and turned: the bloom is the warm one, an orange.
     expect(autumn.foliageColor.g, greaterThan(autumn.foliageColor.r));
     expect(autumn.foliageBloom.r, greaterThan(autumn.foliageBloom.g));

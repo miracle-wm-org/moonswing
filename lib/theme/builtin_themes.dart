@@ -147,9 +147,9 @@ const String _autumn = '''
 # in bark (panel_end_*). What grows off it is the harvest (panel_foliage):
 #
 #  * on a top or side bar, the two corners of the screen are framed in
-#    turning leaves: a heap of maple and oak laid over the bar's ends from
-#    the screen's very edge and spilling down its side, thickest in the
-#    corner and ragged at its rim, with a few short branches buried in it
+#    turning leaves: a heap of maple and oak tucked under the bar's ends
+#    against the screen's very edge and spilling down its side, thickest in
+#    the corner and ragged at its rim, with a few short branches buried in it
 #    and a few loose leaves on their way down. Every leaf is somewhere between
 #    foliage_color's green and foliage_bloom's orange and past it, so they
 #    come out russet, scarlet, gold, brown and claret, with the odd one
@@ -205,7 +205,7 @@ panel_background     = "#FF2A190D"
 panel_gradient       = false
 
 # Flush with the screen's edges, so the leaves framing its corners start at
-# the corner itself rather than a margin's width inside it. The radius
+# its side edge rather than a margin's width inside it. The radius
 # rounds only the inner corners of a flush bar.
 panel_margin         = 0
 panel_radius         = 8.0
@@ -229,9 +229,9 @@ foliage_color        = "#6B8A35"
 # What has turned: the leaves are toned off it, the pumpkins are it.
 foliage_bloom        = "#E2731E"
 foliage_density      = 1.0
-# Deep, so the frame runs a quarter of the way down a 1080p screen's sides.
+# Room for the corner heaps to spill a little way down the screen's sides.
 # A pumpkin stops growing long before it.
-panel_overhang       = 260
+panel_overhang       = 130
 
 # The menu is the trunk: a thick bark rim around walnut with a ghost of
 # grain, rounded like a trunk seen side on, with a foot that flares into the

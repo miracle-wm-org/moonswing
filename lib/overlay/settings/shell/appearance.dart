@@ -597,7 +597,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     value: current['panel_overhang'] as num? ?? 0,
                     isInt: true,
                     onChanged: (v) => _themes.edit(
-                        'panel_overhang', v.toInt().clamp(0, 320)),
+                        'panel_overhang', v.toInt().clamp(0, 160)),
                   ),
                 ),
                 _materialRow(

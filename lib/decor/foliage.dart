@@ -388,16 +388,11 @@ class _Grower {
   /// Keeps a stem inside the room it has: the overhang ahead and the fringe of
   /// bar behind, and the bar's own length. A point past either is dropped
   /// along with everything after it.
-  ///
-  /// [top] is how far onto the bar a stem may go: [_onBar] unless the plant
-  /// is meant to cover the bar, which only a harvest's corners are.
-  List<Offset> _clip(List<Offset> stem, Offset root,
-      {double margin = 6, double? top}) {
+  List<Offset> _clip(List<Offset> stem, Offset root, {double margin = 6}) {
     final out = <Offset>[];
-    final floor = top ?? _onBar;
     for (final p in stem) {
       final q = root + p;
-      if (q.dy > reach - margin || q.dy < floor || q.dx < 2 || q.dx > length - 2) {
+      if (q.dy > reach - margin || q.dy < _onBar || q.dx < 2 || q.dx > length - 2) {
         break;
       }
       out.add(p);
@@ -658,18 +653,16 @@ class _Grower {
   }
 
   /// A heap of turning leaves in each of a bar's two corners, framing the
-  /// screen: a rounded mass laid over the bar's end from the screen's very
-  /// edge and spilling down the screen's side as far as the overhang
-  /// reaches, thickest in the corner and ragged at its rim, with a few short
-  /// branches under it to hold it up. The middle of the bar is left bare;
-  /// the modules at either end sit under the leaves, and their clicks still
-  /// reach them — the leaves answer no hits.
+  /// screen: a rounded mass tucked under the bar's end against the screen's
+  /// edge and spilling down its side as far as the overhang reaches,
+  /// thickest in the corner and ragged at its rim, with a few short branches
+  /// under it to hold it up. It reaches onto the bar only as a fringe, so the
+  /// modules at either end stay in view, and the middle of the bar is bare.
   List<Sprig> turningCorners(double density,
       {required double endCaps, required bool hangs}) {
-    // How far the heap runs along the bar, and down the screen's side from
-    // the screen's edge (the bar's far side).
-    final down = math.max(12.0, reach - 6) + thickness;
-    final along = math.min(length * 0.25, math.max(down * 1.1, 200.0));
+    // How far the heap runs down the screen's side, and along under the bar.
+    final down = math.max(12.0, reach - 6);
+    final along = math.min(length * 0.15, math.max(down * 0.8, 60.0));
     final sprigs = <Sprig>[];
     for (final end in [0, 1]) {
       final inward = end == 0 ? 1.0 : -1.0;
@@ -678,11 +671,11 @@ class _Grower {
       // A few short, sturdy branches out of the corner, mostly buried in the
       // leaves: what the heap hangs from, not a reach of bare wood.
       for (var i = 0; i < math.max(2, (4 * density).round()); i++) {
-        final a = rng.range(0.15, 1.35);
+        final a = rng.range(0.25, 1.4);
         sprigs.add(bough(
-          Offset(at(3), -thickness + rng.range(2, thickness * 0.7)),
+          Offset(at(3), rng.range(0.0, 3.0)),
           dir: Offset(inward * math.cos(a), math.sin(a)),
-          len: math.min(along, down) * rng.range(0.3, 0.55),
+          len: math.min(along, down) * rng.range(0.35, 0.6),
           inward: inward,
           hangs: hangs,
           sag: 0.5,
@@ -692,18 +685,19 @@ class _Grower {
       // The heap: clumps over a quarter of an ellipse in the corner, its rim
       // wavering so the edge is ragged rather than drawn with compasses.
       final phase = rng.range(0, math.pi * 2);
-      final clumps = (85 * density).round();
+      // As many as keep the heap as thick whatever its size.
+      final clumps = math.max(8, (along * down / 600 * density).round());
       for (var i = 0; i < clumps; i++) {
         final th = rng.range(0, math.pi / 2);
         final rim = 0.84 + 0.16 * math.sin(th * 5 + phase);
         final r = math.pow(rng.nextDouble(), 0.8) * rim;
         final x = along * r * math.cos(th);
-        final y = -thickness + down * r * math.sin(th);
+        final y = down * r * math.sin(th);
         sprigs.add(autumnClump(
           Offset(at(x + 3), math.min(y, reach - 6)),
-          // Under the bar's inner edge, leaves fan away from it, so that
-          // edge only wears a fringe beyond the heap's reach of it.
-          anyWay: y > 17 || y < 0,
+          // Near the bar, leaves fan away from it, so the bar wears a fringe
+          // and nothing more; clear of it, a leaf may point any way.
+          anyWay: y > 22,
         ));
       }
 
@@ -713,7 +707,7 @@ class _Grower {
         final r = rng.range(1.0, 1.2);
         sprigs.add(driftingLeaf(Offset(
           at(along * r * math.cos(th) + 3),
-          math.max(4.0, math.min(reach - 10, -thickness + down * r * math.sin(th))),
+          math.max(14.0, math.min(reach - 10, down * r * math.sin(th))),
         )));
       }
     }
@@ -735,7 +729,6 @@ class _Grower {
           weight: (hangs ? 0.04 : 0.025) * sag,
           curl: rng.range(0.05, 0.12) * math.max(0.4, sag)),
       root,
-      top: -thickness,
     );
     final stems = <List<Offset>>[main];
     // A twig or two off the branch, the way it was already leaning.
@@ -745,8 +738,7 @@ class _Grower {
           Offset(inward * rng.range(-0.4, 1.4), 0);
       final twig = _stem(twigDir, rng.range(4, 9).round(), step,
           weight: hangs ? 0.14 : 0.06, curl: 0.12);
-      final placed =
-          _clip([for (final p in twig) from + p], root, top: -thickness);
+      final placed = _clip([for (final p in twig) from + p], root);
       if (placed.length > 2) stems.add(placed);
     }
 

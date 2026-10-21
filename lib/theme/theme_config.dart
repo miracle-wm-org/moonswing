@@ -755,11 +755,10 @@ class ThemeConfig {
     // bar is more leaf than bar — and every plant is a path the painter walks.
     _ThemeKey('foliage_density', _ThemeKeyKind.number, (t) => t.foliageDensity,
         min: 0.0, max: 3.0),
-    // The surface grows by this much, so there is a ceiling: deep enough for
-    // a harvest to frame the corners of the screen, and no deeper, since the
-    // whole width of the bar's surface grows with it.
+    // The surface grows by this much, so the ceiling is a generous fringe
+    // rather than a curtain: past it the leaves are no longer hanging off a bar.
     _ThemeKey('panel_overhang', _ThemeKeyKind.integer, (t) => t.panelOverhang,
-        min: 0.0, max: 320.0),
+        min: 0.0, max: 160.0),
     _ThemeKey('popup_texture', _ThemeKeyKind.material, (t) => t.popupTexture),
     _ThemeKey(
         'popup_texture_color', _ThemeKeyKind.color, (t) => t.popupTextureColor),
