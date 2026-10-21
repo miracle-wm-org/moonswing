@@ -18,6 +18,11 @@ const String kMprisPrefix = 'org.mpris.MediaPlayer2.';
 const String kMprisPlayerInterface = 'org.mpris.MediaPlayer2.Player';
 const String kMprisPath = '/org/mpris/MediaPlayer2';
 
+/// How long any one player may take to answer. `package:dbus` has no timeout
+/// of its own, and a player whose process is wedged (or stopped) never answers
+/// at all.
+const Duration kMprisCallTimeout = Duration(seconds: 5);
+
 /// The `PlaybackStatus` property, as an enum rather than the raw string.
 enum MprisPlaybackStatus {
   playing,
@@ -231,7 +236,9 @@ class MprisStore extends ChangeNotifier {
         name: player.busName,
         path: DBusObjectPath(kMprisPath),
       );
-      await object.callMethod(kMprisPlayerInterface, method, []);
+      await object
+          .callMethod(kMprisPlayerInterface, method, [])
+          .timeout(kMprisCallTimeout);
     } catch (_) {
       // The player vanished mid-click, or refused. Its own properties-changed
       // signal (or nameOwnerChanged) is what corrects the UI; there is nothing
@@ -252,9 +259,13 @@ class MprisStore extends ChangeNotifier {
       final names = await dbus.listNames();
       // The lease may have been dropped while `listNames` was in flight.
       if (_dbus != dbus) return;
-      for (final name in names) {
-        if (name.startsWith(kMprisPrefix)) await _addPlayer(name);
-      }
+      // Side by side, never one after another: a single player that does not
+      // answer used to hold up every name listed after it, so a browser
+      // playing next to a wedged player was never seen at all.
+      await Future.wait([
+        for (final name in names)
+          if (name.startsWith(kMprisPrefix)) _addPlayer(name),
+      ]);
     } catch (_) {
       // No session bus: the store stays empty and every consumer renders its
       // "nothing playing" state. This is a graceful decline, not a failure.
@@ -299,27 +310,53 @@ class MprisStore extends ChangeNotifier {
       path: DBusObjectPath(kMprisPath),
     );
 
-    try {
-      _applyProperties(
-        player,
-        await object.getAllProperties(kMprisPlayerInterface),
-      );
-    } catch (_) {
-      // Gone before we could ask.
-      _players.remove(busName);
-      return;
+    // Read whole, again whenever a change arrives before a read has landed:
+    // a change on its own would be applied over a player that knows nothing
+    // else.
+    var loaded = false;
+    Future<void> load() async {
+      final props = await object
+          .getAllProperties(kMprisPlayerInterface)
+          .timeout(kMprisCallTimeout);
+      // Dropped (name gone, or the lease) while the read was in flight.
+      if (_players[busName] != player) return;
+      _applyProperties(player, props);
+      loaded = true;
+      _changed();
     }
 
+    // Subscribed *before* the read, never after. A browser takes its name the
+    // moment a tab starts playing and says `Playing` straight after answering
+    // `Stopped`; a match added once the read had landed was not on the bus in
+    // time to hear it, so a YouTube tab stayed "stopped" — and hidden — until
+    // it was next paused. `listen` sends the AddMatch synchronously, ahead of
+    // the GetAll below on the same connection, so the bus has the rule first.
     _propSubs[busName] = object.propertiesChanged.listen((signal) {
       if (signal.propertiesInterface != kMprisPlayerInterface) return;
+      if (!loaded) {
+        unawaited(load().catchError((_) {}));
+        return;
+      }
       _applyProperties(player, signal.changedProperties);
       // A player that starts playing takes over, and one that stops hands back
       // — both are the same re-selection.
-      _selectActive();
-      _syncPositionTimer();
-      notifyListeners();
+      _changed();
     });
 
+    try {
+      await load();
+    } on TimeoutException {
+      // Owns the name and does not answer. Kept, unselected, behind its
+      // subscription, so the first change it reports reads it again.
+    } catch (_) {
+      // Gone before we could ask.
+      if (_players[busName] != player) return;
+      _propSubs.remove(busName)?.cancel();
+      _players.remove(busName);
+    }
+  }
+
+  void _changed() {
     _selectActive();
     _syncPositionTimer();
     notifyListeners();
@@ -328,9 +365,7 @@ class MprisStore extends ChangeNotifier {
   void _removePlayer(String busName) {
     _propSubs.remove(busName)?.cancel();
     _players.remove(busName);
-    _selectActive();
-    _syncPositionTimer();
-    notifyListeners();
+    _changed();
   }
 
   void _applyProperties(MprisPlayer player, Map<String, DBusValue> props) {
@@ -461,8 +496,9 @@ class MprisStore extends ChangeNotifier {
         name: player.busName,
         path: DBusObjectPath(kMprisPath),
       );
-      final value =
-          await object.getProperty(kMprisPlayerInterface, 'Position');
+      final value = await object
+          .getProperty(kMprisPlayerInterface, 'Position')
+          .timeout(kMprisCallTimeout);
       if (value is! DBusInt64) return;
       player.position = Duration(microseconds: value.value);
       player.positionAt = now();
