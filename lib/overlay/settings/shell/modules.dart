@@ -164,7 +164,7 @@ class _ModuleSetting {
   final String? addLabel;
 }
 
-/// One module's page in Shell › Module Settings: the card on the module list
+/// One module's page in Shell › Modules: the card on the module list
 /// that pushes it, and the rows it renders.
 class ModuleSettingsPage {
   const ModuleSettingsPage._(

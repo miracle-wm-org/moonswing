@@ -36,13 +36,13 @@ class ShellSettingsPage extends StatefulWidget {
     this.store,
   });
 
-  /// A `_ShellCategory` title to open directly, e.g. `Background`. Null lands
+  /// A `_ShellCategory` title to open directly, e.g. `Wallpaper`. Null lands
   /// on the category list, which is the behaviour every existing caller wants.
   final String? initialCategory;
 
   /// A `[modules.<key>]` config key whose page to open over the module list —
-  /// see [SettingsRoute.module]. Read only when [initialCategory] is Module
-  /// Settings.
+  /// see [SettingsRoute.module]. Read only when [initialCategory] is
+  /// Modules.
   final String? initialModule;
 
   /// The store to edit instead of [ConfigStore.instance], which no widget test
@@ -174,7 +174,7 @@ _ShellCategory? _shellCategoryByTitle(String? title) {
 bool isShellCategory(String title) => _shellCategoryByTitle(title) != null;
 
 /// The views a route stacks over the landing page, bottom first: the
-/// category's own, and — when it is Module Settings and [module] names a page —
+/// category's own, and — when it is Modules and [module] names a page —
 /// that module's page over the module list.
 List<Widget> _viewsFor(
   _ShellCategory category,
@@ -216,7 +216,7 @@ class _ShellCategory {
     required Widget Function(ConfigStore store) this.build,
   });
 
-  /// Module Settings: a list of the modules rather than a page of rows, each
+  /// Modules: a list of the modules rather than a page of rows, each
   /// module pushing a page of its own over it.
   const _ShellCategory.modules({
     required this.title,
@@ -239,10 +239,10 @@ class _ShellCategory {
 
 const List<_ShellCategory> _shellCategories = [
   _ShellCategory(
-    title: 'Appearance',
-    subtitle: 'Colors and font',
-    icon: FontAwesomeIcons.palette,
-    build: _buildAppearance,
+    title: 'Panels & Layout',
+    subtitle: 'Size, anchor, module slots',
+    icon: FontAwesomeIcons.tableColumns,
+    build: _buildPanels,
   ),
   _ShellCategory.modules(
     title: kModuleSettingsCategory,
@@ -250,19 +250,19 @@ const List<_ShellCategory> _shellCategories = [
     icon: FontAwesomeIcons.puzzlePiece,
   ),
   _ShellCategory(
-    title: 'Panels & Layout',
-    subtitle: 'Size, anchor, module slots',
-    icon: FontAwesomeIcons.tableColumns,
-    build: _buildPanels,
+    title: 'Theme',
+    subtitle: 'Colors and font',
+    icon: FontAwesomeIcons.palette,
+    build: _buildAppearance,
   ),
   _ShellCategory(
-    title: 'Background',
-    subtitle: 'Wallpaper and fit',
+    title: 'Wallpaper',
+    subtitle: 'Pictures, videos and fit',
     icon: FontAwesomeIcons.image,
     build: _buildBackground,
   ),
   _ShellCategory(
-    title: 'Desktop',
+    title: 'Desktop Grid',
     subtitle: 'Icon grid and pinned items',
     icon: FontAwesomeIcons.tableCells,
     build: _buildDesktop,
@@ -280,7 +280,7 @@ const List<_ShellCategory> _shellCategories = [
     build: _buildPower,
   ),
   _ShellCategory(
-    title: 'Volume Sound',
+    title: 'Volume & Sound',
     subtitle: 'What a volume change sounds like',
     icon: FontAwesomeIcons.volumeHigh,
     build: _buildVolumeSound,
@@ -329,7 +329,7 @@ class _ShellHome extends StatelessWidget {
   }
 }
 
-/// Module Settings: a back button over a tappable row per module, each pushing
+/// Modules: a back button over a tappable row per module, each pushing
 /// that module's page.
 ///
 /// A list rather than one page of every module's rows, which grew a section per
@@ -654,7 +654,7 @@ class _CategoryCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Appearance (theme)
+// Theme
 // ---------------------------------------------------------------------------
 
 /// Theme picker + editor.

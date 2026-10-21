@@ -777,13 +777,6 @@ class SettingsSidebar extends StatelessWidget {
               onTap: () => onCategorySelected('power'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.wandMagicSparkles,
-              label: 'Window Manager',
-              selected: selectedCategory == 'miracle',
-              onTap: () => onCategorySelected('miracle'),
-              disabledReason: notMiracle ? kWindowManagerUnavailable : null,
-            ),
-            _SidebarItem(
               icon: FontAwesomeIcons.arrowUpRightFromSquare,
               label: 'Default Apps',
               selected: selectedCategory == 'default_apps',
@@ -800,6 +793,13 @@ class SettingsSidebar extends StatelessWidget {
               label: 'Shell',
               selected: selectedCategory == 'shell',
               onTap: () => onCategorySelected('shell'),
+            ),
+            _SidebarItem(
+              icon: FontAwesomeIcons.wandMagicSparkles,
+              label: 'Window Manager',
+              selected: selectedCategory == 'miracle',
+              onTap: () => onCategorySelected('miracle'),
+              disabledReason: notMiracle ? kWindowManagerUnavailable : null,
             ),
           ],
         ),

@@ -105,7 +105,7 @@ class _DesktopSectionState extends State<DesktopSection> {
         };
 
         return SliverSettingsSection(
-          label: 'Desktop',
+          label: 'Desktop Grid',
           children: [
             // Enabling the grid is what creates the background surface when
             // there is no wallpaper, and that surface is built at startup.

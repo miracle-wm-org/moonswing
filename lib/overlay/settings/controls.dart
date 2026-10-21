@@ -105,7 +105,7 @@ class _StoreSelectorState<T> extends State<StoreSelector<T>> {
 ///
 /// [StoreSelector] specialized to the shape every settings section wants. The
 /// page-level `ListenableBuilder` this replaces rebuilt all forty-five rows of
-/// the Appearance pane for one digit typed into one field.
+/// the Theme page for one digit typed into one field.
 ///
 /// Wrap the row's *control*, and anything else whose text depends on the same
 /// key. A control that owns its own `TextEditingController` and reads `initial`

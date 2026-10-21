@@ -20,7 +20,8 @@ import 'package:moonswing/overlay/settings_route.dart';
 /// [description] and [tags] are search-only. A description is a sentence the
 /// result row shows under the label, so what the index matched on is what the
 /// user reads; tags are the words somebody would *type* without knowing what the
-/// shell calls the field — "wallpaper" for Background, "colour" for the palette.
+/// shell calls the field — "background" for Wallpaper, "colour" for the
+/// palette.
 @immutable
 class SettingsField {
   const SettingsField({
@@ -44,7 +45,7 @@ class SettingsField {
   final String label;
 
   /// Where the field lives, for the result row's second line — "Shell ›
-  /// Appearance".
+  /// Theme".
   final String section;
 
   /// Where picking the result goes.

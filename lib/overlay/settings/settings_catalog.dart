@@ -20,7 +20,7 @@ import 'package:moonswing/overlay/settings_route.dart';
 
 /// One themeable colour: the key it is written under, and its catalogue entry.
 ///
-/// The Appearance pane renders its colour rows from this list, so the palette is
+/// The Theme page renders its colour rows from this list, so the palette is
 /// spelled once — it replaced a `Map<String, String>` of key to label that the
 /// search index would otherwise have had to copy.
 @immutable
@@ -37,7 +37,7 @@ SettingsField _color(String key, String label, String description) =>
     shellField(
       'theme.$key',
       label,
-      section: 'Appearance',
+      section: 'Theme',
       description: description,
       tags: const ['colour', 'color', 'palette', 'theme'],
     );
@@ -103,11 +103,11 @@ SettingsField _defaultApp(DefaultAppCategory category) => SettingsField(
 /// The index.
 abstract final class SettingsCatalog {
   // -------------------------------------------------------------------------
-  // Shell › Appearance
+  // Shell › Theme
   // -------------------------------------------------------------------------
 
   static final themePicker = _shellPane(
-    'Appearance',
+    'Theme',
     'Theme',
     description:
         'Pick one of the shipped palettes or one of your own, and duplicate a '
@@ -131,7 +131,7 @@ abstract final class SettingsCatalog {
   static final themeName = shellField(
     'theme.name',
     'Name',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'What the active theme is called in the picker. Renaming a shipped '
         'theme saves a copy of it under the new name.',
@@ -141,7 +141,7 @@ abstract final class SettingsCatalog {
   static final font = shellField(
     'theme.font',
     'Font',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'The font family every panel, popup and overlay is set in.',
     tags: const ['typeface', 'typography', 'family', 'text'],
   );
@@ -149,7 +149,7 @@ abstract final class SettingsCatalog {
   static final fontSize = shellField(
     'theme.font_size',
     'Font size',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         "The size of the shell's body text; every other size keeps its "
         'proportion either side of it.',
@@ -159,7 +159,7 @@ abstract final class SettingsCatalog {
   static final panelGradient = shellField(
     'theme.panel_gradient',
     'Panel gradient',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'Fades the bar from the accent across to the panel background instead '
         'of painting it flat.',
@@ -169,7 +169,7 @@ abstract final class SettingsCatalog {
   static final panelMargin = shellField(
     'theme.panel_margin',
     'Panel margin',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'Floats the bar off the screen edges. The gap is real — windows will '
         'not tile into it.',
@@ -179,7 +179,7 @@ abstract final class SettingsCatalog {
   static final panelRadius = shellField(
     'theme.panel_radius',
     'Panel corner radius',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How far the bar’s corners are rounded.',
     tags: const ['bar', 'taskbar', 'rounded', 'corners'],
   );
@@ -187,7 +187,7 @@ abstract final class SettingsCatalog {
   static final panelBorderWidth = shellField(
     'theme.panel_border_width',
     'Panel border width',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'The rim drawn around the bar. Zero draws none.',
     tags: const ['bar', 'taskbar', 'outline', 'rim', 'stroke'],
   );
@@ -195,7 +195,7 @@ abstract final class SettingsCatalog {
   static final popupRadius = shellField(
     'theme.popup_radius',
     'Popup corner radius',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How far a menu, flyout or on-screen indicator is rounded.',
     tags: const ['menu', 'card', 'rounded', 'corners'],
   );
@@ -203,7 +203,7 @@ abstract final class SettingsCatalog {
   static final popupGap = shellField(
     'theme.popup_gap',
     'Popup gap from bar',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How far a menu sits off the bar it opens from. Zero attaches it flush.',
     tags: const ['menu', 'card', 'attach', 'spacing', 'offset'],
@@ -212,7 +212,7 @@ abstract final class SettingsCatalog {
   static final popupAttachRadius = shellField(
     'theme.popup_attach_radius',
     'Popup join flare',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'Sweeps an attached menu’s two joining corners outward into the '
         'bar. Unread at any gap above zero.',
@@ -222,7 +222,7 @@ abstract final class SettingsCatalog {
   static final popupBorderWidth = shellField(
     'theme.popup_border_width',
     'Popup border width',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'The rim around a menu card. Zero draws none.',
     tags: const ['menu', 'card', 'outline', 'rim', 'stroke'],
   );
@@ -230,7 +230,7 @@ abstract final class SettingsCatalog {
   static final popupShadowBlur = shellField(
     'theme.popup_shadow_blur',
     'Popup shadow blur',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How soft the shadow under a menu card is.',
     tags: const ['menu', 'card', 'drop shadow', 'elevation', 'depth'],
   );
@@ -238,7 +238,7 @@ abstract final class SettingsCatalog {
   static final popupShadowSpread = shellField(
     'theme.popup_shadow_spread',
     'Popup shadow spread',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How far the shadow under a menu card reaches before blurring.',
     tags: const ['menu', 'card', 'drop shadow', 'elevation', 'depth'],
@@ -247,7 +247,7 @@ abstract final class SettingsCatalog {
   static final popupShadowOffsetX = shellField(
     'theme.popup_shadow_offset_x',
     'Popup shadow offset X',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How far sideways a menu card’s shadow is cast.',
     tags: const ['menu', 'card', 'drop shadow', 'horizontal'],
   );
@@ -255,7 +255,7 @@ abstract final class SettingsCatalog {
   static final popupShadowOffsetY = shellField(
     'theme.popup_shadow_offset_y',
     'Popup shadow offset Y',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How far down a menu card’s shadow is cast.',
     tags: const ['menu', 'card', 'drop shadow', 'vertical'],
   );
@@ -263,7 +263,7 @@ abstract final class SettingsCatalog {
   static final popupAnimation = shellField(
     'theme.popup_animation',
     'Popup animation',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How a menu card arrives — and, played backwards, how it leaves.',
     tags: const ['menu', 'motion', 'transition', 'slide', 'fade', 'grow'],
@@ -272,7 +272,7 @@ abstract final class SettingsCatalog {
   static final popupAnimationDuration = shellField(
     'theme.popup_animation_duration',
     'Popup animation duration',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How long that animation runs, in milliseconds. The exit is shorter.',
     tags: const ['menu', 'motion', 'transition', 'speed', 'timing', 'ms'],
@@ -281,7 +281,7 @@ abstract final class SettingsCatalog {
   static final overlayRadius = shellField(
     'theme.overlay_radius',
     'Overlay corner radius',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How far the card of a full-screen overlay — the settings panel, the '
         'todo board, the launcher — is rounded.',
@@ -293,7 +293,7 @@ abstract final class SettingsCatalog {
   static final overlayAnimation = shellField(
     'theme.overlay_animation',
     'Overlay animation',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How a full-screen overlay arrives — and, played backwards, how it '
         'leaves.',
@@ -306,7 +306,7 @@ abstract final class SettingsCatalog {
   static final overlayAnimationCurve = shellField(
     'theme.overlay_animation_curve',
     'Overlay animation curve',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'The easing that animation is paced on, from linear to elastic.',
     tags: const [
@@ -318,7 +318,7 @@ abstract final class SettingsCatalog {
   static final overlayAnimationDuration = shellField(
     'theme.overlay_animation_duration',
     'Overlay animation duration',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How long that animation runs, in milliseconds.',
     tags: const [
       'settings', 'launcher', 'motion', 'speed', 'timing', 'ms',
@@ -328,7 +328,7 @@ abstract final class SettingsCatalog {
   static final overlayAnimationExitRatio = shellField(
     'theme.overlay_animation_exit_ratio',
     'Overlay exit ratio',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'What fraction of the entrance the exit takes. Below 1 leaves faster '
         'than it arrived.',
@@ -342,7 +342,7 @@ abstract final class SettingsCatalog {
   static final panelTexture = shellField(
     'theme.panel_texture',
     'Panel material',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'What the bar is made of — wood, stone, bark or moss — painted over '
         'its colour.',
@@ -352,7 +352,7 @@ abstract final class SettingsCatalog {
   static final panelEndTexture = shellField(
     'theme.panel_end_texture',
     'Panel end caps',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'A second material capping each end of the bar.',
     tags: const ['bar', 'texture', 'ends', 'caps', 'stone', 'material'],
   );
@@ -360,7 +360,7 @@ abstract final class SettingsCatalog {
   static final panelEndLength = shellField(
     'theme.panel_end_length',
     'Panel end cap length',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How far along the bar each end cap reaches. Zero draws none.',
     tags: const ['bar', 'texture', 'ends', 'caps'],
   );
@@ -368,7 +368,7 @@ abstract final class SettingsCatalog {
   static final panelBevel = shellField(
     'theme.panel_bevel',
     'Panel bevel',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How deeply the bar’s edges are carved, from 0 (flat) to 1.',
     tags: const ['bar', 'depth', 'carve', 'emboss', '3d', 'edge'],
@@ -377,7 +377,7 @@ abstract final class SettingsCatalog {
   static final panelImage = shellField(
     'theme.panel_image',
     'Panel picture',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'A picture tiled over the bar in place of its material: a path, '
         'absolute, under ~/, or beside the theme file.',
@@ -387,7 +387,7 @@ abstract final class SettingsCatalog {
   static final panelFoliage = shellField(
     'theme.panel_foliage',
     'Foliage',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'What grows off the bar: ivy, hanging moss, or a whole wildwood.',
     tags: const ['bar', 'leaves', 'plants', 'vines', 'ivy', 'moss', 'nature'],
@@ -396,7 +396,7 @@ abstract final class SettingsCatalog {
   static final foliageDensity = shellField(
     'theme.foliage_density',
     'Foliage density',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'How much grows, as a multiple of the style’s own amount.',
     tags: const ['bar', 'leaves', 'plants', 'amount'],
   );
@@ -404,7 +404,7 @@ abstract final class SettingsCatalog {
   static final panelOverhang = shellField(
     'theme.panel_overhang',
     'Foliage overhang',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How far the foliage may hang past the bar, over the windows below. '
         'Clicks on it reach the window underneath.',
@@ -414,7 +414,7 @@ abstract final class SettingsCatalog {
   static final popupTexture = shellField(
     'theme.popup_texture',
     'Popup material',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'What a menu card is made of, faintly, under its content.',
     tags: const ['menu', 'card', 'texture', 'wood', 'material'],
   );
@@ -422,7 +422,7 @@ abstract final class SettingsCatalog {
   static final popupBorderTexture = shellField(
     'theme.popup_border_texture',
     'Popup rim material',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'What a menu card’s rim is made of. Bark around a dark card is a '
         'trunk.',
@@ -432,7 +432,7 @@ abstract final class SettingsCatalog {
   static final popupImage = shellField(
     'theme.popup_image',
     'Popup picture',
-    section: 'Appearance',
+    section: 'Theme',
     description: 'A picture tiled over a menu card in place of its material.',
     tags: const ['menu', 'card', 'image', 'picture', 'texture', 'file'],
   );
@@ -440,14 +440,14 @@ abstract final class SettingsCatalog {
   static final popupRoots = shellField(
     'theme.popup_roots',
     'Popup roots',
-    section: 'Appearance',
+    section: 'Theme',
     description:
         'How far roots spread along the bar from an attached menu, in its rim '
         'material. Zero grows none.',
     tags: const ['menu', 'roots', 'trunk', 'tree', 'attach'],
   );
 
-  /// The palette, in the order the Appearance pane draws it.
+  /// The palette, in the order the Theme page draws it.
   static final List<ThemeColorSetting> themeColors = [
     ThemeColorSetting(
       'accent',
@@ -630,7 +630,7 @@ abstract final class SettingsCatalog {
   ];
 
   // -------------------------------------------------------------------------
-  // Shell › Module Settings
+  // Shell › Modules
   //
   // The id *is* the config path — `modules.dart` splits it rather than being
   // handed one, so a key and the row that edits it cannot disagree.
@@ -1153,11 +1153,11 @@ abstract final class SettingsCatalog {
   );
 
   // -------------------------------------------------------------------------
-  // Shell › Background
+  // Shell › Wallpaper
   // -------------------------------------------------------------------------
 
   static final backgroundWallpapers = _shellPane(
-    'Background',
+    'Wallpaper',
     'Wallpapers',
     description:
         'Which pictures or videos the desktop shows, including the ones this '
@@ -1174,7 +1174,7 @@ abstract final class SettingsCatalog {
   static final backgroundFit = shellField(
     'background.fit',
     'Fit',
-    section: 'Background',
+    section: 'Wallpaper',
     description:
         'Whether the wallpaper fills the screen, fits inside it, or is drawn at '
         'its own size.',
@@ -1183,7 +1183,7 @@ abstract final class SettingsCatalog {
   static final backgroundIntervalMinutes = shellField(
     'background.interval_minutes',
     'Rotation interval (minutes)',
-    section: 'Background',
+    section: 'Wallpaper',
     description: 'How long each selected wallpaper is shown before the next.',
     tags: const [
       'wallpaper',
@@ -1196,62 +1196,62 @@ abstract final class SettingsCatalog {
   );
 
   // -------------------------------------------------------------------------
-  // Shell › Desktop
+  // Shell › Desktop Grid
   // -------------------------------------------------------------------------
 
   static final desktopEnabled = shellField(
     'desktop.enabled',
     'Show desktop icons',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description: 'Draws the grid of pinned applications, files and widgets.',
     tags: const ['desktop', 'icons', 'grid', 'widgets'],
   );
   static final desktopCellWidth = shellField(
     'desktop.cell_width',
     'Cell width',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description: 'How wide one cell of the desktop grid is.',
     tags: const ['desktop', 'grid', 'size', 'spacing'],
   );
   static final desktopCellHeight = shellField(
     'desktop.cell_height',
     'Cell height',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description: 'How tall one cell of the desktop grid is.',
     tags: const ['desktop', 'grid', 'size', 'spacing'],
   );
   static final desktopSpacing = shellField(
     'desktop.spacing',
     'Spacing',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description: 'The gap between one desktop cell and the next.',
     tags: const ['desktop', 'grid', 'gap', 'padding'],
   );
   static final desktopPadding = shellField(
     'desktop.padding',
     'Edge padding',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description: 'How far the grid keeps clear of the screen edges.',
     tags: const ['desktop', 'grid', 'margin', 'inset'],
   );
   static final desktopIconSize = shellField(
     'desktop.icon_size',
     'Icon size',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description: 'How large a pinned item’s icon is drawn.',
     tags: const ['desktop', 'icons', 'size'],
   );
   static final desktopShowLabels = shellField(
     'desktop.show_labels',
     'Show labels',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description: 'Writes each pinned item’s name under its icon.',
     tags: const ['desktop', 'icons', 'names', 'text', 'captions'],
   );
   static final newsSources = shellField(
     'news.sources',
     'News sources',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description:
         'The outlets the News widget reads, merged newest first. AP and '
         'Reuters are read through Google News, which indexes both; any other '
@@ -1274,14 +1274,14 @@ abstract final class SettingsCatalog {
   static final newsRefreshMinutes = shellField(
     'news.refresh_minutes',
     'News refresh (minutes)',
-    section: 'Desktop',
+    section: 'Desktop Grid',
     description:
         'How often the News widget reads its feeds again while it is on the '
         'desktop.',
     tags: const ['news', 'headlines', 'interval', 'update', 'poll', 'widget'],
   );
   static final desktopItems = _shellPane(
-    'Desktop',
+    'Desktop Grid',
     'Pinned items',
     description:
         'The applications, files and folders on the desktop, and what to add.',
@@ -1318,7 +1318,7 @@ abstract final class SettingsCatalog {
   static final osdVolumeSound = shellField(
     'osd.volume_sound',
     'Volume change sound',
-    section: 'Volume Sound',
+    section: 'Volume & Sound',
     description:
         'What plays when the output volume changes or is unmuted: a shipped '
         'sound, a sound-theme name, a path, or none.',
@@ -1337,7 +1337,7 @@ abstract final class SettingsCatalog {
   static final osdVolumeSoundVolume = shellField(
     'osd.volume_sound_volume',
     'Volume change sound level',
-    section: 'Volume Sound',
+    section: 'Volume & Sound',
     description:
         'How loud the volume change sound is, from 0 to 1, relative to the '
         'output it plays through.',
@@ -2558,11 +2558,11 @@ abstract final class SettingsCatalog {
     ],
   );
 
-  /// The title of each module's page in Module Settings, by its
+  /// The title of each module's page in Modules, by its
   /// `[modules.<key>]` config key.
   ///
   /// Here rather than in `modules.dart` because a module row's search result
-  /// names its page — "Shell › Module Settings › Clock" — and this file imports
+  /// names its page — "Shell › Modules › Clock" — and this file imports
   /// no page. `modules.dart` reads its page titles from this table, so the two
   /// cannot disagree.
   static const Map<String, String> moduleTitles = {

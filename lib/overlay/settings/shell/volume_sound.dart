@@ -28,7 +28,7 @@ class VolumeSoundSection extends StatelessWidget {
     final sound = this.sound ?? VolumeSoundStore.instance;
 
     return SliverSettingsSection(
-      label: 'Volume Sound',
+      label: 'Volume & Sound',
       children: [
         SettingsRow.field(
           SettingsCatalog.osdVolumeSound,

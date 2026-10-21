@@ -36,12 +36,12 @@ void main() {
     // compare by value rather than by identity.
     test('routes have value equality', () {
       expect(
-        const SettingsRoute(shellCategory: 'Background'),
+        const SettingsRoute(shellCategory: 'Wallpaper'),
         SettingsRoute.background,
       );
       expect(SettingsRoute.background, isNot(SettingsRoute.desktop));
       expect(
-        const SettingsRoute(shellCategory: 'Background').hashCode,
+        const SettingsRoute(shellCategory: 'Wallpaper').hashCode,
         SettingsRoute.background.hashCode,
       );
     });
