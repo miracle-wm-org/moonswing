@@ -1817,14 +1817,14 @@ refresh_minutes = 5
 
 ### World Clocks
 
-The column on the right of the tab shows the local time as an analog dial and a digital readout, and under it one row per `[[calendar.world_clocks]]` entry. The **+** button on that column writes these entries for you and each row's **✕** removes it, so there is nothing to configure in the Settings tab — the keys are documented because the file is yours to edit.
+The column on the right of the tab shows the local time as an analog dial and a digital readout, and under it one row per `[[calendar.world_clocks]]` entry. The **+** button on that column writes these entries for you, each row's **✕** removes it and dragging a row moves it, so there is nothing to configure in the Settings tab — the keys are documented because the file is yours to edit.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `zone` | string | | An IANA time zone name, e.g. `Europe/London`. Required — an entry without one is ignored. |
 | `label` | string | derived | Renames the row. Omit it to use the zone's city (`Europe/London` → London). |
 
-Rows are drawn in the order they appear in the file. Offsets follow daylight saving automatically, from the IANA database bundled with the shell, and a row whose calendar date differs from yours is badged `+1d` or `-1d`. A `zone` this build's database does not know renders as "Unknown time zone" — with its remove button intact — rather than being silently deleted.
+Rows are drawn in the order they appear in the file, and a drag rewrites that order. Offsets follow daylight saving automatically, from the IANA database bundled with the shell, and a row whose calendar date differs from yours is badged `+1d` or `-1d`. A `zone` this build's database does not know renders as "Unknown time zone" — with its remove button intact — rather than being silently deleted.
 
 ```toml
 [calendar]

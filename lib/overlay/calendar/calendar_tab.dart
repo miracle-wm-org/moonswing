@@ -359,6 +359,12 @@ class _CalendarTabState extends State<CalendarTab> {
     _writeWorldClocks(current.where((clock) => clock.zone != zone).toList());
   }
 
+  void _moveWorldClock(int from, int to) {
+    final current = _worldClocks;
+    if (from == to || from < 0 || from >= current.length) return;
+    _writeWorldClocks(reorderedList(current, from, to));
+  }
+
   Widget _buildPane(BuildContext context) {
     final theme = ThemeScope.of(context);
     // The config this pane rebuilds on may have switched the events on or off,
@@ -400,6 +406,7 @@ class _CalendarTabState extends State<CalendarTab> {
             clocks: _worldClocks,
             onAdd: _addWorldClock,
             onRemove: _removeWorldClock,
+            onReorder: _moveWorldClock,
             // Half of what is below the clocks, rather than a strip along the
             // bottom of the month: the composer is a labelled field and two
             // buttons, which reads as a column of controls beside the grid and
