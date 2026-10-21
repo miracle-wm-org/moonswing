@@ -186,9 +186,45 @@ void main() {
     expect(panelPaintsOwnRim(forest), isTrue);
   });
 
-  test('only forest is made of anything', () {
+  test('autumn is forest at the turn of the year', () {
+    final autumn = _shipped('autumn');
+    expect(autumn.panelTexture, SurfaceMaterial.wood);
+    expect(autumn.panelEndTexture, SurfaceMaterial.bark);
+    expect(autumn.panelEndLength, greaterThan(0));
+    expect(autumn.panelGradient, isFalse);
+    expect(autumn.panelMargin, greaterThan(0));
+    // The harvest: turning leaves and pumpkins, with room to hang and stand.
+    expect(autumn.panelFoliage, FoliageStyle.harvest);
+    expect(autumn.panelReach, greaterThan(0));
+    // Still green, and turned: the bloom is the warm one, an orange.
+    expect(autumn.foliageColor.g, greaterThan(autumn.foliageColor.r));
+    expect(autumn.foliageBloom.r, greaterThan(autumn.foliageBloom.g));
+    expect(autumn.foliageBloom.g, greaterThan(autumn.foliageBloom.b));
+    // Its menus are trunks too.
+    expect(autumn.popupGap, 0.0);
+    expect(autumn.popupBorderTexture, SurfaceMaterial.bark);
+    expect(autumn.popupRoots, greaterThan(0));
+    expect(autumn.popupEffect, PopupEffect.sprout);
+    expect(autumn.popupTextureColor.a, lessThan(0.25));
+    expect(_contrast(autumn.popupForeground, autumn.popupBackground),
+        greaterThan(7.0));
+    expect(_contrast(autumn.foreground, autumn.panelTextureColor),
+        greaterThan(4.5));
+    // The accent is a fill that carries white.
+    expect(_contrast(kOnAccent, autumn.accent), greaterThan(4.5));
+    expect(panelPaintsOwnRim(autumn), isTrue);
+  });
+
+  test("autumn's unread badge is a colour the season does not use", () {
+    final autumn = _shipped('autumn');
+    final badge = HSLColor.fromColor(autumn.notificationBadge);
+    // Every leaf and pumpkin is a warm hue; the badge is the cold sky.
+    expect(badge.hue, inInclusiveRange(180, 240));
+  });
+
+  test('only forest and autumn are made of anything', () {
     for (final slug in kBuiltInThemes.keys) {
-      if (slug == 'forest') continue;
+      if (slug == 'forest' || slug == 'autumn') continue;
       final theme = _shipped(slug);
       expect(theme.panelHasDecor, isFalse, reason: slug);
       expect(theme.popupHasMaterial, isFalse, reason: slug);

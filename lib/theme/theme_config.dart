@@ -578,7 +578,7 @@ class ThemeConfig {
   /// Derived rather than an eighteenth colour key, and the difference is the
   /// point: a hand-written theme is fixed without being rewritten, the two can
   /// never drift apart, and a theme whose accent already reads as prose — of
-  /// the shipped five, dracula's and glassy's do — is handed its own accent
+  /// the shipped six, dracula's and glassy's do — is handed its own accent
   /// back untouched.
   ///
   /// Measured against [popupBackground] alone. It is the surface nearly every

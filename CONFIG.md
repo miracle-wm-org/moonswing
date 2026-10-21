@@ -1150,21 +1150,22 @@ Themes live in their own files, one per theme, under `~/.config/moonswing/themes
 theme = "dracula"
 ```
 
-Five themes ship with the shell and are written into that directory the first time it starts:
+Six themes ship with the shell and are written into that directory the first time it starts:
 
 | Name       | Looks like                                                        |
 | ---------- | ----------------------------------------------------------------- |
 | `glassy`   | Cool translucent surfaces that let the wallpaper through. The default. |
 | `forest`   | A carved oak beam on mossy capstones, overgrown with ivy, moss and ferns that hang over your windows — and every menu a bark-rimmed trunk that sprouts out of the beam on spreading roots. |
+| `autumn`   | Forest in October: a smooth chestnut beam between log ends, turning boughs of maple and oak in a top bar's corners, pumpkin patches along a bottom bar, and the same trunk-like menus in bark and walnut. |
 | `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
 | `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
 | `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
 
 If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `glassy` rather than starting unstyled. A single bad value inside a theme file costs only that key.
 
-The **Theme** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The five shipped themes are read-only there — editing one offers to duplicate it first.
+The **Theme** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The six shipped themes are read-only there — editing one offers to duplicate it first.
 
-Because the shell owns those five files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
+Because the shell owns those six files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
 
 ### Writing a theme file
 
@@ -1273,9 +1274,9 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `panel_end_length`     | `0.0`         | How far along the bar each cap reaches; `0` draws none                      |
 | `panel_bevel`          | `0.0`         | How deeply the bar's edges are carved, from `0` (flat) to `1`               |
 | `panel_image`          | `""`          | A picture tiled over the bar in place of `panel_texture` (see below)        |
-| `panel_foliage`        | `none`        | What grows off the bar: `none`, `ivy`, `moss` or `wildwood` (see below)     |
-| `foliage_color`        | `#3E7A3A`     | The canopy's colour; every leaf is jittered off it                          |
-| `foliage_bloom`        | `#E0A13A`     | Berries and flowers among the leaves                                        |
+| `panel_foliage`        | `none`        | What grows off the bar: `none`, `ivy`, `moss`, `wildwood` or `harvest` (see below) |
+| `foliage_color`        | `#3E7A3A`     | The canopy's colour; every leaf is jittered off it (in `harvest`, what is still green) |
+| `foliage_bloom`        | `#E0A13A`     | Berries and flowers among the leaves (in `harvest`, the colour leaves turn and pumpkins are) |
 | `foliage_density`      | `1.0`         | How much grows, as a multiple of the style's own amount; `0`–`3`            |
 | `panel_overhang`       | `0`           | How far the foliage may hang past the bar, over the windows beneath; `0`–`160` |
 | `popup_texture`        | `none`        | What a popup card is made of, under its content                             |
@@ -1384,6 +1385,7 @@ None of them is an image file. Each is drawn once, from seeded arithmetic, as a 
 | `ivy`      | Long trailing vines of ivy, dense where they leave the bar                      |
 | `moss`     | Fine strands of hanging moss and the odd small leaf — the quietest              |
 | `wildwood` | Vines, moss, ferns springing from the bar's ends, clumps of leaves along its edge, and berries and flowers in `foliage_bloom` |
+| `harvest`  | Autumn. Off a top or side bar, turning boughs of maple and oak gathered in its two corners, with the odd leaf on its way down; along a bottom bar, pumpkin patches — one in each corner and a few between — with their vines, leaves and fallen leaves. The leaves turn from `foliage_color`'s green to `foliage_bloom` and past it, through reds, golds and browns; the pumpkins are mostly `foliage_bloom` |
 
 **Gravity is the bar's edge.** A top bar's vines hang; above a bottom bar the same plants stand up and arc over at the tip; off a side bar they leave sideways and droop. What grows is seeded by the bar's length, so every bar of the same size grows the same plants on every start. The leaves rustle when the pointer arrives on the bar and when a popup opens out of it, and are perfectly still — no animation running at all — the rest of the time.
 
@@ -1393,7 +1395,7 @@ None of them is an image file. Each is drawn once, from seeded arithmetic, as a 
 
 **`sprout`** is the `popup_animation` that goes with all of this: the card pushes out of the bar narrow and crowned, thickens to its full width as it lengthens — wearing its bark rim the whole way — and settles with a small sway.
 
-`forest` uses every one of these keys; it is the place to start reading a theme that does.
+`forest` uses every one of these keys; it is the place to start reading a theme that does. `autumn` is the same theme grown differently.
 
 ### Overlays
 

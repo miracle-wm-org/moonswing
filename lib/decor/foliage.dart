@@ -31,12 +31,42 @@ enum SprigKind {
   vine(0.13),
   moss(0.17),
   fern(0.08),
-  clump(0.045);
+  clump(0.045),
+
+  /// A turning branch reaching out of a bar's corner.
+  bough(0.08),
+
+  /// One loose leaf on its way down, which flutters about its own middle.
+  drift(0.32),
+
+  /// A pumpkin leaf on its stalk, standing up off the vine.
+  stalk(0.05),
+
+  /// A pumpkin, or the vine it lies on: too heavy to rustle at all.
+  gourd(0.0);
 
   const SprigKind(this.sway);
 
   /// The largest rustle, in radians, this kind is swung through.
   final double sway;
+}
+
+/// The outline a leaf is drawn in.
+enum LeafShape {
+  /// A plain pointed blade.
+  plain,
+
+  /// Three rounded lobes and a notch at the stalk.
+  ivy,
+
+  /// Five pointed, toothed lobes spread like a hand.
+  maple,
+
+  /// A long blade with rounded lobes down both sides.
+  oak,
+
+  /// Five broad, shallow lobes: a pumpkin's leaf.
+  gourd,
 }
 
 /// One leaf, in its plant's frame: where its stalk meets the stem, which way
@@ -48,7 +78,7 @@ class LeafSpec {
     required this.length,
     required this.width,
     required this.color,
-    this.ivy = false,
+    this.shape = LeafShape.plain,
   });
 
   final Offset at;
@@ -56,9 +86,7 @@ class LeafSpec {
   final double length;
   final double width;
   final Color color;
-
-  /// A three-lobed ivy leaf rather than a plain pointed one.
-  final bool ivy;
+  final LeafShape shape;
 }
 
 /// A berry cluster or a flower.
@@ -78,6 +106,46 @@ class BloomSpec {
   final int seed;
 }
 
+/// A pumpkin sitting on the ground: [at] is the middle of its base, and
+/// [down] is gravity, which is the only way it knows where its stalk goes.
+class GourdSpec {
+  const GourdSpec({
+    required this.at,
+    required this.down,
+    required this.width,
+    required this.height,
+    required this.color,
+    required this.stemColor,
+    required this.ribs,
+    required this.lean,
+  });
+
+  final Offset at;
+  final Offset down;
+  final double width;
+  final double height;
+  final Color color;
+  final Color stemColor;
+
+  /// How many lobes show from the side.
+  final int ribs;
+
+  /// Which way, and how far, the stalk curls over: −1…1.
+  final double lean;
+
+  /// How far the stalk stands above the body.
+  double get stalk => height * 0.22 + 3;
+
+  /// Everything the pumpkin paints, its shadow on the ground included.
+  Rect get bounds {
+    final up = -down;
+    final centre = at + up * ((height + stalk) / 2);
+    return Rect.fromCircle(
+        center: centre,
+        radius: math.max(width * 0.62, (height + stalk) / 2 + 4));
+  }
+}
+
 /// One plant, in coordinates relative to its [root].
 class Sprig {
   Sprig({
@@ -90,6 +158,7 @@ class Sprig {
     this.stemColor = const Color(0xFF2E4A26),
     this.leaves = const [],
     this.blooms = const [],
+    this.gourds = const [],
   });
 
   final SprigKind kind;
@@ -109,6 +178,7 @@ class Sprig {
   final Color stemColor;
   final List<LeafSpec> leaves;
   final List<BloomSpec> blooms;
+  final List<GourdSpec> gourds;
 
   /// How far this plant reaches from its root, for tests and for culling.
   Rect get bounds {
@@ -123,6 +193,9 @@ class Sprig {
     }
     for (final b in blooms) {
       r = r.expandToInclude(Rect.fromCircle(center: b.at, radius: b.radius * 3));
+    }
+    for (final g in gourds) {
+      r = r.expandToInclude(g.bounds);
     }
     return r;
   }
@@ -182,12 +255,20 @@ FoliagePlan growFoliage({
     bloom: bloom,
   );
 
+  if (style == FoliageStyle.harvest) {
+    final sprigs = stands
+        ? grower.pumpkinPatches(density)
+        : grower.turningCorners(density, endCaps: endCaps, hangs: hangs);
+    sprigs.sort((a, b) => b.depth.compareTo(a.depth));
+    return FoliagePlan(sprigs);
+  }
+
   // Per hundred pixels of bar, before density.
   final (vines, clumps, moss, blooms, ferns) = switch (style) {
     FoliageStyle.ivy => (1.6, 2.6, 0.0, 0.08, 0),
     FoliageStyle.moss => (0.2, 0.6, 2.4, 0.0, 0),
     FoliageStyle.wildwood => (1.3, 2.4, 0.8, 0.3, 4),
-    FoliageStyle.none => (0.0, 0.0, 0.0, 0.0, 0),
+    FoliageStyle.none || FoliageStyle.harvest => (0.0, 0.0, 0.0, 0.0, 0),
   };
   int count(double perHundred) {
     final n = perHundred * density * length / 100;
@@ -320,7 +401,7 @@ class _Grower {
   }
 
   LeafSpec _leafAlong(List<Offset> stem, int i, double side, double size,
-      Color color, {bool ivy = false}) {
+      Color color, {LeafShape shape = LeafShape.plain}) {
     final p = stem[i];
     final q = stem[math.min(i + 1, stem.length - 1)];
     final p0 = stem[math.max(i - 1, 0)];
@@ -335,11 +416,20 @@ class _Grower {
       at: p,
       angle: math.atan2(dir.dy, dir.dx) + rng.jitter(0.35),
       length: size,
-      width: size * (ivy ? 0.95 : rng.range(0.42, 0.55)),
+      width: size * _breadth(shape),
       color: color,
-      ivy: ivy,
+      shape: shape,
     );
   }
+
+  /// How wide a leaf of [shape] is for its length.
+  double _breadth(LeafShape shape) => switch (shape) {
+        LeafShape.ivy => 0.95,
+        LeafShape.maple => rng.range(0.9, 1.0),
+        LeafShape.gourd => rng.range(0.92, 1.02),
+        LeafShape.oak => rng.range(0.5, 0.6),
+        LeafShape.plain => rng.range(0.42, 0.55),
+      };
 
   Sprig vine(Offset root,
       {required bool ivy,
@@ -367,11 +457,13 @@ class _Grower {
     for (var i = 1; i < stem.length; i += spacing) {
       final t = i / stem.length;
       final size = (ivy ? rng.range(9, 13.5) : rng.range(6.5, 10)) * (1 - 0.4 * t);
-      leaves.add(_leafAlong(stem, i, side, size, _leafColor(depth), ivy: ivy));
+      leaves.add(_leafAlong(stem, i, side, size, _leafColor(depth),
+          shape: ivy ? LeafShape.ivy : LeafShape.plain));
       side = -side;
       if (rng.chance(0.25)) {
         // A second leaf on the same node, the other way.
-        leaves.add(_leafAlong(stem, i, side, size * 0.8, _leafColor(depth), ivy: ivy));
+        leaves.add(_leafAlong(stem, i, side, size * 0.8, _leafColor(depth),
+            shape: ivy ? LeafShape.ivy : LeafShape.plain));
       }
     }
     if (rng.chance(bloomChance) && stem.length > 4) {
@@ -488,7 +580,7 @@ class _Grower {
         length: size,
         width: size * (ivy ? 0.95 : rng.range(0.42, 0.55)),
         color: _leafColor(depth),
-        ivy: ivy,
+        shape: ivy ? LeafShape.ivy : LeafShape.plain,
       ));
     }
     final blooms = <BloomSpec>[
@@ -503,6 +595,416 @@ class _Grower {
       leaves: leaves,
       blooms: blooms,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Harvest
+  // -------------------------------------------------------------------------
+
+  /// A turned leaf: [bloom] is autumn's colour, and every leaf is somewhere on
+  /// the way to it or past it — mostly orange, then reds, golds and browns, a
+  /// claret now and then, and the odd one still in [leaf]'s green.
+  Color _autumnColor(double depth) {
+    final pick = rng.nextDouble();
+    final Color c;
+    if (pick < 0.3) {
+      c = tone(bloom, degrees: rng.jitter(7), light: rng.jitter(0.05));
+    } else if (pick < 0.52) {
+      c = tone(bloom, degrees: -rng.range(20, 32), sat: 1.05, light: -0.04);
+    } else if (pick < 0.72) {
+      c = tone(bloom, degrees: rng.range(13, 22), light: rng.range(0.03, 0.09));
+    } else if (pick < 0.86) {
+      c = tone(bloom,
+          degrees: -rng.range(0, 10), sat: rng.range(0.55, 0.75), light: -0.13);
+    } else if (pick < 0.93) {
+      c = tone(bloom, degrees: -rng.range(34, 44), sat: 0.85, light: -0.14);
+    } else {
+      c = tone(leaf, degrees: -rng.range(0, 25), light: rng.jitter(0.05));
+    }
+    return tone(c, light: -depth * 0.09);
+  }
+
+  /// A pumpkin leaf: mostly still green, some yellowing, a few gone brown.
+  Color _vineLeafColor(double depth) {
+    final pick = rng.nextDouble();
+    final Color c;
+    if (pick < 0.55) {
+      c = tone(leaf, degrees: rng.jitter(10), light: rng.jitter(0.06));
+    } else if (pick < 0.85) {
+      c = tone(leaf, degrees: -rng.range(25, 45), light: rng.range(0.02, 0.08));
+    } else {
+      c = tone(leaf, degrees: -rng.range(48, 58), sat: 0.95, light: 0.0);
+    }
+    return tone(c, light: -depth * 0.06);
+  }
+
+  /// A woody stem: [bloom] with the colour taken out of it, which is brown.
+  Color _twigColor(double depth) => tone(bloom,
+      degrees: -rng.range(4, 12),
+      sat: rng.range(0.35, 0.5),
+      light: -0.26 - depth * 0.06);
+
+  /// The species a branch or a clump is made of.
+  LeafShape _treeLeaf() {
+    final pick = rng.nextDouble();
+    if (pick < 0.6) return LeafShape.maple;
+    if (pick < 0.88) return LeafShape.oak;
+    return LeafShape.plain;
+  }
+
+  /// Turning boughs, clumps of leaves and the odd loose leaf gathered in a
+  /// bar's two corners — the middle of the bar is left bare.
+  List<Sprig> turningCorners(double density,
+      {required double endCaps, required bool hangs}) {
+    final cap = endCaps > 0 ? endCaps : math.min(60.0, length * 0.08);
+    final corner = math.min(length * 0.45, math.max(cap * 2.2, 130.0));
+    final sprigs = <Sprig>[];
+    for (final end in [0, 1]) {
+      // Away from the end the branch roots at, so the two frame the bar.
+      final inward = end == 0 ? 1.0 : -1.0;
+      double at(double along) => end == 0 ? along : length - along;
+      final boughs = math.max(1, (4 * density).round());
+      for (var i = 0; i < boughs; i++) {
+        // Spread across the corner, the first right in it.
+        final along = i == 0
+            ? rng.range(cap * 0.15, cap * 0.6)
+            : rng.range(cap * 0.3, corner * 0.75);
+        sprigs.add(bough(
+          Offset(at(along), rng.range(-thickness * 0.15, 0.5)),
+          inward: inward,
+          hangs: hangs,
+        ));
+      }
+      for (var i = 0; i < (3.5 * density).round(); i++) {
+        sprigs.add(autumnClump(Offset(
+            at(rng.range(cap * 0.05, corner * 0.6)),
+            rng.range(-thickness * 0.18, 1.0))));
+      }
+      for (var i = 0; i < (2 * density).round(); i++) {
+        sprigs.add(driftingLeaf(Offset(
+          at(rng.range(cap * 0.4, corner * 1.3)),
+          rng.range(reach * 0.3, math.max(reach * 0.3, reach - 12)),
+        )));
+      }
+    }
+    return sprigs;
+  }
+
+  Sprig bough(Offset root, {required double inward, required bool hangs}) {
+    final depth = rng.range(0.2, 1.0);
+    const step = 3.0;
+    final len = reach * rng.range(0.8, 1.5) + rng.range(10, 50);
+    // Out of the corner and along the bar, arcing down as it goes: a branch
+    // reaches before it droops.
+    final dir = _out + Offset(inward * rng.range(1.0, 2.4), 0);
+    final main = _clip(
+      _stem(dir, (len / step).round(), step,
+          weight: hangs ? 0.055 : 0.03, curl: rng.range(0.05, 0.12)),
+      root,
+    );
+    final stems = <List<Offset>>[main];
+    // A twig or two off the branch, the way it was already leaning.
+    for (var j = 0; j < 1 + rng.nextInt(2) && main.length > 6; j++) {
+      final from = main[rng.range(main.length * 0.25, main.length * 0.7).floor()];
+      final twigDir = _out * rng.range(0.6, 1.2) +
+          Offset(inward * rng.range(-0.4, 1.4), 0);
+      final twig = _stem(twigDir, rng.range(4, 9).round(), step,
+          weight: hangs ? 0.14 : 0.06, curl: 0.12);
+      final placed = _clip([for (final p in twig) from + p], root);
+      if (placed.length > 2) stems.add(placed);
+    }
+
+    final shape = _treeLeaf();
+    // A branch turns together, near enough — but not every leaf on it.
+    final own = _autumnColor(depth);
+    Color color() => rng.chance(0.35)
+        ? _autumnColor(depth)
+        : tone(own, degrees: rng.jitter(6), light: rng.jitter(0.05));
+    final leaves = <LeafSpec>[];
+    for (final stem in stems) {
+      var side = rng.chance(0.5) ? 1.0 : -1.0;
+      for (var i = 2; i < stem.length; i += rng.range(1.5, 3.2).round()) {
+        final t = i / stem.length;
+        final size = rng.range(10, 15) * (1 - 0.3 * t);
+        leaves.add(_leafAlong(stem, i, side, size, color(), shape: shape));
+        side = -side;
+      }
+      // A spray at the tip.
+      final tip = stem.length - 1;
+      for (final s in [1.0, -1.0, if (rng.chance(0.5)) 0.3]) {
+        leaves.add(_leafAlong(stem, tip, s, rng.range(9, 12.5), color(),
+            shape: shape));
+      }
+    }
+    return Sprig(
+      kind: SprigKind.bough,
+      root: root,
+      depth: depth,
+      phase: rng.range(0, math.pi * 2),
+      stems: stems,
+      stemWidth: rng.range(1.6, 2.4),
+      stemColor: _twigColor(depth),
+      leaves: leaves,
+      blooms: [
+        if (rng.chance(0.2) && main.length > 5)
+          _bloom(main[main.length ~/ 2], depth),
+      ],
+    );
+  }
+
+  Sprig autumnClump(Offset root) {
+    final depth = rng.range(0.0, 0.6);
+    final shape = _treeLeaf();
+    final out = math.atan2(_out.dy, _out.dx);
+    final down = math.atan2(gravity.dy, gravity.dx);
+    final leaves = <LeafSpec>[];
+    for (var i = 0, n = 5 + rng.nextInt(5); i < n; i++) {
+      final size = rng.range(10, 15);
+      leaves.add(LeafSpec(
+        at: Offset(rng.jitter(7), rng.jitter(2)),
+        angle: out + rng.jitter(1.5) + (down - out) * 0.25,
+        length: size,
+        width: size * _breadth(shape),
+        color: _autumnColor(depth),
+        shape: shape,
+      ));
+    }
+    return Sprig(
+      kind: SprigKind.clump,
+      root: root,
+      depth: depth,
+      phase: rng.range(0, math.pi * 2),
+      leaves: leaves,
+    );
+  }
+
+  /// A leaf on its own in the air, rooted at its own middle, so its rustle
+  /// is a flutter rather than a swing.
+  Sprig driftingLeaf(Offset root) {
+    final depth = rng.range(0.1, 0.9);
+    final size = rng.range(7.5, 11);
+    final shape = _treeLeaf();
+    final angle = rng.range(-0.9, 0.9) + (rng.chance(0.5) ? 0 : math.pi);
+    return Sprig(
+      kind: SprigKind.drift,
+      root: root,
+      depth: depth,
+      phase: rng.range(0, math.pi * 2),
+      leaves: [
+        LeafSpec(
+          at: Offset(math.cos(angle), math.sin(angle)) * (-size / 2),
+          angle: angle,
+          length: size,
+          width: size * _breadth(shape),
+          color: _autumnColor(depth),
+          shape: shape,
+        ),
+      ],
+    );
+  }
+
+  /// Pumpkin patches along a bar the plants stand on: one in each corner and
+  /// a few between, each a vine along the bar's edge with pumpkins on it,
+  /// leaves on stalks behind them and fallen leaves among them.
+  List<Sprig> pumpkinPatches(double density) {
+    final scale = math.min(1.0, reach / 72);
+    final sprigs = <Sprig>[];
+    final centres = <(double, double)>[];
+    if (length < 320) {
+      centres.add((length / 2, math.min(length * 0.4, 70.0)));
+    } else {
+      final half = rng.range(55, 80) * math.max(0.7, scale);
+      centres.add((half * 0.8 + 4, half));
+      final between = math.max(0, (density * length / 620).floor() - 1);
+      for (var i = 0; i < between; i++) {
+        final t = (i + 1) / (between + 1) + rng.jitter(0.05);
+        centres.add((t * length, rng.range(40, 65) * math.max(0.7, scale)));
+      }
+      final last = rng.range(55, 80) * math.max(0.7, scale);
+      centres.add((length - last * 0.8 - 4, last));
+    }
+    for (final (cx, half) in centres) {
+      sprigs.addAll(_patch(cx, half, scale, density));
+    }
+    return sprigs;
+  }
+
+  List<Sprig> _patch(double cx, double half, double scale, double density) {
+    final sprigs = <Sprig>[];
+    final a = math.max(3.0, cx - half);
+    final b = math.min(length - 3, cx + half);
+    final up = _out;
+
+    // The vine along the bar's edge, with its tendrils curling off it.
+    final root = Offset(cx, 0.5);
+    final phase = rng.range(0, 10);
+    Offset vineAt(double x) =>
+        Offset(x - cx, 0.8 + math.sin(x * 0.08 + phase) * 1.1);
+    // Two runs out from the patch's middle, so the vine is thickest where it
+    // roots and thins towards both ends.
+    final vine = <Offset>[for (var x = cx; x <= b; x += 3) vineAt(x)];
+    final back = <Offset>[for (var x = cx; x >= a; x -= 3) vineAt(x)];
+    final stems = <List<Offset>>[vine, back];
+    for (var i = 0; i < 2 + rng.nextInt(3); i++) {
+      final run = rng.chance(0.5) ? vine : back;
+      final from = run[rng.nextInt(run.length)];
+      final turns = rng.range(1.4, 2.4) * math.pi * 2;
+      final r0 = rng.range(2.5, 4.0);
+      final hand = rng.chance(0.5) ? 1.0 : -1.0;
+      const n = 22;
+      final rise = rng.range(9, 12) * scale;
+      final tendril = <Offset>[];
+      for (var k = 0; k <= n; k++) {
+        final t = k / n;
+        final th = t * turns;
+        final r = r0 * (1 - 0.65 * t);
+        tendril.add(from +
+            up * (t * rise + 1) +
+            Offset(hand * (math.cos(th) - 1) * r, math.sin(th) * r * 0.6));
+      }
+      stems.add(_clip(tendril, root, margin: 2));
+    }
+    final vineDepth = rng.range(0.9, 1.0);
+    sprigs.add(Sprig(
+      kind: SprigKind.gourd,
+      root: root,
+      depth: vineDepth,
+      phase: 0,
+      stems: stems,
+      stemWidth: 1.7,
+      stemColor: shade(tone(leaf, degrees: -10, sat: 0.75), -0.08),
+    ));
+
+    // Leaves on stalks, mostly behind the pumpkins.
+    final leaves = ((7 + rng.nextInt(5)) * density).round();
+    for (var i = 0; i < leaves; i++) {
+      // Thickest round the pumpkins, in the patch's middle.
+      final x = cx + (rng.nextDouble() - rng.nextDouble()) * (b - a) / 2;
+      final front = rng.chance(0.25);
+      final depth = front ? rng.range(0.1, 0.32) : rng.range(0.5, 0.95);
+      final len = (front ? rng.range(4, 10) : rng.range(12, 30)) * scale;
+      final stalk = _clip(
+        _stem(up + Offset(rng.jitter(0.45), 0), math.max(2, (len / 2.5).round()),
+            2.5,
+            weight: 0.04, curl: 0.05),
+        Offset(x, 1),
+        margin: 14,
+      );
+      final tip = stalk.last;
+      final from = stalk[math.max(0, stalk.length - 2)];
+      var d = tip - from;
+      if (d.distance == 0) d = up;
+      final size = (front ? rng.range(12, 16) : rng.range(17, 25)) * scale;
+      sprigs.add(Sprig(
+        kind: SprigKind.stalk,
+        root: Offset(x, 1),
+        depth: depth,
+        phase: rng.range(0, math.pi * 2),
+        stems: [stalk],
+        stemWidth: 1.2,
+        stemColor: shade(tone(leaf, degrees: -12, sat: 0.6), -0.06),
+        leaves: [
+          LeafSpec(
+            at: tip,
+            angle: math.atan2(d.dy, d.dx) + rng.jitter(0.6),
+            length: size,
+            width: size * _breadth(LeafShape.gourd),
+            color: _vineLeafColor(depth),
+            shape: LeafShape.gourd,
+          ),
+        ],
+      ));
+    }
+
+    // The pumpkins: one big one, and smaller ones either side of it.
+    final count = math.max(1, ((2 + rng.nextInt(3)) * density).round());
+    final widths = [
+      for (var i = 0; i < count; i++)
+        (i == 0 ? rng.range(30, 38) : rng.range(15, 27)) * scale,
+    ];
+    var left = cx + rng.jitter(half * 0.2) - widths[0] / 2;
+    var right = left + widths[0];
+    for (var i = 0; i < count; i++) {
+      final w = widths[i];
+      double x;
+      if (i == 0) {
+        x = (left + right) / 2;
+      } else if (i.isOdd) {
+        x = right + w * rng.range(0.3, 0.5);
+        right = x + w / 2;
+      } else {
+        x = left - w * rng.range(0.3, 0.5);
+        left = x - w / 2;
+      }
+      if (x - w / 2 < 3 || x + w / 2 > length - 3) continue;
+      final depth = i == 0 ? rng.range(0.34, 0.4) : rng.range(0.4, 0.7);
+      final h = w * rng.range(0.68, 0.84);
+      sprigs.add(Sprig(
+        kind: SprigKind.gourd,
+        root: Offset(x, 0),
+        depth: depth,
+        phase: 0,
+        gourds: [
+          GourdSpec(
+            // Sat a little into the bar's edge, and the ones behind a little
+            // further back — which, seen from the side, is higher.
+            at: up * (-1.5 + (depth - 0.34) * 6),
+            down: gravity,
+            width: w,
+            height: math.min(h, reach - 16),
+            color: _pumpkinColor(depth, hero: i == 0),
+            stemColor: rng.chance(0.7)
+                ? tone(leaf, degrees: -30, sat: 0.55, light: -0.08)
+                : tone(bloom, degrees: -8, sat: 0.35, light: -0.22),
+            ribs: 5 + rng.nextInt(3),
+            lean: rng.jitter(1.0),
+          ),
+        ],
+      ));
+    }
+
+    // Fallen leaves lying among them, in front of everything.
+    final fallen = <LeafSpec>[];
+    for (var i = 0, n = (rng.range(2, 4) * density).round(); i < n; i++) {
+      final size = rng.range(7, 10.5) * scale;
+      final shape = _treeLeaf();
+      fallen.add(LeafSpec(
+        at: Offset(rng.jitter(half * 0.9), rng.range(-1.5, 1.5)),
+        angle: rng.jitter(0.45) + (rng.chance(0.5) ? 0 : math.pi),
+        length: size,
+        width: size * _breadth(shape),
+        color: _autumnColor(0),
+        shape: shape,
+      ));
+    }
+    sprigs.add(Sprig(
+      kind: SprigKind.gourd,
+      root: Offset(cx, 0),
+      depth: 0.02,
+      phase: 0,
+      leaves: fallen,
+    ));
+    return sprigs;
+  }
+
+  /// Mostly orange, but a patch is never one colour: a deep red-orange, a
+  /// golden one, a pale one, and now and then a green squash — though the
+  /// [hero] of a patch, its biggest, is always one of the warm ones.
+  Color _pumpkinColor(double depth, {bool hero = false}) {
+    final pick = rng.nextDouble() * (hero ? 0.84 : 1.0);
+    final Color c;
+    if (pick < 0.62) {
+      c = tone(bloom, degrees: rng.jitter(5), light: rng.jitter(0.04));
+    } else if (pick < 0.74) {
+      c = tone(bloom, degrees: -rng.range(9, 15), sat: 1.05, light: -0.06);
+    } else if (pick < 0.84) {
+      c = tone(bloom, degrees: rng.range(10, 16), light: 0.04);
+    } else if (pick < 0.94) {
+      c = tone(bloom, degrees: 14, sat: 0.3, light: 0.27);
+    } else {
+      c = tone(leaf, sat: 0.85, light: -0.04);
+    }
+    return tone(c, light: -depth * 0.08);
   }
 
   BloomSpec _bloom(Offset at, double depth) => BloomSpec(
@@ -559,6 +1061,9 @@ void paintSprig(Canvas canvas, Sprig sprig) {
     if (stem.length < 2) continue;
     _taperedStroke(canvas, stem, sprig.stemWidth, sprig.stemColor);
   }
+  for (final gourd in sprig.gourds) {
+    _paintGourd(canvas, gourd);
+  }
   for (final leaf in sprig.leaves) {
     _paintLeaf(canvas, leaf);
   }
@@ -597,31 +1102,93 @@ void _taperedStroke(Canvas canvas, List<Offset> pts, double width, Color color) 
 Path _leafPath(LeafSpec leaf) {
   final l = leaf.length;
   final w = leaf.width / 2;
-  if (leaf.ivy) {
-    // Three lobes about the blade's centre — r(θ) = R(0.7 + 0.3·cos 3θ) —
-    // which leaves a notch where the stalk joins, the shape of ivy.
-    final r = l * 0.5;
-    final c = Offset(r * 0.75, 0);
-    final path = Path();
-    const n = 30;
-    for (var i = 0; i <= n; i++) {
-      final th = -math.pi + i / n * math.pi * 2;
-      final rr = r * (0.68 + 0.32 * math.cos(3 * th)) * (1 + 0.12 * math.cos(th));
-      final p = c + Offset(math.cos(th) * rr, math.sin(th) * rr * (w * 2 / l));
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
+  switch (leaf.shape) {
+    case LeafShape.ivy:
+      // Three lobes about the blade's centre — r(θ) = R(0.7 + 0.3·cos 3θ) —
+      // which leaves a notch where the stalk joins, the shape of ivy.
+      final r = l * 0.5;
+      return _radialPath(Offset(r * 0.75, 0), w * 2 / l,
+          (th) => r * (0.68 + 0.32 * math.cos(3 * th)) * (1 + 0.12 * math.cos(th)));
+    case LeafShape.maple:
+      // Five pointed lobes — the tip, a pair either side, a smaller pair
+      // below — each a sharp bump on a small round core, with teeth.
+      final r = l * 0.55;
+      return _radialPath(Offset(l * 0.42, 0), w * 2 / l, (th) {
+        var k = 0.4 + 0.04 * math.pow(math.cos(th * 11).abs(), 6);
+        for (final (at, size) in _mapleLobes) {
+          k += size * _lobe(th - at, 0.62, 1.25);
+        }
+        return r * k;
+      }, steps: 72);
+    case LeafShape.gourd:
+      // Five broad lobes, round-shouldered with a point at each, and a deep
+      // notch at the stalk.
+      final r = l * 0.52;
+      return _radialPath(Offset(l * 0.46, 0), w * 2 / l, (th) {
+        var k = 0.5 + 0.03 * math.pow(math.cos(th * 9).abs(), 8);
+        for (final (at, size) in _mapleLobes) {
+          k += size * 0.85 * _lobe(th - at, 0.7, 0.75);
+        }
+        // The notch: the two lower lobes overlap the stalk's side.
+        return r * k * (1 - 0.35 * _lobe(th - math.pi, 0.35, 1));
+      }, steps: 60);
+    case LeafShape.oak:
+      // A long blade whose edge swells into rounded lobes, four a side,
+      // narrowing to the stalk and closing in a round tip.
+      final path = Path()..moveTo(0, 0);
+      const n = 36;
+      for (final side in [-1.0, 1.0]) {
+        for (var i = 1; i <= n; i++) {
+          final t = side < 0 ? i / n : 1 - i / n;
+          final envelope = math.pow(math.sin(math.pi * math.min(1, t * 1.05)), 0.7);
+          final lobes = 0.55 + 0.45 * math.sin(math.pi * t * 4.5).abs();
+          path.lineTo(l * t, side * w * 1.2 * envelope * lobes);
+        }
       }
-    }
-    path.close();
-    return path;
+      return path..close();
+    case LeafShape.plain:
+      return Path()
+        ..moveTo(0, 0)
+        ..cubicTo(l * 0.22, -w * 1.25, l * 0.72, -w * 0.95, l, 0)
+        ..cubicTo(l * 0.72, w * 0.95, l * 0.22, w * 1.25, 0, 0)
+        ..close();
   }
-  return Path()
-    ..moveTo(0, 0)
-    ..cubicTo(l * 0.22, -w * 1.25, l * 0.72, -w * 0.95, l, 0)
-    ..cubicTo(l * 0.72, w * 0.95, l * 0.22, w * 1.25, 0, 0)
-    ..close();
+}
+
+/// A maple's lobes, as (angle from the tip, size): the tip, the pair either
+/// side of it, and the smaller pair beside the stalk.
+const _mapleLobes = [
+  (0.0, 0.62),
+  (1.2, 0.54),
+  (-1.2, 0.54),
+  (2.25, 0.3),
+  (-2.25, 0.3),
+];
+
+/// A bump [width] radians either side of its peak; [sharp] above 1 points it.
+double _lobe(double d, double width, double sharp) {
+  // Angles wrap, so the pair beside the stalk can meet across it.
+  final a = (d + math.pi) % (math.pi * 2) - math.pi;
+  final x = 1 - a.abs() / width;
+  return x <= 0 ? 0 : math.pow(x, sharp).toDouble();
+}
+
+/// The closed outline r(θ) about [centre], squashed across the blade by
+/// [squash], starting and ending at the stalk's side.
+Path _radialPath(Offset centre, double squash, double Function(double) r,
+    {int steps = 30}) {
+  final path = Path();
+  for (var i = 0; i <= steps; i++) {
+    final th = -math.pi + i / steps * math.pi * 2;
+    final rr = r(th);
+    final p = centre + Offset(math.cos(th) * rr, math.sin(th) * rr * squash);
+    if (i == 0) {
+      path.moveTo(p.dx, p.dy);
+    } else {
+      path.lineTo(p.dx, p.dy);
+    }
+  }
+  return path..close();
 }
 
 void _paintLeaf(Canvas canvas, LeafSpec leaf) {
@@ -652,25 +1219,54 @@ void _paintLeaf(Canvas canvas, LeafSpec leaf) {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 0.55
     ..color = shade(leaf.color, 0.16).withValues(alpha: 0.75);
-  final tip = leaf.ivy ? l * 0.85 : l * 0.92;
+  final palmate =
+      leaf.shape == LeafShape.maple || leaf.shape == LeafShape.gourd;
+  final tip = switch (leaf.shape) {
+    LeafShape.ivy => l * 0.85,
+    LeafShape.maple => l * 0.95,
+    LeafShape.gourd => l * 0.8,
+    LeafShape.oak || LeafShape.plain => l * 0.92,
+  };
+  // A palmate leaf's veins start where the blade does, past a bare stalk.
+  final base = palmate ? l * 0.22 : 0.0;
   canvas.drawLine(Offset.zero, Offset(tip, 0), rib);
   if (l > 5) {
     rib
       ..strokeWidth = 0.4
       ..color = shade(leaf.color, 0.12).withValues(alpha: 0.45);
-    if (leaf.ivy) {
-      // Veins out to the two side lobes.
-      for (final s in [-1.0, 1.0]) {
-        canvas.drawLine(Offset(l * 0.18, 0),
-            Offset(l * 0.42, s * leaf.width * 0.42), rib);
-      }
-    } else {
-      for (final f in [0.3, 0.55]) {
+    switch (leaf.shape) {
+      case LeafShape.ivy:
+        // Veins out to the two side lobes.
         for (final s in [-1.0, 1.0]) {
-          canvas.drawLine(Offset(l * f, 0),
-              Offset(l * (f + 0.18), s * leaf.width * 0.36), rib);
+          canvas.drawLine(Offset(l * 0.18, 0),
+              Offset(l * 0.42, s * leaf.width * 0.42), rib);
         }
-      }
+      case LeafShape.maple || LeafShape.gourd:
+        // One vein out to every lobe but the tip's, which is the rib.
+        final centre = Offset(l * (leaf.shape == LeafShape.maple ? 0.42 : 0.46), 0);
+        final reach = l * (leaf.shape == LeafShape.maple ? 0.5 : 0.42);
+        final squash = leaf.width / l;
+        for (final (at, size) in _mapleLobes.skip(1)) {
+          final k = reach * (0.5 + size);
+          canvas.drawLine(
+              Offset(base, 0),
+              centre + Offset(math.cos(at) * k, math.sin(at) * k * squash),
+              rib);
+        }
+      case LeafShape.oak:
+        for (var f = 0.2; f < 0.85; f += 0.22) {
+          for (final s in [-1.0, 1.0]) {
+            canvas.drawLine(Offset(l * f, 0),
+                Offset(l * (f + 0.1), s * leaf.width * 0.5), rib);
+          }
+        }
+      case LeafShape.plain:
+        for (final f in [0.3, 0.55]) {
+          for (final s in [-1.0, 1.0]) {
+            canvas.drawLine(Offset(l * f, 0),
+                Offset(l * (f + 0.18), s * leaf.width * 0.36), rib);
+          }
+        }
     }
   }
   canvas.drawPath(
@@ -679,6 +1275,105 @@ void _paintLeaf(Canvas canvas, LeafSpec leaf) {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.45
       ..color = shade(leaf.color, -0.2).withValues(alpha: 0.55),
+  );
+  canvas.restore();
+}
+
+/// Paints a pumpkin standing on its base at [g.at]: a ground shadow, its
+/// lobes from the outside in — each a lit oval, with a crease where it meets
+/// the next — the well its stalk comes out of, and the stalk.
+void _paintGourd(Canvas canvas, GourdSpec g) {
+  // A frame whose +y is down, whatever the bar's anchor, so the pumpkin is
+  // drawn the right way up: the stalk at −y, the ground at 0.
+  final down = g.down / g.down.distance;
+  final across = Offset(-down.dy, down.dx);
+  canvas.save();
+  canvas.transform(Matrix4(
+    across.dx, across.dy, 0, 0, //
+    down.dx, down.dy, 0, 0, //
+    0, 0, 1, 0, //
+    g.at.dx, g.at.dy, 0, 1, //
+  ).storage);
+
+  final w = g.width;
+  final h = g.height;
+  canvas.drawOval(
+    Rect.fromCenter(center: Offset(w * 0.04, -0.5), width: w * 1.15, height: h * 0.2),
+    Paint()
+      ..color = const Color(0x66000000)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
+  );
+
+  final k = g.ribs;
+  final lobes = <(double, double, double, double)>[];
+  for (var i = 0; i < k; i++) {
+    final phi = -math.pi / 2 + math.pi * (i + 0.5) / k;
+    lobes.add((
+      phi,
+      w / 2 * math.sin(phi) * 0.7,
+      w / 2 * (0.3 + 0.24 * math.cos(phi)),
+      h / 2 * (0.9 + 0.1 * math.cos(phi)),
+    ));
+  }
+  // The outside lobes are the furthest round the curve, so they go first.
+  lobes.sort((a, b) => b.$1.abs().compareTo(a.$1.abs()));
+  final crease = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.7
+    ..color = shade(g.color, -0.22).withValues(alpha: 0.7);
+  for (final (phi, cx, a, b) in lobes) {
+    final rect = Rect.fromCenter(
+        center: Offset(cx, -b), width: a * 2, height: b * 2);
+    // Turned away from the light, a lobe is a little darker.
+    final lit = shade(g.color, -0.05 * phi.abs() + (phi < 0 ? 0.03 : -0.03));
+    canvas.drawOval(
+      rect,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(cx - a * 0.35, -b * 1.35),
+          math.max(a, b) * 1.5,
+          [shade(lit, 0.12), lit, shade(lit, -0.2)],
+          const [0.0, 0.45, 1.0],
+        ),
+    );
+    canvas.drawOval(rect, crease);
+  }
+
+  // A soft highlight on the shoulder facing the light.
+  canvas.drawOval(
+    Rect.fromCenter(
+        center: Offset(-w * 0.14, -h * 0.68), width: w * 0.2, height: h * 0.16),
+    Paint()
+      ..color = const Color(0x2EFFFFFF)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.4),
+  );
+  // The well the stalk sits in.
+  canvas.drawOval(
+    Rect.fromCenter(
+        center: Offset(0, -h * 0.95), width: w * 0.24, height: h * 0.1),
+    Paint()..color = shade(g.color, -0.25).withValues(alpha: 0.8),
+  );
+
+  final top = Offset(0, -h * 0.93);
+  final end = Offset(g.lean * g.stalk * 0.55, -h - g.stalk);
+  final stalk = Path()
+    ..moveTo(top.dx, top.dy)
+    ..quadraticBezierTo(0, end.dy + g.stalk * 0.3, end.dx, end.dy);
+  canvas.drawPath(
+    stalk,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = math.max(2.0, w * 0.1)
+      ..color = g.stemColor,
+  );
+  canvas.drawPath(
+    stalk.shift(Offset(-w * 0.015, 0)),
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = math.max(0.6, w * 0.025)
+      ..color = shade(g.stemColor, 0.14).withValues(alpha: 0.8),
   );
   canvas.restore();
 }
