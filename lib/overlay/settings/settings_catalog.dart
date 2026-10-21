@@ -18,17 +18,40 @@ import 'package:moonswing/default_apps/default_app_model.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 
-/// One themeable colour: the key it is written under, and its catalogue entry.
+/// What a theme key paints — the groups the Theme page's editor is split into.
+///
+/// In the order the page draws them. A key belongs to the surface a user would
+/// go looking for it under, so `popup_background` is a popup's even though the
+/// overlays' cards are filled with it too.
+enum ThemeGroup {
+  general('General'),
+  bar('Bar'),
+  popup('Popups'),
+  overlay('Overlays'),
+  controls('Controls'),
+  notifications('Notifications');
+
+  const ThemeGroup(this.label);
+
+  /// The section heading the group is drawn under.
+  final String label;
+}
+
+/// One themeable colour: the key it is written under, the group it is drawn
+/// in, and its catalogue entry.
 ///
 /// The Theme page renders its colour rows from this list, so the palette is
 /// spelled once — it replaced a `Map<String, String>` of key to label that the
 /// search index would otherwise have had to copy.
 @immutable
 class ThemeColorSetting {
-  const ThemeColorSetting(this.key, this.field);
+  const ThemeColorSetting(this.key, this.group, this.field);
 
   /// The `ThemeConfig` key, e.g. `surface_hover`.
   final String key;
+
+  /// The section of the editor the row is drawn in.
+  final ThemeGroup group;
 
   final SettingsField field;
 }
@@ -479,74 +502,17 @@ abstract final class SettingsCatalog {
     tags: const ['menu', 'roots', 'trunk', 'tree', 'attach'],
   );
 
-  /// The palette, in the order the Theme page draws it.
+  /// The palette. The Theme page draws each [ThemeGroup]'s colours in this
+  /// order, after the rest of that group's rows.
   static final List<ThemeColorSetting> themeColors = [
     ThemeColorSetting(
       'accent',
+      ThemeGroup.general,
       _color('accent', 'Accent', 'The highlight colour used throughout.'),
     ),
     ThemeColorSetting(
-      'foreground',
-      _color('foreground', 'Foreground', 'Text and icons on the bar.'),
-    ),
-    ThemeColorSetting(
-      'surface_hover',
-      _color(
-        'surface_hover',
-        'Surface (hover)',
-        'The wash behind a control the pointer is over.',
-      ),
-    ),
-    ThemeColorSetting(
-      'surface_pressed',
-      _color(
-        'surface_pressed',
-        'Surface (pressed)',
-        'The wash behind a control being pressed.',
-      ),
-    ),
-    ThemeColorSetting(
-      'workspace_background',
-      _color(
-        'workspace_background',
-        'Workspace background',
-        'The fill behind a workspace button.',
-      ),
-    ),
-    ThemeColorSetting(
-      'popup_background',
-      _color(
-        'popup_background',
-        'Popup background',
-        'The fill of a menu, flyout or overlay panel.',
-      ),
-    ),
-    ThemeColorSetting(
-      'popup_foreground',
-      _color(
-        'popup_foreground',
-        'Popup foreground',
-        'Text and icons inside a menu or overlay.',
-      ),
-    ),
-    ThemeColorSetting(
-      'control_surface',
-      _color(
-        'control_surface',
-        'Control surface',
-        'The fill of a field, button or dropdown.',
-      ),
-    ),
-    ThemeColorSetting(
-      'slider_track',
-      _color(
-        'slider_track',
-        'Slider track',
-        'The unfilled part of a volume or brightness slider.',
-      ),
-    ),
-    ThemeColorSetting(
       'muted',
+      ThemeGroup.general,
       _color(
         'muted',
         'Muted text',
@@ -555,27 +521,12 @@ abstract final class SettingsCatalog {
     ),
     ThemeColorSetting(
       'divider',
+      ThemeGroup.general,
       _color('divider', 'Divider', 'Hairlines between sections and rows.'),
     ),
     ThemeColorSetting(
-      'notification_badge',
-      _color(
-        'notification_badge',
-        'Notification badge',
-        'The colour an unread notification is announced in — the floating '
-            'card, the bell’s count and the dot on an unread message.',
-      ),
-    ),
-    ThemeColorSetting(
-      'notification_badge_foreground',
-      _color(
-        'notification_badge_foreground',
-        'Notification badge text',
-        'Text and glyphs drawn on the notification badge colour.',
-      ),
-    ),
-    ThemeColorSetting(
       'panel_background',
+      ThemeGroup.bar,
       _color(
         'panel_background',
         'Panel background',
@@ -584,26 +535,26 @@ abstract final class SettingsCatalog {
     ),
     ThemeColorSetting(
       'panel_border',
+      ThemeGroup.bar,
       _color('panel_border', 'Panel border', 'The rim drawn around the bar.'),
     ),
     ThemeColorSetting(
-      'popup_border',
-      _color(
-        'popup_border',
-        'Popup border',
-        'The rim drawn around a menu card.',
-      ),
+      'foreground',
+      ThemeGroup.bar,
+      _color('foreground', 'Foreground', 'Text and icons on the bar.'),
     ),
     ThemeColorSetting(
-      'popup_shadow_color',
+      'workspace_background',
+      ThemeGroup.bar,
       _color(
-        'popup_shadow_color',
-        'Popup shadow',
-        'The shadow under a menu card. Fully transparent turns it off.',
+        'workspace_background',
+        'Workspace background',
+        'The fill behind a workspace button.',
       ),
     ),
     ThemeColorSetting(
       'panel_texture_color',
+      ThemeGroup.bar,
       _color(
         'panel_texture_color',
         'Panel material tint',
@@ -613,6 +564,7 @@ abstract final class SettingsCatalog {
     ),
     ThemeColorSetting(
       'panel_end_color',
+      ThemeGroup.bar,
       _color(
         'panel_end_color',
         'Panel end cap tint',
@@ -621,6 +573,7 @@ abstract final class SettingsCatalog {
     ),
     ThemeColorSetting(
       'foliage_color',
+      ThemeGroup.bar,
       _color(
         'foliage_color',
         'Foliage',
@@ -630,6 +583,7 @@ abstract final class SettingsCatalog {
     ),
     ThemeColorSetting(
       'foliage_bloom',
+      ThemeGroup.bar,
       _color(
         'foliage_bloom',
         'Foliage blooms',
@@ -638,7 +592,44 @@ abstract final class SettingsCatalog {
       ),
     ),
     ThemeColorSetting(
+      'popup_background',
+      ThemeGroup.popup,
+      _color(
+        'popup_background',
+        'Popup background',
+        'The fill of a menu, flyout or overlay panel.',
+      ),
+    ),
+    ThemeColorSetting(
+      'popup_foreground',
+      ThemeGroup.popup,
+      _color(
+        'popup_foreground',
+        'Popup foreground',
+        'Text and icons inside a menu or overlay.',
+      ),
+    ),
+    ThemeColorSetting(
+      'popup_border',
+      ThemeGroup.popup,
+      _color(
+        'popup_border',
+        'Popup border',
+        'The rim drawn around a menu card.',
+      ),
+    ),
+    ThemeColorSetting(
+      'popup_shadow_color',
+      ThemeGroup.popup,
+      _color(
+        'popup_shadow_color',
+        'Popup shadow',
+        'The shadow under a menu card. Fully transparent turns it off.',
+      ),
+    ),
+    ThemeColorSetting(
       'popup_texture_color',
+      ThemeGroup.popup,
       _color(
         'popup_texture_color',
         'Popup material tint',
@@ -647,6 +638,7 @@ abstract final class SettingsCatalog {
     ),
     ThemeColorSetting(
       'popup_border_texture_color',
+      ThemeGroup.popup,
       _color(
         'popup_border_texture_color',
         'Popup rim material tint',
@@ -655,10 +647,66 @@ abstract final class SettingsCatalog {
     ),
     ThemeColorSetting(
       'scrim',
+      ThemeGroup.overlay,
       _color(
         'scrim',
         'Overlay scrim',
         'The wash over the desktop behind a full-screen overlay.',
+      ),
+    ),
+    ThemeColorSetting(
+      'control_surface',
+      ThemeGroup.controls,
+      _color(
+        'control_surface',
+        'Control surface',
+        'The fill of a field, button or dropdown.',
+      ),
+    ),
+    ThemeColorSetting(
+      'surface_hover',
+      ThemeGroup.controls,
+      _color(
+        'surface_hover',
+        'Surface (hover)',
+        'The wash behind a control the pointer is over.',
+      ),
+    ),
+    ThemeColorSetting(
+      'surface_pressed',
+      ThemeGroup.controls,
+      _color(
+        'surface_pressed',
+        'Surface (pressed)',
+        'The wash behind a control being pressed.',
+      ),
+    ),
+    ThemeColorSetting(
+      'slider_track',
+      ThemeGroup.controls,
+      _color(
+        'slider_track',
+        'Slider track',
+        'The unfilled part of a volume or brightness slider.',
+      ),
+    ),
+    ThemeColorSetting(
+      'notification_badge',
+      ThemeGroup.notifications,
+      _color(
+        'notification_badge',
+        'Notification badge',
+        'The colour an unread notification is announced in — the floating '
+            'card, the bell’s count and the dot on an unread message.',
+      ),
+    ),
+    ThemeColorSetting(
+      'notification_badge_foreground',
+      ThemeGroup.notifications,
+      _color(
+        'notification_badge_foreground',
+        'Notification badge text',
+        'Text and glyphs drawn on the notification badge colour.',
       ),
     ),
   ];

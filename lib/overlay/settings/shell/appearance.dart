@@ -173,9 +173,12 @@ class _AppearanceSectionState extends State<AppearanceSection> {
             // Read straight off the resolved theme rather than the file, so a
             // key the file omits shows the value actually in use.
             final current = _themes.theme.toMap();
-            return SliverSettingsSection(
-              label: 'Edit $displayName',
-              children: [
+            // One section per thing a key paints, so somebody after the bar's
+            // corners or a menu's shadow reads one card rather than the whole
+            // theme. The palette joins each section from the catalogue by its
+            // [ThemeGroup], so no colour can be left out of every section.
+            final rows = <ThemeGroup, List<Widget>>{
+              ThemeGroup.general: [
                 // A notice rather than a hint: this is not an explanation of a
                 // setting but the reason none of them below will take, and the
                 // way out of it is the button on the same strip.
@@ -218,7 +221,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     // The field, not `toMap()['font']`: this selector runs on
                     // *every* ThemeStore notify, and `toMap` builds a thirty-key
                     // map — twice per frame of a colour-picker drag, between
-                    // this row and the panel-gradient one below.
+                    // this row and the bar's gradient one.
                     selector: () => _themes.theme.fontFamily,
                     builder: (context, font) => FutureBuilder<List<String>>(
                       future: _fonts,
@@ -292,8 +295,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     key: ValueKey('font_size-$active'),
                     value: current['font_size'] as num? ?? ShellFontSizes.body,
                     isInt: false,
-                    // Straight to `edit`, like the panel numbers below rather
-                    // than like the toggle above: `edit` forks a built-in
+                    // Straight to `edit`, like the bar and popup numbers rather
+                    // than like the gradient toggle: `edit` forks a built-in
                     // itself, and answering a typed digit with a duplicate
                     // would throw the digit away.
                     onChanged: (v) => _themes.edit(
@@ -302,27 +305,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                SettingsRow.field(
-                  SettingsCatalog.panelGradient,
-                  info:
-                      'Off paints the bar as a flat panel background. On fades '
-                      'it from the accent across to that colour, with every '
-                      "stop at the panel background's alpha — so the bar has "
-                      'one opacity.',
-                  // Renders its value too, so it follows the store like the
-                  // font row does.
-                  control: StoreSelector<bool>(
-                    listenable: _themes,
-                    // The field, for the reason the font row above states.
-                    selector: () => _themes.theme.panelGradient,
-                    builder: (context, gradient) => SettingsToggle(
-                      value: gradient,
-                      onChanged: builtIn
-                          ? (_) => _duplicate()
-                          : (v) => _themes.edit('panel_gradient', v),
-                    ),
-                  ),
-                ),
+              ],
+              ThemeGroup.bar: [
+                const SettingsSubLabel('Shape'),
                 SettingsRow.field(
                   SettingsCatalog.panelMargin,
                   info:
@@ -366,6 +351,88 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                const SettingsSubLabel('Surface'),
+                SettingsRow.field(
+                  SettingsCatalog.panelGradient,
+                  info:
+                      'Off paints the bar as a flat panel background. On fades '
+                      'it from the accent across to that colour, with every '
+                      "stop at the panel background's alpha — so the bar has "
+                      'one opacity.',
+                  // Renders its value too, so it follows the store like the
+                  // font row does.
+                  control: StoreSelector<bool>(
+                    listenable: _themes,
+                    // The field, for the reason the font row states.
+                    selector: () => _themes.theme.panelGradient,
+                    builder: (context, gradient) => SettingsToggle(
+                      value: gradient,
+                      onChanged: builtIn
+                          ? (_) => _duplicate()
+                          : (v) => _themes.edit('panel_gradient', v),
+                    ),
+                  ),
+                ),
+                // What the bar is made of. Every one of these, and the popups'
+                // own, is off at its default, so a theme that names none of
+                // them is drawn exactly as it always was.
+                _materialRow(
+                  SettingsCatalog.panelTexture,
+                  'panel_texture',
+                  (t) => t.panelTexture,
+                  active,
+                ),
+                _materialRow(
+                  SettingsCatalog.panelEndTexture,
+                  'panel_end_texture',
+                  (t) => t.panelEndTexture,
+                  active,
+                ),
+                _numberRow(SettingsCatalog.panelEndLength, 'panel_end_length',
+                    current, active, max: 256),
+                _numberRow(
+                    SettingsCatalog.panelBevel, 'panel_bevel', current, active,
+                    max: 1),
+                _pictureRow(
+                    SettingsCatalog.panelImage, 'panel_image', current, active),
+                const SettingsSubLabel('Foliage'),
+                SettingsRow.field(
+                  SettingsCatalog.panelFoliage,
+                  control: _themeDropdown<FoliageStyle>(
+                    key: ValueKey('panel_foliage-$active'),
+                    items: [
+                      for (final style in FoliageStyle.values)
+                        SettingsDropdownItem<FoliageStyle>(
+                          value: style,
+                          label: style.label,
+                          description: style.description,
+                        ),
+                    ],
+                    read: (t) => t.panelFoliage,
+                    onSelected: (v) => _themes.edit('panel_foliage', v.slug),
+                  ),
+                ),
+                _numberRow(SettingsCatalog.foliageDensity, 'foliage_density',
+                    current, active, max: 3),
+                SettingsRow.field(
+                  SettingsCatalog.panelOverhang,
+                  info:
+                      'The bar’s surface grows by this much to hold what '
+                      'hangs off it, and the strip is handed back to the '
+                      'windows underneath: a click on a leaf reaches the '
+                      'window behind it, and windows still tile right up to '
+                      'the bar.',
+                  control: SettingsNumberField(
+                    key: ValueKey('panel_overhang-$active'),
+                    value: current['panel_overhang'] as num? ?? 0,
+                    isInt: true,
+                    onChanged: (v) => _themes.edit(
+                        'panel_overhang', v.toInt().clamp(0, 160)),
+                  ),
+                ),
+              ],
+              ThemeGroup.popup: [
+                const SettingsSubLabel('Shape'),
                 SettingsRow.field(
                   SettingsCatalog.popupRadius,
                   control: SettingsNumberField(
@@ -418,6 +485,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                const SettingsSubLabel('Shadow'),
                 SettingsRow.field(
                   SettingsCatalog.popupShadowBlur,
                   control: SettingsNumberField(
@@ -469,6 +537,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                const SettingsSubLabel('Animation'),
                 SettingsRow.field(
                   SettingsCatalog.popupAnimation,
                   control: _themeDropdown<PopupEffect>(
@@ -511,6 +580,27 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                const SettingsSubLabel('Surface'),
+                _materialRow(
+                  SettingsCatalog.popupTexture,
+                  'popup_texture',
+                  (t) => t.popupTexture,
+                  active,
+                ),
+                _materialRow(
+                  SettingsCatalog.popupBorderTexture,
+                  'popup_border_texture',
+                  (t) => t.popupBorderTexture,
+                  active,
+                ),
+                _pictureRow(
+                    SettingsCatalog.popupImage, 'popup_image', current, active),
+                _numberRow(
+                    SettingsCatalog.popupRoots, 'popup_roots', current, active,
+                    max: 96),
+              ],
+              ThemeGroup.overlay: [
+                const SettingsSubLabel('Shape'),
                 SettingsRow.field(
                   SettingsCatalog.overlayRadius,
                   info:
@@ -529,6 +619,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                const SettingsSubLabel('Animation'),
                 SettingsRow.field(
                   SettingsCatalog.overlayAnimation,
                   info:
@@ -600,103 +691,34 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
-                // What the bar and its menus are made of. Every one of these
-                // is off at its default, so a theme that names none of them is
-                // drawn exactly as it always was.
-                _materialRow(
-                  SettingsCatalog.panelTexture,
-                  'panel_texture',
-                  (t) => t.panelTexture,
-                  active,
-                ),
-                _materialRow(
-                  SettingsCatalog.panelEndTexture,
-                  'panel_end_texture',
-                  (t) => t.panelEndTexture,
-                  active,
-                ),
-                _numberRow(SettingsCatalog.panelEndLength, 'panel_end_length',
-                    current, active, max: 256),
-                _numberRow(
-                    SettingsCatalog.panelBevel, 'panel_bevel', current, active,
-                    max: 1),
-                _pictureRow(
-                    SettingsCatalog.panelImage, 'panel_image', current, active),
-                SettingsRow.field(
-                  SettingsCatalog.panelFoliage,
-                  control: _themeDropdown<FoliageStyle>(
-                    key: ValueKey('panel_foliage-$active'),
-                    items: [
-                      for (final style in FoliageStyle.values)
-                        SettingsDropdownItem<FoliageStyle>(
-                          value: style,
-                          label: style.label,
-                          description: style.description,
-                        ),
+              ],
+            };
+            return SliverMainAxisGroup(
+              slivers: [
+                for (final group in ThemeGroup.values) ...[
+                  if (group != ThemeGroup.general)
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                  SliverSettingsSection(
+                    // The first section carries the theme's name, so every
+                    // card under it reads as that theme's.
+                    label: group == ThemeGroup.general
+                        ? 'Edit $displayName'
+                        : group.label,
+                    children: [
+                      ...?rows[group],
+                      ..._colourRows(
+                        group,
+                        current,
+                        active,
+                        builtIn,
+                        // A heading only where there are rows to set the
+                        // colours apart from: Controls and Notifications are
+                        // nothing but colours.
+                        labelled: rows[group] != null,
+                      ),
                     ],
-                    read: (t) => t.panelFoliage,
-                    onSelected: (v) => _themes.edit('panel_foliage', v.slug),
                   ),
-                ),
-                _numberRow(SettingsCatalog.foliageDensity, 'foliage_density',
-                    current, active, max: 3),
-                SettingsRow.field(
-                  SettingsCatalog.panelOverhang,
-                  info:
-                      'The bar’s surface grows by this much to hold what '
-                      'hangs off it, and the strip is handed back to the '
-                      'windows underneath: a click on a leaf reaches the '
-                      'window behind it, and windows still tile right up to '
-                      'the bar.',
-                  control: SettingsNumberField(
-                    key: ValueKey('panel_overhang-$active'),
-                    value: current['panel_overhang'] as num? ?? 0,
-                    isInt: true,
-                    onChanged: (v) => _themes.edit(
-                        'panel_overhang', v.toInt().clamp(0, 160)),
-                  ),
-                ),
-                _materialRow(
-                  SettingsCatalog.popupTexture,
-                  'popup_texture',
-                  (t) => t.popupTexture,
-                  active,
-                ),
-                _materialRow(
-                  SettingsCatalog.popupBorderTexture,
-                  'popup_border_texture',
-                  (t) => t.popupBorderTexture,
-                  active,
-                ),
-                _pictureRow(
-                    SettingsCatalog.popupImage, 'popup_image', current, active),
-                _numberRow(
-                    SettingsCatalog.popupRoots, 'popup_roots', current, active,
-                    max: 96),
-                // The palette's labels live in [SettingsCatalog] rather than
-                // in a map here, so the search index and these rows are the
-                // same list read twice — see [ThemeColorSetting].
-                for (final colour in SettingsCatalog.themeColors)
-                  SettingsRow.field(
-                    colour.field,
-                    // The one colour row with more to say than its catalogue
-                    // line: why a translucent overlay has no blur to go with
-                    // it.
-                    info: colour.key == 'scrim'
-                        ? '${colour.field.description} There is no blur '
-                              'control: a shell surface is transparent and the '
-                              'compositor owns what is under it, so '
-                              'translucency comes from the alpha channel of '
-                              'the colours.'
-                        : null,
-                    control: SettingsColorField(
-                      key: ValueKey('${colour.key}-$active'),
-                      initial: current[colour.key] as String? ?? '#000000',
-                      locked: builtIn,
-                      onLockedTap: _duplicate,
-                      onChanged: (v) => _themes.edit(colour.key, v),
-                    ),
-                  ),
+                ],
               ],
             );
           },
@@ -704,6 +726,41 @@ class _AppearanceSectionState extends State<AppearanceSection> {
       ],
     );
   }
+
+  /// The palette's rows for [group], under a "Colours" heading if [labelled].
+  ///
+  /// The labels live in [SettingsCatalog] rather than in a map here, so the
+  /// search index and these rows are the same list read twice — see
+  /// [ThemeColorSetting].
+  List<Widget> _colourRows(
+    ThemeGroup group,
+    Map<String, dynamic> current,
+    String active,
+    bool builtIn, {
+    required bool labelled,
+  }) => [
+    if (labelled) const SettingsSubLabel('Colours'),
+    for (final colour in SettingsCatalog.themeColors)
+      if (colour.group == group)
+        SettingsRow.field(
+          colour.field,
+          // The one colour row with more to say than its catalogue line: why a
+          // translucent overlay has no blur to go with it.
+          info: colour.key == 'scrim'
+              ? '${colour.field.description} There is no blur control: a shell '
+                    'surface is transparent and the compositor owns what is '
+                    'under it, so translucency comes from the alpha channel of '
+                    'the colours.'
+              : null,
+          control: SettingsColorField(
+            key: ValueKey('${colour.key}-$active'),
+            initial: current[colour.key] as String? ?? '#000000',
+            locked: builtIn,
+            onLockedTap: _duplicate,
+            onChanged: (v) => _themes.edit(colour.key, v),
+          ),
+        ),
+  ];
 
   /// A dropdown over one theme key, showing what [read] finds on the resolved
   /// theme.
