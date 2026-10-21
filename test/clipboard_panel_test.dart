@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/clipboard/clipboard_config.dart';
 import 'package:moonswing/clipboard/clipboard_entry.dart';
@@ -16,10 +15,12 @@ import 'package:moonswing/clipboard/clipboard_store.dart';
 import 'package:moonswing/clipboard/wl_clipboard.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/docked_panel.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/clipboard.dart';
 import 'package:moonswing/scopes.dart';
 
 import 'clipboard_fakes.dart';
+import 'glyph_finder.dart';
 
 Widget _host(Widget child) => Directionality(
   textDirection: TextDirection.ltr,
@@ -148,7 +149,7 @@ void main() {
 
     final pin = find.descendant(
       of: find.byType(ClipboardCard).first,
-      matching: find.byIcon(FontAwesomeIcons.thumbtack.data),
+      matching: findGlyph(ShellGlyph.pin),
     );
     await tester.tap(pin);
     await tester.pump();
@@ -157,7 +158,7 @@ void main() {
 
     final trash = find.descendant(
       of: find.byType(ClipboardCard).last,
-      matching: find.byIcon(FontAwesomeIcons.trashCan.data),
+      matching: findGlyph(ShellGlyph.trashCan),
     );
     await tester.tap(trash);
     await tester.pump();
@@ -190,7 +191,7 @@ void main() {
     await pumpPanel(tester, closing: closing, onClosed: () => closed++);
 
     expect(find.text('Nothing copied yet'), findsWidgets);
-    await tester.tap(find.byIcon(FontAwesomeIcons.xmark.data));
+    await tester.tap(findGlyph(ShellGlyph.close));
     await tester.pump();
     expect(closing.value, isTrue);
     expect(closed, 0, reason: 'not torn down under its own animation');

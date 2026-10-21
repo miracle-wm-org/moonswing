@@ -3,9 +3,10 @@ import 'dart:math' as math;
 
 import 'package:dbus/dbus.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/dbus_clients.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/level_slider.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/osd/brightness_monitor.dart';
@@ -240,7 +241,7 @@ class BrightnessControlState extends State<BrightnessControl>
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FaIcon(FontAwesomeIcons.sun, size: 12, color: theme.foreground),
+                ShellIcon(ShellGlyph.sun, size: 12, color: theme.foreground),
                 const SizedBox(width: 4),
                 Text(
                   '${(level * 100).round()}%',
@@ -300,8 +301,8 @@ class _BrightnessPopupContentState extends State<_BrightnessPopupContent> {
     final icon = SizedBox.square(
       dimension: ShellSizes.minTapTarget,
       child: Center(
-        child: FaIcon(
-          FontAwesomeIcons.sun,
+        child: ShellIcon(
+          ShellGlyph.sun,
           size: ShellFontSizes.label,
           color: theme.popupForeground,
         ),

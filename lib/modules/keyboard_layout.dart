@@ -5,11 +5,12 @@
 // the mechanism is in `lib/keyboard/`; this file draws it.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/keyboard/keyboard_short_codes.dart';
 import 'package:moonswing/keyboard/keyboard_store.dart';
 import 'package:moonswing/loading_indicator.dart';
@@ -155,8 +156,8 @@ class _KeyboardLayoutState extends State<KeyboardLayout>
               ),
               if (broken) ...[
                 const SizedBox(width: 4),
-                const FaIcon(
-                  FontAwesomeIcons.triangleExclamation,
+                const ShellIcon(
+                  ShellGlyph.warning,
                   size: ShellFontSizes.caption,
                   color: kErrorColor,
                 ),
@@ -358,8 +359,8 @@ class _SourceRow extends StatelessWidget {
             if (loading)
               const LoadingIndicator(size: 12)
             else if (active)
-              FaIcon(
-                FontAwesomeIcons.check,
+              ShellIcon(
+                ShellGlyph.check,
                 size: ShellFontSizes.caption,
                 color: theme.accentText,
               )
@@ -393,8 +394,8 @@ class _KeyboardErrorStrip extends StatelessWidget {
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 1),
-                child: FaIcon(
-                  FontAwesomeIcons.triangleExclamation,
+                child: ShellIcon(
+                  ShellGlyph.warning,
                   size: 12,
                   color: kErrorColor,
                 ),

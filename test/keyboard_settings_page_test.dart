@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/keyboard/keyboard_store.dart';
 import 'package:moonswing/keyboard/locale1_client.dart';
 import 'package:moonswing/keyboard/xkb_catalog.dart';
@@ -16,6 +16,8 @@ import 'package:moonswing/overlay/settings/keyboard/input_source_picker.dart';
 import 'package:moonswing/scopes.dart';
 
 import 'keyboard_fakes.dart';
+
+import 'glyph_finder.dart';
 
 const _us = InputSource('us');
 const _de = InputSource('de');
@@ -135,11 +137,7 @@ layout = "de"
 
     // The first row, dragged by its grip below the second: one write, on
     // the drop, however many rows it passed on the way.
-    final grip = find.byWidgetPredicate(
-      (w) =>
-          w is FaIcon &&
-          w.icon == const FaIcon(FontAwesomeIcons.gripVertical).icon,
-    );
+    final grip = findGlyph(ShellGlyph.dragHandle);
     final gesture = await tester.startGesture(tester.getCenter(grip.first));
     await gesture.moveBy(const Offset(0, 20));
     await tester.pump();
@@ -155,7 +153,7 @@ layout = "de"
     await tester.tap(
       find
           .byWidgetPredicate(
-            (w) => w is SettingsIconButton && w.icon == FontAwesomeIcons.xmark,
+            (w) => w is SettingsIconButton && w.icon == ShellGlyph.close,
           )
           .first,
     );

@@ -2,8 +2,8 @@
 
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/host_process.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/pulse_client.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/loading_indicator.dart';
@@ -200,12 +200,12 @@ class _OutputTabState extends State<OutputTab> {
             const Spacer(),
             SettingsIconButton(
               icon: _muted
-                  ? FontAwesomeIcons.volumeXmark
+                  ? ShellGlyph.volumeMuted
                   : volPct == 0
-                      ? FontAwesomeIcons.volumeOff
+                      ? ShellGlyph.volumeOff
                       : volPct < 50
-                          ? FontAwesomeIcons.volumeLow
-                          : FontAwesomeIcons.volumeHigh,
+                          ? ShellGlyph.volumeLow
+                          : ShellGlyph.volumeHigh,
               size: ShellFontSizes.label,
               color: _muted ? theme.muted : theme.popupForeground,
               onTap: _toggleMute,

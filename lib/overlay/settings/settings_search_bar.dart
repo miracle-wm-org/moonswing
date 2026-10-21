@@ -8,10 +8,11 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart' show ThemeConfig;
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
@@ -216,8 +217,8 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
               width: kSettingsSearchWidth,
               hint: 'Search settings (Ctrl+F)',
               onChanged: _onQueryChanged,
-              leading: FaIcon(
-                FontAwesomeIcons.magnifyingGlass,
+              leading: ShellIcon(
+                ShellGlyph.search,
                 size: 12,
                 color: theme.popupForeground.withValues(alpha: 0.45),
               ),
@@ -228,7 +229,7 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
               trailing: _controller.text.isEmpty
                   ? const SizedBox.square(dimension: ShellSizes.iconButtonDense)
                   : SettingsIconButton(
-                      icon: FontAwesomeIcons.xmark,
+                      icon: ShellGlyph.close,
                       size: 10,
                       box: ShellSizes.iconButtonDense,
                       onTap: _clear,

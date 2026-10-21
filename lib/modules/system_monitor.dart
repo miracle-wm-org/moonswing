@@ -1,7 +1,8 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/popup_surface.dart';
@@ -80,7 +81,7 @@ class SystemMonitorState extends State<SystemMonitor>
       child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  FaIcon(FontAwesomeIcons.microchip,
+                  ShellIcon(ShellGlyph.microchip,
                       size: 11, color: theme.foreground),
                   const SizedBox(width: 4),
                   Text(
@@ -88,7 +89,7 @@ class SystemMonitorState extends State<SystemMonitor>
                     style: TextStyle(fontSize: 12, color: theme.foreground),
                   ),
                   const SizedBox(width: 8),
-                  FaIcon(FontAwesomeIcons.memory,
+                  ShellIcon(ShellGlyph.memory,
                       size: 11, color: theme.foreground),
                   const SizedBox(width: 4),
                   Text(
@@ -97,7 +98,7 @@ class SystemMonitorState extends State<SystemMonitor>
                   ),
                   if (tempC != null) ...[
                     const SizedBox(width: 8),
-                    FaIcon(temperatureIcon(tempC),
+                    ShellIcon(temperatureIcon(tempC),
                         size: 11, color: theme.foreground),
                     const SizedBox(width: 4),
                     Text(
@@ -201,7 +202,7 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
       child: Row(
         children: [
           UnderlineTab(
-            icon: FontAwesomeIcons.gaugeHigh,
+            icon: ShellGlyph.gauge,
             label: 'CPU',
             selected: _tab == _PopupTab.cpu,
             iconSize: _kTabIconSize,
@@ -211,7 +212,7 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
           ),
           const SizedBox(width: 4),
           UnderlineTab(
-            icon: FontAwesomeIcons.server,
+            icon: ShellGlyph.server,
             label: 'Memory',
             selected: _tab == _PopupTab.memory,
             iconSize: _kTabIconSize,
@@ -242,7 +243,7 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
         if (tempC != null) ...[
           Row(
             children: [
-              FaIcon(temperatureIcon(tempC),
+              ShellIcon(temperatureIcon(tempC),
                   size: 11,
                   color: theme.popupForeground.withValues(alpha: 0.7)),
               const SizedBox(width: 6),
@@ -324,7 +325,7 @@ class _SystemMonitorPopupState extends State<_SystemMonitorPopup> {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
           child: Row(
             children: [
-              FaIcon(FontAwesomeIcons.memory,
+              ShellIcon(ShellGlyph.memory,
                   size: 11,
                   color: theme.popupForeground.withValues(alpha: 0.7)),
               const SizedBox(width: 6),

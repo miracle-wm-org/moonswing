@@ -6,12 +6,13 @@
 // loses nothing — reopening it shows the same code until it expires.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/brand_marks.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -56,7 +57,7 @@ class GithubAccountCard extends StatelessWidget {
               'github.com, never into the shell, and the token it grants is '
               'kept in ~/.local/state/moonswing at 0600. Signing out forgets '
               'it here; revoking it is done on github.com.',
-          usedBy: const [(FontAwesomeIcons.bell, 'GitHub notifications')],
+          usedBy: const [(ShellGlyph.bell, 'GitHub notifications')],
           children: [
             if (error.isNotEmpty) ...[
               SettingsBanner(
@@ -130,12 +131,12 @@ class _SignedIn extends StatelessWidget {
       actions: [
         if (login.isNotEmpty)
           SettingsIconButton(
-            icon: FontAwesomeIcons.arrowUpRightFromSquare,
+            icon: ShellGlyph.externalLink,
             tooltip: 'Open your profile on github.com',
             onTap: account.openProfile,
           ),
         SettingsIconButton(
-          icon: FontAwesomeIcons.key,
+          icon: ShellGlyph.key,
           tooltip: 'Revoke access on github.com',
           onTap: account.openApplications,
         ),
@@ -193,7 +194,7 @@ class _DeviceCode extends StatelessWidget {
             ),
             SettingsActionButton(
               label: 'Open GitHub',
-              icon: FontAwesomeIcons.arrowUpRightFromSquare,
+              icon: ShellGlyph.externalLink,
               primary: true,
               compact: true,
               onTap: account.openVerificationPage,
@@ -279,10 +280,10 @@ class _UserCodeState extends State<_UserCode> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (_result == null || _result == ClipboardResult.copied) ...[
-                    FaIcon(
+                    ShellIcon(
                       _result == null
-                          ? FontAwesomeIcons.copy
-                          : FontAwesomeIcons.check,
+                          ? ShellGlyph.copy
+                          : ShellGlyph.check,
                       size: ShellFontSizes.caption,
                       color: theme.popupForeground.withValues(alpha: 0.5),
                     ),

@@ -27,8 +27,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
@@ -36,6 +34,7 @@ import 'package:moonswing/fortune/fortune_store.dart';
 import 'package:moonswing/fortune/fortune_text_fit.dart';
 import 'package:moonswing/fortune/lamp_scene.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/sky_icon_button.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -235,7 +234,7 @@ class FortuneRefreshButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) =>
-      SkyIconButton(onTap: onTap, icon: Symbols.autorenew, size: size);
+      SkyIconButton(onTap: onTap, icon: ShellGlyph.autorenew, size: size);
 }
 
 /// The fortune, the loader, or why there is neither.
@@ -388,7 +387,7 @@ class _CardText extends StatelessWidget {
 
 /// The "Add widget…" menu's icon for this type. Named so a test can build a
 /// [DesktopWidgetSpec] without picking an unrelated glyph.
-const FaIconData fortuneDesktopWidgetIcon = FontAwesomeIcons.wandMagicSparkles;
+const ShellGlyph fortuneDesktopWidgetIcon = ShellGlyph.magic;
 
 /// The registry entry. Registered from `main()` beside the lunar widget's.
 final DesktopWidgetSpec fortuneDesktopWidget = DesktopWidgetSpec(

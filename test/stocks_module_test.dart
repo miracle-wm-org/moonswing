@@ -2,9 +2,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/stocks.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
@@ -14,6 +14,8 @@ import 'package:moonswing/stocks/stock_quote.dart';
 import 'package:moonswing/stocks/stock_store.dart';
 
 import 'stock_fakes.dart';
+
+import 'glyph_finder.dart';
 
 /// The bar's crawl and the card behind it, pumped the way the shell builds
 /// them.
@@ -170,7 +172,7 @@ void main() {
       final store = seeded(['AAPL', 'MSFT']);
       await pumpBar(tester, store, anchor: 'left');
       expect(find.byType(TickerCrawl), findsNothing);
-      expect(_faIcon(FontAwesomeIcons.chartLine), findsOneWidget);
+      expect(_faIcon(ShellGlyph.chartLine), findsOneWidget);
       expect(tester.binding.transientCallbackCount, 0);
     });
 
@@ -186,7 +188,7 @@ void main() {
       addTearDown(gesture.removePointer);
       await gesture.addPointer(location: Offset.zero);
       await gesture.moveTo(
-        tester.getCenter(_faIcon(FontAwesomeIcons.chartLine)),
+        tester.getCenter(_faIcon(ShellGlyph.chartLine)),
       );
       await tester.pump();
       expect(find.text('Add tickers'), findsOneWidget);
@@ -395,5 +397,4 @@ void main() {
   });
 }
 
-Finder _faIcon(FaIconData icon) =>
-    find.byWidgetPredicate((w) => w is FaIcon && w.icon == icon.data);
+Finder _faIcon(ShellGlyph icon) => findGlyph(icon);

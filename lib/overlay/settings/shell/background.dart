@@ -1,10 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/file_picker.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -558,8 +559,8 @@ class _WallpaperTile extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: const FaIcon(
-                      FontAwesomeIcons.check,
+                    child: const ShellIcon(
+                      ShellGlyph.check,
                       size: 10,
                       color: Color(0xFFFFFFFF),
                     ),
@@ -615,8 +616,8 @@ class _RemoveBadgeState extends State<_RemoveBadge> {
             border: Border.all(color: theme.divider.atMostAlpha(0.6)),
           ),
           alignment: Alignment.center,
-          child: const FaIcon(
-            FontAwesomeIcons.xmark,
+          child: const ShellIcon(
+            ShellGlyph.close,
             size: 10,
             color: Color(0xFFFFFFFF),
           ),

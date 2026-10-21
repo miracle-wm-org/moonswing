@@ -8,7 +8,6 @@
 // account's calendars.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/caldav/caldav_account_store.dart';
@@ -19,6 +18,7 @@ import 'package:moonswing/google/google_account_store.dart';
 import 'package:moonswing/google/google_api.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
 import 'package:moonswing/google/google_config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
@@ -177,7 +177,7 @@ class _GoogleSignedOutSection extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: SettingsActionButton(
             label: 'Link an account in Accounts',
-            icon: FontAwesomeIcons.userPlus,
+            icon: ShellGlyph.userPlus,
             compact: true,
             onTap: () => openSettingsAt(context, SettingsCatalog.googleAccount),
           ),
@@ -471,7 +471,7 @@ class _CalDavSignedOutSection extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: SettingsActionButton(
             label: 'Add a server in Accounts',
-            icon: FontAwesomeIcons.userPlus,
+            icon: ShellGlyph.userPlus,
             compact: true,
             onTap: () => openSettingsAt(context, SettingsCatalog.caldavAccount),
           ),

@@ -11,9 +11,10 @@
 // menu *is* the confirmation.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/power/power_menu_controller.dart';
 import 'package:moonswing/scopes.dart';
@@ -36,8 +37,8 @@ class System extends StatelessWidget {
       // inside that one pointer-down — so a menu opened from `onTap` would be
       // dismissed by the very press that opened it.
       onTapDown: (_) => (controller ?? PowerMenuController.instance).toggle(),
-      child: FaIcon(
-        FontAwesomeIcons.powerOff,
+      child: ShellIcon(
+        ShellGlyph.power,
         size: 12,
         color: theme.foreground,
       ),

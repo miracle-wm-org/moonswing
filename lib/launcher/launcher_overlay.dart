@@ -7,10 +7,11 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/launcher/app_search.dart';
 import 'package:moonswing/launcher/expression.dart';
 import 'package:moonswing/launcher/unit_convert.dart';
@@ -408,7 +409,7 @@ class _MathResultRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FaIcon(FontAwesomeIcons.equals, size: 13, color: theme.muted),
+          ShellIcon(ShellGlyph.equals, size: 13, color: theme.muted),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -457,7 +458,7 @@ class _UnitResultRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FaIcon(FontAwesomeIcons.rightLeft, size: 12, color: theme.muted),
+          ShellIcon(ShellGlyph.swap, size: 12, color: theme.muted),
           const SizedBox(width: 10),
           Flexible(
             child: Text(
@@ -603,8 +604,8 @@ class _AppRow extends StatelessWidget {
                     onTap: onToggleActions,
                     child: Padding(
                       padding: const EdgeInsets.only(left: 10),
-                      child: FaIcon(
-                        FontAwesomeIcons.chevronRight,
+                      child: ShellIcon(
+                        ShellGlyph.chevronRight,
                         size: 11,
                         color: flyoutOpen ? theme.popupForeground : theme.muted,
                       ),

@@ -9,11 +9,12 @@
 // names Berlin and fetches for the prime meridian.
 
 import 'package:flutter/widgets.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/search_list.dart';
@@ -236,7 +237,7 @@ class _Trigger extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Symbols.location_on, size: 14, color: theme.muted),
+            ShellIcon(ShellGlyph.placeMarker, size: 14, color: theme.muted),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -250,8 +251,8 @@ class _Trigger extends StatelessWidget {
                 ),
               ),
             ),
-            Icon(
-              open ? Symbols.expand_less : Symbols.expand_more,
+            ShellIcon(
+              open ? ShellGlyph.expandLess : ShellGlyph.expandMore,
               size: 14,
               color: theme.muted,
             ),
@@ -273,8 +274,8 @@ class _ChoiceRow extends StatelessWidget {
     final place = choice.place;
     return Row(
       children: [
-        Icon(
-          place == null ? Symbols.my_location : Symbols.location_on,
+        ShellIcon(
+          place == null ? ShellGlyph.myLocation : ShellGlyph.placeMarker,
           size: 14,
           color: theme.muted,
         ),

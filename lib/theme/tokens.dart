@@ -120,8 +120,8 @@ const double kTextContrast = 4.5;
 /// Pointer-target sizes.
 ///
 /// Hover and tap are one box (see `HoverRegion`), so these name *that box*,
-/// never the glyph inside it. A `FaIcon` is a bare `RichText` with no box of
-/// its own, so an unboxed icon is an 11-14px target.
+/// never the glyph inside it. A `ShellIcon` is a bare glyph with no box of its
+/// own, so an unboxed icon is an 11-14px target.
 abstract final class ShellSizes {
   /// The floor for anything clickable that is not deliberately dense.
   static const double minTapTarget = 24;

@@ -2,7 +2,8 @@
 
 import 'dart:async';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/pulse_client.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/loading_indicator.dart';
@@ -202,7 +203,7 @@ class _SinkInputItemState extends State<_SinkInputItem> {
         children: [
           Row(
             children: [
-              FaIcon(FontAwesomeIcons.music,
+              ShellIcon(ShellGlyph.music,
                   size: 12,
                   color: theme.popupForeground.withValues(alpha: 0.6)),
               const SizedBox(width: 8),
@@ -239,8 +240,8 @@ class _SinkInputItemState extends State<_SinkInputItem> {
             children: [
               SettingsIconButton(
                 icon: _muted
-                    ? FontAwesomeIcons.volumeXmark
-                    : FontAwesomeIcons.volumeLow,
+                    ? ShellGlyph.volumeMuted
+                    : ShellGlyph.volumeLow,
                 size: ShellFontSizes.label,
                 color: _muted ? theme.muted : theme.popupForeground,
                 onTap: _toggleMute,

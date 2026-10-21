@@ -4,11 +4,12 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/dbus_menu.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_surface.dart';
@@ -309,7 +310,7 @@ class _TrayIconState extends State<_TrayIcon> {
         ? widget.item.title
         : widget.item.id;
     if (label.isEmpty) {
-      return FaIcon(FontAwesomeIcons.circleDot,
+      return ShellIcon(ShellGlyph.circleDot,
           size: widget.size * 0.8, color: widget.foreground);
     }
     return SizedBox(
@@ -485,14 +486,14 @@ class _MenuRowState extends State<_MenuRow> {
 
     Widget? leading;
     if (node.toggleType.isNotEmpty) {
-      leading = FaIcon(
+      leading = ShellIcon(
         node.toggleType == 'radio'
             ? (node.toggleState == 1
-                ? FontAwesomeIcons.solidCircleDot
-                : FontAwesomeIcons.circle)
+                ? ShellGlyph.circleDotFilled
+                : ShellGlyph.circle)
             : (node.toggleState == 1
-                ? FontAwesomeIcons.squareCheck
-                : FontAwesomeIcons.square),
+                ? ShellGlyph.squareCheck
+                : ShellGlyph.square),
         size: 12,
         color: color,
       );
@@ -527,10 +528,10 @@ class _MenuRowState extends State<_MenuRow> {
                 ),
               ),
               if (node.hasSubmenu)
-                FaIcon(
+                ShellIcon(
                   widget.expanded
-                      ? FontAwesomeIcons.chevronDown
-                      : FontAwesomeIcons.chevronRight,
+                      ? ShellGlyph.chevronDown
+                      : ShellGlyph.chevronRight,
                   size: 10,
                   color: color,
                 ),

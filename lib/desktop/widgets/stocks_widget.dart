@@ -24,13 +24,14 @@
 //   not otherwise; there is no ticker here, so the card is `pumpAndSettle`-able.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/modules/stocks.dart'
     show
@@ -247,7 +248,7 @@ class _BoardHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(_inset, 10, _inset, 6),
       child: Row(
         children: [
-          FaIcon(FontAwesomeIcons.chartLine, size: 13, color: theme.accentText),
+          ShellIcon(ShellGlyph.chartLine, size: 13, color: theme.accentText),
           const SizedBox(width: 8),
           Text(
             'Markets',
@@ -565,8 +566,8 @@ class _BoardError extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(_inset, 2, _inset, 8),
         child: Row(
           children: [
-            const FaIcon(
-              FontAwesomeIcons.triangleExclamation,
+            const ShellIcon(
+              ShellGlyph.warning,
               size: 10,
               color: kErrorColor,
             ),
@@ -631,7 +632,7 @@ class _BoardHint extends StatelessWidget {
 }
 
 /// The "Add widget…" menu's icon for this type.
-const FaIconData stocksDesktopWidgetIcon = FontAwesomeIcons.chartLine;
+const ShellGlyph stocksDesktopWidgetIcon = ShellGlyph.chartLine;
 
 /// The registry entry. Registered from `main()` beside the others.
 final DesktopWidgetSpec stocksDesktopWidget = DesktopWidgetSpec(

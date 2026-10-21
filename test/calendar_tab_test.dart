@@ -1,8 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/calendar/calendar_tab.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -46,7 +46,7 @@ Future<void> pumpTab(
   await tester.pump();
 }
 
-Finder _iconButton(FaIconData icon) =>
+Finder _iconButton(ShellGlyph icon) =>
     find.byWidgetPredicate((w) => w is SettingsIconButton && w.icon == icon);
 
 void main() {
@@ -85,13 +85,13 @@ void main() {
     await pumpTab(tester);
     final current = DateTime(now.year, now.month, 1);
 
-    await tester.tap(_iconButton(FontAwesomeIcons.chevronRight));
+    await tester.tap(_iconButton(ShellGlyph.chevronRight));
     await tester.pump();
     expect(find.text(label(addMonths(current, 1))), findsOneWidget);
 
-    await tester.tap(_iconButton(FontAwesomeIcons.chevronLeft));
+    await tester.tap(_iconButton(ShellGlyph.chevronLeft));
     await tester.pump();
-    await tester.tap(_iconButton(FontAwesomeIcons.chevronLeft));
+    await tester.tap(_iconButton(ShellGlyph.chevronLeft));
     await tester.pump();
     expect(find.text(label(addMonths(current, -1))), findsOneWidget);
   });
@@ -99,7 +99,7 @@ void main() {
   testWidgets('Today returns to the current month', (tester) async {
     await pumpTab(tester);
 
-    await tester.tap(_iconButton(FontAwesomeIcons.chevronRight));
+    await tester.tap(_iconButton(ShellGlyph.chevronRight));
     await tester.pump();
     expect(find.text(thisMonth), findsNothing);
 

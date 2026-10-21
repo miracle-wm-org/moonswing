@@ -8,10 +8,11 @@
 library;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/editable_text_mouse.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// A raw [EditableText] (there is no Material `TextField` in this tree) with an
@@ -30,7 +31,7 @@ class OverlaySearchField extends StatefulWidget {
     required this.theme,
     required this.hint,
     required this.onChanged,
-    this.icon = FontAwesomeIcons.magnifyingGlass,
+    this.icon = ShellGlyph.search,
   });
 
   final TextEditingController controller;
@@ -44,7 +45,7 @@ class OverlaySearchField extends StatefulWidget {
   final ValueChanged<String> onChanged;
 
   /// The glyph at the leading edge.
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   @override
   State<OverlaySearchField> createState() => _OverlaySearchFieldState();
@@ -65,7 +66,7 @@ class _OverlaySearchFieldState extends State<OverlaySearchField> {
       ),
       child: Row(
         children: [
-          FaIcon(widget.icon, size: 14, color: theme.muted),
+          ShellIcon(widget.icon, size: 14, color: theme.muted),
           const SizedBox(width: 10),
           Expanded(
             child: EditableTextMouseSelection(

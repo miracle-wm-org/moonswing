@@ -123,6 +123,8 @@ abstract final class SettingsCatalog {
       'midnight',
       'carbon',
       'forest',
+      'autumn',
+      'fall',
       'skin',
       'style',
     ],
@@ -144,6 +146,24 @@ abstract final class SettingsCatalog {
     section: 'Theme',
     description: 'The font family every panel, popup and overlay is set in.',
     tags: const ['typeface', 'typography', 'family', 'text'],
+  );
+
+  static final iconPack = shellField(
+    'theme.icon_pack',
+    'Icon pack',
+    section: 'Theme',
+    description:
+        'Which icon font draws the icons in the panels, menus and settings. '
+        'An icon a pack does not have is drawn from Font Awesome.',
+    tags: const [
+      'icons',
+      'glyphs',
+      'symbols',
+      'font awesome',
+      'material',
+      'lucide',
+      'remix',
+    ],
   );
 
   static final fontSize = shellField(
@@ -389,8 +409,20 @@ abstract final class SettingsCatalog {
     'Foliage',
     section: 'Theme',
     description:
-        'What grows off the bar: ivy, hanging moss, or a whole wildwood.',
-    tags: const ['bar', 'leaves', 'plants', 'vines', 'ivy', 'moss', 'nature'],
+        'What grows off the bar: ivy, hanging moss, a whole wildwood, or the '
+        'harvest — turning leaves, and pumpkins.',
+    tags: const [
+      'bar',
+      'leaves',
+      'plants',
+      'vines',
+      'ivy',
+      'moss',
+      'nature',
+      'autumn',
+      'fall',
+      'pumpkin',
+    ],
   );
 
   static final foliageDensity = shellField(
@@ -592,7 +624,8 @@ abstract final class SettingsCatalog {
       _color(
         'foliage_color',
         'Foliage',
-        'The canopy’s colour. Every leaf is jittered off it.',
+        'The canopy’s colour. Every leaf is jittered off it; in a harvest, '
+            'what is still green.',
       ),
     ),
     ThemeColorSetting(
@@ -600,7 +633,8 @@ abstract final class SettingsCatalog {
       _color(
         'foliage_bloom',
         'Foliage blooms',
-        'Berries and flowers among the leaves.',
+        'Berries and flowers among the leaves; in a harvest, the colour '
+            'the leaves turn and the pumpkins are.',
       ),
     ),
     ThemeColorSetting(
@@ -2615,6 +2649,7 @@ abstract final class SettingsCatalog {
     themePicker,
     themeName,
     font,
+    iconPack,
     fontSize,
     panelGradient,
     panelMargin,

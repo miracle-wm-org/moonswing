@@ -1,7 +1,8 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/scopes.dart';
 
 /// One tab in an underline tab strip.
@@ -29,7 +30,7 @@ class UnderlineTab extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  final FaIconData? icon;
+  final ShellGlyph? icon;
   final double iconSize;
   final double fontSize;
   final EdgeInsetsGeometry padding;
@@ -67,7 +68,7 @@ class UnderlineTab extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (icon != null) ...[
-                  FaIcon(icon, size: iconSize, color: foreground),
+                  ShellIcon(icon!, size: iconSize, color: foreground),
                   SizedBox(width: iconSize > 12 ? 8 : 6),
                 ],
                 Text(

@@ -3,8 +3,9 @@ import 'dart:async';
 // ValueNotifier but not ValueListenable, which is what the popup takes.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/pulse_client.dart';
 import 'package:moonswing/popup.dart';
@@ -23,11 +24,11 @@ import 'package:moonswing/theme/theme_provider.dart';
 /// PulseAudio emits plenty of those (a stream connecting, a port switch).
 typedef _SinkLevel = ({double volume, bool muted});
 
-FaIconData _volumeIconFor(_SinkLevel level) {
-  if (level.muted) return FontAwesomeIcons.volumeXmark;
-  if (level.volume <= 0.0) return FontAwesomeIcons.volumeOff;
-  if (level.volume <= 0.5) return FontAwesomeIcons.volumeLow;
-  return FontAwesomeIcons.volumeHigh;
+ShellGlyph _volumeIconFor(_SinkLevel level) {
+  if (level.muted) return ShellGlyph.volumeMuted;
+  if (level.volume <= 0.0) return ShellGlyph.volumeOff;
+  if (level.volume <= 0.5) return ShellGlyph.volumeLow;
+  return ShellGlyph.volumeHigh;
 }
 
 class SoundControl extends StatefulWidget {
@@ -220,7 +221,11 @@ class SoundControlState extends State<SoundControl>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(_volumeIconFor(level), size: 12, color: theme.foreground),
+              ShellIcon(
+                _volumeIconFor(level),
+                size: 12,
+                color: theme.foreground,
+              ),
               const SizedBox(width: 4),
               Text(
                 '${(level.volume * 100).round()}%',
@@ -283,7 +288,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
     final muted = _level.muted;
     final volume = _level.volume;
 
-    // A bare `FaIcon` is a target the size of one glyph, and this one had no
+    // A bare `ShellIcon` is a target the size of one glyph, and this one had no
     // `MouseRegion` either — the popup is tighter than a settings row, so it
     // takes the minimum box rather than `SettingsIconButton`'s.
     final muteButton = HoverRegion(
@@ -295,7 +300,7 @@ class _SoundPopupContentState extends State<_SoundPopupContent> {
       builder: (context, hovered) => SizedBox.square(
         dimension: ShellSizes.minTapTarget,
         child: Center(
-          child: FaIcon(
+          child: ShellIcon(
             _volumeIconFor(_level),
             size: ShellFontSizes.label,
             color: muted

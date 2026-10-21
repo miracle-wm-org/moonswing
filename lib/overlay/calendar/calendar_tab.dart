@@ -3,7 +3,6 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/calendar_event_source.dart';
@@ -14,6 +13,8 @@ import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/google/google_api.dart';
 import 'package:moonswing/google/google_calendar_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/calendar/calendar_events.dart';
 import 'package:moonswing/overlay/calendar/clock_column.dart';
@@ -697,12 +698,12 @@ class _CalendarHeader extends StatelessWidget {
         _TodayButton(onTap: onToday),
         const SizedBox(width: 4),
         SettingsIconButton(
-          icon: FontAwesomeIcons.chevronLeft,
+          icon: ShellGlyph.chevronLeft,
           size: 12,
           onTap: onPrevious,
         ),
         SettingsIconButton(
-          icon: FontAwesomeIcons.chevronRight,
+          icon: ShellGlyph.chevronRight,
           size: 12,
           onTap: onNext,
         ),
@@ -730,8 +731,8 @@ class _EventsError extends StatelessWidget {
           padding: const EdgeInsets.only(top: 8),
           child: Row(
             children: [
-              const FaIcon(
-                FontAwesomeIcons.triangleExclamation,
+              const ShellIcon(
+                ShellGlyph.warning,
                 size: 11,
                 color: kErrorColor,
               ),

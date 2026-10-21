@@ -15,13 +15,14 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:layer_shell/layer_shell.dart' show WindowPositionerAnchor;
 
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -114,8 +115,8 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
             width: widget.iconSize.toDouble(),
             height: widget.iconSize.toDouble(),
             child: Center(
-              child: FaIcon(
-                FontAwesomeIcons.tableCellsLarge,
+              child: ShellIcon(
+                ShellGlyph.gridLarge,
                 size: widget.iconSize * 0.72,
                 color: theme.foreground,
               ),
@@ -421,7 +422,7 @@ class _AppDirectoryState extends State<_AppDirectory>
               Text('$count',
                   style: TextStyle(color: theme.muted, fontSize: 11)),
               const SizedBox(width: 6),
-              FaIcon(FontAwesomeIcons.chevronRight,
+              ShellIcon(ShellGlyph.chevronRight,
                   size: 10, color: theme.muted),
             ],
           ),
@@ -571,7 +572,7 @@ class _SearchField extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FaIcon(FontAwesomeIcons.magnifyingGlass,
+          ShellIcon(ShellGlyph.search,
               size: 12, color: theme.muted),
           const SizedBox(width: 8),
           Expanded(

@@ -9,11 +9,12 @@
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -101,10 +102,10 @@ class TodoBackupFooter extends StatelessWidget {
             color: hovered ? theme.surfaceHover : const Color(0x00000000),
             child: Row(
               children: [
-                FaIcon(
+                ShellIcon(
                   warn
-                      ? FontAwesomeIcons.triangleExclamation
-                      : FontAwesomeIcons.floppyDisk,
+                      ? ShellGlyph.warning
+                      : ShellGlyph.save,
                   size: ShellFontSizes.caption,
                   color: warn
                       ? kErrorColor
@@ -481,8 +482,8 @@ class _BackupCardState extends State<_BackupCard> {
             children: [
               Row(
                 children: [
-                  FaIcon(
-                    FontAwesomeIcons.listCheck,
+                  ShellIcon(
+                    ShellGlyph.listCheck,
                     size: ShellFontSizes.caption,
                     color: _parseColor(link.color) ?? theme.accentText,
                   ),

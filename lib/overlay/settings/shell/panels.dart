@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -210,7 +211,7 @@ class _PanelsSectionState extends State<PanelsSection> {
             ),
             _PanelTab(
               label: 'Add panel',
-              icon: FontAwesomeIcons.plus,
+              icon: ShellGlyph.add,
               selected: _adding,
               onTap: _startAdd,
             ),
@@ -265,10 +266,10 @@ class _PanelsSectionState extends State<PanelsSection> {
             ),
           ),
           SettingsIconButton(
-            icon: FontAwesomeIcons.check,
+            icon: ShellGlyph.check,
             onTap: () => _commitAdd(existing),
           ),
-          SettingsIconButton(icon: FontAwesomeIcons.xmark, onTap: _cancelAdd),
+          SettingsIconButton(icon: ShellGlyph.close, onTap: _cancelAdd),
         ],
       ),
     );
@@ -369,15 +370,15 @@ class _PanelsSectionState extends State<PanelsSection> {
 
 /// The icons of the modules that have no settings page of their own, and so no
 /// icon on one; the rest are read off [moduleSettingsPageByKey].
-const Map<String, FaIconData> _kModuleIcons = {
-  'brightness': FontAwesomeIcons.sun,
-  'keybinds': FontAwesomeIcons.keyboard,
-  'keyboard_layout': FontAwesomeIcons.language,
-  'launcher': FontAwesomeIcons.magnifyingGlass,
-  'scratchpad': FontAwesomeIcons.layerGroup,
-  'sound_control': FontAwesomeIcons.volumeHigh,
-  'system': FontAwesomeIcons.powerOff,
-  'todo': FontAwesomeIcons.listCheck,
+const Map<String, ShellGlyph> _kModuleIcons = {
+  'brightness': ShellGlyph.sun,
+  'keybinds': ShellGlyph.keyboard,
+  'keyboard_layout': ShellGlyph.language,
+  'launcher': ShellGlyph.search,
+  'scratchpad': ShellGlyph.layers,
+  'sound_control': ShellGlyph.volumeHigh,
+  'system': ShellGlyph.power,
+  'todo': ShellGlyph.listCheck,
 };
 
 /// A module's name as a person reads it: its settings page's title where it
@@ -394,12 +395,12 @@ String moduleTitle(String key) {
 
 Widget _moduleIcon(BuildContext context, String key) {
   final theme = ThemeScope.of(context);
-  return FaIcon(
+  return ShellIcon(
     moduleSettingsPageByKey(key)?.icon ??
         _kModuleIcons[key] ??
         // A key no module answers to — a typo in the file, or a module from
         // a newer build — keeps a slot in the icon column like any other.
-        FontAwesomeIcons.puzzlePiece,
+        ShellGlyph.puzzle,
     size: 13,
     color: theme.accentText,
   );
@@ -421,7 +422,7 @@ class _PanelTab extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final FaIconData? icon;
+  final ShellGlyph? icon;
 
   /// Deletes the panel this tab names. Null on the "Add panel" tab, which is
   /// the one tab with nothing to delete.
@@ -489,8 +490,8 @@ class _PanelTabClose extends StatelessWidget {
           color: hovered ? theme.surfaceHover : const Color(0x00000000),
           borderRadius: BorderRadius.circular(ShellRadii.barButton),
         ),
-        child: FaIcon(
-          FontAwesomeIcons.xmark,
+        child: ShellIcon(
+          ShellGlyph.close,
           size: 10,
           color: hovered
               ? theme.accentText

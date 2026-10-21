@@ -9,11 +9,11 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart' show PointerEnterEvent;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/emoji/emoji_data.dart';
 import 'package:moonswing/emoji/emoji_search.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/overlay_search_field.dart';
 import 'package:moonswing/scopes.dart';
@@ -409,7 +409,7 @@ class _EmojiPickerOverlayState extends State<EmojiPickerOverlay> {
                 controller: _searchController,
                 focusNode: _searchFocus,
                 theme: theme,
-                icon: FontAwesomeIcons.faceSmile,
+                icon: ShellGlyph.smile,
                 hint: 'Search by name, keyword, or category…',
                 onChanged: _onQueryChanged,
               ),

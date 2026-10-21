@@ -1,8 +1,9 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -546,8 +547,8 @@ class _BadgeGlyph extends StatelessWidget {
               color: theme.notificationBadge,
               borderRadius: BorderRadius.circular(ShellRadii.control),
             ),
-            child: FaIcon(
-              FontAwesomeIcons.bell,
+            child: ShellIcon(
+              ShellGlyph.bell,
               size: 19,
               color: theme.notificationBadgeForeground,
             ),

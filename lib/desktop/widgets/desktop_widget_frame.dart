@@ -6,11 +6,12 @@
 // [DesktopWidgetResizeGrip] at each corner and feeds it the drag.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_layout.dart';
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -130,8 +131,8 @@ class _UnknownWidget extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(
-            FontAwesomeIcons.circleQuestion,
+          ShellIcon(
+            ShellGlyph.help,
             size: 16,
             color: theme.muted,
           ),

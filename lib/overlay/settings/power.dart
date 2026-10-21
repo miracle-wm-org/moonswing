@@ -16,8 +16,8 @@
 // the mode changes; the section says both, since neither is visible otherwise.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -523,7 +523,7 @@ class _PowerSettingsPageState extends State<PowerSettingsPage> {
             const SizedBox(width: 8),
             SettingsActionButton(
               label: 'Apply',
-              icon: FontAwesomeIcons.lock,
+              icon: ShellGlyph.lock,
               compact: true,
               primary: true,
               loading: _store.applying,
