@@ -8,9 +8,10 @@
 // on every card.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/brand_marks.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -59,7 +60,7 @@ class AccountProviderCard extends StatelessWidget {
 
   /// What in the shell reads this service, for the card's footer: the reason
   /// to link it at all, said where the user decides.
-  final List<(FaIconData, String)> usedBy;
+  final List<(ShellGlyph, String)> usedBy;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +164,7 @@ class _LinkBadge extends StatelessWidget {
 class _UsedBy extends StatelessWidget {
   const _UsedBy({required this.usedBy});
 
-  final List<(FaIconData, String)> usedBy;
+  final List<(ShellGlyph, String)> usedBy;
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +194,7 @@ class _UsedBy extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FaIcon(icon, size: ShellFontSizes.caption, color: quiet),
+                ShellIcon(icon, size: ShellFontSizes.caption, color: quiet),
                 const SizedBox(width: 5),
                 Text(
                   label,

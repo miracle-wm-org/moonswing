@@ -9,19 +9,23 @@
 // Arithmetic rather than image assets, for the reason `pubspec.yaml` has no
 // `assets:` section: nothing in the shell resolves paths relative to the
 // bundle. Google's G is four arcs and a bar; GitHub's mark is Font
-// Awesome's. CalDAV is an open protocol with no brand of its own, so its tile
-// is a plain calendar in a neutral slate — the one mark here that is not
+// Awesome's, under every `icon_pack` — a theme chooses the shell's look, not
+// somebody else's logo — and so is CalDAV's calendar, to match it. CalDAV is
+// an open protocol with no brand of its own, so its tile is a plain calendar
+// in a neutral slate — the one mark here that is not
 // somebody's livery, and which is never a sign-in *button*, since there is no
 // page of anybody's that it opens.
 
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/icon_pack.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// A service Settings › Accounts can link.
@@ -103,10 +107,13 @@ class BrandMark extends StatelessWidget {
           border: Border.all(color: GithubColors.outline),
         ),
         alignment: Alignment.center,
-        child: FaIcon(
-          FontAwesomeIcons.github,
+        child: ShellIcon(
+          ShellGlyph.github,
           size: size * 0.62,
           color: GithubColors.mark,
+          // A logo is the brand's drawing under every theme, as its colours
+          // are; see the file header.
+          pack: IconPack.fontAwesome,
         ),
       ),
       AccountBrand.caldav => Container(
@@ -118,10 +125,11 @@ class BrandMark extends StatelessWidget {
           border: Border.all(color: CalDavColors.outline),
         ),
         alignment: Alignment.center,
-        child: FaIcon(
-          FontAwesomeIcons.calendarCheck,
+        child: ShellIcon(
+          ShellGlyph.calendarCheck,
           size: size * 0.5,
           color: CalDavColors.mark,
+          pack: IconPack.fontAwesome,
         ),
       ),
     };
@@ -174,10 +182,11 @@ class BrandSignInButton extends StatelessWidget {
             else if (google)
               const GoogleG(size: 13)
             else
-              const FaIcon(
-                FontAwesomeIcons.github,
+              const ShellIcon(
+                ShellGlyph.github,
                 size: 14,
                 color: GithubColors.mark,
+                pack: IconPack.fontAwesome,
               ),
             const SizedBox(width: 8),
             Text(

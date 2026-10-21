@@ -9,7 +9,6 @@
 // button, and the card.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/brand_marks.dart';
@@ -19,6 +18,8 @@ import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_config.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
@@ -140,8 +141,8 @@ class _GithubNotificationsState extends State<GithubNotifications>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(
-            FontAwesomeIcons.github,
+          ShellIcon(
+            ShellGlyph.github,
             size: ShellFontSizes.title,
             // Dimmed until there is an account behind it: a signed-out module
             // has nothing to say, and a full-strength mark claims otherwise.
@@ -282,13 +283,13 @@ class _Header extends StatelessWidget {
           if (signedIn) ...[
             if (unread > 0)
               SettingsIconButton(
-                icon: FontAwesomeIcons.checkDouble,
+                icon: ShellGlyph.checkDouble,
                 tooltip: 'Mark all read',
                 onTap: store.markAllRead,
                 enabled: !store.busy,
               ),
             SettingsIconButton(
-              icon: FontAwesomeIcons.rotate,
+              icon: ShellGlyph.rotate,
               tooltip: 'Refresh',
               onTap: store.refresh,
               enabled: !store.busy,
@@ -297,7 +298,7 @@ class _Header extends StatelessWidget {
             // every other GitHub consumer out with it, from a place that does
             // not say so.
             SettingsIconButton(
-              icon: FontAwesomeIcons.userGear,
+              icon: ShellGlyph.userGear,
               tooltip: 'Account settings',
               onTap: onAccounts,
             ),
@@ -422,7 +423,7 @@ class _SignedOut extends StatelessWidget {
           const SizedBox(height: 16),
           SettingsActionButton(
             label: pending ? 'Show the code' : 'Open Accounts settings',
-            icon: FontAwesomeIcons.userGear,
+            icon: ShellGlyph.userGear,
             primary: true,
             onTap: onAccounts,
           ),
@@ -507,8 +508,8 @@ class _Empty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(
-              FontAwesomeIcons.inbox,
+            ShellIcon(
+              ShellGlyph.inbox,
               size: 32,
               color: theme.popupForeground.withValues(alpha: 0.28),
             ),
@@ -564,7 +565,7 @@ class _NotificationRow extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.only(top: 2),
-                child: FaIcon(
+                child: ShellIcon(
                   _iconFor(item.type),
                   size: ShellFontSizes.secondary,
                   color: item.unread
@@ -613,7 +614,7 @@ class _NotificationRow extends StatelessWidget {
                 width: ShellSizes.iconButton,
                 child: hovered && item.unread
                     ? SettingsIconButton(
-                        icon: FontAwesomeIcons.check,
+                        icon: ShellGlyph.check,
                         box: ShellSizes.iconButton,
                         onTap: onMarkRead,
                       )
@@ -635,14 +636,14 @@ class _NotificationRow extends StatelessWidget {
     );
   }
 
-  static FaIconData _iconFor(GithubSubjectType type) => switch (type) {
-        GithubSubjectType.pullRequest => FontAwesomeIcons.codePullRequest,
-        GithubSubjectType.issue => FontAwesomeIcons.circleDot,
-        GithubSubjectType.commit => FontAwesomeIcons.codeCommit,
-        GithubSubjectType.release => FontAwesomeIcons.tag,
-        GithubSubjectType.discussion => FontAwesomeIcons.comments,
-        GithubSubjectType.checkSuite => FontAwesomeIcons.circlePlay,
-        GithubSubjectType.other => FontAwesomeIcons.bell,
+  static ShellGlyph _iconFor(GithubSubjectType type) => switch (type) {
+        GithubSubjectType.pullRequest => ShellGlyph.pullRequest,
+        GithubSubjectType.issue => ShellGlyph.circleDot,
+        GithubSubjectType.commit => ShellGlyph.commit,
+        GithubSubjectType.release => ShellGlyph.tag,
+        GithubSubjectType.discussion => ShellGlyph.comments,
+        GithubSubjectType.checkSuite => ShellGlyph.circlePlay,
+        GithubSubjectType.other => ShellGlyph.bell,
       };
 }
 

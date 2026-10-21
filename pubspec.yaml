@@ -54,10 +54,25 @@ dependencies:
   # `weather_icons` (the Erik Flowers pack) is the obvious alternative and is
   # unusable: it pins `sdk: <3.0.0` and was last published in 2021.
   weather_icons_animated: ^0.0.2
-  # Interface chrome, not weather: the chevrons and the place marker in the
-  # settings location row (`overlay/settings/shell/weather_location.dart`).
-  # Meteocons is a weather set and has no map pin.
+  # The interface icon packs, which the theme's `icon_pack` chooses between
+  # (lib/theme/icon_pack.dart). Every interface icon is a `ShellGlyph`, and these
+  # are the fonts that can draw one; their constants are named in
+  # `lib/icons/packs/` and nowhere else.
+  #
+  # Font Awesome is the default and every other pack's fallback. Material
+  # Symbols is three packs in one dependency, and was here before packs were:
+  # the moon, fortune and weather cards drew their few interface glyphs from it,
+  # which the default pack still does. Lucide and Remix are new with the key.
+  #
+  # Release builds tree-shake icon fonts to the glyphs named by a `const`
+  # `IconData` — but only fonts that are named at all; one that is never
+  # referenced ships whole. Material Symbols forces a reference to each of its
+  # three styles for that reason, and `lib/icons/packs/lucide.dart` does the
+  # same for the six weighted Lucide families the package declares beside the
+  # one the shell draws from, which would otherwise be half a megabyte each.
   material_symbols_icons: ^4.2960.0
+  lucide_icons_flutter: ^4.0.1
+  remixicon: ^4.9.3
   # Two callers, one of them the reason this is a `dependencies` entry rather
   # than a `dev_dependencies` one. `weather_icons_animated` renders the
   # Meteocons through it and does not re-export it, so

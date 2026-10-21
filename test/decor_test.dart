@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 
@@ -193,6 +194,124 @@ void main() {
         expect(plan.sprigs[i].depth,
             lessThanOrEqualTo(plan.sprigs[i - 1].depth));
       }
+    });
+
+    group('harvest', () {
+      FoliagePlan harvest(String anchor, {double length = 1400}) =>
+          growFoliage(
+            style: FoliageStyle.harvest,
+            length: length,
+            thickness: 32,
+            reach: 72,
+            anchor: anchor,
+            leaf: const Color(0xFF6B8A35),
+            bloom: const Color(0xFFE2731E),
+            endCaps: 44,
+          );
+
+      test('a top bar turns in its corners and is bare in the middle', () {
+        final plan = harvest('top');
+        expect(plan.sprigs, isNotEmpty);
+        expect(plan.sprigs.expand((s) => s.gourds), isEmpty,
+            reason: 'nothing hangs a pumpkin');
+        for (final s in plan.sprigs) {
+          final reach = s.bounds.shift(s.root);
+          expect(reach.left < 1400 * 0.3 || reach.right > 1400 * 0.7, isTrue,
+              reason: 'every plant roots in a corner: $reach');
+        }
+        final leaves = plan.sprigs.expand((s) => s.leaves).toList();
+        expect(leaves.where((l) => l.shape == LeafShape.maple), isNotEmpty);
+        expect(leaves.where((l) => l.shape == LeafShape.oak), isNotEmpty);
+        // A motley: the leaves are many colours, not one jittered.
+        final hues = {
+          for (final l in leaves) (HSLColor.fromColor(l.color).hue / 15).floor(),
+        };
+        expect(hues.length, greaterThanOrEqualTo(4));
+      });
+
+      test('a bottom bar grows pumpkin patches, at both ends and between', () {
+        final plan = harvest('bottom');
+        final pumpkins = [
+          for (final s in plan.sprigs)
+            for (final g in s.gourds) (s.root + g.at, g),
+        ];
+        expect(pumpkins.length, greaterThanOrEqualTo(4));
+        final xs = [for (final (at, _) in pumpkins) at.dx];
+        expect(xs.any((x) => x < 160), isTrue, reason: 'a patch in each corner');
+        expect(xs.any((x) => x > 1400 - 160), isTrue);
+        expect(xs.any((x) => x > 400 && x < 1000), isTrue,
+            reason: 'and one between');
+        for (final (at, g) in pumpkins) {
+          // Standing on the bar's edge, upright, inside the room it has.
+          expect(at.dy, inInclusiveRange(-3, 3));
+          expect(g.down, const Offset(0, -1));
+          expect(at.dy + g.height + g.stalk, lessThanOrEqualTo(72));
+          expect(at.dx - g.width / 2, greaterThanOrEqualTo(0));
+          expect(at.dx + g.width / 2, lessThanOrEqualTo(1400));
+        }
+        // A pumpkin is too heavy to rustle.
+        for (final s in plan.sprigs.where((s) => s.gourds.isNotEmpty)) {
+          expect(s.kind.sway, 0);
+        }
+      });
+
+      test('a short bottom bar still gets its patch', () {
+        final plan = harvest('bottom', length: 240);
+        expect(plan.sprigs.expand((s) => s.gourds), isNotEmpty);
+      });
+
+      test('the corners frame the screen without covering the bar', () {
+        final plan = harvest('top', length: 1920);
+        // Every leaf stays off the bar but for a fringe on its inner edge, so
+        // the modules at either end are overhung, never hidden.
+        for (final s in plan.sprigs) {
+          for (final l in s.leaves) {
+            final tip = s.root +
+                l.at +
+                Offset(math.cos(l.angle), math.sin(l.angle)) * l.length;
+            expect(tip.dy, greaterThanOrEqualTo(-32 * 0.4),
+                reason: '${s.kind} at ${s.root}');
+            expect((s.root + l.at).dy, greaterThanOrEqualTo(-32 * 0.33));
+          }
+        }
+        // Both corners, hugging the screen's side edge and running down it.
+        bool nearSide(Sprig s) => s.root.dx < 60 || s.root.dx > 1920 - 60;
+        expect(
+            plan.sprigs.where((s) => nearSide(s) && s.root.dy > 72 * 0.5),
+            isNotEmpty);
+        expect(plan.sprigs.where((s) => s.root.dx < 60), isNotEmpty);
+        expect(plan.sprigs.where((s) => s.root.dx > 1920 - 60), isNotEmpty);
+      });
+
+      test('every stem stays in the room it has', () {
+        for (final anchor in ['top', 'bottom', 'left', 'right']) {
+          for (final s in harvest(anchor).sprigs) {
+            for (final stem in s.stems) {
+              for (final p in stem) {
+                final q = s.root + p;
+                expect(q.dy, lessThanOrEqualTo(72), reason: anchor);
+                expect(q.dy, greaterThanOrEqualTo(-32 * 0.33), reason: anchor);
+                expect(q.dx, inInclusiveRange(0, 1400), reason: anchor);
+              }
+            }
+          }
+        }
+      });
+
+      test('the same bar grows the same harvest', () {
+        final a = harvest('bottom');
+        final b = harvest('bottom');
+        expect([for (final s in a.sprigs) s.root],
+            [for (final s in b.sprigs) s.root]);
+      });
+
+      test('every plant paints, pumpkins and all', () {
+        for (final anchor in ['top', 'bottom']) {
+          for (final s in harvest(anchor).sprigs) {
+            recordSprig(s).dispose();
+          }
+        }
+      });
     });
   });
 
@@ -477,26 +596,29 @@ void main() {
       expect(tester.binding.transientCallbackCount, 0);
     });
 
-    testWidgets('forest paints, rests, rustles and rests again',
-        (tester) async {
-      final rustle = ValueNotifier(0);
-      addTearDown(rustle.dispose);
-      await tester.pumpWidget(bar(_shipped('forest'), rustle: rustle));
-      expect(decorPaint(tester).painter, isNotNull);
-      expect(
-          find.descendant(
-              of: find.byType(PanelFoliage), matching: find.byType(CustomPaint)),
-          findsOneWidget);
-      await tester.pumpAndSettle();
-      expect(tester.binding.transientCallbackCount, 0,
-          reason: 'nothing animates at rest');
+    for (final slug in ['forest', 'autumn']) {
+      testWidgets('$slug paints, rests, rustles and rests again',
+          (tester) async {
+        final rustle = ValueNotifier(0);
+        addTearDown(rustle.dispose);
+        await tester.pumpWidget(bar(_shipped(slug), rustle: rustle));
+        expect(decorPaint(tester).painter, isNotNull);
+        expect(
+            find.descendant(
+                of: find.byType(PanelFoliage),
+                matching: find.byType(CustomPaint)),
+            findsOneWidget);
+        await tester.pumpAndSettle();
+        expect(tester.binding.transientCallbackCount, 0,
+            reason: 'nothing animates at rest');
 
-      rustle.value++;
-      await tester.pump();
-      expect(tester.binding.transientCallbackCount, greaterThan(0));
-      await tester.pumpAndSettle();
-      expect(tester.binding.transientCallbackCount, 0);
-    });
+        rustle.value++;
+        await tester.pump();
+        expect(tester.binding.transientCallbackCount, greaterThan(0));
+        await tester.pumpAndSettle();
+        expect(tester.binding.transientCallbackCount, 0);
+      });
+    }
 
     testWidgets('roots grow when a popup opens and go when it closes',
         (tester) async {

@@ -1,10 +1,11 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_actions.dart';
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 
@@ -21,7 +22,7 @@ class DesktopMenuEntry {
 
   final String label;
   final VoidCallback onTap;
-  final FaIconData? icon;
+  final ShellGlyph? icon;
 
   /// Draws [icon] in this colour rather than the row's, for a row whose icon
   /// *is* what it chooses — a sticky note's paper.
@@ -88,7 +89,7 @@ class DesktopMenuCard extends StatelessWidget {
                   _DesktopMenuRow(
                     entry: DesktopMenuEntry(
                       label: 'Back',
-                      icon: FontAwesomeIcons.arrowLeft,
+                      icon: ShellGlyph.arrowLeft,
                       onTap: onBack!,
                     ),
                   ),
@@ -172,7 +173,7 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
               if (entry.icon case final icon?) ...[
                 SizedBox(
                   width: 16,
-                  child: FaIcon(
+                  child: ShellIcon(
                     icon,
                     size: 12,
                     color: entry.enabled
@@ -204,7 +205,7 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
               // than making the checked one wider than its neighbours.
               if (entry.selected) ...[
                 const SizedBox(width: 12),
-                FaIcon(FontAwesomeIcons.check, size: 10, color: foreground),
+                ShellIcon(ShellGlyph.check, size: 10, color: foreground),
               ],
             ],
           ),
@@ -295,26 +296,26 @@ class _DesktopItemMenuState extends State<DesktopItemMenu> {
       entries: [
         DesktopMenuEntry(
           label: multiple ? 'Open ${widget.selectionCount} items' : 'Open',
-          icon: FontAwesomeIcons.arrowUpRightFromSquare,
+          icon: ShellGlyph.externalLink,
           onTap: widget.onOpen,
         ),
         if (canOpenWith)
           DesktopMenuEntry(
             label: 'Open with…',
-            icon: FontAwesomeIcons.listUl,
+            icon: ShellGlyph.listUl,
             onTap: () => setState(() => _handlers = widget.handlers()),
           ),
         if (!multiple)
           DesktopMenuEntry(
             label: 'Rename',
-            icon: FontAwesomeIcons.pen,
+            icon: ShellGlyph.edit,
             onTap: widget.onRename,
           ),
         DesktopMenuEntry(
           label: multiple
               ? 'Remove ${widget.selectionCount} items from desktop'
               : 'Remove from desktop',
-          icon: FontAwesomeIcons.trash,
+          icon: ShellGlyph.trash,
           onTap: widget.onRemove,
         ),
       ],
@@ -387,28 +388,28 @@ class _DesktopEmptyMenuState extends State<DesktopEmptyMenu> {
       entries: [
         DesktopMenuEntry(
           label: 'Add application…',
-          icon: FontAwesomeIcons.rocket,
+          icon: ShellGlyph.rocket,
           onTap: widget.onAddApplication,
         ),
         DesktopMenuEntry(
           label: 'Add file or folder…',
-          icon: FontAwesomeIcons.folderOpen,
+          icon: ShellGlyph.folderOpen,
           onTap: widget.onAddFile,
         ),
         if (onAddWidget != null && specs.isNotEmpty)
           DesktopMenuEntry(
             label: 'Add widget…',
-            icon: FontAwesomeIcons.shapes,
+            icon: ShellGlyph.shapes,
             onTap: () => setState(() => _choosingWidget = true),
           ),
         DesktopMenuEntry(
           label: 'Organize',
-          icon: FontAwesomeIcons.tableCells,
+          icon: ShellGlyph.grid,
           onTap: widget.onOrganize,
         ),
         DesktopMenuEntry(
           label: 'Change background…',
-          icon: FontAwesomeIcons.image,
+          icon: ShellGlyph.image,
           onTap: widget.onChangeBackground,
         ),
       ],
@@ -452,7 +453,7 @@ class DesktopWidgetMenu extends StatelessWidget {
         if (spec != null && onResetSize != null)
           DesktopMenuEntry(
             label: 'Reset size',
-            icon: FontAwesomeIcons.compress,
+            icon: ShellGlyph.compress,
             // Shown greyed rather than hidden at the default size, the rule
             // [DesktopMenuEntry.enabled] exists for: the menu keeps its shape.
             enabled: !atDefault,
@@ -460,7 +461,7 @@ class DesktopWidgetMenu extends StatelessWidget {
           ),
         DesktopMenuEntry(
           label: 'Remove widget',
-          icon: FontAwesomeIcons.trash,
+          icon: ShellGlyph.trash,
           onTap: onRemove,
         ),
       ],

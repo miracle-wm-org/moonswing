@@ -9,10 +9,11 @@
 // do for you: a click on the bar is a click away from the window you meant.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/keybinds/shell_keybind_store.dart';
 import 'package:moonswing/keybinds/shell_keybinds.dart';
@@ -116,8 +117,8 @@ class _ScratchpadButtonState extends State<ScratchpadButton>
           // Tap-down, like every bar button: the press that toggles is also
           // the one `PopupDismissArea` reads, and it takes the label down.
           onTapDown: (_) => _store.toggle(),
-          child: FaIcon(
-            FontAwesomeIcons.noteSticky,
+          child: ShellIcon(
+            ShellGlyph.noteSticky,
             size: ShellFontSizes.secondary,
             // Muted after a failure, which is the button's half of saying so;
             // the label says why, and the next click is the retry.

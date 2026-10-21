@@ -1,21 +1,16 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/notification_sound.dart';
 import 'package:moonswing/scopes.dart';
 
-/// Finds a rendered FontAwesome glyph.
-///
-/// By code point, not by icon: `FaIcon` unwraps the [FaIconData] it is given
-/// into a plain `IconData`, which never compares equal to the catalogue entry
-/// it came from. The code point is what actually reaches the font.
-Finder _glyph(FaIconData icon) => find.byWidgetPredicate(
-      (w) => w is FaIcon && w.icon?.codePoint == icon.codePoint,
-    );
+import 'glyph_finder.dart';
+
+Finder _glyph(ShellGlyph icon) => findGlyph(icon);
 
 /// Read and dismissed are different acts, and the whole of this file is about
 /// keeping them different: marking everything read stops the shell *asking*
@@ -142,7 +137,7 @@ void main() {
       await tester.pumpWidget(panel(closing));
       await tester.pumpAndSettle();
 
-      final check = _glyph(FontAwesomeIcons.checkDouble);
+      final check = _glyph(ShellGlyph.checkDouble);
       expect(check, findsOneWidget);
       await tester.tap(check);
       await tester.pumpAndSettle();
@@ -166,7 +161,7 @@ void main() {
 
       // The clipboard history's X, in the same place: the two docked panels
       // close the same way.
-      final close = _glyph(FontAwesomeIcons.xmark);
+      final close = _glyph(ShellGlyph.close);
       expect(close, findsOneWidget);
 
       await tester.tap(close);
@@ -207,9 +202,9 @@ void main() {
       expect(find.textContaining('no notifications module'), findsOneWidget);
 
       // The preview plays whatever is configured, every time it is pressed.
-      await tester.tap(_glyph(FontAwesomeIcons.play));
+      await tester.tap(_glyph(ShellGlyph.play));
       await tester.pump();
-      await tester.tap(_glyph(FontAwesomeIcons.play));
+      await tester.tap(_glyph(ShellGlyph.play));
       await tester.pump();
       expect(plays, 2);
     });

@@ -4,19 +4,18 @@ import 'package:flutter/gestures.dart'
     show PointerDeviceKind, kSecondaryMouseButton;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 
-/// [FaIcon.icon] answers the wrapped [IconData], not the [FaIconData] the
-/// call site named, so the two are compared unwrapped.
-Finder _icon(FaIconData icon) =>
-    find.byWidgetPredicate((w) => w is FaIcon && w.icon == icon.data);
+import 'glyph_finder.dart';
+
+Finder _icon(ShellGlyph icon) => findGlyph(icon);
 
 /// The bar module, as `test/notification_daemon_test.dart` hosts it: a
 /// [ThemeScope] and nothing else. Nothing here clicks the bell's own popup,
@@ -178,15 +177,15 @@ silenced = "yes"
   group('the bell', () {
     testWidgets('wears a crossed-out bell while silenced', (tester) async {
       await tester.pumpWidget(_bell());
-      expect(_icon(FontAwesomeIcons.bell), findsOneWidget);
-      expect(_icon(FontAwesomeIcons.bellSlash), findsNothing);
+      expect(_icon(ShellGlyph.bell), findsOneWidget);
+      expect(_icon(ShellGlyph.bellSlash), findsNothing);
 
       // Live, on the store's notify: the flag can be flipped from the panel on
       // another output, or from the bell on another monitor entirely.
       store.setSilenced(true);
       await tester.pump();
-      expect(_icon(FontAwesomeIcons.bellSlash), findsOneWidget);
-      expect(_icon(FontAwesomeIcons.bell), findsNothing);
+      expect(_icon(ShellGlyph.bellSlash), findsOneWidget);
+      expect(_icon(ShellGlyph.bell), findsNothing);
     });
 
     testWidgets('right-click silences and unsilences it', (tester) async {
@@ -308,7 +307,7 @@ silenced = "yes"
       expect(
         find.descendant(
           of: find.byType(NotificationSilenceRow),
-          matching: _icon(FontAwesomeIcons.bell),
+          matching: _icon(ShellGlyph.bell),
         ),
         findsOneWidget,
       );
@@ -318,7 +317,7 @@ silenced = "yes"
       expect(
         find.descendant(
           of: find.byType(NotificationSilenceRow),
-          matching: _icon(FontAwesomeIcons.bellSlash),
+          matching: _icon(ShellGlyph.bellSlash),
         ),
         findsOneWidget,
       );

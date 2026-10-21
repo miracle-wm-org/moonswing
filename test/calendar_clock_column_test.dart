@@ -1,14 +1,16 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/calendar/calendar_tab.dart';
 import 'package:moonswing/overlay/calendar/clock_column.dart';
 import 'package:moonswing/overlay/calendar/time_zones.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
+
+import 'glyph_finder.dart';
 
 /// 10:30 on 9 August 2026, read as UTC — the one part of the day where the
 /// inhabited world spans three calendar dates at once, so a single instant
@@ -79,13 +81,11 @@ Future<void> pumpColumn(
   await tester.pump();
 }
 
-/// Font Awesome icons are [FaIconData], which `find.byIcon` cannot take; the
-/// [FaIcon] widget unwraps them to plain [IconData].
-Finder _faIcon(FaIconData icon) => find.byIcon(icon.data);
+Finder _faIcon(ShellGlyph icon) => findGlyph(icon);
 
 Future<void> _openPicker(WidgetTester tester) async {
   await tester.tap(find.byWidgetPredicate(
-      (w) => w is SettingsIconButton && w.icon == FontAwesomeIcons.plus));
+      (w) => w is SettingsIconButton && w.icon == ShellGlyph.add));
   await tester.pump();
   await tester.pump();
 }
@@ -150,7 +150,7 @@ void main() {
     expect(find.text('Nothing'), findsOneWidget);
     expect(find.text('Unknown time zone'), findsOneWidget);
 
-    await tester.tap(_faIcon(FontAwesomeIcons.xmark));
+    await tester.tap(_faIcon(ShellGlyph.close));
     await tester.pump();
     expect(removed, 'Nowhere/Nothing');
   });
@@ -166,7 +166,7 @@ void main() {
       onRemove: (zone) => removed = zone,
     );
 
-    await tester.tap(_faIcon(FontAwesomeIcons.xmark).last);
+    await tester.tap(_faIcon(ShellGlyph.close).last);
     await tester.pump();
     expect(removed, 'Europe/London');
   });
@@ -184,7 +184,7 @@ void main() {
     );
 
     final button = find.ancestor(
-      of: _faIcon(FontAwesomeIcons.xmark),
+      of: _faIcon(ShellGlyph.close),
       matching: find.byType(SettingsIconButton),
     );
     expect(
@@ -290,8 +290,8 @@ void main() {
         onRemove: (zone) => removed = zone,
         onReorder: (_, _) {},
       );
-      expect(_faIcon(FontAwesomeIcons.gripVertical), findsNWidgets(3));
-      await tester.tap(_faIcon(FontAwesomeIcons.xmark).at(1));
+      expect(_faIcon(ShellGlyph.dragHandle), findsNWidgets(3));
+      await tester.tap(_faIcon(ShellGlyph.close).at(1));
       await tester.pump();
       expect(removed, 'Europe/London');
     });
@@ -299,7 +299,7 @@ void main() {
     testWidgets('without a sink the rows have no grip and do not drag',
         (tester) async {
       await pumpColumn(tester, clocks: three);
-      expect(_faIcon(FontAwesomeIcons.gripVertical), findsNothing);
+      expect(_faIcon(ShellGlyph.dragHandle), findsNothing);
       final from = tester.getCenter(find.text('Tokyo'));
       final gesture = await tester.startGesture(from);
       await gesture.moveBy(const Offset(0, 60));
@@ -363,7 +363,7 @@ void main() {
     testWidgets('marks a zone that is already on the list', (tester) async {
       await pumpColumn(tester, clocks: const [WorldClock(zone: 'Asia/Tokyo')]);
       await _openPicker(tester);
-      expect(_faIcon(FontAwesomeIcons.check), findsOneWidget);
+      expect(_faIcon(ShellGlyph.check), findsOneWidget);
     });
 
     testWidgets('Escape closes the list and stops there', (tester) async {
@@ -488,7 +488,7 @@ void main() {
         WorldClock(zone: 'Europe/London'),
       ]);
 
-      await tester.tap(_faIcon(FontAwesomeIcons.xmark).first);
+      await tester.tap(_faIcon(ShellGlyph.close).first);
       await tester.pump();
 
       expect(writes.single.map((c) => c.zone), ['Europe/London']);

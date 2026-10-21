@@ -7,9 +7,9 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/power/power_actions.dart';
@@ -252,7 +252,7 @@ class _PowerTile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              FaIcon(
+              ShellIcon(
                 action.icon,
                 size: 26,
                 color: highlighted ? kOnAccent : theme.popupForeground,

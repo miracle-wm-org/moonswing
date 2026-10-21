@@ -2,10 +2,10 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -30,7 +30,7 @@ void main() {
       (tester) async {
     var taps = 0;
     await tester.pumpWidget(_host(SettingsIconButton(
-      icon: FontAwesomeIcons.pause,
+      icon: ShellGlyph.pause,
       size: 11,
       onTap: () => taps++,
     )));
@@ -47,7 +47,7 @@ void main() {
       (tester) async {
     var taps = 0;
     await tester.pumpWidget(_host(SettingsIconButton(
-      icon: FontAwesomeIcons.xmark,
+      icon: ShellGlyph.close,
       size: 11,
       box: ShellSizes.iconButtonDense,
       onTap: () => taps++,
@@ -71,7 +71,7 @@ void main() {
     await mouse.addPointer(location: Offset.zero);
 
     await tester.pumpWidget(_host(SettingsIconButton(
-      icon: FontAwesomeIcons.play,
+      icon: ShellGlyph.play,
       size: 11,
       onTap: () => taps++,
     )));
@@ -94,7 +94,7 @@ void main() {
   // line here; that is the point of the table.
   final cases = <String, Widget Function(VoidCallback)>{
     'SettingsIconButton': (tap) =>
-        SettingsIconButton(icon: FontAwesomeIcons.stop, onTap: tap),
+        SettingsIconButton(icon: ShellGlyph.stop, onTap: tap),
     // A stadium: `BoxDecoration.hitTest` refuses the four corner wedges, so
     // a rounded decoration alone is not enough here.
     'SettingsToggle': (tap) =>

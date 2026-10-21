@@ -1,9 +1,10 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/config_store.dart';
@@ -226,7 +227,7 @@ class _ShellCategory {
 
   final String title;
   final String subtitle;
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   /// Builds the category's body as a **sliver**, for the [CustomScrollView] in
   /// [_SettingsPageView] — [SliverSettingsSection] in the ordinary case. The
@@ -241,54 +242,54 @@ const List<_ShellCategory> _shellCategories = [
   _ShellCategory(
     title: 'Panels & Layout',
     subtitle: 'Size, anchor, module slots',
-    icon: FontAwesomeIcons.tableColumns,
+    icon: ShellGlyph.columns,
     build: _buildPanels,
   ),
   _ShellCategory.modules(
     title: kModuleSettingsCategory,
     subtitle: 'A page of options for each module',
-    icon: FontAwesomeIcons.puzzlePiece,
+    icon: ShellGlyph.puzzle,
   ),
   _ShellCategory(
     title: 'Theme',
     subtitle: 'Colors and font',
-    icon: FontAwesomeIcons.palette,
+    icon: ShellGlyph.palette,
     build: _buildAppearance,
   ),
   _ShellCategory(
     title: 'Wallpaper',
     subtitle: 'Pictures, videos and fit',
-    icon: FontAwesomeIcons.image,
+    icon: ShellGlyph.image,
     build: _buildBackground,
   ),
   _ShellCategory(
     title: 'Desktop Grid',
     subtitle: 'Icon grid and pinned items',
-    icon: FontAwesomeIcons.tableCells,
+    icon: ShellGlyph.grid,
     build: _buildDesktop,
   ),
   _ShellCategory(
     title: 'Lock Screen',
     subtitle: 'Wallpaper and unlock',
-    icon: FontAwesomeIcons.lock,
+    icon: ShellGlyph.lock,
     build: _buildLock,
   ),
   _ShellCategory(
     title: 'Power Button',
     subtitle: 'What the machine\'s power key does',
-    icon: FontAwesomeIcons.powerOff,
+    icon: ShellGlyph.power,
     build: _buildPower,
   ),
   _ShellCategory(
     title: 'Volume & Sound',
     subtitle: 'What a volume change sounds like',
-    icon: FontAwesomeIcons.volumeHigh,
+    icon: ShellGlyph.volumeHigh,
     build: _buildVolumeSound,
   ),
   _ShellCategory(
     title: 'Calendar',
     subtitle: 'Month grid and Google calendars',
-    icon: FontAwesomeIcons.calendarDays,
+    icon: ShellGlyph.calendarDays,
     build: _buildCalendar,
   ),
 ];
@@ -368,7 +369,7 @@ class _MenuEntry {
 
   final String title;
   final String subtitle;
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   /// Built when the card is tapped, not when the menu is.
   final Widget Function() view;
@@ -458,7 +459,7 @@ class _PageHeader extends StatelessWidget {
       child: Row(
         children: [
           SettingsIconButton(
-            icon: FontAwesomeIcons.arrowLeft,
+            icon: ShellGlyph.arrowLeft,
             size: 14,
             onTap: () => Navigator.of(context).pop(),
           ),
@@ -612,8 +613,8 @@ class _CategoryCard extends StatelessWidget {
         ],
       ),
     );
-    final chevron = FaIcon(
-      FontAwesomeIcons.chevronRight,
+    final chevron = ShellIcon(
+      ShellGlyph.chevronRight,
       size: ShellFontSizes.secondary,
       color: theme.popupForeground.withValues(alpha: 0.4),
     );
@@ -633,7 +634,7 @@ class _CategoryCard extends StatelessWidget {
             ),
             child: Row(
               children: [
-                FaIcon(
+                ShellIcon(
                   entry.icon,
                   size: ShellFontSizes.title,
                   color: hovered
@@ -677,8 +678,8 @@ class _RestartBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FaIcon(
-            FontAwesomeIcons.arrowsRotate,
+          ShellIcon(
+            ShellGlyph.refresh,
             size: 12,
             color: theme.accentText,
           ),

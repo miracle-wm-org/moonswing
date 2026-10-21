@@ -18,10 +18,11 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:miracle/miracle.dart' show KeybindsResult;
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/keybinds/keybind_model.dart';
 import 'package:moonswing/keybinds/keybind_store.dart';
@@ -419,7 +420,7 @@ class _SectionBlock extends StatelessWidget {
 class _SectionHeading extends StatelessWidget {
   const _SectionHeading({required this.icon, required this.label});
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final String label;
 
   @override
@@ -431,7 +432,7 @@ class _SectionHeading extends StatelessWidget {
       children: [
         Row(
           children: [
-            FaIcon(icon, size: 11, color: theme.accentText),
+            ShellIcon(icon, size: 11, color: theme.accentText),
             const SizedBox(width: 8),
             Text(
               label.toUpperCase(),
@@ -456,14 +457,14 @@ class _SectionHeading extends StatelessWidget {
 ///
 /// In the widget rather than on [KeybindSection] so the model stays
 /// Flutter-free — `miracle_labels.dart`'s rule.
-FaIconData _sectionIcon(KeybindSection section) => switch (section) {
-  KeybindSection.windows => FontAwesomeIcons.windowMaximize,
-  KeybindSection.layout => FontAwesomeIcons.tableColumns,
-  KeybindSection.workspaces => FontAwesomeIcons.borderAll,
-  KeybindSection.magnifier => FontAwesomeIcons.magnifyingGlass,
-  KeybindSection.session => FontAwesomeIcons.powerOff,
-  KeybindSection.commands => FontAwesomeIcons.terminal,
-  KeybindSection.other => FontAwesomeIcons.puzzlePiece,
+ShellGlyph _sectionIcon(KeybindSection section) => switch (section) {
+  KeybindSection.windows => ShellGlyph.maximize,
+  KeybindSection.layout => ShellGlyph.columns,
+  KeybindSection.workspaces => ShellGlyph.borderAll,
+  KeybindSection.magnifier => ShellGlyph.search,
+  KeybindSection.session => ShellGlyph.power,
+  KeybindSection.commands => ShellGlyph.terminal,
+  KeybindSection.other => ShellGlyph.puzzle,
 };
 
 /// One shortcut: what it does on the left, the caps to press on the right.
@@ -562,7 +563,7 @@ class _ShellSectionBlock extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _SectionHeading(
-            icon: FontAwesomeIcons.sliders,
+            icon: ShellGlyph.sliders,
             label: kShellSectionLabel,
           ),
           Padding(
@@ -587,8 +588,8 @@ class _ShellSectionBlock extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
                 children: [
-                  FaIcon(
-                    FontAwesomeIcons.rotateRight,
+                  ShellIcon(
+                    ShellGlyph.rotateRight,
                     size: 10,
                     color: theme.accentText,
                   ),
@@ -611,8 +612,8 @@ class _ShellSectionBlock extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 6),
               child: Row(
                 children: [
-                  FaIcon(
-                    FontAwesomeIcons.triangleExclamation,
+                  ShellIcon(
+                    ShellGlyph.warning,
                     size: 10,
                     color: kErrorColor,
                   ),
@@ -834,7 +835,7 @@ class _ShellShortcutTileState extends State<_ShellShortcutTile> {
                         if (store.canEdit && !isCapturing) ...[
                           const SizedBox(width: 6),
                           _RowAction(
-                            icon: FontAwesomeIcons.pen,
+                            icon: ShellGlyph.edit,
                             rowHovered: hovered,
                             onTap: _startCapture,
                           ),
@@ -843,7 +844,7 @@ class _ShellShortcutTileState extends State<_ShellShortcutTile> {
                           // the time.
                           if (!store.isDefault(shortcut))
                             _RowAction(
-                              icon: FontAwesomeIcons.arrowRotateLeft,
+                              icon: ShellGlyph.undo,
                               rowHovered: hovered,
                               onTap: _restoreDefault,
                             ),
@@ -968,7 +969,7 @@ class _RowAction extends StatelessWidget {
     required this.onTap,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   /// Whether the row is hovered. The affordance is drawn faintly until then:
   /// four rows each carrying two lit buttons is a sheet that reads as a form.
@@ -989,7 +990,7 @@ class _RowAction extends StatelessWidget {
           color: hovered ? theme.surfacePressed : null,
           borderRadius: BorderRadius.circular(ShellRadii.control),
         ),
-        child: FaIcon(
+        child: ShellIcon(
           icon,
           size: 10,
           color: hovered || rowHovered ? theme.popupForeground : theme.muted,
@@ -1054,7 +1055,7 @@ class KeyCapChip extends StatelessWidget {
                 color: theme.popupForeground,
               ),
             )
-          : FaIcon(
+          : ShellIcon(
               _glyphIcon(glyph),
               size: 10,
               color: theme.popupForeground,
@@ -1064,13 +1065,13 @@ class KeyCapChip extends StatelessWidget {
 }
 
 /// The picture on a cap that has one.
-FaIconData _glyphIcon(KeyCapGlyph glyph) => switch (glyph) {
-  KeyCapGlyph.up => FontAwesomeIcons.arrowUp,
-  KeyCapGlyph.down => FontAwesomeIcons.arrowDown,
-  KeyCapGlyph.left => FontAwesomeIcons.arrowLeft,
-  KeyCapGlyph.right => FontAwesomeIcons.arrowRight,
-  KeyCapGlyph.enter => FontAwesomeIcons.arrowTurnDown,
-  KeyCapGlyph.backspace => FontAwesomeIcons.deleteLeft,
+ShellGlyph _glyphIcon(KeyCapGlyph glyph) => switch (glyph) {
+  KeyCapGlyph.up => ShellGlyph.arrowUp,
+  KeyCapGlyph.down => ShellGlyph.arrowDown,
+  KeyCapGlyph.left => ShellGlyph.arrowLeft,
+  KeyCapGlyph.right => ShellGlyph.arrowRight,
+  KeyCapGlyph.enter => ShellGlyph.enter,
+  KeyCapGlyph.backspace => ShellGlyph.backspace,
 };
 
 /// Why the sheet is empty, or out of date, and the way to ask again.
@@ -1102,8 +1103,8 @@ class _CheatsheetError extends StatelessWidget {
             children: [
               const Padding(
                 padding: EdgeInsets.only(top: 1),
-                child: FaIcon(
-                  FontAwesomeIcons.triangleExclamation,
+                child: ShellIcon(
+                  ShellGlyph.warning,
                   size: 12,
                   color: kErrorColor,
                 ),

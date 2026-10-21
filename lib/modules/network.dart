@@ -4,8 +4,9 @@ import 'dart:async';
 import 'package:dbus/dbus.dart';
 import 'package:moonswing/dbus_clients.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/module.dart';
@@ -584,13 +585,13 @@ class NetworkState extends State<Network> with PopupHost<Network> {
   // Bar widget
   // -------------------------------------------------------------------------
 
-  FaIconData _networkIcon(NetworkInfo info) {
+  ShellGlyph _networkIcon(NetworkInfo info) {
     switch (info.type) {
       case NetworkType.ethernet:
-        return FontAwesomeIcons.ethernet;
+        return ShellGlyph.ethernet;
       case NetworkType.wifi:
       case NetworkType.none:
-        return FontAwesomeIcons.wifi;
+        return ShellGlyph.wifi;
     }
   }
 
@@ -612,7 +613,7 @@ class NetworkState extends State<Network> with PopupHost<Network> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(
+              ShellIcon(
                 _networkIcon(info),
                 size: 12,
                 color: isNone ? dimColor : theme.foreground,

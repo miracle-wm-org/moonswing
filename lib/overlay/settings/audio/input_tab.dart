@@ -3,7 +3,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/pulse_client.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/loading_indicator.dart';
@@ -319,8 +319,8 @@ class _InputTabState extends State<InputTab> {
             const Spacer(),
             SettingsIconButton(
               icon: _muted
-                  ? FontAwesomeIcons.microphoneSlash
-                  : FontAwesomeIcons.microphone,
+                  ? ShellGlyph.microphoneSlash
+                  : ShellGlyph.microphone,
               size: ShellFontSizes.label,
               color: _muted ? theme.muted : theme.popupForeground,
               onTap: _toggleMute,

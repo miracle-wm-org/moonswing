@@ -13,7 +13,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
@@ -23,6 +22,8 @@ import 'package:moonswing/github/github_link_chip.dart';
 import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_links.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings_route.dart';
@@ -664,8 +665,8 @@ class _Header extends StatelessWidget {
                   'Standup summaries: what was finished, started and still to '
                   'do since the last one',
               onTap: onStandup,
-              builder: (color) => FaIcon(
-                FontAwesomeIcons.bullhorn,
+              builder: (color) => ShellIcon(
+                ShellGlyph.bullhorn,
                 size: ShellFontSizes.body,
                 color: color,
               ),
@@ -675,8 +676,8 @@ class _Header extends StatelessWidget {
           _HeaderButton(
             tooltip: 'Backups',
             onTap: onBackups,
-            builder: (color) => FaIcon(
-              FontAwesomeIcons.cloudArrowUp,
+            builder: (color) => ShellIcon(
+              ShellGlyph.upload,
               size: ShellFontSizes.body,
               color: color,
             ),
@@ -816,7 +817,7 @@ class _ColumnView extends StatelessWidget {
                     // An add button goes at the top right of the collection
                     // it adds to.
                     SettingsIconButton(
-                      icon: FontAwesomeIcons.plus,
+                      icon: ShellGlyph.add,
                       enabled: editable,
                       onTap: onAdd,
                       tooltip: 'Add a card to ${column.label}',
@@ -996,10 +997,10 @@ class _DayHeading extends StatelessWidget {
             children: [
               SizedBox(
                 width: 14,
-                child: FaIcon(
+                child: ShellIcon(
                   open
-                      ? FontAwesomeIcons.chevronDown
-                      : FontAwesomeIcons.chevronRight,
+                      ? ShellGlyph.chevronDown
+                      : ShellGlyph.chevronRight,
                   size: ShellFontSizes.caption,
                   color: dim,
                 ),
@@ -1409,19 +1410,19 @@ class _CardFaceState extends State<_CardFace> {
               _DueChip(item: item, due: due, today: widget.today),
             if (recurrence != null)
               _Fact(
-                icon: FontAwesomeIcons.repeat,
+                icon: ShellGlyph.repeat,
                 label: recurrence.describe(),
               ),
             if (item.external case final e?)
               _Fact(
-                icon: FontAwesomeIcons.calendar,
+                icon: ShellGlyph.calendar,
                 label: e.calendar ?? 'Calendar',
                 iconColor: calendarCardColor(item, theme),
               ),
             if (item.external?.link case final join? when item.column.isOpen)
               _JoinChip(onTap: () => widget.onOpenLink(join)),
             _Fact(
-              icon: FontAwesomeIcons.clock,
+              icon: ShellGlyph.clock,
               label: formatMoment(item.movedAt),
             ),
           ],
@@ -1452,7 +1453,7 @@ class _DueChip extends StatelessWidget {
       color = null;
     }
     return _Fact(
-      icon: FontAwesomeIcons.calendarDay,
+      icon: ShellGlyph.calendarDay,
       label: describeDueDate(due, today),
       color: color,
     );
@@ -1470,7 +1471,7 @@ class _JoinChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final chip = _Fact(
-      icon: FontAwesomeIcons.video,
+      icon: ShellGlyph.video,
       label: 'Join',
       color: theme.accentText,
     );
@@ -1503,7 +1504,7 @@ class _Fact extends StatelessWidget {
     this.iconColor,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final String label;
   final Color? color;
 
@@ -1517,7 +1518,7 @@ class _Fact extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FaIcon(
+        ShellIcon(
           icon,
           size: ShellFontSizes.caption - 1,
           color: iconColor ?? tint,
@@ -1590,13 +1591,13 @@ class _CardMenuLayer extends StatelessWidget {
                 entries: [
                   DesktopMenuEntry(
                     label: 'Copy title',
-                    icon: FontAwesomeIcons.copy,
+                    icon: ShellGlyph.copy,
                     enabled: title.isNotEmpty,
                     onTap: () => onCopy(title),
                   ),
                   DesktopMenuEntry(
                     label: 'Copy description',
-                    icon: FontAwesomeIcons.alignLeft,
+                    icon: ShellGlyph.alignLeft,
                     enabled: body.isNotEmpty,
                     onTap: () => onCopy(body),
                   ),

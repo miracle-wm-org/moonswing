@@ -1,5 +1,4 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/app_info.dart' show AppIconImage;
 import 'package:moonswing/capture/capture_config.dart'
@@ -15,6 +14,8 @@ import 'package:moonswing/clipboard/clipboard_config.dart'
     show ClipboardConfig;
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/desktop/app_chooser.dart' show showAppChooser;
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/launcher/app_index.dart';
 import 'package:moonswing/modules/battery.dart' show BatteryConfig;
 import 'package:moonswing/modules/clock.dart' show ClockConfig;
@@ -185,7 +186,7 @@ class ModuleSettingsPage {
   /// The card's second line on the module list.
   final String subtitle;
 
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   final List<_ModuleSetting> _settings;
 
@@ -212,7 +213,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'workspaces',
     'App icons and urgency',
-    FontAwesomeIcons.tableCellsLarge,
+    ShellGlyph.gridLarge,
     [
       _ModuleSetting.toggle(
         SettingsCatalog.workspacesShowAppIcons,
@@ -246,7 +247,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'weather',
     'Location, unit and refresh',
-    FontAwesomeIcons.cloudSun,
+    ShellGlyph.cloudSun,
     [
       _ModuleSetting.weatherLocation(SettingsCatalog.weatherLocation),
       _ModuleSetting.choice(
@@ -264,7 +265,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'battery',
     'How often the level is read',
-    FontAwesomeIcons.batteryHalf,
+    ShellGlyph.batteryHalf,
     [
       _ModuleSetting.number(
         SettingsCatalog.batteryPollSeconds,
@@ -276,7 +277,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'clock',
     'Date and the timer alarm',
-    FontAwesomeIcons.clock,
+    ShellGlyph.clock,
     [
       _ModuleSetting.toggle(
         SettingsCatalog.clockShowDate,
@@ -300,7 +301,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'media_player',
     'Track title width',
-    FontAwesomeIcons.music,
+    ShellGlyph.music,
     [
       _ModuleSetting.number(
         SettingsCatalog.mediaPlayerMaxTextWidth,
@@ -312,7 +313,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'system_tray',
     'Icon spacing and hidden items',
-    FontAwesomeIcons.inbox,
+    ShellGlyph.inbox,
     [
       _ModuleSetting.number(
         SettingsCatalog.systemTrayIconSize,
@@ -339,7 +340,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'dock',
     'Pinned apps and icon size',
-    FontAwesomeIcons.rocket,
+    ShellGlyph.rocket,
     [
       _ModuleSetting.number(
         SettingsCatalog.dockIconSize,
@@ -356,7 +357,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'system_monitor',
     'Sampling, units and processes',
-    FontAwesomeIcons.gaugeHigh,
+    ShellGlyph.gauge,
     [
       _ModuleSetting.number(
         SettingsCatalog.systemMonitorPollSeconds,
@@ -393,7 +394,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'network',
     'How often the connection is read',
-    FontAwesomeIcons.wifi,
+    ShellGlyph.wifi,
     [
       _ModuleSetting.number(
         SettingsCatalog.networkPollSeconds,
@@ -405,7 +406,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'notifications',
     'Panel side, width and sound',
-    FontAwesomeIcons.bell,
+    ShellGlyph.bell,
     [
       // Read when the panel opens, the clipboard history's rule: an edit here
       // moves the next one, not the one already docked.
@@ -438,7 +439,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'github',
     'What is listed, and how often',
-    FontAwesomeIcons.github,
+    ShellGlyph.github,
     [
       _ModuleSetting.number(
         SettingsCatalog.githubRefreshSeconds,
@@ -470,7 +471,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'stocks',
     'Watchlist and crawl',
-    FontAwesomeIcons.chartLine,
+    ShellGlyph.chartLine,
     [
       // The same list the strip's popup edits: an add there is a row here, and
       // a symbol typed here is quoted on the next poll.
@@ -503,7 +504,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'clipboard',
     'Side, width and what is kept',
-    FontAwesomeIcons.clipboard,
+    ShellGlyph.clipboard,
     [
       // Read when the panel opens: an edit here moves the next one, not the
       // one already docked.
@@ -536,7 +537,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'screenshot',
     'Folder, delay and shutter',
-    FontAwesomeIcons.camera,
+    ShellGlyph.camera,
     [
       _ModuleSetting.text(
         SettingsCatalog.screenshotDirectory,
@@ -572,7 +573,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'screen_recorder',
     'Folder, format and quality',
-    FontAwesomeIcons.video,
+    ShellGlyph.video,
     [
       _ModuleSetting.text(
         SettingsCatalog.recorderDirectory,
@@ -781,8 +782,8 @@ class AppListEditor extends StatelessWidget {
           iconOf: (id) {
             final app = byId[id];
             if (app == null) {
-              return FaIcon(
-                FontAwesomeIcons.circleQuestion,
+              return ShellIcon(
+                ShellGlyph.help,
                 size: 14,
                 color: theme.popupForeground.withValues(alpha: 0.4),
               );

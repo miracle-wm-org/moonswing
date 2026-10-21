@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/media/media_controls.dart';
 import 'package:moonswing/media/mpris_store.dart';
 import 'package:moonswing/module.dart';
@@ -90,7 +90,7 @@ class MediaPlayerState extends State<MediaPlayer> {
       children: [
         if (player.canGoPrevious && player.canControl)
           MediaTransportButton(
-            icon: FontAwesomeIcons.backwardStep,
+            icon: ShellGlyph.skipBack,
             onPressed: widget.store.previous,
             semanticLabel: 'Previous track',
           ),
@@ -99,8 +99,8 @@ class MediaPlayerState extends State<MediaPlayer> {
             padding: const EdgeInsets.only(left: 2),
             child: MediaTransportButton(
               icon: player.isPlaying
-                  ? FontAwesomeIcons.pause
-                  : FontAwesomeIcons.play,
+                  ? ShellGlyph.pause
+                  : ShellGlyph.play,
               onPressed: widget.store.playPause,
               semanticLabel: player.isPlaying ? 'Pause' : 'Play',
             ),
@@ -109,7 +109,7 @@ class MediaPlayerState extends State<MediaPlayer> {
           Padding(
             padding: const EdgeInsets.only(left: 2),
             child: MediaTransportButton(
-              icon: FontAwesomeIcons.stop,
+              icon: ShellGlyph.stop,
               onPressed: widget.store.stop,
               semanticLabel: 'Stop',
             ),
@@ -118,7 +118,7 @@ class MediaPlayerState extends State<MediaPlayer> {
           Padding(
             padding: const EdgeInsets.only(left: 2),
             child: MediaTransportButton(
-              icon: FontAwesomeIcons.forwardStep,
+              icon: ShellGlyph.skipForward,
               onPressed: widget.store.next,
               semanticLabel: 'Next track',
             ),

@@ -1,5 +1,4 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
@@ -7,6 +6,8 @@ import 'package:moonswing/desktop/app_chooser.dart';
 import 'package:moonswing/desktop/desktop_actions.dart';
 import 'package:moonswing/desktop/desktop_layout.dart';
 import 'package:moonswing/desktop/desktop_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/launcher/app_index.dart';
 import 'package:moonswing/news/news_config.dart';
 import 'package:moonswing/news/news_source.dart';
@@ -254,11 +255,11 @@ class _DesktopItemIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return FaIcon(
+    return ShellIcon(
       switch (item.kind) {
-        DesktopItemKind.app => FontAwesomeIcons.rocket,
-        DesktopItemKind.folder => FontAwesomeIcons.solidFolder,
-        DesktopItemKind.file => FontAwesomeIcons.file,
+        DesktopItemKind.app => ShellGlyph.rocket,
+        DesktopItemKind.folder => ShellGlyph.folderFilled,
+        DesktopItemKind.file => ShellGlyph.file,
       },
       size: 13,
       color: theme.accentText,
@@ -370,8 +371,8 @@ class NewsSettingsSection extends StatelessWidget {
               addLabel: 'Add feed',
               addHint: 'https://example.com/rss.xml',
               emptyText: 'No feeds of your own.',
-              iconOf: (_) => FaIcon(
-                FontAwesomeIcons.rss,
+              iconOf: (_) => ShellIcon(
+                ShellGlyph.rss,
                 size: 12,
                 color: ThemeScope.of(context).accentText,
               ),

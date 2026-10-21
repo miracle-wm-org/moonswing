@@ -7,10 +7,11 @@ import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart' show ThemeConfig;
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/editable_text_mouse.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/root_modal.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
 import 'package:moonswing/overlay/settings/settings_list.dart';
@@ -602,8 +603,8 @@ class _SettingsInfoTipState extends State<SettingsInfoTip> {
         builder: (context, hovered) => SizedBox.square(
           dimension: ShellSizes.iconButtonDense,
           child: Center(
-            child: FaIcon(
-              FontAwesomeIcons.circleInfo,
+            child: ShellIcon(
+              ShellGlyph.info,
               size: ShellFontSizes.caption,
               color: hovered
                   ? theme.accentText
@@ -1453,7 +1454,7 @@ class SettingsActionButton extends StatelessWidget {
 
   /// A glyph before the label, for a row of actions that each go somewhere
   /// different (join a call, open a document) and read faster by shape.
-  final FaIconData? icon;
+  final ShellGlyph? icon;
 
   /// The dense inline form used beside a list row (the bluetooth pane's
   /// Connect/Disconnect): tighter padding, the secondary font size, and sized to
@@ -1467,7 +1468,7 @@ class SettingsActionButton extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FaIcon(icon, size: ShellFontSizes.secondary, color: color),
+        ShellIcon(icon, size: ShellFontSizes.secondary, color: color),
         const SizedBox(width: 6),
         Flexible(child: text),
       ],
@@ -1585,8 +1586,8 @@ class SettingsRescanButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(
-                FontAwesomeIcons.arrowsRotate,
+              ShellIcon(
+                ShellGlyph.refresh,
                 size: ShellFontSizes.caption,
                 color: theme.popupForeground.withValues(alpha: 0.7),
               ),
@@ -1608,8 +1609,8 @@ class SettingsRescanButton extends StatelessWidget {
 }
 
 /// One row of a [SettingsDropdown]: the [value] it stands for, its [label], an
-/// optional dim [detail] tag after the label, and an optional [description] set
-/// *under* it.
+/// optional dim [detail] tag after the label, an optional [preview] at the end
+/// of the label's line, and an optional [description] set *under* it.
 ///
 /// The two dim slots are not interchangeable: [detail] is a word or two sharing
 /// the label's line at whatever width it asks for, so a sentence put there takes
@@ -1622,12 +1623,18 @@ class SettingsDropdownItem<T> {
     required this.label,
     this.detail,
     this.description,
+    this.preview,
   });
 
   final T value;
   final String label;
   final String? detail;
   final String? description;
+
+  /// A small picture of the choice, for one that is easier seen than named —
+  /// the icon packs' sample glyphs. One line high at most: the row extent is
+  /// measured from the label's line and the description, never from this.
+  final Widget? preview;
 }
 
 /// The card width a described dropdown takes when its caller names none.
@@ -1884,10 +1891,10 @@ class _DropdownTrigger extends StatelessWidget {
                   // fit `RenderFlex` allows.
                   if (bounded) Expanded(child: text) else Flexible(child: text),
                   const SizedBox(width: 8),
-                  FaIcon(
+                  ShellIcon(
                     open
-                        ? FontAwesomeIcons.chevronUp
-                        : FontAwesomeIcons.chevronDown,
+                        ? ShellGlyph.chevronUp
+                        : ShellGlyph.chevronDown,
                     size: 10,
                     color: theme.popupForeground.withValues(alpha: 0.5),
                   ),
@@ -1931,6 +1938,7 @@ class _DropdownRow<T> extends StatelessWidget {
     final theme = ThemeScope.of(context);
     final detail = item.detail;
     final description = item.description;
+    final preview = item.preview;
     final label = Row(
       children: [
         Expanded(
@@ -1950,6 +1958,7 @@ class _DropdownRow<T> extends StatelessWidget {
               color: theme.popupForeground.withValues(alpha: 0.4),
             ),
           ),
+        if (preview != null) ...[const SizedBox(width: 8), preview],
       ],
     );
     if (description == null) return label;
@@ -2480,7 +2489,7 @@ final List<TextInputFormatter> hexColorInputFormatters = [
 
 /// A glyph with a box around it, and the box is the target.
 ///
-/// The [box] is what accepts the click, not the glyph: a `FaIcon` is a bare
+/// The [box] is what accepts the click, not the glyph: a `ShellIcon` is a bare
 /// `RichText`, so an icon left to size itself is a target the width of one
 /// character. This used to spell its own `MouseRegion` around a
 /// `GestureDetector` around a `Container` that painted nothing, which hovered
@@ -2503,7 +2512,7 @@ class SettingsIconButton extends StatelessWidget {
     this.tooltip,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final VoidCallback onTap;
   final double size;
 
@@ -2530,7 +2539,7 @@ class SettingsIconButton extends StatelessWidget {
         builder: (context, hovered) => SizedBox.square(
           dimension: box,
           child: Center(
-            child: FaIcon(
+            child: ShellIcon(
               icon,
               size: size,
               color: hovered
@@ -2633,10 +2642,10 @@ class SettingsFontField extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  FaIcon(
+                  ShellIcon(
                     open
-                        ? FontAwesomeIcons.chevronUp
-                        : FontAwesomeIcons.chevronDown,
+                        ? ShellGlyph.chevronUp
+                        : ShellGlyph.chevronDown,
                     size: 10,
                     color: theme.popupForeground.withValues(alpha: 0.5),
                   ),
@@ -2974,8 +2983,8 @@ class ColorFieldState extends State<SettingsColorField> {
                     ),
                   ),
                   child: swatch == null
-                      ? FaIcon(
-                          FontAwesomeIcons.question,
+                      ? ShellIcon(
+                          ShellGlyph.question,
                           size: 10,
                           color: theme.popupForeground.withValues(alpha: 0.4),
                         )
@@ -3795,8 +3804,8 @@ class SettingsAddButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(
-              FontAwesomeIcons.plus,
+            ShellIcon(
+              ShellGlyph.add,
               size: ShellFontSizes.caption,
               color: hovered ? theme.popupForeground : theme.accentText,
             ),
@@ -3895,8 +3904,8 @@ class SettingsBanner extends StatelessWidget {
         children: [
           const Padding(
             padding: EdgeInsets.only(top: 2),
-            child: FaIcon(
-              FontAwesomeIcons.triangleExclamation,
+            child: ShellIcon(
+              ShellGlyph.warning,
               size: 14,
               color: kErrorColor,
             ),
@@ -3952,14 +3961,14 @@ class SettingsNotice extends StatelessWidget {
     super.key,
     required this.title,
     required this.message,
-    this.icon = FontAwesomeIcons.circleInfo,
+    this.icon = ShellGlyph.info,
     this.action,
     this.onDismiss,
   });
 
   final String title;
   final String message;
-  final FaIconData icon;
+  final ShellGlyph icon;
   final Widget? action;
   final VoidCallback? onDismiss;
 
@@ -3980,7 +3989,7 @@ class SettingsNotice extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: FaIcon(icon, size: 14, color: theme.accentText),
+            child: ShellIcon(icon, size: 14, color: theme.accentText),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -4013,7 +4022,7 @@ class SettingsNotice extends StatelessWidget {
           if (onDismiss != null) ...[
             const SizedBox(width: 4),
             SettingsIconButton(
-              icon: FontAwesomeIcons.xmark,
+              icon: ShellGlyph.close,
               size: 12,
               onTap: onDismiss,
             ),

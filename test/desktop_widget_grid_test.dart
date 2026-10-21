@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart' show kSecondaryButton;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_grid.dart';
 import 'package:moonswing/desktop/desktop_icon.dart';
@@ -9,6 +8,7 @@ import 'package:moonswing/desktop/desktop_layout.dart';
 import 'package:moonswing/desktop/desktop_store.dart';
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/desktop/widgets/desktop_widget_frame.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/scopes.dart';
 
 /// 400x300 of 100px cells: a 4x3 grid whose pixel maths is its coordinates
@@ -21,7 +21,7 @@ const Size _surface = Size(400, 300);
 final DesktopWidgetSpec _spec = DesktopWidgetSpec(
   type: 'fake',
   name: 'Fake widget',
-  icon: FontAwesomeIcons.shapes,
+  icon: ShellGlyph.shapes,
   minSpan: (columns: 2, rows: 1),
   maxSpan: (columns: 4, rows: 3),
   builder: (context, widget) => Text('fake ${widget.span.columns}x'
@@ -283,7 +283,7 @@ void main() {
         DesktopWidgetSpec(
           type: 'fake',
           name: 'Fake widget',
-          icon: FontAwesomeIcons.shapes,
+          icon: ShellGlyph.shapes,
           minSpan: (columns: 2, rows: 1),
           maxSpan: (columns: 4, rows: 3),
           builder: (context, widget) => Center(
@@ -312,7 +312,7 @@ void main() {
         DesktopWidgetSpec(
           type: 'fake',
           name: 'Fake widget',
-          icon: FontAwesomeIcons.shapes,
+          icon: ShellGlyph.shapes,
           minSpan: (columns: 2, rows: 1),
           maxSpan: (columns: 4, rows: 3),
           builder: (context, widget) => Center(

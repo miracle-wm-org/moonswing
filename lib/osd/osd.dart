@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/osd/osd_store.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -71,19 +72,19 @@ class _OsdWindowState extends State<OsdWindow>
     setState(() {});
   }
 
-  FaIconData _icon(OsdRequest request) {
+  ShellGlyph _icon(OsdRequest request) {
     switch (request.kind) {
       case OsdKind.brightness:
-        return FontAwesomeIcons.sun;
+        return ShellGlyph.sun;
       case OsdKind.microphone:
         return request.muted || request.value <= 0.0
-            ? FontAwesomeIcons.microphoneSlash
-            : FontAwesomeIcons.microphone;
+            ? ShellGlyph.microphoneSlash
+            : ShellGlyph.microphone;
       case OsdKind.volume:
-        if (request.muted) return FontAwesomeIcons.volumeXmark;
-        if (request.value <= 0.0) return FontAwesomeIcons.volumeOff;
-        if (request.value <= 0.5) return FontAwesomeIcons.volumeLow;
-        return FontAwesomeIcons.volumeHigh;
+        if (request.muted) return ShellGlyph.volumeMuted;
+        if (request.value <= 0.0) return ShellGlyph.volumeOff;
+        if (request.value <= 0.5) return ShellGlyph.volumeLow;
+        return ShellGlyph.volumeHigh;
     }
   }
 
@@ -132,7 +133,7 @@ class _OsdWindowState extends State<OsdWindow>
                     SizedBox(
                       width: 24,
                       child: Center(
-                        child: FaIcon(
+                        child: ShellIcon(
                           _icon(request),
                           size: 18,
                           color: theme.popupForeground,

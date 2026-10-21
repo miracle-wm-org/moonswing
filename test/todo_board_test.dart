@@ -5,7 +5,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/caldav/caldav_account_store.dart';
@@ -15,6 +14,8 @@ import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_token_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/modules/todo.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings_route.dart';
@@ -30,6 +31,7 @@ import 'package:moonswing/todo/todo_standup_panel.dart';
 import 'package:moonswing/todo/todo_store.dart';
 
 import 'github_fakes.dart';
+import 'glyph_finder.dart';
 
 TodoItem _item(
   String id,
@@ -204,7 +206,7 @@ void main() {
     expect(find.text('Work'), findsOneWidget);
     expect(find.text('Calendar'), findsOneWidget);
     final icons = tester
-        .widgetList<FaIcon>(find.byIcon(FontAwesomeIcons.calendar.data))
+        .widgetList<ShellIcon>(findGlyph(ShellGlyph.calendar))
         .map((i) => i.color)
         .toList();
     const theme = ThemeConfig();
@@ -898,9 +900,7 @@ void main() {
       _item('doing', TodoColumn.inProgress),
       _item('next', TodoColumn.todo),
     ]);
-    final button = find.byWidgetPredicate(
-      (w) => w is FaIcon && w.icon == FontAwesomeIcons.bullhorn.data,
-    );
+    final button = findGlyph(ShellGlyph.bullhorn);
     // Opening the card takes nothing; its own button does.
     await tester.tap(button);
     await tester.pumpAndSettle();

@@ -6,9 +6,10 @@
 // whole of the difference — so the rows are the parameter and the card is shared.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/shell_text_root.dart';
@@ -31,10 +32,10 @@ List<SelectionMode> offeredSelectionModes(BuildContext context) {
 }
 
 /// The icon a selection mode is offered under.
-FaIconData iconForMode(SelectionMode mode) => switch (mode) {
-      SelectionMode.area => FontAwesomeIcons.cropSimple,
-      SelectionMode.window => FontAwesomeIcons.windowMaximize,
-      SelectionMode.output => FontAwesomeIcons.display,
+ShellGlyph iconForMode(SelectionMode mode) => switch (mode) {
+      SelectionMode.area => ShellGlyph.crop,
+      SelectionMode.window => ShellGlyph.maximize,
+      SelectionMode.output => ShellGlyph.display,
     };
 
 /// One row of [CaptureMenuCard].
@@ -57,7 +58,7 @@ class CaptureMenuAction {
         onTap: onTap,
       );
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final String label;
   final VoidCallback onTap;
 
@@ -147,7 +148,7 @@ class _CaptureMenuRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           children: [
-            FaIcon(action.icon, size: ShellFontSizes.label, color: color),
+            ShellIcon(action.icon, size: ShellFontSizes.label, color: color),
             const SizedBox(width: 10),
             Expanded(child: Text(action.label, style: TextStyle(color: color))),
           ],

@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:miracle/miracle.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/input_trigger/keysym.dart';
 import 'package:moonswing/keybinds/keybind_cheatsheet.dart';
 import 'package:moonswing/keybinds/keybind_store.dart';
@@ -18,6 +18,8 @@ import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/modules/keybinds.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/scopes.dart';
+
+import 'glyph_finder.dart';
 
 Keybind _bind({
   BuiltInKeyCommand? action,
@@ -50,9 +52,7 @@ final _keybinds = KeybindsResult(
   ],
 );
 
-/// Font Awesome icons are [FaIconData], which `find.byIcon` cannot take; the
-/// plain [IconData] inside one is what reaches the widget tree.
-Finder _faIcon(FaIconData icon) => find.byIcon(icon.data);
+Finder _faIcon(ShellGlyph icon) => findGlyph(icon);
 
 /// A source with no socket behind it, which is the whole reason
 /// [KeybindSource] is an interface.
@@ -553,7 +553,7 @@ void main() {
       expect(store.isDefault(ShellShortcut.openEmoji), isFalse);
 
       // The undo only exists on a row that has something to go back to.
-      await tester.tap(_faIcon(FontAwesomeIcons.arrowRotateLeft).first);
+      await tester.tap(_faIcon(ShellGlyph.undo).first);
       await tester.pumpAndSettle();
       await letTheWriteLand(tester);
 
@@ -605,7 +605,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Press keys…'), findsNothing);
-      expect(_faIcon(FontAwesomeIcons.pen), findsNothing);
+      expect(_faIcon(ShellGlyph.edit), findsNothing);
       expect(find.textContaining('config.toml'), findsOneWidget);
     });
 

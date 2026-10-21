@@ -19,6 +19,7 @@ library;
 const Map<String, String> kBuiltInThemes = {
   'glassy': _glassy,
   'forest': _forest,
+  'autumn': _autumn,
   'dracula': _dracula,
   'midnight': _midnight,
   'carbon': _carbon,
@@ -51,6 +52,7 @@ name = "Forest"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 # Sea green: the one saturated green, spent on what is active. Dark enough to
 # carry kOnAccent's white, so it fills a button rather than only outlining one.
@@ -137,6 +139,136 @@ overlay_animation_exit_ratio = 0.8
 overlay_animation_curve = "ease_out"
 ''';
 
+const String _autumn = '''
+# Autumn — a chestnut beam between two log ends, at the turn of the year.
+#
+# Forest's sibling, in October. The bar is a plank of chestnut, planed smooth
+# (panel_texture, a warm tint over a dark fill, so the grain is there but
+# quiet) and carved along its edges (panel_bevel), between two sawn log ends
+# in bark (panel_end_*). What grows off it is the harvest (panel_foliage):
+#
+#  * on a top or side bar, the two corners of the screen are framed in
+#    turning leaves: a heap of maple and oak tucked under the bar's ends
+#    against the screen's very edge and spilling down its side, thickest in
+#    the corner and ragged at its rim, with a few short branches buried in it
+#    and a few loose leaves on their way down. Every leaf is somewhere between
+#    foliage_color's green and foliage_bloom's orange and past it, so they
+#    come out russet, scarlet, gold, brown and claret, with the odd one
+#    still green. The middle of the bar is left bare.
+#  * on a bottom bar, pumpkin patches sit along its edge: one in each corner
+#    and a few between, each a vine with its tendrils, big lobed leaves on
+#    stalks, pumpkins mostly in foliage_bloom (with a deep red one, a golden
+#    one, a pale one, now and then a green squash), and fallen leaves among
+#    them.
+#
+# As in forest, the overhang is cut out of the bar's input region: the
+# leaves and the pumpkins are paint, and a click on one lands on the window
+# behind it.
+#
+# Every menu is a tree, the way forest's are: attached, flared at the foot,
+# rimmed in bark around a dark walnut card, rooted along the beam, and grown
+# into place (popup_animation = "sprout").
+#
+# None of it is an asset. The wood, the bark, every leaf and every pumpkin
+# are drawn from seeded arithmetic (lib/decor/), so this file is the whole
+# theme.
+name = "Autumn"
+
+font = "Ubuntu Sans"
+font_size = 13.0
+
+# Burnt orange: the season's colour, spent on what is active. Dark enough to
+# carry kOnAccent's white, so it fills a button rather than only outlining it.
+accent               = "#B5541C"
+# Cream, which holds its contrast on chestnut and on walnut alike.
+foreground           = "#F7EAD3"
+# Toasted chestnut: a hovered button on the beam is a lighter patch of it.
+surface_hover        = "#6E4627"
+surface_pressed      = "#84552F"
+workspace_background = "#3B2716"
+popup_background     = "#F51F140B"
+popup_foreground     = "#F7EAD3"
+control_surface      = "#33241A"
+slider_track         = "#6A4A2E"
+# Wheat: a pale, dry tan for the secondary tier, never the accent.
+muted                = "#C9AE8A"
+divider              = "#33F7EAD3"
+
+# A clear October sky: the one cool colour in the theme, so "unread" is
+# never mistaken for another leaf.
+notification_badge   = "#6FA8DC"
+notification_badge_foreground = "#0F1E2C"
+scrim                = "#8A140C06"
+
+# The beam is opaque: the panel's own fill is the dark under the chestnut,
+# and the gradient is off because the wood is the picture.
+panel_background     = "#FF2A190D"
+panel_gradient       = false
+
+# Flush with the screen's edges, so the leaves framing its corners start at
+# its side edge rather than a margin's width inside it. The radius
+# rounds only the inner corners of a flush bar.
+panel_margin         = 0
+panel_radius         = 8.0
+# A dark line round the beam, broken where a trunk grows out of it.
+panel_border         = "#E6180C04"
+panel_border_width   = 1.5
+
+# Chestnut at nine tenths, over the dark fill: the grain softened rather than
+# gone, which is what reads as a smooth brown.
+panel_texture        = "wood"
+panel_texture_color  = "#E68A5530"
+panel_end_texture    = "bark"
+panel_end_color      = "#FF6A4E36"
+panel_end_length     = 44.0
+panel_bevel          = 0.7
+panel_image          = ""
+
+panel_foliage        = "harvest"
+# What is still green: the pumpkin vines, and the last few leaves to turn.
+foliage_color        = "#6B8A35"
+# What has turned: the leaves are toned off it, the pumpkins are it.
+foliage_bloom        = "#E2731E"
+foliage_density      = 1.0
+# Room for the corner heaps to spill a little way down the screen's sides.
+# A pumpkin stops growing long before it.
+panel_overhang       = 130
+
+# The menu is the trunk: a thick bark rim around walnut with a ghost of
+# grain, rounded like a trunk seen side on, with a foot that flares into the
+# beam.
+popup_radius         = 12.0
+popup_gap            = 0.0
+popup_attach_radius  = 14.0
+popup_border         = "#FF4E3420"
+popup_border_width   = 9.0
+popup_texture        = "wood"
+popup_texture_color  = "#1C8A5530"
+popup_border_texture = "bark"
+popup_border_texture_color = "#FF6E5038"
+popup_image          = ""
+popup_roots          = 30.0
+
+# A long, warm shadow, as from a low autumn sun.
+popup_shadow_color   = "#990A0603"
+popup_shadow_blur    = 22.0
+popup_shadow_spread  = -2.0
+popup_shadow_offset_x = 0.0
+popup_shadow_offset_y = 10.0
+
+# Unhurried, as forest is: the trunk takes a third of a second to rise.
+popup_animation      = "sprout"
+popup_animation_duration = 320
+
+overlay_radius       = 14.0
+
+# The overlays drift into place and leave faster than they came.
+overlay_animation    = "rise"
+overlay_animation_duration = 220
+overlay_animation_exit_ratio = 0.8
+overlay_animation_curve = "ease_out"
+''';
+
 const String _dracula = '''
 # Dracula — the canonical palette (https://draculatheme.com).
 #
@@ -147,6 +279,7 @@ name = "Dracula"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 accent               = "#BD93F9"
 foreground           = "#F8F8F2"
@@ -246,6 +379,7 @@ name = "Glassy"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 accent               = "#7FB6FF"
 foreground           = "#F5F7FA"
@@ -375,6 +509,7 @@ name = "Midnight"
 
 font = "Ubuntu Sans"
 font_size = 14.0
+icon_pack = "font_awesome"
 
 # Moonlight over deep water. The accent is an indigo dark enough to hold
 # kOnAccent's white at better than 4:1 — it fills buttons as well as outlining
@@ -529,6 +664,7 @@ name = "Carbon"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 # Gray 100 for the deepest surface — the bar and every card alike — Gray 80 and
 # Gray 70 for the states, Gray 40 for secondary text, Gray 10 for text. Blue 60

@@ -3,10 +3,10 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/sticky_notes/overview_actions.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_note.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_note_layer.dart';
@@ -265,7 +265,7 @@ void main() {
             child: OverviewActionBar(
               actions: [
                 OverviewAction(
-                  icon: FontAwesomeIcons.noteSticky,
+                  icon: ShellGlyph.noteSticky,
                   label: 'New note',
                   onTap: () => taps++,
                 ),

@@ -26,11 +26,12 @@
 //    settings.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:miracle/miracle.dart' show MiracleConfigError;
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/miracle_config/miracle_config_store.dart';
 import 'package:moonswing/miracle_config/miracle_key_codes.dart';
@@ -168,7 +169,7 @@ class _MiracleSettingsPageState extends State<MiracleSettingsPage> {
   }
 
   Widget _unavailable() => _Message(
-    icon: FontAwesomeIcons.puzzlePiece,
+    icon: ShellGlyph.puzzle,
     title: 'miracle-wm is not installed here',
     message: _store.unavailableReason.isEmpty
         ? 'This page reads and writes the compositor’s configuration '
@@ -180,7 +181,7 @@ class _MiracleSettingsPageState extends State<MiracleSettingsPage> {
   );
 
   Widget _failed() => _Message(
-    icon: FontAwesomeIcons.triangleExclamation,
+    icon: ShellGlyph.warning,
     title: 'Could not read the configuration',
     message: _store.unavailableReason,
     onRetry: _store.retry,
@@ -203,7 +204,7 @@ class _MiracleCategory {
 
   final String title;
   final String subtitle;
-  final FaIconData icon;
+  final ShellGlyph icon;
 
   /// Builds the category's body as a **sliver**, for the [CustomScrollView] in
   /// [_MiracleCategoryView] — the Shell pane's contract, unchanged.
@@ -214,67 +215,67 @@ const List<_MiracleCategory> _miracleCategories = [
   _MiracleCategory(
     title: 'General',
     subtitle: 'Action Key, terminal, background',
-    icon: FontAwesomeIcons.sliders,
+    icon: ShellGlyph.sliders,
     build: _buildGeneral,
   ),
   _MiracleCategory(
     title: 'Gaps & Borders',
     subtitle: 'Space around windows, and the line around each',
-    icon: FontAwesomeIcons.borderAll,
+    icon: ShellGlyph.borderAll,
     build: _buildGaps,
   ),
   _MiracleCategory(
     title: 'Animations',
     subtitle: 'What each window and workspace event looks like',
-    icon: FontAwesomeIcons.wandMagicSparkles,
+    icon: ShellGlyph.magic,
     build: _buildAnimations,
   ),
   _MiracleCategory(
     title: 'Key Bindings',
     subtitle: 'Your shortcuts, and rebindings of the built-in ones',
-    icon: FontAwesomeIcons.keyboard,
+    icon: ShellGlyph.keyboard,
     build: _buildKeyBindings,
   ),
   _MiracleCategory(
     title: 'Mouse',
     subtitle: 'Pointer, cursor and dragging windows',
-    icon: FontAwesomeIcons.computerMouse,
+    icon: ShellGlyph.mouse,
     build: _buildMouse,
   ),
   _MiracleCategory(
     title: 'Touchpad',
     subtitle: 'Tapping, scrolling and pointer speed',
-    icon: FontAwesomeIcons.hand,
+    icon: ShellGlyph.hand,
     build: _buildTouchpad,
   ),
   _MiracleCategory(
     title: 'Keyboard',
     subtitle: 'The compositor’s layout and key repeat',
-    icon: FontAwesomeIcons.language,
+    icon: ShellGlyph.language,
     build: _buildKeyboard,
   ),
   _MiracleCategory(
     title: 'Accessibility',
     subtitle: 'Magnifier, hover click, slow and sticky keys',
-    icon: FontAwesomeIcons.universalAccess,
+    icon: ShellGlyph.universalAccess,
     build: _buildAccessibility,
   ),
   _MiracleCategory(
     title: 'Workspaces',
     subtitle: 'Per-workspace settings',
-    icon: FontAwesomeIcons.tableColumns,
+    icon: ShellGlyph.columns,
     build: _buildWorkspaces,
   ),
   _MiracleCategory(
     title: 'Startup',
     subtitle: 'Applications and environment variables',
-    icon: FontAwesomeIcons.play,
+    icon: ShellGlyph.play,
     build: _buildStartup,
   ),
   _MiracleCategory(
     title: 'Includes & Plugins',
     subtitle: 'Other configuration files, and loaded plugins',
-    icon: FontAwesomeIcons.plug,
+    icon: ShellGlyph.plug,
     build: _buildIncludes,
   ),
 ];
@@ -428,7 +429,7 @@ class _MiracleCategoryView extends StatelessWidget {
           child: Row(
             children: [
               SettingsIconButton(
-                icon: FontAwesomeIcons.arrowLeft,
+                icon: ShellGlyph.arrowLeft,
                 size: 14,
                 onTap: () => Navigator.of(context).pop(),
               ),
@@ -582,7 +583,7 @@ class _MiracleFooter extends StatelessWidget {
                 ],
                 if (state.notice) ...[
                   SettingsNotice(
-                    icon: FontAwesomeIcons.rotate,
+                    icon: ShellGlyph.rotate,
                     title: 'Saved — now tell miracle to read it',
                     message: _reloadMessage(),
                     onDismiss: store.dismissReloadNotice,
@@ -724,7 +725,7 @@ class _Message extends StatelessWidget {
     required this.onRetry,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final String title;
   final String message;
   final VoidCallback onRetry;
@@ -741,7 +742,7 @@ class _Message extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              FaIcon(
+              ShellIcon(
                 icon,
                 size: 28,
                 color: theme.popupForeground.withValues(alpha: 0.4),
@@ -804,7 +805,7 @@ class _CategoryCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              FaIcon(
+              ShellIcon(
                 category.icon,
                 size: ShellFontSizes.label,
                 color: hovered
@@ -837,8 +838,8 @@ class _CategoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              FaIcon(
-                FontAwesomeIcons.chevronRight,
+              ShellIcon(
+                ShellGlyph.chevronRight,
                 size: ShellFontSizes.caption,
                 color: theme.popupForeground.withValues(alpha: 0.4),
               ),

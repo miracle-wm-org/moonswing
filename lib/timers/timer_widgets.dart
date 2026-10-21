@@ -9,9 +9,10 @@
 library;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -42,10 +43,10 @@ const String kDefaultTimerDuration = '5:00';
 /// walk away from the bar as the digits changed.
 const double kTimersPopupWidth = 264;
 
-FaIconData timerKindIcon(ShellTimerKind kind) =>
+ShellGlyph timerKindIcon(ShellTimerKind kind) =>
     kind == ShellTimerKind.stopwatch
-    ? FontAwesomeIcons.stopwatch
-    : FontAwesomeIcons.hourglassHalf;
+    ? ShellGlyph.stopwatch
+    : ShellGlyph.hourglass;
 
 /// `Timer · 5:00`, `Stopwatch · Paused` — what the entry is, and what it is
 /// doing when that is not simply "counting".
@@ -99,7 +100,7 @@ class TimerRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FaIcon(
+          ShellIcon(
             timerKindIcon(entry.kind),
             size: 12,
             color: entry.finished
@@ -138,20 +139,20 @@ class TimerRow extends StatelessWidget {
           ),
           SettingsIconButton(
             icon: entry.running
-                ? FontAwesomeIcons.pause
-                : FontAwesomeIcons.play,
+                ? ShellGlyph.pause
+                : ShellGlyph.play,
             size: 11,
             onTap: () => store.toggle(entry.id),
           ),
           SettingsIconButton(
-            icon: FontAwesomeIcons.arrowRotateLeft,
+            icon: ShellGlyph.undo,
             size: 11,
             onTap: () => store.reset(entry.id),
           ),
           // Stop is a removal, which is what makes the bar readout go away —
           // see the contract on [TimersStore].
           SettingsIconButton(
-            icon: FontAwesomeIcons.stop,
+            icon: ShellGlyph.stop,
             size: 11,
             onTap: () => store.stop(entry.id),
           ),
@@ -427,7 +428,7 @@ class TimerBarIndicator extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    FaIcon(
+                    ShellIcon(
                       timerKindIcon(only?.kind ?? ShellTimerKind.stopwatch),
                       size: 11,
                       color: style.color,

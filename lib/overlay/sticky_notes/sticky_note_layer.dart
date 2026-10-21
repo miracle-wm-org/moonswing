@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/sticky_notes/overview_actions.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_layout.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_note.dart';
@@ -326,17 +326,17 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
         entries: [
           DesktopMenuEntry(
             label: 'Colour',
-            icon: FontAwesomeIcons.palette,
+            icon: ShellGlyph.palette,
             onTap: () => _showPage(_MenuPage.colour),
           ),
           DesktopMenuEntry(
             label: 'Text size',
-            icon: FontAwesomeIcons.textHeight,
+            icon: ShellGlyph.textHeight,
             onTap: () => _showPage(_MenuPage.size),
           ),
           DesktopMenuEntry(
             label: 'Remove note',
-            icon: FontAwesomeIcons.trashCan,
+            icon: ShellGlyph.trashCan,
             onTap: () {
               dismissMenu();
               _store.deleteNote(note.id);
@@ -351,7 +351,7 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
           for (final color in StickyColor.values)
             DesktopMenuEntry(
               label: color.label,
-              icon: FontAwesomeIcons.solidSquare,
+              icon: ShellGlyph.squareFilled,
               iconColor: stickyPaper(color),
               selected: placement.color == color,
               onTap: () => restyle(color: color),

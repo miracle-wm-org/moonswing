@@ -15,7 +15,6 @@
 // page — and each card links there.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/accounts/brand_marks.dart';
@@ -23,6 +22,7 @@ import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/emoji/emoji_clipboard.dart';
 import 'package:moonswing/github/github_account_store.dart';
 import 'package:moonswing/google/google_account_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
 import 'package:moonswing/overlay/settings/accounts/caldav_account.dart';
 import 'package:moonswing/overlay/settings/accounts/github_account.dart';
@@ -171,8 +171,8 @@ class _GoogleAccountCard extends StatelessWidget {
           ? SettingsAddButton(label: 'Add account', onTap: account.signIn)
           : null,
       usedBy: const [
-        (FontAwesomeIcons.calendarDays, 'Calendar tab'),
-        (FontAwesomeIcons.tableColumns, 'Todo board'),
+        (ShellGlyph.calendarDays, 'Calendar tab'),
+        (ShellGlyph.columns, 'Todo board'),
       ],
       children: [
         if (error.isNotEmpty) ...[
@@ -213,7 +213,7 @@ class _GoogleAccountCard extends StatelessWidget {
               const SizedBox(width: 16),
               SettingsActionButton(
                 label: 'Calendar settings',
-                icon: FontAwesomeIcons.calendarDays,
+                icon: ShellGlyph.calendarDays,
                 compact: true,
                 onTap: () =>
                     openSettingsAt(context, SettingsCatalog.googleCalendars),

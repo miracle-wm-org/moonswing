@@ -8,7 +8,6 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../config.dart';
 import '../scopes.dart';
@@ -16,6 +15,8 @@ import '../hover_region.dart';
 import '../overlay_fade_scaffold.dart';
 import 'picker_controller.dart';
 import 'preview.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 
 /// One selectable source tile.
 class PickerSource {
@@ -170,7 +171,7 @@ class _ScreencastPickerOverlayState extends State<ScreencastPickerOverlay> {
             children: [
               Row(
                 children: [
-                  FaIcon(FontAwesomeIcons.display,
+                  ShellIcon(ShellGlyph.display,
                       size: 16, color: theme.accentText),
                   const SizedBox(width: 10),
                   Expanded(
@@ -317,7 +318,7 @@ class _SourceTile extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: frames == null
                   ? Center(
-                      child: FaIcon(FontAwesomeIcons.display,
+                      child: ShellIcon(ShellGlyph.display,
                           size: 28, color: theme.muted),
                     )
                   : CapturePreview(

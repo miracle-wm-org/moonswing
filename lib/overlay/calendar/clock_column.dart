@@ -4,9 +4,10 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/calendar/analog_clock.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
 import 'package:moonswing/overlay/calendar/time_zones.dart';
@@ -698,8 +699,8 @@ class _WorldClockRowState extends State<_WorldClockRow> {
         child: Row(
           children: [
             if (widget.reorderable) ...[
-              FaIcon(
-                FontAwesomeIcons.gripVertical,
+              ShellIcon(
+                ShellGlyph.dragHandle,
                 size: 11,
                 color: widget.lifted
                     ? theme.accentText
@@ -790,7 +791,7 @@ class _RemoveButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return SettingsIconButton(
-      icon: FontAwesomeIcons.xmark,
+      icon: ShellGlyph.close,
       size: ShellFontSizes.caption,
       box: ShellSizes.iconButtonDense,
       color: theme.popupForeground.withValues(alpha: 0.5),

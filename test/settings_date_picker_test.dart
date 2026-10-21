@@ -1,11 +1,13 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 
 import 'tap_target.dart';
+
+import 'glyph_finder.dart';
 
 void main() {
   final today = DateTime(2026, 9, 24);
@@ -45,8 +47,7 @@ void main() {
   }
 
   Finder day(int n) => find.text('$n');
-  Finder icon(FaIconData data) =>
-      find.byWidgetPredicate((w) => w is FaIcon && w.icon == data.data);
+  Finder icon(ShellGlyph glyph) => findGlyph(glyph);
 
   testWidgets('opens on the chosen day\'s month, else today\'s', (
     tester,
@@ -80,12 +81,12 @@ void main() {
     await pump(tester);
     final card = find.byType(SettingsDatePickerCard);
     final before = tester.getSize(card);
-    await tester.tap(icon(FontAwesomeIcons.chevronRight));
+    await tester.tap(icon(ShellGlyph.chevronRight));
     await tester.pump();
     expect(find.text('October 2026'), findsOneWidget);
     expect(tester.getSize(card), before);
-    await tester.tap(icon(FontAwesomeIcons.chevronLeft));
-    await tester.tap(icon(FontAwesomeIcons.chevronLeft));
+    await tester.tap(icon(ShellGlyph.chevronLeft));
+    await tester.tap(icon(ShellGlyph.chevronLeft));
     await tester.pump();
     expect(find.text('August 2026'), findsOneWidget);
     expect(tester.getSize(card), before);

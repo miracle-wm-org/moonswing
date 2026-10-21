@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/overlay.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/system/process_table.dart';
@@ -283,9 +283,9 @@ void main() {
       await gesture.moveTo(tester.getCenter(find.text(name)));
       await tester.pump();
 
-      // FaIcon is not a Material Icon, so find.byIcon does not see it.
+      // The button, not its glyph: the tap goes to the button's box.
       await tester.tap(find.byWidgetPredicate((w) =>
-          w is SettingsIconButton && w.icon == FontAwesomeIcons.xmark));
+          w is SettingsIconButton && w.icon == ShellGlyph.close));
       await tester.pump();
     }
 
