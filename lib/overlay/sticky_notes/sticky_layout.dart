@@ -17,12 +17,9 @@ const double kStickyGap = 16;
 /// How far a note that finds no free spot is set off the last one.
 const double kStickyCascade = 24;
 
-/// A note's side, in logical pixels: they are square.
-double stickySide(StickySize size) => switch (size) {
-  StickySize.small => 160,
-  StickySize.medium => 220,
-  StickySize.large => 300,
-};
+/// A note's side, in logical pixels: they are square, and all one size — a
+/// note's `StickySize` is the size of its writing, not of its paper.
+const double kStickySide = 220;
 
 /// The note's rectangle on a [surface] holding the panel at [card], moved
 /// [drag] further while the user drags it.
@@ -38,7 +35,7 @@ Rect stickyRect(
   NotePlacement placement, {
   Offset drag = Offset.zero,
 }) {
-  final side = stickySide(placement.size);
+  const side = kStickySide;
   final centre =
       card.center +
       (placement.isPlaced
@@ -61,7 +58,7 @@ Rect stickyRect(
   return (dx: offset.dx, dy: offset.dy);
 }
 
-/// The place for a new note of [size]: the first free spot around the panel at
+/// The place for a new note: the first free spot around the panel at
 /// [card] that is on the [surface] and overlaps nothing in [taken], returned as
 /// [stickyPlaceOf] spells it.
 ///
@@ -76,9 +73,8 @@ Rect stickyRect(
   Size surface,
   Rect card,
   List<Rect> taken,
-  StickySize size,
 ) {
-  final side = stickySide(size);
+  const side = kStickySide;
   final step = side + kStickyGap;
   final room = (Offset.zero & surface).deflate(kStickyGap);
 

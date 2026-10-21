@@ -714,7 +714,8 @@ enum StickyColor {
   }
 }
 
-/// How big a sticky note is drawn: one of three, so a wall of them stays tidy.
+/// How big a sticky note's writing is: one of three, so a wall of them stays
+/// tidy. The paper itself is the same size for every note.
 enum StickySize {
   small('small', 'Small'),
   medium('medium', 'Medium'),

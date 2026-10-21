@@ -22,6 +22,14 @@ Color stickyPaper(StickyColor color) => switch (color) {
   StickyColor.orange => const Color(0xFFFFD3A3),
 };
 
+/// The size of the writing on a note of [size]. The paper is one size for
+/// every note (`kStickySide`); this is what the note's size names.
+double stickyFontSize(StickySize size) => switch (size) {
+  StickySize.small => ShellFontSizes.secondary,
+  StickySize.medium => ShellFontSizes.label,
+  StickySize.large => ShellFontSizes.heading,
+};
+
 /// The ink every note is written in.
 const Color kStickyInk = Color(0xFF2F2A22);
 
@@ -157,7 +165,7 @@ class _StickyNoteState extends State<StickyNote> {
     final paper = stickyPaper(widget.note.placement.color);
     final style = TextStyle(
       fontFamily: theme.fontFamily,
-      fontSize: ShellFontSizes.label,
+      fontSize: stickyFontSize(widget.note.placement.size),
       height: 1.35,
       color: kStickyInk,
     );

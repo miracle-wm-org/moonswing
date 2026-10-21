@@ -15,15 +15,12 @@ void main() {
     height: 750,
   );
 
-  Rect rectOf(({double dx, double dy}) place, StickySize size) => stickyRect(
-    surface,
-    card,
-    NotePlacement(dx: place.dx, dy: place.dy, size: size),
-  );
+  Rect rectOf(({double dx, double dy}) place) =>
+      stickyRect(surface, card, NotePlacement(dx: place.dx, dy: place.dy));
 
   test('the first note goes at the top of the panel\'s left side', () {
-    final place = placeNewSticky(surface, card, const [], StickySize.medium);
-    final rect = rectOf(place, StickySize.medium);
+    final place = placeNewSticky(surface, card, const []);
+    final rect = rectOf(place);
     expect(rect, Rect.fromLTWH(124, card.top, 220, 220));
     // Stored from the panel's centre, so it follows the panel.
     expect(place.dx, rect.center.dx - card.center.dx);
@@ -33,10 +30,7 @@ void main() {
   test('down the left, then down the right, never overlapping', () {
     final taken = <Rect>[];
     for (var i = 0; i < 6; i++) {
-      final rect = rectOf(
-        placeNewSticky(surface, card, taken, StickySize.medium),
-        StickySize.medium,
-      );
+      final rect = rectOf(placeNewSticky(surface, card, taken));
       expect(rect.overlaps(card), isFalse, reason: 'note $i is on the panel');
       for (final other in taken) {
         expect(rect.overlaps(other), isFalse, reason: 'note $i overlaps');
@@ -59,10 +53,7 @@ void main() {
   test('anything reserved is kept clear', () {
     final buttons = const Rect.fromLTWH(16, 16, 40, 40);
     final blocking = Rect.fromLTWH(100, card.top, 40, 40);
-    final rect = rectOf(
-      placeNewSticky(surface, card, [buttons, blocking], StickySize.medium),
-      StickySize.medium,
-    );
+    final rect = rectOf(placeNewSticky(surface, card, [buttons, blocking]));
     expect(rect.overlaps(blocking), isFalse);
     expect(rect.left, 124);
     expect(rect.top, greaterThan(card.top));
@@ -71,32 +62,24 @@ void main() {
   test('with nowhere free, a note is set off the newest one', () {
     final taken = <Rect>[];
     for (var i = 0; i < 6; i++) {
-      taken.add(
-        rectOf(
-          placeNewSticky(surface, card, taken, StickySize.medium),
-          StickySize.medium,
-        ),
-      );
+      taken.add(rectOf(placeNewSticky(surface, card, taken)));
     }
-    final rect = rectOf(
-      placeNewSticky(surface, card, taken, StickySize.medium),
-      StickySize.medium,
-    );
+    final rect = rectOf(placeNewSticky(surface, card, taken));
     expect(rect.topLeft, taken.last.topLeft + const Offset(24, 24));
   });
 
   test('a note that fits nowhere starts on the panel', () {
-    // 260px either side: too little for a large note and its gaps.
+    // 210px either side: too little for a note and its gaps.
     final wide = Rect.fromCenter(
       center: const Offset(960, 540),
-      width: 1400,
+      width: 1500,
       height: 750,
     );
-    final place = placeNewSticky(surface, wide, const [], StickySize.large);
+    final place = placeNewSticky(surface, wide, const []);
     final rect = stickyRect(
       surface,
       wide,
-      NotePlacement(dx: place.dx, dy: place.dy, size: StickySize.large),
+      NotePlacement(dx: place.dx, dy: place.dy),
     );
     expect(rect.center, wide.center);
   });
@@ -117,7 +100,13 @@ void main() {
     expect(dragged.center, card.center + const Offset(30, -10));
   });
 
-  test('sizes are three squares', () {
-    expect([for (final s in StickySize.values) stickySide(s)], [160, 220, 300]);
+  test('a note\'s size is its writing, never its paper', () {
+    const place = NotePlacement(dx: -600, dy: -100);
+    final rects = {
+      for (final size in StickySize.values)
+        stickyRect(surface, card, place.copyWith(size: size)),
+    };
+    expect(rects, hasLength(1));
+    expect(rects.single.size, const Size(kStickySide, kStickySide));
   });
 }
