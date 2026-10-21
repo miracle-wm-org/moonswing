@@ -129,6 +129,12 @@ parts:
       - libmpv1
       - libasound2
       - libpulse0
+      # The SVG pixbuf loader matching the librsvg-2.so.2 that libgtk-3-0 and
+      # libavcodec already stage. Without it gdk-pixbuf falls back to the
+      # host's loader, which is built against a newer librsvg and aborts the
+      # shell on its first themed icon; snap/local/moonswing-wrapper points
+      # GDK_PIXBUF_MODULE_FILE at a cache of these loaders instead.
+      - librsvg2-common
     prime:
       # Classic confinement uses the host graphics stack. Bundled Mesa
       # (pulled in transitively by libmpv/gtk) is a different version than the
