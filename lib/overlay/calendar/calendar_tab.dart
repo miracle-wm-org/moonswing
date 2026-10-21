@@ -25,15 +25,10 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
-import 'package:moonswing/timers/timer_store.dart';
-import 'package:moonswing/timers/timer_widgets.dart';
 
 /// The Calendar tab of the overlay: a month grid the user can page through,
-/// beside a column holding the local time, the world clocks and the timers.
-///
-/// The timers section is `lib/timers/`'s rather than this tab's: it is given the
-/// [active] flag and the store seam and nothing else, because what it starts
-/// outlives the overlay and is rendered in the bar.
+/// beside a column holding the local time and the world clocks. Timers are
+/// started from the overview's corner buttons, not from here.
 ///
 /// The grid itself is local date arithmetic. When a Google account is signed in
 /// under Settings › Accounts and `[google] show_in_calendar` is on, the tab also
@@ -56,7 +51,6 @@ class CalendarTab extends StatefulWidget {
     this.worldClocks,
     this.onWorldClocksChanged,
     this.clock = const SystemClockSource(),
-    this.timers,
     this.google,
     this.showGoogleEvents,
     this.caldav,
@@ -85,11 +79,6 @@ class CalendarTab extends StatefulWidget {
 
   /// Where the clock column gets the time and its zone conversions.
   final ClockSource clock;
-
-  /// Where the timers strip reads its entries, or null for the singleton every
-  /// other surface in the shell shares. Injected by widget tests, which drive a
-  /// store with no ticker behind it.
-  final TimersStore? timers;
 
   /// Where the events come from, or null for the [AccountsScope]'s. Injected
   /// by tests.
@@ -373,8 +362,8 @@ class _CalendarTabState extends State<CalendarTab> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // The month keeps the whole of its side now that the timers have moved
-        // under the clocks, so the grid's six rows are as tall as the tab is.
+        // The month keeps the whole of its side, so the grid's six rows are as
+        // tall as the tab is.
         Expanded(
           child: _CalendarPane(
             view: view,
@@ -400,11 +389,6 @@ class _CalendarTabState extends State<CalendarTab> {
             clocks: _worldClocks,
             onAdd: _addWorldClock,
             onRemove: _removeWorldClock,
-            // Half of what is below the clocks, rather than a strip along the
-            // bottom of the month: the composer is a labelled field and two
-            // buttons, which reads as a column of controls beside the grid and
-            // not as a band under it.
-            footer: TimersPane(active: widget.active, store: widget.timers),
           ),
         ),
       ],

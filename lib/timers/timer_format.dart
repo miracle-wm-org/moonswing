@@ -1,8 +1,9 @@
 /// Formatting and parsing for the shell's timers and stopwatches.
 ///
 /// Pure functions with no Flutter and no store behind them. The readout the bar
-/// paints while a timer runs and the duration the user types into the calendar
-/// page are both decided here, so both are plain unit tests.
+/// paints while a timer runs and the duration the user types into the
+/// overview's timer composer are both decided here, so both are plain unit
+/// tests.
 library;
 
 /// The longest countdown that can be started.
@@ -43,7 +44,7 @@ final RegExp _unitToken = RegExp(r'(\d+)([hms])');
 ///     minutes.
 ///   * unit form — `90s`, `5m`, `1h30m`, `1h 30m 10s`. Repeats sum.
 ///   * a bare number — minutes, which is what a timer means by it everywhere
-///     else on the desktop and what the presets in the calendar page offer.
+///     else on the desktop.
 ///
 /// Null for anything that does not parse, for zero, and for anything past
 /// [kMaxTimerDuration]. Null rather than a throw because this runs on every

@@ -19,7 +19,6 @@ import 'package:moonswing/google/google_calendar_store.dart';
 import 'package:moonswing/clock/minute_clock_store.dart';
 import 'package:moonswing/overlay/calendar/calendar_events.dart';
 import 'package:moonswing/overlay/calendar/calendar_tab.dart';
-import 'package:moonswing/timers/timer_store.dart';
 import 'package:moonswing/overlay/settings/accounts.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -455,15 +454,12 @@ void main() {
       GoogleCalendarStore calendar,
     ) async {
       final opened = <String>[];
-      final timers = TimersStore.forTesting(now: () => now);
-      addTearDown(timers.dispose);
       await tester.pumpWidget(
         _host(
           CalendarTab(
             active: true,
             weekStart: DateTime.monday,
             worldClocks: const [],
-            timers: timers,
             google: calendar,
             showGoogleEvents: true,
             minuteClock: MinuteClockStore.forTesting(clock: () => now),
@@ -619,8 +615,6 @@ void main() {
       );
       addTearDown(caldav.dispose);
       final google = await accountWith(tester, const []);
-      final timers = TimersStore.forTesting(now: () => now);
-      addTearDown(timers.dispose);
 
       await tester.pumpWidget(
         _host(
@@ -628,7 +622,6 @@ void main() {
             active: true,
             weekStart: DateTime.monday,
             worldClocks: const [],
-            timers: timers,
             google: GoogleCalendarStore.forTesting(account: google),
             showGoogleEvents: true,
             caldav: caldav,

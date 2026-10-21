@@ -15,9 +15,8 @@ import 'package:moonswing/theme/tokens.dart';
 /// Width of the whole column. Fixed rather than fractional: the overlay panel is
 /// 800 wide at its smallest, and the month grid beside this has to stay usable.
 ///
-/// Wider than it was, because the column now carries the timers section under the
-/// world clocks: a duration field, two buttons and an entry's three controls all
-/// have to fit across it.
+/// Wide enough for a world clock's name, its time and its remove button
+/// across one row.
 const double kClockColumnWidth = 280;
 
 /// The dial at full size. Shrinks on a short surface — see the [LayoutBuilder]
@@ -43,7 +42,6 @@ class CalendarClockColumn extends StatefulWidget {
     required this.onAdd,
     required this.onRemove,
     this.clock = const SystemClockSource(),
-    this.footer,
   });
 
   /// Whether the calendar is the tab the user is looking at.
@@ -57,14 +55,6 @@ class CalendarClockColumn extends StatefulWidget {
   final ValueChanged<TimeZoneName> onAdd;
   final ValueChanged<String> onRemove;
   final ClockSource clock;
-
-  /// What is rendered under the world clocks — the calendar's timers section.
-  ///
-  /// It splits the space below the dial with the clock list, half each, rather
-  /// than being sized to its content: both grow with what the user put in them,
-  /// and an equal share is the only division that does not privilege whichever
-  /// was given a fixed height. Null leaves the whole space to the clocks.
-  final Widget? footer;
 
   @override
   State<CalendarClockColumn> createState() => _CalendarClockColumnState();
@@ -219,14 +209,6 @@ class _CalendarClockColumnState extends State<CalendarClockColumn> {
                           },
                         ),
                 ),
-                if (widget.footer != null) ...[
-                  const SizedBox(height: 10),
-                  Container(height: 1, color: theme.divider),
-                  const SizedBox(height: 10),
-                  // The same flex as the list above it: half each of whatever the
-                  // dial and the readout left.
-                  Expanded(child: widget.footer!),
-                ],
               ],
             ),
           );

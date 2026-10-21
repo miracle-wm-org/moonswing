@@ -7,8 +7,6 @@ import 'package:moonswing/overlay/calendar/calendar_tab.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
-import 'package:moonswing/timers/timer_store.dart';
-import 'package:moonswing/timers/timer_widgets.dart';
 
 import 'paint_counter.dart';
 
@@ -125,15 +123,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('carries the timers section under the world clocks', (
+  testWidgets('starts no timers: the clocks have the column to themselves', (
     tester,
   ) async {
-    // Its own store, hand-driven: TimersStore.forTesting starts no ticker, and
-    // the singleton is shared with every other test in the suite.
-    final timers = TimersStore.forTesting(now: () => DateTime(2026, 8, 24, 12));
-    addTearDown(timers.dispose);
-    timers.startTimer(const Duration(minutes: 5));
-
+    // Timers and stopwatches are started from the overview's corner buttons
+    // and float around the panel, so the tab carries no section for them.
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -148,7 +142,6 @@ void main() {
                 active: true,
                 weekStart: DateTime.sunday,
                 worldClocks: const [],
-                timers: timers,
               ),
             ),
           ),
@@ -157,24 +150,14 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byType(TimersPane), findsOneWidget);
-    expect(find.text('05:00'), findsOneWidget);
-    expect(find.text('Start timer'), findsOneWidget);
-    // The composer arrives with a duration in it, so the button is live.
-    expect(find.text(kDefaultTimerDuration), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    // Still a full month beside it, and the clocks still above the section.
+    expect(find.text('Start timer'), findsNothing);
+    expect(find.text('Stopwatch'), findsNothing);
+    expect(find.text('Timers & stopwatches'), findsNothing);
     expect(find.text(thisMonth), findsOneWidget);
     expect(find.text('World clocks'), findsOneWidget);
-
-    // The section is under the world clocks in the right-hand column, not in
-    // a strip along the bottom of the month grid.
-    final clocksLabel = tester.getRect(find.text('World clocks'));
-    final timersLabel = tester.getRect(find.text('Timers & stopwatches'));
-    final monthLabel = tester.getRect(find.text(thisMonth));
-    expect(timersLabel.top, greaterThan(clocksLabel.bottom));
-    expect(timersLabel.left, greaterThan(monthLabel.right));
+    expect(tester.takeException(), isNull);
   });
+
   testWidgets('hovering a day repaints that day and nothing above it', (
     tester,
   ) async {

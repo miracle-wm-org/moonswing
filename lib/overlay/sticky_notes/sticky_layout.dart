@@ -1,9 +1,11 @@
-// Where the overview's sticky notes go: the arithmetic, apart from the widgets,
-// for `test/sticky_layout_test.dart`.
+// Where the overview's sticky notes and floating timers go: the arithmetic,
+// apart from the widgets, for `test/sticky_layout_test.dart`.
 //
 // A note's place is stored as its centre measured from the panel's centre
-// (`NotePlacement.dx`/`dy`), so a note follows the panel when it is dragged.
-// Everything here turns that into a rectangle on the output and back.
+// (`NotePlacement.dx`/`dy`), and a timer's the same way, so either follows the
+// panel when it is dragged. Everything here turns that into a rectangle on the
+// output and back; the `float` functions take any size, and the `sticky` ones
+// are them at a note's.
 
 import 'dart:math' as math;
 import 'dart:ui';
@@ -39,19 +41,34 @@ Rect stickyRect(
   Offset drag = Offset.zero,
 }) {
   final side = stickySide(placement.size);
-  final centre =
-      card.center +
-      (placement.isPlaced
-          ? Offset(placement.dx!, placement.dy!)
-          : Offset.zero) +
-      drag;
-  final maxX = math.max(0.0, surface.width - side);
-  final maxY = math.max(0.0, surface.height - side);
+  return floatRect(
+    surface,
+    card,
+    placement.isPlaced ? Offset(placement.dx!, placement.dy!) : null,
+    Size(side, side),
+    drag: drag,
+  );
+}
+
+/// The rectangle of something of [size] whose centre is [place] from the
+/// centre of the panel at [card], moved [drag] further — [stickyRect] for any
+/// size, clamped onto the [surface] on the same terms. A null [place] is the
+/// panel's centre.
+Rect floatRect(
+  Size surface,
+  Rect card,
+  Offset? place,
+  Size size, {
+  Offset drag = Offset.zero,
+}) {
+  final centre = card.center + (place ?? Offset.zero) + drag;
+  final maxX = math.max(0.0, surface.width - size.width);
+  final maxY = math.max(0.0, surface.height - size.height);
   return Rect.fromLTWH(
-    (centre.dx - side / 2).clamp(0.0, maxX),
-    (centre.dy - side / 2).clamp(0.0, maxY),
-    side,
-    side,
+    (centre.dx - size.width / 2).clamp(0.0, maxX),
+    (centre.dy - size.height / 2).clamp(0.0, maxY),
+    size.width,
+    size.height,
   );
 }
 
@@ -79,7 +96,19 @@ Rect stickyRect(
   StickySize size,
 ) {
   final side = stickySide(size);
-  final step = side + kStickyGap;
+  return placeNewFloat(surface, card, taken, Size(side, side));
+}
+
+/// [placeNewSticky] for anything of [size]: the same search, in the same order,
+/// with the same fallback.
+({double dx, double dy}) placeNewFloat(
+  Size surface,
+  Rect card,
+  List<Rect> taken,
+  Size size,
+) {
+  final width = size.width;
+  final height = size.height;
   final room = (Offset.zero & surface).deflate(kStickyGap);
 
   bool free(Rect r) =>
@@ -90,20 +119,28 @@ Rect stickyRect(
   Iterable<Rect> candidates() sync* {
     // Down a side: from the panel's top to the bottom of the room.
     for (final left in [
-      card.left - kStickyGap - side,
+      card.left - kStickyGap - width,
       card.right + kStickyGap,
     ]) {
-      for (var top = card.top; top + side <= room.bottom; top += step) {
-        yield Rect.fromLTWH(left, top, side, side);
+      for (
+        var top = card.top;
+        top + height <= room.bottom;
+        top += height + kStickyGap
+      ) {
+        yield Rect.fromLTWH(left, top, width, height);
       }
     }
     // Along an edge: across the panel's width.
     for (final top in [
-      card.top - kStickyGap - side,
+      card.top - kStickyGap - height,
       card.bottom + kStickyGap,
     ]) {
-      for (var left = card.left; left + side <= card.right; left += step) {
-        yield Rect.fromLTWH(left, top, side, side);
+      for (
+        var left = card.left;
+        left + width <= card.right;
+        left += width + kStickyGap
+      ) {
+        yield Rect.fromLTWH(left, top, width, height);
       }
     }
   }
@@ -113,20 +150,20 @@ Rect stickyRect(
   }
 
   final anchor = taken.isEmpty
-      ? Rect.fromCenter(center: card.center, width: side, height: side)
+      ? Rect.fromCenter(center: card.center, width: width, height: height)
       : Rect.fromLTWH(
           taken.last.left + kStickyCascade,
           taken.last.top + kStickyCascade,
-          side,
-          side,
+          width,
+          height,
         );
-  final maxX = math.max(0.0, surface.width - side);
-  final maxY = math.max(0.0, surface.height - side);
+  final maxX = math.max(0.0, surface.width - width);
+  final maxY = math.max(0.0, surface.height - height);
   final cascaded = Rect.fromLTWH(
     anchor.left.clamp(0.0, maxX),
     anchor.top.clamp(0.0, maxY),
-    side,
-    side,
+    width,
+    height,
   );
   return stickyPlaceOf(cascaded, card);
 }
