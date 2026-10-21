@@ -13,6 +13,7 @@ import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/decor/material_textures.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
+import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/theme_store.dart';
 
 /// Theme picker + editor.
@@ -22,16 +23,20 @@ import 'package:moonswing/theme/theme_store.dart';
 /// [ThemeStore], not [store]; the parameter stays because every category builder
 /// takes one.
 class AppearanceSection extends StatefulWidget {
-  const AppearanceSection({super.key, required this.store});
+  const AppearanceSection({super.key, required this.store, this.themes});
 
   final ConfigStore store;
+
+  /// The theme store edited; [ThemeStore.instance] unless a test passes one.
+  @visibleForTesting
+  final ThemeStore? themes;
 
   @override
   State<AppearanceSection> createState() => _AppearanceSectionState();
 }
 
 class _AppearanceSectionState extends State<AppearanceSection> {
-  final ThemeStore _themes = ThemeStore.instance;
+  late final ThemeStore _themes = widget.themes ?? ThemeStore.instance;
   bool _naming = false;
 
   /// Started once, here rather than in `build`: this section rebuilds on every
@@ -401,7 +406,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 ),
                 SettingsRow.field(
                   SettingsCatalog.popupAnimation,
-                  control: SettingsDropdown<PopupEffect>(
+                  control: _themeDropdown<PopupEffect>(
                     key: ValueKey('popup_animation-$active'),
                     // `description`, not `detail`: a sentence in the tag slot is
                     // laid out unflexed beside the label, so it took the whole
@@ -419,11 +424,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     // The resolved theme's, so a file written before this key
                     // existed shows the effect actually being played rather
                     // than an empty row.
-                    selected:
-                        PopupEffect.fromSlug(
-                          current['popup_animation'] as String?,
-                        ) ??
-                        PopupEffect.slide,
+                    read: (t) => t.popupEffect,
                     // Straight to `edit`, like the numbers above: it forks a
                     // built-in itself, and answering a pick with a duplicate
                     // would throw the pick away.
@@ -472,7 +473,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                       'effect and the curve multiply out: a rise on an elastic '
                       'and a flip on a linear are both sentences these two '
                       'rows can say.',
-                  control: SettingsDropdown<OverlayEffect>(
+                  control: _themeDropdown<OverlayEffect>(
                     key: ValueKey('overlay_animation-$active'),
                     // `description` rather than `detail`, for the reason the
                     // popup row above spells out: a sentence in the tag slot is
@@ -485,18 +486,14 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                           description: effect.description,
                         ),
                     ],
-                    selected:
-                        OverlayEffect.fromSlug(
-                          current['overlay_animation'] as String?,
-                        ) ??
-                        OverlayEffect.scale,
+                    read: (t) => t.overlayEffect,
                     onSelected: (v) =>
                         _themes.edit('overlay_animation', v.slug),
                   ),
                 ),
                 SettingsRow.field(
                   SettingsCatalog.overlayAnimationCurve,
-                  control: SettingsDropdown<OverlayCurve>(
+                  control: _themeDropdown<OverlayCurve>(
                     key: ValueKey('overlay_animation_curve-$active'),
                     items: [
                       for (final curve in OverlayCurve.values)
@@ -506,11 +503,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                           description: curve.description,
                         ),
                     ],
-                    selected:
-                        OverlayCurve.fromSlug(
-                          current['overlay_animation_curve'] as String?,
-                        ) ??
-                        OverlayCurve.easeOut,
+                    read: (t) => t.overlayCurve,
                     onSelected: (v) =>
                         _themes.edit('overlay_animation_curve', v.slug),
                   ),
@@ -548,13 +541,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 _materialRow(
                   SettingsCatalog.panelTexture,
                   'panel_texture',
-                  current,
+                  (t) => t.panelTexture,
                   active,
                 ),
                 _materialRow(
                   SettingsCatalog.panelEndTexture,
                   'panel_end_texture',
-                  current,
+                  (t) => t.panelEndTexture,
                   active,
                 ),
                 _numberRow(SettingsCatalog.panelEndLength, 'panel_end_length',
@@ -566,7 +559,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     SettingsCatalog.panelImage, 'panel_image', current, active),
                 SettingsRow.field(
                   SettingsCatalog.panelFoliage,
-                  control: SettingsDropdown<FoliageStyle>(
+                  control: _themeDropdown<FoliageStyle>(
                     key: ValueKey('panel_foliage-$active'),
                     items: [
                       for (final style in FoliageStyle.values)
@@ -576,9 +569,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                           description: style.description,
                         ),
                     ],
-                    selected: FoliageStyle.fromSlug(
-                            current['panel_foliage'] as String?) ??
-                        FoliageStyle.none,
+                    read: (t) => t.panelFoliage,
                     onSelected: (v) => _themes.edit('panel_foliage', v.slug),
                   ),
                 ),
@@ -603,13 +594,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 _materialRow(
                   SettingsCatalog.popupTexture,
                   'popup_texture',
-                  current,
+                  (t) => t.popupTexture,
                   active,
                 ),
                 _materialRow(
                   SettingsCatalog.popupBorderTexture,
                   'popup_border_texture',
-                  current,
+                  (t) => t.popupBorderTexture,
                   active,
                 ),
                 _pictureRow(
@@ -649,12 +640,38 @@ class _AppearanceSectionState extends State<AppearanceSection> {
     );
   }
 
-  /// A row choosing one [SurfaceMaterial] for [key].
+  /// A dropdown over one theme key, showing what [read] finds on the resolved
+  /// theme.
+  ///
+  /// It renders its value, so — like the font and gradient rows — it follows
+  /// the store itself. The section's `current` is read only when the *active
+  /// theme* changes, so a dropdown seeded from it showed its old value after a
+  /// pick on a theme of the user's own until the page was left and reopened; a
+  /// pick on a built-in looked fine only because forking it switches theme.
+  Widget _themeDropdown<T>({
+    required Key key,
+    required List<SettingsDropdownItem<T>> items,
+    required T Function(ThemeConfig theme) read,
+    required ValueChanged<T> onSelected,
+  }) =>
+      StoreSelector<T>(
+        key: key,
+        listenable: _themes,
+        selector: () => read(_themes.theme),
+        builder: (context, value) => SettingsDropdown<T>(
+          items: items,
+          selected: value,
+          onSelected: onSelected,
+        ),
+      );
+
+  /// A row choosing one [SurfaceMaterial] for [key], read off the resolved
+  /// theme by [read].
   Widget _materialRow(SettingsField field, String key,
-          Map<String, dynamic> current, String active) =>
+          SurfaceMaterial Function(ThemeConfig theme) read, String active) =>
       SettingsRow.field(
         field,
-        control: SettingsDropdown<SurfaceMaterial>(
+        control: _themeDropdown<SurfaceMaterial>(
           key: ValueKey('$key-$active'),
           items: [
             for (final m in SurfaceMaterial.values)
@@ -664,8 +681,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 description: m.description,
               ),
           ],
-          selected: SurfaceMaterial.fromSlug(current[key] as String?) ??
-              SurfaceMaterial.none,
+          read: read,
           onSelected: (v) => _themes.edit(key, v.slug),
         ),
       );
