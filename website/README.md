@@ -35,7 +35,7 @@ two places:
 
 | Generated | From |
 |---|---|
-| `src/content/docs/configuration/*.md` | `../CONFIG.md`, split into pages |
+| `src/content/docs/configuration/` | `../CONFIG.md`, split into pages |
 | `public/favicon.svg`, `public/favicon.png` | `../assets/moonswing-mark.svg` |
 | `src/assets/moonswing-banner.svg`, `public/og.png` | `../assets/moonswing-banner.svg` |
 
@@ -43,8 +43,12 @@ All of it is gitignored. **Do not edit those files** — edit `CONFIG.md` or the
 `assets/` at the root of the repository, and re-run `npm run sync`.
 
 Which `## ` sections of `CONFIG.md` land on which page is the `PAGES` table in
-[`scripts/sync.mjs`](scripts/sync.mjs). Every heading must be claimed by exactly one page: a
-new section that no page claims fails the build rather than quietly vanishing from the site.
+[`scripts/pages.mjs`](scripts/pages.mjs), which the Configuration sidebar is built from too.
+Every heading must be claimed by exactly one page: a new section that no page claims fails the
+build rather than quietly vanishing from the site. A `split` page — Modules — becomes a
+directory instead, with each `### ` heading of its section a page of its own nested under it,
+so a new module's `### ` heading in `CONFIG.md` is a new page with nothing else to change.
+Links within `CONFIG.md` (`[…](#anchor)`) are rewritten to whichever page the anchor landed on.
 
 Everything else — the landing page, `start/`, and `wiki/` — is hand-written Markdown under
 `src/content/docs/`.

@@ -73,8 +73,10 @@ props or hero actions need relative hrefs**; only markdown links get `base` pref
 **Nothing about the shell is documented twice.** `scripts/sync.mjs` runs before `dev` and
 `build` and generates the configuration pages by splitting `CONFIG.md` on its `## ` headings,
 plus the favicon, hero and social card from `assets/*.svg`. All of it is gitignored, and which
-section lands on which page is the `PAGES` table in that script — a `## ` section no page claims
-**fails the build**, so a new config section cannot quietly vanish from the site. Edit
+section lands on which page is the `PAGES` table in `scripts/pages.mjs`, which the sidebar is
+built from too — a `## ` section no page claims **fails the build**, so a new config section
+cannot quietly vanish from the site. Modules is `split`: each `### ` under `## Module Settings`
+is its own page nested under it, and `](#anchor)` links are rewritten to the page they landed on. Edit
 `CONFIG.md`, never `src/content/docs/configuration/`.
 
 The rest — the landing page, `start/`, `wiki/` — is hand-written, and is where the feature-level
