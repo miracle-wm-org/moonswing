@@ -4,7 +4,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/keybinds/keybind_cheatsheet.dart';
 import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
@@ -102,7 +103,7 @@ class _OverlayTab {
 
   final String id;
   final String label;
-  final FaIconData icon;
+  final ShellGlyph icon;
 }
 
 /// The header's close button, and the slot that balances it.
@@ -112,22 +113,22 @@ const List<_OverlayTab> _tabs = [
   _OverlayTab(
     id: OverviewTab.calendar,
     label: 'Calendar',
-    icon: FontAwesomeIcons.calendarDays,
+    icon: ShellGlyph.calendarDays,
   ),
   _OverlayTab(
     id: OverviewTab.settings,
     label: 'Settings',
-    icon: FontAwesomeIcons.gear,
+    icon: ShellGlyph.settings,
   ),
   _OverlayTab(
     id: OverviewTab.system,
     label: 'Monitor',
-    icon: FontAwesomeIcons.microchip,
+    icon: ShellGlyph.microchip,
   ),
   _OverlayTab(
     id: OverviewTab.systemInfo,
     label: 'System Info',
-    icon: FontAwesomeIcons.circleInfo,
+    icon: ShellGlyph.info,
   ),
   // The board and the cheat sheet used to be full-screen windows of their
   // own, opened by their bar buttons. They are tabs so that the overview is
@@ -135,12 +136,12 @@ const List<_OverlayTab> _tabs = [
   _OverlayTab(
     id: OverviewTab.todo,
     label: 'Kanban',
-    icon: FontAwesomeIcons.listCheck,
+    icon: ShellGlyph.listCheck,
   ),
   _OverlayTab(
     id: OverviewTab.shortcuts,
     label: 'Shortcuts',
-    icon: FontAwesomeIcons.keyboard,
+    icon: ShellGlyph.keyboard,
   ),
 ];
 
@@ -455,7 +456,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   /// the panel.
   List<OverviewAction> get _actions => [
     OverviewAction(
-      icon: FontAwesomeIcons.noteSticky,
+      icon: ShellGlyph.noteSticky,
       label: 'New note',
       onTap: () => _stickyNotes.currentState?.addNote(),
     ),
@@ -779,61 +780,61 @@ class SettingsSidebar extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _SidebarItem(
-              icon: FontAwesomeIcons.wifi,
+              icon: ShellGlyph.wifi,
               label: 'Network',
               selected: selectedCategory == 'network',
               onTap: () => onCategorySelected('network'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.bluetooth,
+              icon: ShellGlyph.bluetooth,
               label: 'Bluetooth',
               selected: selectedCategory == 'bluetooth',
               onTap: () => onCategorySelected('bluetooth'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.display,
+              icon: ShellGlyph.display,
               label: 'Display',
               selected: selectedCategory == 'display',
               onTap: () => onCategorySelected('display'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.volumeHigh,
+              icon: ShellGlyph.volumeHigh,
               label: 'Audio',
               selected: selectedCategory == 'audio',
               onTap: () => onCategorySelected('audio'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.keyboard,
+              icon: ShellGlyph.keyboard,
               label: 'Keyboard',
               selected: selectedCategory == 'keyboard',
               onTap: () => onCategorySelected('keyboard'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.gaugeHigh,
+              icon: ShellGlyph.gauge,
               label: 'Power',
               selected: selectedCategory == 'power',
               onTap: () => onCategorySelected('power'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.arrowUpRightFromSquare,
+              icon: ShellGlyph.externalLink,
               label: 'Default Apps',
               selected: selectedCategory == 'default_apps',
               onTap: () => onCategorySelected('default_apps'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.circleUser,
+              icon: ShellGlyph.user,
               label: 'Accounts',
               selected: selectedCategory == 'accounts',
               onTap: () => onCategorySelected('accounts'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.gear,
+              icon: ShellGlyph.settings,
               label: 'Shell',
               selected: selectedCategory == 'shell',
               onTap: () => onCategorySelected('shell'),
             ),
             _SidebarItem(
-              icon: FontAwesomeIcons.wandMagicSparkles,
+              icon: ShellGlyph.magic,
               label: 'Window Manager',
               selected: selectedCategory == 'miracle',
               onTap: () => onCategorySelected('miracle'),
@@ -860,7 +861,7 @@ class _SidebarItem extends StatelessWidget {
     this.disabledReason,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -911,7 +912,7 @@ class _SidebarItem extends StatelessWidget {
       ),
       child: Row(
         children: [
-          FaIcon(icon, size: ShellFontSizes.body, color: foreground),
+          ShellIcon(icon, size: ShellFontSizes.body, color: foreground),
           const SizedBox(width: 10),
           Text(
             label,

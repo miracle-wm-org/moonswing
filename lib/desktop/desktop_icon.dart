@@ -1,11 +1,12 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_actions.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
@@ -317,10 +318,10 @@ class DesktopItemIcon extends StatelessWidget {
     // There are no bundled asset icons in this repo, so the last resort is a
     // font glyph rather than an image.
     return Center(
-      child: FaIcon(
+      child: ShellIcon(
         item.kind == DesktopItemKind.folder
-            ? FontAwesomeIcons.solidFolder
-            : FontAwesomeIcons.file,
+            ? ShellGlyph.folderFilled
+            : ShellGlyph.file,
         size: size * 0.8,
         color: foreground,
       ),

@@ -122,6 +122,36 @@ Future<void> pumpInRow(
 }
 
 void main() {
+  testWidgets('a preview is drawn in its row, never in the trigger', (
+    tester,
+  ) async {
+    const preview = ValueKey('preview');
+    await pumpInRow(
+      tester,
+      items: [
+        for (final item in _described)
+          SettingsDropdownItem<String>(
+            value: item.value,
+            label: item.label,
+            description: item.description,
+            preview: item.value == 'grow'
+                ? const SizedBox(key: preview, width: 40, height: 10)
+                : null,
+          ),
+      ],
+      selected: 'none',
+    );
+    expect(find.byKey(preview), findsNothing);
+
+    await openList(tester, on: 'None');
+    expect(find.byKey(preview), findsOneWidget);
+    // On the label's line, after the label.
+    final label = tester.getRect(find.text('Grow from edge'));
+    final box = tester.getRect(find.byKey(preview));
+    expect(box.left, greaterThanOrEqualTo(label.right));
+    expect(box.center.dy, closeTo(label.center.dy, 4));
+  });
+
   testWidgets('shows the selection and no list until tapped', (tester) async {
     await pumpDropdown(tester, items: _items(3), selected: 'v0');
 

@@ -17,11 +17,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:material_symbols_icons/symbols.dart';
 
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/moon/moon_facts.dart';
 import 'package:moonswing/moon/moon_format.dart';
@@ -372,14 +372,14 @@ class _TimesRow extends StatelessWidget {
       children: [
         Flexible(
           child: _TimeCell(
-            icon: Symbols.arrow_upward,
+            icon: ShellGlyph.moonRise,
             label: times.rise == null ? '—' : formatMoonTime(times.rise!),
           ),
         ),
         const SizedBox(width: 12),
         Flexible(
           child: _TimeCell(
-            icon: Symbols.arrow_downward,
+            icon: ShellGlyph.moonSet,
             label: times.set == null ? '—' : formatMoonTime(times.set!),
           ),
         ),
@@ -391,7 +391,7 @@ class _TimesRow extends StatelessWidget {
 class _TimeCell extends StatelessWidget {
   const _TimeCell({required this.icon, required this.label});
 
-  final IconData icon;
+  final ShellGlyph icon;
   final String label;
 
   @override
@@ -490,24 +490,25 @@ class _FactRow extends StatelessWidget {
 /// The glyph for a fact kind. The mapping lives here rather than on
 /// [MoonFactKind] so `moon_facts.dart` stays Flutter-free and its wording stays
 /// a plain unit test.
-IconData _factIcon(MoonFactKind kind) => switch (kind) {
-      MoonFactKind.tides => Symbols.waves,
-      MoonFactKind.nightLight => Symbols.nightlight,
-      MoonFactKind.stargazing => Symbols.star,
-      MoonFactKind.eclipse => Symbols.dark_mode,
-      MoonFactKind.distance => Symbols.straighten,
-      MoonFactKind.nextPhase => Symbols.schedule,
+ShellGlyph _factIcon(MoonFactKind kind) => switch (kind) {
+      MoonFactKind.tides => ShellGlyph.tides,
+      MoonFactKind.nightLight => ShellGlyph.nightLight,
+      MoonFactKind.stargazing => ShellGlyph.stargazing,
+      MoonFactKind.eclipse => ShellGlyph.eclipse,
+      MoonFactKind.distance => ShellGlyph.distance,
+      MoonFactKind.nextPhase => ShellGlyph.schedule,
     };
 
 /// One glyph of the readout, at the fill and weight a Material Symbol needs to
-/// read at these sizes.
+/// read at these sizes — the default pack draws these as Material Symbols, and
+/// a pack whose font has no such axes ignores them.
 ///
 /// Spelled here rather than borrowed from `weather_icons.dart`: that wrapper
 /// draws Meteocons, which has no moon-rise arrow, no wave and no ruler.
 class _MoonIcon extends StatelessWidget {
   const _MoonIcon(this.icon, {required this.size, this.bright = false});
 
-  final IconData icon;
+  final ShellGlyph icon;
   final double size;
 
   /// Full foreground rather than the muted one — what a notable fact's glyph
@@ -516,7 +517,7 @@ class _MoonIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Icon(
+    return ShellIcon(
       icon,
       size: size,
       color: bright ? kSkyForeground : kSkyMutedForeground,
@@ -565,7 +566,7 @@ class _MoonText extends StatelessWidget {
 
 /// The "Add widget…" menu's icon for this type. Named so a test can build a
 /// [DesktopWidgetSpec] without picking an unrelated glyph.
-const FaIconData moonDesktopWidgetIcon = FontAwesomeIcons.moon;
+const ShellGlyph moonDesktopWidgetIcon = ShellGlyph.moon;
 
 /// The registry entry. Registered from `main()` beside the weather widget's.
 final DesktopWidgetSpec moonDesktopWidget = DesktopWidgetSpec(

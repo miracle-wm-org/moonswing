@@ -1,8 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 
@@ -31,10 +32,10 @@ void main() {
   /// The colour the first row's icon is drawn in — the hover tint while the
   /// pointer is on it, the resting foreground otherwise.
   Color? firstIconColor(WidgetTester tester) => tester
-      .widgetList<FaIcon>(
+      .widgetList<ShellIcon>(
         find.descendant(
           of: find.byType(SettingsIconButton).first,
-          matching: find.byType(FaIcon),
+          matching: find.byType(ShellIcon),
         ),
       )
       .first
@@ -48,7 +49,7 @@ void main() {
   /// one recolours its glyph on the spot.
   Widget row(int i) => SettingsRow(
     label: 'Row $i',
-    control: SettingsIconButton(icon: FontAwesomeIcons.trash, onTap: () {}),
+    control: SettingsIconButton(icon: ShellGlyph.trash, onTap: () {}),
   );
 
   Widget counterChild() => PaintCounter(

@@ -14,11 +14,11 @@
 // on the board itself, since linking one merges the two.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/brand_marks.dart';
 import 'package:moonswing/caldav/caldav_account_store.dart';
 import 'package:moonswing/caldav/caldav_client.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/settings/accounts/account_card.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
@@ -83,8 +83,8 @@ class _CalDavAccountCardState extends State<CalDavAccountCard> {
                 )
               : null,
           usedBy: const [
-            (FontAwesomeIcons.calendarDays, 'Calendar tab'),
-            (FontAwesomeIcons.tableColumns, 'Todo board'),
+            (ShellGlyph.calendarDays, 'Calendar tab'),
+            (ShellGlyph.columns, 'Todo board'),
           ],
           children: [
             for (final a in accounts) ...[
@@ -133,7 +133,7 @@ class _CalDavAccountCardState extends State<CalDavAccountCard> {
                   const SizedBox(width: 16),
                   SettingsActionButton(
                     label: 'Calendar settings',
-                    icon: FontAwesomeIcons.calendarDays,
+                    icon: ShellGlyph.calendarDays,
                     compact: true,
                     onTap: () => openSettingsAt(
                       context,
@@ -193,7 +193,7 @@ class _AccountRow extends StatelessWidget {
           detail: calDavAccountSummary(account),
           actions: [
             SettingsIconButton(
-              icon: FontAwesomeIcons.arrowsRotate,
+              icon: ShellGlyph.refresh,
               tooltip: 'Look for calendars again',
               enabled: !store.refreshing(id),
               onTap: () => store.refresh(id),

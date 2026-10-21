@@ -45,6 +45,7 @@ void main() {
       ...ThemeConfig.colorKeys,
       'font',
       'font_size',
+      'icon_pack',
       'panel_gradient',
       'panel_margin',
       'panel_radius',

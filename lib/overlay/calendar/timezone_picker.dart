@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/calendar/time_zones.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
@@ -94,8 +95,8 @@ class TimeZonePickerButton extends StatelessWidget {
               ),
             ),
             if (added)
-              FaIcon(
-                FontAwesomeIcons.check,
+              ShellIcon(
+                ShellGlyph.check,
                 size: 10,
                 color: theme.popupForeground.withValues(alpha: 0.5),
               ),
@@ -103,7 +104,7 @@ class TimeZonePickerButton extends StatelessWidget {
         );
       },
       triggerBuilder: (context, open, toggle) => SettingsIconButton(
-        icon: FontAwesomeIcons.plus,
+        icon: ShellGlyph.add,
         size: 11,
         onTap: toggle,
       ),

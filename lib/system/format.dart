@@ -1,4 +1,5 @@
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+
 
 /// Formats a KiB count the way `/proc` hands them to us.
 String formatBytesKb(int kb) {
@@ -44,8 +45,8 @@ String formatTemperature(double celsius, String unit) {
   return '${celsius.round()}°C';
 }
 
-FaIconData temperatureIcon(double celsius) {
-  if (celsius >= 80) return FontAwesomeIcons.temperatureHigh;
-  if (celsius <= 30) return FontAwesomeIcons.temperatureLow;
-  return FontAwesomeIcons.temperatureHalf;
+ShellGlyph temperatureIcon(double celsius) {
+  if (celsius >= 80) return ShellGlyph.temperatureHigh;
+  if (celsius <= 30) return ShellGlyph.temperatureLow;
+  return ShellGlyph.temperatureHalf;
 }

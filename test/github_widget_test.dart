@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_store.dart';
 import 'package:moonswing/github/github_token_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/github.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
@@ -247,7 +247,7 @@ void main() {
       await tester.tap(
         find.byWidgetPredicate(
           (w) =>
-              w is SettingsIconButton && w.icon == FontAwesomeIcons.userGear,
+              w is SettingsIconButton && w.icon == ShellGlyph.userGear,
         ),
       );
       await tester.pumpAndSettle();

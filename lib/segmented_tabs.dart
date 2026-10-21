@@ -3,9 +3,10 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -15,7 +16,7 @@ class SegmentedTab {
   const SegmentedTab({required this.label, this.icon});
 
   final String label;
-  final FaIconData? icon;
+  final ShellGlyph? icon;
 }
 
 /// A segmented control: a recessed track of tabs, with the selected one lifted
@@ -176,7 +177,7 @@ class _Segment extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (tab.icon != null) ...[
-                FaIcon(tab.icon, size: 12, color: foreground),
+                ShellIcon(tab.icon!, size: 12, color: foreground),
                 const SizedBox(width: 8),
               ],
               Text(

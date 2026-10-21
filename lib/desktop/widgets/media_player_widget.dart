@@ -10,12 +10,13 @@ import 'dart:math' as math;
 
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/media/media_controls.dart';
 import 'package:moonswing/media/mpris_store.dart';
 import 'package:moonswing/scopes.dart';
@@ -146,7 +147,7 @@ class _Idle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          FaIcon(FontAwesomeIcons.music, size: 14, color: theme.muted),
+          ShellIcon(ShellGlyph.music, size: 14, color: theme.muted),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
@@ -394,7 +395,7 @@ class _Transport extends StatelessWidget {
       children: [
         if (canSkip && player.canGoPrevious)
           MediaTransportButton(
-            icon: FontAwesomeIcons.backwardStep,
+            icon: ShellGlyph.skipBack,
             onPressed: store.previous,
             size: size,
             padding: padding,
@@ -404,8 +405,8 @@ class _Transport extends StatelessWidget {
         SizedBox(width: compact ? 2 : 8),
         MediaTransportButton(
           icon: player.isPlaying
-              ? FontAwesomeIcons.pause
-              : FontAwesomeIcons.play,
+              ? ShellGlyph.pause
+              : ShellGlyph.play,
           onPressed: store.playPause,
           size: size,
           padding: padding,
@@ -419,7 +420,7 @@ class _Transport extends StatelessWidget {
         SizedBox(width: compact ? 2 : 8),
         if (canSkip && player.canGoNext)
           MediaTransportButton(
-            icon: FontAwesomeIcons.forwardStep,
+            icon: ShellGlyph.skipForward,
             onPressed: store.next,
             size: size,
             padding: padding,
@@ -775,7 +776,7 @@ final DesktopWidgetSpec mediaPlayerDesktopWidget = DesktopWidgetSpec(
   type: 'media_player',
   name: 'Media player',
   description: 'What is playing, with transport controls',
-  icon: FontAwesomeIcons.music,
+  icon: ShellGlyph.music,
   // Two cells wide is the floor because one cell is an *icon*: art plus a title
   // plus a button does not fit in a launcher tile's width. The default is larger
   // deliberately — a widget somebody has just added should show what it can do,

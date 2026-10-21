@@ -4,13 +4,15 @@ import 'dart:io';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/overlay/settings/shell/background.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/wallpaper_catalog.dart';
+
+import 'glyph_finder.dart';
 
 /// The two sources of the wallpaper list, and the rule that separates them: a
 /// wallpaper the machine ships is always offered and can never be deleted, while
@@ -146,11 +148,7 @@ void main() {
 
   Finder removeButtonIn(String path) => find.descendant(
         of: find.byKey(ValueKey(path)),
-        // Compared on the code point: `FaIcon` normalizes the icon it is given,
-        // so the styled `IconDataSolid` constant is not `==` what it holds.
-        matching: find.byWidgetPredicate((w) =>
-            w is FaIcon &&
-            w.icon?.codePoint == FontAwesomeIcons.xmark.codePoint),
+        matching: findGlyph(ShellGlyph.close),
       );
 
   /// Lets the store's debounced write fire so no timer outlives the test.

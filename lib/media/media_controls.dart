@@ -8,9 +8,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
@@ -31,7 +32,7 @@ class MediaTransportButton extends StatefulWidget {
     this.semanticLabel,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final VoidCallback onPressed;
 
   /// The glyph's size. The box grows from it and [padding].
@@ -95,7 +96,7 @@ class _MediaTransportButtonState extends State<MediaTransportButton> {
               width: widget.size + 2,
               height: widget.size + 2,
               child: Center(
-                child: FaIcon(
+                child: ShellIcon(
                   widget.icon,
                   size: widget.size,
                   color: foreground,

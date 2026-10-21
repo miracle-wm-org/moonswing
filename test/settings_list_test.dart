@@ -1,15 +1,17 @@
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/keyboard/xkb_catalog.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/keyboard/input_source_picker.dart';
 import 'package:moonswing/scopes.dart';
 
 import 'tap_target.dart';
+
+import 'glyph_finder.dart';
 
 /// Pins the one collection editor every settings list is built from: an
 /// enclosed box of numbered rows, each with a remove icon, reordered by drag,
@@ -85,9 +87,7 @@ class _HostState extends State<_Host> {
   );
 }
 
-/// The grip glyph as an [Icon] holds it — `FaIcon.icon` is the resolved
-/// `IconData`, not the `FaIconData` it was built from.
-final IconData? _grip = const FaIcon(FontAwesomeIcons.gripVertical).icon;
+final Finder _grip = findGlyph(ShellGlyph.dragHandle);
 
 void main() {
   test('reorderedList moves an element to its landing index', () {
@@ -141,7 +141,7 @@ void main() {
       ),
     );
     final removes = find.byWidgetPredicate(
-      (w) => w is SettingsIconButton && w.icon == FontAwesomeIcons.xmark,
+      (w) => w is SettingsIconButton && w.icon == ShellGlyph.close,
     );
     expect(removes, findsNWidgets(3));
     await tester.tap(removes.at(1));
@@ -356,7 +356,7 @@ void main() {
     );
     expect(find.text('1'), findsNothing);
     expect(
-      find.byWidgetPredicate((w) => w is FaIcon && w.icon == _grip),
+      _grip,
       findsNothing,
     );
   });
@@ -382,7 +382,7 @@ void main() {
 
     // The grip does.
     final grip = tester.getCenter(
-      find.byWidgetPredicate((w) => w is FaIcon && w.icon == _grip).first,
+      _grip.first,
     );
     final gesture = await tester.startGesture(grip);
     await gesture.moveBy(const Offset(0, 20));

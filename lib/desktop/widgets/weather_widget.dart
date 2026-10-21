@@ -30,11 +30,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/weather/weather_api.dart';
@@ -567,7 +568,7 @@ class _ExpandedLayout extends StatelessWidget {
               children: [
                 // The one Material Symbol on this card: Meteocons is a weather
                 // set and has no place marker. See `kLocationIcon`.
-                Icon(
+                ShellIcon(
                   kLocationIcon,
                   size: scale(_placeIconSize),
                   color: kSkyMutedForeground,
@@ -961,7 +962,7 @@ class _SkyText extends StatelessWidget {
 
 /// The "Add widget…" menu's icon for this type. Named, so a test can build a
 /// [DesktopWidgetSpec] without picking an unrelated glyph.
-const FaIconData weatherDesktopWidgetIcon = FontAwesomeIcons.cloudSun;
+const ShellGlyph weatherDesktopWidgetIcon = ShellGlyph.cloudSun;
 
 /// The registry entry. Registered from `main()` beside the media player's.
 final DesktopWidgetSpec weatherDesktopWidget = DesktopWidgetSpec(

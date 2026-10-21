@@ -7,12 +7,13 @@
 // the address.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/github/github_api.dart';
 import 'package:moonswing/github/github_link_store.dart';
 import 'package:moonswing/github/github_links.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart' show SettingsTooltip;
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -59,7 +60,7 @@ class GithubLinkChip extends StatelessWidget {
     final issue = state.issue;
     final failed = issue == null && state.error.isNotEmpty;
     final (icon, color) = failed
-        ? (FontAwesomeIcons.triangleExclamation, dim)
+        ? (ShellGlyph.warning, dim)
         : _look(issue, theme.accentText, dim);
     final title = issue?.title ?? '';
     final label = title.isEmpty
@@ -99,7 +100,7 @@ class GithubLinkChip extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                FaIcon(icon, size: fontSize - 1, color: color),
+                ShellIcon(icon, size: fontSize - 1, color: color),
                 const SizedBox(width: 5),
                 Flexible(
                   child: Text.rich(
@@ -125,22 +126,22 @@ class GithubLinkChip extends StatelessWidget {
   /// The icon and its colour: the shape says what state it is in, the colour
   /// whether it still wants anything — open in the accent, finished receding,
   /// closed without being finished in the error colour.
-  (FaIconData, Color) _look(GithubIssue? issue, Color live, Color dim) {
+  (ShellGlyph, Color) _look(GithubIssue? issue, Color live, Color dim) {
     final pull = issue?.isPullRequest ?? ref.isPullRequest;
     return switch (issue?.state) {
       null => (
-        pull ? FontAwesomeIcons.codePullRequest : FontAwesomeIcons.circleDot,
+        pull ? ShellGlyph.pullRequest : ShellGlyph.circleDot,
         dim,
       ),
       GithubIssueState.open => (
-        pull ? FontAwesomeIcons.codePullRequest : FontAwesomeIcons.circleDot,
+        pull ? ShellGlyph.pullRequest : ShellGlyph.circleDot,
         live,
       ),
-      GithubIssueState.draft => (FontAwesomeIcons.codePullRequest, dim),
-      GithubIssueState.merged => (FontAwesomeIcons.codeMerge, dim),
-      GithubIssueState.completed => (FontAwesomeIcons.circleCheck, dim),
+      GithubIssueState.draft => (ShellGlyph.pullRequest, dim),
+      GithubIssueState.merged => (ShellGlyph.merge, dim),
+      GithubIssueState.completed => (ShellGlyph.circleCheck, dim),
       GithubIssueState.closed => (
-        pull ? FontAwesomeIcons.codePullRequest : FontAwesomeIcons.ban,
+        pull ? ShellGlyph.pullRequest : ShellGlyph.ban,
         kErrorColor,
       ),
     };

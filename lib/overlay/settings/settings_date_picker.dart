@@ -8,9 +8,10 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/calendar/month.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/popup.dart';
@@ -100,12 +101,12 @@ class _SettingsDatePickerCardState extends State<SettingsDatePickerCard> {
                   ),
                 ),
                 SettingsIconButton(
-                  icon: FontAwesomeIcons.chevronLeft,
+                  icon: ShellGlyph.chevronLeft,
                   tooltip: 'Previous month',
                   onTap: () => _step(-1),
                 ),
                 SettingsIconButton(
-                  icon: FontAwesomeIcons.chevronRight,
+                  icon: ShellGlyph.chevronRight,
                   tooltip: 'Next month',
                   onTap: () => _step(1),
                 ),
@@ -398,8 +399,8 @@ class _SettingsDatePickerButtonState extends State<SettingsDatePickerButton> {
               color: lit ? theme.surfaceHover : theme.controlSurface,
               borderRadius: BorderRadius.circular(ShellRadii.control),
             ),
-            child: FaIcon(
-              FontAwesomeIcons.calendarDays,
+            child: ShellIcon(
+              ShellGlyph.calendarDays,
               size: 13,
               color: lit
                   ? theme.accentText

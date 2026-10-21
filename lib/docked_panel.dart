@@ -21,9 +21,10 @@
 // docked edge, the opaque fill with its one inner rule, and the header.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/scopes.dart';
@@ -233,7 +234,7 @@ class DockedPanelHeader extends StatelessWidget {
           ),
           for (final action in actions) ...[action, const SizedBox(width: 6)],
           SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
+            icon: ShellGlyph.close,
             box: ShellSizes.iconButton + 6,
             size: ShellFontSizes.title,
             color: theme.popupForeground,
@@ -315,7 +316,7 @@ class DockedPanelEmpty extends StatelessWidget {
     required this.message,
   });
 
-  final FaIconData icon;
+  final ShellGlyph icon;
   final String title;
   final String message;
 
@@ -328,7 +329,7 @@ class DockedPanelEmpty extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(
+            ShellIcon(
               icon,
               size: 40,
               color: theme.popupForeground.withValues(alpha: 0.28),

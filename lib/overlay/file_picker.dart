@@ -20,9 +20,10 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/root_modal.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/popup_transition.dart';
@@ -156,7 +157,7 @@ List<Directory> subDirs(String path, {bool showHidden = false}) {
 
 /// A Font Awesome glyph for a file, keyed on its extension. General-purpose —
 /// not limited to the wallpaper use case.
-FaIconData iconForFile(String path) {
+ShellGlyph iconForFile(String path) {
   final lower = path.toLowerCase();
   final dot = lower.lastIndexOf('.');
   final ext = dot < 0 ? '' : lower.substring(dot);
@@ -170,23 +171,23 @@ FaIconData iconForFile(String path) {
     case '.svg':
     case '.tiff':
     case '.ico':
-      return FontAwesomeIcons.fileImage;
+      return ShellGlyph.fileImage;
     case '.mp4':
     case '.mkv':
     case '.webm':
     case '.mov':
     case '.avi':
     case '.m4v':
-      return FontAwesomeIcons.fileVideo;
+      return ShellGlyph.fileVideo;
     case '.mp3':
     case '.flac':
     case '.wav':
     case '.ogg':
     case '.m4a':
     case '.opus':
-      return FontAwesomeIcons.fileAudio;
+      return ShellGlyph.fileAudio;
     case '.pdf':
-      return FontAwesomeIcons.filePdf;
+      return ShellGlyph.filePdf;
     case '.zip':
     case '.tar':
     case '.gz':
@@ -195,12 +196,12 @@ FaIconData iconForFile(String path) {
     case '.rar':
     case '.bz2':
     case '.zst':
-      return FontAwesomeIcons.fileZipper;
+      return ShellGlyph.fileArchive;
     case '.txt':
     case '.md':
     case '.rst':
     case '.log':
-      return FontAwesomeIcons.fileLines;
+      return ShellGlyph.fileText;
     case '.dart':
     case '.js':
     case '.ts':
@@ -220,9 +221,9 @@ FaIconData iconForFile(String path) {
     case '.yml':
     case '.toml':
     case '.xml':
-      return FontAwesomeIcons.fileCode;
+      return ShellGlyph.fileCode;
     default:
-      return FontAwesomeIcons.file;
+      return ShellGlyph.file;
   }
 }
 
@@ -761,7 +762,7 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
           _HiddenToggle(value: _showHidden, onChanged: _setShowHidden),
           const SizedBox(width: 2),
           SettingsIconButton(
-            icon: FontAwesomeIcons.xmark,
+            icon: ShellGlyph.close,
             size: 13,
             onTap: () => widget.onResult(null),
           ),
@@ -781,8 +782,8 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
               focusNode: _searchFocus,
               hint: 'Search in $_folderTitle (Ctrl+F)',
               onChanged: (value) => _query.value = value,
-              leading: FaIcon(
-                FontAwesomeIcons.magnifyingGlass,
+              leading: ShellIcon(
+                ShellGlyph.search,
                 size: 12,
                 color: theme.popupForeground.withValues(alpha: 0.45),
               ),
@@ -797,7 +798,7 @@ class _FilePickerDialogState extends State<_FilePickerDialog> {
                         dimension: ShellSizes.iconButtonDense,
                       )
                     : SettingsIconButton(
-                        icon: FontAwesomeIcons.xmark,
+                        icon: ShellGlyph.close,
                         size: 10,
                         box: ShellSizes.iconButtonDense,
                         onTap: _clearSearch,
@@ -1075,10 +1076,10 @@ class _ViewModeToggle extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _segment(theme, FilePickerViewMode.tiles,
-              FontAwesomeIcons.tableCellsLarge, 'Tiles'),
+              ShellGlyph.gridLarge, 'Tiles'),
           const SizedBox(width: 2),
           _segment(
-              theme, FilePickerViewMode.list, FontAwesomeIcons.listUl, 'List'),
+              theme, FilePickerViewMode.list, ShellGlyph.listUl, 'List'),
         ],
       ),
     );
@@ -1087,7 +1088,7 @@ class _ViewModeToggle extends StatelessWidget {
   Widget _segment(
     ThemeConfig theme,
     FilePickerViewMode value,
-    FaIconData icon,
+    ShellGlyph icon,
     String label,
   ) {
     final active = mode == value;
@@ -1107,7 +1108,7 @@ class _ViewModeToggle extends StatelessWidget {
             borderRadius: BorderRadius.circular(ShellRadii.barButton),
           ),
           alignment: Alignment.center,
-          child: FaIcon(
+          child: ShellIcon(
             icon,
             size: 12,
             color: active
@@ -1235,10 +1236,10 @@ class _TreeRow extends StatelessWidget {
                 width: 18,
                 height: 18,
                 child: Center(
-                  child: FaIcon(
+                  child: ShellIcon(
                     isExpanded
-                        ? FontAwesomeIcons.chevronDown
-                        : FontAwesomeIcons.chevronRight,
+                        ? ShellGlyph.chevronDown
+                        : ShellGlyph.chevronRight,
                     size: 9,
                     color: theme.popupForeground.withValues(alpha: 0.5),
                   ),
@@ -1249,10 +1250,10 @@ class _TreeRow extends StatelessWidget {
             XdgIcon(
               name: isCurrent || isExpanded ? 'folder-open' : 'folder',
               size: 16,
-              iconNotFoundBuilder: () => FaIcon(
+              iconNotFoundBuilder: () => ShellIcon(
                 isCurrent || isExpanded
-                    ? FontAwesomeIcons.folderOpen
-                    : FontAwesomeIcons.solidFolder,
+                    ? ShellGlyph.folderOpen
+                    : ShellGlyph.folderFilled,
                 size: 13,
                 color: theme.accentText,
               ),
@@ -1306,8 +1307,8 @@ class _EntryThumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final icon = Center(
-      child: FaIcon(
-        entry.isDirectory ? FontAwesomeIcons.solidFolder : iconForFile(entry.path),
+      child: ShellIcon(
+        entry.isDirectory ? ShellGlyph.folderFilled : iconForFile(entry.path),
         size: iconSize,
         color: entry.isDirectory
             ? theme.accentText
@@ -1351,8 +1352,8 @@ class _SelectedTick extends StatelessWidget {
       height: diameter,
       decoration: BoxDecoration(color: theme.accent, shape: BoxShape.circle),
       alignment: Alignment.center,
-      child: FaIcon(
-        FontAwesomeIcons.check,
+      child: ShellIcon(
+        ShellGlyph.check,
         size: diameter * 0.5,
         color: kOnAccent,
       ),
@@ -1572,7 +1573,7 @@ class _HiddenToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return SettingsIconButton(
-      icon: value ? FontAwesomeIcons.solidEye : FontAwesomeIcons.solidEyeSlash,
+      icon: value ? ShellGlyph.eye : ShellGlyph.eyeSlash,
       size: 13,
       color: value
           ? theme.accentText

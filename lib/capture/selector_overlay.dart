@@ -25,9 +25,10 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
@@ -430,8 +431,8 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
               accent: accent,
               large: true,
               icon: widget.request.kind == CaptureKind.video
-                  ? FontAwesomeIcons.video
-                  : FontAwesomeIcons.camera,
+                  ? ShellGlyph.video
+                  : ShellGlyph.camera,
               // Two lines rather than one long one: the way out of a surface
               // that has taken the whole screen has to be legible, and putting
               // it after the instruction on one line is what made the banner
@@ -583,7 +584,7 @@ class _Pill extends StatelessWidget {
   final ThemeConfig theme;
   final Color accent;
   final Widget child;
-  final FaIconData? icon;
+  final ShellGlyph? icon;
   final bool large;
 
   @override
@@ -604,7 +605,7 @@ class _Pill extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (icon != null) ...[
-            FaIcon(icon!, size: ShellFontSizes.label, color: accent),
+            ShellIcon(icon!, size: ShellFontSizes.label, color: accent),
             const SizedBox(width: 10),
           ],
           Flexible(child: child),

@@ -29,7 +29,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
@@ -40,6 +39,7 @@ import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/fortune/fortune_text_fit.dart'
     show fitFortuneText, kFortuneLineHeight;
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/tux/tux_art.dart';
@@ -499,7 +499,7 @@ class _GreetingText extends StatelessWidget {
 
 /// The "Add widget…" menu's icon for this type. Named so a test can build a
 /// [DesktopWidgetSpec] without picking an unrelated glyph.
-const FaIconData tuxDesktopWidgetIcon = FontAwesomeIcons.linux;
+const ShellGlyph tuxDesktopWidgetIcon = ShellGlyph.linux;
 
 /// The registry entry. Registered from `main()` beside the fortune widget's.
 final DesktopWidgetSpec tuxDesktopWidget = DesktopWidgetSpec(

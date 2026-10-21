@@ -8,12 +8,13 @@
 // what "the clipboard module is enabled" means, and never otherwise.
 
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/clipboard/clipboard_config.dart';
 import 'package:moonswing/clipboard/clipboard_panel_controller.dart';
 import 'package:moonswing/clipboard/clipboard_store.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
@@ -73,8 +74,8 @@ class _ClipboardButtonState extends State<ClipboardButton> {
       child: StoreSelector<bool>(
         listenable: _store,
         selector: () => _store.error == null,
-        builder: (context, recording) => FaIcon(
-          FontAwesomeIcons.clipboard,
+        builder: (context, recording) => ShellIcon(
+          ShellGlyph.clipboard,
           size: ShellFontSizes.label,
           color: recording ? theme.foreground : theme.muted,
         ),

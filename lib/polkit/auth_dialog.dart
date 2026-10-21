@@ -8,9 +8,10 @@
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
@@ -358,8 +359,8 @@ class _PolkitAuthDialogState extends State<PolkitAuthDialog> {
           // `PolkitAuthRequest.iconName`: that is a themed icon name and this
           // path has no icon-theme lookup, and every one of these prompts
           // means the same thing however the action chose to illustrate it.
-          child: const FaIcon(
-            FontAwesomeIcons.lock,
+          child: const ShellIcon(
+            ShellGlyph.lock,
             size: 16,
             color: kOnAccent,
           ),

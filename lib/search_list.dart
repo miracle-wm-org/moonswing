@@ -18,10 +18,11 @@ import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -605,8 +606,8 @@ class _DropdownPopupState<T> extends State<_DropdownPopup<T>> {
         ),
         child: Row(
           children: [
-            FaIcon(
-              FontAwesomeIcons.magnifyingGlass,
+            ShellIcon(
+              ShellGlyph.search,
               size: 10,
               color: theme.popupForeground.withValues(alpha: 0.4),
             ),

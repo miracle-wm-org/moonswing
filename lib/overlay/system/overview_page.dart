@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/overlay/system/stat_tile.dart';
 import 'package:moonswing/overlay/system/time_series_chart.dart';
 import 'package:moonswing/scopes.dart';
@@ -319,7 +320,7 @@ class OverviewPage extends StatelessWidget {
       children: [
         Row(
           children: [
-            FaIcon(FontAwesomeIcons.arrowDown,
+            ShellIcon(ShellGlyph.arrowDown,
                 size: 13, color: chartPrimary(theme)),
             const SizedBox(width: 6),
             Text(
@@ -331,7 +332,7 @@ class OverviewPage extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            FaIcon(FontAwesomeIcons.arrowUp,
+            ShellIcon(ShellGlyph.arrowUp,
                 size: 13, color: chartSecondary(theme)),
             const SizedBox(width: 6),
             Text(

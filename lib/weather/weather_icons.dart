@@ -28,10 +28,10 @@
 // through the cloud: a raincloud at midnight is the same raincloud.
 
 import 'package:flutter/widgets.dart';
-import 'package:material_symbols_icons/symbols.dart';
 import 'package:weather_icons_animated/weather_icons_animated.dart'
     as meteocons;
 
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/weather/weather_condition.dart';
 
 /// One icon of the Meteocons set, as a value.
@@ -121,10 +121,10 @@ final WeatherGlyph kFeelsLikeIcon = _glyph('thermometer');
 final WeatherGlyph kWeatherUnavailableIcon = _unavailable;
 
 /// The place marker, and the one icon on these surfaces that is **not** a
-/// Meteocon: it is a weather set, and a map pin is not weather. Rendered with a
-/// plain [Icon] at the call site rather than through [WeatherIcon], which takes
-/// a [WeatherGlyph].
-const IconData kLocationIcon = Symbols.location_on;
+/// Meteocon: it is a weather set, and a map pin is not weather — so it is an
+/// interface glyph, drawn by a `ShellIcon` in the theme's `icon_pack` rather
+/// than through [WeatherIcon], which takes a [WeatherGlyph].
+const ShellGlyph kLocationIcon = ShellGlyph.placeMarker;
 
 /// A weather glyph, at the one size and family the shell draws them at.
 ///

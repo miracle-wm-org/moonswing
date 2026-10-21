@@ -2,14 +2,15 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/docked_panel.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/notification_panel_controller.dart';
 import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/scopes.dart';
+import 'glyph_finder.dart';
 
 /// The panel as the module hosts it, minus the layer-shell window it really
 /// lives in. The module wraps it in a `ThemeProvider`, which resolves to the
@@ -52,7 +53,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(FontAwesomeIcons.xmark.data));
+      await tester.tap(findGlyph(ShellGlyph.close));
       await tester.pump();
 
       // The window is not torn down under the animation: the button flips the
