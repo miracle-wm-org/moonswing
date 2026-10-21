@@ -10,11 +10,49 @@ import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/font_catalog.dart';
+import 'package:moonswing/theme/icon_pack.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/decor/material_textures.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/theme_store.dart';
+
+/// A few of the shell's own icons drawn in [pack], so a pack can be told apart
+/// before it is picked rather than after.
+///
+/// The same glyphs in every row, chosen to span what a pack differs in: a
+/// stroke (close), a closed shape (search), a filled state (folder), a
+/// detailed outline (bell, settings) and arcs (volume, wifi).
+class _IconPackPreview extends StatelessWidget {
+  const _IconPackPreview({required this.pack});
+
+  final IconPack pack;
+
+  static const List<ShellGlyph> _glyphs = [
+    ShellGlyph.close,
+    ShellGlyph.search,
+    ShellGlyph.folderFilled,
+    ShellGlyph.bell,
+    ShellGlyph.settings,
+    ShellGlyph.volumeHigh,
+    ShellGlyph.wifi,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final color = ThemeScope.of(context).popupForeground.withValues(alpha: 0.7);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final glyph in _glyphs)
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: ShellIcon(glyph, size: 11, color: color, pack: pack),
+          ),
+      ],
+    );
+  }
+}
 
 /// Theme picker + editor.
 ///
@@ -207,6 +245,32 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                           onChanged: (v) => _themes.edit('font', v),
                         );
                       },
+                    ),
+                  ),
+                ),
+                SettingsRow.field(
+                  SettingsCatalog.iconPack,
+                  // Follows the store, as the font row does, so a pick shows
+                  // in the trigger at once; a one-field selector, so nothing
+                  // else in the editor moves with it.
+                  control: StoreSelector<IconPack>(
+                    listenable: _themes,
+                    selector: () => _themes.theme.iconPack,
+                    builder: (context, pack) => SettingsDropdown<IconPack>(
+                      key: ValueKey('icon_pack-$active'),
+                      items: [
+                        for (final option in IconPack.values)
+                          SettingsDropdownItem<IconPack>(
+                            value: option,
+                            label: option.label,
+                            description: option.description,
+                            preview: _IconPackPreview(pack: option),
+                          ),
+                      ],
+                      selected: pack,
+                      // Straight to `edit`, like the effects below: it forks a
+                      // built-in itself.
+                      onSelected: (v) => _themes.edit('icon_pack', v.slug),
                     ),
                   ),
                 ),

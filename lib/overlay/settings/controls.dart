@@ -1608,8 +1608,8 @@ class SettingsRescanButton extends StatelessWidget {
 }
 
 /// One row of a [SettingsDropdown]: the [value] it stands for, its [label], an
-/// optional dim [detail] tag after the label, and an optional [description] set
-/// *under* it.
+/// optional dim [detail] tag after the label, an optional [preview] at the end
+/// of the label's line, and an optional [description] set *under* it.
 ///
 /// The two dim slots are not interchangeable: [detail] is a word or two sharing
 /// the label's line at whatever width it asks for, so a sentence put there takes
@@ -1622,12 +1622,18 @@ class SettingsDropdownItem<T> {
     required this.label,
     this.detail,
     this.description,
+    this.preview,
   });
 
   final T value;
   final String label;
   final String? detail;
   final String? description;
+
+  /// A small picture of the choice, for one that is easier seen than named —
+  /// the icon packs' sample glyphs. One line high at most: the row extent is
+  /// measured from the label's line and the description, never from this.
+  final Widget? preview;
 }
 
 /// The card width a described dropdown takes when its caller names none.
@@ -1931,6 +1937,7 @@ class _DropdownRow<T> extends StatelessWidget {
     final theme = ThemeScope.of(context);
     final detail = item.detail;
     final description = item.description;
+    final preview = item.preview;
     final label = Row(
       children: [
         Expanded(
@@ -1950,6 +1957,7 @@ class _DropdownRow<T> extends StatelessWidget {
               color: theme.popupForeground.withValues(alpha: 0.4),
             ),
           ),
+        if (preview != null) ...[const SizedBox(width: 8), preview],
       ],
     );
     if (description == null) return label;

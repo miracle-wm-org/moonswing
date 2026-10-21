@@ -1179,6 +1179,7 @@ name = "Gruvbox"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 blur = 24.0
 
 accent               = "#458588"
@@ -1231,6 +1232,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `name`                 | the filename  | Display name shown in the settings picker                                   |
 | `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups. Any fontconfig family name; the settings picker lists the ones installed (via `fc-list`), and falls back to a free-typed field where there is no fontconfig |
 | `font_size`            | `13.0`        | Size of the shell's body text, in logical pixels, and with it the whole type scale — labels, captions and headings keep their proportions either side of it. Clamped to 6–32. See the note below |
+| `icon_pack`            | `font_awesome` | Which icon font draws the interface icons: `font_awesome`, `material_rounded`, `material_outlined`, `material_sharp`, `lucide` or `remix`. An icon a pack has no drawing for falls back to Font Awesome's. See the note below |
 | `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
 | `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series (see the note below) |
 | `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
@@ -1484,6 +1486,23 @@ Themes written before these keys existed get `scale` at 160 ms on `ease_out`, wh
 Two things it deliberately does not change. **Panel thickness** is `[panels.<name>] height` in `config.toml`, not a theme key — a bar left at its default height crops a much larger font, and the fix is to raise `height` alongside. **Icons** keep the size they are drawn at: a tray icon or a weather glyph is a picture, not type, and their sizes are `[modules.*]` options where they are configurable at all.
 
 Sizes are in logical pixels and clamped to 6–32. The settings editor's **Font size** field is the same key, live: the shell re-lays itself as you type, with no restart.
+
+### About `icon_pack`
+
+Every interface icon in the shell — the bar's buttons, the menus, the settings sidebar, the overview's tabs, the desktop's context menu — is drawn from one icon font, and `icon_pack` picks which:
+
+| Value               | Pack                      | Look                                                                    |
+| ------------------- | ------------------------- | ----------------------------------------------------------------------- |
+| `font_awesome`      | Font Awesome Free         | Solid, heavy glyphs. The default, and every other pack's fallback        |
+| `material_rounded`  | Material Symbols Rounded  | Google's symbols with rounded corners and ends                           |
+| `material_outlined` | Material Symbols Outlined | Google's symbols, outlined, with crisp corners                           |
+| `material_sharp`    | Material Symbols Sharp    | Google's symbols with square corners and ends                            |
+| `lucide`            | Lucide                    | Thin, even strokes and no filled forms                                   |
+| `remix`             | Remix Icon                | Neutral line icons, filled where a state wants to read as on             |
+
+Where Font Awesome tells two states apart by fill alone — a filled folder, a solid record dot — Material Symbols turns its fill axis up and Remix uses its fill style; Lucide has no filled forms, so those keep their outline and are told apart by shape. A pack that has no drawing for an icon borrows Font Awesome's: Material Symbols and Lucide have no brand logos, so GitHub, Linux and Google Drive stay Font Awesome's under both, and Material Symbols has no pull-request glyph. The account marks in **Settings › Accounts** are the brands' own drawings under every pack, as their colours are.
+
+The other packs are drawn a little larger than the size each surface asks for, because their glyphs sit inside a margin on a 24-unit grid where Font Awesome's fill the box — so an icon reads at the same size under every pack, and no bar or row changes height when you switch. Application, tray and file icons come from your desktop icon theme and the weather pictures are Meteocons; neither changes with this key. `font_awesome` is the shipped value, and a theme file that does not spell the key draws exactly what the shell drew before it existed.
 
 ### About `blur`
 

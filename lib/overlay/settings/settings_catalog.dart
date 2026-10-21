@@ -146,6 +146,24 @@ abstract final class SettingsCatalog {
     tags: const ['typeface', 'typography', 'family', 'text'],
   );
 
+  static final iconPack = shellField(
+    'theme.icon_pack',
+    'Icon pack',
+    section: 'Theme',
+    description:
+        'Which icon font draws the icons in the panels, menus and settings. '
+        'An icon a pack does not have is drawn from Font Awesome.',
+    tags: const [
+      'icons',
+      'glyphs',
+      'symbols',
+      'font awesome',
+      'material',
+      'lucide',
+      'remix',
+    ],
+  );
+
   static final fontSize = shellField(
     'theme.font_size',
     'Font size',
@@ -2615,6 +2633,7 @@ abstract final class SettingsCatalog {
     themePicker,
     themeName,
     font,
+    iconPack,
     fontSize,
     panelGradient,
     panelMargin,
