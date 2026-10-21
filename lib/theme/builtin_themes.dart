@@ -51,6 +51,7 @@ name = "Forest"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 # Sea green: the one saturated green, spent on what is active. Dark enough to
 # carry kOnAccent's white, so it fills a button rather than only outlining one.
@@ -147,6 +148,7 @@ name = "Dracula"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 accent               = "#BD93F9"
 foreground           = "#F8F8F2"
@@ -246,6 +248,7 @@ name = "Glassy"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 accent               = "#7FB6FF"
 foreground           = "#F5F7FA"
@@ -375,6 +378,7 @@ name = "Midnight"
 
 font = "Ubuntu Sans"
 font_size = 14.0
+icon_pack = "font_awesome"
 
 # Moonlight over deep water. The accent is an indigo dark enough to hold
 # kOnAccent's white at better than 4:1 — it fills buttons as well as outlining
@@ -529,6 +533,7 @@ name = "Carbon"
 
 font = "Ubuntu Sans"
 font_size = 13.0
+icon_pack = "font_awesome"
 
 # Gray 100 for the deepest surface — the bar and every card alike — Gray 80 and
 # Gray 70 for the states, Gray 40 for secondary text, Gray 10 for text. Blue 60

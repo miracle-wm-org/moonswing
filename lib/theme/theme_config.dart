@@ -6,6 +6,7 @@ import 'dart:ui';
 
 import 'package:flutter/painting.dart' show HSLColor;
 import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/theme/icon_pack.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
@@ -35,15 +36,17 @@ const int _kDefaultOverlayDurationMs = 160;
 ///
 /// [color] goes through [ThemeConfig.formatColor] and its inverse; [number] is a
 /// clamped double; [integer] is read as a double and rounded, so a TOML float
-/// coerces; [flag] and [text] are verbatim. [effect], [overlayEffect] and
-/// [overlayCurve] are each an enum spelled by its slug — closed sets, so an
-/// unknown slug falls back like any other wrongly-typed value.
+/// coerces; [flag] and [text] are verbatim. [iconPack], [effect],
+/// [overlayEffect] and [overlayCurve] are each an enum spelled by its slug —
+/// closed sets, so an unknown slug falls back like any other wrongly-typed
+/// value.
 enum _ThemeKeyKind {
   color,
   number,
   integer,
   flag,
   text,
+  iconPack,
   effect,
   overlayEffect,
   overlayCurve,
@@ -95,6 +98,8 @@ class _ThemeKey {
         return map.boolOr(key, fallback as bool);
       case _ThemeKeyKind.text:
         return map.stringOrNull(key) ?? fallback;
+      case _ThemeKeyKind.iconPack:
+        return IconPack.fromSlug(map.stringOrNull(key)) ?? fallback as IconPack;
       case _ThemeKeyKind.effect:
         return PopupEffect.fromSlug(map.stringOrNull(key)) ??
             fallback as PopupEffect;
@@ -119,6 +124,8 @@ class _ThemeKey {
     switch (kind) {
       case _ThemeKeyKind.color:
         return ThemeConfig.formatColor(value as Color);
+      case _ThemeKeyKind.iconPack:
+        return (value as IconPack).slug;
       case _ThemeKeyKind.effect:
         return (value as PopupEffect).slug;
       case _ThemeKeyKind.overlayEffect:
@@ -541,6 +548,14 @@ class ThemeConfig {
 
   final String fontFamily;
 
+  /// Which icon font draws the interface glyphs — `icon_pack`, and the one key
+  /// that changes every surface's iconography rather than its colour.
+  ///
+  /// Read by `ShellIcon` off the `ThemeScope` above it, so a change restyles
+  /// every open window, popups included. The default is the pack the shell
+  /// drew before the key existed. See [IconPack].
+  final IconPack iconPack;
+
   /// The shell's body text size, and through it every other size in the shell.
   ///
   /// The size [ShellFontSizes.body] names, so the shipped default is that constant
@@ -629,6 +644,7 @@ class ThemeConfig {
     this.overlayCurve = OverlayCurve.easeOut,
     this.scrim = const Color(0x882C2C2C),
     this.fontFamily = 'Ubuntu Sans',
+    this.iconPack = IconPack.fontAwesome,
     this.fontSize = ShellFontSizes.body,
     this.panelTexture = SurfaceMaterial.none,
     this.panelTextureColor = const Color(0xFF6B4A2E),
@@ -657,6 +673,7 @@ class ThemeConfig {
   /// accessor and a function literal is not a constant expression.
   static final List<_ThemeKey> _keys = [
     _ThemeKey('font', _ThemeKeyKind.text, (t) => t.fontFamily),
+    _ThemeKey('icon_pack', _ThemeKeyKind.iconPack, (t) => t.iconPack),
     // A theme file is hand-edited, and the two ends of this key are not
     // symmetrical failures of degree: 0 lays every string out as nothing, and a
     // few hundred leaves one letter on the screen. Either is recoverable only by
@@ -803,6 +820,7 @@ class ThemeConfig {
 
     return ThemeConfig(
       fontFamily: v('font'),
+      iconPack: v('icon_pack'),
       fontSize: v('font_size'),
       accent: v('accent'),
       foreground: v('foreground'),
@@ -869,7 +887,8 @@ class ThemeConfig {
       {for (final k in _keys) k.key: k.encode(this)};
 
   /// The TOML keys [toMap] writes, colours only, in the order the settings
-  /// editor lists them — `font` and `font_size` have their own controls.
+  /// editor lists them — `font`, `icon_pack` and `font_size` have their own
+  /// controls.
   static final List<String> colorKeys = List<String>.unmodifiable([
     for (final k in _keys)
       if (k.kind == _ThemeKeyKind.color) k.key,
