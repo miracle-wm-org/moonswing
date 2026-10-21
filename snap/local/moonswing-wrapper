@@ -168,4 +168,32 @@ if [ "$(cat "$stamp" 2>/dev/null || true)" != "${SNAP_REVISION:-unknown}" ]; the
   register_portal
 fi
 
+# gdk-pixbuf's loaders must be the ones built against the gdk-pixbuf the shell
+# actually loads, which is the staged one: LD_LIBRARY_PATH puts it ahead of the
+# host's. With no GDK_PIXBUF_MODULE_FILE, though, it reads the *host's*
+# loaders.cache — a path compiled into it — and so loads the host's loader
+# modules, whose own dependencies then resolve to whatever is staged. The SVG
+# loader is the one that breaks: librsvg 2.59+ ships it calling
+# rsvg_handle_get_pixbuf_and_error, which core22's staged librsvg-2.so.2 does
+# not have, and GTK aborts on the first themed icon it draws ("Unable to load
+# image-loading module ... undefined symbol"). So the shell gets a cache of the
+# staged loaders, svg included (librsvg2-common is staged for it), generated
+# here because the paths in it are absolute and $SNAP moves every revision.
+#
+# The variable is inherited by everything the shell starts, which is all the
+# host's; lib/host_process.dart takes it back off for them, as it does the
+# staged LD_LIBRARY_PATH entries. A failed generation exports nothing and leaves
+# the shell as it was rather than with no loaders at all.
+pixbuf_dir="$SNAP/usr/lib/x86_64-linux-gnu/gdk-pixbuf-2.0"
+pixbuf_cache="$state_dir/gdk-pixbuf-loaders.cache"
+if mkdir -p "$state_dir" 2>/dev/null &&
+  "$pixbuf_dir/gdk-pixbuf-query-loaders" "$pixbuf_dir"/2.10.0/loaders/*.so \
+    >"$pixbuf_cache.$$" 2>/dev/null &&
+  mv -f "$pixbuf_cache.$$" "$pixbuf_cache"; then
+  export GDK_PIXBUF_MODULE_FILE="$pixbuf_cache"
+else
+  rm -f "$pixbuf_cache.$$" 2>/dev/null || true
+  note "could not index the bundled image loaders; icons may fail to load."
+fi
+
 exec "$SNAP/moonswing" "$@"

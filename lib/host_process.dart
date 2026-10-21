@@ -38,6 +38,14 @@
 // decodes to nothing. Hence [hostProgramEnvironment], which the launch context
 // in `app_info.dart` applies to every application the shell starts.
 //
+// **`GDK_PIXBUF_MODULE_FILE` is the same trap from the other side.** The snap's
+// launcher sets it so the *shell's* staged gdk-pixbuf reads a cache of the
+// staged loaders, not the host's (whose SVG loader needs a newer librsvg than
+// the one staged, and aborts GTK on the first icon). A host program given it
+// would load core22's loaders into the host's gdk-pixbuf — so it is taken off,
+// and *unset* rather than emptied, since gdk-pixbuf opens an empty path as a
+// cache file and is then left with no loaders at all.
+//
 // Outside a snap this is a no-op: nothing sets `SNAP`, so nothing is filtered
 // and the child gets the parent's environment verbatim.
 
@@ -50,24 +58,31 @@ import 'dart:io';
 Future<ProcessResult> runHostProcess(
   String executable,
   List<String> arguments,
-) => Process.run(executable, arguments, environment: hostToolEnvironment());
+) => Process.run(
+  executable,
+  arguments,
+  environment: hostToolEnvironment(),
+  includeParentEnvironment: false,
+);
 
 /// Starts a host program, the [Process.start] signature.
-Future<Process> startHostProcess(
-  String executable,
-  List<String> arguments,
-) => Process.start(executable, arguments, environment: hostToolEnvironment());
+Future<Process> startHostProcess(String executable, List<String> arguments) =>
+    Process.start(
+      executable,
+      arguments,
+      environment: hostToolEnvironment(),
+      includeParentEnvironment: false,
+    );
 
 /// The environment changes a host program needs, as variable to new value —
 /// where a **null** value means the variable must be *unset* in the child, not
 /// set to nothing.
 ///
-/// The distinction exists for the one caller that can act on it. Dart's process
-/// API can override a variable but not remove one, so [hostToolEnvironment]
-/// spells the removal as the empty string the loader ignores; GIO's launch
-/// context has `g_app_launch_context_unsetenv`, so an application launched
-/// through `lib/app_info.dart` is given the environment the host would have
-/// given it exactly, with no `LD_LIBRARY_PATH` at all where the host sets none.
+/// GIO's launch context has `g_app_launch_context_unsetenv`, so an application
+/// launched through `lib/app_info.dart` is given the environment the host would
+/// have given it exactly, with no `LD_LIBRARY_PATH` at all where the host sets
+/// none; [hostToolEnvironment] does the same for [Process] by handing over the
+/// whole environment with the removals left out.
 ///
 /// Empty off a snap, and memoised because `Platform.environment` cannot change
 /// under a running process.
@@ -79,21 +94,31 @@ Map<String, String?>? _hostProgramEnvironment;
 /// [hostProgramEnvironment] against an arbitrary [environment], which is the
 /// half a test on a machine that is not a snap can reach.
 Map<String, String?> hostProgramOverrides(Map<String, String> environment) => {
-      if (hostLibraryPath(environment) case final path?)
-        'LD_LIBRARY_PATH': path.isEmpty ? null : path,
-    };
+  if (hostLibraryPath(environment) case final path?)
+    'LD_LIBRARY_PATH': path.isEmpty ? null : path,
+  if (_isBundledPixbufCache(environment)) 'GDK_PIXBUF_MODULE_FILE': null,
+};
 
-/// [hostProgramEnvironment] in the shape [Process.run] and [Process.start]
-/// take.
+/// The whole environment a host program is started with, in the shape
+/// [Process.run] and [Process.start] take with `includeParentEnvironment:
+/// false` — the parent's, with [hostProgramEnvironment] applied.
 ///
-/// Layered *over* the parent environment rather than replacing it — Dart's
-/// `includeParentEnvironment` defaults to true — so this carries the one key
-/// that needs changing and nothing else.
-Map<String, String> hostToolEnvironment() =>
-    _hostToolEnvironment ??= {
-      for (final MapEntry(:key, :value) in hostProgramEnvironment().entries)
-        key: value ?? '',
-    };
+/// Whole rather than layered over the parent, because a layer can override a
+/// variable but not remove one, and an empty `GDK_PIXBUF_MODULE_FILE` is not
+/// the same as none.
+Map<String, String> hostToolEnvironment() => _hostToolEnvironment ??=
+    hostToolOverrides(Platform.environment, hostProgramEnvironment());
+
+/// [hostToolEnvironment] for an arbitrary [environment] and [overrides].
+Map<String, String> hostToolOverrides(
+  Map<String, String> environment,
+  Map<String, String?> overrides,
+) => {
+  for (final MapEntry(:key, :value) in environment.entries)
+    if (!overrides.containsKey(key)) key: value,
+  for (final MapEntry(:key, :value) in overrides.entries)
+    key: ?value,
+};
 
 Map<String, String>? _hostToolEnvironment;
 
@@ -102,8 +127,8 @@ Map<String, String>? _hostToolEnvironment;
 ///
 /// An empty string is a meaningful answer, not "no change": it is what is left
 /// when *every* entry was ours, and the loader treats an empty
-/// `LD_LIBRARY_PATH` as an unset one. Dart's process API can override a
-/// variable but not unset it, which is the same thing here.
+/// `LD_LIBRARY_PATH` as an unset one; [hostProgramOverrides] turns it into an
+/// unset all the same.
 String? hostLibraryPath(Map<String, String> environment) {
   final path = environment['LD_LIBRARY_PATH'];
   if (path == null || path.isEmpty) return null;
@@ -136,6 +161,21 @@ List<String> _bundlePrefixes(Map<String, String> environment) {
     prefixes.add('/var/lib/snapd/snap/$name');
   }
   return prefixes;
+}
+
+/// Whether `GDK_PIXBUF_MODULE_FILE` is the snap launcher's cache of the staged
+/// loaders: under the bundle, or under the per-user snap directories the
+/// launcher writes it to. A value of the user's own elsewhere is left alone.
+bool _isBundledPixbufCache(Map<String, String> environment) {
+  final file = environment['GDK_PIXBUF_MODULE_FILE'];
+  if (file == null || file.isEmpty) return false;
+  final prefixes = _bundlePrefixes(environment);
+  if (prefixes.isEmpty) return false;
+  for (final key in const ['SNAP_USER_COMMON', 'SNAP_USER_DATA']) {
+    final dir = environment[key];
+    if (dir != null && dir.isNotEmpty) prefixes.add(_trimSlashes(dir));
+  }
+  return _isBundled(file, prefixes);
 }
 
 bool _isBundled(String entry, List<String> prefixes) {

@@ -8,7 +8,8 @@ import 'package:moonswing/host_process.dart';
 Map<String, String> _snapEnvironment({String? libraryPath}) => {
   'SNAP': '/snap/moonswing/42',
   'SNAP_NAME': 'moonswing',
-  'LD_LIBRARY_PATH': libraryPath ??
+  'LD_LIBRARY_PATH':
+      libraryPath ??
       '/snap/moonswing/42/usr/lib/x86_64-linux-gnu:'
           '/snap/moonswing/42/usr/lib/x86_64-linux-gnu/blas:'
           '/snap/moonswing/42/usr/lib/x86_64-linux-gnu/lapack:'
@@ -22,10 +23,7 @@ void main() {
     test('drops every staged entry and keeps the host\'s own', () {
       // The bug: ffmpeg inheriting the first five of these resolves
       // libva.so.2 to core22's, and dies on `undefined symbol: vaMapBuffer2`.
-      expect(
-        hostLibraryPath(_snapEnvironment()),
-        '/home/user/.local/lib',
-      );
+      expect(hostLibraryPath(_snapEnvironment()), '/home/user/.local/lib');
     });
 
     test('answers the empty string when every entry was ours', () {
@@ -33,10 +31,13 @@ void main() {
       // bug. An empty LD_LIBRARY_PATH is what the loader treats as unset, and
       // unsetting is not something the process API can express.
       expect(
-        hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/moonswing/42/lib:'
-              '/snap/moonswing/42/usr/lib/x86_64-linux-gnu',
-        )),
+        hostLibraryPath(
+          _snapEnvironment(
+            libraryPath:
+                '/snap/moonswing/42/lib:'
+                '/snap/moonswing/42/usr/lib/x86_64-linux-gnu',
+          ),
+        ),
         '',
       );
     });
@@ -74,30 +75,36 @@ void main() {
       // launcher or a user adding a path by hand would use — and both are the
       // same directory as $SNAP.
       expect(
-        hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/moonswing/current/lib:'
-              '/var/lib/snapd/snap/moonswing/42/lib:'
-              '/usr/local/lib',
-        )),
+        hostLibraryPath(
+          _snapEnvironment(
+            libraryPath:
+                '/snap/moonswing/current/lib:'
+                '/var/lib/snapd/snap/moonswing/42/lib:'
+                '/usr/local/lib',
+          ),
+        ),
         '/usr/local/lib',
       );
     });
 
     test('does not match a sibling whose name merely starts the same', () {
       expect(
-        hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/moonswing-extras/9/lib:'
-              '/snap/moonswing/42/lib',
-        )),
+        hostLibraryPath(
+          _snapEnvironment(
+            libraryPath:
+                '/snap/moonswing-extras/9/lib:'
+                '/snap/moonswing/42/lib',
+          ),
+        ),
         '/snap/moonswing-extras/9/lib',
       );
     });
 
     test('ignores a trailing slash on either side of the match', () {
       expect(
-        hostLibraryPath(_snapEnvironment(
-          libraryPath: '/snap/moonswing/42/lib/:/usr/lib/oss',
-        )),
+        hostLibraryPath(
+          _snapEnvironment(libraryPath: '/snap/moonswing/42/lib/:/usr/lib/oss'),
+        ),
         '/usr/lib/oss',
       );
     });
@@ -105,10 +112,9 @@ void main() {
 
   group('hostProgramOverrides', () {
     test('carries the filtered path for a launched application', () {
-      expect(
-        hostProgramOverrides(_snapEnvironment()),
-        {'LD_LIBRARY_PATH': '/home/user/.local/lib'},
-      );
+      expect(hostProgramOverrides(_snapEnvironment()), {
+        'LD_LIBRARY_PATH': '/home/user/.local/lib',
+      });
     });
 
     test('asks for an unset, not an empty, path when it was all ours', () {
@@ -116,19 +122,79 @@ void main() {
       // a variable from the child's environment, so an application the shell
       // launches gets the environment the host would have given it exactly.
       expect(
-        hostProgramOverrides(_snapEnvironment(
-          libraryPath: '/snap/moonswing/42/lib',
-        )),
+        hostProgramOverrides(
+          _snapEnvironment(libraryPath: '/snap/moonswing/42/lib'),
+        ),
         {'LD_LIBRARY_PATH': null},
+      );
+    });
+
+    test('unsets the launcher\'s pixbuf loader cache for host programs', () {
+      // The snap's launcher points the shell's staged gdk-pixbuf at a cache of
+      // the staged loaders; a host program given it would load core22's.
+      expect(
+        hostProgramOverrides({
+          ..._snapEnvironment(),
+          'SNAP_USER_COMMON': '/home/user/snap/moonswing/common',
+          'GDK_PIXBUF_MODULE_FILE':
+              '/home/user/snap/moonswing/common/gdk-pixbuf-loaders.cache',
+        }),
+        {
+          'LD_LIBRARY_PATH': '/home/user/.local/lib',
+          'GDK_PIXBUF_MODULE_FILE': null,
+        },
+      );
+    });
+
+    test('leaves a pixbuf loader cache of the user\'s own alone', () {
+      expect(
+        hostProgramOverrides({
+          ..._snapEnvironment(),
+          'SNAP_USER_COMMON': '/home/user/snap/moonswing/common',
+          'GDK_PIXBUF_MODULE_FILE': '/opt/pixbuf/loaders.cache',
+        }),
+        {'LD_LIBRARY_PATH': '/home/user/.local/lib'},
+      );
+      expect(
+        hostProgramOverrides(const {
+          'GDK_PIXBUF_MODULE_FILE': '/snap/moonswing/42/loaders.cache',
+        }),
+        isEmpty,
       );
     });
 
     test('is empty off a snap, so a launch is left verbatim', () {
       expect(
-        hostProgramOverrides(const {'LD_LIBRARY_PATH': '/home/user/.local/lib'}),
+        hostProgramOverrides(const {
+          'LD_LIBRARY_PATH': '/home/user/.local/lib',
+        }),
         isEmpty,
       );
       expect(hostProgramOverrides(const {}), isEmpty);
+    });
+  });
+
+  group('hostToolOverrides', () {
+    test('drops an unset variable rather than emptying it', () {
+      expect(
+        hostToolOverrides(
+          const {
+            'HOME': '/home/user',
+            'LD_LIBRARY_PATH': '/snap/moonswing/42/lib',
+            'GDK_PIXBUF_MODULE_FILE': '/snap/moonswing/42/loaders.cache',
+          },
+          const {
+            'LD_LIBRARY_PATH': '/usr/local/lib',
+            'GDK_PIXBUF_MODULE_FILE': null,
+          },
+        ),
+        {'HOME': '/home/user', 'LD_LIBRARY_PATH': '/usr/local/lib'},
+      );
+    });
+
+    test('is the parent environment verbatim with nothing to change', () {
+      const parent = {'HOME': '/home/user', 'PATH': '/usr/bin'};
+      expect(hostToolOverrides(parent, const {}), parent);
     });
   });
 }
