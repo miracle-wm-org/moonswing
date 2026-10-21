@@ -63,13 +63,22 @@ class NotificationPanelController extends SignalController {
   int get width => _width;
   int _width = kDefaultNotificationPanelWidth;
 
+  /// How it flies out and back, `[modules.notifications] animation*`.
+  DockedPanelAnimation get animation => _animation;
+  DockedPanelAnimation _animation = const DockedPanelAnimation();
+
   /// Pushed by the module's `fromMap`, which runs whether or not any bar
   /// carries the bell: the floating badge opens the same panel. Read by the
   /// root when it creates the window, so an edit moves the next panel, not
   /// the one already docked. Never signals — it is not a request.
-  void configure({required DockSide side, required int width}) {
+  void configure({
+    required DockSide side,
+    required int width,
+    DockedPanelAnimation animation = const DockedPanelAnimation(),
+  }) {
     _side = side;
     _width = width;
+    _animation = animation;
   }
 
   /// Asks the shell to open the panel on [output], or to close it if it is

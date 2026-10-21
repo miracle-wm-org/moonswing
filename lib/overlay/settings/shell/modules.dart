@@ -14,6 +14,8 @@ import 'package:moonswing/clipboard/clipboard_config.dart'
     show ClipboardConfig;
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/desktop/app_chooser.dart' show showAppChooser;
+import 'package:moonswing/docked_panel.dart'
+    show DockedPanelAnimation, DockedPanelEffect;
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/launcher/app_index.dart';
@@ -23,6 +25,7 @@ import 'package:moonswing/modules/dock.dart' show DockConfig;
 import 'package:moonswing/modules/github.dart' show GithubConfig;
 import 'package:moonswing/modules/media_player.dart' show MediaPlayerConfig;
 import 'package:moonswing/modules/network.dart' show NetworkConfig;
+import 'package:moonswing/modules/notifications.dart' show NotificationsConfig;
 import 'package:moonswing/modules/system_tray.dart' show SystemTrayConfig;
 import 'package:moonswing/modules/weather.dart' show WeatherConfig;
 import 'package:moonswing/modules/workspaces.dart' show WorkspacesConfig;
@@ -39,6 +42,7 @@ import 'package:moonswing/scopes.dart';
 import 'package:moonswing/stocks/stock_config.dart' show StockConfig;
 import 'package:moonswing/system/system_monitor_config.dart'
     show SystemMonitorConfig;
+import 'package:moonswing/theme/overlay_effect.dart' show OverlayCurve;
 import 'package:moonswing/timers/timer_sound.dart'
     show kDefaultTimerVolume, kTimerSoundHint;
 
@@ -69,7 +73,9 @@ class _ModuleSetting {
       isInt = false,
       options = null,
       addHint = null,
-      addLabel = null;
+      addLabel = null,
+      labelOf = null,
+      descriptionOf = null;
 
   const _ModuleSetting.number(
     this.field, {
@@ -78,12 +84,16 @@ class _ModuleSetting {
   }) : kind = _Kind.number,
        options = null,
        addHint = null,
-       addLabel = null;
+       addLabel = null,
+      labelOf = null,
+      descriptionOf = null;
 
   const _ModuleSetting.choice(
     this.field, {
     required List<String> this.options,
     required String this.defaultValue,
+    this.labelOf,
+    this.descriptionOf,
   }) : kind = _Kind.choice,
        isInt = false,
        addHint = null,
@@ -100,13 +110,17 @@ class _ModuleSetting {
       defaultValue = null,
       isInt = false,
       options = null,
-      addLabel = null;
+      addLabel = null,
+      labelOf = null,
+      descriptionOf = null;
 
   const _ModuleSetting.stringList(this.field, {this.addHint, this.addLabel})
     : kind = _Kind.stringList,
       defaultValue = null,
       isInt = false,
-      options = null;
+      options = null,
+      labelOf = null,
+      descriptionOf = null;
 
   /// A list of installed applications by desktop id — the dock's pins — shown
   /// by name and icon and added from the application chooser, rather than
@@ -117,7 +131,9 @@ class _ModuleSetting {
       isInt = false,
       options = null,
       addHint = null,
-      addLabel = null;
+      addLabel = null,
+      labelOf = null,
+      descriptionOf = null;
 
   /// The weather location picker.
   ///
@@ -130,7 +146,9 @@ class _ModuleSetting {
       isInt = false,
       options = null,
       addHint = null,
-      addLabel = null;
+      addLabel = null,
+      labelOf = null,
+      descriptionOf = null;
 
   /// The catalogue entry: the row's label, and the config path it edits.
   final SettingsField field;
@@ -157,6 +175,12 @@ class _ModuleSetting {
   /// The choices for a [_Kind.choice] row.
   final List<String>? options;
 
+  /// A [_Kind.choice] row's name and one-line description for an option,
+  /// where the config spelling is not something to show — `ease_in_out`.
+  /// Null names an option by its capitalised spelling and describes none.
+  final String Function(String option)? labelOf;
+  final String? Function(String option)? descriptionOf;
+
   /// Placeholder text: a [_Kind.stringList] row's free-form adder, or the
   /// compiled-in default a [_Kind.text] row falls back to when it is empty.
   final String? addHint;
@@ -164,6 +188,55 @@ class _ModuleSetting {
   /// A [_Kind.stringList] row's add-row label; a bare "Add" when null.
   final String? addLabel;
 }
+
+/// A docked panel's six `animation*` rows, which the notification panel and
+/// the clipboard history carry alike. The defaults are read off the module's
+/// own config, as every row's are.
+List<_ModuleSetting> _flyoutRows({
+  required SettingsField animation,
+  required SettingsField curve,
+  required SettingsField duration,
+  required SettingsField exitRatio,
+  required SettingsField travel,
+  required SettingsField fade,
+  required DockedPanelAnimation defaults,
+}) => [
+  _ModuleSetting.choice(
+    animation,
+    options: [for (final effect in DockedPanelEffect.values) effect.slug],
+    defaultValue: defaults.effect.slug,
+    labelOf: _flyoutEffectLabel,
+    descriptionOf: _flyoutEffectDescription,
+  ),
+  _ModuleSetting.choice(
+    curve,
+    options: [for (final curve in OverlayCurve.values) curve.slug],
+    defaultValue: defaults.curve.slug,
+    labelOf: _flyoutCurveLabel,
+    descriptionOf: _flyoutCurveDescription,
+  ),
+  _ModuleSetting.number(
+    duration,
+    defaultValue: defaults.durationMs,
+    isInt: true,
+  ),
+  _ModuleSetting.number(
+    exitRatio,
+    defaultValue: defaults.exitRatio,
+    isInt: false,
+  ),
+  _ModuleSetting.number(travel, defaultValue: defaults.travel, isInt: false),
+  _ModuleSetting.toggle(fade, defaultValue: defaults.fade),
+];
+
+String _flyoutEffectLabel(String slug) =>
+    DockedPanelEffect.fromSlug(slug)?.label ?? slug;
+String? _flyoutEffectDescription(String slug) =>
+    DockedPanelEffect.fromSlug(slug)?.description;
+String _flyoutCurveLabel(String slug) =>
+    OverlayCurve.fromSlug(slug)?.label ?? slug;
+String? _flyoutCurveDescription(String slug) =>
+    OverlayCurve.fromSlug(slug)?.description;
 
 /// One module's page in Shell › Modules: the card on the module list
 /// that pushes it, and the rows it renders.
@@ -405,7 +478,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ),
   ModuleSettingsPage._(
     'notifications',
-    'Panel side, width and sound',
+    'Panel side, width, animation and sound',
     ShellGlyph.bell,
     [
       // Read when the panel opens, the clipboard history's rule: an edit here
@@ -419,6 +492,15 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.notificationsWidth,
         defaultValue: kDefaultNotificationPanelWidth,
         isInt: true,
+      ),
+      ..._flyoutRows(
+        animation: SettingsCatalog.notificationsAnimation,
+        curve: SettingsCatalog.notificationsAnimationCurve,
+        duration: SettingsCatalog.notificationsAnimationDuration,
+        exitRatio: SettingsCatalog.notificationsAnimationExitRatio,
+        travel: SettingsCatalog.notificationsAnimationTravel,
+        fade: SettingsCatalog.notificationsAnimationFade,
+        defaults: const NotificationsConfig().animation,
       ),
       // A free-typed string rather than a dropdown: the shipped sounds
       // are only five of the answers, and the other two — a name out of the
@@ -503,7 +585,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ),
   ModuleSettingsPage._(
     'clipboard',
-    'Side, width and what is kept',
+    'Side, width, animation and what is kept',
     ShellGlyph.clipboard,
     [
       // Read when the panel opens: an edit here moves the next one, not the
@@ -517,6 +599,15 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.clipboardWidth,
         defaultValue: const ClipboardConfig().width,
         isInt: true,
+      ),
+      ..._flyoutRows(
+        animation: SettingsCatalog.clipboardAnimation,
+        curve: SettingsCatalog.clipboardAnimationCurve,
+        duration: SettingsCatalog.clipboardAnimationDuration,
+        exitRatio: SettingsCatalog.clipboardAnimationExitRatio,
+        travel: SettingsCatalog.clipboardAnimationTravel,
+        fade: SettingsCatalog.clipboardAnimationFade,
+        defaults: const ClipboardConfig().animation,
       ),
       _ModuleSetting.number(
         SettingsCatalog.clipboardMaxEntries,
@@ -676,6 +767,8 @@ class ModuleSettingsSection extends StatelessWidget {
           fallback: setting.defaultValue as String,
           builder: (context, value) => SettingsChoice<String>(
             options: setting.options!,
+            labelOf: setting.labelOf,
+            descriptionOf: setting.descriptionOf,
             value: value!,
             onChanged: (v) => store.set(path, v),
           ),

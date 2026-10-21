@@ -21,7 +21,8 @@ import 'package:moonswing/theme/tokens.dart';
 
 /// `[modules.notifications]`.
 ///
-/// Two keys are about the chime and two about where the panel docks. The panel
+/// Two keys are about the chime, two about where the panel docks and the
+/// `animation*` set about how it gets there. The panel
 /// itself is the root's, the daemon is the shell's, and the silence switch is a
 /// `[notifications]` key because it is a decision about the machine rather than
 /// about a bar module.
@@ -32,6 +33,7 @@ class NotificationsConfig {
     this.soundVolume = kDefaultNotificationSoundVolume,
     this.side = kDefaultNotificationPanelSide,
     this.width = kDefaultNotificationPanelWidth,
+    this.animation = const DockedPanelAnimation(),
   });
 
   /// A shipped voice's slug, a sound-theme name, a path, or `none`.
@@ -48,6 +50,9 @@ class NotificationsConfig {
   /// How wide the panel is, in logical pixels — and so how much of the output
   /// it takes from the windows beside it, since it reserves its own width.
   final int width;
+
+  /// The `animation*` keys: how the panel flies out of its edge and back.
+  final DockedPanelAnimation animation;
 
   factory NotificationsConfig.fromMap(Map<String, dynamic>? map) {
     const defaults = NotificationsConfig();
@@ -66,6 +71,7 @@ class NotificationsConfig {
         min: kDockedPanelMinWidth,
         max: kDockedPanelMaxWidth,
       ),
+      animation: DockedPanelAnimation.fromMap(map),
     );
   }
 
@@ -80,10 +86,11 @@ class NotificationsConfig {
           other.sound == sound &&
           other.soundVolume == soundVolume &&
           other.side == side &&
-          other.width == width;
+          other.width == width &&
+          other.animation == animation;
 
   @override
-  int get hashCode => Object.hash(sound, soundVolume, side, width);
+  int get hashCode => Object.hash(sound, soundVolume, side, width, animation);
 }
 
 /// Bell icon widget that lives in the bar. Lights up and shakes when
@@ -399,7 +406,7 @@ class _BrokenDot extends StatelessWidget {
 
 /// The notification panel: a column docked against one edge of the output,
 /// listing what has arrived. Shaped like the clipboard history and drawn by the
-/// same frame (`lib/docked_panel.dart`) — it slides out of its edge, takes no
+/// same frame (`lib/docked_panel.dart`) — it flies out of its edge, takes no
 /// keyboard, reserves its own width, and stays until its close button, the bell
 /// or the shortcut takes it down.
 ///
@@ -413,12 +420,16 @@ class NotificationPanel extends StatefulWidget {
   const NotificationPanel({
     super.key,
     this.side = kDefaultNotificationPanelSide,
+    this.animation = const DockedPanelAnimation(),
     required this.closingNotifier,
     required this.onClosed,
   });
 
-  /// The edge the window is docked against, which the panel slides in from.
+  /// The edge the window is docked against, which the panel arrives from.
   final DockSide side;
+
+  /// How it arrives and leaves, `[modules.notifications] animation*`.
+  final DockedPanelAnimation animation;
 
   /// Flipped by whoever wants the panel gone — the bell, the header's close
   /// button, the shortcut, or a notification opening what it is about.
@@ -458,6 +469,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
 
     return DockedPanel(
       side: widget.side,
+      animation: widget.animation,
       closingNotifier: widget.closingNotifier,
       onClosed: widget.onClosed,
       child: Column(
@@ -1082,6 +1094,7 @@ final Module notificationsModule = Module.simple<NotificationsConfig>(
     NotificationPanelController.instance.configure(
       side: config.side,
       width: config.width,
+      animation: config.animation,
     );
     return config;
   },
