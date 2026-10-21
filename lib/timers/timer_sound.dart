@@ -28,7 +28,7 @@
 ///   the shell would answer one timer with two sounds a frame apart.
 /// - **A failure is a visible state.** A sound file that has been moved, or an
 ///   mpv that will not open it, leaves [TimerSoundStore.error] set and the
-///   calendar's timers pane renders it. The notification arrives either way,
+///   overview's timer composer renders it. The notification arrives either way,
 ///   which is exactly why the silence needs explaining: an alarm that quietly
 ///   stopped working is indistinguishable from one the user switched off.
 ///
@@ -293,8 +293,8 @@ TimerSoundChoice resolveTimerSound(
 /// What `[modules.clock]` says about the alarm.
 ///
 /// A clock key rather than a section of its own because the clock is where the
-/// shell's timers live: the bar readout hangs off that module and the composer
-/// that starts one is in the calendar page behind it.
+/// shell's timers live: the bar readout hangs off that module and the clock
+/// opens the overview whose corner button starts one.
 @immutable
 class TimerSoundConfig {
   const TimerSoundConfig({
@@ -353,7 +353,7 @@ class TimerSoundStore extends ChangeNotifier {
 
   /// Why the last attempt to play made no sound, or null.
   ///
-  /// Rendered by the calendar's timers pane: the notification arrives either
+  /// Rendered by the overview's timer composer: the notification arrives either
   /// way, so a silent alarm is otherwise indistinguishable from one the user
   /// turned off on purpose.
   String? get error => _error;

@@ -157,6 +157,32 @@ void main() {
     expect(only().total, kMaxTimerDuration);
   });
 
+  test("an entry's place is kept until it is stopped, and only then", () {
+    final a = store.startStopwatch();
+    final b = store.startTimer(const Duration(minutes: 1));
+    expect(store.placeOf(a), isNull);
+
+    var notified = 0;
+    store.addListener(() => notified++);
+    store.place(a, const Offset(10, 20));
+    store.place(b, const Offset(-5, 0));
+    expect(store.placeOf(a), const Offset(10, 20));
+    expect(notified, 2);
+
+    // The same place again is not news.
+    store.place(a, const Offset(10, 20));
+    expect(notified, 2);
+
+    store.stop(a);
+    expect(store.placeOf(a), isNull);
+    // A stopped entry cannot be placed back into existence.
+    store.place(a, const Offset(1, 1));
+    expect(store.placeOf(a), isNull);
+
+    store.stopAll();
+    expect(store.placeOf(b), isNull);
+  });
+
   test('notifies on every mutation', () {
     var notifies = 0;
     store.addListener(() => notifies++);

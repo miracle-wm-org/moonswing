@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show Offset;
 
 import 'package:flutter/foundation.dart';
 
@@ -41,8 +42,8 @@ class ShellTimer {
     this.finished = false,
   });
 
-  /// Stable within a session, and never reused — the popup and the calendar
-  /// page address entries by it.
+  /// Stable within a session, and never reused — the popup and the overview
+  /// address entries by it.
   final int id;
 
   final ShellTimerKind kind;
@@ -109,9 +110,9 @@ class ShellTimer {
 
 /// The shell's timers and stopwatches.
 ///
-/// The singleton-[ChangeNotifier] shape: the calendar page and the clock module's
-/// bar readout are separate widget trees in separate FlutterViews, so a store is
-/// the only thing that can hold state both see.
+/// The singleton-[ChangeNotifier] shape: the overview's floating timers and the
+/// clock module's bar readout are separate widget trees in separate
+/// FlutterViews, so a store is the only thing that can hold state both see.
 ///
 /// Four things a change here has to keep true:
 ///
@@ -125,6 +126,11 @@ class ShellTimer {
 ///  * **The ticker exists only while something runs**, started and stopped by
 ///    [_syncTicker] off every mutation, so an idle shell wakes for this never.
 ///  * **Elapsed time is derived, not counted.** See [ShellTimer.elapsedAt].
+///
+/// It also keeps where the overview draws each entry ([placeOf]), for the
+/// same reason it keeps the entries: the overview is torn down on every close,
+/// and a timer dragged out of the way should be where it was left when the
+/// overview is opened again. Session-only, like the entries themselves.
 class TimersStore extends ChangeNotifier {
   TimersStore._({
     DateTime Function()? now,
@@ -172,6 +178,7 @@ class TimersStore extends ChangeNotifier {
   void Function(ShellTimer entry)? onFinished;
 
   final List<ShellTimer> _entries = [];
+  final Map<int, Offset> _places = {};
   Timer? _ticker;
   int _nextId = 1;
 
@@ -195,6 +202,19 @@ class TimersStore extends ChangeNotifier {
       if (e.id == id) return e;
     }
     return null;
+  }
+
+  /// Where the overview draws the entry with [id]: its centre, measured from
+  /// the overview panel's centre so it travels with the panel. Null until the
+  /// overview has placed it.
+  Offset? placeOf(int id) => _places[id];
+
+  /// Records where the overview has put the entry with [id]. A no-op for an
+  /// entry that has been stopped, and silent when nothing moved.
+  void place(int id, Offset at) {
+    if (entry(id) == null || _places[id] == at) return;
+    _places[id] = at;
+    notifyListeners();
   }
 
   /// Starts a countdown of [duration], and returns its id.
@@ -292,6 +312,7 @@ class TimersStore extends ChangeNotifier {
     final before = _entries.length;
     _entries.removeWhere((e) => e.id == id);
     if (_entries.length == before) return;
+    _places.remove(id);
     _syncTicker();
     notifyListeners();
   }
@@ -299,6 +320,7 @@ class TimersStore extends ChangeNotifier {
   void stopAll() {
     if (_entries.isEmpty) return;
     _entries.clear();
+    _places.clear();
     _syncTicker();
     notifyListeners();
   }

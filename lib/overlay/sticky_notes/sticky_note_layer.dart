@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'package:moonswing/desktop/desktop_menu.dart';
+import 'package:moonswing/overlay/sticky_notes/overview_actions.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_layout.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_note.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
@@ -26,10 +27,12 @@ class StickyNoteLayer extends StatefulWidget {
     required this.offset,
     required this.cardSizeFor,
     required this.opacity,
-    this.reserved = const [],
+    this.reserved = _nothingReserved,
     this.onKeyboardReleased,
     this.store,
   });
+
+  static List<Rect> _nothingReserved() => const [];
 
   /// The panel's offset from the centre of the output (see
   /// [FadeOverlayScaffold.offset]).
@@ -41,8 +44,10 @@ class StickyNoteLayer extends StatefulWidget {
   /// The overview's fade.
   final Animation<double> opacity;
 
-  /// What a new note is never put on top of: the overview's own buttons.
-  final List<Rect> reserved;
+  /// What a new note is never put on top of: the overview's own buttons and
+  /// floating timers. Asked each time a note is placed, since what is there
+  /// moves.
+  final List<Rect> Function() reserved;
 
   /// A note let go of the keyboard.
   final VoidCallback? onKeyboardReleased;
@@ -127,12 +132,23 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
     return placeOverlayCard(surface, size, widget.offset.value) & size;
   }
 
-  /// Every note's rectangle on the output, oldest first.
-  List<Rect> _taken(Rect card, {String? except}) => [
-    ...widget.reserved,
+  /// Every placed note's rectangle on the output as of the last layout,
+  /// oldest first — what anything else floating in the overview keeps clear of.
+  List<Rect> get occupied {
+    if (_surface.isEmpty) return const [];
+    final card = _card(_surface);
+    return [
+      for (final note in _notes.reversed)
+        if (note.placement.isPlaced) stickyRect(_surface, card, note.placement),
+    ];
+  }
+
+  /// Every note's rectangle on the output, oldest first, after whatever else
+  /// is [StickyNoteLayer.reserved].
+  List<Rect> _taken(Rect card) => [
+    ...widget.reserved(),
     for (final note in _notes.reversed)
-      if (note.id != except && note.placement.isPlaced)
-        stickyRect(_surface, card, note.placement),
+      if (note.placement.isPlaced) stickyRect(_surface, card, note.placement),
   ];
 
   /// Adds an empty note in the first free spot around the panel and gives it
@@ -284,7 +300,7 @@ class StickyNoteLayerState extends State<StickyNoteLayer> {
                   if (menu == null) return const SizedBox.shrink();
                   final note = _note(menu.id);
                   if (note == null) return const SizedBox.shrink();
-                  return _StickyMenuLayer(
+                  return OverviewMenuLayer(
                     at: menu.at,
                     card: _menuCard(note, menu.page),
                     onDismiss: dismissMenu,
@@ -399,63 +415,4 @@ class _StickyLayout extends MultiChildLayoutDelegate {
       oldDelegate.offset != offset ||
       oldDelegate.drag != drag ||
       oldDelegate.cardSizeFor != cardSizeFor;
-}
-
-/// A note's menu, drawn in the overview's own window as the todo board's card
-/// menu is: a full-screen overlay never opens a native popup, and there is no
-/// outside of this window for one to need to reach.
-class _StickyMenuLayer extends StatelessWidget {
-  const _StickyMenuLayer({
-    required this.at,
-    required this.card,
-    required this.onDismiss,
-  });
-
-  final Offset at;
-  final Widget card;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onDismiss,
-            onSecondaryTapDown: (_) => onDismiss(),
-          ),
-        ),
-        Positioned.fill(
-          child: CustomSingleChildLayout(
-            delegate: _AtPointerLayout(at),
-            // Absorbs clicks on the card's own chrome, which would otherwise
-            // fall through to the barrier.
-            child: Listener(behavior: HitTestBehavior.opaque, child: card),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Puts the menu's top-left corner at the pointer, slid back onto the output
-/// where it would hang off its right or bottom edge.
-class _AtPointerLayout extends SingleChildLayoutDelegate {
-  const _AtPointerLayout(this.at);
-
-  final Offset at;
-
-  @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
-      constraints.loosen();
-
-  @override
-  Offset getPositionForChild(Size size, Size childSize) => Offset(
-    at.dx.clamp(0, (size.width - childSize.width).clamp(0, double.infinity)),
-    at.dy.clamp(0, (size.height - childSize.height).clamp(0, double.infinity)),
-  );
-
-  @override
-  bool shouldRelayout(_AtPointerLayout oldDelegate) => oldDelegate.at != at;
 }

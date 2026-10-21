@@ -9,6 +9,8 @@ import 'package:moonswing/keybinds/keybind_cheatsheet.dart';
 import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
+import 'package:moonswing/timers/timer_store.dart';
+import 'package:moonswing/timers/timer_widgets.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/overlay/calendar/calendar_tab.dart';
@@ -27,6 +29,7 @@ import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/settings_search_bar.dart';
 import 'package:moonswing/overlay/settings/shell.dart';
 import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/overlay/sticky_notes/floating_timer_layer.dart';
 import 'package:moonswing/overlay/sticky_notes/overview_actions.dart';
 import 'package:moonswing/overlay/sticky_notes/sticky_note_layer.dart';
 import 'package:moonswing/overlay/system/system_tab.dart';
@@ -225,6 +228,11 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   /// and to close its menu before an Escape closes the overview.
   final GlobalKey<StickyNoteLayerState> _stickyNotes = GlobalKey();
 
+  /// The timers and stopwatches floating around the panel, asked to start one
+  /// by the corner buttons and, like the notes, to close what it has open
+  /// before an Escape closes the overview.
+  final GlobalKey<FloatingTimerLayerState> _timers = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -397,8 +405,9 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
               onKeyEvent: (event) {
                 if (event is! KeyDownEvent) return;
                 if (event.logicalKey == LogicalKeyboardKey.escape) {
-                  // A note's open menu is backed out of first, as the board
-                  // backs out of its own.
+                  // A note's or a timer's open menu, or the timer composer,
+                  // is backed out of first, as the board backs out of its own.
+                  if (_timers.currentState?.dismissMenu() ?? false) return;
                   if (_stickyNotes.currentState?.dismissMenu() ?? false) return;
                   _requestClose();
                   return;
@@ -440,22 +449,36 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   /// The overview's corner actions — things done in the overview rather than
-  /// on one of its tabs — and the sticky notes around the panel. The window's
-  /// rather than the panel's, so they are on every tab: the buttons stay in
-  /// the output's corner and the notes travel with the panel.
+  /// on one of its tabs — and the sticky notes and timers around the panel.
+  /// The window's rather than the panel's, so they are on every tab: the
+  /// buttons stay in the output's corner and the notes and timers travel with
+  /// the panel.
   List<OverviewAction> get _actions => [
     OverviewAction(
       icon: FontAwesomeIcons.noteSticky,
       label: 'New note',
       onTap: () => _stickyNotes.currentState?.addNote(),
     ),
+    OverviewAction(
+      icon: timerKindIcon(ShellTimerKind.timer),
+      label: 'Start timer',
+      // Under its own button, which is the second.
+      onTap: () => _timers.currentState?.openComposer(overviewActionRect(1)),
+    ),
+    OverviewAction(
+      icon: timerKindIcon(ShellTimerKind.stopwatch),
+      label: 'Start stopwatch',
+      onTap: () => _timers.currentState?.startStopwatch(),
+    ),
   ];
 
   Widget _buildForeground(BuildContext context, Animation<double> opacity) {
     final actions = _actions;
+    final bar = overviewActionBarRect(actions.length);
     return Stack(
       children: [
-        // Under the notes, so a note's menu barrier covers the buttons too.
+        // Under the notes and timers, so either's menu barrier covers the
+        // buttons too.
         Positioned(
           left: kOverviewActionInset,
           top: kOverviewActionInset,
@@ -470,10 +493,25 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
             offset: _offset,
             cardSizeFor: overlayPanelSize,
             opacity: opacity,
-            reserved: [overviewActionBarRect(actions.length)],
+            reserved: () => [bar, ...?_timers.currentState?.occupied],
             // The keyboard comes back to the panel's listener, so Escape
             // still closes the overview once a note has let go of it.
             onKeyboardReleased: _focusNode.requestFocus,
+          ),
+        ),
+        // Over the notes: a timer is small enough to sit on one, and its
+        // barrier then covers the notes as well.
+        Positioned.fill(
+          child: FloatingTimerLayer(
+            key: _timers,
+            offset: _offset,
+            cardSizeFor: overlayPanelSize,
+            opacity: opacity,
+            reserved: () => [bar, ...?_stickyNotes.currentState?.occupied],
+            onKeyboardReleased: _focusNode.requestFocus,
+            // A note's menu sits under this layer, so it is closed rather than
+            // left open beneath a timer's.
+            onMenuOpened: () => _stickyNotes.currentState?.dismissMenu(),
           ),
         ),
       ],

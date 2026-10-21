@@ -1,6 +1,7 @@
-/// The UI over [TimersStore]: the row-and-controls the calendar page and the
-/// clock module's popup both render, the composer that starts a new entry, and
-/// the readout beside the clock in the bar.
+/// The UI over [TimersStore]: the row-and-controls the clock module's popup
+/// renders, the composer the overview's timer button opens, and the readout
+/// beside the clock in the bar. The overview's floating timers are
+/// `overlay/sticky_notes/floating_timer_layer.dart`.
 ///
 /// Every widget here takes its [TimersStore] as a parameter, defaulting to the
 /// singleton only when it is actually read — the `ClockSource` seam, and what
@@ -22,8 +23,8 @@ import 'package:moonswing/timers/timer_store.dart';
 /// One entry's row in a list. Fixed, so the lists that render entries can be
 /// [ListView]s with an `itemExtent`.
 ///
-/// Sized for the row's two lines at the readable sizes the calendar page moved
-/// to, not for the smallest they could be set at.
+/// Sized for the row's two lines at readable sizes, not for the smallest they
+/// could be set at.
 const double kTimerRowHeight = 48;
 
 /// What the composer's field starts with.
@@ -59,9 +60,8 @@ String timerSubtitle(ShellTimer entry) {
 
 /// One entry: what it is, where it has got to, and its three controls.
 ///
-/// Shared verbatim between the calendar page and the bar popup — the two places
-/// the user can reach a running timer — so a control added here is a control
-/// both of them grow.
+/// The bar popup's row: the way to a running timer while the overview is shut.
+/// The overview's floating timers carry the same verbs in their menus.
 class TimerRow extends StatelessWidget {
   const TimerRow({
     super.key,
@@ -161,16 +161,35 @@ class TimerRow extends StatelessWidget {
   }
 }
 
-/// The duration field and the two Start buttons.
+/// The duration field and its Start button: what the overview's timer button
+/// opens.
 ///
-/// Two rows rather than one: the composer sits in the calendar's clock column,
-/// narrower than a labelled field and two buttons side by side. The field is
-/// labelled because it is the one control on this page a user has to be told what
-/// to put in, and its placeholder spells out the three forms it takes.
+/// The field arrives holding [kDefaultTimerDuration], so "five minutes" is one
+/// Enter or one click, and any other length is typed straight over it. Under
+/// the button goes why the last alarm made no noise, if it made none: this is
+/// where a user goes to set a timer, and the notification arrives whether or
+/// not the sound worked, so an alarm that has quietly stopped working is
+/// otherwise indistinguishable from one they switched off.
 class TimerComposer extends StatefulWidget {
-  const TimerComposer({super.key, required this.store});
+  const TimerComposer({
+    super.key,
+    required this.store,
+    this.sound,
+    this.onStarted,
+    this.autofocus = false,
+  });
 
   final TimersStore store;
+
+  /// Where the alarm's failure is read from, defaulting to the singleton only
+  /// when it is read — a widget test passes its own.
+  final TimerSoundStore? sound;
+
+  /// A countdown was started, with this id.
+  final ValueChanged<int>? onStarted;
+
+  /// Whether the field takes the keyboard as it is first built.
+  final bool autofocus;
 
   @override
   State<TimerComposer> createState() => _TimerComposerState();
@@ -190,24 +209,23 @@ class _TimerComposerState extends State<TimerComposer> {
   void _startTimer() {
     final duration = _parsed;
     if (duration == null) return;
-    widget.store.startTimer(duration);
+    final id = widget.store.startTimer(duration);
     setState(() {
       _text = kDefaultTimerDuration;
       _generation++;
     });
+    widget.onStarted?.call(id);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            // Beside the field rather than over it: every line this composer
-            // takes is a line the list of what is running does not get, and
-            // the section is half a column.
             Text(
               'Duration',
               style: TextStyle(
@@ -222,6 +240,7 @@ class _TimerComposerState extends State<TimerComposer> {
               child: SettingsTextField(
                 key: ValueKey(_generation),
                 initial: kDefaultTimerDuration,
+                autofocus: widget.autofocus,
                 // What the field accepts, shown where a placeholder goes: it
                 // is the answer to "what may I type here?", and it is asked
                 // exactly when the field has been cleared to type something.
@@ -233,160 +252,17 @@ class _TimerComposerState extends State<TimerComposer> {
           ],
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: SettingsActionButton(
-                label: 'Start timer',
-                compact: true,
-                primary: true,
-                // Inert rather than hidden while the field is half-typed: a
-                // button that comes and goes under the pointer is harder to hit
-                // than one that is simply dim.
-                enabled: _parsed != null,
-                onTap: _startTimer,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: SettingsActionButton(
-                label: 'Stopwatch',
-                compact: true,
-                onTap: widget.store.startStopwatch,
-              ),
-            ),
-          ],
+        SettingsActionButton(
+          label: 'Start timer',
+          compact: true,
+          primary: true,
+          // Inert rather than hidden while the field is half-typed: a button
+          // that comes and goes under the pointer is harder to hit than one
+          // that is simply dim.
+          enabled: _parsed != null,
+          onTap: _startTimer,
         ),
-      ],
-    );
-  }
-}
-
-/// The calendar page's timers section: the composer over the list of what is
-/// running.
-///
-/// It sits under the world clocks and is given half of what is left below them,
-/// so the creator is on screen without a scroll and the entries grow into the
-/// same space. It adds no horizontal padding of its own — the column supplies
-/// that, and a second inset would step the section in from the clocks above.
-class TimersPane extends StatelessWidget {
-  const TimersPane({super.key, required this.active, this.store, this.sound});
-
-  /// Whether the calendar is the tab the user is looking at.
-  ///
-  /// Required, not defaulted, for `CalendarTab.active`'s reason: the overlay body
-  /// is an `IndexedStack` that keeps every tab alive, and the store notifies four
-  /// times a second while anything runs — so a pane that subscribed
-  /// unconditionally would re-lay its rows behind whatever tab the user moved on
-  /// to. Inactive, it builds one static snapshot and listens to nothing.
-  final bool active;
-
-  /// Defaults to the singleton, and only when it is read — a widget test passes
-  /// its own so no ticker is ever started behind the test zone.
-  final TimersStore? store;
-
-  /// Where the alarm's failure is read from, defaulting to the singleton on the
-  /// same terms as [store].
-  ///
-  /// It is rendered here because this pane is the one place a user goes to set
-  /// a timer: the notification arrives whether or not the sound worked, so an
-  /// alarm that has quietly stopped working is otherwise indistinguishable from
-  /// one they switched off.
-  final TimerSoundStore? sound;
-
-  @override
-  Widget build(BuildContext context) {
-    final store = this.store ?? TimersStore.instance;
-    final sound = this.sound ?? TimerSoundStore.instance;
-    return active
-        ? ListenableBuilder(
-            listenable: store,
-            builder: (context, _) => _buildContent(context, store, sound),
-          )
-        : _buildContent(context, store, sound);
-  }
-
-  Widget _buildContent(
-    BuildContext context,
-    TimersStore store,
-    TimerSoundStore sound,
-  ) {
-    final theme = ThemeScope.of(context);
-    final now = store.now;
-    final entries = store.entries;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Timers & stopwatches',
-                style: TextStyle(
-                  fontSize: ShellFontSizes.label,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (entries.length > 1)
-              SettingsActionButton(
-                label: 'Stop all',
-                compact: true,
-                onTap: store.stopAll,
-              ),
-          ],
-        ),
-        // Its own subscription rather than a merge with the entries above it.
-        // Two reasons, and they pull the same way: the alarm's reason changes
-        // at most once per countdown while the rows tick four times a second,
-        // and `Listenable.merge` built in a `build` mints a fresh object every
-        // rebuild, which an `AnimatedWidget` answers by re-subscribing — sixty
-        // times a minute here, to a store that almost never moves.
-        _TimerSoundError(sound: sound, listening: active),
-        const SizedBox(height: 8),
-        Expanded(
-          // The composer is the list's first item rather than a fixed header over
-          // it. This section is half of a column whose height follows the
-          // output's, so on a short display that half can be shorter than the
-          // composer is tall: as a header that overflows, as an item it scrolls,
-          // and the rows keep their fixed extent either way.
-          child: ListView.builder(
-            padding: EdgeInsets.zero,
-            itemCount: entries.length + 1,
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TimerComposer(store: store),
-                      if (entries.isEmpty) ...[
-                        const SizedBox(height: 14),
-                        Text(
-                          'Nothing running. Start one to see it beside the '
-                          'clock.',
-                          style: TextStyle(
-                            fontSize: ShellFontSizes.body,
-                            fontFamily: theme.fontFamily,
-                            color: theme.muted,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              }
-              final entry = entries[index - 1];
-              return SizedBox(
-                height: kTimerRowHeight,
-                child: TimerRow(entry: entry, now: now, store: store),
-              );
-            },
-          ),
-        ),
+        _TimerSoundError(sound: widget.sound ?? TimerSoundStore.instance),
       ],
     );
   }
@@ -395,24 +271,18 @@ class TimersPane extends StatelessWidget {
 /// Why the last alarm made no noise, or nothing at all.
 ///
 /// Its own widget so it is its own subscription and its own repaint boundary:
-/// the rows above it re-lay themselves four times a second, and a reason that
-/// rebuilt with them would be measuring a paragraph on every tick.
+/// the reason changes at most once per countdown, and the field above it on
+/// every keystroke.
 class _TimerSoundError extends StatelessWidget {
-  const _TimerSoundError({required this.sound, required this.listening});
+  const _TimerSoundError({required this.sound});
 
   final TimerSoundStore sound;
 
-  /// False on an inactive tab, which subscribes to nothing at all — the pane's
-  /// own rule, for the reason `TimersPane.active` documents.
-  final bool listening;
-
   @override
-  Widget build(BuildContext context) => listening
-      ? ListenableBuilder(
-          listenable: sound,
-          builder: (context, _) => _build(context),
-        )
-      : _build(context);
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: sound,
+    builder: (context, _) => _build(context),
+  );
 
   Widget _build(BuildContext context) {
     final reason = sound.error;
@@ -420,7 +290,7 @@ class _TimerSoundError extends StatelessWidget {
     final theme = ThemeScope.of(context);
     return RepaintBoundary(
       child: Padding(
-        padding: const EdgeInsets.only(top: 6),
+        padding: const EdgeInsets.only(top: 8),
         child: Text(
           reason,
           style: TextStyle(
@@ -438,8 +308,8 @@ class _TimerSoundError extends StatelessWidget {
 ///
 /// The card is built once and captured in a `WindowEntry` builder, so it reads
 /// the theme from its own [ThemeScope] and the entries from the store — both
-/// live, which keeps an open popup in step with a timer stopped from the calendar
-/// page and with a theme changed underneath it.
+/// live, which keeps an open popup in step with a timer stopped from the
+/// overview and with a theme changed underneath it.
 class TimersPopupContent extends StatelessWidget {
   const TimersPopupContent({super.key, this.store});
 
