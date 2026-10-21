@@ -656,40 +656,50 @@ class _CalendarHeader extends StatelessWidget {
     final events = this.events;
     return Row(
       children: [
-        Flexible(
-          child: Text(
-            title,
-            maxLines: 1,
-            softWrap: false,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: ShellFontSizes.heading,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground,
-              fontWeight: FontWeight.w600,
-            ),
+        // The title takes every pixel the controls leave, so the controls are
+        // pinned to the end and a title that changes length with the view
+        // cannot move them. (A `Flexible` title beside a `Spacer` split the
+        // free space between the two, and the controls followed the title.)
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: ShellFontSizes.heading,
+                    fontFamily: theme.fontFamily,
+                    color: theme.popupForeground,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (events != null)
+                // Only while nothing is on screen yet: a refresh behind events
+                // already shown is not worth a spinner.
+                StoreSelector<bool>(
+                  listenable: events,
+                  selector: () => events.loading,
+                  builder: (context, loading) => loading
+                      ? const Padding(
+                          padding: EdgeInsets.only(left: 10),
+                          child: LoadingIndicator(size: 14),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+            ],
           ),
         ),
-        if (events != null)
-          // Only while nothing is on screen yet: a refresh behind events
-          // already shown is not worth a spinner.
-          StoreSelector<bool>(
-            listenable: events,
-            selector: () => events.loading,
-            builder: (context, loading) => loading
-                ? const Padding(
-                    padding: EdgeInsets.only(left: 10),
-                    child: LoadingIndicator(size: 14),
-                  )
-                : const SizedBox.shrink(),
-          ),
-        const Spacer(),
         if (view != null) ...[
           const SizedBox(width: 12),
           SettingsSegmented(
             options: [for (final v in CalendarView.values) v.name],
             value: view.name,
             onChanged: (name) => onView(CalendarView.values.byName(name)),
+            equalWidths: true,
           ),
           const SizedBox(width: 12),
         ],
