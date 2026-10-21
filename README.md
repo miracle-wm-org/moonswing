@@ -15,6 +15,10 @@
   <a href="https://miracle-wm-org.github.io/moonswing/configuration/">Configuration</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/miracle-wm-org/moonswing/actions/workflows/sloc.yml"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmiracle-wm-org%2Fmoonswing%2Fbadges%2Fsloc.json" alt="Source lines of code"></a>
+</p>
+
 The purpose of this project is to:
 
 1. Stress test Flutter

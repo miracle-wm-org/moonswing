@@ -1,0 +1,67 @@
+name: SLOC
+
+# Counts the source lines on main (blank and comment lines excluded) and
+# publishes them as a shields.io endpoint on the `badges` branch, which the
+# README's badge reads. Prose and data are left out: Markdown, the protocol
+# XMLs copied from upstream, SVGs, JSON and the licence text.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sloc
+  cancel-in-progress: true
+
+env:
+  SCC_VERSION: 3.5.0
+  SCC_SHA256: 6c31f4d0cf3b7a8c5ca910fa4e451949434798f6541ec5dea4b83f4973e13772
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install scc
+        run: |
+          curl -sSLf -o "$RUNNER_TEMP/scc.tgz" \
+            "https://github.com/boyter/scc/releases/download/v${SCC_VERSION}/scc_Linux_x86_64.tar.gz"
+          echo "${SCC_SHA256}  $RUNNER_TEMP/scc.tgz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/scc.tgz" -C "$RUNNER_TEMP" scc
+      - name: Count
+        run: |
+          args=(--exclude-ext md,mdx,xml,svg,json --not-match '^LICENSE$' .)
+          { echo '```'; "$RUNNER_TEMP/scc" --no-cocomo "${args[@]}"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          code=$("$RUNNER_TEMP/scc" --format json "${args[@]}" | jq '[.[].Code] | add')
+          message=$(awk -v n="$code" 'BEGIN {
+            if (n >= 1e6) printf "%.2fM", n / 1e6
+            else if (n >= 1e3) printf "%.1fk", n / 1e3
+            else printf "%d", n
+          }')
+          jq -n --arg message "$message" \
+            '{schemaVersion: 1, label: "SLOC", message: $message, color: "blue"}' \
+            > "$RUNNER_TEMP/sloc.json"
+          echo "$code lines of code ($message)"
+      # One orphan commit, force-pushed, so the branch never grows a history;
+      # skipped when the figure has not moved.
+      - name: Publish to the badges branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git fetch -q --depth=1 origin badges 2>/dev/null &&
+             git show FETCH_HEAD:sloc.json | cmp -s - "$RUNNER_TEMP/sloc.json"; then
+            echo 'Unchanged.'
+            exit 0
+          fi
+          dir="$RUNNER_TEMP/badges"
+          git init -q -b badges "$dir"
+          cp "$RUNNER_TEMP/sloc.json" "$dir/"
+          cd "$dir"
+          git add sloc.json
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "SLOC for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:badges
