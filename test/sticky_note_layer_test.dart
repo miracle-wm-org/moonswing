@@ -48,7 +48,7 @@ void main() {
               offset: offset,
               cardSizeFor: _cardSize,
               opacity: kAlwaysCompleteAnimation,
-              reserved: [overviewActionBarRect(1)],
+              reserved: () => [overviewActionBarRect(1)],
               onKeyboardReleased: () => released++,
               store: store,
             ),

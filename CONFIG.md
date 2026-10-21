@@ -167,9 +167,12 @@ time it opens, until the shell restarts. It cannot be resized.
 #### When a timer is up
 
 The shell's timers live behind the clock: the readout appears beside the time
-while one runs, the popup under it pauses and stops them, and the calendar
-overlay's **Timers & stopwatches** section is where one is started. So the keys
-that decide what a finished countdown sounds like are `[modules.clock]` keys.
+while one runs, the popup under it pauses and stops them, and the overview the
+clock opens is where one is started — the hourglass and stopwatch buttons in its
+top-left corner, beside the sticky-note button. Each timer then floats around
+the overview's panel as a card you can drag anywhere, and right-clicking one
+pauses, resumes, resets or removes it. So the keys that decide what a finished
+countdown sounds like are `[modules.clock]` keys.
 
 A countdown reaching zero does two things, and it does both every time:
 
@@ -207,8 +210,8 @@ timer is silent and notified, not silent and chimed.
   `timer_sound = "complete"` finds
   `/usr/share/sounds/freedesktop/stereo/complete.oga`.
 
-A name that resolves to nothing is *not* silence: the calendar overlay's timers
-section says so and names what it could not find. The notification arrives
+A name that resolves to nothing is *not* silence: the card the overview's timer
+button opens says so and names what it could not find. The notification arrives
 either way, which is why it needs saying.
 
 Several countdowns set to the same minute ring **once**, not once each — the
