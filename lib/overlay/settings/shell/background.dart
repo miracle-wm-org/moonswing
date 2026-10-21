@@ -249,7 +249,7 @@ class _BackgroundSectionState extends State<BackgroundSection> {
                 store: store,
                 path: const ['background', 'fit'],
                 fallback: 'fill',
-                builder: (context, value) => SettingsSegmented(
+                builder: (context, value) => SettingsChoice<String>(
                   options: const ['fill', 'contain', 'natural'],
                   value: value!,
                   onChanged: (v) => store.set(['background', 'fit'], v),

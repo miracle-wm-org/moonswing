@@ -44,17 +44,22 @@ void main() {
     final store = fakePowerStore(profiles: profiles);
     await pump(tester, store);
 
-    Finder mode(String label) => find.descendant(
-      of: find.byType(SettingsOptionButton),
-      matching: find.text(label),
+    // The trigger shows the mode in use; the list, once open, the rest.
+    final trigger = find.descendant(
+      of: find.byType(SettingsChoice<String>),
+      matching: find.text('Balanced'),
     );
-    expect(mode('Power Saver'), findsOneWidget);
-    expect(mode('Balanced'), findsOneWidget);
-    expect(mode('Performance'), findsOneWidget);
+    expect(trigger, findsOneWidget);
+    expect(find.text('Power Saver'), findsNothing);
     // No TuneD on this machine: no TuneD section.
     expect(find.text('TUNED'), findsNothing);
 
-    await tester.tap(mode('Performance'));
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
+    expect(find.text('Power Saver'), findsOneWidget);
+    expect(find.text('Performance'), findsOneWidget);
+
+    await tester.tap(find.text('Performance'));
     await tester.pumpAndSettle();
     expect(profiles.setProfiles, ['performance']);
     expect(store.state!.active, 'performance');

@@ -159,17 +159,17 @@ class _PowerSettingsPageState extends State<PowerSettingsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final profile in state.profiles)
-                      SettingsOptionButton(
-                        label: powerProfileLabel(profile.profile),
-                        selected: profile.profile == state.active,
-                        onTap: () => _store.setProfile(profile.profile),
-                      ),
+                child: SettingsChoice<String>(
+                  options: [
+                    for (final profile in state.profiles) profile.profile,
                   ],
+                  value: state.active,
+                  labelOf: powerProfileLabel,
+                  descriptionOf: (id) {
+                    final description = powerProfileDescription(id);
+                    return description.isEmpty ? null : description;
+                  },
+                  onChanged: _store.setProfile,
                 ),
               ),
               if (pending != null) ...[

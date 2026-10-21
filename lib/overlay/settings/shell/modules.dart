@@ -45,7 +45,7 @@ import 'package:moonswing/timers/timer_sound.dart'
 enum _Kind {
   toggle,
   number,
-  segmented,
+  choice,
   text,
   stringList,
   appList,
@@ -79,11 +79,11 @@ class _ModuleSetting {
        addHint = null,
        addLabel = null;
 
-  const _ModuleSetting.segmented(
+  const _ModuleSetting.choice(
     this.field, {
     required List<String> this.options,
     required String this.defaultValue,
-  }) : kind = _Kind.segmented,
+  }) : kind = _Kind.choice,
        isInt = false,
        addHint = null,
        addLabel = null;
@@ -153,7 +153,7 @@ class _ModuleSetting {
   /// [SettingsNumberField.isInt] for [_Kind.number] rows.
   final bool isInt;
 
-  /// The choices for a [_Kind.segmented] row.
+  /// The choices for a [_Kind.choice] row.
   final List<String>? options;
 
   /// Placeholder text: a [_Kind.stringList] row's free-form adder, or the
@@ -249,7 +249,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
     FontAwesomeIcons.cloudSun,
     [
       _ModuleSetting.weatherLocation(SettingsCatalog.weatherLocation),
-      _ModuleSetting.segmented(
+      _ModuleSetting.choice(
         SettingsCatalog.weatherUnit,
         options: const ['fahrenheit', 'celsius'],
         defaultValue: const WeatherConfig().unit,
@@ -363,7 +363,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         defaultValue: const SystemMonitorConfig().pollSeconds,
         isInt: true,
       ),
-      _ModuleSetting.segmented(
+      _ModuleSetting.choice(
         SettingsCatalog.systemMonitorTempUnit,
         options: const ['celsius', 'fahrenheit'],
         defaultValue: const SystemMonitorConfig().tempUnit,
@@ -375,7 +375,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       ),
       // "machine" makes the process rows sum to the total CPU gauge; "core" is
       // top-style, where 100% is one saturated core.
-      _ModuleSetting.segmented(
+      _ModuleSetting.choice(
         SettingsCatalog.systemMonitorCpuPercentMode,
         options: const ['machine', 'core'],
         defaultValue: const SystemMonitorConfig().cpuPercentMode.name,
@@ -409,7 +409,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
     [
       // Read when the panel opens, the clipboard history's rule: an edit here
       // moves the next one, not the one already docked.
-      _ModuleSetting.segmented(
+      _ModuleSetting.choice(
         SettingsCatalog.notificationsSide,
         options: const ['left', 'right'],
         defaultValue: kDefaultNotificationPanelSide.configName,
@@ -419,7 +419,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         defaultValue: kDefaultNotificationPanelWidth,
         isInt: true,
       ),
-      // A free-typed string rather than a segmented control: the shipped sounds
+      // A free-typed string rather than a dropdown: the shipped sounds
       // are only five of the answers, and the other two — a name out of the
       // machine's sound theme, and a path to a file of the user's own — are
       // exactly the ones a fixed list cannot hold. The hint names the shipped
@@ -507,7 +507,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
     [
       // Read when the panel opens: an edit here moves the next one, not the
       // one already docked.
-      _ModuleSetting.segmented(
+      _ModuleSetting.choice(
         SettingsCatalog.clipboardSide,
         options: const ['left', 'right'],
         defaultValue: const ClipboardConfig().side.configName,
@@ -578,7 +578,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.recorderDirectory,
         addHint: '~/$kDefaultRecordingDirectory',
       ),
-      _ModuleSetting.segmented(
+      _ModuleSetting.choice(
         SettingsCatalog.recorderContainer,
         options: kRecorderContainers,
         defaultValue: const RecorderConfig().container,
@@ -668,12 +668,12 @@ class ModuleSettingsSection extends StatelessWidget {
             onChanged: (v) => store.set(path, v),
           ),
         );
-      case _Kind.segmented:
+      case _Kind.choice:
         return ConfigValue<String>(
           store: store,
           path: path,
           fallback: setting.defaultValue as String,
-          builder: (context, value) => SettingsSegmented(
+          builder: (context, value) => SettingsChoice<String>(
             options: setting.options!,
             value: value!,
             onChanged: (v) => store.set(path, v),

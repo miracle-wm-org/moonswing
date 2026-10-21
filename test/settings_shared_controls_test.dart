@@ -131,4 +131,39 @@ void main() {
     await tester.tap(find.text('Shift'));
     expect(latest, isEmpty);
   });
+
+  // The settings form's single choice is a dropdown: the trigger names the
+  // value in use, capitalised as the pills it replaced were, and the rest are
+  // only on screen once it is opened.
+  testWidgets('SettingsChoice shows the value and reports a pick',
+      (tester) async {
+    String? picked;
+    await tester.pumpWidget(_host(Overlay(
+      initialEntries: [
+        OverlayEntry(
+          builder: (_) => Center(
+            child: SizedBox(
+              width: 200,
+              child: SettingsChoice<String>(
+                options: const ['top', 'bottom', 'left', 'right'],
+                value: 'top',
+                onChanged: (value) => picked = value,
+              ),
+            ),
+          ),
+        ),
+      ],
+    )));
+
+    expect(find.text('Top'), findsOneWidget);
+    expect(find.text('Bottom'), findsNothing);
+    _expectAllTextThemed(tester);
+
+    await tester.tap(find.text('Top'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('Left'));
+    await tester.pump();
+    expect(picked, 'left');
+  });
 }
