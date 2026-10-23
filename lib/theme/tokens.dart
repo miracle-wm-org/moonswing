@@ -56,6 +56,11 @@ abstract final class ShellDurations {
   ///
   /// The default, as [popupIn] is. See `lib/popup_transition.dart`.
   static const Duration popupOut = Duration(milliseconds: 112);
+
+  /// How long a theme switch takes to blend one palette into the next — see
+  /// `ThemeTransition`. Slower than any control's feedback, because the whole
+  /// shell is changing colour at once and a snap that size reads as a flash.
+  static const Duration themeSwitch = Duration(milliseconds: 400);
 }
 
 /// Corner radii. The scale observed across the shell, named.

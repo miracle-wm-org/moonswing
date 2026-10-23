@@ -58,13 +58,16 @@ enum _ThemeKeyKind {
 /// lives on a [ThemeConfig].
 ///
 /// [ThemeConfig._keys] is the single place a key is described: `fromMap`'s parse
-/// rules, `toMap`, [ThemeConfig.colorKeys], `==` and `hashCode` are all derived
-/// from it. Adding a key means declaring the field, giving the constructor its
-/// default, adding one row, and linking key to parameter in `fromMap`. A key
+/// rules, `toMap`, [ThemeConfig.colorKeys], [ThemeConfig.blend], `==` and
+/// `hashCode` are all derived from it. Adding a key means declaring the field,
+/// giving the constructor its default, adding one row, and linking key to
+/// parameter in `_fromValues`. A key
 /// cannot be *partially* added — the built-in themes' round-trip test fails on
-/// any row `fromMap` forgets, and `fromMap` throws on a key the table lacks.
+/// any row `_fromValues` forgets, and it throws on a key the table lacks.
 class _ThemeKey {
-  const _ThemeKey(this.key, this.kind, this.get, {this.min, this.max});
+  const _ThemeKey(this.key, this.kind, this.get,
+      {this.min, this.max, bool? blend})
+      : _blend = blend;
 
   final String key;
   final _ThemeKeyKind kind;
@@ -78,6 +81,29 @@ class _ThemeKey {
   /// every number is clamped.
   final double? min;
   final double? max;
+
+  final bool? _blend;
+
+  /// Whether a theme *switch* moves this key gradually rather than at once —
+  /// see [ThemeConfig.blend]. Colours do unless their row says otherwise;
+  /// nothing else does unless its row says so.
+  bool get blends => _blend ?? kind == _ThemeKeyKind.color;
+
+  /// This key's value [t] of the way from [a]'s to [b]'s, for a key that
+  /// [blends]; [b]'s otherwise.
+  Object between(ThemeConfig a, ThemeConfig b, double t) {
+    final to = get(b);
+    if (!blends) return to;
+    final from = get(a);
+    switch (kind) {
+      case _ThemeKeyKind.color:
+        return Color.lerp(from as Color, to as Color, t)!;
+      case _ThemeKeyKind.number:
+        return lerpDouble(from as double, to as double, t)!;
+      default:
+        return to;
+    }
+  }
 
   /// Parses this key out of [map] with the TomlReader discipline: a
   /// wrongly-typed value costs this one key, never the theme.
@@ -681,7 +707,7 @@ class ThemeConfig {
     // any size the bars can hold at their default height, which is the panel's
     // problem rather than this key's.
     _ThemeKey('font_size', _ThemeKeyKind.number, (t) => t.fontSize,
-        min: 6.0, max: 32.0),
+        min: 6.0, max: 32.0, blend: true),
     _ThemeKey('accent', _ThemeKeyKind.color, (t) => t.accent),
     _ThemeKey('foreground', _ThemeKeyKind.color, (t) => t.foreground),
     _ThemeKey('surface_hover', _ThemeKeyKind.color, (t) => t.surfaceHover),
@@ -755,19 +781,26 @@ class ThemeConfig {
         'overlay_animation_curve', _ThemeKeyKind.overlayCurve, (t) => t.overlayCurve),
     _ThemeKey('scrim', _ThemeKeyKind.color, (t) => t.scrim),
     _ThemeKey('panel_texture', _ThemeKeyKind.material, (t) => t.panelTexture),
-    _ThemeKey(
-        'panel_texture_color', _ThemeKeyKind.color, (t) => t.panelTextureColor),
+    // The decor tints never blend: each is what a material tile or a plant's
+    // picture is *generated* in, so a tint that moved every frame would grow
+    // the bar's foliage and draw its tiles afresh twenty times in a switch.
+    _ThemeKey('panel_texture_color', _ThemeKeyKind.color,
+        (t) => t.panelTextureColor,
+        blend: false),
     _ThemeKey(
         'panel_end_texture', _ThemeKeyKind.material, (t) => t.panelEndTexture),
-    _ThemeKey('panel_end_color', _ThemeKeyKind.color, (t) => t.panelEndColor),
+    _ThemeKey('panel_end_color', _ThemeKeyKind.color, (t) => t.panelEndColor,
+        blend: false),
     _ThemeKey('panel_end_length', _ThemeKeyKind.number, (t) => t.panelEndLength,
         min: 0.0, max: 256.0),
     _ThemeKey('panel_bevel', _ThemeKeyKind.number, (t) => t.panelBevel,
         min: 0.0, max: 1.0),
     _ThemeKey('panel_image', _ThemeKeyKind.text, (t) => t.panelImage),
     _ThemeKey('panel_foliage', _ThemeKeyKind.foliage, (t) => t.panelFoliage),
-    _ThemeKey('foliage_color', _ThemeKeyKind.color, (t) => t.foliageColor),
-    _ThemeKey('foliage_bloom', _ThemeKeyKind.color, (t) => t.foliageBloom),
+    _ThemeKey('foliage_color', _ThemeKeyKind.color, (t) => t.foliageColor,
+        blend: false),
+    _ThemeKey('foliage_bloom', _ThemeKeyKind.color, (t) => t.foliageBloom,
+        blend: false),
     // A multiplier on a recipe, so 0 is a bare bar and the ceiling is where a
     // bar is more leaf than bar — and every plant is a path the painter walks.
     _ThemeKey('foliage_density', _ThemeKeyKind.number, (t) => t.foliageDensity,
@@ -777,12 +810,13 @@ class ThemeConfig {
     _ThemeKey('panel_overhang', _ThemeKeyKind.integer, (t) => t.panelOverhang,
         min: 0.0, max: 160.0),
     _ThemeKey('popup_texture', _ThemeKeyKind.material, (t) => t.popupTexture),
-    _ThemeKey(
-        'popup_texture_color', _ThemeKeyKind.color, (t) => t.popupTextureColor),
+    _ThemeKey('popup_texture_color', _ThemeKeyKind.color,
+        (t) => t.popupTextureColor,
+        blend: false),
     _ThemeKey('popup_border_texture', _ThemeKeyKind.material,
         (t) => t.popupBorderTexture),
     _ThemeKey('popup_border_texture_color', _ThemeKeyKind.color,
-        (t) => t.popupBorderTextureColor),
+        (t) => t.popupBorderTextureColor, blend: false),
     _ThemeKey('popup_image', _ThemeKeyKind.text, (t) => t.popupImage),
     _ThemeKey('popup_roots', _ThemeKeyKind.number, (t) => t.popupRoots,
         min: 0.0, max: 96.0),
@@ -810,13 +844,35 @@ class ThemeConfig {
     // A theme file is hand-editable, so every read goes through TomlReader — a
     // wrongly-typed value costs that one key, not the theme — and every number is
     // clamped into a range that cannot crash a painter. Kind, clamp and default
-    // come from [_keys]; the constructor call below only links each TOML key to
-    // its named parameter, which Dart cannot do dynamically.
+    // come from [_keys]; [_fromValues] only links each TOML key to its named
+    // parameter.
     const defaults = ThemeConfig();
-    final parsed = <String, Object>{
+    return ThemeConfig._fromValues({
       for (final k in _keys) k.key: k.parse(map, k.get(defaults)),
-    };
-    T v<T>(String key) => parsed[key] as T;
+    });
+  }
+
+  /// The theme on screen [t] of the way through a switch from [from] to [to].
+  ///
+  /// Only the keys whose row [_ThemeKey.blends] move gradually — the palette
+  /// and `font_size`. Everything else is [to]'s from the first frame, `t` 0
+  /// included, which is why this is not a `lerp`: geometry such as
+  /// `panel_overhang` and `popup_gap` sizes native surfaces and decides modes,
+  /// and has to land in the same frame the store's own readers see it; a font
+  /// family, an icon pack or an animation has no halfway; and the decor tints
+  /// would regenerate their tiles every frame. [t] at 1 or beyond is [to]
+  /// itself.
+  static ThemeConfig blend(ThemeConfig from, ThemeConfig to, double t) {
+    if (t >= 1.0 || identical(from, to)) return to;
+    return ThemeConfig._fromValues({
+      for (final k in _keys) k.key: k.between(from, to, t),
+    });
+  }
+
+  /// Links each key's value in [values] to its named parameter, which Dart
+  /// cannot do dynamically; shared by [fromMap] and [blend].
+  factory ThemeConfig._fromValues(Map<String, Object> values) {
+    T v<T>(String key) => values[key] as T;
 
     return ThemeConfig(
       fontFamily: v('font'),

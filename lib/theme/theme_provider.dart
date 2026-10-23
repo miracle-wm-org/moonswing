@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/theme_store.dart';
+import 'package:moonswing/theme/theme_transition.dart';
 
 /// Provides the live palette to a widget subtree.
 ///
@@ -29,6 +30,11 @@ import 'package:moonswing/theme/theme_store.dart';
 /// `Directionality` preamble that widget is retiring, and every themed tree in
 /// the shell is under a [ThemeProvider] by construction.
 ///
+/// What it follows is [ThemeTransition.instance] rather than the store itself,
+/// so a theme switch blends every open window into the new palette instead of
+/// snapping — the bars included, through the transition `main.dart` lays over
+/// their `PanelReachSequencer`.
+///
 /// The shell boots without a `WidgetsApp`, so there is normally no [MediaQuery]
 /// above this at all — hence the fallback below. What it publishes carries the
 /// scaler and nothing else: it is deliberately not a metrics source.
@@ -43,25 +49,28 @@ class ThemeProvider extends StatelessWidget {
 
   final Widget child;
 
-  /// Overridable for tests; the shell always uses the singleton.
+  /// A store to follow directly, for tests; the shell always follows
+  /// [ThemeTransition.instance], which follows the singleton. A test handing in
+  /// a store gets its palette on the notification it arrives in, with no blend.
   final ThemeStore? _store;
 
   /// A theme to follow in place of the store's. The panels alone are given
-  /// one — `PanelReachSequencer.shown`, which lags the store by the frames a
-  /// surface takes to grow, so a bar is never resized and restyled at once.
+  /// one — a [ThemeTransition] over `PanelReachSequencer.shown`, which lags the
+  /// store by the frames a surface takes to grow, so a bar is never resized and
+  /// restyled at once.
   final ValueListenable<ThemeConfig>? _theme;
 
   @override
   Widget build(BuildContext context) {
-    final store = _store ?? ThemeStore.instance;
-    final source = _theme;
+    final store = _store;
+    final source = _theme ?? (store == null ? ThemeTransition.instance : null);
     return ListenableBuilder(
-      listenable: source ?? store,
+      listenable: source ?? store!,
       // `child` is passed through rather than rebuilt: descendants that read
       // the theme update because they depend on the ThemeScope above them, so
       // rebuilding the subtree here would be pure waste.
       builder: (context, child) {
-        final theme = source?.value ?? store.theme;
+        final theme = source?.value ?? store!.theme;
         // Absolute, never multiplied onto what an ancestor set, so the nested
         // ThemeProviders a popup's tree can end up with are idempotent. At the
         // default font size this is TextScaler.linear(1.0), which compares equal
