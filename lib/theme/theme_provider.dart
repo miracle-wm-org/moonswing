@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/theme_store.dart';
 
 /// Provides the live palette to a widget subtree.
@@ -31,24 +33,35 @@ import 'package:moonswing/theme/theme_store.dart';
 /// above this at all — hence the fallback below. What it publishes carries the
 /// scaler and nothing else: it is deliberately not a metrics source.
 class ThemeProvider extends StatelessWidget {
-  const ThemeProvider({super.key, required this.child, ThemeStore? store})
-      : _store = store;
+  const ThemeProvider({
+    super.key,
+    required this.child,
+    ThemeStore? store,
+    ValueListenable<ThemeConfig>? theme,
+  })  : _store = store,
+        _theme = theme;
 
   final Widget child;
 
   /// Overridable for tests; the shell always uses the singleton.
   final ThemeStore? _store;
 
+  /// A theme to follow in place of the store's. The panels alone are given
+  /// one — `PanelReachSequencer.shown`, which lags the store by the frames a
+  /// surface takes to grow, so a bar is never resized and restyled at once.
+  final ValueListenable<ThemeConfig>? _theme;
+
   @override
   Widget build(BuildContext context) {
     final store = _store ?? ThemeStore.instance;
+    final source = _theme;
     return ListenableBuilder(
-      listenable: store,
+      listenable: source ?? store,
       // `child` is passed through rather than rebuilt: descendants that read
       // the theme update because they depend on the ThemeScope above them, so
       // rebuilding the subtree here would be pure waste.
       builder: (context, child) {
-        final theme = store.theme;
+        final theme = source?.value ?? store.theme;
         // Absolute, never multiplied onto what an ancestor set, so the nested
         // ThemeProviders a popup's tree can end up with are idempotent. At the
         // default font size this is TextScaler.linear(1.0), which compares equal
