@@ -3,6 +3,7 @@ import 'dart:ffi' as ffi;
 import 'dart:io' show Platform;
 // ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: implementation_imports
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
 // The controller supertype every window in the registry is keyed on.
 // `layer_shell` re-exports WindowManager / WindowRegistry / WindowEntry but not
@@ -86,6 +87,7 @@ import 'package:moonswing/decor/material_textures.dart';
 import 'package:moonswing/decor/panel_decor.dart';
 import 'package:moonswing/native/input_region.dart';
 import 'package:moonswing/panel_background.dart';
+import 'package:moonswing/panel_reach.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
@@ -850,9 +852,14 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// layer surface that often makes the bars flicker.
   int _panelMargin = 0;
 
-  /// How far past the bar the panel surfaces currently reach, for the same
-  /// reason [_panelMargin] is cached.
-  int _panelReach = 0;
+  /// How far past the bar the panel surfaces reach, and the theme the panels
+  /// render — which lags the store across a switch that moves the reach, so a
+  /// bar is never resized and restyled in one frame. See [PanelReachSequencer].
+  late final PanelReachSequencer _panelTheme;
+
+  /// The depth each panel surface was last given, bar plus the reach actually
+  /// applied: what [_panelsReached] waits for the views to lay out at.
+  final Map<LayershellWindowController, int> _panelDepths = {};
 
   @override
   void initState() {
@@ -898,7 +905,12 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // before the first surface is built and no bar is created flush and then
     // nudged.
     _panelMargin = ThemeStore.instance.theme.panelMargin;
-    _panelReach = ThemeStore.instance.theme.panelReach;
+    _panelTheme = PanelReachSequencer(
+      initial: ThemeStore.instance.theme,
+      target: () => ThemeStore.instance.theme,
+      commit: _commitPanelReach,
+      reached: _panelsReached,
+    );
 
     // Mirrors folded into one, or a cloned display shows every surface twice.
     for (final monitor in distinctMonitors(listMonitors())) {
@@ -974,13 +986,11 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       // Grown past the bar only where the theme hangs something off it, and
       // only once the overhang has been handed back to the windows beneath.
       // A theme with nothing to hang leaves the surface exactly as created.
-      if (_panelReach > 0) {
-        setPanelReach(
-          controller,
-          anchor: panelConfig.anchor,
-          thickness: panelConfig.height,
-          reach: _panelReach,
-        );
+      // The committed reach rather than the store's: mid-switch, it is the one
+      // the panels' theme was laid out for.
+      _panelDepths[controller] = panelConfig.height;
+      if (_panelTheme.committed > 0) {
+        _applyPanelReach(controller, panelConfig, _panelTheme.committed);
       }
       panels[entry.key] = controller;
     }
@@ -2146,7 +2156,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
     for (final key in _surfaces.keys.toList()) {
       if (!incoming.containsKey(key)) {
-        removed.addAll(_surfaces.remove(key)!.controllers);
+        final gone = _surfaces.remove(key)!;
+        gone.panels.values.forEach(_panelDepths.remove);
+        removed.addAll(gone.controllers);
         final osd = _osd.remove(key);
         if (osd != null) removed.add(osd);
         final badge = _badges.remove(key);
@@ -2266,40 +2278,77 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     VolumeSoundStore.instance.configure(next.osd.volumeSoundConfig);
   }
 
-  /// Re-floats the bars when the active theme's margin changes.
+  /// Re-floats the bars when the active theme's margin changes, and hands the
+  /// theme to the panels — through [_panelTheme], which orders it against any
+  /// change of reach.
   ///
   /// Panel geometry is otherwise frozen at startup, but a bar that rounded its
   /// corners without lifting off the screen edge until the next restart would
   /// look broken. No [setState] — nothing in the tree reads [_panelMargin].
   void _onThemeChanged() {
     if (!mounted) return;
-    final theme = ThemeStore.instance.theme;
-    final margin = theme.panelMargin;
-    final reach = theme.panelReach;
-    if (margin == _panelMargin && reach == _panelReach) return;
-    final marginMoved = margin != _panelMargin;
-    final reachMoved = reach != _panelReach;
+    _panelTheme.update();
+    final margin = ThemeStore.instance.theme.panelMargin;
+    if (margin == _panelMargin) return;
     _panelMargin = margin;
-    _panelReach = reach;
     for (final surfaces in _surfaces.values) {
       surfaces.panels.forEach((key, controller) {
         // Startup geometry, like _createSurfaces and _effectivePanel: the
         // anchor a surface was built with cannot change without recreating it.
         final panelConfig = widget.appConfig.panels[key];
         if (panelConfig == null) return;
-        if (marginMoved) {
-          setPanelMargin(controller, anchor: panelConfig.anchor, margin: margin);
-        }
-        if (reachMoved) {
-          setPanelReach(
-            controller,
-            anchor: panelConfig.anchor,
-            thickness: panelConfig.height,
-            reach: reach,
-          );
-        }
+        setPanelMargin(controller, anchor: panelConfig.anchor, margin: margin);
       });
     }
+  }
+
+  /// Gives every panel surface [reach] past its bar; [_panelTheme]'s commit.
+  void _commitPanelReach(int reach) {
+    if (!mounted) return;
+    for (final surfaces in _surfaces.values) {
+      surfaces.panels.forEach((key, controller) {
+        // Startup geometry, as in [_onThemeChanged].
+        final panelConfig = widget.appConfig.panels[key];
+        if (panelConfig == null) return;
+        _applyPanelReach(controller, panelConfig, reach);
+      });
+    }
+  }
+
+  void _applyPanelReach(
+    LayershellWindowController controller,
+    PanelConfig panelConfig,
+    int reach,
+  ) {
+    final applied = setPanelReach(
+      controller,
+      anchor: panelConfig.anchor,
+      thickness: panelConfig.height,
+      reach: reach,
+    );
+    _panelDepths[controller] = panelConfig.height + applied;
+  }
+
+  /// Whether every live panel's view has laid out at the depth its surface was
+  /// last given — [_panelTheme]'s signal that the restyle may follow.
+  bool _panelsReached() {
+    for (final surfaces in _surfaces.values) {
+      for (final MapEntry(key: key, value: controller)
+          in surfaces.panels.entries) {
+        if (controller.isDestroyed) continue;
+        final depth = _panelDepths[controller];
+        final panelConfig = widget.appConfig.panels[key];
+        if (depth == null || panelConfig == null) continue;
+        final view = controller.rootView;
+        final size = view.physicalSize / view.devicePixelRatio;
+        final laidOut = switch (panelConfig.anchor) {
+          'left' || 'right' => size.width,
+          _ => size.height,
+        };
+        if ((laidOut - depth).abs() >= 1) return false;
+      }
+    }
+    return true;
   }
 
   @override
@@ -2381,6 +2430,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       overlay.dispose();
     }
     _liveConfig.dispose();
+    _panelTheme.dispose();
     _settingsTab.dispose();
     _selectionClosing.dispose();
     _switcherClosing.dispose();
@@ -2392,7 +2442,13 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// An `InheritedWidget` cannot span FlutterViews and the shell renders into one
   /// per panel per monitor plus one per popup, overlay, OSD card and lock
   /// surface. [ThemeProvider] stays the only thing constructing a [ThemeScope].
-  Widget _windowChrome(Widget child) => _RegistryBinder(
+  ///
+  /// [theme] is for the panels alone, which follow [_panelTheme] rather than
+  /// the store.
+  Widget _windowChrome(
+    Widget child, {
+    ValueListenable<ThemeConfig>? theme,
+  }) => _RegistryBinder(
     // Every root-owned window's content goes through here, which makes this the
     // first place under the [WindowManager] that builds — and so the one place
     // the root can be handed the registry it registers the rest of its windows
@@ -2409,6 +2465,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
           // ShellTextRoot inside ThemeProvider: it reads ThemeScope for the
           // font family every window's text should inherit.
           child: ThemeProvider(
+            theme: theme,
             child: ShellTextRoot(child: _maybeExcludeSemantics(child)),
           ),
         ),
@@ -2549,6 +2606,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                     ),
                   ),
                 ),
+                theme: _panelTheme.shown,
               ),
             ),
         // The indicator is not tied to any panel, so it lives here beside the
@@ -3065,11 +3123,21 @@ class _PanelMainState extends State<PanelMain> {
           // the theme would move the modules to a new depth.
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final bar = panelBarRect(
+              // Laid out to the depth the theme reaches, not the surface's:
+              // across a switch that grows the reach, the surface grows a few
+              // frames before the theme arrives (see `PanelReachSequencer`),
+              // and a bar laid out by the surface would regrow its foliage in
+              // the very frame the engine is waiting on.
+              final reach = panelBarRect(
                 surface: constraints.biggest,
                 anchor: anchor,
-                thickness: thickness,
+                thickness: thickness + theme.panelReach,
               );
+              final bar = panelBarRect(
+                surface: reach.size,
+                anchor: anchor,
+                thickness: thickness,
+              ).shift(reach.topLeft);
               return Stack(
                 fit: StackFit.expand,
                 children: [
@@ -3112,7 +3180,8 @@ class _PanelMainState extends State<PanelMain> {
                     ),
                   ),
                   // What grows off the bar, over it and over the overhang.
-                  Positioned.fill(
+                  Positioned.fromRect(
+                    rect: reach,
                     child: PanelFoliage(
                       theme: theme,
                       anchor: anchor,
