@@ -138,6 +138,7 @@ import 'package:moonswing/overlay/overlay.dart';
 import 'package:moonswing/system/system_stats_store.dart';
 import 'package:moonswing/theme/theme_provider.dart';
 import 'package:moonswing/theme/theme_store.dart';
+import 'package:moonswing/theme/theme_transition.dart';
 import 'package:ext_session_lock/ext_session_lock.dart';
 import 'package:layer_shell/layer_shell.dart';
 import 'package:media_kit/media_kit.dart';
@@ -857,6 +858,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// bar is never resized and restyled in one frame. See [PanelReachSequencer].
   late final PanelReachSequencer _panelTheme;
 
+  /// What the panels draw: [_panelTheme]'s theme, blended into on a switch
+  /// the way every other window's is by [ThemeTransition.instance].
+  late final ThemeTransition _panelTransition;
+
   /// The depth each panel surface was last given, bar plus the reach actually
   /// applied: what [_panelsReached] waits for the views to lay out at.
   final Map<LayershellWindowController, int> _panelDepths = {};
@@ -910,6 +915,14 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       target: () => ThemeStore.instance.theme,
       commit: _commitPanelReach,
       reached: _panelsReached,
+    );
+    _panelTransition = ThemeTransition(
+      source: _panelTheme.shown,
+      read: () => _panelTheme.shown.value,
+      // The store's name rather than anything the sequencer holds: by the time
+      // a grown surface lets it restyle, the name has long since moved, and
+      // that is what makes the late restyle a switch rather than an edit.
+      identity: () => ThemeStore.instance.activeName,
     );
 
     // Mirrors folded into one, or a cloned display shows every surface twice.
@@ -2430,6 +2443,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       overlay.dispose();
     }
     _liveConfig.dispose();
+    // Before the sequencer, whose notifier it is listening to.
+    _panelTransition.dispose();
     _panelTheme.dispose();
     _settingsTab.dispose();
     _selectionClosing.dispose();
@@ -2443,8 +2458,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// per panel per monitor plus one per popup, overlay, OSD card and lock
   /// surface. [ThemeProvider] stays the only thing constructing a [ThemeScope].
   ///
-  /// [theme] is for the panels alone, which follow [_panelTheme] rather than
-  /// the store.
+  /// [theme] is for the panels alone, which follow [_panelTransition] rather
+  /// than the store's.
   Widget _windowChrome(
     Widget child, {
     ValueListenable<ThemeConfig>? theme,
@@ -2606,7 +2621,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                     ),
                   ),
                 ),
-                theme: _panelTheme.shown,
+                theme: _panelTransition,
               ),
             ),
         // The indicator is not tied to any panel, so it lives here beside the
