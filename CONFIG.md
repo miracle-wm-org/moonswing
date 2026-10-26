@@ -375,9 +375,8 @@ mark_read_on_open = true
 | `client_id`          | string | the GitHub CLI's | The OAuth app the sign-in runs against — see below                                        |
 | `scopes`             | string | `"notifications"` | What the sign-in asks for — see below                                                     |
 
-**This module is in the default bottom panel, but adding it to an existing
-config is manual** — the default config file is only written when none exists.
-Add `"github"` to a panel's layout:
+**The module is not in the default layout** — add `"github"` to a panel's
+layout:
 
 ```toml
 [panels.bottom.layout]
@@ -815,8 +814,15 @@ something other than the focused window see what was copied. Without either,
 the panel says which is missing, keeps what it has already recorded, and offers
 a retry; the icon in the bar dims.
 
-**The module is not in the default layout** — add `"clipboard"` to a panel's
-`left`, `center` or `right` list, or use **Settings → Shell → Panels & Layout**.
+**This module is in the default bottom panel, but adding it to an existing
+config is manual** — the default config file is only written when none exists.
+Add `"clipboard"` to a panel's `left`, `center` or `right` list, or use
+**Settings → Shell → Panels & Layout**:
+
+```toml
+[panels.bottom.layout]
+left = ["clipboard"]
+```
 
 ### Todo
 
