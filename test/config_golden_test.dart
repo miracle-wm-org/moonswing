@@ -92,8 +92,6 @@ void main() {
         'battery',
         'weather',
         'todo',
-        'scratchpad',
-        'keybinds',
         'keyboard_layout',
         'system',
       ]);
@@ -102,7 +100,7 @@ void main() {
       expect(bottom.paddingHorizontal, 0);
       expect(bottom.anchor, 'bottom');
       expect(bottom.layer, 'top');
-      expect(bottom.layout.left, ['github']);
+      expect(bottom.layout.left, ['clipboard']);
       expect(bottom.layout.center, ['dock']);
       expect(bottom.layout.right,
           ['media_player', 'notifications', 'launcher']);

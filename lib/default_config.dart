@@ -72,7 +72,7 @@ layer = "top"
 [panels.top.layout]
 left = ["workspaces"]
 center = ["clock"]
-right = ["screenshot", "screen_recorder", "sound_control", "brightness", "system_tray", "battery", "weather", "todo", "scratchpad", "keybinds", "keyboard_layout", "system"]
+right = ["screenshot", "screen_recorder", "sound_control", "brightness", "system_tray", "battery", "weather", "todo", "keyboard_layout", "system"]
 
 [panels.bottom]
 height = 32
@@ -81,7 +81,7 @@ anchor = "bottom"
 layer = "top"
 
 [panels.bottom.layout]
-left = ["github"]
+left = ["clipboard"]
 center = ["dock"]
 right = ["media_player", "notifications", "launcher"]
 
