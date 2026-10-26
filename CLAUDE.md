@@ -267,7 +267,7 @@ Losing a name to another daemon is a **graceful decline** for `ShellServices` bu
 
 ### Native and FFI (`lib/native/`, `lib/wayland_ffi/`, `lib/pipewire/`, `lib/screencast/`, `lib/capture/`)
 
-All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shared dlopen plumbing (`processLibrary`, soname fallback, `g_signal_connect_data`, `g_unix_fd_add`, `memfd_create`/`mmap`/`memcpy`).
+All pure `dart:ffi`; **there is no C in the repo**. `lib/native/` holds the shared dlopen plumbing (`processLibrary`, soname fallback, `g_signal_connect_data`, `g_unix_fd_add`, `memfd_create`/`mmap`/`memcpy`) and `UdevMonitor`, the one udev watch (backlight, power supply) — never `package:udev`'s `monitorDevices`, whose poll isolate spins on a socket only this isolate drains and floods it with thousands of messages per event.
 
 - **Capture needs its own Wayland connection, over libwayland.** `package:wayland` cannot pass file descriptors, and `wl_shm.create_pool` requires one.
 - **There is one `CaptureConnection` in the process**, `CaptureHost`'s (`lib/screencast/capture_host.dart`), shared by the portal backend and the shell's own screenshot/recording; it memoises the connect, fans `onDied` out, and **clears the connection when it dies**, so a compositor restart costs one capture rather than the session.

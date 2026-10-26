@@ -31,7 +31,6 @@ dependencies:
   xml: ^6.5.0
   # SHA-256 for the Google sign-in's PKCE challenge (RFC 7636 S256).
   crypto: ^3.0.6
-  udev: ^0.0.3
   dbus: ^0.7.11
   font_awesome_flutter: ^11.0.0
   # The weather icons: Meteocons (basmilius/weather-icons), bundled as SVG and

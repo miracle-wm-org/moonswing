@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:udev/udev.dart';
+import 'package:moonswing/native/udev_monitor.dart';
 
 /// Watches the display backlight and reports its level as a 0..1 fraction.
 ///
@@ -19,7 +19,7 @@ class BrightnessMonitor {
   final String _sysfsRoot;
 
   final _controller = StreamController<double>.broadcast();
-  StreamSubscription<UdevDevice>? _udevSubscription;
+  UdevMonitor? _udev;
 
   Directory? _device;
   int _max = 0;
@@ -60,16 +60,15 @@ class BrightnessMonitor {
     _last = _readLevel();
 
     try {
-      _udevSubscription = UdevContext()
-          .monitorDevices(subsystems: ['backlight'])
-          .listen((_) => _emitIfChanged());
+      _udev = UdevMonitor(subsystems: ['backlight'], onEvent: _emitIfChanged);
     } catch (_) {
       // udev monitoring unavailable; brightness simply won't be reported.
     }
   }
 
   void dispose() {
-    _udevSubscription?.cancel();
+    _udev?.dispose();
+    _udev = null;
     _controller.close();
   }
 

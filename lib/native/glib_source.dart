@@ -44,11 +44,14 @@ class GlibFdWatch {
   static const int gIoHup = 16;
 
   GlibFdWatch(int fd, this.onReady) {
+    // Resolved first: with no GLib in the process (`flutter_tester`) this
+    // throws, and must do so before a callable exists to keep the isolate alive.
+    final add = _gUnixFdAdd;
     _callback = ffi.NativeCallable<_FdSourceFuncC>.isolateLocal(
       _onFdReady,
       exceptionalReturn: 1,
     );
-    _tag = _gUnixFdAdd(
+    _tag = add(
       fd,
       gIoIn | gIoErr | gIoHup,
       _callback!.nativeFunction.cast(),
