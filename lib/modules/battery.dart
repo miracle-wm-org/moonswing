@@ -5,8 +5,8 @@ import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
+import 'package:moonswing/native/udev_monitor.dart';
 import 'package:moonswing/scopes.dart';
-import 'package:udev/udev.dart';
 
 class BatteryConfig {
   final int pollSeconds;
@@ -127,7 +127,7 @@ class BatteryStore extends ChangeNotifier {
 
   int _leases = 0;
   Timer? _timer;
-  StreamSubscription<UdevDevice>? _udevSubscription;
+  UdevMonitor? _udev;
 
   /// Battery paths never change while the shell runs (a hotplugged battery is
   /// a laptop being reassembled), so detection runs once, on the first lease
@@ -154,8 +154,8 @@ class BatteryStore extends ChangeNotifier {
     if (_leases > 0) _leases--;
     if (_leases == 0) {
       _stopTimer();
-      _udevSubscription?.cancel();
-      _udevSubscription = null;
+      _udev?.dispose();
+      _udev = null;
     }
   }
 
@@ -193,13 +193,9 @@ class BatteryStore extends ChangeNotifier {
   }
 
   void _monitorPowerSupply() {
-    if (_udevSubscription != null) return;
+    if (_udev != null) return;
     try {
-      final context = UdevContext();
-      _udevSubscription =
-          context.monitorDevices(subsystems: ['power_supply']).listen((_) {
-        _readBattery();
-      });
+      _udev = UdevMonitor(subsystems: ['power_supply'], onEvent: _readBattery);
     } catch (_) {
       // udev monitoring unavailable, fall back to polling only
     }
@@ -293,7 +289,7 @@ class BatteryStore extends ChangeNotifier {
   @override
   void dispose() {
     _stopTimer();
-    _udevSubscription?.cancel();
+    _udev?.dispose();
     super.dispose();
   }
 }
