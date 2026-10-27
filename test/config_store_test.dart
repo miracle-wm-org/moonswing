@@ -86,33 +86,25 @@ right = ["battery", "clock"]
     store.dispose();
   });
 
-  test('needsRestart tracks only window-geometry / panel-set / background '
-      'changes', () async {
+  test('needsRestart ignores panels, which are recreated live', () async {
     final store = await ConfigStore.loadFrom(path);
     expect(store.needsRestart, isFalse);
 
-    // Live-updatable fields never require a restart.
     store.set(['theme'], 'glassy');
     store.set(['panels', 'top', 'layout', 'right'], ['clock']);
     store.set(['panels', 'top', 'padding_horizontal'], 20);
-    expect(store.needsRestart, isFalse);
-
-    // A restart-only field flips it.
+    // Window geometry, an added panel and a removed one: all live now.
     store.set(['panels', 'top', 'anchor'], 'bottom');
-    expect(store.needsRestart, isTrue);
+    store.set(['panels', 'top', 'height'], 40);
+    store.set(['panels', 'top', 'layer'], 'overlay');
+    store.set(['panels', 'side', 'anchor'], 'left');
+    store.remove(['panels', 'top']);
+    expect(store.needsRestart, isFalse);
 
     store.dispose();
   });
 
-  test('needsRestart flags added panels and background-layer presence',
-      () async {
-    final store = await ConfigStore.loadFrom(path);
-    expect(store.needsRestart, isFalse);
-
-    store.set(['panels', 'bottom', 'height'], 40);
-    expect(store.needsRestart, isTrue);
-    store.dispose();
-
+  test('needsRestart flags background-layer presence', () async {
     // The wallpaper half needs a config that has *no* background surface yet,
     // and since the desktop grid is on by default that means saying so: a
     // config silent about `[desktop]` already has the surface, and adding a
@@ -203,13 +195,11 @@ shown = true
   });
 
   // What the Panels & Layout remove button does: one call drops the whole
-  // `[panels.<name>]` sub-table, and the panel set is restart-only, so the
-  // banner comes up without the settings UI wiring anything.
-  test('removing a panel drops its whole table and demands a restart',
+  // `[panels.<name>]` sub-table. The shell takes the bar down live, so no
+  // restart is asked for.
+  test('removing a panel drops its whole table without demanding a restart',
       () async {
-    // Two panels on disk, so the removal is of a panel that was there at load
-    // — adding one and taking it away again returns to the startup signature,
-    // which is correct and would prove nothing.
+    // Two panels on disk, so the removal is of a panel that was there at load.
     final seed = await ConfigStore.loadFrom(path);
     seed.set(['panels', 'bottom', 'anchor'], 'bottom');
     await seed.save();
@@ -222,7 +212,7 @@ shown = true
     // One call takes the whole sub-table, `[panels.top.layout]` included.
     store.remove(['panels', 'top']);
     expect(store.panelNames, ['bottom']);
-    expect(store.needsRestart, isTrue);
+    expect(store.needsRestart, isFalse);
 
     await store.save();
     final reparsed = (await TomlDocument.load(path)).toMap();

@@ -91,10 +91,8 @@ class _PanelsSectionState extends State<PanelsSection> {
     });
   }
 
-  /// Deletes `[panels.<name>]` outright, behind a confirmation.
-  ///
-  /// No restart wiring is needed: `ConfigStore._restartSignature` folds every
-  /// panel key, so dropping one raises the restart banner on its own.
+  /// Deletes `[panels.<name>]` outright, behind a confirmation. The shell takes
+  /// the bar off every monitor as the store notifies; nothing here asks it to.
   Future<void> _removePanel(String name) async {
     final title = _title(name);
     final names = store.panelNames;
@@ -116,7 +114,7 @@ class _PanelsSectionState extends State<PanelsSection> {
           // panel when `[panels]` is empty, so saying nothing here would make
           // the panel look like it came back on its own.
           ? 'This is the last panel. With none configured, the shell falls '
-                'back to a single default panel the next time it starts.'
+                'back to a single default panel in its place.'
           : null,
       confirmLabel: 'Remove',
     );
