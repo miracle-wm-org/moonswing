@@ -528,8 +528,8 @@ Future<void> _connectDisplays(
 
 /// Root of the widget tree. Owns the lifecycle of every layer-shell window
 /// (backgrounds + panels) on every monitor: creating them for the monitors
-/// present at startup, adding and destroying them on hotplug, and tearing them
-/// all down in [dispose].
+/// present at startup, adding and destroying them on hotplug and as `[panels]`
+/// is edited, and tearing them all down in [dispose].
 class MoonswingRoot extends StatefulWidget {
   const MoonswingRoot({
     super.key,
@@ -540,9 +540,9 @@ class MoonswingRoot extends StatefulWidget {
     required this.services,
   });
 
-  /// The config captured at startup. Native layer-shell windows are created from
-  /// this snapshot and cannot change without a restart; live values come from
-  /// [store].
+  /// The config captured at startup. The background surface is created from
+  /// this snapshot and cannot change without a restart; panels start from it and
+  /// then follow [store], as every other live value does.
   final AppConfig appConfig;
   final ConfigStore store;
   final MiracleManager miracle;
@@ -858,7 +858,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   late final List<(Listenable, VoidCallback)> _subscriptions;
 
   /// The config the widget tree renders from, kept in sync by [_onConfigChanged].
-  /// Window geometry still comes from [widget.appConfig], the startup snapshot.
+  /// Panel windows are built from [_panelGeometry], which follows it; whether
+  /// the background surface exists still comes from [widget.appConfig].
   ///
   /// A notifier published through [LiveConfigProvider] rather than a plain field:
   /// `ConfigStore` notifies on every keystroke in the settings UI, and answering
@@ -885,11 +886,19 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// applied: what [_panelsReached] waits for the views to lay out at.
   final Map<LayershellWindowController, int> _panelDepths = {};
 
+  /// The panels the native surfaces on every monitor were last built from:
+  /// what [_syncPanels] diffs the live `[panels]` against, and the geometry the
+  /// margin, the reach and [_panelsReached] read. Starts as the startup
+  /// snapshot and is replaced, never mutated, whenever the set or a panel's
+  /// window geometry moves.
+  late Map<String, PanelConfig> _panelGeometry;
+
   @override
   void initState() {
     super.initState();
     final appConfig = widget.appConfig;
     _liveConfig = ValueNotifier(appConfig);
+    _panelGeometry = appConfig.panels;
     _lockHost = SessionLockHost(onChanged: _refreshWindows);
     _hasBackgroundSurface =
         (appConfig.background?.entries.isNotEmpty ?? false) ||
@@ -981,53 +990,61 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       spanFullOutput(background);
     }
 
-    final panels = <String, LayershellWindowController>{};
-    for (final entry in widget.appConfig.panels.entries) {
-      final panelConfig = entry.value;
-      final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
-      final layer = layerFromString(panelConfig.layer);
-
-      int? width;
-      int? height;
-      if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
-        width = panelConfig.height;
-      } else {
-        height = panelConfig.height;
-      }
-
-      // No `keyboardMode`, deliberately: layer_shell defaults it to
-      // [LayerShellKeyboardMode.none], which is what a bar wants — a panel that
-      // takes focus takes it on every click and pulls it off whatever the user
-      // was typing in. The cost is that a popup inherits `none`; see
-      // [_borrowPopupKeyboard].
-      final controller = LayershellWindowController(
-        width: width,
-        height: height,
-        layer: layer,
-        anchorEdges: anchorEdges,
-        exclusiveZone: panelConfig.height,
-        monitor: monitor.gdkMonitor,
-      );
-      // Reading the field rather than the store means a monitor hot-plugged
-      // after a theme change gets the current margin with no second call site.
-      setPanelMargin(
-        controller,
-        anchor: panelConfig.anchor,
-        margin: _panelMargin,
-      );
-      // Grown past the bar only where the theme hangs something off it, and
-      // only once the overhang has been handed back to the windows beneath.
-      // A theme with nothing to hang leaves the surface exactly as created.
-      // The committed reach rather than the store's: mid-switch, it is the one
-      // the panels' theme was laid out for.
-      _panelDepths[controller] = panelConfig.height;
-      if (_panelTheme.committed > 0) {
-        _applyPanelReach(controller, panelConfig, _panelTheme.committed);
-      }
-      panels[entry.key] = controller;
-    }
+    final panels = <String, LayershellWindowController>{
+      for (final entry in _panelGeometry.entries)
+        entry.key: _createPanel(monitor, entry.value),
+    };
 
     return _MonitorSurfaces(monitor, background, panels);
+  }
+
+  /// Builds one panel's layer-shell window on [monitor] — at startup, on a
+  /// hotplug, and when [_syncPanels] finds a panel added or its geometry moved.
+  LayershellWindowController _createPanel(
+    MonitorInfo monitor,
+    PanelConfig panelConfig,
+  ) {
+    final anchorEdges = anchorEdgesForPosition(panelConfig.anchor);
+    final layer = layerFromString(panelConfig.layer);
+
+    int? width;
+    int? height;
+    if (panelConfig.anchor == 'left' || panelConfig.anchor == 'right') {
+      width = panelConfig.height;
+    } else {
+      height = panelConfig.height;
+    }
+
+    // No `keyboardMode`, deliberately: layer_shell defaults it to
+    // [LayerShellKeyboardMode.none], which is what a bar wants — a panel that
+    // takes focus takes it on every click and pulls it off whatever the user
+    // was typing in. The cost is that a popup inherits `none`; see
+    // [_borrowPopupKeyboard].
+    final controller = LayershellWindowController(
+      width: width,
+      height: height,
+      layer: layer,
+      anchorEdges: anchorEdges,
+      exclusiveZone: panelConfig.height,
+      monitor: monitor.gdkMonitor,
+    );
+    // Reading the field rather than the store means a monitor hot-plugged
+    // after a theme change gets the current margin with no second call site.
+    setPanelMargin(
+      controller,
+      anchor: panelConfig.anchor,
+      margin: _panelMargin,
+    );
+    // Grown past the bar only where the theme hangs something off it, and
+    // only once the overhang has been handed back to the windows beneath.
+    // A theme with nothing to hang leaves the surface exactly as created.
+    // The committed reach rather than the store's: mid-switch, it is the one
+    // the panels' theme was laid out for.
+    _panelDepths[controller] = panelConfig.height;
+    if (_panelTheme.committed > 0) {
+      _applyPanelReach(controller, panelConfig, _panelTheme.committed);
+    }
+    return controller;
   }
 
   /// Builds the indicator window for [monitor]: a small card above the bottom
@@ -1127,7 +1144,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   void _syncNotificationBadges() {
     if (!mounted) return;
     final store = NotificationStore.instance;
-    final wanted = store.hasUnread &&
+    final wanted =
+        store.hasUnread &&
         !store.silenced &&
         !store.badgeHidden &&
         !_notifications.isOpen;
@@ -2375,15 +2393,59 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // widget, and a changed sound is heard on the next key press. `configure`
     // compares first, as `setConfig` does.
     VolumeSoundStore.instance.configure(next.osd.volumeSoundConfig);
+    _syncPanels(next.panels);
+  }
+
+  /// Brings the panel windows on every monitor in line with [live]: a panel
+  /// removed has its windows destroyed, one added gets them, and one whose
+  /// window geometry (`anchor`, `height`, `layer`) moved is recreated, since a
+  /// layer surface cannot be re-anchored or moved between layers once mapped.
+  /// Everything else about a panel is drawn from [LiveConfigScope] and follows
+  /// without a new window.
+  ///
+  /// Called on every config notify — every settings keystroke — so the common
+  /// case is a comparison that finds nothing and returns.
+  void _syncPanels(Map<String, PanelConfig> live) {
+    final current = _panelGeometry;
+    bool sameWindow(PanelConfig a, PanelConfig b) =>
+        a.anchor == b.anchor && a.height == b.height && a.layer == b.layer;
+    final stale = <String>{
+      for (final MapEntry(:key, :value) in current.entries)
+        if (live[key] == null || !sameWindow(value, live[key]!)) key,
+    };
+    final fresh = <String>{
+      for (final key in live.keys)
+        if (stale.contains(key) || !current.containsKey(key)) key,
+    };
+    if (stale.isEmpty && fresh.isEmpty) return;
+
+    _panelGeometry = live;
+    final removed = <LayershellWindowController>[];
+    for (final surfaces in _surfaces.values) {
+      for (final key in stale) {
+        final controller = surfaces.panels.remove(key);
+        if (controller == null) continue;
+        _panelDepths.remove(controller);
+        removed.add(controller);
+      }
+      for (final key in fresh) {
+        surfaces.panels[key] = _createPanel(surfaces.monitor, live[key]!);
+      }
+    }
+    // Detach the dropped views first — the hotplug order in [_syncMonitors].
+    _refreshWindows();
+    _destroyAfterFrame(removed);
   }
 
   /// Re-floats the bars when the active theme's margin changes, and hands the
   /// theme to the panels — through [_panelTheme], which orders it against any
   /// change of reach.
   ///
-  /// Panel geometry is otherwise frozen at startup, but a bar that rounded its
-  /// corners without lifting off the screen edge until the next restart would
-  /// look broken. No [setState] — nothing in the tree reads [_panelMargin].
+  /// The margin is the one piece of panel geometry moved on a live surface
+  /// rather than by recreating it: a bar that rounded its corners without
+  /// lifting off the screen edge would look broken, and a new window per
+  /// colour-picker frame would flicker. No [setState] — nothing in the tree
+  /// reads [_panelMargin].
   void _onThemeChanged() {
     if (!mounted) return;
     _panelTheme.update();
@@ -2392,9 +2454,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     _panelMargin = margin;
     for (final surfaces in _surfaces.values) {
       surfaces.panels.forEach((key, controller) {
-        // Startup geometry, like _createSurfaces and _effectivePanel: the
-        // anchor a surface was built with cannot change without recreating it.
-        final panelConfig = widget.appConfig.panels[key];
+        // The geometry the surface was built with, like [effectivePanel]: the
+        // anchor cannot change without recreating it, which [_syncPanels] does.
+        final panelConfig = _panelGeometry[key];
         if (panelConfig == null) return;
         setPanelMargin(controller, anchor: panelConfig.anchor, margin: margin);
       });
@@ -2406,8 +2468,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     if (!mounted) return;
     for (final surfaces in _surfaces.values) {
       surfaces.panels.forEach((key, controller) {
-        // Startup geometry, as in [_onThemeChanged].
-        final panelConfig = widget.appConfig.panels[key];
+        // Built geometry, as in [_onThemeChanged].
+        final panelConfig = _panelGeometry[key];
         if (panelConfig == null) return;
         _applyPanelReach(controller, panelConfig, reach);
       });
@@ -2436,7 +2498,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
           in surfaces.panels.entries) {
         if (controller.isDestroyed) continue;
         final depth = _panelDepths[controller];
-        final panelConfig = widget.appConfig.panels[key];
+        final panelConfig = _panelGeometry[key];
         if (depth == null || panelConfig == null) continue;
         final view = controller.rootView;
         final size = view.physicalSize / view.devicePixelRatio;
@@ -2611,10 +2673,6 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// Capture only what is fixed for that window's life, and read anything that
   /// can still move out of the root's fields *inside* the builder.
   List<_RootWindow> _desiredWindows() {
-    // Iterate the *startup* panels — those own the layer-shell controllers —
-    // but render each with the live config merged onto its fixed geometry.
-    final startupPanels = widget.appConfig.panels;
-
     return <_RootWindow>[
       // One group of surfaces per currently-connected monitor. Monitors are
       // added to / removed from [_surfaces] as they are plugged and unplugged.
@@ -2653,10 +2711,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                       background: bgConfig,
                       desktop: live.desktop,
                       store: DesktopStore.instance,
-                      // Startup panel geometry, like _createSurfaces: the anchor
-                      // a surface was built with cannot change without a
-                      // restart.
-                      panels: widget.appConfig.panels,
+                      // The geometry the bars were built with, which
+                      // [_syncPanels] has brought in line with this config
+                      // before this rebuild runs.
+                      panels: _panelGeometry,
                       onChangeBackground: () => SettingsController.instance
                           .open(SettingsRoute.background),
                       onAddRequested: _onDesktopAddRequested,
@@ -2674,7 +2732,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         // before the first frame, so a bar that waited would be one the user
         // watches appear a beat after login; it paints now and [DisplayScope]
         // fills in a moment later.
-        for (final entry in startupPanels.entries)
+        // [_panelGeometry] rather than the live config: it is what owns the
+        // layer-shell controllers, and each bar renders the live config merged
+        // onto the geometry its window was built with.
+        for (final entry in _panelGeometry.entries)
           if (surfaces.panels[entry.key] case final controller?)
             (
               controller: controller,
@@ -3066,16 +3127,16 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 }
 
 /// Merges live-updatable panel fields (module layout, horizontal padding) onto
-/// the startup window geometry (anchor/height/layer), which cannot change
-/// without recreating the native window. Falls back to [startup] for a panel
-/// removed after launch.
-PanelConfig effectivePanel(PanelConfig startup, PanelConfig? live) {
-  if (live == null) return startup;
+/// the window geometry (anchor/height/layer) the panel's native window was built
+/// with, which cannot change without recreating it. Falls back to [built] for a
+/// panel whose window is on its way out.
+PanelConfig effectivePanel(PanelConfig built, PanelConfig? live) {
+  if (live == null) return built;
   return PanelConfig(
-    name: startup.name,
-    height: startup.height,
-    anchor: startup.anchor,
-    layer: startup.layer,
+    name: built.name,
+    height: built.height,
+    anchor: built.anchor,
+    layer: built.layer,
     paddingHorizontal: live.paddingHorizontal,
     layout: live.layout,
   );

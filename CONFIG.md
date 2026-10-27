@@ -18,6 +18,8 @@ The application supports multiple panels, each anchored to a different edge of t
 
 Each panel has its own height, padding, anchor position, layer, and module layout.
 
+Every key here is live: adding or removing a panel, or changing its `height`, `anchor` or `layer`, puts the bar on screen, takes it off or moves it as soon as the change is saved, on every monitor, with no restart. A geometry change makes the bar a new window, so a panel briefly disappears and reappears while it moves.
+
 ### Example: Single Panel
 
 ```toml
@@ -124,6 +126,8 @@ refresh_minutes = 30
 | `refresh_minutes` | int    | `30`           | How often to re-fetch weather (minutes) |
 
 ### Battery
+
+The bar shows the charge level. Clicking it opens a popup with the time remaining (or until full), the current power draw, and each battery's health, cycle count, chemistry and model, where the firmware reports them.
 
 ```toml
 [modules.battery]
