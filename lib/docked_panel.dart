@@ -12,14 +12,19 @@
 // - **It stays until asked to go.** Its own close button, or whatever opened
 //   it. The coordinator registration is non-dismissable, so neither a click
 //   elsewhere nor another popup opening takes it down.
-// - **It reserves its width.** An exclusive zone the width of the panel, so
-//   the compositor moves windows out of its way rather than under it — and two
-//   panels docked against the same edge sit side by side rather than on top of
-//   each other, since each is placed clear of the zones already reserved.
+// - **It floats over the windows.** No exclusive zone of its own: opening a
+//   panel moves nothing, so the window the user is copying into or reading
+//   beside stays exactly where it was. It still keeps clear of the bars, which
+//   is what an exclusive zone of 0 asks the compositor for. Two panels docked
+//   against the same edge are put side by side by the root, with a margin.
+// - **It casts a shadow across its inner edge**, the theme's popup shadow
+//   ([dockedPanelShadow]), since it now lies over something. The window is
+//   grown by the shadow's reach and that strip is cut out of its input region,
+//   so a click on the shadow lands on the window beneath it.
 //
 // This file is the part of that both panels draw: the flyout in and out of the
 // docked edge (configurable per panel — [DockedPanelAnimation]), the opaque
-// fill with its one inner rule, and the header.
+// fill with its one inner rule and its shadow, and the header.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -34,8 +39,10 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay_transition.dart'
     show ClampedCurve, flutterCurve;
 import 'package:moonswing/popup.dart';
+import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 
 /// Which edge of the output a docked panel is against.
@@ -237,6 +244,35 @@ class DockedPanelAnimation {
       Object.hash(effect, curve, durationMs, exitRatio, travel, fade);
 }
 
+/// The shadow a docked panel casts across its inner edge: the theme's popup
+/// shadow, so a theme that drops its cards onto the desktop drops this column
+/// onto the windows the same way, `midnight`'s glow is a glow here too, and
+/// `carbon` — whose `popup_shadow_color` alpha is 0 — casts none.
+///
+/// Undisplaced, whatever the theme's offsets: they are a card's light falling
+/// from above, and a full-height column has no bottom edge for one to show
+/// under. Null when the theme has no shadow, or one with no reach past the
+/// edge (a negative spread eating the whole blur).
+BoxShadow? dockedPanelShadow(ThemeConfig theme) {
+  final shadow = popupShadow(theme);
+  if (shadow == null) return null;
+  if (shadow.blurRadius + shadow.spreadRadius <= 0) return null;
+  return BoxShadow(
+    color: shadow.color,
+    blurRadius: shadow.blurRadius,
+    spreadRadius: shadow.spreadRadius,
+  );
+}
+
+/// How far [dockedPanelShadow] reaches past the panel's inner edge, in whole
+/// pixels: the strip the window is grown by. The CSS arithmetic
+/// `popupShadowInsets` uses — one blur radius past the spread.
+int dockedPanelShadowReach(ThemeConfig theme) {
+  final shadow = dockedPanelShadow(theme);
+  if (shadow == null) return 0;
+  return (shadow.blurRadius + shadow.spreadRadius).ceil();
+}
+
 /// The panel's frame: it arrives out of [side] on creation and goes back
 /// into it once [closingNotifier] flips, then calls [onClosed] — which may
 /// tear the window down, so it is called exactly once.
@@ -247,6 +283,7 @@ class DockedPanel extends StatefulWidget {
     required this.closingNotifier,
     required this.onClosed,
     this.animation = const DockedPanelAnimation(),
+    this.shadowReach = 0,
     required this.child,
   });
 
@@ -260,6 +297,13 @@ class DockedPanel extends StatefulWidget {
 
   /// How it arrives and leaves. Read once, as the panel mounts.
   final DockedPanelAnimation animation;
+
+  /// How much wider than the panel its window is, on the inner side: the
+  /// strip [dockedPanelShadow] is painted in, already cut out of the window's
+  /// input region. 0 — a theme with no shadow, a platform that could not set
+  /// the region, a test pumping the panel bare — is a panel filling its window
+  /// with no shadow, as before there was one.
+  final int shadowReach;
 
   final Widget child;
 
@@ -396,6 +440,12 @@ class _DockedPanelState extends State<DockedPanel>
     // the outer one is the screen edge and a line there would be drawn on
     // nothing.
     final inner = BorderSide(color: theme.divider);
+    final left = widget.side == DockSide.left;
+    final reach = widget.shadowReach.toDouble();
+    // The live theme's, so a switch while the panel is up restyles it; the
+    // strip it falls in is the window's and was fixed at creation, and the
+    // clip below cuts a shadow that has since outgrown it at the window edge.
+    final shadow = reach > 0 ? dockedPanelShadow(theme) : null;
     return PopupDismissArea(
       // A click in the panel is a click elsewhere as far as any bar popup is
       // concerned. The panel's own registration refuses dismissal, so it is
@@ -411,22 +461,32 @@ class _DockedPanelState extends State<DockedPanel>
           ),
           child: ClipRect(
             child: _animated(
-              // Deliberately not a PopupCard: a full-height surface against
-              // the screen edge, where rounding would cut wallpaper wedges out
-              // of the display's corners and a rim would draw a line down the
-              // screen edge.
-              Container(
-                // Opaque whatever the theme says: this is read over whatever
-                // window would otherwise show through, and the reserved zone
-                // means there is never anything under it worth seeing. Only
-                // the alpha is overridden, so a palette still tints it.
-                decoration: BoxDecoration(
-                  color: theme.popupBackground.withValues(alpha: 1.0),
-                  border: widget.side == DockSide.left
-                      ? Border(right: inner)
-                      : Border(left: inner),
+              // The shadow's strip is inside what the effect moves, so a full
+              // slide carries the shadow off the screen with the panel rather
+              // than leaving it hanging at the edge.
+              Padding(
+                padding: left
+                    ? EdgeInsets.only(right: reach)
+                    : EdgeInsets.only(left: reach),
+                // Deliberately not a PopupCard: a full-height surface against
+                // the screen edge, where rounding would cut wallpaper wedges
+                // out of the display's corners and a rim would draw a line
+                // down the screen edge.
+                child: Container(
+                  // Opaque whatever the theme says: this is read over a window
+                  // that would otherwise show through it. Only the alpha is
+                  // overridden, so a palette still tints it.
+                  decoration: BoxDecoration(
+                    color: theme.popupBackground.withValues(alpha: 1.0),
+                    border: left ? Border(right: inner) : Border(left: inner),
+                    // Painted outside the box, into the padding's strip; the
+                    // other three sides fall off the window and are clipped.
+                    boxShadow: shadow == null ? null : [shadow],
+                  ),
+                  // Its own layer, so a card's hover tint or a time ticking
+                  // re-records the content and leaves the blur's picture be.
+                  child: RepaintBoundary(child: widget.child),
                 ),
-                child: widget.child,
               ),
             ),
           ),

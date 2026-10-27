@@ -47,8 +47,8 @@ class NotificationsConfig {
   /// The edge of the output the panel docks against. Right by default.
   final DockSide side;
 
-  /// How wide the panel is, in logical pixels — and so how much of the output
-  /// it takes from the windows beside it, since it reserves its own width.
+  /// How wide the panel is, in logical pixels — and so how much of the windows
+  /// beneath it the panel covers, since it floats over them.
   final int width;
 
   /// The `animation*` keys: how the panel flies out of its edge and back.
@@ -407,8 +407,8 @@ class _BrokenDot extends StatelessWidget {
 /// The notification panel: a column docked against one edge of the output,
 /// listing what has arrived. Shaped like the clipboard history and drawn by the
 /// same frame (`lib/docked_panel.dart`) — it flies out of its edge, takes no
-/// keyboard, reserves its own width, and stays until its close button, the bell
-/// or the shortcut takes it down.
+/// keyboard, floats over the windows rather than moving them, and stays until
+/// its close button, the bell or the shortcut takes it down.
 ///
 /// Owned by `_MoonswingRootState` rather than the bell module — both things
 /// that ask for it (the bell and the floating badge) ask the root, which is what
@@ -421,6 +421,7 @@ class NotificationPanel extends StatefulWidget {
     super.key,
     this.side = kDefaultNotificationPanelSide,
     this.animation = const DockedPanelAnimation(),
+    this.shadowReach = 0,
     required this.closingNotifier,
     required this.onClosed,
   });
@@ -430,6 +431,9 @@ class NotificationPanel extends StatefulWidget {
 
   /// How it arrives and leaves, `[modules.notifications] animation*`.
   final DockedPanelAnimation animation;
+
+  /// The window's strip for the panel's shadow — [DockedPanel.shadowReach].
+  final int shadowReach;
 
   /// Flipped by whoever wants the panel gone — the bell, the header's close
   /// button, the shortcut, or a notification opening what it is about.
@@ -470,6 +474,7 @@ class _NotificationPanelState extends State<NotificationPanel> {
     return DockedPanel(
       side: widget.side,
       animation: widget.animation,
+      shadowReach: widget.shadowReach,
       closingNotifier: widget.closingNotifier,
       onClosed: widget.onClosed,
       child: Column(

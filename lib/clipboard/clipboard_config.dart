@@ -20,9 +20,8 @@ class ClipboardConfig {
   /// The edge the panel is docked against. Left by default.
   final DockSide side;
 
-  /// How wide the panel is, in logical pixels — and so how much of the output
-  /// it takes from the windows beside it, since the panel reserves exactly its
-  /// own width.
+  /// How wide the panel is, in logical pixels — and so how much of the windows
+  /// beneath it the panel covers, since it floats over them.
   final int width;
 
   /// How many entries the history keeps. Pinned entries are kept on top of
