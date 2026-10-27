@@ -304,6 +304,9 @@ void setPanelMargin(
 /// the pointer would swallow every click on the windows under the leaves. A
 /// [reach] of 0 gives the surface back its whole input region and its old size.
 ///
+/// A docked panel's window goes through here too, for its shadow: a column
+/// against the left or right edge is a vertical bar to this arithmetic.
+///
 /// Answers the reach actually applied.
 int setPanelReach(
   LayershellWindowController controller, {

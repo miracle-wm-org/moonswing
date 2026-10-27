@@ -1,12 +1,14 @@
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:toml/toml.dart';
 
 import 'package:moonswing/clipboard/clipboard_config.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/builtin_themes.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
 
 const _content = Key('content');
@@ -18,12 +20,15 @@ Widget _panel({
   required VoidCallback onClosed,
   required DockSide side,
   required DockedPanelAnimation animation,
+  int shadowReach = 0,
+  ThemeConfig theme = const ThemeConfig(),
 }) {
   return ThemeScope(
-    theme: const ThemeConfig(),
+    theme: theme,
     child: DockedPanel(
       side: side,
       animation: animation,
+      shadowReach: shadowReach,
       closingNotifier: closing,
       onClosed: onClosed,
       child: const SizedBox.expand(key: _content),
@@ -310,5 +315,90 @@ void main() {
         expect(closed, 1);
       });
     }
+  });
+
+  group('DockedPanel shadow', () {
+    ThemeConfig shipped(String slug) =>
+        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
+
+    test('is the popup shadow, undisplaced, and carbon casts none', () {
+      for (final slug in kBuiltInThemes.keys) {
+        final theme = shipped(slug);
+        final shadow = dockedPanelShadow(theme);
+        if (slug == 'carbon') {
+          expect(shadow, isNull, reason: slug);
+          expect(dockedPanelShadowReach(theme), 0, reason: slug);
+          continue;
+        }
+        expect(shadow, isNotNull, reason: slug);
+        expect(shadow!.color, theme.popupShadowColor, reason: slug);
+        expect(shadow.offset, Offset.zero, reason: slug);
+        expect(
+          dockedPanelShadowReach(theme),
+          (theme.popupShadowBlur + theme.popupShadowSpread).ceil(),
+          reason: slug,
+        );
+      }
+      // The defaults a hand-written theme inherits cast one too.
+      expect(dockedPanelShadowReach(const ThemeConfig()), 16);
+    });
+
+    test('a spread that eats the whole blur is no shadow', () {
+      const theme = ThemeConfig(popupShadowBlur: 4, popupShadowSpread: -4);
+      expect(dockedPanelShadow(theme), isNull);
+      expect(dockedPanelShadowReach(theme), 0);
+    });
+
+    // The panel's fill, rule and shadow: the box nearest the content. Its rect
+    // rather than the content's, which the rule's width pads in.
+    final card = find
+        .ancestor(of: find.byKey(_content), matching: find.byType(DecoratedBox))
+        .first;
+    BoxDecoration decoration(WidgetTester tester) =>
+        tester.widget<DecoratedBox>(card).decoration as BoxDecoration;
+
+    for (final side in DockSide.values) {
+      testWidgets('docked ${side.name}, the panel keeps its edge and the strip '
+          'is left for the shadow', (tester) async {
+        final closing = ValueNotifier(false);
+        addTearDown(closing.dispose);
+        await tester.pumpWidget(
+          _panel(
+            closing: closing,
+            onClosed: () {},
+            side: side,
+            animation: const DockedPanelAnimation(),
+            shadowReach: 24,
+          ),
+        );
+        await tester.pumpAndSettle();
+        final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+        final rect = tester.getRect(card);
+        expect(rect.width, closeTo(view.width - 24, 0.01));
+        if (side == DockSide.left) {
+          expect(rect.left, closeTo(0, 0.01));
+        } else {
+          expect(rect.right, closeTo(view.width, 0.01));
+        }
+        expect(decoration(tester).boxShadow, hasLength(1));
+      });
+    }
+
+    testWidgets('with no strip, no shadow and the whole window', (tester) async {
+      final closing = ValueNotifier(false);
+      addTearDown(closing.dispose);
+      await tester.pumpWidget(
+        _panel(
+          closing: closing,
+          onClosed: () {},
+          side: DockSide.left,
+          animation: const DockedPanelAnimation(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final view = tester.view.physicalSize / tester.view.devicePixelRatio;
+      expect(tester.getRect(card).width, closeTo(view.width, 0.01));
+      expect(decoration(tester).boxShadow, isNull);
+    });
   });
 }

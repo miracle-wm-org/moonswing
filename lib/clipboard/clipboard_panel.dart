@@ -5,7 +5,7 @@
 // A docked panel (`lib/docked_panel.dart`), whose shape is the feature: it
 // never takes the keyboard, so pasting goes into the window the user is
 // already in; it stays until its own close button or the bar button takes it
-// down; and it reserves its width, so windows are moved out of its way.
+// down; and it floats over the windows, so opening it moves none of them.
 
 import 'dart:io';
 
@@ -35,6 +35,7 @@ class ClipboardPanel extends StatefulWidget {
     super.key,
     required this.side,
     this.animation = const DockedPanelAnimation(),
+    this.shadowReach = 0,
     required this.closingNotifier,
     required this.onClosed,
     this.store,
@@ -46,6 +47,9 @@ class ClipboardPanel extends StatefulWidget {
 
   /// How it arrives and leaves, `[modules.clipboard] animation*`.
   final DockedPanelAnimation animation;
+
+  /// The window's strip for the panel's shadow — [DockedPanel.shadowReach].
+  final int shadowReach;
 
   /// Flipped by whoever wants the panel gone — its close button or the bar
   /// button. Starts the exit; [onClosed] tears the window down after it.
@@ -87,6 +91,7 @@ class _ClipboardPanelState extends State<ClipboardPanel> {
     return DockedPanel(
       side: widget.side,
       animation: widget.animation,
+      shadowReach: widget.shadowReach,
       closingNotifier: widget.closingNotifier,
       onClosed: widget.onClosed,
       child: ListenableBuilder(

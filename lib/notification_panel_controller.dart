@@ -59,7 +59,7 @@ class NotificationPanelController extends SignalController {
   DockSide _side = kDefaultNotificationPanelSide;
 
   /// How wide it is, `[modules.notifications] width` — and so how much of the
-  /// output it reserves.
+  /// windows beneath it it covers.
   int get width => _width;
   int _width = kDefaultNotificationPanelWidth;
 

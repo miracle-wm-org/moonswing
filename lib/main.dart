@@ -577,6 +577,13 @@ class _MonitorSurfaces {
   ];
 }
 
+/// Where a docked panel was asked to dock, for `_placeDocks`.
+typedef _Dock = ({
+  ffi.Pointer<ffi.NativeType>? monitor,
+  DockSide side,
+  int width,
+});
+
 /// One native window the root owns, and the content that goes in it.
 ///
 /// A record rather than the [WindowEntry] itself: an entry lives as long as its
@@ -650,9 +657,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
   /// The clipboard history, opened by the bar's clipboard icon and docked
   /// against one edge of the output that icon is on. Not an overlay in the
-  /// full-screen sense: a column that reserves its width, takes no keyboard,
-  /// and stays until its own close button or the icon takes it down — so it
-  /// refuses the coordinator's dismissals. Its policy is
+  /// full-screen sense: a column that floats over the windows, takes no
+  /// keyboard, and stays until its own close button or the icon takes it down —
+  /// so it refuses the coordinator's dismissals. Its policy is
   /// [TransientPolicy.modal]'s two booleans for a different reason: nothing is
   /// owed an answer, the user simply asked for it to stay.
   late final _OverlayWindow _clipboard = _OverlayWindow(
@@ -667,6 +674,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
   /// Its flyout, captured alongside [_clipboardSide] and for its reason.
   DockedPanelAnimation _clipboardAnimation = const DockedPanelAnimation();
+
+  /// How much wider than the panel its window was made, for the shadow —
+  /// [_createDockedWindow]'s answer, captured with [_clipboardSide].
+  int _clipboardShadowReach = 0;
   final _OverlayWindow _screencastPicker = _OverlayWindow(
     policy: TransientPolicy.modal,
   );
@@ -709,8 +720,8 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// bell and the badge share no widget ancestry, so both ask the root instead.
   /// `late final` because it brings its own window, a column docked against
   /// one output edge — the clipboard history's shape, and its non-dismissable
-  /// policy for the same reason: it reserves its width, so a click on a window
-  /// beside it taking it down would move every window back under the pointer.
+  /// policy for the same reason: it is read beside the window the user is
+  /// working in, and a click into that window must not take it down.
   late final _OverlayWindow _notifications = _OverlayWindow(
     policy: TransientPolicy.modal,
     create: _createNotificationWindow,
@@ -722,6 +733,14 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
   /// Its flyout, captured alongside [_notificationSide].
   DockedPanelAnimation _notificationAnimation = const DockedPanelAnimation();
+
+  /// Its shadow's strip, captured alongside [_notificationSide].
+  int _notificationShadowReach = 0;
+
+  /// The docked panels open now, in the order they opened, and where each was
+  /// asked to dock — what [_placeDocks] puts two against one edge side by
+  /// side from.
+  final Map<LayershellWindowController, _Dock> _docks = {};
 
   /// The page the open (or about-to-open) settings overlay was asked for. Null
   /// is the default landing page.
@@ -1154,11 +1173,13 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     final controller = NotificationPanelController.instance;
     _notificationSide = controller.side;
     _notificationAnimation = controller.animation;
-    return _createDockedWindow(
+    final docked = _createDockedWindow(
       monitor,
       side: controller.side,
       width: controller.width,
     );
+    _notificationShadowReach = docked.shadowReach;
+    return docked.controller;
   }
 
   /// The bell module or the shortcut asked for the panel. The bell names the
@@ -1204,6 +1225,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     final removed = _notifications.take();
     if (removed == null) return;
     NotificationPanelController.instance.setOpen(false);
+    _undock(removed);
     _refreshWindows();
     _destroyAfterFrame([removed]);
     // Deliberately no badge back for what is still unread: the user has seen
@@ -1794,25 +1816,33 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
   /// The window for a docked panel — the clipboard history or the
   /// notification panel: full-height against [side] of the output, [width]
-  /// wide.
+  /// wide plus the strip its shadow falls in, which is answered alongside.
   ///
-  /// Three choices make it what it is:
+  /// Four choices make it what it is:
   ///
   /// - **Keyboard `none`.** Both panels are used beside the window the user is
   ///   working in; a surface that took focus on every click would take it off
   ///   that window.
-  /// - **An exclusive zone of its own width**, so the compositor moves windows
-  ///   out of its way. Hence no [spanFullOutput] either: a positive zone is
-  ///   placed clear of the zones already reserved — the bars', and the other
-  ///   docked panel's when both are open against one edge, which is what puts
-  ///   them side by side rather than one over the other.
+  /// - **An exclusive zone of 0**: it reserves nothing, so opening a panel
+  ///   moves no window — it lies over them, a flyout rather than a dock. Zero
+  ///   rather than -1 (no [spanFullOutput]) because 0 still asks to be kept
+  ///   clear of the zones others reserved, so it runs between the bars, never
+  ///   under them.
+  /// - **A shadow strip handed back to the windows.** The theme's shadow falls
+  ///   across the inner edge onto whatever is beneath, so the surface is grown
+  ///   by its reach — but only once that strip is out of the input region,
+  ///   [setPanelReach]'s rule, or a click on the shadow would be swallowed.
   /// - **The top layer**, a dock's: above windows, below the overlays.
-  LayershellWindowController _createDockedWindow(
+  ///
+  /// With no zone of its own, nothing in the compositor stops a second panel
+  /// docked against the same edge landing on the first; [_placeDocks] does.
+  ({LayershellWindowController controller, int shadowReach})
+  _createDockedWindow(
     ffi.Pointer<ffi.NativeType>? monitor, {
     required DockSide side,
     required int width,
   }) {
-    return LayershellWindowController(
+    final controller = LayershellWindowController(
       layer: LayerShellLayer.top,
       anchorEdges: [
         side == DockSide.left ? LayerShellEdge.left : LayerShellEdge.right,
@@ -1821,10 +1851,63 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       ],
       width: width,
       // height omitted: top+bottom anchoring makes this full-height.
-      exclusiveZone: width,
+      exclusiveZone: 0,
       keyboardMode: LayerShellKeyboardMode.none,
       monitor: monitor,
     );
+    // A docked column is a vertical bar as far as the arithmetic goes: depth
+    // against its edge, overhang into the screen. The theme as it is now; a
+    // switch while the panel is up restyles it inside the strip it was given.
+    final reach = dockedPanelShadowReach(ThemeStore.instance.theme);
+    final shadowReach = reach > 0
+        ? setPanelReach(
+            controller,
+            anchor: side.configName,
+            thickness: width,
+            reach: reach,
+          )
+        : 0;
+    _docks[controller] = (monitor: monitor, side: side, width: width);
+    _placeDocks();
+    return (controller: controller, shadowReach: shadowReach);
+  }
+
+  /// Puts each open docked panel beside the ones that opened before it against
+  /// the same edge of the same output, by a margin on that edge: what a
+  /// reserved zone used to do for them. Beside the earlier panel itself, not
+  /// its shadow, which the later one covers.
+  ///
+  /// An output nobody named (the shortcut's — the compositor's choice) is
+  /// taken to be the same as any: two panels side by side on different screens
+  /// leave a gap, while two on one screen taken for different ones would hide
+  /// one under the other.
+  void _placeDocks() {
+    final placed = <_Dock>[];
+    for (final MapEntry(key: controller, value: dock) in _docks.entries) {
+      var margin = 0;
+      for (final earlier in placed) {
+        if (earlier.side != dock.side) continue;
+        final a = earlier.monitor, b = dock.monitor;
+        if (a != null && b != null && a != b) continue;
+        margin += earlier.width;
+      }
+      placed.add(dock);
+      if (controller.isDestroyed) continue;
+      controller.setMargin(
+        dock.side == DockSide.left ? LayerShellEdge.left : LayerShellEdge.right,
+        margin,
+      );
+      // A margin change on a mapped surface only queues a resize; see
+      // [setPanelMargin].
+      controller.tryForceCommit();
+    }
+  }
+
+  /// A docked panel's window is going: the ones still open close up against
+  /// the edge again.
+  void _undock(LayershellWindowController controller) {
+    if (_docks.remove(controller) == null) return;
+    _placeDocks();
   }
 
   /// The clipboard history's window, `[modules.clipboard]`'s side and width.
@@ -1834,7 +1917,13 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     final config = ClipboardHistoryStore.instance.config;
     _clipboardSide = config.side;
     _clipboardAnimation = config.animation;
-    return _createDockedWindow(monitor, side: config.side, width: config.width);
+    final docked = _createDockedWindow(
+      monitor,
+      side: config.side,
+      width: config.width,
+    );
+    _clipboardShadowReach = docked.shadowReach;
+    return docked.controller;
   }
 
   /// The bar's clipboard button was pressed. Toggles: a press while the panel
@@ -1858,6 +1947,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     final removed = _clipboard.take();
     if (removed == null) return;
     ClipboardPanelController.instance.setOpen(false);
+    _undock(removed);
     _refreshWindows();
     _destroyAfterFrame([removed]);
   }
@@ -2773,6 +2863,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
             NotificationPanel(
               side: _notificationSide,
               animation: _notificationAnimation,
+              shadowReach: _notificationShadowReach,
               closingNotifier: _notifications.closing,
               onClosed: _onNotificationPanelClosed,
             ),
@@ -2903,6 +2994,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
             ClipboardPanel(
               side: _clipboardSide,
               animation: _clipboardAnimation,
+              shadowReach: _clipboardShadowReach,
               closingNotifier: _clipboard.closing,
               onClosed: _onClipboardClosed,
             ),

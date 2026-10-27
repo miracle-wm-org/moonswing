@@ -514,9 +514,10 @@ like](#the-panels-animation)), **never takes keyboard focus**, and
 stays open until you close it with its ×, click the bell again, or press the
 `open_notifications` shortcut — clicking anything else, or opening another menu,
 leaves it where it is. Clicking a notification that opens something closes it,
-out of that thing's way. While it is open it **reserves its width**: windows are
-moved out of its way rather than drawn under it. If the clipboard history is
-docked against the same edge, the two open side by side.
+out of that thing's way. It **floats over your windows** rather than pushing them
+aside: opening it moves nothing, and it casts the theme's popup shadow across its
+inner edge (a click on the shadow still lands on the window beneath it). If the
+clipboard history is docked against the same edge, the two open side by side.
 
 ```toml
 [modules.notifications]
@@ -775,8 +776,9 @@ The panel **never takes keyboard focus**, so copying from it leaves the window
 you were typing in exactly as it was — click a card, click back into your
 document, paste. It stays open until you close it with its ×, or click the
 clipboard icon again; clicking anything else, or opening another menu, leaves it
-where it is. While it is open it **reserves its width**: windows are moved out
-of its way rather than drawn under it.
+where it is. It **floats over your windows** rather than pushing them aside, so
+opening it moves nothing, and it casts the theme's popup shadow across its inner
+edge — a click on the shadow still lands on the window beneath it.
 
 ```toml
 [modules.clipboard]
@@ -1422,6 +1424,8 @@ Sensible defaults are shipped rather than zero — `8.0` with a 1px rim — beca
 The five `popup_shadow_*` keys are a CSS box-shadow, spelled out: a color, a blur radius, a spread, and an offset on each axis. There is one shadow per theme rather than the stack CSS allows.
 
 **A shadow makes a popup's window bigger.** A popup is its own compositor surface, sized to its content, and a shadow paints *outside* the card — so the shell grows the surface by the shadow's reach (`blur + spread`, shifted by the offset, on each side independently) and then repositions the popup by that same amount, so the card lands exactly where it would have without one. Two consequences worth knowing: a click landing in the shadow's margin hits the popup rather than passing through to what is underneath, and a very large blur on a popup near a screen edge gives the compositor more to slide back on-screen. Setting `popup_shadow_color`'s alpha to `0` removes the margin along with the shadow, restoring the exact geometry of a shell with no shadow at all — which is what `carbon` does.
+
+The [notification panel](#notifications) and the [clipboard history](#clipboard) cast the same shadow across their inner edge, since both float over your windows. Only the color, blur and spread apply there — a full-height column has no bottom for an offset to show under — and the strip the shadow falls in does *not* take your clicks: it is cut out of the panel's input region, and should the shell be unable to do that, the panel opens with no shadow rather than with a strip that swallows clicks.
 
 Nothing says the shadow has to read as one. Give it a colour off the palette rather than a black, leave both offsets at `0` so it is not displaced from the card, and take `popup_shadow_spread` above zero so the falloff starts outside the card's edge, and the same key paints a symmetrical bloom around the card instead of weight beneath it. That is `midnight`, and the geometry follows it: with no displacement the window grows by `blur + spread` on all four sides equally, and on a bar popup the joined side is still clamped to `popup_gap`, so the glow fills the gap between card and bar and stops at the panel.
 
