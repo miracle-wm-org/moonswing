@@ -125,6 +125,8 @@ refresh_minutes = 30
 
 ### Battery
 
+The bar shows the charge level. Clicking it opens a popup with the time remaining (or until full), the current power draw, and each battery's health, cycle count, chemistry and model, where the firmware reports them.
+
 ```toml
 [modules.battery]
 poll_seconds = 30
