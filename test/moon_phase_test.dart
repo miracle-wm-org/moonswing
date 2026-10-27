@@ -185,14 +185,21 @@ void main() {
       _expectNear(crescent.nextPrincipalTime, DateTime.utc(2024, 1, 18, 3, 53));
     });
 
-    test('the altitude and the hemisphere need a location; the phase does not',
-        () {
+    test(
+        'the altitude and the orientation need a location; the phase does '
+        'not', () {
       // Six hours after moonrise over Springfield, when it is unambiguously up.
       final nowhere = computeMoonReading(at: DateTime.utc(2024, 1, 26, 5));
       expect(nowhere.altitudeDegrees, isNull);
       expect(nowhere.isUp, isNull);
-      expect(nowhere.southernView, isFalse);
       expect(nowhere.illuminationPercent, greaterThan(90));
+      // The almanac's picture: celestial north up, so a waning Moon is lit on
+      // the left, and its own north leans by the axis angle and no more.
+      expect(nowhere.orientation.brightLimbDegrees, inInclusiveRange(180, 360));
+      expect(
+        angleDifference(nowhere.orientation.northDegrees, 0).abs(),
+        lessThan(26),
+      );
 
       final somewhere = computeMoonReading(
         at: DateTime.utc(2024, 1, 26, 5),
@@ -201,17 +208,10 @@ void main() {
       );
       expect(somewhere.altitudeDegrees, isNotNull);
       expect(somewhere.isUp, isTrue);
-      expect(somewhere.southernView, isFalse);
+      expect(somewhere.orientation, isNot(nowhere.orientation));
       // The same instant, the same phase — that half of the reading is not the
       // observer's.
       expect(somewhere.illumination, closeTo(nowhere.illumination, 1e-12));
-
-      final southern = computeMoonReading(
-        at: DateTime.utc(2024, 1, 26, 5),
-        latitude: -33.87,
-        longitude: 151.21,
-      );
-      expect(southern.southernView, isTrue);
     });
 
     test('distance and apparent size move together', () {
@@ -219,6 +219,98 @@ void main() {
       expect(near.distanceKm, closeTo(356509, 50));
       expect(near.distanceAnomaly, lessThan(-0.06));
       expect(near.angularDiameterDegrees, greaterThan(0.55));
+    });
+  });
+
+  group('orientation', () {
+    /// How far apart two directions are, either way round.
+    double apart(double a, double b) => angleDifference(a, b).abs();
+
+    test(
+        'an evening crescent is lit from below at the equator, and from '
+        'either side of below away from it', () {
+      // Three days after the new Moon of 11 January 2024, an hour or two after
+      // sunset on the Greenwich meridian: the Sun has gone down under the
+      // crescent, and how far round "under" is depends on where you stand.
+      final at = DateTime.utc(2024, 1, 14, 19);
+      MoonOrientation from(double latitude) {
+        final reading = computeMoonReading(
+          at: at,
+          latitude: latitude,
+          longitude: 0,
+        );
+        expect(reading.isUp, isTrue);
+        return reading.orientation;
+      }
+
+      // Lit lower right in the north, as the old picture had it lit on the
+      // right...
+      expect(from(40).brightLimbDegrees, inExclusiveRange(90, 180));
+      // ...lying on its back at the equator...
+      expect(apart(from(0).brightLimbDegrees, 180), lessThan(20));
+      // ...and lit lower left in the south.
+      expect(from(-35).brightLimbDegrees, inExclusiveRange(180, 270));
+    });
+
+    test('below the horizon it is drawn as it crosses the meridian', () {
+      // The other side of the world from Springfield at the same instant, where
+      // the Moon is down. On the meridian north and south are a half turn apart
+      // exactly — both the face and the light.
+      final at = DateTime.utc(2024, 1, 26, 5);
+      final north = computeMoonReading(
+        at: at,
+        latitude: 39.8,
+        longitude: 90.35,
+      );
+      final south = computeMoonReading(
+        at: at,
+        latitude: -39.8,
+        longitude: 90.35,
+      );
+      expect(north.isUp, isFalse);
+      expect(south.isUp, isFalse);
+      expect(
+        apart(north.orientation.northDegrees, south.orientation.northDegrees),
+        closeTo(180, 1e-9),
+      );
+      expect(
+        apart(
+          north.orientation.brightLimbDegrees,
+          south.orientation.brightLimbDegrees,
+        ),
+        closeTo(180, 1e-9),
+      );
+      // And the northern meridian view is the almanac's.
+      expect(north.orientation, computeMoonReading(at: at).orientation);
+    });
+
+    test('in the tropics the Moon decides which way up, not the equator', () {
+      // A January full Moon is far north — 22° at this instant — so it crosses
+      // the meridian north of the zenith for anybody south of that, and an
+      // observer at 5°N sees it the way Sydney does, not the way Springfield
+      // does. A hemisphere flag drew 5°N and 5°S a half turn apart.
+      final at = DateTime.utc(2024, 1, 26, 5);
+      MoonOrientation from(double latitude) {
+        final reading = computeMoonReading(
+          at: at,
+          latitude: latitude,
+          longitude: 90.35,
+        );
+        expect(reading.isUp, isFalse);
+        return reading.orientation;
+      }
+
+      expect(
+        moonAltitude(
+          time: at,
+          latitude: 5,
+          longitude: 90.35,
+        ).declinationDegrees,
+        greaterThan(15),
+      );
+      expect(from(5), from(-5));
+      expect(from(5), from(-39.8));
+      expect(from(35), isNot(from(5)));
     });
   });
 

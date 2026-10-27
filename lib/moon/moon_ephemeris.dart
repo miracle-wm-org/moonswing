@@ -391,7 +391,15 @@ Equatorial equatorialFromEcliptic({
 /// `0.7275 × parallax − 34′`, the upper limb clearing a refracted horizon. It is
 /// a hair *above* zero rather than below — the Moon is close enough that its
 /// parallax outweighs the refraction every other body's rise time subtracts.
-({double altitudeDegrees, double horizonDegrees}) moonAltitude({
+///
+/// The hour angle and declination it was found from come back with it, because
+/// they are also the two things [parallacticAngle] needs.
+({
+  double altitudeDegrees,
+  double horizonDegrees,
+  double hourAngleDegrees,
+  double declinationDegrees,
+}) moonAltitude({
   required DateTime time,
   required double latitude,
   required double longitude,
@@ -419,5 +427,128 @@ Equatorial equatorialFromEcliptic({
   return (
     altitudeDegrees: altitude / _rad,
     horizonDegrees: 0.7275 * moon.parallaxDegrees - 0.5667,
+    hourAngleDegrees: normalizeDegrees(hourAngle / _rad),
+    declinationDegrees: equatorial.declination,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Which way up
+// ---------------------------------------------------------------------------
+//
+// Three angles decide how the Moon looks to somebody standing under it, and
+// only the last of them is the observer's:
+//
+// - where on the disc the Sun is shining from ([brightLimbPositionAngle]),
+// - which way the Moon's own north pole points ([moonAxisPositionAngle]) —
+//   both measured from the *celestial* north, so the same for everybody, and
+// - where that celestial north is in the observer's sky ([parallacticAngle]).
+//
+// A northern observer facing the Moon as it crosses the meridian has celestial
+// north straight up; a southern one has it straight down, which is the half turn
+// the hemispheres are popularly said to differ by. But that is only the meridian,
+// and only away from the tropics: everywhere else the turn is continuous, which
+// is why a crescent lies on its back at the equator.
+
+/// The inclination of the Moon's equator to the ecliptic (Meeus, chapter 53).
+const double _lunarEquatorInclination = 1.54242;
+
+/// The mean longitude of the ascending node of the Moon's orbit at [t],
+/// degrees (Meeus 47.7).
+double moonAscendingNode(double t) {
+  final t2 = t * t;
+  final t3 = t2 * t;
+  return normalizeDegrees(
+    125.0445479 -
+        1934.1362891 * t +
+        0.0020754 * t2 +
+        t3 / 467441 -
+        t3 * t / 60616000,
+  );
+}
+
+/// The position angle of the Moon's bright limb, degrees in `[0, 360)`: the
+/// direction of the middle of the lit edge, measured from celestial north
+/// through east (Meeus 48.5).
+///
+/// Around 270 — west, towards the Sun — while waxing and around 90 while
+/// waning; how far either side of that is the tilt of the ecliptic.
+double brightLimbPositionAngle({
+  required Equatorial sun,
+  required Equatorial moon,
+}) {
+  final sunDec = sun.declination * _rad;
+  final moonDec = moon.declination * _rad;
+  final deltaRa = (sun.rightAscension - moon.rightAscension) * _rad;
+  return normalizeDegrees(
+    math.atan2(
+          math.cos(sunDec) * math.sin(deltaRa),
+          math.sin(sunDec) * math.cos(moonDec) -
+              math.cos(sunDec) * math.sin(moonDec) * math.cos(deltaRa),
+        ) /
+        _rad,
+  );
+}
+
+/// The position angle of the Moon's axis of rotation, degrees in
+/// `(-180, 180]`: how far its north pole leans east of celestial north
+/// (Meeus, chapter 53).
+///
+/// The optical part only — nutation and the physical libration together move it
+/// by a few hundredths of a degree, and the picture this turns is not a map.
+/// What is left swings by up to 25° either way every month, as the Moon's right
+/// ascension goes round — enough to see in where the maria sit.
+double moonAxisPositionAngle({
+  required double t,
+  required MoonPosition moon,
+  required Equatorial equatorial,
+  required double obliquity,
+}) {
+  const inclination = _lunarEquatorInclination * _rad;
+  final node = moonAscendingNode(t) * _rad;
+  final beta = moon.latitude * _rad;
+  final w = moon.longitude * _rad - node;
+  // The selenographic latitude of the Earth: the optical libration in latitude.
+  final b = math.asin(
+    -math.sin(w) * math.cos(beta) * math.sin(inclination) -
+        math.sin(beta) * math.cos(inclination),
+  );
+  final e = obliquity * _rad;
+  final x = math.sin(inclination) * math.sin(node);
+  final y = math.sin(inclination) * math.cos(node) * math.cos(e) -
+      math.cos(inclination) * math.sin(e);
+  final omega = math.atan2(x, y);
+  final sine = math.sqrt(x * x + y * y) *
+      math.cos(equatorial.rightAscension * _rad - omega) /
+      math.cos(b);
+  return math.asin(sine.clamp(-1.0, 1.0)) / _rad;
+}
+
+/// The parallactic angle, degrees in `(-180, 180]`: where the observer's zenith
+/// is, seen from the body, measured from celestial north through east
+/// (Meeus 14.1).
+///
+/// Zero for a body crossing the meridian on the equator side of the zenith, 180
+/// for one crossing on the pole side — which, for the Moon, is every southern
+/// observer outside the tropics. Negative while it is in the east.
+///
+/// Meeus's form divides by `tan φ`; this is the same ratio multiplied through by
+/// `cos φ`, which is never negative, so it is also defined at the poles.
+double parallacticAngle({
+  required double hourAngleDegrees,
+  required double latitude,
+  required double declination,
+}) {
+  final h = hourAngleDegrees * _rad;
+  final phi = latitude * _rad;
+  final dec = declination * _rad;
+  return angleDifference(
+    math.atan2(
+          math.sin(h) * math.cos(phi),
+          math.sin(phi) * math.cos(dec) -
+              math.cos(phi) * math.sin(dec) * math.cos(h),
+        ) /
+        _rad,
+    0,
   );
 }

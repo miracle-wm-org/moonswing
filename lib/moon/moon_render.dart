@@ -20,21 +20,27 @@
 // - **The dark side is drawn, not left out.** Earthshine genuinely lights the
 //   new Moon's disc, which is what "the old Moon in the new Moon's arms"
 //   describes; a crescent floating on nothing reads as a clipping bug.
-// - **The southern hemisphere sees the whole disc rotated half a turn**, not
-//   mirrored — which is why the features are held in unit-disc coordinates.
+// - **The disc is turned, never mirrored.** Everybody on Earth sees the same
+//   face; where they are changes only which way up it is, and the light and the
+//   face turn separately (`MoonOrientation`) — which is why the features are
+//   held in unit-disc coordinates. A southern observer seeing it "upside down"
+//   is the half turn this comes to on the meridian, not a special case.
 // - **Nothing here animates.** The picture changes over hours and this painter
 //   can be on a desktop for weeks.
 // - **A repaint is dear, so it is bought at the resolution the picture has.**
 //   This is the most expensive painter in the shell: two clipped passes over the
 //   whole disc, nearly every draw carrying a `MaskFilter`, which is a full
 //   offscreen blur *each*. So a ray system is one stroked path of nine subpaths
-//   rather than nine strokes ([_paintRays]), and the illumination reaching a
-//   painter is snapped to [kDrawnIlluminationStep] first.
+//   rather than nine strokes ([_paintRays]), and the illumination and the
+//   orientation reaching a painter are snapped to [kDrawnIlluminationStep] and
+//   [kDrawnAngleStep] first.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
+
+import 'package:moonswing/moon/moon_phase.dart';
 
 /// One oval of one mare. A sea is several of these fused into a single path:
 /// overlapping ovals in one non-zero path fill as their union, so a translucent
@@ -87,8 +93,8 @@ class _Mare {
 /// The nearside seas, roughly where they are.
 ///
 /// Not a map projection: at 80 pixels across what matters is that the big shapes
-/// are in the right corners. Coordinates are the northern-hemisphere view — east
-/// (Crisium) to the right — which [MoonPainter] rotates for a southern observer.
+/// are in the right corners. Coordinates are the face with the Moon's north up —
+/// east (Crisium) to the right — which [MoonPainter] turns to the observer's sky.
 const List<_Mare> _maria = [
   // Oceanus Procellarum — the vast one down the western limb, and the palest.
   _Mare(
@@ -207,23 +213,43 @@ double drawnIllumination(double illumination) =>
     (illumination.clamp(0.0, 1.0) / kDrawnIlluminationStep).roundToDouble() *
         kDrawnIlluminationStep;
 
+/// The step the *orientation* is drawn at, degrees.
+///
+/// While the Moon is up its orientation turns continuously — a quarter turn
+/// between rising and setting, and fastest near the zenith — so it is a reading
+/// that moves every minute for the reason the illumination is. A degree moves
+/// the limb of the largest Moon the grid allows by under a pixel.
+const double kDrawnAngleStep = 1.0;
+
+/// [degrees] snapped to [kDrawnAngleStep], in `[0, 360)`.
+double drawnAngle(double degrees) {
+  final snapped = (degrees / kDrawnAngleStep).roundToDouble() * kDrawnAngleStep;
+  final wrapped = snapped % 360.0;
+  return wrapped < 0 ? wrapped + 360.0 : wrapped;
+}
+
+/// [orientation] with both of its angles snapped to [kDrawnAngleStep].
+MoonOrientation drawnOrientation(MoonOrientation orientation) =>
+    MoonOrientation(
+      brightLimbDegrees: drawnAngle(orientation.brightLimbDegrees),
+      northDegrees: drawnAngle(orientation.northDegrees),
+    );
+
 /// The Moon at one phase, filling whatever square it is given.
 ///
-/// [illumination] is the lit fraction; [waxing] says which limb it is on;
-/// [southernView] rotates the disc half a turn. Nothing else — everything this
+/// [illumination] is the lit fraction; [orientation] says where the light is
+/// coming from and which way up the face is. Nothing else — everything this
 /// needs is what the readout beside it already shows.
 class MoonDisc extends StatelessWidget {
   const MoonDisc({
     super.key,
     required this.illumination,
-    required this.waxing,
-    this.southernView = false,
+    this.orientation = const MoonOrientation.upright(),
     this.glow = true,
   });
 
   final double illumination;
-  final bool waxing;
-  final bool southernView;
+  final MoonOrientation orientation;
 
   /// The halo around the disc, scaled by how much of it is lit. Off inside a
   /// tight row, where there is no room for it to fall off and it would read as
@@ -236,8 +262,7 @@ class MoonDisc extends StatelessWidget {
       child: CustomPaint(
         painter: MoonPainter(
           illumination: drawnIllumination(illumination),
-          waxing: waxing,
-          southernView: southernView,
+          orientation: drawnOrientation(orientation),
           glow: glow,
         ),
         size: Size.infinite,
@@ -251,14 +276,12 @@ class MoonDisc extends StatelessWidget {
 class MoonPainter extends CustomPainter {
   const MoonPainter({
     required this.illumination,
-    required this.waxing,
-    this.southernView = false,
+    this.orientation = const MoonOrientation.upright(),
     this.glow = true,
   });
 
   final double illumination;
-  final bool waxing;
-  final bool southernView;
+  final MoonOrientation orientation;
   final bool glow;
 
   @override
@@ -279,38 +302,36 @@ class MoonPainter extends CustomPainter {
 
     if (glow) _paintGlow(canvas, centre, size);
 
-    canvas.save();
-    if (southernView) {
-      // Half a turn about the centre: the disc *and* everything on it. A mirror
-      // would be wrong — a southern observer sees the same face upside down,
-      // not reversed.
-      canvas.translate(centre.dx, centre.dy);
-      canvas.rotate(math.pi);
-      canvas.translate(-centre.dx, -centre.dy);
-    }
-
     final disc = Path()
       ..addOval(Rect.fromCircle(center: centre, radius: radius));
     final litPath = moonLitPath(
       centre: centre,
       radius: radius,
       illumination: lit,
-      waxing: waxing,
+      brightLimbDegrees: orientation.brightLimbDegrees,
     );
     final darkPath = Path.combine(ui.PathOperation.difference, disc, litPath);
 
+    // Where the Sun is, on the face as it is drawn before it is turned — which
+    // is where the shading has to lean, or a face turned over would be lit
+    // from the side the shadow is on.
+    final sunward = (orientation.brightLimbDegrees - orientation.northDegrees) *
+        math.pi /
+        180;
+    final light = Offset(math.sin(sunward), -math.cos(sunward));
+
     canvas.save();
     canvas.clipPath(darkPath);
-    _paintFace(canvas, centre, radius, _earthlit);
+    // Earthshine comes from where the observer is standing: straight on.
+    _paintFace(canvas, centre, radius, _earthlit, Offset.zero);
     canvas.restore();
 
     canvas.save();
     canvas.clipPath(litPath);
-    _paintFace(canvas, centre, radius, _sunlit);
+    _paintFace(canvas, centre, radius, _sunlit, light);
     canvas.restore();
 
     _paintTerminatorSoftening(canvas, centre, radius, lit, disc);
-    canvas.restore();
 
     canvas.restore();
   }
@@ -340,17 +361,32 @@ class MoonPainter extends CustomPainter {
   /// The disc's surface, in one palette. Called twice — once clipped to the
   /// shadow, once to the light — so the maria run straight across the
   /// terminator the way they do on the sky.
+  ///
+  /// Drawn turned to [MoonOrientation.northDegrees] — the clip it is inside is
+  /// not, being already where the light falls. [light] is the unit direction
+  /// the light comes from on the unturned face, or zero for light from straight
+  /// on.
   void _paintFace(
     Canvas canvas,
     Offset centre,
     double radius,
     _MoonPalette palette,
+    Offset light,
   ) {
-    // Limb darkening: the disc is brightest a little up and left of centre,
-    // where the Sun is, and falls off towards the rim.
+    // Half a turn about the centre for a southern observer at the meridian,
+    // and anything else in between: the disc *and* everything on it. A mirror
+    // would be wrong — every observer sees the same face, only at another
+    // angle.
+    canvas.save();
+    canvas.translate(centre.dx, centre.dy);
+    canvas.rotate(orientation.northDegrees * math.pi / 180);
+    canvas.translate(-centre.dx, -centre.dy);
+
+    // Limb darkening: the disc is brightest a little towards the Sun and falls
+    // off towards the rim.
     final body = Paint()
       ..shader = ui.Gradient.radial(
-        centre.translate(-radius * 0.15, -radius * 0.15),
+        centre + light * (radius * 0.2),
         radius * 1.25,
         [palette.centre, palette.limb],
         const [0.0, 1.0],
@@ -401,7 +437,7 @@ class MoonPainter extends CustomPainter {
       // A rim is a lit arc on the side the Sun is on and a shadow opposite;
       // one stroke offset by a fraction of the radius reads as both.
       canvas.drawCircle(
-        at.translate(-r * 0.12, -r * 0.12),
+        at + light * (r * 0.17),
         r,
         Paint()
           ..style = PaintingStyle.stroke
@@ -426,6 +462,7 @@ class MoonPainter extends CustomPainter {
           1.0,
         ]),
     );
+    canvas.restore();
   }
 
   void _paintRays(
@@ -485,7 +522,8 @@ class MoonPainter extends CustomPainter {
     Path disc,
   ) {
     if (lit <= 0.06 || lit >= 0.94) return;
-    final rx = radius * (1 - 2 * lit) * (waxing ? 1 : -1);
+    // Built lit-on-the-right, as [moonLitPath] is, and turned with the canvas.
+    final rx = radius * (1 - 2 * lit);
     final path = Path();
     const steps = 48;
     for (var i = 0; i <= steps; i++) {
@@ -498,6 +536,9 @@ class MoonPainter extends CustomPainter {
     }
     canvas.save();
     canvas.clipPath(disc);
+    canvas.translate(centre.dx, centre.dy);
+    canvas.rotate((orientation.brightLimbDegrees - 90) * math.pi / 180);
+    canvas.translate(-centre.dx, -centre.dy);
     canvas.drawPath(
       path,
       Paint()
@@ -512,12 +553,13 @@ class MoonPainter extends CustomPainter {
   @override
   bool shouldRepaint(MoonPainter oldDelegate) =>
       oldDelegate.illumination != illumination ||
-      oldDelegate.waxing != waxing ||
-      oldDelegate.southernView != southernView ||
+      oldDelegate.orientation != orientation ||
       oldDelegate.glow != glow;
 }
 
-/// The lit region of a disc of [radius] at [centre].
+/// The lit region of a disc of [radius] at [centre], with the middle of its lit
+/// edge at [brightLimbDegrees] clockwise from straight up — 90, the default, is
+/// a waxing Moon as an almanac draws it, lit on the right.
 ///
 /// Public and pure so the geometry is a unit test: at half lit the bounding box
 /// is exactly half the disc, a crescent is narrower and a gibbous wider, and
@@ -525,36 +567,38 @@ class MoonPainter extends CustomPainter {
 ///
 /// The outline is sampled rather than assembled from `arcTo`: the terminator's x
 /// semi-axis passes through zero and changes sign at the quarters, and every
-/// arc-based formulation needs a special case on each side of it.
+/// arc-based formulation needs a special case on each side of it. Sampling is
+/// also what makes the turn free — each point is placed lit-on-the-right and
+/// turned on the way into the path.
 Path moonLitPath({
   required Offset centre,
   required double radius,
   required double illumination,
-  required bool waxing,
+  double brightLimbDegrees = 90,
 }) {
   final lit = illumination.clamp(0.0, 1.0);
-  final direction = waxing ? 1.0 : -1.0;
   // Signed: positive bulges into the lit side (a crescent), negative away from
   // it (a gibbous), zero at the quarters (a straight terminator).
-  final rx = radius * (1 - 2 * lit) * direction;
-  final limbX = radius * direction;
+  final rx = radius * (1 - 2 * lit);
+
+  final turn = (brightLimbDegrees - 90) * math.pi / 180;
+  final cos = math.cos(turn);
+  final sin = math.sin(turn);
+  // The textbook rotation, which turns clockwise on a y-down screen.
+  Offset place(double x, double y) =>
+      Offset(centre.dx + x * cos - y * sin, centre.dy + x * sin + y * cos);
 
   const steps = 96;
   final path = Path();
   for (var i = 0; i <= steps; i++) {
     final angle = -math.pi / 2 + math.pi * i / steps;
-    final point = Offset(
-      centre.dx + limbX * math.cos(angle),
-      centre.dy + radius * math.sin(angle),
-    );
+    final point = place(radius * math.cos(angle), radius * math.sin(angle));
     i == 0 ? path.moveTo(point.dx, point.dy) : path.lineTo(point.dx, point.dy);
   }
   for (var i = steps; i >= 0; i--) {
     final angle = -math.pi / 2 + math.pi * i / steps;
-    path.lineTo(
-      centre.dx + rx * math.cos(angle),
-      centre.dy + radius * math.sin(angle),
-    );
+    final point = place(rx * math.cos(angle), radius * math.sin(angle));
+    path.lineTo(point.dx, point.dy);
   }
   return path..close();
 }

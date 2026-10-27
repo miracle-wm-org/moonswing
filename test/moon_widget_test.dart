@@ -7,6 +7,7 @@ import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/desktop/widgets/moon_widget.dart';
 import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/moon/moon_ephemeris.dart';
 import 'package:moonswing/moon/moon_render.dart';
 import 'package:moonswing/moon/moon_store.dart';
 import 'package:moonswing/scopes.dart';
@@ -206,7 +207,9 @@ void main() {
       store.dispose();
     });
 
-    testWidgets('the southern hemisphere turns the disc over', (tester) async {
+    testWidgets('the disc is drawn the way up the location sees it', (
+      tester,
+    ) async {
       final store = _store(latitude: -33.87, longitude: 151.21);
       await pumpMoon(
         tester,
@@ -214,8 +217,14 @@ void main() {
       );
 
       final disc = tester.widget<MoonDisc>(find.byType(MoonDisc));
-      expect(disc.southernView, isTrue);
-      expect(disc.waxing, isTrue);
+      // A first quarter climbing out of a Sydney afternoon's eastern sky, with
+      // the Sun high behind the observer: lit from above, which neither an
+      // almanac's picture nor one turned over shows.
+      expect(disc.orientation, store.reading.orientation);
+      expect(
+        angleDifference(disc.orientation.brightLimbDegrees, 0).abs(),
+        lessThan(45),
+      );
       expect(disc.illumination, closeTo(0.5, 0.01));
       store.dispose();
     });
