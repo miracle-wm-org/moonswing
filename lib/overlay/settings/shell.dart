@@ -27,8 +27,9 @@ import 'package:moonswing/theme/theme_store.dart';
 ///
 /// Reads the config file into a [ConfigStore], renders form controls for the
 /// theme, module options, panels/layout, and background, and writes every
-/// change straight back to disk. The running shell is not live-reloaded, so a
-/// persistent banner reminds the user to restart for changes to take effect.
+/// change straight back to disk. The running shell follows nearly all of it
+/// live; a banner says so when an edit touches one of the few things that wait
+/// for a restart (see [ConfigStore.needsRestart]).
 class ShellSettingsPage extends StatefulWidget {
   const ShellSettingsPage({
     super.key,
@@ -111,8 +112,8 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
         Expanded(child: _buildBody()),
         // Only surfaces when a restart-only field actually changed.
         // Selected rather than built on every notify: `needsRestart` walks
-        // `[panels]` and allocates a string per key, and this listener fired on
-        // every keystroke anywhere in the settings UI.
+        // `[shortcuts]` and allocates a string per key, and this listener fired
+        // on every keystroke anywhere in the settings UI.
         StoreSelector<bool>(
           listenable: _store,
           selector: () => _store.needsRestart,

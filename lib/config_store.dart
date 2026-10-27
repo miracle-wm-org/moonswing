@@ -14,8 +14,9 @@ import 'package:moonswing/config.dart';
 ///
 /// The single in-memory source of truth for the process: the running shell
 /// watches it as a [Listenable] and rebuilds live, while the settings UI mutates
-/// it. A restart is only needed for changes that recreate native layer-shell
-/// windows (panel geometry, panel set, background-layer presence).
+/// it. A restart is only needed for what latches at startup: whether the
+/// background surface exists, and the global shortcuts. Panels are recreated
+/// live by the shell's root as `[panels]` changes.
 class ConfigStore extends ChangeNotifier {
   ConfigStore._(this._path, this._root) {
     _startupRestartSignature = _restartSignature();
@@ -136,30 +137,17 @@ class ConfigStore extends ChangeNotifier {
     }
   }
 
-  /// True when a restart-only field has changed since the store loaded: values
-  /// that parametrize native layer-shell windows and cannot apply live — panel
-  /// `anchor`/`height`/`layer`, the set of panels, and whether the background
-  /// surface exists at all — plus `[shortcuts]`, which is not a window at all
-  /// but latches just as hard: the compositor is asked for the shell's global
-  /// shortcuts once, on its first answer, so a rebinding is a change to what the
-  /// *next* run registers. Everything else updates live.
+  /// True when a restart-only field has changed since the store loaded: whether
+  /// the background surface exists at all, and `[shortcuts]`, which is not a
+  /// window but latches just as hard: the compositor is asked for the shell's
+  /// global shortcuts once, on its first answer, so a rebinding is a change to
+  /// what the *next* run registers. Everything else updates live — panels
+  /// included, whose windows the root recreates when their set or geometry
+  /// moves.
   bool get needsRestart => _restartSignature() != _startupRestartSignature;
 
   String _restartSignature() {
     final parts = <String>[];
-    final panels = _root['panels'];
-    if (panels is Map) {
-      final keys = panels.keys.map((k) => '$k').toList()..sort();
-      for (final key in keys) {
-        final panel = panels[key];
-        if (panel is Map) {
-          parts.add('$key:${panel['anchor']}:${panel['height']}:'
-              '${panel['layer']}');
-        } else {
-          parts.add('$key:');
-        }
-      }
-    }
     // What is restart-only is whether the background *surface* exists, not what
     // fed that decision. Signing the decision rather than its two inputs means
     // enabling the desktop grid on a config that already has a wallpaper does not
