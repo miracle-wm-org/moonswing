@@ -9,16 +9,17 @@
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moonswing/moon/moon_phase.dart';
 import 'package:moonswing/moon/moon_render.dart';
 
 const Offset _centre = Offset(100, 100);
 const double _radius = 50;
 
-Path _lit(double illumination, {bool waxing = true}) => moonLitPath(
+Path _lit(double illumination, {double brightLimb = 90}) => moonLitPath(
       centre: _centre,
       radius: _radius,
       illumination: illumination,
-      waxing: waxing,
+      brightLimbDegrees: brightLimb,
     );
 
 /// A point [fraction] of the way from the centre towards the lit limb of a
@@ -26,6 +27,10 @@ Path _lit(double illumination, {bool waxing = true}) => moonLitPath(
 Offset _right(double fraction) => _centre.translate(_radius * fraction, 0);
 
 Offset _left(double fraction) => _centre.translate(-_radius * fraction, 0);
+
+Offset _below(double fraction) => _centre.translate(0, _radius * fraction);
+
+Offset _above(double fraction) => _centre.translate(0, -_radius * fraction);
 
 void main() {
   group('moonLitPath', () {
@@ -79,18 +84,40 @@ void main() {
       expect(bounds.width, lessThanOrEqualTo(_radius * 2 + 0.5));
     });
 
-    test('waning is the mirror of waxing', () {
+    test('lit on the left is the mirror of lit on the right', () {
       final waxing = _lit(0.25);
-      final waning = _lit(0.25, waxing: false);
+      final waning = _lit(0.25, brightLimb: 270);
       expect(waxing.contains(_right(0.9)), isTrue);
       expect(waxing.contains(_left(0.9)), isFalse);
       expect(waning.contains(_left(0.9)), isTrue);
       expect(waning.contains(_right(0.9)), isFalse);
       // Same area, opposite side.
+      expect(waning.getBounds().width, closeTo(waxing.getBounds().width, 0.01));
+    });
+
+    test('turns to wherever the light is', () {
+      // An evening crescent at the equator, lying on its back.
+      final down = _lit(0.25, brightLimb: 180);
+      expect(down.contains(_below(0.9)), isTrue);
+      expect(down.contains(_above(0.9)), isFalse);
+      expect(down.contains(_right(0.9)), isFalse);
+      final bounds = down.getBounds();
+      // The horns now reach the sides of the disc rather than its poles, and
+      // nothing is lit above the line between them.
+      expect(bounds.width, closeTo(_radius * 2, 0.5));
+      expect(bounds.top, greaterThan(_centre.dy - 0.5));
+
+      // Turned an eighth: the lit edge is up and to the right.
+      final tilted = _lit(0.25, brightLimb: 45);
+      const diagonal = 0.9 * 0.7071;
       expect(
-        waning.getBounds().width,
-        closeTo(waxing.getBounds().width, 0.01),
+        tilted.contains(
+          _centre.translate(_radius * diagonal, -_radius * diagonal),
+        ),
+        isTrue,
       );
+      expect(tilted.contains(_below(0.9)), isFalse);
+      expect(tilted.contains(_left(0.9)), isFalse);
     });
 
     test('an out-of-range fraction is clamped rather than inverted', () {
@@ -104,31 +131,38 @@ void main() {
 
   group('MoonPainter', () {
     test('repaints only when the picture would differ', () {
-      const base = MoonPainter(illumination: 0.5, waxing: true);
-      expect(
-        base.shouldRepaint(
-          const MoonPainter(illumination: 0.5, waxing: true),
-        ),
-        isFalse,
-      );
-      expect(
-        base.shouldRepaint(
-          const MoonPainter(illumination: 0.6, waxing: true),
-        ),
-        isTrue,
-      );
-      expect(
-        base.shouldRepaint(
-          const MoonPainter(illumination: 0.5, waxing: false),
-        ),
-        isTrue,
-      );
+      const base = MoonPainter(illumination: 0.5);
       expect(
         base.shouldRepaint(
           const MoonPainter(
             illumination: 0.5,
-            waxing: true,
-            southernView: true,
+            orientation: MoonOrientation(
+              brightLimbDegrees: 90,
+              northDegrees: 0,
+            ),
+          ),
+        ),
+        isFalse,
+      );
+      expect(base.shouldRepaint(const MoonPainter(illumination: 0.6)), isTrue);
+      expect(
+        base.shouldRepaint(
+          const MoonPainter(
+            illumination: 0.5,
+            orientation: MoonOrientation.upright(waxing: false),
+          ),
+        ),
+        isTrue,
+      );
+      // The face turned with the light where it was.
+      expect(
+        base.shouldRepaint(
+          const MoonPainter(
+            illumination: 0.5,
+            orientation: MoonOrientation(
+              brightLimbDegrees: 90,
+              northDegrees: 180,
+            ),
           ),
         ),
         isTrue,
@@ -145,7 +179,13 @@ void main() {
             child: SizedBox(
               width: 120,
               height: 120,
-              child: MoonDisc(illumination: phase, waxing: phase < 0.5),
+              child: MoonDisc(
+                illumination: phase,
+                orientation: MoonOrientation(
+                  brightLimbDegrees: 150 + phase * 120,
+                  northDegrees: phase * 200,
+                ),
+              ),
             ),
           ),
         );
@@ -197,20 +237,45 @@ void main() {
       // The point of the whole thing: `shouldRepaint` is what stands between a
       // reading that moves every minute and the most expensive painter in the
       // shell.
-      final before = MoonPainter(
-        illumination: drawnIllumination(0.5),
-        waxing: true,
-      );
-      final after = MoonPainter(
-        illumination: drawnIllumination(0.50021),
-        waxing: true,
-      );
+      final before = MoonPainter(illumination: drawnIllumination(0.5));
+      final after = MoonPainter(illumination: drawnIllumination(0.50021));
       expect(after.shouldRepaint(before), isFalse);
       expect(
-        MoonPainter(illumination: drawnIllumination(0.503), waxing: true)
-            .shouldRepaint(before),
+        MoonPainter(
+          illumination: drawnIllumination(0.503),
+        ).shouldRepaint(before),
         isTrue,
       );
+    });
+  });
+
+  group('drawnOrientation', () {
+    test('snaps both angles to the degree, and wraps them', () {
+      expect(drawnAngle(90.4), 90);
+      expect(drawnAngle(90.6), 91);
+      expect(drawnAngle(359.7), 0);
+      expect(drawnAngle(-0.3), 0);
+      expect(drawnAngle(-90), 270);
+      expect(
+        drawnOrientation(
+          const MoonOrientation(brightLimbDegrees: 151.2, northDegrees: -12.8),
+        ),
+        const MoonOrientation(brightLimbDegrees: 151, northDegrees: 347),
+      );
+    });
+
+    test('a painter built from it compares equal across a tick', () {
+      // The parallactic angle turns the disc continuously while the Moon is up
+      // — a tenth of a degree or so a minute at mid-latitudes — so a painter
+      // handed the raw angles would repaint every tick of the store.
+      MoonPainter painter(double limb, double north) => MoonPainter(
+            illumination: 0.5,
+            orientation: drawnOrientation(
+              MoonOrientation(brightLimbDegrees: limb, northDegrees: north),
+            ),
+          );
+      expect(painter(120.1, 30.2).shouldRepaint(painter(120.3, 30.1)), isFalse);
+      expect(painter(120.1, 30.2).shouldRepaint(painter(121.2, 30.1)), isTrue);
     });
   });
 }

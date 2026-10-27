@@ -5,6 +5,7 @@
 // point of the store is that most of the time it does not even do that.
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moonswing/moon/moon_phase.dart';
 import 'package:moonswing/moon/moon_store.dart';
 import 'package:moonswing/weather/weather_config.dart';
 import 'package:moonswing/weather/weather_store.dart';
@@ -131,12 +132,24 @@ void main() {
       expect(store.place, isNull);
     });
 
-    test('the southern hemisphere turns the disc over', () async {
+    test('the location turns the disc', () async {
       final store = _moon(weatherStoreAt(latitude: -33.87, longitude: 151.21));
       store.acquire();
       await pumpEventQueue();
 
-      expect(store.reading.southernView, isTrue);
+      final at = DateTime.utc(2024, 1, 25, 17, 54);
+      expect(
+        store.reading.orientation,
+        computeMoonReading(
+          at: at,
+          latitude: -33.87,
+          longitude: 151.21,
+        ).orientation,
+      );
+      expect(
+        store.reading.orientation,
+        isNot(computeMoonReading(at: at).orientation),
+      );
     });
 
     test('a weather location change is adopted', () async {
@@ -145,6 +158,7 @@ void main() {
       store.acquire();
       await pumpEventQueue();
       final first = store.times;
+      final northern = store.reading.orientation;
       expect(store.place?.latitude, 39.8);
 
       weather.configure(const WeatherConfig(
@@ -159,7 +173,7 @@ void main() {
       store.refresh();
 
       expect(store.place?.name, 'Sydney');
-      expect(store.reading.southernView, isTrue);
+      expect(store.reading.orientation, isNot(northern));
       expect(store.times, isNot(same(first)));
     });
   });

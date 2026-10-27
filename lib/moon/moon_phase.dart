@@ -150,6 +150,46 @@ DateTime moonPhaseBefore(DateTime start, double target) {
   return solved;
 }
 
+/// Which way up the Moon is drawn: the two directions that decide the picture,
+/// both in degrees clockwise from straight up, so a painter can take them as
+/// they are.
+///
+/// Not a hemisphere flag. The face is turned by the parallactic angle, which is
+/// a half turn between the hemispheres only on the meridian and only outside the
+/// tropics; and the lit edge points at the Sun, which is only ever exactly left
+/// or right when the ecliptic happens to be level. The flag this replaces got
+/// both wrong at once — a crescent at the equator lies on its back, and an
+/// observer a few degrees either side of it saw the same sky drawn upside down
+/// on one side of the line and not the other.
+class MoonOrientation {
+  const MoonOrientation({
+    required this.brightLimbDegrees,
+    required this.northDegrees,
+  });
+
+  /// The almanac's picture: celestial north up, the light exactly on the right
+  /// while [waxing] and on the left after.
+  const MoonOrientation.upright({bool waxing = true})
+      : brightLimbDegrees = waxing ? 90 : 270,
+        northDegrees = 0;
+
+  /// Where the middle of the lit edge points. 90 is lit on the right.
+  final double brightLimbDegrees;
+
+  /// Where the Moon's own north pole points — which way up the maria are. 180
+  /// is the face as a southern observer sees it at its highest.
+  final double northDegrees;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MoonOrientation &&
+      other.brightLimbDegrees == brightLimbDegrees &&
+      other.northDegrees == northDegrees;
+
+  @override
+  int get hashCode => Object.hash(brightLimbDegrees, northDegrees);
+}
+
 /// Everything the shell knows about the Moon at one instant.
 ///
 /// **The four phase instants are found on first read, not on construction.** Each
@@ -168,9 +208,9 @@ class MoonReading {
     required this.distanceKm,
     required this.angularDiameterDegrees,
     required this.nextPrincipalTargetDegrees,
+    required this.orientation,
     this.altitudeDegrees,
     this.horizonDegrees,
-    this.southernView = false,
   });
 
   /// The instant this was computed for.
@@ -240,9 +280,9 @@ class MoonReading {
   /// The altitude that counts as risen at [time]; see [moonAltitude].
   final double? horizonDegrees;
 
-  /// Whether the observer is in the southern hemisphere, where the whole disc
-  /// is seen rotated half a turn — a waxing crescent is lit on the *left*.
-  final bool southernView;
+  /// Which way up the observer sees it; see [computeMoonReading] for which
+  /// moment of the night that is.
+  final MoonOrientation orientation;
 
   MoonPhase get phase => phaseForCyclePosition(cyclePosition);
 
@@ -277,8 +317,19 @@ class MoonReading {
 ///
 /// The phase half is the same everywhere on Earth, so a shell that has never
 /// resolved a location still draws the right shape. The location buys two things
-/// and no more: the altitude (and with it the rise and set times) and the
-/// hemisphere the disc is seen from.
+/// and no more: the altitude (and with it the rise and set times) and which way
+/// up the disc is seen.
+///
+/// **The orientation is the sky's at [at] while the Moon is up, and its highest
+/// point's while it is not.** Up, it is what the user would see by looking out
+/// of the window, rising tilted and setting tilted the other way. Below the
+/// horizon there is nothing to look at, and following it round under the Earth
+/// would turn the picture over during the day — so it is drawn as it will be on
+/// the meridian, which is the view the hemispheres are known by: celestial north
+/// up when it passes on the equator side of the zenith, down when it passes on
+/// the pole side. That is a matter of the Moon's declination as well as the
+/// latitude, so inside the tropics the same observer gets both in one month.
+/// With no location at all it is the almanac's: celestial north up.
 MoonReading computeMoonReading({
   required DateTime at,
   double? latitude,
@@ -312,13 +363,49 @@ MoonReading computeMoonReading({
   // getters, which search only if somebody asks.
   final nextQuadrant = ((elongation / 90).floor() + 1) * 90;
 
+  // Geocentric throughout: the Moon's parallax moves it about a degree across
+  // the sky, which turns none of these angles by anything a picture can show.
+  final obliquity = meanObliquity(t);
+  final moonEquatorial = equatorialFromEcliptic(
+    longitude: moon.longitude,
+    latitude: moon.latitude,
+    obliquity: obliquity,
+  );
+  final brightLimb = brightLimbPositionAngle(
+    sun: equatorialFromEcliptic(
+      longitude: sun.longitude,
+      latitude: 0,
+      obliquity: obliquity,
+    ),
+    moon: moonEquatorial,
+  );
+  final axis = moonAxisPositionAngle(
+    t: t,
+    moon: moon,
+    equatorial: moonEquatorial,
+    obliquity: obliquity,
+  );
+
   double? altitude;
   double? horizon;
+  // Where the zenith is from the Moon, as a position angle; zero puts celestial
+  // north at the top of the picture.
+  var zenith = 0.0;
   if (latitude != null && longitude != null) {
     final position =
         moonAltitude(time: at, latitude: latitude, longitude: longitude);
     altitude = position.altitudeDegrees;
     horizon = position.horizonDegrees;
+    zenith = altitude > horizon
+        ? parallacticAngle(
+            hourAngleDegrees: position.hourAngleDegrees,
+            latitude: latitude,
+            declination: position.declinationDegrees,
+          )
+        // On the meridian the parallactic angle is exactly one of the two.
+        : latitude >= position.declinationDegrees
+            ? 0.0
+            : 180.0;
   }
 
   return MoonReading(
@@ -330,9 +417,15 @@ MoonReading computeMoonReading({
     distanceKm: moon.distanceKm,
     angularDiameterDegrees: moon.angularDiameterDegrees,
     nextPrincipalTargetDegrees: nextQuadrant % 360,
+    // Position angles run anticlockwise on the sky — east is on the left when
+    // facing the Moon — and the zenith is turned to the top, so each direction
+    // on the picture is the zenith's angle less its own.
+    orientation: MoonOrientation(
+      brightLimbDegrees: normalizeDegrees(zenith - brightLimb),
+      northDegrees: normalizeDegrees(zenith - axis),
+    ),
     altitudeDegrees: altitude,
     horizonDegrees: horizon,
-    southernView: latitude != null && latitude < 0,
   );
 }
 

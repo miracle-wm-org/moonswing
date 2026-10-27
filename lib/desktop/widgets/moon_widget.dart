@@ -173,8 +173,7 @@ class _CompactLayout extends StatelessWidget {
           height: discSize,
           child: MoonDisc(
             illumination: reading.illumination,
-            waxing: reading.waxing,
-            southernView: reading.southernView,
+            orientation: reading.orientation,
             // No room for a halo to fall off in; it would read as a smudge.
             glow: false,
           ),
@@ -258,8 +257,7 @@ class _ExpandedLayout extends StatelessWidget {
               height: discSize,
               child: MoonDisc(
                 illumination: reading.illumination,
-                waxing: reading.waxing,
-                southernView: reading.southernView,
+                orientation: reading.orientation,
               ),
             ),
             const SizedBox(width: 12),

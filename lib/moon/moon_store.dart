@@ -210,10 +210,17 @@ class MoonStore extends ChangeNotifier {
     // exactly when the Moon crosses a quadrant of elongation, and so does which
     // phase is next. That is what keeps `_publish` off `MoonReading`'s lazy
     // getters, so a tick costs one position evaluation rather than fifty.
+    //
+    // The orientation is here to the whole degree, which is the step the disc is
+    // drawn at (`kDrawnAngleStep`): it moves continuously while the Moon is up —
+    // fastest near the zenith, which the tropics see every month — and only a
+    // degree of it is something the picture can show.
     final signature = [
       current.phase.index,
       current.illuminationPercent,
       current.distanceKm.round(),
+      current.orientation.brightLimbDegrees.round() % 360,
+      current.orientation.northDegrees.round() % 360,
       current.nextPrincipalPhase.index,
       _times?.rise?.millisecondsSinceEpoch,
       _times?.set?.millisecondsSinceEpoch,

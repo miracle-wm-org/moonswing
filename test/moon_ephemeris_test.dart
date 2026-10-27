@@ -142,4 +142,74 @@ void main() {
       expect(north.altitudeDegrees, greaterThan(south.altitudeDegrees));
     });
   });
+
+  group('which way up', () {
+    // The same instant as example 47.a, which is also the book's example for
+    // the bright limb (48.a) and for the physical ephemeris (53.a).
+    final t = julianCenturies(_example47a);
+    final moon = moonPosition(t);
+    final obliquity = meanObliquity(t);
+    final moonEquatorial = equatorialFromEcliptic(
+      longitude: moon.longitude,
+      latitude: moon.latitude,
+      obliquity: obliquity,
+    );
+
+    test('the ascending node reproduces example 47.a', () {
+      expect(moonAscendingNode(t), closeTo(274.400656, 1e-5));
+    });
+
+    test('the bright limb reproduces example 48.a', () {
+      final sun = sunPosition(t);
+      final limb = brightLimbPositionAngle(
+        sun: equatorialFromEcliptic(
+          longitude: sun.longitude,
+          latitude: 0,
+          obliquity: obliquity,
+        ),
+        moon: moonEquatorial,
+      );
+      // A waxing gibbous, so towards the Sun in the west — about 270.
+      expect(limb, closeTo(285.0, 0.1));
+    });
+
+    test('the axis reproduces example 53.a', () {
+      // To a few hundredths: the book's figure includes nutation and the
+      // physical libration, which this leaves out on purpose.
+      expect(
+        moonAxisPositionAngle(
+          t: t,
+          moon: moon,
+          equatorial: moonEquatorial,
+          obliquity: obliquity,
+        ),
+        closeTo(15.08, 0.05),
+      );
+    });
+
+    test(
+        'the parallactic angle is 0 or 180 on the meridian, by which side '
+        'of the zenith the body passes', () {
+      double q(double hourAngle, double latitude, double declination) =>
+          parallacticAngle(
+            hourAngleDegrees: hourAngle,
+            latitude: latitude,
+            declination: declination,
+          );
+
+      // Passing south of the zenith: north up.
+      expect(q(0, 40, 10), closeTo(0, 1e-9));
+      // Passing north of it: north down. Most of the southern hemisphere —
+      // and an observer at 5°N under a Moon at 20°N.
+      expect(q(0, -35, 10).abs(), closeTo(180, 1e-9));
+      expect(q(0, 5, 20).abs(), closeTo(180, 1e-9));
+      // Rising in the east it leans one way, setting in the west the other.
+      expect(q(-60, 40, 10), lessThan(0));
+      expect(q(60, 40, 10), greaterThan(0));
+      expect(q(60, 40, 10), closeTo(-q(-60, 40, 10), 1e-9));
+      // And at the pole, where Meeus's own form divides by infinity, it is
+      // defined and zero: the zenith *is* the celestial pole there.
+      expect(q(30, 90, 10), closeTo(0, 1e-9));
+    });
+  });
 }
