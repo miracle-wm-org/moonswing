@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/panel_gradient.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -255,6 +256,84 @@ void main() {
     expect(theme.popupRadius, 8.0);
     expect(theme.popupBorderWidth, 1.0);
     expect(theme.popupBorder, theme.divider);
+  });
+
+  group('panel_gradient', () {
+    test('defaults to the accent fade every bar already had', () {
+      expect(const ThemeConfig().panelGradient, PanelGradient.accent);
+    });
+
+    test('a theme written when the key was a boolean keeps its bar', () {
+      expect(
+        ThemeConfig.fromMap({'panel_gradient': true}).panelGradient,
+        PanelGradient.accent,
+      );
+      expect(
+        ThemeConfig.fromMap({'panel_gradient': false}).panelGradient,
+        PanelGradient.none,
+      );
+    });
+
+    test('parses a slug and writes the slug back', () {
+      final theme = ThemeConfig.fromMap({'panel_gradient': 'corners'});
+      expect(theme.panelGradient, PanelGradient.corners);
+      expect(theme.toMap()['panel_gradient'], 'corners');
+      // Rewritten as the slug, so a boolean theme saved once is upgraded.
+      expect(
+        ThemeConfig.fromMap({
+          'panel_gradient': false,
+        }).toMap()['panel_gradient'],
+        'none',
+      );
+    });
+
+    test('an unknown or wrongly-typed value costs the key, not the theme', () {
+      for (final bad in <Object>[
+        'radial',
+        3,
+        1.5,
+        const ['corners'],
+      ]) {
+        final theme = ThemeConfig.fromMap({
+          'panel_gradient': bad,
+          'panel_radius': 12.0,
+        });
+        expect(theme.panelGradient, PanelGradient.accent, reason: '$bad');
+        expect(theme.panelRadius, 12.0, reason: '$bad');
+      }
+    });
+
+    test('the four corners are colours, read and written like any other', () {
+      final theme = ThemeConfig.fromMap({
+        'panel_gradient': 'corners',
+        'panel_gradient_top_left': '#80FF0000',
+        'panel_gradient_top_right': '#00FF00',
+        'panel_gradient_bottom_right': 'not a colour',
+      });
+      expect(theme.panelGradientTopLeft, const Color(0x80FF0000));
+      expect(theme.panelGradientTopRight, const Color(0xFF00FF00));
+      expect(
+        theme.panelGradientBottomRight,
+        const ThemeConfig().panelGradientBottomRight,
+      );
+      expect(theme.toMap()['panel_gradient_top_left'], '#80FF0000');
+      expect(
+        ThemeConfig.colorKeys,
+        containsAll(const [
+          'panel_gradient_top_left',
+          'panel_gradient_top_right',
+          'panel_gradient_bottom_right',
+          'panel_gradient_bottom_left',
+        ]),
+      );
+    });
+
+    test('a theme switch blends the corners with the rest of the palette', () {
+      const a = ThemeConfig(panelGradientTopLeft: Color(0xFF000000));
+      const b = ThemeConfig(panelGradientTopLeft: Color(0xFFFFFFFF));
+      final mid = ThemeConfig.blend(a, b, 0.5).panelGradientTopLeft;
+      expect(mid.r, closeTo(0.5, 0.01));
+    });
   });
 
   group('popup_animation', () {

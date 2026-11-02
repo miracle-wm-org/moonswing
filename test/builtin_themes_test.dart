@@ -9,6 +9,7 @@ import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/theme/builtin_themes.dart';
+import 'package:moonswing/theme/panel_gradient.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -93,7 +94,7 @@ void main() {
     for (final entry in kBuiltInThemes.entries) {
       final theme =
           ThemeConfig.fromMap(TomlDocument.parse(entry.value).toMap());
-      if (!theme.panelGradient) continue;
+      if (theme.panelGradient != PanelGradient.accent) continue;
       expect(theme.panelBackground.a, greaterThan(0.5), reason: 'in ${entry.key}');
     }
   });
@@ -149,7 +150,7 @@ void main() {
     expect(forest.panelHasDecor, isTrue);
     // The wood is the picture, so nothing fades under it, and it is opaque so
     // the grain is not the wallpaper's.
-    expect(forest.panelGradient, isFalse);
+    expect(forest.panelGradient, PanelGradient.none);
     expect(forest.panelTextureColor.a, 1.0);
     // Floating, so the leaves hang from something that is visibly hung.
     expect(forest.panelMargin, greaterThan(0));
@@ -195,7 +196,7 @@ void main() {
     expect(autumn.panelTexture, SurfaceMaterial.wood);
     expect(autumn.panelEndTexture, SurfaceMaterial.bark);
     expect(autumn.panelEndLength, greaterThan(0));
-    expect(autumn.panelGradient, isFalse);
+    expect(autumn.panelGradient, PanelGradient.none);
     // Flush, so the leaves framing the screen start at its very corners.
     expect(autumn.panelMargin, 0);
     // The harvest: turning leaves and pumpkins, with room for the corner
@@ -240,7 +241,7 @@ void main() {
 
   test('dracula is flat: a solid Dracula background, no purple fade', () {
     final dracula = _shipped('dracula');
-    expect(dracula.panelGradient, isFalse);
+    expect(dracula.panelGradient, PanelGradient.none);
     expect(dracula.panelBackground, const Color(0xFF282A36));
   });
 
@@ -248,7 +249,7 @@ void main() {
     final carbon = _shipped('carbon');
     // Flat is the whole brief, and it is spelled on every key that could
     // contradict it — including the one no other shipped theme touches.
-    expect(carbon.panelGradient, isFalse);
+    expect(carbon.panelGradient, PanelGradient.none);
     expect(carbon.panelBackground.a, 1.0,
         reason: 'a translucent bar lets the wallpaper decide what colour the '
             'flattest surface in the theme is');
@@ -325,7 +326,7 @@ void main() {
     // panel_background verbatim under panel_gradient = false.
     expect(carbon.popupBackground, carbon.panelBackground,
         reason: 'a card that grows out of the bar is made of the bar');
-    expect(carbon.panelGradient, isFalse,
+    expect(carbon.panelGradient, PanelGradient.none,
         reason: 'a fade would step across the join the flare exists to erase');
     expect(carbon.popupBackground.a, 1.0,
         reason: 'a translucent card would let the wallpaper decide which half '
@@ -392,6 +393,45 @@ void main() {
     for (final slug in kBuiltInThemes.keys) {
       if (slug == 'midnight') continue;
       expect(_shipped(slug).textScale, 1.0, reason: 'in $slug');
+    }
+  });
+
+  test('midnight lights its bar from one corner, in four colours', () {
+    // The shipped demonstration of panel_gradient = "corners", and the only
+    // theme that uses it.
+    final midnight = _shipped('midnight');
+    expect(midnight.panelGradient, PanelGradient.corners);
+    final corners = PanelCorners.of(midnight);
+    final colours = [
+      corners.topLeft,
+      corners.topRight,
+      corners.bottomRight,
+      corners.bottomLeft,
+    ];
+    expect(colours.toSet(), hasLength(4),
+        reason: 'a colour of its own in each corner');
+    for (final c in colours) {
+      // One opacity, as the accent fade has, so no corner reads as a patch of
+      // the wallpaper showing through more than the rest.
+      expect(c.a, midnight.panelBackground.a);
+      expect(_contrast(midnight.foreground, c.withValues(alpha: 1)),
+          greaterThan(7.0),
+          reason: 'the bar is read in every corner of it');
+    }
+    // Lit from the top-left: the far corner is the darkest of the four.
+    expect(corners.topLeft.computeLuminance(),
+        greaterThan(corners.bottomRight.computeLuminance()));
+    for (final c in colours.take(3)) {
+      expect(corners.bottomRight.computeLuminance(),
+          lessThanOrEqualTo(c.computeLuminance()));
+    }
+    expect(panelBackgroundDecoration(theme: midnight),
+        isA<PanelCornerDecoration>());
+
+    for (final slug in kBuiltInThemes.keys) {
+      if (slug == 'midnight') continue;
+      expect(_shipped(slug).panelGradient, isNot(PanelGradient.corners),
+          reason: 'in $slug');
     }
   });
 

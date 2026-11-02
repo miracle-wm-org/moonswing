@@ -84,7 +84,14 @@ scrim                = "#8A0E120B"
 # The beam is opaque oak: the panel's own fill is the dark under the grain,
 # and the gradient is off because the wood is the picture.
 panel_background     = "#FF1E150D"
-panel_gradient       = false
+panel_gradient       = "none"
+# Read only under panel_gradient = "corners"; spelled because a shipped theme
+# leans on no default, and spelled as the bar so that switching the shape on
+# in a copy starts from the bar this theme already has.
+panel_gradient_top_left     = "#FF1E150D"
+panel_gradient_top_right    = "#FF1E150D"
+panel_gradient_bottom_right = "#FF1E150D"
+panel_gradient_bottom_left  = "#FF1E150D"
 
 # A floating beam, so the leaves hang from something that is visibly hung.
 panel_margin         = 6
@@ -216,7 +223,14 @@ scrim                = "#8A140C06"
 # The beam is opaque: the panel's own fill is the dark under the chestnut,
 # and the gradient is off because the wood is the picture.
 panel_background     = "#FF2A190D"
-panel_gradient       = false
+panel_gradient       = "none"
+# Read only under panel_gradient = "corners"; spelled because a shipped theme
+# leans on no default, and spelled as the bar so that switching the shape on
+# in a copy starts from the bar this theme already has.
+panel_gradient_top_left     = "#FF2A190D"
+panel_gradient_top_right    = "#FF2A190D"
+panel_gradient_bottom_right = "#FF2A190D"
+panel_gradient_bottom_left  = "#FF2A190D"
 
 # Flush with the screen's edges, so the leaves framing its corners start at
 # its side edge rather than a margin's width inside it. The radius
@@ -321,7 +335,14 @@ scrim                = "#88282A36"
 # Solid, not translucent: a see-through bar would let the wallpaper decide
 # what colour the flattest surface in the theme is.
 panel_background     = "#FF282A36"
-panel_gradient       = false
+panel_gradient       = "none"
+# Read only under panel_gradient = "corners"; spelled because a shipped theme
+# leans on no default, and spelled as the bar so that switching the shape on
+# in a copy starts from the bar this theme already has.
+panel_gradient_top_left     = "#FF282A36"
+panel_gradient_top_right    = "#FF282A36"
+panel_gradient_bottom_right = "#FF282A36"
+panel_gradient_bottom_left  = "#FF282A36"
 
 # Flush and square — Dracula is a flat palette, not a floating one. The rim
 # colour matches divider so switching it on reads as Dracula.
@@ -433,7 +454,14 @@ scrim                = "#66101318"
 # put the accent against the screen edge at the bar's own opacity, which is
 # the one place this theme wants nothing but the wallpaper.
 panel_background     = "#40121722"
-panel_gradient       = false
+panel_gradient       = "none"
+# Read only under panel_gradient = "corners"; spelled because a shipped theme
+# leans on no default, and spelled as the bar so that switching the shape on
+# in a copy starts from the bar this theme already has.
+panel_gradient_top_left     = "#40121722"
+panel_gradient_top_right    = "#40121722"
+panel_gradient_bottom_right = "#40121722"
+panel_gradient_bottom_left  = "#40121722"
 
 # A floating pane rather than a strip: an 8px gap on every anchored edge, cut
 # by a real gtk-layer-shell margin, so nothing tiles into the gap (the
@@ -573,10 +601,20 @@ notification_badge_foreground = "#0A0F22"
 # read over a bright wallpaper at this little contrast.
 scrim                = "#A6050816"
 
-# The bar fades indigo -> deep blue -> midnight, every stop at
-# panel_background's own alpha.
+# The bar is lit from the top-left of the screen, the way the moon over its
+# wallpaper is: a corner of its own in each corner of the bar. Indigo where
+# the light is, a violet dusk along the top towards the right, deep water
+# blue down the left, and midnight in the far corner — so along the bar it
+# fades from lit to dark, and across its depth the top edge carries a sheen
+# the bottom does not. Every corner is at the same alpha panel_background is,
+# so the bar is one opacity over the Milky Way however the colours fall, and
+# all four are dark enough that the foreground holds better than 7:1 on each.
 panel_background     = "#F00A0F22"
-panel_gradient       = true
+panel_gradient       = "corners"
+panel_gradient_top_left     = "#F0263378"
+panel_gradient_top_right    = "#F02E1A52"
+panel_gradient_bottom_right = "#F00A0F22"
+panel_gradient_bottom_left  = "#F00E2242"
 
 # The most lifted bar shipped: a 12px gap on every anchored edge, an 18px
 # corner, and a rim half again as thick as a hairline. All three go together —
@@ -740,7 +778,14 @@ scrim                = "#A6161616"
 # a pair here: an alpha or a gradient on either one alone puts a visible step
 # back across the join.
 panel_background     = "#161616"
-panel_gradient       = false
+panel_gradient       = "none"
+# Read only under panel_gradient = "corners"; spelled because a shipped theme
+# leans on no default, and spelled as the bar so that switching the shape on
+# in a copy starts from the bar this theme already has.
+panel_gradient_top_left     = "#161616"
+panel_gradient_top_right    = "#161616"
+panel_gradient_bottom_right = "#161616"
+panel_gradient_bottom_left  = "#161616"
 
 # Flush and square, and rimmed. A bar with panel_border_width above zero draws
 # that rim along its *inner* edge too, so a menu attached to it used to butt
