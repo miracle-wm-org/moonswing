@@ -20,7 +20,7 @@ import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/launcher/app_index.dart';
 import 'package:moonswing/modules/battery.dart' show BatteryConfig;
-import 'package:moonswing/modules/clock.dart' show ClockConfig;
+import 'package:moonswing/modules/clock.dart' show ClockConfig, ClockHourFormat;
 import 'package:moonswing/modules/dock.dart' show DockConfig;
 import 'package:moonswing/modules/github.dart' show GithubConfig;
 import 'package:moonswing/modules/media_player.dart' show MediaPlayerConfig;
@@ -192,6 +192,11 @@ class _ModuleSetting {
 /// A docked panel's six `animation*` rows, which the notification panel and
 /// the clipboard history carry alike. The defaults are read off the module's
 /// own config, as every row's are.
+String _clockHourFormatLabel(String slug) => switch (slug) {
+  '12' => '12-hour (2:05 PM)',
+  _ => '24-hour (14:05)',
+};
+
 List<_ModuleSetting> _flyoutRows({
   required SettingsField animation,
   required SettingsField curve,
@@ -349,12 +354,38 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
   ),
   ModuleSettingsPage._(
     'clock',
-    'Date and the timer alarm',
+    'What the bar shows and the timer alarm',
     ShellGlyph.clock,
     [
       _ModuleSetting.toggle(
+        SettingsCatalog.clockShowWeekday,
+        defaultValue: const ClockConfig().showWeekday,
+      ),
+      _ModuleSetting.toggle(
         SettingsCatalog.clockShowDate,
         defaultValue: const ClockConfig().showDate,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.clockShowYear,
+        defaultValue: const ClockConfig().showYear,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.clockShowWeekNumber,
+        defaultValue: const ClockConfig().showWeekNumber,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.clockShowTime,
+        defaultValue: const ClockConfig().showTime,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.clockShowSeconds,
+        defaultValue: const ClockConfig().showSeconds,
+      ),
+      _ModuleSetting.choice(
+        SettingsCatalog.clockHourFormat,
+        options: [for (final format in ClockHourFormat.values) format.slug],
+        defaultValue: const ClockConfig().hourFormat.slug,
+        labelOf: _clockHourFormatLabel,
       ),
       // Free-typed for the reason the chime's and the shutter's rows are: the
       // shipped alarms are four of the answers, and a name out of the machine's

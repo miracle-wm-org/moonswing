@@ -110,8 +110,16 @@ refresh_minutes = 30
 [modules.battery]
 poll_seconds = 30
 
+# What the bar's clock shows, in this order; any part can be switched off, and
+# with all of them off it shows a clock icon. `hour_format` is "24" or "12".
 [modules.clock]
+show_weekday = false
 show_date = true
+show_year = false
+show_week_number = false
+show_time = true
+show_seconds = false
+hour_format = "24"
 # What a finished countdown rings, and how loud. `ding`, `ding-dong`, `alarm`,
 # `gong`, a path, a name from the system's sound theme, or `none`. It also posts
 # a notification either way, which is what is still there if you missed the
