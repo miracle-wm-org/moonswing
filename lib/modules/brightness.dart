@@ -238,12 +238,13 @@ class BrightnessControlState extends State<BrightnessControl>
           child: BarButton(
             active: isPopupOpen,
             onTapDown: (_) => _togglePopup(context),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            // Beside the glyph on a top bar, under it on a side one.
+            child: BarFlex(
+              spacing: 4,
+              verticalSpacing: 2,
               children: [
                 ShellIcon(ShellGlyph.sun, size: 12, color: theme.foreground),
-                const SizedBox(width: 4),
-                Text(
+                BarText(
                   '${(level * 100).round()}%',
                   style: TextStyle(fontSize: 16, color: theme.foreground),
                 ),

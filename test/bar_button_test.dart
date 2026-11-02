@@ -124,9 +124,11 @@ void main() {
         ),
       ]),
     );
+    // The generous inset runs along the bar, down it on a side one, as it
+    // runs across a top one.
     expect(
       tester.getSize(find.byKey(const ValueKey('glyph'))),
-      const Size(32, 11 + 4),
+      const Size(32, 11 + 12),
     );
   });
 

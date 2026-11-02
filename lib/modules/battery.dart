@@ -704,16 +704,17 @@ class BatteryState extends State<Battery> with PopupHost<Battery> {
         return BarButton(
           active: isPopupOpen,
           onTapDown: (_) => _togglePopup(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          // Beside the glyph on a top bar, under it on a side one.
+          child: BarFlex(
+            spacing: 4,
+            verticalSpacing: 2,
             children: [
               ShellIcon(
                 batteryIconFor(reading),
                 size: 12,
                 color: theme.foreground,
               ),
-              const SizedBox(width: 4),
-              Text(
+              BarText(
                 batteryLabelFor(reading),
                 style: TextStyle(fontSize: 16, color: theme.foreground),
               ),

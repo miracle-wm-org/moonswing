@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/media/media_controls.dart';
@@ -85,55 +86,53 @@ class MediaPlayerState extends State<MediaPlayer> {
 
     final theme = ThemeScope.of(context);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // Down the bar on a side bar: the buttons stacked, and the title turned
+    // on its side so it scrolls along the bar rather than across it, where a
+    // bar's depth is no room for a title at all.
+    return BarFlex(
       children: [
-        if (player.canGoPrevious && player.canControl)
-          MediaTransportButton(
-            icon: ShellGlyph.skipBack,
-            onPressed: widget.store.previous,
-            semanticLabel: 'Previous track',
-          ),
-        if (player.canControl && (player.canPlay || player.canPause))
-          Padding(
-            padding: const EdgeInsets.only(left: 2),
-            child: MediaTransportButton(
-              icon: player.isPlaying
-                  ? ShellGlyph.pause
-                  : ShellGlyph.play,
-              onPressed: widget.store.playPause,
-              semanticLabel: player.isPlaying ? 'Pause' : 'Play',
-            ),
-          ),
-        if (player.canControl)
-          Padding(
-            padding: const EdgeInsets.only(left: 2),
-            child: MediaTransportButton(
-              icon: ShellGlyph.stop,
-              onPressed: widget.store.stop,
-              semanticLabel: 'Stop',
-            ),
-          ),
-        if (player.canGoNext && player.canControl)
-          Padding(
-            padding: const EdgeInsets.only(left: 2),
-            child: MediaTransportButton(
-              icon: ShellGlyph.skipForward,
-              onPressed: widget.store.next,
-              semanticLabel: 'Next track',
-            ),
-          ),
-        const SizedBox(width: 6),
+        BarFlex(
+          spacing: 2,
+          children: [
+            if (player.canGoPrevious && player.canControl)
+              MediaTransportButton(
+                icon: ShellGlyph.skipBack,
+                onPressed: widget.store.previous,
+                semanticLabel: 'Previous track',
+              ),
+            if (player.canControl && (player.canPlay || player.canPause))
+              MediaTransportButton(
+                icon: player.isPlaying ? ShellGlyph.pause : ShellGlyph.play,
+                onPressed: widget.store.playPause,
+                semanticLabel: player.isPlaying ? 'Pause' : 'Play',
+              ),
+            if (player.canControl)
+              MediaTransportButton(
+                icon: ShellGlyph.stop,
+                onPressed: widget.store.stop,
+                semanticLabel: 'Stop',
+              ),
+            if (player.canGoNext && player.canControl)
+              MediaTransportButton(
+                icon: ShellGlyph.skipForward,
+                onPressed: widget.store.next,
+                semanticLabel: 'Next track',
+              ),
+          ],
+        ),
+        const SizedBox(width: 6, height: 6),
         // The marquee measures the text itself and only scrolls what genuinely
-        // does not fit, so the strip's width is `max_text_width` either way and
+        // does not fit, so the strip's length is `max_text_width` either way and
         // the modules beside it never shift as tracks change.
-        TrackMarquee(
-          text: player.displayText,
-          maxWidth: widget.config.maxTextWidth,
-          style: TextStyle(
-            fontFamily: theme.fontFamily,
-            fontSize: ShellFontSizes.secondary,
-            color: theme.foreground,
+        BarRotated(
+          child: TrackMarquee(
+            text: player.displayText,
+            maxWidth: widget.config.maxTextWidth,
+            style: TextStyle(
+              fontFamily: theme.fontFamily,
+              fontSize: ShellFontSizes.secondary,
+              color: theme.foreground,
+            ),
           ),
         ),
       ],

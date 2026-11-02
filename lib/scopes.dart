@@ -88,6 +88,13 @@ class BarScope extends InheritedWidget {
   static String? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<BarScope>()?.anchor;
 
+  /// Whether the bar behind [context] runs down a side of the screen — the
+  /// one question a module's layout asks of the anchor. False outside a bar.
+  static bool isVerticalOf(BuildContext context) {
+    final anchor = maybeOf(context);
+    return anchor == 'left' || anchor == 'right';
+  }
+
   @override
   bool updateShouldNotify(BarScope old) =>
       anchor != old.anchor || thickness != old.thickness;

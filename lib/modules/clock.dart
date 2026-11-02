@@ -198,8 +198,10 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final style = TextStyle(fontSize: 16, color: theme.foreground);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    final vertical = BarScope.isVerticalOf(context);
+    // The timers readout follows the date and time along the bar, whichever
+    // way the bar runs.
+    return BarFlex(
       children: [
         // Only the date and time open the overlay. The timers readout beside
         // them is its own gesture region, or stopping a timer from the bar
@@ -215,17 +217,24 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
                 color: _hovered ? theme.surfaceHover : null,
                 borderRadius: BorderRadius.circular(6),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: vertical
+                  ? const EdgeInsets.symmetric(horizontal: 4, vertical: 8)
+                  : const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: BarFill(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.config.showDate) ...[
-                      Text(_dateString, style: style),
-                      const SizedBox(width: 8),
+                // On its side on a side bar, so it reads along the bar as it
+                // does across a top one — stacked or shrunk to the bar's depth,
+                // "Nov 2 14:05" stops being a glance.
+                child: BarRotated(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (widget.config.showDate) ...[
+                        Text(_dateString, style: style),
+                        const SizedBox(width: 8),
+                      ],
+                      Text(_timeString, style: style),
                     ],
-                    Text(_timeString, style: style),
-                  ],
+                  ),
                 ),
               ),
             ),
