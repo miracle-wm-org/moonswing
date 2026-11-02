@@ -3,6 +3,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/config_reader.dart';
@@ -635,7 +636,7 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
             color: color,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: widget.child,
+          child: BarFill(child: widget.child),
         ),
       ),
     );

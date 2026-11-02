@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:layer_shell/layer_shell.dart' show WindowPositionerAnchor;
 
+import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/config.dart';
@@ -111,14 +112,16 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
             color: color,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: SizedBox(
-            width: widget.iconSize.toDouble(),
-            height: widget.iconSize.toDouble(),
-            child: Center(
-              child: ShellIcon(
-                ShellGlyph.gridLarge,
-                size: widget.iconSize * 0.72,
-                color: theme.foreground,
+          child: BarFill(
+            child: SizedBox(
+              width: widget.iconSize.toDouble(),
+              height: widget.iconSize.toDouble(),
+              child: Center(
+                child: ShellIcon(
+                  ShellGlyph.gridLarge,
+                  size: widget.iconSize * 0.72,
+                  color: theme.foreground,
+                ),
               ),
             ),
           ),

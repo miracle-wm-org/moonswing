@@ -9,6 +9,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
@@ -51,6 +52,8 @@ class MediaTransportButton extends StatefulWidget {
 class _MediaTransportButtonState extends State<MediaTransportButton> {
   bool _pressed = false;
 
+  Widget _fill(Widget box) => widget.circular ? box : BarFill(child: box);
+
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
@@ -92,15 +95,19 @@ class _MediaTransportButtonState extends State<MediaTransportButton> {
             duration: ShellDurations.fast,
             padding: EdgeInsets.all(widget.padding),
             decoration: BoxDecoration(color: background, borderRadius: radius),
-            child: SizedBox(
-              width: widget.size + 2,
-              height: widget.size + 2,
-              child: Center(
-                child: ShellIcon(
-                  widget.icon,
-                  size: widget.size,
-                  color: foreground,
-                  semanticLabel: widget.semanticLabel,
+            // The bar's whole depth in a bar, like every module's fill; a
+            // round button stays round. Off a bar, [BarFill] is the box as is.
+            child: _fill(
+              SizedBox(
+                width: widget.size + 2,
+                height: widget.size + 2,
+                child: Center(
+                  child: ShellIcon(
+                    widget.icon,
+                    size: widget.size,
+                    color: foreground,
+                    semanticLabel: widget.semanticLabel,
+                  ),
                 ),
               ),
             ),
