@@ -1851,7 +1851,25 @@ abstract final class SettingsCatalog {
         'connection',
         'password',
         'hotspot',
+      ],
+    ),
+    _pane(
+      'network',
+      'Network',
+      'VPN connections',
+      description:
+          'Add an OpenVPN, PPTP or WireGuard VPN, or import one from a file, '
+          'and turn each on or off.',
+      tags: const [
         'vpn',
+        'openvpn',
+        'ovpn',
+        'pptp',
+        'wireguard',
+        'wg',
+        'tunnel',
+        'import',
+        'proxy',
       ],
     ),
     _pane(

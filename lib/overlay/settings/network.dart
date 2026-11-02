@@ -8,9 +8,11 @@ import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/modules/network.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
+import 'package:moonswing/overlay/settings/network_vpn.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/vpn/vpn_store.dart';
 
 // ---------------------------------------------------------------------------
 // Settings page — shared helper widgets
@@ -166,13 +168,23 @@ class _NetworkListItem extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class NetworkSettingsPage extends StatefulWidget {
-  const NetworkSettingsPage({super.key});
+  const NetworkSettingsPage({super.key, VpnStore? vpnStore})
+    : _vpnStore = vpnStore;
+
+  /// Injected by widget tests, so nothing here adds to or switches the VPNs
+  /// of the machine running them.
+  final VpnStore? _vpnStore;
 
   @override
   _NetworkSettingsPageState createState() => _NetworkSettingsPageState();
 }
 
 class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
+  late final VpnStore _vpn = widget._vpnStore ?? VpnStore.instance;
+
+  /// The VPN form shown in the page's place, or null for the lists.
+  VpnFormRequest? _vpnForm;
+
   List<AvailableNetwork>? _networks;
   String? _scanError;
 
@@ -186,11 +198,15 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
   @override
   void initState() {
     super.initState();
+    // Scoped like the power page's lease: leaving the category disposes the
+    // page.
+    _vpn.acquire();
     _scan();
   }
 
   @override
   void dispose() {
+    _vpn.release();
     _passwordController.dispose();
     _passwordFocusNode.dispose();
     super.dispose();
@@ -253,6 +269,16 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final vpnForm = _vpnForm;
+    if (vpnForm != null) {
+      return VpnFormPage(
+        // A new request is a new form, never the last one's fields.
+        key: ObjectKey(vpnForm),
+        store: _vpn,
+        request: vpnForm,
+        onClose: () => setState(() => _vpnForm = null),
+      );
+    }
     if (_connecting != null) return _buildConnectForm(context);
     return _buildNetworkList(context);
   }
@@ -264,79 +290,111 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Networks',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              SettingsRescanButton(onTap: _scan),
-            ],
+          child: Text(
+            'Network',
+            style: TextStyle(
+              fontSize: ShellFontSizes.title,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         Container(height: 1, color: theme.divider),
-        Expanded(child: _buildListBody(theme)),
+        Expanded(
+          child: CustomScrollView(
+            slivers: [
+              // The VPNs first: a handful of rows at most, which a long scan
+              // list would otherwise push off the bottom of the pane.
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                sliver: SliverToBoxAdapter(
+                  child: VpnSection(
+                    store: _vpn,
+                    onOpen: (request) => setState(() => _vpnForm = request),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 20, 16, 8),
+                sliver: SliverToBoxAdapter(
+                  child: SettingsSectionHeading(
+                    label: 'Wi-Fi and wired',
+                    trailing: SettingsRescanButton(onTap: _scan),
+                  ),
+                ),
+              ),
+              ..._buildListBody(theme),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 16)),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildListBody(ThemeConfig theme) {
+  List<Widget> _buildListBody(ThemeConfig theme) {
+    Widget centred(Widget child) => SliverToBoxAdapter(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+        child: Center(child: child),
+      ),
+    );
     if (_scanError != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              _scanError!,
-              style: TextStyle(
-                fontSize: 13,
-                fontFamily: theme.fontFamily,
-                color: theme.accentText,
+      return [
+        centred(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _scanError!,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontFamily: theme.fontFamily,
+                  color: theme.accentText,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            SettingsRescanButton(onTap: _scan, label: 'Retry'),
-          ],
-        ),
-      );
-    }
-    if (_networks == null) {
-      return const Center(child: LoadingIndicator(size: 22));
-    }
-    if (_networks!.isEmpty) {
-      return Center(
-        child: Text(
-          'No networks found',
-          style: TextStyle(
-            fontSize: 14,
-            fontFamily: theme.fontFamily,
-            color: theme.popupForeground.withValues(alpha: 0.5),
+              const SizedBox(height: 12),
+              SettingsRescanButton(onTap: _scan, label: 'Retry'),
+            ],
           ),
         ),
-      );
+      ];
     }
-    return ListView.builder(
-      itemCount: _networks!.length,
-      itemBuilder: (_, i) {
-        final n = _networks![i];
-        return _NetworkListItem(
-          network: n,
-          onTap: () => setState(() {
-            _connecting = n;
-            _connectError = null;
-            _passwordController.clear();
-          }),
-        );
-      },
-    );
+    if (_networks == null) {
+      return [centred(const LoadingIndicator(size: 22))];
+    }
+    if (_networks!.isEmpty) {
+      return [
+        centred(
+          Text(
+            'No networks found',
+            style: TextStyle(
+              fontSize: 14,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground.withValues(alpha: 0.5),
+            ),
+          ),
+        ),
+      ];
+    }
+    return [
+      SliverList.builder(
+        itemCount: _networks!.length,
+        itemBuilder: (_, i) {
+          final n = _networks![i];
+          return _NetworkListItem(
+            network: n,
+            onTap: () => setState(() {
+              _connecting = n;
+              _connectError = null;
+              _passwordController.clear();
+            }),
+          );
+        },
+      ),
+    ];
   }
 
   Widget _buildConnectForm(BuildContext context) {

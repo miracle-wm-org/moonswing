@@ -191,6 +191,7 @@ void main() {
           'Wallpapers',
           'Pinned items',
           'Wi-Fi and wired networks',
+          'VPN connections',
           'Bluetooth devices',
           'Displays and resolution',
           'Sound output and input',
@@ -216,7 +217,7 @@ void main() {
           'Plugins',
         ]),
       );
-      expect(unhighlightable, hasLength(24));
+      expect(unhighlightable, hasLength(25));
     });
 
     // `modules.dart` builds each row's config path by splitting the id on its

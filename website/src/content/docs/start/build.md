@@ -30,6 +30,12 @@ the shell builds and runs without them — Lock simply does nothing:
 sudo apt install libgtk-session-lock0   # plus libpam, which you already have
 ```
 
+Settings › Network's VPNs are NetworkManager's, so they need NetworkManager running, and
+OpenVPN and PPTP need its plugins for them (`NetworkManager-openvpn`, `NetworkManager-pptp`)
+— a missing one is named on the form. WireGuard needs no plugin. Importing a file other than
+a WireGuard one goes through the plugin's own reader in `libnm`, which is `dlopen`ed too, and
+which NetworkManager's command-line tools already depend on.
+
 ## Flutter
 
 The shell is built on Flutter's **experimental windowing API** and tracks the `master`
