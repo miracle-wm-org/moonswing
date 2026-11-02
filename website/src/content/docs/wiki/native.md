@@ -63,6 +63,31 @@ compositor has:
 - **Super+Shift+Escape** always ends a capture and disables the session, so an application that
   hangs holding the keyboard cannot keep it.
 
+## VPN import
+
+Settings › Network keeps its VPNs in NetworkManager, over D-Bus — the list, the switch, adding
+and removing are all `org.freedesktop.NetworkManager` calls. Importing a file is the one part
+with no D-Bus call: each format is read by its own plugin, in the libnm half that `nmcli
+connection import` loads, so `lib/vpn/libnm_import.dart` does what `nmcli` does, over FFI:
+
+- **The plugin's registration, not its path.** The `.name` files under
+  `/etc/NetworkManager/VPN` and `/usr/lib/NetworkManager/VPN` are read in Dart (they are also
+  what decides whether a form warns that its plugin is missing); each is handed to
+  `nm_vpn_plugin_info_new_from_file`, whose `load_editor_plugin` resolves the library against
+  libnm's own plugin directory.
+- **Every plugin is offered the file in turn**, and the first that can import it wins — a
+  `.conf` is an OpenVPN file to one and nothing to the next.
+- **The connection comes back as a GVariant** (`nm_connection_to_dbus`) and is walked into
+  `package:dbus` values, which is what `AddConnection` is then sent. GLib is looked up through
+  libnm's handle, so the walk works in `flutter_tester`, which has no GLib in the process.
+- **A plugin fills in only what its format says.** The connection's type and uuid are left
+  unset, as `nmcli` normalises them afterwards; the store does the same.
+
+WireGuard files are the exception: `nmcli`'s reader for them is inside `nmcli`, so
+`lib/vpn/wireguard_conf.dart` reads wg-quick's format in Dart, skipping what NetworkManager
+cannot carry (`PostUp` and the like) and saying so. The public key shown beside a WireGuard
+private key is X25519 in Dart (`lib/vpn/x25519.dart`), since NetworkManager never reports it.
+
 ## Exercising it
 
 ```sh
