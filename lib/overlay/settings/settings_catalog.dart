@@ -238,6 +238,16 @@ abstract final class SettingsCatalog {
     tags: const ['bar', 'taskbar', 'rounded', 'corners'],
   );
 
+  static final panelJoinRadius = shellField(
+    'theme.panel_join_radius',
+    'Panel join radius',
+    section: 'Theme',
+    description:
+        'Rounds the inside of the corner where two bars meet, so they read as '
+        'one frame. Zero leaves it square.',
+    tags: const ['bar', 'taskbar', 'rounded', 'corner', 'inner', 'fillet', 'join'],
+  );
+
   static final panelBorderWidth = shellField(
     'theme.panel_border_width',
     'Panel border width',
@@ -2982,6 +2992,7 @@ abstract final class SettingsCatalog {
     panelGradient,
     panelMargin,
     panelRadius,
+    panelJoinRadius,
     panelBorderWidth,
     popupRadius,
     popupGap,

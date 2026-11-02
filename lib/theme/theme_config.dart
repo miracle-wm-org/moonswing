@@ -258,6 +258,26 @@ class ThemeConfig {
   /// against the screen edge cuts wallpaper wedges out of the display's corners.
   final double panelRadius;
 
+  /// The concave rounding filled into the inner corner where two flush bars
+  /// meet — a top or bottom bar and a left or right one — so the pair reads as
+  /// one frame round the screen rather than two strips butted together.
+  ///
+  /// The inverse of [panelRadius] the way [popupAttachRadius] is the inverse of
+  /// a corner radius: a fillet the bar *adds* past its own inner edge, painted in
+  /// the bar's own colour, rather than a corner it takes away. At a joined end
+  /// both bars square off the inner corner [panelRadius] would otherwise round,
+  /// since the fillet is what turns that corner now.
+  ///
+  /// The fillet lies outside both bars, in the screen's corner of the work
+  /// area, so it is painted into the strip a bar's surface reaches past the bar
+  /// (`panelSurfaceReach`) — cut out of the input region exactly as
+  /// [panelOverhang] is, so a click on it lands on the window beneath. Which bar
+  /// paints it, and only where two bars actually meet, is `panel_join.dart`'s.
+  ///
+  /// Read only at [panelMargin] 0: a floating bar meets nothing. The default of
+  /// 0 leaves the corner square, exactly as it always was.
+  final double panelJoinRadius;
+
   /// The colour of the bar's rim. Only drawn when [panelBorderWidth] > 0.
   final Color panelBorder;
 
@@ -670,6 +690,7 @@ class ThemeConfig {
     this.panelGradient = true,
     this.panelMargin = 0,
     this.panelRadius = 0.0,
+    this.panelJoinRadius = 0.0,
     this.panelBorder = const Color(0x33F3F4F4),
     this.panelBorderWidth = 0.0,
     this.popupRadius = 8.0,
@@ -751,6 +772,11 @@ class ThemeConfig {
     _ThemeKey('panel_margin', _ThemeKeyKind.integer, (t) => t.panelMargin,
         min: 0.0, max: 256.0),
     _ThemeKey('panel_radius', _ThemeKeyKind.number, (t) => t.panelRadius,
+        min: 0.0, max: 64.0),
+    // Not blended: it sizes the panels' native surfaces, the reason geometry
+    // never moves halfway through a switch.
+    _ThemeKey(
+        'panel_join_radius', _ThemeKeyKind.number, (t) => t.panelJoinRadius,
         min: 0.0, max: 64.0),
     _ThemeKey('panel_border', _ThemeKeyKind.color, (t) => t.panelBorder),
     _ThemeKey(
@@ -918,6 +944,7 @@ class ThemeConfig {
       panelGradient: v('panel_gradient'),
       panelMargin: v('panel_margin'),
       panelRadius: v('panel_radius'),
+      panelJoinRadius: v('panel_join_radius'),
       panelBorder: v('panel_border'),
       panelBorderWidth: v('panel_border_width'),
       popupRadius: v('popup_radius'),

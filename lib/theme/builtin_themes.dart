@@ -89,6 +89,7 @@ panel_gradient       = false
 # A floating beam, so the leaves hang from something that is visibly hung.
 panel_margin         = 6
 panel_radius         = 7.0
+panel_join_radius    = 0.0
 # A dark bark line round the beam, broken where a trunk grows out of it.
 panel_border         = "#E61A0F07"
 panel_border_width   = 1.5
@@ -223,6 +224,7 @@ panel_gradient       = false
 # rounds only the inner corners of a flush bar.
 panel_margin         = 0
 panel_radius         = 8.0
+panel_join_radius    = 0.0
 # A dark line round the beam, broken where a trunk grows out of it.
 panel_border         = "#E6180C04"
 panel_border_width   = 1.5
@@ -327,6 +329,11 @@ panel_gradient       = false
 # colour matches divider so switching it on reads as Dracula.
 panel_margin         = 0
 panel_radius         = 0.0
+# Where a top or bottom bar meets a side one, the inner corner is filled
+# with a quarter round in the bar's own colour, so a pair of bars reads
+# as one frame round the screen. Square everywhere else, and unread on a
+# single bar.
+panel_join_radius    = 12.0
 panel_border         = "#33F8F8F2"
 panel_border_width   = 0.0
 
@@ -443,6 +450,7 @@ panel_gradient       = false
 # busy wallpaper.
 panel_margin         = 8
 panel_radius         = 12.0
+panel_join_radius    = 0.0
 panel_border         = "#40FFFFFF"
 panel_border_width   = 1.0
 
@@ -584,6 +592,7 @@ panel_gradient       = true
 # what gives a dark bar an edge against a dark wallpaper.
 panel_margin         = 12
 panel_radius         = 18.0
+panel_join_radius    = 0.0
 panel_border         = "#665F87F5"
 panel_border_width   = 1.5
 
@@ -762,6 +771,7 @@ panel_gradient       = false
 # where it does.
 panel_margin         = 0
 panel_radius         = 0.0
+panel_join_radius    = 0.0
 panel_border         = "#525252"
 panel_border_width   = 1.0
 

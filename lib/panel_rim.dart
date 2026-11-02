@@ -29,6 +29,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/panel_background.dart';
+import 'package:moonswing/panel_join.dart';
 
 /// The stretch of a panel's main axis an attached popup's mouth covers, in the
 /// panel's own logical coordinates.
@@ -245,9 +246,10 @@ Widget panelWithRim({
   required String anchor,
   required Object? panel,
   required Widget content,
+  PanelJoins joins = PanelJoins.none,
 }) {
   if (!panelPaintsOwnRim(theme)) return content;
-  final radius = panelCornerRadius(anchor: anchor, theme: theme);
+  final radius = panelCornerRadius(anchor: anchor, theme: theme, joins: joins);
   return ListenableBuilder(
     listenable: PanelRimBreaks.instance,
     builder: (context, child) => CustomPaint(
@@ -298,10 +300,14 @@ class PanelContentFrame extends StatefulWidget {
     required this.anchor,
     required this.panel,
     required this.content,
+    this.joins = PanelJoins.none,
   });
 
   final ThemeConfig theme;
   final String anchor;
+
+  /// The bars this one meets, whose corners [panelCornerRadius] squares.
+  final PanelJoins joins;
 
   /// The panel's own `FlutterView`, which [PanelRimBreaks] is keyed on.
   final Object? panel;
@@ -318,13 +324,17 @@ class _PanelContentFrameState extends State<PanelContentFrame> {
 
   @override
   Widget build(BuildContext context) {
-    final radius =
-        panelCornerRadius(anchor: widget.anchor, theme: widget.theme);
+    final radius = panelCornerRadius(
+      anchor: widget.anchor,
+      theme: widget.theme,
+      joins: widget.joins,
+    );
     final Widget content = KeyedSubtree(key: _content, child: widget.content);
     return panelWithRim(
       theme: widget.theme,
       anchor: widget.anchor,
       panel: widget.panel,
+      joins: widget.joins,
       content: radius == BorderRadius.zero
           ? content
           : ClipRRect(borderRadius: radius, child: content),

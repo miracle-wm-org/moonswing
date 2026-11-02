@@ -51,6 +51,7 @@ void main() {
       'panel_gradient',
       'panel_margin',
       'panel_radius',
+      'panel_join_radius',
       'panel_border_width',
       'popup_radius',
       'popup_gap',

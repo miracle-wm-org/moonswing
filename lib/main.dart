@@ -88,7 +88,9 @@ import 'package:moonswing/osd/volume_sound.dart';
 import 'package:moonswing/decor/material_textures.dart';
 import 'package:moonswing/decor/panel_decor.dart';
 import 'package:moonswing/native/input_region.dart';
+import 'package:moonswing/native/monitor_geometry.dart';
 import 'package:moonswing/panel_background.dart';
+import 'package:moonswing/panel_join.dart';
 import 'package:moonswing/panel_reach.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup.dart';
@@ -895,6 +897,11 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// window geometry moves.
   late Map<String, PanelConfig> _panelGeometry;
 
+  /// Whether any two bars in [_panelGeometry] meet in a corner, which is what
+  /// grows every bar's surface for a `panel_join_radius` fillet; see
+  /// `panel_join.dart`.
+  bool _panelsJoined = false;
+
   @override
   void initState() {
     super.initState();
@@ -940,11 +947,16 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // before the first surface is built and no bar is created flush and then
     // nudged.
     _panelMargin = ThemeStore.instance.theme.panelMargin;
+    _panelsJoined = panelsJoin(_panelGeometry.values);
     _panelTheme = PanelReachSequencer(
       initial: ThemeStore.instance.theme,
       target: () => ThemeStore.instance.theme,
       commit: _commitPanelReach,
       reached: _panelsReached,
+      // The foliage's overhang, or room for the fillet where two bars meet —
+      // read through the field, so a panel added beside another grows them
+      // both on the next [PanelReachSequencer.update].
+      reachOf: (theme) => panelSurfaceReach(theme, joined: _panelsJoined),
     );
     _panelTransition = ThemeTransition(
       source: _panelTheme.shown,
@@ -2423,6 +2435,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
     _panelGeometry = live;
     final removed = <LayershellWindowController>[];
+    final joined = panelsJoin(live.values);
     for (final surfaces in _surfaces.values) {
       for (final key in stale) {
         final controller = surfaces.panels.remove(key);
@@ -2437,6 +2450,13 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // Detach the dropped views first — the hotplug order in [_syncMonitors].
     _refreshWindows();
     _destroyAfterFrame(removed);
+    // A bar arriving beside another, or the last one it met leaving, moves the
+    // reach every bar's surface needs for a fillet. After the new windows
+    // exist, so they are grown with the rest.
+    if (joined != _panelsJoined) {
+      _panelsJoined = joined;
+      _panelTheme.update();
+    }
   }
 
   /// Re-floats the bars when the active theme's margin changes, and hands the
@@ -2766,6 +2786,17 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                             child: PanelMain(
                               panelConfig: panel,
                               anchor: panel.anchor,
+                              // The built geometry, which is what the windows
+                              // the bars meet in were made from.
+                              joins: panelJoinsFor(
+                                entry.value,
+                                _panelGeometry.values,
+                              ),
+                              // Read per layout and through the field:
+                              // [_syncMonitors] replaces the snapshot in place.
+                              screenSize: () => monitorLogicalSize(
+                                surfaces.monitor.gdkMonitor,
+                              ),
                             ),
                           ),
                         );
@@ -3154,10 +3185,24 @@ PanelConfig effectivePanel(PanelConfig built, PanelConfig? live) {
 }
 
 class PanelMain extends StatefulWidget {
-  const PanelMain({super.key, required this.panelConfig, required this.anchor});
+  const PanelMain({
+    super.key,
+    required this.panelConfig,
+    required this.anchor,
+    this.joins = PanelJoins.none,
+    this.screenSize,
+  });
 
   final PanelConfig panelConfig;
   final String anchor;
+
+  /// The bars this one meets at its ends, for `panel_join_radius`.
+  final PanelJoins joins;
+
+  /// The size of the screen the bar is on, or null when it cannot be asked:
+  /// how the bar tells whether it stops short of a corner, and so whether the
+  /// fillet there is its to paint ([panelJoinOwnership]).
+  final Size? Function()? screenSize;
 
   @override
   State<PanelMain> createState() => _PanelMainState();
@@ -3281,7 +3326,8 @@ class _PanelMainState extends State<PanelMain> {
 
     final anchor = widget.panelConfig.anchor;
     final thickness = widget.panelConfig.height.toDouble();
-    final radius = panelCornerRadius(anchor: anchor, theme: theme);
+    final joins = widget.joins;
+    final radius = panelCornerRadius(anchor: anchor, theme: theme, joins: joins);
     final view = View.maybeOf(context);
 
     return BarScope(
@@ -3317,9 +3363,20 @@ class _PanelMainState extends State<PanelMain> {
                 anchor: anchor,
                 thickness: thickness,
               ).shift(reach.topLeft);
+              // The quarter round where this bar meets another, in the strip
+              // past it; nothing on a theme without one, or a lone bar.
+              final join = panelJoinLayer(
+                theme: theme,
+                anchor: anchor,
+                thickness: thickness,
+                joins: joins,
+                surface: constraints.biggest,
+                screenSize: widget.screenSize,
+              );
               return Stack(
                 fit: StackFit.expand,
                 children: [
+                  ?join,
                   Positioned.fromRect(
                     rect: bar,
                     // The pointer arriving on the bar stirs its leaves; a
@@ -3336,6 +3393,7 @@ class _PanelMainState extends State<PanelMain> {
                           anchor: anchor,
                           theme: theme,
                           includeRim: !paintsOwnRim,
+                          joins: joins,
                         ),
                         // The material, caps, carve and roots, under the
                         // modules; nothing at all on a plain theme.
@@ -3353,6 +3411,7 @@ class _PanelMainState extends State<PanelMain> {
                             anchor: anchor,
                             panel: view,
                             content: content,
+                            joins: joins,
                           ),
                         ),
                       ),

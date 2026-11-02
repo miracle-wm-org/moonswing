@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/panel_join.dart';
 
 /// The background drawn behind a panel's modules.
 ///
@@ -24,27 +25,38 @@ import 'package:moonswing/config.dart';
 /// the screen's interior: rounding the pair against the screen edge would cut
 /// wallpaper wedges out of the display's own corners.
 ///
+/// At an end that meets another flush bar ([joins], while the theme has a
+/// `panel_join_radius`), the inner corner there is square instead: the two bars
+/// are one frame across that corner, and a rounded one would cut a notch out of
+/// it — the fillet is what turns it now (`panel_join.dart`).
+///
 /// Returns [BorderRadius.zero] for a radius of 0, which callers use to skip the
 /// clip layer.
 BorderRadius panelCornerRadius({
   String anchor = 'top',
   required ThemeConfig theme,
+  PanelJoins joins = PanelJoins.none,
 }) {
   if (theme.panelRadius <= 0) return BorderRadius.zero;
   final r = Radius.circular(theme.panelRadius);
   if (theme.panelMargin > 0) return BorderRadius.all(r);
 
+  final joined = activePanelJoins(theme, joins);
+  final start = joined.start > 0 ? Radius.zero : r;
+  final end = joined.end > 0 ? Radius.zero : r;
+  final BorderRadius radius;
   switch (anchor) {
     case 'bottom':
-      return BorderRadius.only(topLeft: r, topRight: r);
+      radius = BorderRadius.only(topLeft: start, topRight: end);
     case 'left':
-      return BorderRadius.only(topRight: r, bottomRight: r);
+      radius = BorderRadius.only(topRight: start, bottomRight: end);
     case 'right':
-      return BorderRadius.only(topLeft: r, bottomLeft: r);
+      radius = BorderRadius.only(topLeft: start, bottomLeft: end);
     case 'top':
     default:
-      return BorderRadius.only(bottomLeft: r, bottomRight: r);
+      radius = BorderRadius.only(bottomLeft: start, bottomRight: end);
   }
+  return radius == BorderRadius.zero ? BorderRadius.zero : radius;
 }
 
 /// The breathing room between a module's fill and the bar's edge.
@@ -82,12 +94,15 @@ Border? _panelBorder(ThemeConfig theme) => theme.panelBorderWidth > 0
 /// predicate, [PanelRimPainter] draws what this then leaves out, and the two
 /// agree on the outline: `Border.all` strokes it deflated by half its width and
 /// so does the painter.
+///
+/// [joins] squares the corners [panelCornerRadius] squares.
 BoxDecoration panelBackgroundDecoration({
   String anchor = 'top',
   required ThemeConfig theme,
   bool includeRim = true,
+  PanelJoins joins = PanelJoins.none,
 }) {
-  final radius = panelCornerRadius(anchor: anchor, theme: theme);
+  final radius = panelCornerRadius(anchor: anchor, theme: theme, joins: joins);
   // Normalised to null rather than BorderRadius.zero so that an untouched
   // theme produces exactly the decoration it did before corners were themable.
   final BorderRadius? borderRadius =

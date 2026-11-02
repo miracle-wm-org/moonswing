@@ -357,6 +357,24 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   ),
                 ),
                 SettingsRow.field(
+                  SettingsCatalog.panelJoinRadius,
+                  info:
+                      'Where a top or bottom bar meets a side one, rounds the '
+                      "inside of the corner between them in the bar's own "
+                      'colour, so the two read as one frame round the screen. '
+                      'Only bars with no margin meet; zero leaves the corner '
+                      'square.',
+                  control: SettingsNumberField(
+                    key: ValueKey('panel_join_radius-$active'),
+                    value: current['panel_join_radius'] as num? ?? 0,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                      'panel_join_radius',
+                      v.toDouble().clamp(0.0, 64.0),
+                    ),
+                  ),
+                ),
+                SettingsRow.field(
                   SettingsCatalog.panelBorderWidth,
                   control: SettingsNumberField(
                     key: ValueKey('panel_border_width-$active'),
