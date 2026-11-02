@@ -126,8 +126,9 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
     return BarButton(
       active: isPopupOpen,
       onTapDown: (_) => _togglePopup(context),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      // The temperature beside the glyph on a top bar, under it on a side one.
+      child: BarFlex(
+        spacing: 5,
         children: [
           WeatherIcon(
             weatherIcon(reading.condition, night: !reading.isDay),
@@ -137,8 +138,7 @@ class WeatherState extends State<Weather> with PopupHost<Weather> {
             size: 21,
             color: theme.foreground,
           ),
-          const SizedBox(width: 5),
-          Text(
+          BarText(
             store.temperatureText,
             style: TextStyle(fontSize: 16, color: theme.foreground),
           ),
@@ -161,8 +161,8 @@ class _WeatherUnavailable extends StatelessWidget {
     final theme = ThemeScope.of(context);
     return HoverRegion(
       onTapDown: (_) => onRetry(),
-      builder: (context, hovered) => Row(
-        mainAxisSize: MainAxisSize.min,
+      builder: (context, hovered) => BarFlex(
+        spacing: 6,
         children: [
           WeatherIcon(
             kWeatherUnavailableIcon,
@@ -174,17 +174,18 @@ class _WeatherUnavailable extends StatelessWidget {
             color: theme.muted,
           ),
           // The reason, on hover only: it is a sentence, and a sentence in
-          // the bar would push every module beside it along.
-          if (hovered) ...[
-            const SizedBox(width: 6),
-            Text(
-              message,
-              style: TextStyle(
-                fontSize: ShellFontSizes.caption,
-                color: theme.muted,
+          // the bar would push every module beside it along. On its side on a
+          // side bar, where a sentence across the bar would not fit at all.
+          if (hovered)
+            BarRotated(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontSize: ShellFontSizes.caption,
+                  color: theme.muted,
+                ),
               ),
             ),
-          ],
         ],
       ),
     );

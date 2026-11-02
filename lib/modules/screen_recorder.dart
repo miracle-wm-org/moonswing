@@ -119,8 +119,12 @@ class _ScreenRecorderButtonState extends State<ScreenRecorderButton>
         return BarButton(
           active: isPopupOpen || recording,
           onTapDown: (_) => _togglePopup(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          // The elapsed time beside the dot on a top bar; under it and on its
+          // side on a side bar, the clock's way — a time read across a narrow
+          // bar would have to be shrunk past reading.
+          child: BarFlex(
+            spacing: 6,
+            verticalSpacing: 4,
             children: [
               ShellIcon(
                 recording ? ShellGlyph.circleFilled : ShellGlyph.video,
@@ -134,20 +138,20 @@ class _ScreenRecorderButtonState extends State<ScreenRecorderButton>
                     ? kErrorColor
                     : (stopping ? theme.muted : theme.foreground),
               ),
-              if (recording) ...[
-                const SizedBox(width: 6),
-                Text(
-                  formatRecordingElapsed(_store.recordingElapsed),
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.secondary,
-                    color: theme.foreground,
-                    // Tabular, so a bar module whose text changes every second
-                    // does not re-lay the whole panel as the digits change
-                    // width. `lib/timers/` states the same rule.
-                    fontFeatures: const [FontFeature.tabularFigures()],
+              if (recording)
+                BarRotated(
+                  child: Text(
+                    formatRecordingElapsed(_store.recordingElapsed),
+                    style: TextStyle(
+                      fontSize: ShellFontSizes.secondary,
+                      color: theme.foreground,
+                      // Tabular, so a bar module whose text changes every
+                      // second does not re-lay the whole panel as the digits
+                      // change width. `lib/timers/` states the same rule.
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
-              ],
             ],
           ),
         );

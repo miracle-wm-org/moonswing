@@ -411,35 +411,39 @@ class TimerBarIndicator extends StatelessWidget {
               : theme.foreground,
           fontFeatures: const [FontFeature.tabularFigures()],
         );
-        return Row(
-          mainAxisSize: MainAxisSize.min,
+        // Along the bar either way: on a side bar the rule lies flat under
+        // the clock, the glyph sits over the readout, and a running time is
+        // turned on its side as the clock is. A bare count is short enough to
+        // read upright.
+        return BarFlex(
           children: [
-            const SizedBox(width: 8),
-            Container(
-              width: 1,
-              height: 14,
+            BarDivider(
+              length: 14,
+              margin: 8,
               color: theme.foreground.withValues(alpha: 0.3),
             ),
-            const SizedBox(width: 8),
             Builder(
               builder: (context) => BarButton(
                 active: active,
                 onTapDown: (_) => onTap(context),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: BarFlex(
+                  spacing: 6,
+                  verticalSpacing: 4,
                   children: [
                     ShellIcon(
                       timerKindIcon(only?.kind ?? ShellTimerKind.stopwatch),
                       size: 11,
                       color: style.color,
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      only != null
-                          ? formatTimerDuration(only.displayAt(store.now))
-                          : '${entries.length}',
-                      style: style,
-                    ),
+                    if (only != null)
+                      BarRotated(
+                        child: Text(
+                          formatTimerDuration(only.displayAt(store.now)),
+                          style: style,
+                        ),
+                      )
+                    else
+                      BarText('${entries.length}', style: style),
                   ],
                 ),
               ),

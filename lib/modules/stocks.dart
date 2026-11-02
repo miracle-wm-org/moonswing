@@ -150,8 +150,7 @@ class _StockTickerState extends State<StockTicker>
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final store = widget.store;
-    final anchor = BarScope.maybeOf(context);
-    final vertical = anchor == 'left' || anchor == 'right';
+    final vertical = BarScope.isVerticalOf(context);
 
     if (store.loading && !store.hasQuotes && store.symbols.isNotEmpty) {
       // A fixed box, so the modules beside it do not shuffle when the quotes
@@ -232,24 +231,26 @@ class _BarMark extends StatelessWidget {
             surface: theme.panelBackground,
             flat: theme.foreground,
           );
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // The reason follows the mark along the bar: beside it on a top bar, under
+    // it and on its side on a side one, where a sentence across would not fit.
+    return BarFlex(
+      spacing: 6,
       children: [
         ShellIcon(
           ShellGlyph.chartLine,
           size: ShellFontSizes.title,
           color: color,
         ),
-        if (hovered && message != null) ...[
-          const SizedBox(width: 6),
-          Text(
-            message!,
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              color: theme.muted,
+        if (hovered && message != null)
+          BarRotated(
+            child: Text(
+              message!,
+              style: TextStyle(
+                fontSize: ShellFontSizes.caption,
+                color: theme.muted,
+              ),
             ),
           ),
-        ],
       ],
     );
   }

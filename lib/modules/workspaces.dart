@@ -411,9 +411,11 @@ class WorkspacesState extends State<Workspaces> {
           ShellServicesScope.isLoading(context, ShellService.miracle);
       return pending
           ? _pending(theme)
-          : const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4.0),
-              child: _MiracleRetryButton(),
+          : Padding(
+              padding: BarScope.isVerticalOf(context)
+                  ? const EdgeInsets.symmetric(vertical: 4.0)
+                  : const EdgeInsets.symmetric(horizontal: 4.0),
+              child: const _MiracleRetryButton(),
             );
     }
 
@@ -430,11 +432,15 @@ class WorkspacesState extends State<Workspaces> {
     final config = widget.config;
     final urgentPeriod = Duration(
         milliseconds: (config.urgentFlashSeconds * 1000).round());
-    // No vertical inset: a button takes the bar's whole depth, as every other
-    // module's hover fill does (see [BarFill]).
+    // No inset across the bar: a button takes the bar's whole depth, as every
+    // other module's hover fill does (see [BarFill]). On a side bar the
+    // workspaces run down it, one under the next.
+    final vertical = BarScope.isVerticalOf(context);
     return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-        child: Row(
+        padding: vertical
+            ? const EdgeInsets.symmetric(vertical: 4.0)
+            : const EdgeInsets.symmetric(horizontal: 4.0),
+        child: BarFlex(
           spacing: 4,
           children: visibleWorkspaces.map((workspace) {
             // Null for the one workspace miracle reported neither a number nor a
@@ -514,7 +520,9 @@ class _WorkspaceLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(label, style: TextStyle(color: foreground));
+    // A name is fitted to a side bar's depth rather than wrapped down it; a
+    // number fits as it is.
+    final text = BarText(label, style: TextStyle(color: foreground));
     if (appIds.isEmpty) return text;
 
     final shown = appIds.length <= config.maxIcons
@@ -522,8 +530,9 @@ class _WorkspaceLabel extends StatelessWidget {
         : appIds.take(config.maxIcons).toList();
     final hidden = appIds.length - shown.length;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    // The icons follow the label along the bar: beside it on a top bar, under
+    // it on a side one.
+    return BarFlex(
       spacing: 4,
       children: [
         text,
@@ -537,7 +546,7 @@ class _WorkspaceLabel extends StatelessWidget {
             foreground: foreground,
           ),
         if (hidden > 0)
-          Text(
+          BarText(
             '+$hidden',
             style: TextStyle(
               color: foreground.withValues(alpha: 0.7),
