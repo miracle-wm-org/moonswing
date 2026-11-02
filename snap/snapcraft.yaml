@@ -266,7 +266,11 @@ parts:
     organize:
       wallpaper.jpg: share/moonswing/wallpaper.jpg
       lock-wallpaper.jpg: share/moonswing/lock-wallpaper.jpg
+      # The shipped themes' own wallpapers (`wallpaper = "wallpaper-forest.jpg"`),
+      # resolved by name at run time by lib/theme/theme_wallpaper.dart.
+      wallpaper-*.jpg: share/moonswing/
     stage:
       # CREDITS.md is the rest of assets/; nothing should land at the snap root.
       - share/moonswing/wallpaper.jpg
       - share/moonswing/lock-wallpaper.jpg
+      - share/moonswing/wallpaper-*.jpg

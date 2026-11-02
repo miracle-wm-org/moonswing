@@ -1235,6 +1235,8 @@ Six themes ship with the shell and are written into that directory the first tim
 | `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
 | `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
 
+Each comes with a desktop wallpaper of its own — the full moon for `glassy`, and for the others a photograph from the Ubuntu wallpaper contests (credited in `assets/CREDITS.md`). While the **Theme default** wallpaper is selected under Settings → Shell → Background, switching theme switches the desktop to the new theme's; see [The theme's wallpaper](#the-themes-wallpaper).
+
 If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `glassy` rather than starting unstyled. A single bad value inside a theme file costs only that key.
 
 The **Theme** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The six shipped themes are read-only there — editing one offers to duplicate it first.
@@ -1305,6 +1307,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `font`                 | `Ubuntu Sans` | Font family used for all text across panels and popups. Any fontconfig family name; the settings picker lists the ones installed (via `fc-list`), and falls back to a free-typed field where there is no fontconfig |
 | `font_size`            | `13.0`        | Size of the shell's body text, in logical pixels, and with it the whole type scale — labels, captions and headings keep their proportions either side of it. Clamped to 6–32. See the note below |
 | `icon_pack`            | `font_awesome` | Which icon font draws the interface icons: `font_awesome`, `material_rounded`, `material_outlined`, `material_sharp`, `lucide` or `remix`. An icon a pack has no drawing for falls back to Font Awesome's. See the note below |
+| `wallpaper`            | `""`          | The desktop wallpaper this theme comes with: a path, absolute, under `~/`, a name beside the theme file, or the bare name of one the shell installs. Empty means none. Shown by a `theme = true` background entry — see [The theme's wallpaper](#the-themes-wallpaper) |
 | `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
 | `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series (see the note below) |
 | `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
@@ -1630,9 +1633,24 @@ Each `[[background.entries]]` block names one wallpaper.
 | Key     | Type    | Default | Description                                            |
 | ------- | ------- | ------- | ------------------------------------------------------ |
 | `path`  | string  |         | Absolute path to an image file                          |
+| `theme` | boolean | `false` | Instead of a `path`: the active theme's own wallpaper — see below |
 | `shown` | boolean | `true`  | Whether this wallpaper is in the rotation               |
 
 Wallpapers are shown in the order they appear, advancing every `interval_minutes`; with one shown entry there is no rotation at all. List order is the presentation order and is never sorted.
+
+### The theme's wallpaper
+
+An entry with `theme = true` in place of a `path` is not a file but *whichever wallpaper the active theme comes with* — the theme file's `wallpaper` key. It is looked up each time it is painted, never written down as a path, so with it shown, switching theme switches the wallpaper: from the moon under `glassy` to a mountain stream under `forest`, with the usual crossfade, and nothing in `config.toml` changes. A theme with no `wallpaper` adds nothing to the rotation while it is active. The default `config.toml` shows exactly this entry:
+
+```toml
+[[background.entries]]
+theme = true
+shown = true
+```
+
+In Settings → Shell → Background it is the **Theme default** tile, always the first one offered: a preview of the current theme's wallpaper (an empty square when the theme has none). Selecting it puts it at the front of the rotation; like an installed wallpaper it cannot be removed, and deselecting it just returns it to Available. It mixes freely with wallpapers of your own — they rotate together in the order shown.
+
+A theme's `wallpaper` is resolved the way its pictures are: an absolute path, a path under `~/`, or a name beside the theme file — so a theme and its wallpaper can travel as one folder. A bare name found in none of those is one the shell installs itself: the shipped themes name `wallpaper.jpg`, `wallpaper-forest.jpg`, `wallpaper-autumn.jpg`, `wallpaper-dracula.jpg`, `wallpaper-midnight.jpg` and `wallpaper-carbon.jpg`, which `make install` puts in `$PREFIX/share/moonswing` and the snap ships. To give your own theme a wallpaper, set it in the theme file or on the Theme page's **Theme wallpaper** row.
 
 ### Installed wallpapers
 

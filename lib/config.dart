@@ -52,15 +52,31 @@ enum BackgroundFit {
 }
 
 class BackgroundEntry {
+  /// The wallpaper's file. Empty, and ignored, on a [theme] entry.
   final String path;
   final bool shown;
 
-  const BackgroundEntry({required this.path, this.shown = true});
+  /// Whether this entry is "the active theme's wallpaper" (`theme = true`)
+  /// rather than a file.
+  ///
+  /// Resolved when it is painted, never written down as a path: switching
+  /// theme with it shown is what moves the desktop to the new theme's
+  /// wallpaper, and a theme with none contributes nothing to the rotation.
+  /// See `ThemeConfig.wallpaper`.
+  final bool theme;
+
+  const BackgroundEntry({
+    this.path = '',
+    this.shown = true,
+    this.theme = false,
+  });
 
   factory BackgroundEntry.fromMap(Map<String, dynamic> map) {
+    final theme = map.boolOr('theme', false);
     return BackgroundEntry(
-      path: map.stringOr('path', ''),
+      path: theme ? '' : map.stringOr('path', ''),
       shown: map.boolOr('shown', true),
+      theme: theme,
     );
   }
 
@@ -69,10 +85,11 @@ class BackgroundEntry {
       identical(this, other) ||
       other is BackgroundEntry &&
           other.path == path &&
-          other.shown == shown;
+          other.shown == shown &&
+          other.theme == theme;
 
   @override
-  int get hashCode => Object.hash(path, shown);
+  int get hashCode => Object.hash(path, shown, theme);
 }
 
 class BackgroundConfig {

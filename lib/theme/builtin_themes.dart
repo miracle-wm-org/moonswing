@@ -54,6 +54,11 @@ font = "Ubuntu Sans"
 font_size = 13.0
 icon_pack = "font_awesome"
 
+# The desktop wallpaper the "Theme default" tile in Settings > Background
+# stands for: a mountain stream through beech and spruce ("Forest" by
+# Moritz Reisinger, CC BY-SA 2.0; see assets/CREDITS.md).
+wallpaper = "wallpaper-forest.jpg"
+
 # Sea green: the one saturated green, spent on what is active. Dark enough to
 # carry kOnAccent's white, so it fills a button rather than only outlining one.
 accent               = "#2E8B57"
@@ -178,6 +183,11 @@ font = "Ubuntu Sans"
 font_size = 13.0
 icon_pack = "font_awesome"
 
+# The desktop wallpaper the "Theme default" tile in Settings > Background
+# stands for: a road through turning woods ("Way" by Kacper Ślusarczyk,
+# CC BY-SA 4.0; see assets/CREDITS.md).
+wallpaper = "wallpaper-autumn.jpg"
+
 # Burnt orange: the season's colour, spent on what is active. Dark enough to
 # carry kOnAccent's white, so it fills a button rather than only outlining it.
 accent               = "#B5541C"
@@ -282,6 +292,11 @@ font = "Ubuntu Sans"
 font_size = 13.0
 icon_pack = "font_awesome"
 
+# The desktop wallpaper the "Theme default" tile in Settings > Background
+# stands for: ribbons of violet and cyan on the dark ("Flow" by Emanuele
+# Santoro, CC BY-SA 2.0; see assets/CREDITS.md).
+wallpaper = "wallpaper-dracula.jpg"
+
 accent               = "#BD93F9"
 foreground           = "#F8F8F2"
 surface_hover        = "#44475A"
@@ -381,6 +396,11 @@ name = "Glassy"
 font = "Ubuntu Sans"
 font_size = 13.0
 icon_pack = "font_awesome"
+
+# The desktop wallpaper the "Theme default" tile in Settings > Background
+# stands for: the full moon the shell is named for — the shell's own
+# default wallpaper (see assets/CREDITS.md).
+wallpaper = "wallpaper.jpg"
 
 accent               = "#7FB6FF"
 foreground           = "#F5F7FA"
@@ -511,6 +531,11 @@ name = "Midnight"
 font = "Ubuntu Sans"
 font_size = 14.0
 icon_pack = "font_awesome"
+
+# The desktop wallpaper the "Theme default" tile in Settings > Background
+# stands for: the Milky Way in a deep blue sky ("Milky Way" by Paulo José
+# Oliveira Amaro, CC BY-SA 4.0; see assets/CREDITS.md).
+wallpaper = "wallpaper-midnight.jpg"
 
 # Moonlight over deep water. The accent is an indigo dark enough to hold
 # kOnAccent's white at better than 4:1 — it fills buttons as well as outlining
@@ -666,6 +691,11 @@ name = "Carbon"
 font = "Ubuntu Sans"
 font_size = 13.0
 icon_pack = "font_awesome"
+
+# The desktop wallpaper the "Theme default" tile in Settings > Background
+# stands for: blue light through optical fibres, on black ("Optical Fibers
+# in Dark" by Elena Stravoravdi, CC BY-SA 4.0; see assets/CREDITS.md).
+wallpaper = "wallpaper-carbon.jpg"
 
 # Gray 100 for the deepest surface — the bar and every card alike — Gray 80 and
 # Gray 70 for the states, Gray 40 for secondary text, Gray 10 for text. Blue 60

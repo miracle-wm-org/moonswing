@@ -111,7 +111,9 @@ void main() {
       expect(bg.fit, BackgroundFit.fill);
       expect(bg.intervalMinutes, 5);
       expect(bg.entries, hasLength(1));
-      expect(bg.entries.single.path, endsWith('wallpaper.jpg'));
+      // The active theme's wallpaper, not a path: switching theme switches it.
+      expect(bg.entries.single.theme, isTrue);
+      expect(bg.entries.single.path, isEmpty);
       expect(bg.entries.single.shown, isTrue);
     });
 

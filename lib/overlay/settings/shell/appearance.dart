@@ -305,6 +305,23 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                SettingsRow.field(
+                  SettingsCatalog.themeWallpaper,
+                  info:
+                      '${SettingsCatalog.themeWallpaper.description} '
+                      'While Theme default is selected under Background, '
+                      'switching to this theme switches the desktop to this '
+                      'picture. Empty means the theme has none, and the tile '
+                      'is left blank.',
+                  control: SettingsCommitField(
+                    key: ValueKey('wallpaper-$active'),
+                    width: 260,
+                    initial: current['wallpaper'] as String? ?? '',
+                    hint: 'None',
+                    // `edit` forks a built-in itself, as for the font size.
+                    onCommitted: (v) => _themes.edit('wallpaper', v.trim()),
+                  ),
+                ),
               ],
               ThemeGroup.bar: [
                 const SettingsSubLabel('Shape'),

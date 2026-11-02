@@ -64,7 +64,10 @@ void main() {
   /// Pumps the section the way the settings pane does — inside a scroll view,
   /// under a [ThemeScope], with the catalogue pointed at the temp tree — and
   /// settles the catalogue's async walk.
-  Future<void> pumpSection(WidgetTester tester) async {
+  Future<void> pumpSection(
+    WidgetTester tester, {
+    ThemeConfig theme = const ThemeConfig(),
+  }) async {
     final catalog =
         SystemWallpaperCatalog(roots: ['${tempDir.path}/backgrounds']);
     // The walk is real file I/O, which a `testWidgets` fake-async zone never
@@ -81,7 +84,7 @@ void main() {
         child: DefaultTextStyle(
           style: const TextStyle(fontSize: 14),
           child: ThemeScope(
-            theme: const ThemeConfig(),
+            theme: theme,
             // The settings content pane is a nested Navigator, so the section
             // always builds under an Overlay — which the shown grid's
             // `Draggable` tiles require.
@@ -105,7 +108,14 @@ void main() {
                       child: CustomScrollView(
                         scrollCacheExtent: const ScrollCacheExtent.pixels(600),
                         slivers: [
-                          BackgroundSection(store: store, catalog: catalog),
+                          BackgroundSection(
+                            store: store,
+                            catalog: catalog,
+                            // The theme's value is the file itself, so no
+                            // installed wallpapers are needed.
+                            themeWallpaperOf: (t) =>
+                                t.wallpaper.isEmpty ? null : t.wallpaper,
+                          ),
                         ],
                       ),
                     ),
@@ -232,5 +242,93 @@ void main() {
     ]);
     expect(find.byKey(ValueKey(userPath)), findsOneWidget);
     await settleWrite(tester);
+  });
+
+  group('Theme default', () {
+    /// The file the Theme default tile is previewing, or null for the empty
+    /// square.
+    String? themePreview(WidgetTester tester) {
+      final images = find.descendant(
+        of: find.byKey(const ValueKey(kThemeWallpaperKey)),
+        matching: find.byType(Image),
+      );
+      if (images.evaluate().isEmpty) return null;
+      // `cacheWidth` wraps the file in a ResizeImage.
+      var provider = tester.widget<Image>(images.first).image;
+      if (provider is ResizeImage) provider = provider.imageProvider;
+      return (provider as FileImage).file.path;
+    }
+
+    testWidgets('is the first wallpaper offered, before the installed ones',
+        (tester) async {
+      await pumpSection(tester);
+
+      final tile = tester.getTopLeft(
+          find.byKey(const ValueKey(kThemeWallpaperKey)));
+      expect(tile.dx, lessThan(tester.getTopLeft(find.byKey(ValueKey(systemA))).dx));
+      expect(find.text('Theme default'), findsOneWidget);
+      // Offering it writes nothing.
+      expect(entries(), isEmpty);
+    });
+
+    testWidgets("shows the theme's wallpaper, and nothing when it has none",
+        (tester) async {
+      await pumpSection(tester, theme: ThemeConfig(wallpaper: userPath));
+      expect(themePreview(tester), userPath);
+
+      await pumpSection(tester);
+      expect(themePreview(tester), isNull);
+      expect(find.text('Theme default'), findsOneWidget);
+    });
+
+    testWidgets('selecting it puts a theme entry at the front of the rotation',
+        (tester) async {
+      store.set(['background', 'entries'], [
+        {'path': userPath, 'shown': true},
+      ]);
+      await pumpSection(tester, theme: ThemeConfig(wallpaper: systemB));
+
+      await tapTile(tester, kThemeWallpaperKey);
+
+      expect(entries(), [
+        {'theme': true, 'shown': true},
+        {'path': userPath, 'shown': true},
+      ]);
+      await settleWrite(tester);
+    });
+
+    testWidgets('deselecting it drops the entry, and it cannot be removed',
+        (tester) async {
+      store.set(['background', 'entries'], [
+        {'theme': true, 'shown': true},
+      ]);
+      await pumpSection(tester);
+      await hoverTile(tester, kThemeWallpaperKey);
+      expect(removeButtonIn(kThemeWallpaperKey), findsNothing);
+
+      await tapTile(tester, kThemeWallpaperKey);
+
+      expect(entries(), isEmpty);
+      // Still offered, first, for next time.
+      expect(find.byKey(const ValueKey(kThemeWallpaperKey)), findsOneWidget);
+      await settleWrite(tester);
+    });
+
+    testWidgets('a theme switch moves the selected tile to the new wallpaper',
+        (tester) async {
+      store.set(['background', 'entries'], [
+        {'theme': true, 'shown': true},
+      ]);
+      await pumpSection(tester, theme: ThemeConfig(wallpaper: systemA));
+      expect(themePreview(tester), systemA);
+
+      await pumpSection(tester, theme: ThemeConfig(wallpaper: systemB));
+      expect(themePreview(tester), systemB);
+      // Nothing about the config moved: the entry is the theme, not a path.
+      expect(entries(), [
+        {'theme': true, 'shown': true},
+      ]);
+      await settleWrite(tester);
+    });
   });
 }
