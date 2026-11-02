@@ -138,8 +138,10 @@ class _GithubNotificationsState extends State<GithubNotifications>
     return BarButton(
       active: isPopupOpen,
       onTapDown: (_) => _togglePopup(context),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      // The count beside the mark on a top bar, under it on a side one.
+      child: BarFlex(
+        spacing: 6,
+        verticalSpacing: 2,
         children: [
           ShellIcon(
             ShellGlyph.github,
@@ -151,16 +153,14 @@ class _GithubNotificationsState extends State<GithubNotifications>
             // where the reason is.
             color: signedIn ? theme.foreground : theme.muted,
           ),
-          if (widget.showCount && count > 0) ...[
-            const SizedBox(width: 6),
-            Text(
+          if (widget.showCount && count > 0)
+            BarText(
               '$count',
               style: TextStyle(
                 fontSize: ShellFontSizes.body,
                 color: theme.foreground,
               ),
             ),
-          ],
         ],
       ),
     );

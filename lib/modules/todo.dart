@@ -41,8 +41,8 @@ class TodoButton extends StatelessWidget {
         // where a click just happened.
         output: DisplayScope.of(context)?.name,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      // The count beside the icon on a top bar, under it on a side one.
+      child: BarFlex(
         children: [
           ShellIcon(
             ShellGlyph.listCheck,
@@ -57,8 +57,10 @@ class TodoButton extends StatelessWidget {
             builder: (context, due) => due == 0
                 ? const SizedBox.shrink()
                 : Padding(
-                    padding: const EdgeInsets.only(left: 5),
-                    child: Text(
+                    padding: BarScope.isVerticalOf(context)
+                        ? const EdgeInsets.only(top: 2)
+                        : const EdgeInsets.only(left: 5),
+                    child: BarText(
                       '$due',
                       style: TextStyle(
                         fontSize: ShellFontSizes.secondary,

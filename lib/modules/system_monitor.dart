@@ -75,40 +75,35 @@ class SystemMonitorState extends State<SystemMonitor>
         final theme = ThemeScope.of(context);
         final tempC = _store.temperatureCelsius;
 
+        final style = TextStyle(fontSize: 12, color: theme.foreground);
+        // Each reading beside its glyph on a top bar; on a side bar each
+        // under its glyph, and the three stacked down the bar.
+        Widget reading(ShellGlyph glyph, String value) => BarFlex(
+              spacing: 4,
+              verticalSpacing: 1,
+              children: [
+                ShellIcon(glyph, size: 11, color: theme.foreground),
+                BarText(value, style: style),
+              ],
+            );
+
         return BarButton(
-      active: isPopupOpen,
-      onTapDown: (_) => _togglePopup(context),
-      child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ShellIcon(ShellGlyph.microchip,
-                      size: 11, color: theme.foreground),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${_store.cpuPercent.round()}%',
-                    style: TextStyle(fontSize: 12, color: theme.foreground),
-                  ),
-                  const SizedBox(width: 8),
-                  ShellIcon(ShellGlyph.memory,
-                      size: 11, color: theme.foreground),
-                  const SizedBox(width: 4),
-                  Text(
-                    formatBytesKb(_store.memory.usedKb),
-                    style: TextStyle(fontSize: 12, color: theme.foreground),
-                  ),
-                  if (tempC != null) ...[
-                    const SizedBox(width: 8),
-                    ShellIcon(temperatureIcon(tempC),
-                        size: 11, color: theme.foreground),
-                    const SizedBox(width: 4),
-                    Text(
-                      formatTemperature(tempC, _store.config.tempUnit),
-                      style: TextStyle(fontSize: 12, color: theme.foreground),
-                    ),
-                  ],
-                ],
-              ),
-    );
+          active: isPopupOpen,
+          onTapDown: (_) => _togglePopup(context),
+          child: BarFlex(
+            spacing: 8,
+            verticalSpacing: 6,
+            children: [
+              reading(ShellGlyph.microchip, '${_store.cpuPercent.round()}%'),
+              reading(ShellGlyph.memory, formatBytesKb(_store.memory.usedKb)),
+              if (tempC != null)
+                reading(
+                  temperatureIcon(tempC),
+                  formatTemperature(tempC, _store.config.tempUnit),
+                ),
+            ],
+          ),
+        );
       },
     );
   }

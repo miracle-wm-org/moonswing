@@ -77,6 +77,8 @@ The `anchor` value determines which edges the panel is attached to:
 - `"left"` — anchored to the left, top, and bottom edges (vertical bar on left)
 - `"right"` — anchored to the right, top, and bottom edges (vertical bar on right)
 
+On a left or right bar every module lays itself out down the bar rather than across it: workspaces, dock icons, tray icons and media buttons are stacked one under the next; a reading that sits beside its icon on a top bar — the volume, brightness and battery percentages, the temperature, a count — sits under it instead, set small enough to fit the bar's width; and running text — the clock, a timer or recording readout, the track title, the network name — is turned on its side so it reads along the bar, with the tops of the letters towards the screen's edge. The left, center and right sections become top, center and bottom.
+
 ## Layout
 
 Each panel has a `[panels.<name>.layout]` section that controls which modules appear and where. The panel has three sections arranged horizontally: **left**, **center**, and **right**. The center section expands to fill available space.
@@ -251,7 +253,7 @@ max_text_width = 200.0
 
 | Key              | Type  | Default | Description                                  |
 | ---------------- | ----- | ------- | -------------------------------------------- |
-| `max_text_width` | float | `200.0` | Width in pixels before text starts scrolling |
+| `max_text_width` | float | `200.0` | Length in pixels before text starts scrolling — down the bar, on a left or right one |
 
 ### Workspaces
 

@@ -330,8 +330,10 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final style = TextStyle(fontSize: 16, color: theme.foreground);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    final vertical = BarScope.isVerticalOf(context);
+    // The timers readout follows the date and time along the bar, whichever
+    // way the bar runs.
+    return BarFlex(
       children: [
         // Only the date and time open the overlay. The timers readout beside
         // them is its own gesture region, or stopping a timer from the bar
@@ -347,22 +349,30 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
                 color: _hovered ? theme.surfaceHover : null,
                 borderRadius: BorderRadius.circular(6),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: vertical
+                  ? const EdgeInsets.symmetric(horizontal: 4, vertical: 8)
+                  : const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: BarFill(
+                // On its side on a side bar, so it reads along the bar as it
+                // does across a top one — stacked or shrunk to the bar's depth,
+                // "Nov 2 14:05" stops being a glance. The bare glyph stays
+                // upright: it reads the same either way.
                 child: _parts.isEmpty
                     ? ShellIcon(
                         ShellGlyph.clock,
                         size: 14,
                         color: theme.foreground,
                       )
-                    : Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (var i = 0; i < _parts.length; i++) ...[
-                            if (i > 0) const SizedBox(width: 8),
-                            Text(_parts[i], style: style),
+                    : BarRotated(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < _parts.length; i++) ...[
+                              if (i > 0) const SizedBox(width: 8),
+                              Text(_parts[i], style: style),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
               ),
             ),

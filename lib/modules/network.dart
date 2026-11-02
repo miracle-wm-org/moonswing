@@ -610,20 +610,26 @@ class NetworkState extends State<Network> with PopupHost<Network> {
         return BarButton(
           active: isPopupOpen,
           onTapDown: (_) => _togglePopup(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          // The name beside the glyph on a top bar. On a side bar it goes
+          // under the glyph and on its side: a network's name is a word, not a
+          // reading, and shrunk to the bar's depth it could not be read.
+          child: BarFlex(
+            spacing: 4,
             children: [
               ShellIcon(
                 _networkIcon(info),
                 size: 12,
                 color: isNone ? dimColor : theme.foreground,
               ),
-              const SizedBox(width: 4),
-              Text(
-                info.name,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: isNone ? dimColor : theme.foreground,
+              BarRotated(
+                child: Text(
+                  info.name,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isNone ? dimColor : theme.foreground,
+                  ),
                 ),
               ),
             ],

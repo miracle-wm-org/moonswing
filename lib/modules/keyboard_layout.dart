@@ -144,24 +144,24 @@ class _KeyboardLayoutState extends State<KeyboardLayout>
           // descendant recognizer, and the coordinator's reopen guard is armed
           // and consumed inside that one pointer-down.
           onTapDown: (_) => _togglePopup(context),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          // The warning beside the code on a top bar, under it on a side one.
+          child: BarFlex(
+            spacing: 4,
+            verticalSpacing: 2,
             children: [
-              Text(
+              BarText(
                 code,
                 style: TextStyle(
                   fontSize: ShellFontSizes.body,
                   color: broken ? kErrorColor : theme.foreground,
                 ),
               ),
-              if (broken) ...[
-                const SizedBox(width: 4),
+              if (broken)
                 const ShellIcon(
                   ShellGlyph.warning,
                   size: ShellFontSizes.caption,
                   color: kErrorColor,
                 ),
-              ],
             ],
           ),
         );

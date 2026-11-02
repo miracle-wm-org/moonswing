@@ -145,33 +145,33 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
     final step = _hovered
         ? size + widget.config.expandedSpacing
         : size - widget.config.collapsedOverlap;
-    final totalWidth = (items.length - 1) * step + size;
+    final length = (items.length - 1) * step + size;
     // The strip takes the depth the bar gives its modules — its own, less the
     // rim and gap either side ([panelModuleInset]) — so each icon's hover fill
-    // does, as every other module's does (see [BarFill]). On a side bar the
-    // strip still cascades sideways, so the depth is not a height there and
-    // the icons keep their own.
-    final anchor = BarScope.maybeOf(context);
-    final thickness = anchor == 'top' || anchor == 'bottom'
-        ? BarScope.thicknessOf(context)
-        : null;
-    final across = thickness == null
-        ? null
-        : thickness - 2 * panelModuleInset(ThemeScope.of(context));
-    final height = math.max(size, across ?? size);
+    // does, as every other module's does (see [BarFill]); and it cascades
+    // along the bar, so on a side bar the icons fan out downwards and each
+    // takes the bar's width instead.
+    final vertical = BarScope.isVerticalOf(context);
+    final thickness = BarScope.thicknessOf(context);
+    final across = math.max(
+      size,
+      thickness == null
+          ? size
+          : thickness - 2 * panelModuleInset(ThemeScope.of(context)),
+    );
 
-    // Earlier icons paint on top for a clean left-to-right cascade; keys keep
-    // each icon's animation state stable as items come and go.
+    // Earlier icons paint on top for a clean cascade from the strip's start;
+    // keys keep each icon's animation state stable as items come and go.
     final children = <Widget>[
       for (var i = 0; i < items.length; i++)
         AnimatedPositioned(
           key: ValueKey(items[i].busName),
           duration: ShellDurations.slow,
           curve: Curves.easeOut,
-          left: i * step,
-          top: 0,
-          width: size,
-          height: height,
+          left: vertical ? 0 : i * step,
+          top: vertical ? i * step : 0,
+          width: vertical ? across : size,
+          height: vertical ? size : across,
           child: _TrayIconButton(
             item: items[i],
             size: size,
@@ -186,8 +186,8 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
       child: AnimatedContainer(
         duration: ShellDurations.slow,
         curve: Curves.easeOut,
-        width: totalWidth,
-        height: height,
+        width: vertical ? across : length,
+        height: vertical ? length : across,
         child: Stack(clipBehavior: Clip.none, children: children),
       ),
     );
