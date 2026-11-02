@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -144,6 +145,15 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
         ? size + widget.config.expandedSpacing
         : size - widget.config.collapsedOverlap;
     final totalWidth = (items.length - 1) * step + size;
+    // The strip takes the bar's whole depth, so each icon's hover fill does,
+    // as every other module's does (see [BarFill]). On a side bar the strip
+    // still cascades sideways, so the depth is not a height there and the
+    // icons keep their own.
+    final anchor = BarScope.maybeOf(context);
+    final across = anchor == 'top' || anchor == 'bottom'
+        ? BarScope.thicknessOf(context)
+        : null;
+    final height = math.max(size, across ?? size);
 
     // Earlier icons paint on top for a clean left-to-right cascade; keys keep
     // each icon's animation state stable as items come and go.
@@ -156,7 +166,7 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
           left: i * step,
           top: 0,
           width: size,
-          height: size,
+          height: height,
           child: _TrayIconButton(
             item: items[i],
             size: size,
@@ -172,7 +182,7 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
         duration: ShellDurations.slow,
         curve: Curves.easeOut,
         width: totalWidth,
-        height: size,
+        height: height,
         child: Stack(clipBehavior: Clip.none, children: children),
       ),
     );

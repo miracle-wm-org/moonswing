@@ -6,6 +6,7 @@
 
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
@@ -58,14 +59,16 @@ class _LauncherButtonState extends State<LauncherButton> {
             color: color,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: SizedBox(
-            width: widget.iconSize.toDouble(),
-            height: widget.iconSize.toDouble(),
-            child: Center(
-              child: ShellIcon(
-                ShellGlyph.search,
-                size: widget.iconSize * 0.72,
-                color: theme.foreground,
+          child: BarFill(
+            child: SizedBox(
+              width: widget.iconSize.toDouble(),
+              height: widget.iconSize.toDouble(),
+              child: Center(
+                child: ShellIcon(
+                  ShellGlyph.search,
+                  size: widget.iconSize * 0.72,
+                  color: theme.foreground,
+                ),
               ),
             ),
           ),

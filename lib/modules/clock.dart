@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/widgets.dart';
+import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings_route.dart';
@@ -215,15 +216,17 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
                 borderRadius: BorderRadius.circular(6),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (widget.config.showDate) ...[
-                    Text(_dateString, style: style),
-                    const SizedBox(width: 8),
+              child: BarFill(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.config.showDate) ...[
+                      Text(_dateString, style: style),
+                      const SizedBox(width: 8),
+                    ],
+                    Text(_timeString, style: style),
                   ],
-                  Text(_timeString, style: style),
-                ],
+                ),
               ),
             ),
           ),

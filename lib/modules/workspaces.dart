@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:moonswing/app_info.dart';
+import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
@@ -411,7 +412,7 @@ class WorkspacesState extends State<Workspaces> {
       return pending
           ? _pending(theme)
           : const Padding(
-              padding: EdgeInsets.all(4.0),
+              padding: EdgeInsets.symmetric(horizontal: 4.0),
               child: _MiracleRetryButton(),
             );
     }
@@ -429,8 +430,10 @@ class WorkspacesState extends State<Workspaces> {
     final config = widget.config;
     final urgentPeriod = Duration(
         milliseconds: (config.urgentFlashSeconds * 1000).round());
+    // No vertical inset: a button takes the bar's whole depth, as every other
+    // module's hover fill does (see [BarFill]).
     return Padding(
-        padding: const EdgeInsets.all(4.0),
+        padding: const EdgeInsets.symmetric(horizontal: 4.0),
         child: Row(
           spacing: 4,
           children: visibleWorkspaces.map((workspace) {
@@ -758,16 +761,12 @@ class _WorkspaceButtonState extends State<_WorkspaceButton>
       padding: _WorkspaceButton._padding,
       // A *minimum*, not a fixed square: a workspace carrying app icons is
       // as wide as its icons, and one carrying none still reads as the
-      // 16px dot every workspace used to be. `widthFactor`/`heightFactor`
-      // are what keep the Center sized to its child rather than expanding
-      // to the panel's own width.
+      // 16px dot every workspace used to be. [BarFill] is what keeps it
+      // sized to its child along the bar rather than expanding to the
+      // panel's own width, while it takes the bar's whole depth.
       child: ConstrainedBox(
         constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-        child: Center(
-          widthFactor: 1,
-          heightFactor: 1,
-          child: widget.child,
-        ),
+        child: BarFill(child: widget.child),
       ),
     );
 
