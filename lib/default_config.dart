@@ -10,7 +10,8 @@ import 'package:moonswing/theme/theme_config.dart';
 /// live in, returning the first that exists.
 ///
 /// The snap's own copy comes first, because it cannot write into the user's data
-/// dir; `make install` puts them in the XDG data dir instead. Null when neither
+/// dir; `make install` puts them in the XDG data dir instead, or under its
+/// `PREFIX`, which a system-wide install has on `$XDG_DATA_DIRS`. Null when neither
 /// has the file — the callers all treat a missing wallpaper as "draw the
 /// fallback".
 ///
@@ -39,6 +40,17 @@ String? shippedDataFile(String name) {
     if (home.isNotEmpty) roots.add('$home/.local/share/moonswing');
   }
 
+  // `make install PREFIX=/usr/local` (or a distribution package) puts them in
+  // a system data dir instead, which is what `$XDG_DATA_DIRS` lists — and the
+  // spec's own default when the session never exported it.
+  final dataDirs = env['XDG_DATA_DIRS'] ?? '';
+  for (final dir in (dataDirs.trim().isEmpty
+      ? '/usr/local/share:/usr/share'
+      : dataDirs)
+      .split(':')) {
+    if (dir.startsWith('/')) roots.add('$dir/moonswing');
+  }
+
   for (final root in roots) {
     final path = '$root/$name';
     if (File(path).existsSync()) return path;
@@ -48,16 +60,16 @@ String? shippedDataFile(String name) {
 
 /// The default `config.toml` document, written to disk on first run.
 ///
-/// Wallpapers are baked as absolute paths because config.toml is written once and
-/// then owned by the user: resolving at every read would silently move their
-/// wallpaper if the shell were reinstalled elsewhere. Falls back to the XDG data
-/// dir when nothing is installed yet.
+/// The lock wallpaper is baked as an absolute path because config.toml is written
+/// once and then owned by the user: resolving at every read would silently move
+/// it if the shell were reinstalled elsewhere. Falls back to the XDG data dir
+/// when nothing is installed yet. The desktop's is the one exception, and on
+/// purpose: it is a `theme = true` entry, the active theme's wallpaper, which
+/// is resolved every time it is painted.
 ///
 /// The golden test parses this document and asserts every field it names lands
 /// unchanged in the typed config.
 String buildDefaultConfig(String homeDir) {
-  final wallpaper = shippedDataFile('wallpaper.jpg') ??
-      '$homeDir/.local/share/moonswing/wallpaper.jpg';
   final lockWallpaper = shippedDataFile('lock-wallpaper.jpg') ??
       '$homeDir/.local/share/moonswing/lock-wallpaper.jpg';
   return '''
@@ -154,8 +166,10 @@ show_cursor = true
 fit = "fill"
 interval_minutes = 5
 
+# The active theme's own wallpaper: switching theme moves the desktop to the
+# new one's. Add pictures of your own as more entries, each with a `path`.
 [[background.entries]]
-path = "$wallpaper"
+theme = true
 shown = true
 
 # Icons and widgets pinned to the desktop. On by default; turn it off here or

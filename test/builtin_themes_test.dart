@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
@@ -76,6 +78,7 @@ void main() {
       'popup_border_texture',
       'popup_image',
       'popup_roots',
+      'wallpaper',
     };
     for (final entry in kBuiltInThemes.entries) {
       final map = TomlDocument.parse(entry.value).toMap();
@@ -494,6 +497,41 @@ void main() {
         greaterThanOrEqualTo(kTextContrast));
     expect(HSLColor.fromColor(pale.accentText).lightness,
         lessThan(HSLColor.fromColor(pale.accent).lightness));
+  });
+
+  test('every shipped theme comes with a wallpaper the shell installs', () {
+    // A bare name, so it resolves among the installed wallpapers; and one the
+    // repository actually has, or `make install` and the snap ship a theme
+    // whose "Theme default" tile is empty.
+    final makefile = File('Makefile').readAsStringSync();
+    final snap = File('snap/snapcraft.yaml').readAsStringSync();
+    final credits = File('assets/CREDITS.md').readAsStringSync();
+    for (final slug in kBuiltInThemes.keys) {
+      final name = _shipped(slug).wallpaper;
+      expect(name, isNotEmpty, reason: slug);
+      expect(name, isNot(contains('/')), reason: slug);
+      expect(File('assets/$name').existsSync(), isTrue,
+          reason: '$slug names assets/$name');
+      expect(
+        makefile.contains('assets/$name') ||
+            (name.startsWith('wallpaper-') &&
+                makefile.contains('assets/wallpaper-*.jpg')),
+        isTrue,
+        reason: '$slug: make install must install $name',
+      );
+      expect(
+        snap.contains(name) ||
+            (name.startsWith('wallpaper-') && snap.contains('wallpaper-*.jpg')),
+        isTrue,
+        reason: '$slug: the snap must stage $name',
+      );
+      expect(credits, contains('`$name`'),
+          reason: '$slug: $name needs its licence in assets/CREDITS.md');
+    }
+  });
+
+  test('the default theme keeps the moon', () {
+    expect(_shipped(kDefaultThemeName).wallpaper, 'wallpaper.jpg');
   });
 
   test('toMap round-trips through TOML unchanged', () {

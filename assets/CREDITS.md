@@ -38,8 +38,42 @@ stars.
   evens out the streaked polar rows, which otherwise show as black specks and
   stripes on the disc.
 
-Installed to `$PREFIX/share/moonswing/wallpaper.jpg` by `make install` and
-referenced by the default `[background]` section of `config.toml`.
+Installed to `$PREFIX/share/moonswing/wallpaper.jpg` by `make install`. It is
+the default theme's own wallpaper (`wallpaper = "wallpaper.jpg"` in Glassy),
+which the default `[background]` section of `config.toml` shows through its
+`theme = true` entry.
+
+## The shipped themes' wallpapers
+
+Each shipped theme names a desktop wallpaper of its own (`wallpaper` in the theme file), which
+is what the **Theme default** tile in Settings › Background shows while that theme is active.
+Glassy, the default theme, names `wallpaper.jpg` above; the other five are photographs and
+artwork from the [Ubuntu wallpaper contests](https://launchpad.net/ubuntu-wallpapers), taken
+from Ubuntu 24.04's `ubuntu-wallpapers-<release>` packages, whose
+`/usr/share/doc/<package>/copyright` gives each file's author and licence.
+
+| File | Theme | Work | Author | Licence | Package |
+| --- | --- | --- | --- | --- | --- |
+| `wallpaper-forest.jpg` | Forest | *Forest* | Moritz Reisinger | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) | `ubuntu-wallpapers-zesty` |
+| `wallpaper-autumn.jpg` | Autumn | *Way* | Kacper Ślusarczyk | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | `ubuntu-wallpapers-impish` |
+| `wallpaper-dracula.jpg` | Dracula | *Flow* | Emanuele Santoro | [CC BY-SA 2.0](https://creativecommons.org/licenses/by-sa/2.0/) | `ubuntu-wallpapers-lunar` |
+| `wallpaper-midnight.jpg` | Midnight | *Milky Way* | Paulo José Oliveira Amaro | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | `ubuntu-wallpapers-impish` |
+| `wallpaper-carbon.jpg` | Carbon | *Optical Fibers in Dark* | Elena Stravoravdi | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | `ubuntu-wallpapers-jammy` |
+
+- **Changes:** each is cover-cropped to 3840×2160 and re-encoded as JPEG (the originals are
+  3840 wide and 2160 to 2560 tall; `Flow` was a PNG). Nothing else is altered.
+- **License:** each file keeps its original's licence, as the licence requires of an
+  adaptation — a resized copy of a CC BY-SA work is CC BY-SA under the same version. The
+  shell does not use them in a way that brings its own code under that licence: they are
+  separate files, installed beside the binary and opened at run time.
+- **Source:** the files of the same names (`Forest_by_Moritz_Reisinger.jpg`,
+  `Way_by_Kacper_Ślusarczyk.jpg`, `Flow_by_Emanuele_Santoro.png`,
+  `Milky_Way_by_Paulo_José_Oliveira_Amaro.jpg`,
+  `Optical_Fibers_in_Dark_by_Elena_Stravoravdi.jpg`) under `/usr/share/backgrounds` in the
+  packages named above.
+
+Installed to `$PREFIX/share/moonswing/` by `make install` and staged by the snap; a theme
+names one by its bare file name and `lib/theme/theme_wallpaper.dart` finds it there.
 
 ## `moonswing-mark.svg`, `moonswing-banner.svg`
 

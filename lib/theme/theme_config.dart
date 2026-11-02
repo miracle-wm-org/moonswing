@@ -580,6 +580,21 @@ class ThemeConfig {
 
   final String fontFamily;
 
+  /// The desktop wallpaper this theme comes with — `wallpaper`, a path, or
+  /// empty for none.
+  ///
+  /// Shown wherever the user's `[[background.entries]]` hold a `theme = true`
+  /// entry, which is resolved against the *active* theme every time it is
+  /// painted: switching theme with it selected is what changes the wallpaper,
+  /// and nothing has to be written to `config.toml` for it to happen. A path is
+  /// absolute, starts with `~/`, or is a bare name looked up beside the theme
+  /// file and then among the shell's own installed wallpapers — which is how
+  /// the shipped themes name theirs. See `lib/theme/theme_wallpaper.dart`.
+  ///
+  /// Never blends: a picture has no halfway, and the background surface
+  /// cross-fades from one to the next on its own.
+  final String wallpaper;
+
   /// Which icon font draws the interface glyphs — `icon_pack`, and the one key
   /// that changes every surface's iconography rather than its colour.
   ///
@@ -696,6 +711,7 @@ class ThemeConfig {
     this.popupBorderTextureColor = const Color(0xFF5A4030),
     this.popupImage = '',
     this.popupRoots = 0.0,
+    this.wallpaper = '',
   });
 
   /// Every theme key, in the order [toMap] writes them; the colour subsequence is
@@ -826,6 +842,7 @@ class ThemeConfig {
     _ThemeKey('popup_image', _ThemeKeyKind.text, (t) => t.popupImage),
     _ThemeKey('popup_roots', _ThemeKeyKind.number, (t) => t.popupRoots,
         min: 0.0, max: 96.0),
+    _ThemeKey('wallpaper', _ThemeKeyKind.text, (t) => t.wallpaper),
   ];
 
   static Color _parseColor(String? hex, Color fallback) {
@@ -939,6 +956,7 @@ class ThemeConfig {
       popupBorderTextureColor: v('popup_border_texture_color'),
       popupImage: (v<String>('popup_image')).trim(),
       popupRoots: v('popup_roots'),
+      wallpaper: (v<String>('wallpaper')).trim(),
     );
   }
 

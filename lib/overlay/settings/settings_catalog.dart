@@ -199,6 +199,17 @@ abstract final class SettingsCatalog {
     tags: const ['type', 'text', 'scale', 'bigger', 'smaller', 'zoom'],
   );
 
+  static final themeWallpaper = shellField(
+    'theme.wallpaper',
+    'Theme wallpaper',
+    section: 'Theme',
+    description:
+        'The desktop wallpaper this theme comes with — what the Theme default '
+        'tile under Background shows: a path, absolute, under ~/, or beside '
+        'the theme file.',
+    tags: const ['background', 'desktop', 'picture', 'photo', 'image', 'default'],
+  );
+
   static final panelGradient = shellField(
     'theme.panel_gradient',
     'Panel gradient',
@@ -2912,6 +2923,7 @@ abstract final class SettingsCatalog {
     font,
     iconPack,
     fontSize,
+    themeWallpaper,
     panelGradient,
     panelMargin,
     panelRadius,

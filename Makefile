@@ -30,6 +30,7 @@ install: build install-portal
 	cp -r $(BUNDLE)/data/. $(APPDIR)/data/
 	install -m 644 assets/wallpaper.jpg $(DATADIR)/wallpaper.jpg
 	install -m 644 assets/lock-wallpaper.jpg $(DATADIR)/lock-wallpaper.jpg
+	install -m 644 assets/wallpaper-*.jpg $(DATADIR)/
 	@printf '#!/bin/sh\nexec "$(APPDIR)/moonswing" "$$@"\n' \
 		> $(BINDIR)/moonswing
 	chmod 755 $(BINDIR)/moonswing
