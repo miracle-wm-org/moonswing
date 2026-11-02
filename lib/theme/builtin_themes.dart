@@ -125,17 +125,19 @@ popup_shadow_spread  = -2.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 10.0
 
-# Unhurried, because a tree is: the trunk takes a third of a second to rise.
+# Unhurried, because a tree is: the trunk takes the better part of a quarter
+# second to rise — the slowest menu in the shell, and still quick enough to
+# read before the pointer reaches it.
 popup_animation      = "sprout"
-popup_animation_duration = 320
+popup_animation_duration = 240
 
 overlay_radius       = 14.0
 
 # The overlays lift into place, a little more slowly than the default, and
 # leave faster than they came.
 overlay_animation    = "rise"
-overlay_animation_duration = 220
-overlay_animation_exit_ratio = 0.8
+overlay_animation_duration = 170
+overlay_animation_exit_ratio = 0.75
 overlay_animation_curve = "ease_out"
 ''';
 
@@ -257,16 +259,17 @@ popup_shadow_spread  = -2.0
 popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 10.0
 
-# Unhurried, as forest is: the trunk takes a third of a second to rise.
+# Unhurried, as forest is: the trunk takes the better part of a quarter second
+# to rise.
 popup_animation      = "sprout"
-popup_animation_duration = 320
+popup_animation_duration = 240
 
 overlay_radius       = 14.0
 
 # The overlays drift into place and leave faster than they came.
 overlay_animation    = "rise"
-overlay_animation_duration = 220
-overlay_animation_exit_ratio = 0.8
+overlay_animation_duration = 170
+overlay_animation_exit_ratio = 0.75
 overlay_animation_curve = "ease_out"
 ''';
 
@@ -331,7 +334,7 @@ popup_shadow_offset_y = 6.0
 
 # Attached to the bar, so it slides out of it.
 popup_animation      = "slide"
-popup_animation_duration = 140
+popup_animation_duration = 120
 
 overlay_radius       = 12.0
 
@@ -339,8 +342,8 @@ overlay_radius       = 12.0
 # The overshoot is read backwards on the way out, so they dip before they
 # go.
 overlay_animation    = "zoom"
-overlay_animation_duration = 170
-overlay_animation_exit_ratio = 0.85
+overlay_animation_duration = 150
+overlay_animation_exit_ratio = 0.75
 overlay_animation_curve = "overshoot"
 # Made of nothing but colour: no material, no end caps, no carve, no picture,
 # nothing growing off the bar and no roots under the menus. Spelled anyway,
@@ -456,17 +459,19 @@ popup_shadow_offset_y = 10.0
 # out of: the card simply fades up, which is also the arrival that shows least
 # of the seam a translucent fill draws over a moving wallpaper.
 popup_animation      = "fade"
-popup_animation_duration = 140
+popup_animation_duration = 120
 
 overlay_radius       = 12.0
 
-# Glass dissolves rather than moves: opacity alone, eased at both ends and
-# given longer than the default, because a fade with nothing else in it is
-# the one effect a short duration hides completely.
+# Glass dissolves rather than moves: opacity alone, given a touch longer than
+# the default because a fade with nothing else in it is the one effect a short
+# duration hides completely — but eased out, not at both ends, so the card is
+# legible from the first frames instead of lingering near transparent, and
+# gone in three quarters of the time it took to arrive.
 overlay_animation    = "fade"
-overlay_animation_duration = 220
-overlay_animation_exit_ratio = 1.0
-overlay_animation_curve = "ease_in_out"
+overlay_animation_duration = 150
+overlay_animation_exit_ratio = 0.75
+overlay_animation_curve = "ease_out"
 # Made of nothing but colour: no material, no end caps, no carve, no picture,
 # nothing growing off the bar and no roots under the menus. Spelled anyway,
 # because a shipped theme leans on no default.
@@ -593,15 +598,15 @@ popup_shadow_offset_y = 0.0
 # that no direction of travel can contradict — which is why this theme need not
 # take glassy's way out and simply fade.
 popup_animation      = "slide"
-popup_animation_duration = 140
+popup_animation_duration = 120
 
 overlay_radius       = 12.0
 
-# The statliest arrival of the shipped themes, on the asymmetric curve:
+# The stateliest arrival of the shipped themes, on the asymmetric curve:
 # a sharp departure into a long settle, and out again in three quarters of
 # the time.
 overlay_animation    = "scale"
-overlay_animation_duration = 260
+overlay_animation_duration = 200
 overlay_animation_exit_ratio = 0.75
 overlay_animation_curve = "emphasized"
 # Made of nothing but colour: no material, no end caps, no carve, no picture,
@@ -770,7 +775,7 @@ popup_shadow_offset_y = 0.0
 # travel out of that join rather than an arrival beside it — the same slide the
 # other two attached themes play, and the one that reads as the bar opening.
 popup_animation      = "slide"
-popup_animation_duration = 140
+popup_animation_duration = 120
 
 overlay_radius       = 12.0
 
@@ -778,8 +783,8 @@ overlay_radius       = 12.0
 # flat-panel counterpart to the popups this theme attaches to the bar,
 # and quick, because nothing here is meant to read as floating.
 overlay_animation    = "unfold"
-overlay_animation_duration = 140
-overlay_animation_exit_ratio = 0.75
+overlay_animation_duration = 120
+overlay_animation_exit_ratio = 0.7
 overlay_animation_curve = "ease_out"
 # Made of nothing but colour: no material, no end caps, no carve, no picture,
 # nothing growing off the bar and no roots under the menus. Spelled anyway,

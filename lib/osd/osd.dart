@@ -4,6 +4,7 @@ import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/osd/osd_store.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// Logical size of the OSD *card*. The window is kept tight around it because the
 /// shell has no input-region support — a larger surface would swallow clicks
@@ -39,7 +40,8 @@ class _OsdWindowState extends State<OsdWindow>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 200),
+      duration: ShellDurations.slow,
+      reverseDuration: ShellDurations.base,
       vsync: this,
     );
     _opacity = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
@@ -181,7 +183,7 @@ class _OsdBar extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: TweenAnimationBuilder<double>(
           tween: Tween(begin: value, end: value),
-          duration: const Duration(milliseconds: 120),
+          duration: ShellDurations.fast,
           curve: Curves.easeOut,
           builder: (context, animated, _) => FractionallySizedBox(
             widthFactor: animated.clamp(0.0, 1.0),

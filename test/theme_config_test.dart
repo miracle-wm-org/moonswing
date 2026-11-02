@@ -345,8 +345,8 @@ void main() {
       expect(theme.overlayEffect, OverlayEffect.scale);
       expect(theme.overlayCurve, OverlayCurve.easeOut);
       expect(theme.overlayInDuration, ShellDurations.overlayFade);
-      expect(theme.overlayExitRatio, 1.0);
-      expect(theme.overlayOutDuration, theme.overlayInDuration);
+      expect(theme.overlayExitRatio, 0.8);
+      expect(theme.overlayOutDuration, lessThan(theme.overlayInDuration));
     });
 
     test('each of the four parses and writes itself back', () {
@@ -440,7 +440,8 @@ void main() {
         'overlay_animation_duration': 500,
       });
       expect(theme.popupEffect, PopupEffect.none);
-      expect(theme.popupAnimationDuration, 140);
+      expect(theme.popupAnimationDuration,
+          ShellDurations.popupIn.inMilliseconds);
       expect(theme.overlayEffect, OverlayEffect.flip);
       expect(theme.overlayAnimationDuration, 500);
     });

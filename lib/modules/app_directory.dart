@@ -27,6 +27,7 @@ import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// The dock's right-side button that opens the application directory.
 class AppDirectoryButton extends StatefulWidget {
@@ -104,7 +105,7 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
         },
         onTapCancel: () => setState(() => _pressed = false),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: ShellDurations.fast,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: color,

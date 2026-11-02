@@ -74,16 +74,16 @@ const Size kNotificationBadgeWindowSize = Size(
 );
 
 /// How long the card takes to arrive.
-const Duration kNotificationBadgeEnter = Duration(milliseconds: 420);
+const Duration kNotificationBadgeEnter = Duration(milliseconds: 320);
 
 /// How long the card takes to leave once the pointer has passed over it.
 ///
 /// Quicker than the arrival: the user has already seen it, and a card that
 /// lingers after being waved away is one still asking for attention.
-const Duration kNotificationBadgeExit = Duration(milliseconds: 260);
+const Duration kNotificationBadgeExit = Duration(milliseconds: 190);
 
 /// How long one bounce lasts.
-const Duration kNotificationBadgeBump = Duration(milliseconds: 380);
+const Duration kNotificationBadgeBump = Duration(milliseconds: 300);
 
 /// How far the bounce lifts the card at its highest.
 const double kNotificationBadgeBounce = 9;

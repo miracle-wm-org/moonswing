@@ -10,10 +10,13 @@ import 'dart:ui';
 /// Animation durations, from hover feedback to full-screen overlay fades.
 abstract final class ShellDurations {
   /// Hover/press feedback and small icon moves (the most common tier).
-  static const Duration fast = Duration(milliseconds: 120);
+  ///
+  /// Under a tenth of a second: feedback that is still arriving when the
+  /// pointer has moved on reads as lag, not polish.
+  static const Duration fast = Duration(milliseconds: 90);
 
   /// Toggles and control state changes.
-  static const Duration base = Duration(milliseconds: 150);
+  static const Duration base = Duration(milliseconds: 110);
 
   /// A full-screen overlay's entrance (`overlay_animation`), when the theme
   /// spells no `overlay_animation_duration`.
@@ -22,18 +25,18 @@ abstract final class ShellDurations {
   /// moves it, and `ThemeConfig.overlayInDuration` is what actually plays.
   /// Still the flat timing for the handful of fades that are not an overlay
   /// entrance — the notification panel's own exit reads it directly.
-  static const Duration overlayFade = Duration(milliseconds: 160);
+  static const Duration overlayFade = Duration(milliseconds: 130);
 
   /// Larger reveals: tray spread, flyouts, page slides.
-  static const Duration slow = Duration(milliseconds: 180);
+  static const Duration slow = Duration(milliseconds: 140);
 
   /// The settings overlay's entrance, deliberately statelier.
   ///
   /// Read as a *ratio* to [overlayFade] rather than as a duration — see
   /// `FadeOverlayScaffold.durationScale`. Spelled as a duration because that is
-  /// what it has always been and what it reads as: 240ms against the shell's
-  /// 160.
-  static const Duration overlayEntrance = Duration(milliseconds: 240);
+  /// what it has always been and what it reads as: 195ms against the shell's
+  /// 130 — half again as long, the proportion it has always kept.
+  static const Duration overlayEntrance = Duration(milliseconds: 195);
 
   /// A popup card's entrance (`popup_animation`), when the theme spells no
   /// `popup_animation_duration`.
@@ -41,7 +44,7 @@ abstract final class ShellDurations {
   /// Quick: the card has to be readable by the time the pointer reaches it.
   /// This is the *default* rather than the timing — a theme moves it, and
   /// `ThemeConfig.popupInDuration` is what actually plays.
-  static const Duration popupIn = Duration(milliseconds: 140);
+  static const Duration popupIn = Duration(milliseconds: 120);
 
   /// How much of its entrance an exit is given, whatever the entrance lasts.
   ///
@@ -49,18 +52,23 @@ abstract final class ShellDurations {
   /// are done. A fraction rather than a second duration so a theme that
   /// lengthens the entrance lengthens the exit with it, and the two cannot
   /// drift into an exit longer than the entrance it reverses.
-  static const double popupExitFraction = 0.8;
+  static const double popupExitFraction = 0.75;
 
   /// A popup card's exit — the entrance, reversed and shorter: [popupIn] times
   /// [popupExitFraction], which cannot be written as a constant expression.
   ///
   /// The default, as [popupIn] is. See `lib/popup_transition.dart`.
-  static const Duration popupOut = Duration(milliseconds: 112);
+  static const Duration popupOut = Duration(milliseconds: 90);
+
+  /// The lock screen deepening its scrim and blurring the wallpaper as the
+  /// password prompt comes up. Longer than [slow] because it is the whole
+  /// output changing, and a blur that snaps in reads as a glitch.
+  static const Duration lockPrompt = Duration(milliseconds: 200);
 
   /// How long a theme switch takes to blend one palette into the next — see
   /// `ThemeTransition`. Slower than any control's feedback, because the whole
   /// shell is changing colour at once and a snap that size reads as a flash.
-  static const Duration themeSwitch = Duration(milliseconds: 400);
+  static const Duration themeSwitch = Duration(milliseconds: 300);
 }
 
 /// Corner radii. The scale observed across the shell, named.

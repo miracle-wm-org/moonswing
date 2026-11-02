@@ -19,6 +19,7 @@ import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/overlay_transition.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 const double _kCardWidth = 120;
 const double _kCardHeight = 80;
@@ -194,14 +195,15 @@ void main() {
 
     testWidgets('the default is the entrance every overlay used to play',
         (tester) async {
-      // A theme that says nothing about overlays must render exactly as the
-      // shell did before the key existed: a scale from 0.96 under a fade, at
-      // 160ms — the same guarantee `font_size` makes.
+      // A theme that says nothing about overlays plays the shape the shell
+      // always did — a scale from 0.96 under a fade — at the shell's own pace,
+      // [ShellDurations.overlayFade], the same guarantee `font_size` makes.
+      // The exit is quicker than the entrance it reverses.
       const theme = ThemeConfig();
       expect(theme.overlayEffect, OverlayEffect.scale);
       expect(theme.overlayCurve, OverlayCurve.easeOut);
-      expect(theme.overlayInDuration, const Duration(milliseconds: 160));
-      expect(theme.overlayOutDuration, theme.overlayInDuration);
+      expect(theme.overlayInDuration, ShellDurations.overlayFade);
+      expect(theme.overlayOutDuration, lessThan(theme.overlayInDuration));
 
       final closing = ValueNotifier<bool>(false);
       await tester.pumpWidget(_host(theme: theme, closing: closing));

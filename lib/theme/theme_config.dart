@@ -19,18 +19,24 @@ const String kDefaultThemeName = 'glassy';
 /// The shipped `popup_animation_duration`, in milliseconds.
 ///
 /// [ShellDurations.popupIn] read as a number, so a theme spelling no duration
-/// plays exactly what every popup played before the key existed — the same
-/// guarantee `font_size` makes against [ShellFontSizes.body]. A const `int`
-/// rather than the token itself because `Duration.inMilliseconds` is a getter,
-/// and a field default has to be a constant expression.
-const int _kDefaultPopupDurationMs = 140;
+/// plays the shell's own pace — the same guarantee `font_size` makes against
+/// [ShellFontSizes.body]. A const `int` rather than the token itself because
+/// `Duration.inMilliseconds` is a getter, and a field default has to be a
+/// constant expression.
+const int _kDefaultPopupDurationMs = 120;
 
 /// The shipped `overlay_animation_duration`, in milliseconds.
 ///
 /// [ShellDurations.overlayFade] read as a number, for the reason
 /// [_kDefaultPopupDurationMs] is [ShellDurations.popupIn]'s: a theme spelling no
-/// duration plays exactly what every overlay played before the key existed.
-const int _kDefaultOverlayDurationMs = 160;
+/// duration plays the shell's own pace.
+const int _kDefaultOverlayDurationMs = 130;
+
+/// The shipped `overlay_animation_exit_ratio`: a theme spelling none leaves in
+/// four fifths of the time it arrived in. A dismissal is the user being done,
+/// and an exit that takes as long as the entrance keeps them waiting on a card
+/// they have already finished with.
+const double _kDefaultOverlayExitRatio = 0.8;
 
 /// How a theme key parses and encodes.
 ///
@@ -666,7 +672,7 @@ class ThemeConfig {
     this.overlayRadius = 12.0,
     this.overlayEffect = OverlayEffect.scale,
     this.overlayAnimationDuration = _kDefaultOverlayDurationMs,
-    this.overlayExitRatio = 1.0,
+    this.overlayExitRatio = _kDefaultOverlayExitRatio,
     this.overlayCurve = OverlayCurve.easeOut,
     this.scrim = const Color(0x882C2C2C),
     this.fontFamily = 'Ubuntu Sans',

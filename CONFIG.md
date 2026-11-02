@@ -527,7 +527,7 @@ side = "right"
 width = 400
 animation = "slide"
 animation_curve = "ease_out"
-animation_duration = 180
+animation_duration = 150
 ```
 
 | Key            | Type   | Default   | What it does                                                                                       |
@@ -605,8 +605,8 @@ table, so the two can differ.
 [modules.notifications]
 animation = "slide"           # none, slide, fade, reveal or stretch
 animation_curve = "ease_out"  # how it is paced
-animation_duration = 180      # milliseconds to arrive; 0 is no animation
-animation_exit_ratio = 0.8    # leaving takes this much of that
+animation_duration = 150      # milliseconds to arrive; 0 is no animation
+animation_exit_ratio = 0.75   # leaving takes this much of that
 animation_travel = 1.0        # how much of its width it moves through
 animation_fade = false        # fade as well as move
 ```
@@ -615,8 +615,8 @@ animation_fade = false        # fade as well as move
 | ---------------------- | ------ | ------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `animation`            | string | `"slide"`    | What moves — see below                                                                                              |
 | `animation_curve`      | string | `"ease_out"` | How it is paced: `linear`, `ease_in`, `ease_out`, `ease_in_out`, `emphasized`, `overshoot`, `bounce` or `elastic` |
-| `animation_duration`   | int    | `180`        | How long arriving takes, in milliseconds (0–2000). `0` turns the animation off                                     |
-| `animation_exit_ratio` | float  | `0.8`        | How long leaving takes, as a proportion of arriving (0–2): `1` is the same, `0.5` twice as quick                    |
+| `animation_duration`   | int    | `150`        | How long arriving takes, in milliseconds (0–2000). `0` turns the animation off                                     |
+| `animation_exit_ratio` | float  | `0.75`       | How long leaving takes, as a proportion of arriving (0–2): `1` is the same, `0.5` twice as quick                    |
 | `animation_travel`     | float  | `1.0`        | How much of the panel's width the movement covers (0.05–1)                                                          |
 | `animation_fade`       | bool   | `false`      | Fade the panel in and out while it slides, is revealed or stretches                                                 |
 
@@ -1287,13 +1287,13 @@ popup_shadow_offset_x = 0.0
 popup_shadow_offset_y = 6.0
 
 popup_animation      = "slide"
-popup_animation_duration = 140
+popup_animation_duration = 120
 
 overlay_radius       = 12.0
 
 overlay_animation    = "scale"
-overlay_animation_duration = 160
-overlay_animation_exit_ratio = 1.0
+overlay_animation_duration = 130
+overlay_animation_exit_ratio = 0.8
 overlay_animation_curve = "ease_out"
 ```
 
@@ -1336,11 +1336,11 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_shadow_offset_x`| `0.0`         | Horizontal displacement; positive is right, negative is left               |
 | `popup_shadow_offset_y`| `6.0`         | Vertical displacement; positive is down, negative is up                    |
 | `popup_animation`      | `slide`       | How a popup arrives, and — reversed — how it leaves (see below)             |
-| `popup_animation_duration` | `140`     | How long that entrance runs, in milliseconds; the exit takes four fifths of it |
+| `popup_animation_duration` | `120`     | How long that entrance runs, in milliseconds; the exit takes three quarters of it |
 | `overlay_radius`       | `12.0`        | Corner rounding of a full-screen overlay's card: the overview, the launcher (see below) |
 | `overlay_animation`    | `scale`       | How a full-screen overlay arrives, and — reversed — how it leaves (see below) |
-| `overlay_animation_duration` | `160`   | How long *that* entrance runs, in milliseconds                             |
-| `overlay_animation_exit_ratio` | `1.0` | What fraction of the entrance the overlay's exit takes                     |
+| `overlay_animation_duration` | `130`   | How long *that* entrance runs, in milliseconds                             |
+| `overlay_animation_exit_ratio` | `0.8` | What fraction of the entrance the overlay's exit takes                     |
 | `overlay_animation_curve` | `ease_out` | The easing the overlay's animation is paced on                             |
 | `scrim`                | `#882C2C2C`   | The wash drawn over the screen behind a full-screen overlay                 |
 | `panel_texture`        | `none`        | What the bar is made of: `none`, `wood`, `stone`, `bark` or `moss` (see below) |
@@ -1500,7 +1500,7 @@ Themes written before this key existed get `12.0`, which is the radius every one
 
 `slide`, `grow` and `flip` take their direction from the bar the popup was opened from, so a bottom bar's menus rise and a top bar's drop. A menu anchored to the *pointer* — the desktop's context menu, an app-directory category flyout — has no bar to travel out of and is treated as hanging below its anchor, which is where the compositor puts it.
 
-`popup_animation_duration` is how long the entrance runs, in milliseconds, and it defaults to 140. The exit is four fifths of whatever you set: an entrance is paced to be followed, while a dismissal is you saying you are done with the card, and a fraction rather than a second key is what stops the two drifting into an exit longer than the entrance it reverses. It is clamped to 0–2000, and `none` is the off switch rather than a duration of `0` — at `none` nothing is wrapped and no animation controller is created at all, where `0` is the effect played instantly.
+`popup_animation_duration` is how long the entrance runs, in milliseconds, and it defaults to 120. The exit is three quarters of whatever you set: an entrance is paced to be followed, while a dismissal is you saying you are done with the card, and a fraction rather than a second key is what stops the two drifting into an exit longer than the entrance it reverses. It is clamped to 0–2000, and `none` is the off switch rather than a duration of `0` — at `none` nothing is wrapped and no animation controller is created at all, where `0` is the effect played instantly.
 
 **The dock ignores this key.** Its hover labels and its unpin menu always open with `none`, whatever the theme says: the dock is a strip the pointer sweeps along, opening and abandoning a surface at every button on the way past, and a card that animated at each of them reads as the shell twitching rather than answering.
 
@@ -1542,17 +1542,17 @@ Every value but `none` fades as well as moves, and that is not decoration: an ov
 | `bounce`      | Lands, bounces, and lands again                                       |
 | `elastic`     | Springs past and oscillates before settling                           |
 
-The last three deliberately travel past the resting state and come back, which is the whole point of having them; the card's *opacity* is held inside its normal range while they do, so an overshoot is a movement rather than a flicker. `elastic` in particular wants a longer duration than the default — at 160 ms a spring reads as a stutter.
+The last three deliberately travel past the resting state and come back, which is the whole point of having them; the card's *opacity* is held inside its normal range while they do, so an overshoot is a movement rather than a flicker. `elastic` in particular wants a longer duration than the default — at the default 130 ms a spring reads as a stutter.
 
 **`overlay_animation_duration`** is how long the entrance runs, in milliseconds, clamped to 0–4000. A wider ceiling than a popup's, for the same reason these are separate keys at all. `0` is the animation played instantly; `overlay_animation = "none"` is the off switch, and it is a real one — no animation controller is built, nothing is layered over the card, and the window is destroyed on the frame it is dismissed.
 
-**`overlay_animation_exit_ratio`** is how the exit relates to the entrance, and it is the second timing knob rather than a second duration. The way out is always the way in reversed — the same shape, so a card that swung open swings shut — and this says only how long it takes: `0.75` leaves in three quarters of the time it arrived in, `1.0` (the default) takes exactly as long, and the ceiling of `2.0` is there because an overlay that dissolves more slowly than it appeared is a legitimate choice. Because it is a ratio, lengthening the entrance lengthens the exit with it; the two cannot drift apart. Read backwards, an `overshoot` entrance becomes an anticipation dip on the way out, which is the pair those curves are drawn to make.
+**`overlay_animation_exit_ratio`** is how the exit relates to the entrance, and it is the second timing knob rather than a second duration. The way out is always the way in reversed — the same shape, so a card that swung open swings shut — and this says only how long it takes: `0.75` leaves in three quarters of the time it arrived in, `0.8` (the default) in four fifths, `1.0` takes exactly as long, and the ceiling of `2.0` is there because an overlay that dissolves more slowly than it appeared is a legitimate choice. Because it is a ratio, lengthening the entrance lengthens the exit with it; the two cannot drift apart. Read backwards, an `overshoot` entrance becomes an anticipation dip on the way out, which is the pair those curves are drawn to make.
 
 Two notes on what is *not* animated. The **scrim never moves** — it is the size of your display, so anything transforming or layering it would cost a full-screen composite every frame, and it arrives by its own alpha instead. And the **settings panel arrives a half again more slowly** than the other overlays, as it always has, because it is a workspace rather than a card you are chasing: that is a proportion of whatever you set here, not a duration of its own, so it still moves when you move `overlay_animation_duration`.
 
 The **docked panels — the notification panel and the clipboard history — keep their own entrance**, and these keys do not reach them. Each is a full-height surface butted against the screen edge rather than a card in the middle of one, so it slides out of that edge and back into it; a centre-pivoted scale there opens a transparent strip along the screen edge that reads as the panel having come loose.
 
-Themes written before these keys existed get `scale` at 160 ms on `ease_out`, which is exactly what every overlay played before there was a choice.
+Themes written before these keys existed get `scale` at 130 ms on `ease_out`, leaving in four fifths of that — the shape every overlay played before there was a choice, at the shell's current pace.
 
 ### About `font_size`
 
