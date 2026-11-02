@@ -152,4 +152,13 @@ void main() {
       expect(gradient.begin, begin, reason: 'anchor $anchor');
     }
   });
+
+  test('modules stop short of the rim, and a gap past it', () {
+    // A highlighted workspace used to fill the bar to its edges, over the rim.
+    expect(panelModuleInset(const ThemeConfig()), kPanelModuleGap);
+    expect(
+      panelModuleInset(const ThemeConfig(panelBorderWidth: 1.5)),
+      1.5 + kPanelModuleGap,
+    );
+  });
 }
