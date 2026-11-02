@@ -57,7 +57,9 @@ class BarButton extends StatelessWidget {
 /// its content came out as tall as its glyph plus padding: the camera's was a
 /// sliver around the icon while the clock's, set in larger type, was most of
 /// the bar. Every module's fill goes on the outside of one of these, so all of
-/// them read as one height on hover.
+/// them read as one height on hover. "Whole depth" is what the panel hands its
+/// modules, which stops a couple of pixels short of the rim on either side
+/// (`panelModuleInset`), so a fill never runs over the line around the bar.
 ///
 /// An [Align] with the factor along the bar's length pinned to 1: it shrink-
 /// wraps that way (a `Row` lays its children out unbounded there anyway, but a

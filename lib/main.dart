@@ -3257,10 +3257,14 @@ class _PanelMainState extends State<PanelMain> {
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
     final theme = ThemeScope.of(context);
+    // Across the bar's depth the modules stop short of the rim, and a little
+    // past it, so a fill that takes the whole depth (`BarFill`) does not run
+    // over the line around the bar — see [panelModuleInset].
+    final double inset = panelModuleInset(theme);
     final Widget content = Padding(
       padding: vertical
-          ? EdgeInsets.fromLTRB(0, pad, 0, pad)
-          : EdgeInsets.fromLTRB(pad, 0, pad, 0),
+          ? EdgeInsets.fromLTRB(inset, pad, inset, pad)
+          : EdgeInsets.fromLTRB(pad, inset, pad, inset),
       child: Stack(children: stackChildren),
     );
     // A rimmed bar that attaches its popups paints its own rim, because that
