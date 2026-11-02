@@ -537,8 +537,10 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
               behavior: HitTestBehavior.opaque,
               onPanUpdate: (details) => _moveBy(details.delta),
               child: MouseRegion(
-                // The tabs and the close button keep their own pointer cursor;
-                // the strip between and beside them says it can be dragged.
+                // The strip between and beside the tabs and the close button
+                // says it can be dragged. Those buttons put the arrow back
+                // themselves (see [_buildHeader]): a `HoverRegion` defers its
+                // cursor, so without that they would show this one.
                 cursor: SystemMouseCursors.move,
                 child: _buildHeader(theme),
               ),
@@ -592,18 +594,23 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
             child: Center(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
-                child: SegmentedTabBar(
-                  tabs: [
-                    for (final tab in _tabs)
-                      SegmentedTab(label: tab.label, icon: tab.icon),
-                  ],
-                  selected: _tabs.indexWhere((t) => t.id == _selectedTab),
-                  onSelected: (i) => _selectTab(_tabs[i].id),
+                // The arrow, not the header's move cursor: these are buttons.
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.basic,
+                  child: SegmentedTabBar(
+                    tabs: [
+                      for (final tab in _tabs)
+                        SegmentedTab(label: tab.label, icon: tab.icon),
+                    ],
+                    selected: _tabs.indexWhere((t) => t.id == _selectedTab),
+                    onSelected: (i) => _selectTab(_tabs[i].id),
+                  ),
                 ),
               ),
             ),
           ),
           HoverRegion(
+            cursor: SystemMouseCursors.basic,
             onTap: _requestClose,
             builder: (context, hovered) => Container(
               width: _kCloseButtonSize,
