@@ -47,6 +47,22 @@ BorderRadius panelCornerRadius({
   }
 }
 
+/// The breathing room between a module's fill and the bar's edge.
+const double kPanelModuleGap = 2;
+
+/// How far the modules sit in from each long edge of the bar: the rim's width,
+/// then [kPanelModuleGap].
+///
+/// A module's hover or active fill takes the bar's whole depth (`BarFill`), and
+/// laid out across the bar's full box it ran over the rim — both the
+/// decoration's `Border` and `PanelRimPainter` stroke *inside* the bar's box —
+/// so a highlighted workspace sat flush against, and on top of, the line around
+/// it. The panel insets its module area by this across its depth, and anything
+/// that sizes itself to `BarScope.thickness` subtracts it twice.
+double panelModuleInset(ThemeConfig theme) =>
+    (theme.panelBorderWidth > 0 ? theme.panelBorderWidth : 0) +
+    kPanelModuleGap;
+
 /// The bar's rim, or null when [ThemeConfig.panelBorderWidth] is 0.
 ///
 /// Width is the off switch rather than alpha, and null rather than a zero-width

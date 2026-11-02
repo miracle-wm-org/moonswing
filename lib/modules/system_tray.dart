@@ -12,6 +12,7 @@ import 'package:moonswing/dbus_menu.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
+import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/hover_region.dart';
@@ -145,12 +146,19 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
         ? size + widget.config.expandedSpacing
         : size - widget.config.collapsedOverlap;
     final length = (items.length - 1) * step + size;
-    // The strip takes the bar's whole depth, so each icon's hover fill does,
-    // as every other module's does (see [BarFill]); and it cascades along the
-    // bar, so on a side bar the icons fan out downwards and each takes the
-    // bar's width instead.
+    // The strip takes the depth the bar gives its modules — its own, less the
+    // rim and gap either side ([panelModuleInset]) — so each icon's hover fill
+    // does, as every other module's does (see [BarFill]); and it cascades
+    // along the bar, so on a side bar the icons fan out downwards and each
+    // takes the bar's width instead.
     final vertical = BarScope.isVerticalOf(context);
-    final across = math.max(size, BarScope.thicknessOf(context) ?? size);
+    final thickness = BarScope.thicknessOf(context);
+    final across = math.max(
+      size,
+      thickness == null
+          ? size
+          : thickness - 2 * panelModuleInset(ThemeScope.of(context)),
+    );
 
     // Earlier icons paint on top for a clean cascade from the strip's start;
     // keys keep each icon's animation state stable as items come and go.

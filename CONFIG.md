@@ -100,7 +100,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"network"` - Network connectivity (ethernet or WiFi name and IP address)
 - `"weather"` - Weather display
 - `"notifications"` - Notification bell and the notification panel
-- `"clock"` - Date and time; click it for the overview (see Clock below)
+- `"clock"` - Date and time, each part switchable; click it for the overview (see Clock below)
 - `"dock"` - Application launcher dock
 - `"scratchpad"` - Shows or hides the window manager's scratchpad (requires Miracle WM)
 - `"todo"` - Opens the overview on its todo board, with a count of what is due today
@@ -144,16 +144,35 @@ poll_seconds = 30
 
 ```toml
 [modules.clock]
+show_weekday = false
 show_date = true
+show_year = false
+show_week_number = false
+show_time = true
+show_seconds = false
+hour_format = "24"
 timer_sound = "ding"
 timer_volume = 0.7
 ```
 
-| Key            | Type   | Default  | Description                                           |
-| -------------- | ------ | -------- | ----------------------------------------------------- |
-| `show_date`    | bool   | `true`   | Whether to show the date alongside time               |
-| `timer_sound`  | string | `"ding"` | What rings when a countdown reaches zero — see below. |
-| `timer_volume` | float  | `0.7`    | How loud it rings, from 0 to 1. Clamped.              |
+| Key                | Type   | Default  | Description                                                   |
+| ------------------ | ------ | -------- | ------------------------------------------------------------- |
+| `show_weekday`     | bool   | `false`  | The day's name, `Mon`                                         |
+| `show_date`        | bool   | `true`   | The month and day of the month, `Nov 2`                       |
+| `show_year`        | bool   | `false`  | The year, `2026`                                              |
+| `show_week_number` | bool   | `false`  | The ISO 8601 week of the year, `W45`                          |
+| `show_time`        | bool   | `true`   | The hour and minute                                           |
+| `show_seconds`     | bool   | `false`  | Seconds on the time; nothing while `show_time` is off         |
+| `hour_format`      | string | `"24"`   | `"24"` for `14:05`, `"12"` for `2:05 PM`                      |
+| `timer_sound`      | string | `"ding"` | What rings when a countdown reaches zero — see below.         |
+| `timer_volume`     | float  | `0.7`    | How loud it rings, from 0 to 1. Clamped.                      |
+
+The parts that are on are shown in that order — weekday, date, year, week,
+time — so with all of them on the bar reads `Mon Nov 2 2026 W45 14:05:09`. Any
+of them can be switched off, Settings › Shell › Modules › Clock has a switch for
+each, and an edit shows at once. With every part off the bar shows a clock icon
+instead, because the clock is how the overview is opened and an empty button
+would be nothing to click.
 
 #### The overview
 
