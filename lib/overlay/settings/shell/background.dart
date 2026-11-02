@@ -600,7 +600,6 @@ class _RemoveBadgeState extends State<_RemoveBadge> {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(

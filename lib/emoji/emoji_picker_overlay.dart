@@ -601,7 +601,6 @@ class _EmojiCellState extends State<_EmojiCell> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: _handleEnter,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,

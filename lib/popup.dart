@@ -25,6 +25,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 // windowing and positioner pieces this file needs, but not the Linux-specific
 // BaseWindowControllerLinux.
 import 'package:flutter/src/widgets/_window_linux.dart';
+import 'package:moonswing/desktop_cursor.dart';
 import 'package:moonswing/native/input_region.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup_coordinator.dart';
@@ -1082,7 +1083,14 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
                   edge: barAnchor,
                   closing: closing,
                   onClosed: () => _finishOutgoing(thisController!),
-                  child: ConstrainedBox(constraints: constraints, child: child),
+                  // Every popup is a panel's menu or the desktop's, so it
+                  // keeps the arrow whatever the call site's content asks for.
+                  child: DesktopCursor(
+                    child: ConstrainedBox(
+                      constraints: constraints,
+                      child: child,
+                    ),
+                  ),
                 ),
               ),
             ),

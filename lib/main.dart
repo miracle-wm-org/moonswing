@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ffi' as ffi;
 import 'dart:io' show Platform;
+
 // ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: implementation_imports
 import 'package:flutter/foundation.dart' show ValueListenable;
@@ -21,6 +22,7 @@ import 'package:moonswing/capture/selection_controller.dart';
 import 'package:moonswing/capture/selector_overlay.dart';
 import 'package:moonswing/capture/window_targets.dart';
 import 'package:moonswing/desktop/desktop_surface.dart';
+import 'package:moonswing/desktop_cursor.dart';
 import 'package:moonswing/display_provider.dart';
 import 'package:moonswing/docked_panel.dart';
 import 'package:moonswing/overlay/file_picker.dart';
@@ -2757,11 +2759,14 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                         );
                         // A click anywhere on the bar — an icon whose popup is
                         // not open, or bare padding — dismisses whatever else the
-                        // shell has up.
-                        return PopupDismissArea(
-                          child: PanelMain(
-                            panelConfig: panel,
-                            anchor: panel.anchor,
+                        // shell has up. Under the one arrow a desktop's panels
+                        // keep, whatever a module asks for.
+                        return DesktopCursor(
+                          child: PopupDismissArea(
+                            child: PanelMain(
+                              panelConfig: panel,
+                              anchor: panel.anchor,
+                            ),
                           ),
                         );
                       },
@@ -2785,11 +2790,13 @@ class _MoonswingRootState extends State<MoonswingRoot> {
           (
             controller: badge,
             builder: (_) => _windowChrome(
-              NotificationBadge(
-                // This monitor, not the focused one: the user has just pointed
-                // at this display.
-                onTap: () => _toggleNotificationPanel(
-                  monitor: surfaces.monitor.gdkMonitor,
+              DesktopCursor(
+                child: NotificationBadge(
+                  // This monitor, not the focused one: the user has just
+                  // pointed at this display.
+                  onTap: () => _toggleNotificationPanel(
+                    monitor: surfaces.monitor.gdkMonitor,
+                  ),
                 ),
               ),
             ),
@@ -2860,12 +2867,14 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         (
           controller: notifications,
           builder: (_) => _windowChrome(
-            NotificationPanel(
-              side: _notificationSide,
-              animation: _notificationAnimation,
-              shadowReach: _notificationShadowReach,
-              closingNotifier: _notifications.closing,
-              onClosed: _onNotificationPanelClosed,
+            DesktopCursor(
+              child: NotificationPanel(
+                side: _notificationSide,
+                animation: _notificationAnimation,
+                shadowReach: _notificationShadowReach,
+                closingNotifier: _notifications.closing,
+                onClosed: _onNotificationPanelClosed,
+              ),
             ),
           ),
         ),
@@ -2991,12 +3000,14 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         (
           controller: clipboard,
           builder: (_) => _windowChrome(
-            ClipboardPanel(
-              side: _clipboardSide,
-              animation: _clipboardAnimation,
-              shadowReach: _clipboardShadowReach,
-              closingNotifier: _clipboard.closing,
-              onClosed: _onClipboardClosed,
+            DesktopCursor(
+              child: ClipboardPanel(
+                side: _clipboardSide,
+                animation: _clipboardAnimation,
+                shadowReach: _clipboardShadowReach,
+                closingNotifier: _clipboard.closing,
+                onClosed: _onClipboardClosed,
+              ),
             ),
           ),
         ),

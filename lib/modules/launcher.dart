@@ -37,7 +37,6 @@ class _LauncherButtonState extends State<LauncherButton> {
     }
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {
         _hovered = false;

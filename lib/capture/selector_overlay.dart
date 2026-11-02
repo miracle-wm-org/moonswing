@@ -256,7 +256,6 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
         );
       case SelectionMode.window:
         return MouseRegion(
-          cursor: SystemMouseCursors.click,
           onHover: (event) => _onHover(event.localPosition),
           onExit: (_) => setState(() => _hovered = null),
           child: GestureDetector(
@@ -268,7 +267,6 @@ class _CaptureSelectorOverlayState extends State<CaptureSelectorOverlay> {
         );
       case SelectionMode.output:
         return MouseRegion(
-          cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _pointerInside = true),
           onExit: (_) => setState(() => _pointerInside = false),
           child: GestureDetector(

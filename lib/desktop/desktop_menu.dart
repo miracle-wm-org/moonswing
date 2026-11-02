@@ -154,9 +154,6 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
             : theme.popupForeground;
 
     return MouseRegion(
-      cursor: entry.enabled
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
       onEnter: (_) {
         if (entry.enabled) setState(() => _hovered = true);
       },

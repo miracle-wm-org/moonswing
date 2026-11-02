@@ -90,7 +90,6 @@ class _AppDirectoryButtonState extends State<AppDirectoryButton>
     }
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {
         _hovered = false;
@@ -649,7 +648,6 @@ class _MenuRowState extends State<_MenuRow> {
     final theme = widget.theme;
     final highlight = _hovered || widget.active;
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) {
         setState(() => _hovered = true);
         widget.onEnter?.call(context);
