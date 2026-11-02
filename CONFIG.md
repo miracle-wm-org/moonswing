@@ -326,6 +326,8 @@ Each entry in `apps` is a desktop file ID (the filename without `.desktop`). For
 
 Desktop files are looked up from standard XDG application directories. Apps with missing desktop files are silently skipped.
 
+**An icon opens its application on a double click**, so a stray click as the pointer crosses the bar launches nothing; a single click does nothing, and a drag reorders the icons. Once launched, the icon dims and an accent-coloured ring spins around it until the application's first window appears — read off the compositor's window list, so it stops the moment the window maps. Double-clicking again while it spins does not start a second copy. An application that never shows a window it can be recognised by stops spinning after 20 seconds, one that was already open (and may only raise its existing window) after 4, and on a compositor whose window list the shell cannot read, after 3.
+
 ### Network
 
 ```toml

@@ -9,6 +9,7 @@ import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/config_store.dart';
 import 'package:moonswing/modules/app_directory.dart';
+import 'package:moonswing/modules/dock_launch.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/theme/popup_effect.dart';
@@ -219,7 +220,9 @@ class DockState extends State<Dock> {
     super.dispose();
   }
 
-  void _launch(_DockApp app) => launchApp(app.entry.appInfo);
+  /// Opens [app] through the machine's one [DockLaunchStore], which declines
+  /// while that application is already starting.
+  void _launch(_DockApp app) => DockLaunchStore.instance.launch(app.entry);
 
   // --- Drag to reorder -------------------------------------------------------
 
@@ -253,7 +256,8 @@ class DockState extends State<Dock> {
       if (press == null) return;
       // A mouse wins the pan arena after a single pixel, so hold the drag back
       // until the pointer has clearly travelled — a jittery click must still
-      // launch the app (see [_DockButton.onDragEnd]).
+      // count towards the double click that opens the app (see
+      // [_DockButton.onDragEnd]).
       if ((_along(global) - press).abs() < 6) return;
       final box = _appsKey.currentContext?.findRenderObject() as RenderBox?;
       final index = _apps.indexOf(app);
@@ -383,7 +387,8 @@ class DockState extends State<Dock> {
       appId: app.appId,
       appName: app.entry.name,
       dragging: dragging,
-      onPressed: () => _launch(app),
+      launching: DockLaunchStore.instance.launchingOf(app.entry.id),
+      onOpen: () => _launch(app),
       onDragStart: _onDragStart,
       onDragUpdate: (global) => _onDragUpdate(app, global),
       onDragEnd: _onDragEnd,
@@ -451,8 +456,9 @@ class _DockButton extends StatefulWidget {
   const _DockButton({
     required this.appId,
     required this.appName,
-    required this.onPressed,
+    required this.onOpen,
     required this.dragging,
+    required this.launching,
     required this.onDragStart,
     required this.onDragUpdate,
     required this.onDragEnd,
@@ -462,7 +468,12 @@ class _DockButton extends StatefulWidget {
 
   final String appId;
   final String appName;
-  final VoidCallback onPressed;
+
+  /// Opens the application. Called on a double click, never a single one.
+  final VoidCallback onOpen;
+
+  /// Whether the application is starting; the icon spins while it is.
+  final ValueListenable<bool> launching;
 
   /// True while this button is the one being dragged.
   final bool dragging;
@@ -473,7 +484,7 @@ class _DockButton extends StatefulWidget {
   final void Function(Offset global) onDragUpdate;
 
   /// Ends the gesture; true when it resolved as a drag, in which case this
-  /// button must not launch its app.
+  /// button must not count it as a click.
   final bool Function() onDragEnd;
   final VoidCallback onDragCancel;
 
@@ -491,6 +502,14 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   // never be reached — the menu is its own surface, so travelling towards it
   // reads as leaving the icon.
   bool _menuOpen = false;
+
+  /// A dock icon opens on a double click. Both of the button's click paths —
+  /// a tap, and a pan that never passed the drag threshold — report here.
+  final DockDoubleClick _clicks = DockDoubleClick();
+
+  void _onClick() {
+    if (_clicks.click()) widget.onOpen();
+  }
 
   @override
   void dispose() {
@@ -512,7 +531,12 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
     super.didUpdateWidget(oldWidget);
     // The pointer is captured for the whole gesture, so no exit event arrives
     // to take the tooltip down with it.
-    if (widget.dragging && !oldWidget.dragging) closePopup();
+    if (widget.dragging && !oldWidget.dragging) {
+      closePopup();
+      // A drag is not the first half of a double click: the click that ends
+      // it must not open the app.
+      _clicks.reset();
+    }
   }
 
   void _openTooltip(BuildContext context) {
@@ -612,6 +636,8 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
           _hovered = false;
           _pressed = false;
         });
+        // A double click is two clicks on one icon; leaving it starts over.
+        _clicks.reset();
         // Only the hover label follows the pointer out. The context menu stays
         // until something dismisses it: its own item, a click elsewhere
         // (PopupDismissArea), or another popup opening.
@@ -622,13 +648,15 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         onTapDown: (_) => setState(() => _pressed = true),
         onTapUp: (_) {
           setState(() => _pressed = false);
-          widget.onPressed();
+          _onClick();
         },
         onTapCancel: () => setState(() => _pressed = false),
         onSecondaryTapDown: (_) => _openUnpinMenu(context),
         // Pan and tap share this detector's arena, so exactly one of them wins:
-        // a pan that never passed the drag threshold launches from onPanEnd,
-        // which is the click a 1px mouse wobble would otherwise have eaten.
+        // a pan that never passed the drag threshold is a click from onPanEnd,
+        // which is the click a 1px mouse wobble would otherwise have eaten —
+        // and why the double click is counted by hand rather than by an
+        // `onDoubleTap`, which the pan would win against.
         onPanStart: (d) {
           setState(() => _pressed = true);
           widget.onDragStart(d.globalPosition);
@@ -636,7 +664,7 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
         onPanUpdate: (d) => widget.onDragUpdate(d.globalPosition),
         onPanEnd: (_) {
           setState(() => _pressed = false);
-          if (!widget.onDragEnd()) widget.onPressed();
+          if (!widget.onDragEnd()) _onClick();
         },
         onPanCancel: () {
           setState(() => _pressed = false);
@@ -649,7 +677,16 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
             color: color,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: BarFill(child: widget.child),
+          child: BarFill(
+            child: ValueListenableBuilder<bool>(
+              valueListenable: widget.launching,
+              // The icon is handed through unrebuilt: a launch starting or
+              // ending dims it and adds or drops the spinner, nothing more.
+              child: widget.child,
+              builder: (context, launching, icon) =>
+                  DockLaunchIndicator(launching: launching, child: icon!),
+            ),
+          ),
         ),
       ),
     );
