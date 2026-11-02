@@ -700,12 +700,17 @@ void _applyHostEnvironment(ffi.Pointer<ffi.NativeType> context) {
 }
 
 /// Launches [appInfo] (a `GAppInfo*`), swallowing any error.
-void launchApp(ffi.Pointer<ffi.NativeType> appInfo) {
+///
+/// Returns whether GIO reports the process as spawned — not that it will ever
+/// put a window up. The dock reads it so a launch that never started shows no
+/// "opening" spinner at all.
+bool launchApp(ffi.Pointer<ffi.NativeType> appInfo) {
   final context = _launchContext();
   try {
-    _gAppInfoLaunch(appInfo, ffi.nullptr, context, ffi.nullptr);
+    return _gAppInfoLaunch(appInfo, ffi.nullptr, context, ffi.nullptr) != 0;
   } catch (_) {
     // Launch failed — nothing useful to surface from here.
+    return false;
   } finally {
     if (context != ffi.nullptr) _gObjectUnref(context);
   }
