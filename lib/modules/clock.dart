@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config_reader.dart';
+import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/popup.dart';
@@ -11,14 +14,74 @@ import 'package:moonswing/timers/timer_sound.dart';
 import 'package:moonswing/timers/timer_store.dart';
 import 'package:moonswing/timers/timer_widgets.dart';
 
+/// How the bar spells the hour: `14:05` or `2:05 PM`.
+enum ClockHourFormat {
+  h24('24'),
+  h12('12');
+
+  const ClockHourFormat(this.slug);
+
+  /// The `hour_format` spelling.
+  final String slug;
+
+  /// [slug]'s value, or null for anything else — an unknown spelling costs the
+  /// key, never the table. An integer `12`, or `"12h"`, is taken as what a
+  /// hand-edited file almost certainly meant.
+  static ClockHourFormat? parse(Object? raw) {
+    final spelling = switch (raw) {
+      String s => s.trim().toLowerCase().replaceAll('h', ''),
+      int i => '$i',
+      _ => null,
+    };
+    for (final format in values) {
+      if (format.slug == spelling) return format;
+    }
+    return null;
+  }
+}
+
 class ClockConfig {
   const ClockConfig({
+    this.showWeekday = false,
     this.showDate = true,
+    this.showYear = false,
+    this.showWeekNumber = false,
+    this.showTime = true,
+    this.showSeconds = false,
+    this.hourFormat = ClockHourFormat.h24,
     this.timerSound = kDefaultTimerSound,
     this.timerVolume = kDefaultTimerVolume,
   });
 
+  /// The day's name, `Mon`.
+  final bool showWeekday;
+
+  /// The month and the day of the month, `Nov 2`.
   final bool showDate;
+
+  /// `2026`. A part of its own rather than a longer date, so it can be shown
+  /// with the date switched off.
+  final bool showYear;
+
+  /// The ISO 8601 week of the year, `W45`.
+  final bool showWeekNumber;
+
+  /// The hour and minute.
+  final bool showTime;
+
+  /// Seconds on the time. Means nothing while [showTime] is off.
+  final bool showSeconds;
+
+  final ClockHourFormat hourFormat;
+
+  /// Whether the readout changes every second rather than every minute.
+  bool get showsSeconds => showTime && showSeconds;
+
+  /// Whether every part is switched off — the bar then draws a clock glyph in
+  /// their place, because this button is how the overview is opened and an
+  /// empty one would be a dead strip nobody could find to click.
+  bool get showsNothing =>
+      !showWeekday && !showDate && !showYear && !showWeekNumber && !showTime;
 
   /// What a finished countdown rings: a shipped alarm's slug, a path, a
   /// sound-theme name, or `none`. See `lib/timers/timer_sound.dart`.
@@ -43,7 +106,14 @@ class ClockConfig {
     if (map == null) return const ClockConfig();
     const defaults = ClockConfig();
     return ClockConfig(
+      showWeekday: map.boolOr('show_weekday', defaults.showWeekday),
       showDate: map.boolOr('show_date', defaults.showDate),
+      showYear: map.boolOr('show_year', defaults.showYear),
+      showWeekNumber: map.boolOr('show_week_number', defaults.showWeekNumber),
+      showTime: map.boolOr('show_time', defaults.showTime),
+      showSeconds: map.boolOr('show_seconds', defaults.showSeconds),
+      hourFormat:
+          ClockHourFormat.parse(map['hour_format']) ?? defaults.hourFormat,
       timerSound: map.stringOr('timer_sound', defaults.timerSound),
       timerVolume: map.doubleOr('timer_volume', defaults.timerVolume,
           min: 0.0, max: 1.0),
@@ -54,12 +124,86 @@ class ClockConfig {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ClockConfig &&
+          other.showWeekday == showWeekday &&
           other.showDate == showDate &&
+          other.showYear == showYear &&
+          other.showWeekNumber == showWeekNumber &&
+          other.showTime == showTime &&
+          other.showSeconds == showSeconds &&
+          other.hourFormat == hourFormat &&
           other.timerSound == timerSound &&
           other.timerVolume == timerVolume;
 
   @override
-  int get hashCode => Object.hash(showDate, timerSound, timerVolume);
+  int get hashCode => Object.hash(
+        showWeekday,
+        showDate,
+        showYear,
+        showWeekNumber,
+        showTime,
+        showSeconds,
+        hourFormat,
+        timerSound,
+        timerVolume,
+      );
+}
+
+const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const _months = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+/// The ISO 8601 week [date] falls in: weeks start on Monday, and week 1 is the
+/// one holding the year's first Thursday — so 1 January can be in week 52 or
+/// 53 of the year before, and 31 December in week 1 of the next.
+///
+/// Counted on UTC midnights, so a daylight-saving change inside the span
+/// cannot make a day 23 hours long and drop it from the division.
+int isoWeekNumber(DateTime date) {
+  final day = DateTime.utc(date.year, date.month, date.day);
+  final thursday = day.add(Duration(days: DateTime.thursday - day.weekday));
+  final firstOfYear = DateTime.utc(thursday.year);
+  return thursday.difference(firstOfYear).inDays ~/ 7 + 1;
+}
+
+/// What the bar shows for [now] under [config], one string per part, in the
+/// order they are drawn: weekday, date, year, week, time. Empty when every part
+/// is off.
+///
+/// Pure, and what the widget compares between ticks — a tick that would draw
+/// the same strings rebuilds nothing.
+List<String> clockParts(ClockConfig config, DateTime now) => [
+      if (config.showWeekday) _weekdays[now.weekday - 1],
+      if (config.showDate) '${_months[now.month - 1]} ${now.day}',
+      if (config.showYear) '${now.year}',
+      if (config.showWeekNumber) 'W${_two(isoWeekNumber(now))}',
+      if (config.showTime) _formatTime(config, now),
+    ];
+
+String _two(int n) => n.toString().padLeft(2, '0');
+
+String _formatTime(ClockConfig config, DateTime now) {
+  final seconds = config.showSeconds ? ':${_two(now.second)}' : '';
+  switch (config.hourFormat) {
+    case ClockHourFormat.h24:
+      return '${_two(now.hour)}:${_two(now.minute)}$seconds';
+    case ClockHourFormat.h12:
+      final hour = now.hour % 12 == 0 ? 12 : now.hour % 12;
+      final meridiem = now.hour < 12 ? 'AM' : 'PM';
+      return '$hour:${_two(now.minute)}$seconds $meridiem';
+  }
 }
 
 class Clock extends StatefulWidget {
@@ -87,8 +231,7 @@ class Clock extends StatefulWidget {
 
 // ignore: library_private_types_in_public_api
 class ClockState extends State<Clock> with PopupHost<Clock> {
-  late String _timeString;
-  late String _dateString;
+  late List<String> _parts;
   Timer? _timer;
   bool _hovered = false;
 
@@ -97,9 +240,7 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
   @override
   void initState() {
     super.initState();
-    final now = DateTime.now();
-    _timeString = _formatTime(now);
-    _dateString = _formatDate(now);
+    _parts = clockParts(widget.config, DateTime.now());
     _scheduleNextTick();
     _timers.addListener(_onTimersChanged);
   }
@@ -134,6 +275,22 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
     );
   }
 
+  @override
+  void didUpdateWidget(Clock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A `[modules.clock]` edit lands here as a new config; the parts are
+    // re-read at once rather than at the next tick, or switching the date on
+    // would wait up to a second to show it.
+    if (oldWidget.config != widget.config) {
+      _parts = clockParts(widget.config, DateTime.now());
+    }
+  }
+
+  // Ticks on the second even with seconds hidden, and rebuilds only when the
+  // readout changed. A once-a-minute timer would be fewer wake-ups, but timers
+  // run on the monotonic clock, which stops across a suspend: after a resume
+  // the bar's one clock would show the time it went to sleep at for up to a
+  // minute.
   void _scheduleNextTick() {
     final now = DateTime.now();
     final msUntilNextSecond = 1000 - now.millisecond;
@@ -145,11 +302,9 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
 
   void _updateTime() {
     if (!mounted) return;
-    final now = DateTime.now();
-    setState(() {
-      _timeString = _formatTime(now);
-      _dateString = _formatDate(now);
-    });
+    final parts = clockParts(widget.config, DateTime.now());
+    if (listEquals(parts, _parts)) return;
+    setState(() => _parts = parts);
   }
 
   @override
@@ -169,29 +324,6 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
       OverviewTab.calendar,
       output: DisplayScope.of(context)?.name,
     );
-  }
-
-  static const _months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-
-  String _formatTime(DateTime dt) {
-    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _formatDate(DateTime dt) {
-    return '${_months[dt.month - 1]} ${dt.day}';
   }
 
   @override
@@ -217,16 +349,21 @@ class ClockState extends State<Clock> with PopupHost<Clock> {
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: BarFill(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.config.showDate) ...[
-                      Text(_dateString, style: style),
-                      const SizedBox(width: 8),
-                    ],
-                    Text(_timeString, style: style),
-                  ],
-                ),
+                child: _parts.isEmpty
+                    ? ShellIcon(
+                        ShellGlyph.clock,
+                        size: 14,
+                        color: theme.foreground,
+                      )
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < _parts.length; i++) ...[
+                            if (i > 0) const SizedBox(width: 8),
+                            Text(_parts[i], style: style),
+                          ],
+                        ],
+                      ),
               ),
             ),
           ),

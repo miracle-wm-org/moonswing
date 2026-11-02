@@ -807,11 +807,48 @@ abstract final class SettingsCatalog {
     const ['battery', 'power', 'interval', 'charge'],
   );
 
+  static final clockShowWeekday = _module(
+    'modules.clock.show_weekday',
+    'Show weekday',
+    'Puts the day\'s name, such as Mon, in the bar.',
+    const ['clock', 'day', 'weekday', 'monday', 'calendar'],
+  );
   static final clockShowDate = _module(
     'modules.clock.show_date',
     'Show date',
-    'Puts the date beside the time in the bar.',
-    const ['clock', 'time', 'date', 'calendar'],
+    'Puts the month and the day of the month, such as Nov 2, in the bar.',
+    const ['clock', 'time', 'date', 'calendar', 'day', 'month'],
+  );
+  static final clockShowYear = _module(
+    'modules.clock.show_year',
+    'Show year',
+    'Puts the year in the bar.',
+    const ['clock', 'date', 'year', 'calendar'],
+  );
+  static final clockShowWeekNumber = _module(
+    'modules.clock.show_week_number',
+    'Show week number',
+    'Puts the ISO week of the year, such as W45, in the bar.',
+    const ['clock', 'week', 'number', 'iso', 'calendar'],
+  );
+  static final clockShowTime = _module(
+    'modules.clock.show_time',
+    'Show time',
+    'Puts the hour and minute in the bar. With every part off, the bar shows '
+        'a clock icon, which still opens the overview.',
+    const ['clock', 'time', 'hour', 'minute'],
+  );
+  static final clockShowSeconds = _module(
+    'modules.clock.show_seconds',
+    'Show seconds',
+    'Adds the seconds to the time.',
+    const ['clock', 'time', 'seconds'],
+  );
+  static final clockHourFormat = _module(
+    'modules.clock.hour_format',
+    'Hour format',
+    'Whether the time reads 14:05 or 2:05 PM.',
+    const ['clock', 'time', '12 hour', '24 hour', 'am', 'pm', 'military'],
   );
   static final clockTimerSound = _module(
     'modules.clock.timer_sound',
@@ -3108,7 +3145,13 @@ abstract final class SettingsCatalog {
     weatherUnit,
     weatherRefreshMinutes,
     batteryPollSeconds,
+    clockShowWeekday,
     clockShowDate,
+    clockShowYear,
+    clockShowWeekNumber,
+    clockShowTime,
+    clockShowSeconds,
+    clockHourFormat,
     clockTimerSound,
     clockTimerVolume,
     mediaPlayerMaxTextWidth,
