@@ -805,7 +805,6 @@ class _WorkspaceButtonState extends State<_WorkspaceButton>
           );
 
     return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() {
         _hovered = false;

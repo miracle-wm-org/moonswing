@@ -500,7 +500,6 @@ class _MenuRowState extends State<_MenuRow> {
     }
 
     return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(

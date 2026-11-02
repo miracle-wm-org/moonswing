@@ -22,12 +22,16 @@ import 'package:flutter/widgets.dart';
 /// underneath, since `RenderStack.hitTestChildren` stops at the first child that
 /// accepts.
 ///
-/// The cursor defaults to a pointer; pass [cursor] for the exceptions.
+/// The cursor is left alone — no pointing hand: the shell is a desktop, and a
+/// desktop's buttons are clicked under the same arrow as everything else. Pass
+/// [cursor] for a region that genuinely changes what the pointer does (a drag
+/// handle, a resize edge). Inside a panel or popup even that is overruled; see
+/// `DesktopCursor`.
 class HoverRegion extends StatefulWidget {
   const HoverRegion({
     super.key,
-    this.cursor = SystemMouseCursors.click,
-    this.disabledCursor = SystemMouseCursors.basic,
+    this.cursor = MouseCursor.defer,
+    this.disabledCursor = MouseCursor.defer,
     this.enabled = true,
     this.onEnter,
     this.onExit,
@@ -42,8 +46,7 @@ class HoverRegion extends StatefulWidget {
   /// The cursor while [enabled].
   final MouseCursor cursor;
 
-  /// The cursor while not [enabled]. Only reached when [enabled] is false, so a
-  /// `builder`-only region keeps the pointer it has always had.
+  /// The cursor while not [enabled]. Only reached when [enabled] is false.
   final MouseCursor disabledCursor;
 
   /// Whether the gestures fire. False drops every callback and switches to

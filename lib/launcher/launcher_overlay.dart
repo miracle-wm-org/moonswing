@@ -548,7 +548,6 @@ class _AppRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasActions = app.actions.isNotEmpty;
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => onHover(),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -682,7 +681,6 @@ class _ActionRowState extends State<_ActionRow> {
   Widget build(BuildContext context) {
     final theme = widget.theme;
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(

@@ -586,9 +586,6 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
     if (widget.dragging) color = theme.surfacePressed;
 
     return MouseRegion(
-      cursor: widget.dragging
-          ? SystemMouseCursors.grabbing
-          : SystemMouseCursors.click,
       onEnter: (_) {
         setState(() => _hovered = true);
         WidgetsBinding.instance.addPostFrameCallback((_) {

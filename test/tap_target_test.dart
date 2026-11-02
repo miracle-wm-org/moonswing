@@ -61,11 +61,13 @@ void main() {
     expect(taps, 4);
   });
 
-  testWidgets('wherever the cursor is a pointer, a click lands',
+  testWidgets('a click lands in the corner, under the plain arrow',
       (tester) async {
-    // The invariant stated directly. The reported symptom was exactly this
-    // pair coming apart: the cursor changed over the whole 26-square box and
-    // the click only landed over the 11px glyph in the middle of it.
+    // The reported symptom was the hover box and the tap box coming apart:
+    // the button lit over the whole 26-square box and the click only landed
+    // over the 11px glyph in the middle of it. The cursor no longer marks the
+    // box — a desktop's buttons are clicked under the arrow — so the corner
+    // tap is the check, and the arrow is pinned beside it.
     var taps = 0;
     final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await mouse.addPointer(location: Offset.zero);
@@ -82,7 +84,7 @@ void main() {
     await tester.pump();
     expect(
       RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
-      SystemMouseCursors.click,
+      SystemMouseCursors.basic,
     );
 
     await tester.tapAt(corner);

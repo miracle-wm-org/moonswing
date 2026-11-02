@@ -364,7 +364,6 @@ class _SortHeaderState extends State<_SortHeader> {
         : theme.popupForeground.withValues(alpha: _hovered ? 1.0 : 0.5);
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
@@ -453,7 +452,6 @@ class _ProcessRowTileState extends State<_ProcessRowTile> {
     }
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(

@@ -230,7 +230,6 @@ class AppChooserRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
       onEnter: (_) => onHover?.call(),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,

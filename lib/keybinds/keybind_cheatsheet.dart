@@ -810,11 +810,6 @@ class _ShellShortcutTileState extends State<_ShellShortcutTile> {
             final isCapturing = capturing == shortcut;
             return HoverRegion(
               onTap: store.canEdit ? _startCapture : null,
-              // A read-only row keeps the ordinary pointer: the hand is the
-              // sheet's promise that a click does something.
-              cursor: store.canEdit
-                  ? SystemMouseCursors.click
-                  : SystemMouseCursors.basic,
               builder: (context, hovered) => Container(
                 padding: const EdgeInsets.symmetric(vertical: 3, horizontal: 4),
                 decoration: BoxDecoration(
