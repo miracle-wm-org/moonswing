@@ -73,7 +73,8 @@ const int kDockedPanelMaxWidth = 1200;
 /// How a docked panel arrives — and, reversed, how it leaves.
 ///
 /// The flyout used to be one decision: a slide out of the docked edge on an
-/// `easeOutCubic`, 180ms in and 150 out. This names that decision and hands
+/// `easeOutCubic`, 180ms in and 150 out (now 150 in and three quarters of
+/// that out, by default). This names that decision and hands
 /// it to `[modules.notifications]` and `[modules.clipboard]`, each its own, the
 /// way `overlay_animation` did for the full-screen overlays.
 ///
@@ -135,7 +136,7 @@ enum DockedPanelEffect {
 
 /// How long a docked panel takes to arrive, in milliseconds, when its module
 /// names no `animation_duration`.
-const int kDockedPanelEnterMs = 180;
+const int kDockedPanelEnterMs = 150;
 
 /// The longest `animation_duration` may be: a panel taking longer than this to
 /// arrive is in the way of the thing it was opened for.
@@ -143,8 +144,8 @@ const int kDockedPanelMaxDurationMs = 2000;
 
 /// What fraction of the entrance the exit takes when no `animation_exit_ratio`
 /// is given. An exit is the user being done, and does not need the entrance's
-/// pace — four fifths, a popup's proportion.
-const double kDockedPanelExitRatio = 0.8;
+/// pace — three quarters, a popup's proportion.
+const double kDockedPanelExitRatio = 0.75;
 
 /// The `animation*` keys of a docked panel's `[modules.*]` table, typed.
 ///

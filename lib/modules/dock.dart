@@ -14,6 +14,7 @@ import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 class DockConfig {
   final List<String> apps;
@@ -631,7 +632,7 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
           widget.onDragCancel();
         },
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: ShellDurations.fast,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: color,

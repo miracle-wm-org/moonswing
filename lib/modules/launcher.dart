@@ -12,6 +12,7 @@ import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/launcher/launcher_controller.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 class LauncherButton extends StatefulWidget {
   const LauncherButton({super.key, this.iconSize = 18});
@@ -52,7 +53,7 @@ class _LauncherButtonState extends State<LauncherButton> {
         },
         onTapCancel: () => setState(() => _pressed = false),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: ShellDurations.fast,
           padding: const EdgeInsets.all(4),
           decoration: BoxDecoration(
             color: color,

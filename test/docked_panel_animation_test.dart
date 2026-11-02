@@ -44,7 +44,7 @@ void main() {
       expect(DockedPanelAnimation.fromMap(const {}), defaults);
       expect(defaults.effect, DockedPanelEffect.slide);
       expect(defaults.curve, OverlayCurve.easeOut);
-      expect(defaults.enter, const Duration(milliseconds: 180));
+      expect(defaults.enter, const Duration(milliseconds: kDockedPanelEnterMs));
       expect(defaults.exit, lessThan(defaults.enter));
       expect(defaults.travel, 1.0);
       expect(defaults.fade, isFalse);

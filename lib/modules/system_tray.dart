@@ -17,6 +17,7 @@ import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/status_notifier_service.dart';
 import 'package:moonswing/theme/theme_provider.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 /// Configuration for the system tray module (`[modules.system_tray]`).
 class SystemTrayConfig {
@@ -150,7 +151,7 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
       for (var i = 0; i < items.length; i++)
         AnimatedPositioned(
           key: ValueKey(items[i].busName),
-          duration: const Duration(milliseconds: 180),
+          duration: ShellDurations.slow,
           curve: Curves.easeOut,
           left: i * step,
           top: 0,
@@ -168,7 +169,7 @@ class _SystemTrayState extends State<SystemTray> with PopupHost<SystemTray> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: ShellDurations.slow,
         curve: Curves.easeOut,
         width: totalWidth,
         height: size,

@@ -244,7 +244,7 @@ class _LockScreenState extends State<LockScreen> {
                 // Deepen the scrim once the prompt is up so the form stays
                 // legible over a busy wallpaper.
                 AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
+                  duration: ShellDurations.lockPrompt,
                   color: Color.fromRGBO(0, 0, 0, _promptVisible ? 0.55 : 0.3),
                 ),
                 // Scrollable so the card can never overflow: the surface is
@@ -274,7 +274,7 @@ class _LockScreenState extends State<LockScreen> {
         begin: 0,
         end: _promptVisible ? widget.config.blurSigma : 0,
       ),
-      duration: const Duration(milliseconds: 250),
+      duration: ShellDurations.lockPrompt,
       curve: Curves.easeOut,
       builder: (context, sigma, child) {
         // A zero-sigma blur still costs a saveLayer, so skip the filter
@@ -315,7 +315,7 @@ class _LockScreenState extends State<LockScreen> {
           const SizedBox(height: 16),
         ],
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 200),
+          duration: ShellDurations.slow,
           child: _promptVisible
               ? _buildPrompt(theme)
               : _LockButton(
