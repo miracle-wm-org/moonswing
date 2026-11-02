@@ -13,6 +13,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/app_scope.dart';
+import 'package:moonswing/bar_module_row.dart';
 import 'package:moonswing/caldav/caldav_service.dart';
 import 'package:moonswing/clipboard/clipboard_panel.dart';
 import 'package:moonswing/clipboard/clipboard_panel_controller.dart';
@@ -3216,20 +3217,15 @@ class _PanelMainState extends State<PanelMain> {
     if (modules.isEmpty) return const SizedBox.shrink();
 
     final bool vertical = widget.anchor == 'left' || widget.anchor == 'right';
-    final children = <Widget>[];
-    for (int i = 0; i < modules.length; i++) {
-      if (i > 0) {
-        children.add(
-          vertical ? const SizedBox(height: 8) : const SizedBox(width: 8),
-        );
-      }
-      children.add(_buildModule(modules[i]));
-    }
-    if (vertical) {
-      return Column(mainAxisSize: MainAxisSize.min, children: children);
-    } else {
-      return Row(mainAxisSize: MainAxisSize.min, children: children);
-    }
+    // Not a Row with a spacer between each pair: a module with nothing to show
+    // on this machine (no battery, no backlight, an empty tray) builds an empty
+    // box, and must cost the bar no gap either. [BarModuleRow] decides the gaps
+    // from what each module measured.
+    return BarModuleRow(
+      axis: vertical ? Axis.vertical : Axis.horizontal,
+      gap: 8,
+      children: [for (final m in modules) _buildModule(m)],
+    );
   }
 
   @override
