@@ -236,6 +236,19 @@ Rect barAnchorRectFor(BuildContext context, String anchor) {
   );
 }
 
+/// [barAnchorRect] for a point on the bar rather than a widget — a right-click
+/// on its blank space — so the popup lands at the bar's inner edge under the
+/// pointer. [at] is in the panel surface's space, as a pointer event's
+/// `globalPosition` is. Two pixels wide rather than none: a zero-extent rect is
+/// a protocol error for `xdg_positioner`.
+Rect barAnchorRectAt(BuildContext context, String anchor, Offset at) =>
+    barAnchorRect(
+      Rect.fromCenter(center: at, width: 2, height: 2),
+      MediaQuery.sizeOf(context),
+      anchor,
+      thickness: BarScope.thicknessOf(context),
+    );
+
 /// The positioner offset that floats a bar popup [gap] px off the panel edge it
 /// is anchored to.
 ///
@@ -805,6 +818,9 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
   /// dock is the one caller that passes it: its hover labels and unpin menu
   /// belong to a strip the pointer sweeps across, where a card that animates on
   /// every button it passes is the shell twitching rather than responding.
+  ///
+  /// [at] anchors the popup under that point of the bar instead of centred on
+  /// [context]'s widget — see [barAnchorRectAt].
   void openBarPopup(
     BuildContext context, {
     required Widget child,
@@ -814,6 +830,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
     bool attach = true,
     PopupEffect? effect,
     bool needsKeyboard = false,
+    Offset? at,
   }) {
     final barAnchor = BarScope.of(context);
     final (parentAnchor, childAnchor) = popupAnchorsForBar(barAnchor);
@@ -821,7 +838,9 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       context,
       child: child,
       preferredConstraints: preferredConstraints,
-      anchorRect: barAnchorRectFor(context, barAnchor),
+      anchorRect: at == null
+          ? barAnchorRectFor(context, barAnchor)
+          : barAnchorRectAt(context, barAnchor, at),
       parentAnchor: parentAnchor,
       childAnchor: childAnchor,
       policy: policy,

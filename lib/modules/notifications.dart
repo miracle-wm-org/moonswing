@@ -9,6 +9,7 @@ import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
+import 'package:moonswing/quick_settings.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/notification_badge.dart';
 import 'package:moonswing/notification_panel_controller.dart';
@@ -331,11 +332,9 @@ class _NotificationsState extends State<Notifications>
           // just happened.
           output: DisplayScope.of(context)?.name,
         ),
-        // Right-click silences and unsilences. A gesture rather than a menu
-        // because it is one boolean with one obvious inverse, and the panel's
-        // own switch is the discoverable half of the pair — the tooltip on a
-        // silenced bell names this one.
-        onSecondaryTapDown: (_) => NotificationStore.instance.toggleSilenced(),
+        // No right-click of its own: the module's menu (`context_menus.dart`)
+        // answers it, and leads with the silence switch — see
+        // [notificationsModule]'s quick settings.
         child: child!,
       ),
       child: glyph,
@@ -1104,4 +1103,15 @@ final Module notificationsModule = Module.simple<NotificationsConfig>(
     return config;
   },
   builder: (_, config) => Notifications(config: config),
+  // First in the bell's right-click menu: the one switch the panel also
+  // carries, so silencing is a right-click and a click away from any bar.
+  quickSettings: () => [
+    QuickAction(
+      label: 'Silence notifications',
+      icon: ShellGlyph.bellSlash,
+      listenable: NotificationStore.instance,
+      checked: () => NotificationStore.instance.silenced,
+      onTap: NotificationStore.instance.toggleSilenced,
+    ),
+  ],
 );

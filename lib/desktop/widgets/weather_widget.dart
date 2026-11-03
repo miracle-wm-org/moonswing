@@ -37,6 +37,7 @@ import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/weather/weather_api.dart';
 import 'package:moonswing/weather/weather_condition.dart';
@@ -979,5 +980,9 @@ final DesktopWidgetSpec weatherDesktopWidget = DesktopWidgetSpec(
   defaultSpan: (columns: 3, rows: 2),
   // The sky is the card. See the file's header.
   padding: EdgeInsets.zero,
+  // The card reads the weather module's location and unit, so its settings
+  // are that module's page, and its unit is a quick row of the menu.
+  settings: const SettingsRoute.module('weather'),
+  offersPageQuickSettings: true,
   builder: (context, widget) => WeatherWidget(span: widget.span),
 );

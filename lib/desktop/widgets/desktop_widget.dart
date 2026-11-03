@@ -12,6 +12,8 @@ import 'package:flutter/widgets.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/desktop/desktop_layout.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
+import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/quick_settings.dart';
 
 /// What a widget's [DesktopWidgetSpec.builder] is handed.
 ///
@@ -57,6 +59,9 @@ class DesktopWidgetSpec {
     this.minSpan = (columns: 1, rows: 1),
     this.maxSpan = (columns: 6, rows: 4),
     this.padding = const EdgeInsets.all(10),
+    this.settings,
+    this.quickSettings,
+    this.offersPageQuickSettings = false,
     GridSpan? defaultSpan,
   }) : _defaultSpan = defaultSpan;
 
@@ -84,6 +89,24 @@ class DesktopWidgetSpec {
   final EdgeInsets padding;
 
   final GridSpan? _defaultSpan;
+
+  /// The settings page that configures what this widget shows — the weather
+  /// card's is the weather module's — which its right-click menu opens as
+  /// "*Name* settings…". Null for a widget with nothing to configure beyond
+  /// its place on the grid; the menu then offers the desktop grid's page.
+  ///
+  final SettingsRoute? settings;
+
+  /// Whether the menu also offers the quick rows of the module page
+  /// [settings] names — the weather card shares the weather module's unit.
+  /// False for a widget whose module's quick rows are about the *bar* — the
+  /// stock crawl's scrolling is nothing the stocks card does.
+  final bool offersPageQuickSettings;
+
+  /// What the right-click menu offers to change in place that is not a quick
+  /// row of [settings]' page — the news card's outlets. Called each time the
+  /// menu opens.
+  final List<QuickSetting> Function()? quickSettings;
 
   /// The span a freshly added widget takes. Its minimum unless the spec says
   /// otherwise — a widget that needs more room than its floor to look right on

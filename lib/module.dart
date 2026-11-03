@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'package:moonswing/quick_settings.dart';
+
 /// A module that exists in a bar.
 ///
 /// Modules should be places in the "module" folder and extend this class.
@@ -61,8 +63,15 @@ abstract class Module {
     required C Function(Map<String, dynamic>? map) fromMap,
     required Widget Function(BuildContext context, C config) builder,
     bool requiresMiracle = false,
+    List<QuickSetting> Function()? quickSettings,
   }) =>
-      _SimpleModule<C>(configKey, fromMap, builder, requiresMiracle);
+      _SimpleModule<C>(
+        configKey,
+        fromMap,
+        builder,
+        requiresMiracle,
+        quickSettings,
+      );
 
   /// A module with no options of its own: its `[modules.<key>]` table is
   /// ignored.
@@ -70,12 +79,14 @@ abstract class Module {
     required String configKey,
     required WidgetBuilder builder,
     bool requiresMiracle = false,
+    List<QuickSetting> Function()? quickSettings,
   }) =>
       _SimpleModule<Null>(
         configKey,
         (_) => null,
         (context, _) => builder(context),
         requiresMiracle,
+        quickSettings,
       );
 
   /// The widget builder for this module.
@@ -92,6 +103,12 @@ abstract class Module {
   /// gap included, rather than drawing a control that can never work. See
   /// `MiracleManager.unsupported`.
   bool get requiresMiracle => false;
+
+  /// What the module's right-click menu offers to change in place that is
+  /// *not* a `[modules.<key>]` option on its settings page — the bell's
+  /// silence. The page's own quick rows are added by the menu; this is only
+  /// what the module alone can answer. Read each time the menu opens.
+  List<QuickSetting> get quickSettings => const [];
 
   /// Loads the configuration for the given module, from the data at [configKey].
   ///
@@ -113,6 +130,7 @@ class _SimpleModule<C> extends Module {
     this._fromMap,
     this._builder,
     this.requiresMiracle,
+    this._quickSettings,
   );
 
   @override
@@ -123,6 +141,10 @@ class _SimpleModule<C> extends Module {
 
   final C Function(Map<String, dynamic>? map) _fromMap;
   final Widget Function(BuildContext context, C config) _builder;
+  final List<QuickSetting> Function()? _quickSettings;
+
+  @override
+  List<QuickSetting> get quickSettings => _quickSettings?.call() ?? const [];
 
   late C _config = _fromMap(null);
 

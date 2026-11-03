@@ -8,15 +8,53 @@ import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
+
+/// One item of a context menu: a tappable [DesktopMenuEntry], or the
+/// [DesktopMenuDivider], [DesktopMenuHeading] and [DesktopMenuLive] that group
+/// and refresh them.
+sealed class DesktopMenuItem {
+  const DesktopMenuItem();
+}
+
+/// A rule between two groups of rows — a menu's own actions and the links to
+/// its settings, say.
+class DesktopMenuDivider extends DesktopMenuItem {
+  const DesktopMenuDivider();
+}
+
+/// A small non-interactive label over the rows after it: the name of a choice
+/// whose options follow as checkable rows.
+class DesktopMenuHeading extends DesktopMenuItem {
+  const DesktopMenuHeading(this.text);
+
+  final String text;
+}
+
+/// Rows rebuilt whenever [listenable] notifies, for a menu that stays open
+/// while what it shows moves — a quick setting the user just flipped, or one
+/// flipped from somewhere else while the menu was up.
+///
+/// The popup's window is sized once, at open, so [build] must answer rows of
+/// the same shape every time: a switch flips, a check moves, nothing comes or
+/// goes.
+class DesktopMenuLive extends DesktopMenuItem {
+  const DesktopMenuLive({required this.listenable, required this.build});
+
+  final Listenable listenable;
+  final List<DesktopMenuItem> Function() build;
+}
 
 /// One row of a desktop context menu.
-class DesktopMenuEntry {
+class DesktopMenuEntry extends DesktopMenuItem {
   const DesktopMenuEntry({
     required this.label,
     required this.onTap,
     this.icon,
     this.enabled = true,
     this.selected = false,
+    this.selectable = false,
+    this.checked,
     this.iconColor,
   });
 
@@ -42,6 +80,17 @@ class DesktopMenuEntry {
   /// user moved through it. It stays tappable for the same reason — re-choosing
   /// what is already chosen is a no-op, not an error.
   final bool selected;
+
+  /// Whether the row is one of a set whose [selected] member can move while
+  /// the menu is open. Such a row keeps room for the check whether or not it
+  /// carries one: the popup's surface is sized once, at open, so a check that
+  /// moved onto the widest row would otherwise be cut off at the card's edge.
+  final bool selectable;
+
+  /// Non-null draws a small switch at the row's end, on or off — a boolean the
+  /// row flips. The switch is the same width either way, so it can flip under
+  /// an open menu.
+  final bool? checked;
 }
 
 /// The themed card both desktop context menus render into.
@@ -58,7 +107,7 @@ class DesktopMenuCard extends StatelessWidget {
     this.onBack,
   });
 
-  final List<DesktopMenuEntry> entries;
+  final List<DesktopMenuItem> entries;
 
   /// Shown as a non-interactive title row. Used by the "Open with…" page to
   /// say what is being opened.
@@ -110,10 +159,87 @@ class DesktopMenuCard extends StatelessWidget {
                   Container(height: 1, color: theme.divider),
                   const SizedBox(height: 4),
                 ],
-                for (final entry in entries)
-                  _DesktopMenuRow(entry: entry),
+                for (final item in entries) _DesktopMenuItemView(item: item),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopMenuItemView extends StatelessWidget {
+  const _DesktopMenuItemView({required this.item});
+
+  final DesktopMenuItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return switch (item) {
+      final DesktopMenuEntry entry => _DesktopMenuRow(entry: entry),
+      DesktopMenuDivider() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Container(height: 1, color: theme.divider),
+      ),
+      DesktopMenuHeading(:final text) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            fontFamily: theme.fontFamily,
+            color: theme.muted,
+          ),
+        ),
+      ),
+      DesktopMenuLive(:final listenable, :final build) => ListenableBuilder(
+        listenable: listenable,
+        builder: (context, _) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (final child in build()) _DesktopMenuItemView(item: child),
+          ],
+        ),
+      ),
+    };
+  }
+}
+
+/// The switch a [DesktopMenuEntry.checked] row ends in — [SettingsToggle]'s
+/// track and thumb at a menu row's size, drawn rather than tappable: the whole
+/// row is the target.
+class _MenuSwitch extends StatelessWidget {
+  const _MenuSwitch({required this.on, required this.enabled});
+
+  final bool on;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final track = on ? theme.accent : theme.divider;
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: Container(
+        width: 26,
+        height: 14,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: track,
+          borderRadius: BorderRadius.circular(7),
+        ),
+        alignment: on ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          width: 10,
+          height: 10,
+          decoration: const BoxDecoration(
+            color: kOnAccent,
+            shape: BoxShape.circle,
           ),
         ),
       ),
@@ -183,7 +309,10 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
               // Flexible so a long handler name ellipsizes against the popup's
               // maxWidth instead of overflowing the row. `overflow` alone does
               // nothing while the Text is unbounded inside a min-size Row.
+              // Tight on a switch row, so the switch lines up at the card's
+              // end with every other switch rather than trailing its label.
               Flexible(
+                fit: entry.checked == null ? FlexFit.loose : FlexFit.tight,
                 child: Text(
                   entry.label,
                   maxLines: 1,
@@ -200,9 +329,21 @@ class _DesktopMenuRowState extends State<_DesktopMenuRow> {
               // accent quiet. `IntrinsicWidth` sizes the card to the widest
               // row, so this pushes every row out by the same amount rather
               // than making the checked one wider than its neighbours.
-              if (entry.selected) ...[
+              if (entry.selected || entry.selectable) ...[
                 const SizedBox(width: 12),
-                ShellIcon(ShellGlyph.check, size: 10, color: foreground),
+                // Transparent rather than absent on an unselected member of a
+                // set, so every row of it is as wide as the checked one.
+                ShellIcon(
+                  ShellGlyph.check,
+                  size: 10,
+                  color: entry.selected
+                      ? foreground
+                      : const Color(0x00000000),
+                ),
+              ],
+              if (entry.checked case final on?) ...[
+                const SizedBox(width: 12),
+                _MenuSwitch(on: on, enabled: entry.enabled),
               ],
             ],
           ),
@@ -334,6 +475,8 @@ class DesktopEmptyMenu extends StatefulWidget {
     required this.onChangeBackground,
     this.widgetSpecs = const [],
     this.onAddWidget,
+    this.onOpenDesktopSettings,
+    this.onOpenSettings,
   });
 
   final VoidCallback onAddApplication;
@@ -353,6 +496,14 @@ class DesktopEmptyMenu extends StatefulWidget {
   /// widget types has nothing to offer, and a disabled row would be a promise
   /// with nothing behind it.
   final void Function(DesktopWidgetSpec spec)? onAddWidget;
+
+  /// "Desktop settings…" — Shell › Desktop Grid. Null hides the row.
+  final VoidCallback? onOpenDesktopSettings;
+
+  /// "Settings…" — the settings overlay's landing page, which a right-click on
+  /// bare desktop always offers. Null hides the row, for a test that pumps the
+  /// menu with no shell behind it.
+  final VoidCallback? onOpenSettings;
 
   @override
   State<DesktopEmptyMenu> createState() => _DesktopEmptyMenuState();
@@ -409,9 +560,61 @@ class _DesktopEmptyMenuState extends State<DesktopEmptyMenu> {
           icon: ShellGlyph.image,
           onTap: widget.onChangeBackground,
         ),
+        ...settingsLinks(
+          desktop: widget.onOpenDesktopSettings,
+          settings: widget.onOpenSettings,
+        ),
       ],
     );
   }
+}
+
+/// The links to settings that close a desktop menu, behind a divider: the
+/// desktop's own page, and the overlay's landing page. Empty when neither is
+/// given.
+List<DesktopMenuItem> settingsLinks({
+  VoidCallback? desktop,
+  VoidCallback? settings,
+}) => [
+  if (desktop != null || settings != null) const DesktopMenuDivider(),
+  if (desktop != null)
+    DesktopMenuEntry(
+      label: 'Desktop settings…',
+      icon: ShellGlyph.grid,
+      onTap: desktop,
+    ),
+  if (settings != null)
+    DesktopMenuEntry(
+      label: 'Settings…',
+      icon: ShellGlyph.settings,
+      onTap: settings,
+    ),
+];
+
+/// The menu shown on right-clicking the wallpaper of an output whose desktop
+/// grid is switched off, so there are no icons or widgets to add — but a
+/// right-click on bare background still always reaches Settings.
+class DesktopBackgroundMenu extends StatelessWidget {
+  const DesktopBackgroundMenu({
+    super.key,
+    required this.onChangeBackground,
+    required this.onOpenSettings,
+  });
+
+  final VoidCallback onChangeBackground;
+  final VoidCallback onOpenSettings;
+
+  @override
+  Widget build(BuildContext context) => DesktopMenuCard(
+    entries: [
+      DesktopMenuEntry(
+        label: 'Change background…',
+        icon: ShellGlyph.image,
+        onTap: onChangeBackground,
+      ),
+      ...settingsLinks(settings: onOpenSettings),
+    ],
+  );
 }
 
 /// The menu shown on right-clicking a desktop widget.
@@ -426,6 +629,9 @@ class DesktopWidgetMenu extends StatelessWidget {
     required this.spec,
     required this.onRemove,
     this.onResetSize,
+    this.quickSettings = const [],
+    this.settingsLabel,
+    this.onOpenWidgetSettings,
   });
 
   final DesktopWidgetItem item;
@@ -437,9 +643,19 @@ class DesktopWidgetMenu extends StatelessWidget {
   final VoidCallback onRemove;
   final VoidCallback? onResetSize;
 
+  /// The widget's options worth changing in place, already turned into rows
+  /// (see `quickSettingItems`) — drawn above the widget's own actions.
+  final List<DesktopMenuItem> quickSettings;
+
+  /// The row that opens the page configuring this widget — "Weather
+  /// settings…" — and what it does. Either null hides it.
+  final String? settingsLabel;
+  final VoidCallback? onOpenWidgetSettings;
+
   @override
   Widget build(BuildContext context) {
     final spec = this.spec;
+    final onOpenWidgetSettings = this.onOpenWidgetSettings;
     final atDefault = spec != null &&
         item.columnSpan == spec.defaultSpan.columns &&
         item.rowSpan == spec.defaultSpan.rows;
@@ -447,6 +663,10 @@ class DesktopWidgetMenu extends StatelessWidget {
     return DesktopMenuCard(
       header: spec?.name ?? item.type,
       entries: [
+        if (quickSettings.isNotEmpty) ...[
+          ...quickSettings,
+          const DesktopMenuDivider(),
+        ],
         if (spec != null && onResetSize != null)
           DesktopMenuEntry(
             label: 'Reset size',
@@ -461,6 +681,14 @@ class DesktopWidgetMenu extends StatelessWidget {
           icon: ShellGlyph.trash,
           onTap: onRemove,
         ),
+        if (settingsLabel != null && onOpenWidgetSettings != null) ...[
+          const DesktopMenuDivider(),
+          DesktopMenuEntry(
+            label: settingsLabel!,
+            icon: ShellGlyph.settings,
+            onTap: onOpenWidgetSettings,
+          ),
+        ],
       ],
     );
   }

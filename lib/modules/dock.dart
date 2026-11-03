@@ -8,6 +8,7 @@ import 'package:moonswing/app_info.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/context_menus.dart' show ModuleMenuScope;
 import 'package:moonswing/modules/app_directory.dart';
 import 'package:moonswing/modules/dock_launch.dart';
 import 'package:moonswing/module.dart';
@@ -571,7 +572,8 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
       openBarPopup(
         context,
         // Loose: the menu sizes to its content (see [DesktopMenuCard]).
-        preferredConstraints: const BoxConstraints(maxWidth: 260, maxHeight: 200),
+        // Tall enough for the dock's own rows under the unpin row.
+        preferredConstraints: const BoxConstraints(maxWidth: 320, maxHeight: 420),
         // Its own reopen-guard slot, so a primary click that dismisses the menu
         // does not leave a guard armed under the *tooltip*'s identity and eat
         // the next hover label.
@@ -592,6 +594,9 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
                   _unpin();
                 },
               ),
+              // The dock's own menu — quick settings, settings links — since
+              // this one answers the right-click that would have opened it.
+              ...ModuleMenuScope.itemsFor(context, close: closePopup),
             ],
           ),
         ),

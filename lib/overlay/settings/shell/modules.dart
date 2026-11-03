@@ -38,6 +38,7 @@ import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart';
 import 'package:moonswing/overlay/settings/shell/weather_location.dart';
 import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/quick_settings.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/stocks/stock_config.dart' show StockConfig;
 import 'package:moonswing/system/system_monitor_config.dart'
@@ -68,8 +69,11 @@ enum _Kind {
 /// key, the row that edits it and the result that finds it are one string in one
 /// place. See [SettingsCatalog].
 class _ModuleSetting {
-  const _ModuleSetting.toggle(this.field, {required bool this.defaultValue})
-    : kind = _Kind.toggle,
+  const _ModuleSetting.toggle(
+    this.field, {
+    required bool this.defaultValue,
+    this.quick = false,
+  }) : kind = _Kind.toggle,
       isInt = false,
       options = null,
       addHint = null,
@@ -82,6 +86,7 @@ class _ModuleSetting {
     required num this.defaultValue,
     required this.isInt,
   }) : kind = _Kind.number,
+       quick = false,
        options = null,
        addHint = null,
        addLabel = null,
@@ -94,6 +99,7 @@ class _ModuleSetting {
     required String this.defaultValue,
     this.labelOf,
     this.descriptionOf,
+    this.quick = false,
   }) : kind = _Kind.choice,
        isInt = false,
        addHint = null,
@@ -107,6 +113,7 @@ class _ModuleSetting {
   /// instead of to nowhere.
   const _ModuleSetting.text(this.field, {this.addHint})
     : kind = _Kind.text,
+      quick = false,
       defaultValue = null,
       isInt = false,
       options = null,
@@ -116,6 +123,7 @@ class _ModuleSetting {
 
   const _ModuleSetting.stringList(this.field, {this.addHint, this.addLabel})
     : kind = _Kind.stringList,
+      quick = false,
       defaultValue = null,
       isInt = false,
       options = null,
@@ -127,6 +135,7 @@ class _ModuleSetting {
   /// typed as `firefox_firefox`.
   const _ModuleSetting.appList(this.field)
     : kind = _Kind.appList,
+      quick = false,
       defaultValue = null,
       isInt = false,
       options = null,
@@ -142,6 +151,7 @@ class _ModuleSetting {
   /// control owns its own path list rather than taking one.
   const _ModuleSetting.weatherLocation(this.field)
     : kind = _Kind.weatherLocation,
+      quick = false,
       defaultValue = null,
       isInt = false,
       options = null,
@@ -187,6 +197,31 @@ class _ModuleSetting {
 
   /// A [_Kind.stringList] row's add-row label; a bare "Add" when null.
   final String? addLabel;
+
+  /// Whether the module's right-click menu offers this row in place. Only a
+  /// toggle or a short choice can be one: a menu takes no keyboard, and a row
+  /// worth opening the page for is not a quick setting.
+  final bool quick;
+
+  /// This row as a menu's quick setting, or null when it is not one.
+  QuickSetting? get quickSetting {
+    if (!quick) return null;
+    return switch (kind) {
+      _Kind.toggle => QuickToggle(
+        label: field.label,
+        path: path,
+        defaultValue: defaultValue! as bool,
+      ),
+      _Kind.choice => QuickChoice(
+        label: field.label,
+        path: path,
+        options: options!,
+        defaultValue: defaultValue! as String,
+        labelOf: labelOf,
+      ),
+      _ => null,
+    };
+  }
 }
 
 /// A docked panel's six `animation*` rows, which the notification panel and
@@ -273,6 +308,11 @@ class ModuleSettingsPage {
 
   /// The route a jump to this page carries.
   SettingsRoute get route => SettingsRoute.module(key);
+
+  /// The rows the module's right-click menu offers in place, in page order.
+  List<QuickSetting> get quickSettings => [
+    for (final setting in _settings) ?setting.quickSetting,
+  ];
 }
 
 /// The page for the `[modules.<key>]` named [key], or null.
@@ -296,6 +336,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.workspacesShowAppIcons,
         defaultValue: const WorkspacesConfig().showAppIcons,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.workspacesIconSize,
@@ -310,6 +351,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.workspacesFlashUrgent,
         defaultValue: const WorkspacesConfig().flashUrgent,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.workspacesUrgentFlashSeconds,
@@ -319,6 +361,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.workspacesShowPolicyToggle,
         defaultValue: const WorkspacesConfig().showPolicyToggle,
+        quick: true,
       ),
     ],
   ),
@@ -332,6 +375,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.weatherUnit,
         options: const ['fahrenheit', 'celsius'],
         defaultValue: const WeatherConfig().unit,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.weatherRefreshMinutes,
@@ -360,10 +404,12 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.clockShowWeekday,
         defaultValue: const ClockConfig().showWeekday,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.clockShowDate,
         defaultValue: const ClockConfig().showDate,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.clockShowYear,
@@ -372,6 +418,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.clockShowWeekNumber,
         defaultValue: const ClockConfig().showWeekNumber,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.clockShowTime,
@@ -380,12 +427,14 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.clockShowSeconds,
         defaultValue: const ClockConfig().showSeconds,
+        quick: true,
       ),
       _ModuleSetting.choice(
         SettingsCatalog.clockHourFormat,
         options: [for (final format in ClockHourFormat.values) format.slug],
         defaultValue: const ClockConfig().hourFormat.slug,
         labelOf: _clockHourFormatLabel,
+        quick: true,
       ),
       // Free-typed for the reason the chime's and the shutter's rows are: the
       // shipped alarms are four of the answers, and a name out of the machine's
@@ -454,6 +503,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.dockShowAppDirectory,
         defaultValue: const DockConfig().showAppDirectory,
+        quick: true,
       ),
       _ModuleSetting.appList(SettingsCatalog.dockApps),
     ],
@@ -472,6 +522,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.systemMonitorTempUnit,
         options: const ['celsius', 'fahrenheit'],
         defaultValue: const SystemMonitorConfig().tempUnit,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.systemMonitorHistorySamples,
@@ -484,10 +535,12 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.systemMonitorCpuPercentMode,
         options: const ['machine', 'core'],
         defaultValue: const SystemMonitorConfig().cpuPercentMode.name,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.systemMonitorShowKernelThreads,
         defaultValue: const SystemMonitorConfig().showKernelThreads,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.systemMonitorConfirmKill,
@@ -518,6 +571,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.notificationsSide,
         options: const ['left', 'right'],
         defaultValue: kDefaultNotificationPanelSide.configName,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.notificationsWidth,
@@ -562,14 +616,17 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.githubShowCount,
         defaultValue: const GithubConfig().showCount,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.githubParticipatingOnly,
         defaultValue: const GithubConfig().participatingOnly,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.githubIncludeRead,
         defaultValue: const GithubConfig().includeRead,
+        quick: true,
       ),
       _ModuleSetting.toggle(
         SettingsCatalog.githubMarkReadOnOpen,
@@ -601,6 +658,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.stocksScroll,
         defaultValue: const StockConfig().scroll,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.stocksScrollSpeed,
@@ -625,6 +683,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
         SettingsCatalog.clipboardSide,
         options: const ['left', 'right'],
         defaultValue: const ClipboardConfig().side.configName,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.clipboardWidth,
@@ -648,6 +707,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.clipboardPersist,
         defaultValue: const ClipboardConfig().persist,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.clipboardMaxItemMb,
@@ -668,6 +728,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.screenshotCopyToClipboard,
         defaultValue: const ScreenshotConfig().copyToClipboard,
+        quick: true,
       ),
       _ModuleSetting.number(
         SettingsCatalog.screenshotDelaySeconds,
@@ -677,6 +738,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.screenshotShowCursor,
         defaultValue: const ScreenshotConfig().showCursor,
+        quick: true,
       ),
       // Free-typed for the reason the chime's row is: the shipped shutters are
       // four of the answers, and a name out of the machine's sound theme and a
@@ -722,6 +784,7 @@ final List<ModuleSettingsPage> moduleSettingsPages = [
       _ModuleSetting.toggle(
         SettingsCatalog.recorderShowCursor,
         defaultValue: const RecorderConfig().showCursor,
+        quick: true,
       ),
     ],
   ),
