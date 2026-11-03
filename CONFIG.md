@@ -1296,6 +1296,7 @@ panel_background     = "#EE282828"
 panel_gradient       = "accent"
 panel_margin         = 0
 panel_radius         = 0.0
+panel_join_radius    = 0.0
 panel_border         = "#33EBDBB2"
 panel_border_width   = 0.0
 
@@ -1353,6 +1354,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `panel_gradient_bottom_left` | `#EE612D53` | …its bottom-left corner                                               |
 | `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to              |
 | `panel_radius`         | `0.0`         | Corner rounding of each bar (see below for which corners)                   |
+| `panel_join_radius`    | `0.0`         | Rounds the inside of the corner where two flush bars meet; `0`–`64` (see below) |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
 | `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
 | `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card                 |
@@ -1446,6 +1448,17 @@ The gap is real, not painted: the bar's surface genuinely shrinks, so **windows 
 `panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
 
 All three follow a theme switch live; no restart is needed.
+
+### Where two bars meet
+
+`panel_join_radius` is for a screen with a bar on two adjacent edges — a top or bottom bar and a left or right one. Where the two meet, their inner edges make a sharp right angle at the corner of the space your windows tile into; this fills that angle with a quarter round of the given radius, in the bar's own colour, so the pair reads as one frame around the screen instead of two strips butted together. `dracula` is the one shipped theme that sets it, at `12`.
+
+- **Only flush bars meet.** At `panel_margin` above zero the bars float apart and the key is not read.
+- **Only one bar per edge.** Two bars stacked on one edge take no part in a join, since which of them is innermost is the compositor's decision and nothing reports it.
+- **The bars square off the corner the fillet turns.** At a joined end, the inner corner `panel_radius` would round is left square; the bar's other corners round as before.
+- **It is real surface, and it does not take your clicks** — the same arrangement as the foliage below. Every bar's surface grows by the radius while any two bars meet, and that strip is cut out of the surface's input region, so a click on the fillet lands on the window behind it. Windows still tile right up to the bars. Should the shell be unable to set an input region, the surface is not grown and the corner stays square.
+- **The bar that stops at the corner paints it.** The compositor decides which of the two bars runs across the corner (Mir, and so miracle-wm, stretches top and bottom bars across and fits side bars between them; sway goes by the order the bars were made in), and the shell tells which by measuring each bar against the screen. When it cannot tell — say a left and a right bar of equal height under a top bar the compositor shortened at only one end — that corner is left square rather than painted over a bar's buttons.
+- The fillet continues a gradient bar's colour at that end and a rimmed bar's rim round the corner; it does not continue a `panel_texture` or `panel_image`.
 
 ### Popups
 

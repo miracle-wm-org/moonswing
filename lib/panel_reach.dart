@@ -35,10 +35,20 @@ class PanelReachSequencer {
     required this.commit,
     required this.reached,
     Future<void> Function()? nextFrame,
+    int Function(ThemeConfig theme)? reachOf,
     this.maxFrames = 30,
   }) : shown = ValueNotifier(initial),
-       _committed = initial.panelReach,
+       _reachOf = reachOf ?? _foliageReach,
+       _committed = (reachOf ?? _foliageReach)(initial),
        _nextFrame = nextFrame ?? _scheduleFrame;
+
+  static int _foliageReach(ThemeConfig theme) => theme.panelReach;
+
+  /// How far past the bar a theme's surfaces reach. The foliage's overhang by
+  /// default; the root adds room for a `panel_join_radius` fillet while any two
+  /// bars meet (`panelSurfaceReach`), which can move without the theme moving —
+  /// a bar added beside another — so [update] is called for that too.
+  final int Function(ThemeConfig theme) _reachOf;
 
   /// The theme the panels render — what their `ThemeProvider` listens to.
   final ValueNotifier<ThemeConfig> shown;
@@ -87,8 +97,9 @@ class PanelReachSequencer {
       do {
         _dirty = false;
         final theme = target();
-        if (theme.panelReach > _committed) {
-          _committed = theme.panelReach;
+        final wanted = _reachOf(theme);
+        if (wanted > _committed) {
+          _committed = wanted;
           commit(_committed);
           for (var frames = 0; frames < maxFrames; frames++) {
             await _nextFrame();
@@ -102,14 +113,14 @@ class PanelReachSequencer {
           continue;
         }
         shown.value = theme;
-        if (theme.panelReach < _committed) {
+        if (wanted < _committed) {
           await _nextFrame();
           if (_disposed) return;
           // No less than the store now wants either: a switch back during the
           // wait regrows the surface on the next round, and needs no shrink
           // first.
-          final keep = target().panelReach;
-          final reach = keep > theme.panelReach ? keep : theme.panelReach;
+          final keep = _reachOf(target());
+          final reach = keep > wanted ? keep : wanted;
           if (reach < _committed) {
             _committed = reach;
             commit(_committed);
