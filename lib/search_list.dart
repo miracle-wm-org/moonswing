@@ -9,8 +9,9 @@
 /// **as a parameter**, so widget tests never fork `fc-list` or load the IANA
 /// tables.
 ///
-/// `matchTriggerWidth` sizes the card to the trigger, and `showSearch` lets a
-/// short list do without a filter field. Neither changes the card itself.
+/// `matchTriggerWidth` sizes the card to the trigger, `contentWidth` widens it
+/// to rows the trigger is narrower than, and `showSearch` lets a short list do
+/// without a filter field.
 library;
 
 import 'dart:async';
@@ -49,6 +50,56 @@ const double kDropdownCardBorder = 1;
 double dropdownContentWidth(double cardWidth) =>
     math.max(0, cardWidth - 2 * (kDropdownRowInset + kDropdownCardBorder));
 
+/// The card width a row of content [contentWidth] wide needs: the inverse of
+/// [dropdownContentWidth].
+double dropdownCardWidth(double contentWidth) =>
+    contentWidth + 2 * (kDropdownRowInset + kDropdownCardBorder);
+
+/// The widest a card grows to fit its rows, under
+/// [AnchoredSearchDropdown.contentWidth]. Past this a row ellipsises: a list
+/// whose longest entry is a sentence is not a reason for a card the width of
+/// the panel.
+const double kDropdownMaxCardWidth = 480;
+
+/// How close a card may come to the edge of the window it floats in, where it
+/// is not simply following a trigger that is already closer.
+const double kDropdownEdgeMargin = 8;
+
+/// Where a card [cardWidth] wide hangs off a trigger spanning [triggerLeft] to
+/// [triggerRight] in a window [overlayWidth] wide: which of the trigger's edges
+/// it is anchored to, and how far it has to be nudged sideways to stay in the
+/// window.
+///
+/// [alignRight] is the caller's preference and wins whenever it fits. When it
+/// does not and the other edge does, the card flips — a card measured wider
+/// than its trigger, dropping from a control at the right of a row, grows
+/// leftwards rather than off the window. When neither fits it keeps the
+/// preference and is slid back in. The margin never pushes a card off a
+/// trigger that is itself closer to the edge than [margin]. Pure, so the
+/// arithmetic is testable without an overlay.
+({bool alignRight, double dx}) placeDropdownCard({
+  required double triggerLeft,
+  required double triggerRight,
+  required double cardWidth,
+  required double overlayWidth,
+  required bool alignRight,
+  double margin = kDropdownEdgeMargin,
+}) {
+  final lo = math.min(margin, triggerLeft);
+  final hi = math.max(overlayWidth - margin, triggerRight);
+  double leftOf(bool right) => right ? triggerRight - cardWidth : triggerLeft;
+  bool fits(bool right) {
+    final left = leftOf(right);
+    return left >= lo && left + cardWidth <= hi;
+  }
+
+  var right = alignRight;
+  if (!fits(right) && fits(!right)) right = !right;
+  final left = leftOf(right);
+  final clamped = left.clamp(lo, math.max(lo, hi - cardWidth));
+  return (alignRight: right, dx: clamped - left);
+}
+
 /// The card's own vertical padding above and below its list, plus its border.
 ///
 /// Public alongside [kDropdownRowInset]: a caller sizing a card to its rows
@@ -85,6 +136,7 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
     required this.triggerBuilder,
     this.width = 240,
     this.matchTriggerWidth = false,
+    this.contentWidth,
     this.maxHeight = 300,
     this.rowHeight = 30,
     this.emptyText = 'No matches',
@@ -156,6 +208,18 @@ class AnchoredSearchDropdown<T> extends StatefulWidget {
   /// overhangs the row. Measured at open, when the trigger has been laid out.
   final bool matchTriggerWidth;
 
+  /// The width the widest row's *content* needs, asked at open; the card grows
+  /// to hold it (up to [kDropdownMaxCardWidth]) where [width] or the trigger
+  /// would be narrower.
+  ///
+  /// What a selector in a settings row needs. The row lays its control out at
+  /// its content's width, so a trigger showing "Fill" is as wide as "Fill", and
+  /// a card matched to it ellipsised "Contain" and "Natural" — every longer
+  /// option the list existed to offer. The rows are the caller's, so only the
+  /// caller can say how wide they are; asked at open rather than per build,
+  /// because a page of key bindings is a page of seven-hundred-row lists.
+  final double Function(BuildContext context)? contentWidth;
+
   final double maxHeight;
 
   /// Fixed row height — scrolling the highlight into view is arithmetic, not
@@ -187,11 +251,17 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
   final _link = LayerLink();
   OverlayEntry? _entry;
 
-  /// The trigger's laid-out width, taken at open for [matchTriggerWidth]. Read
-  /// from the render object rather than a `LayoutBuilder`, because the card is
-  /// built into another subtree entirely and only the *host* element knows how
-  /// wide the row let the trigger be.
-  double? _triggerWidth;
+  /// The card's width, resolved at open: [matchTriggerWidth]'s trigger width
+  /// or [AnchoredSearchDropdown.width], widened to [contentWidth] and narrowed
+  /// to the window. The trigger is read from the render object rather than a
+  /// `LayoutBuilder`, because the card is built into another subtree entirely
+  /// and only the *host* element knows how wide the row let the trigger be.
+  double _cardWidth = 0;
+
+  /// Which edge of the trigger the card hangs from, and how far it is slid to
+  /// stay in the window — [placeDropdownCard]'s answer for this open.
+  bool _alignRight = false;
+  double _dx = 0;
 
   /// Whether the card opens *upwards*, decided at open from the room under the
   /// trigger. A dropdown near the foot of the settings panel would otherwise
@@ -246,14 +316,46 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
     if (_entry != null) return;
     final overlay = Overlay.of(context, rootOverlay: true);
     final trigger = context.findRenderObject();
-    // Reset first: both are answers about *this* open, and an unmeasurable
+    final overlayBox = overlay.context.findRenderObject();
+    // Reset first: these are answers about *this* open, and an unmeasurable
     // trigger must fall back to the defaults rather than to the last open's.
-    _triggerWidth = null;
     _above = false;
-    if (trigger is RenderBox && trigger.hasSize) {
-      if (widget.matchTriggerWidth) _triggerWidth = trigger.size.width;
-      _above = _opensUpwards(trigger, overlay.context.findRenderObject());
+    _alignRight = widget.alignRight;
+    _dx = 0;
+    final measured = trigger is RenderBox && trigger.hasSize ? trigger : null;
+    var width = widget.matchTriggerWidth && measured != null
+        ? measured.size.width
+        : widget.width;
+    final base = width;
+    final content = widget.contentWidth?.call(context);
+    if (content != null) {
+      width = math.max(
+        width,
+        math.min(kDropdownMaxCardWidth, dropdownCardWidth(content)),
+      );
     }
+    if (measured != null) {
+      _above = _opensUpwards(measured, overlayBox);
+      if (overlayBox is RenderBox && overlayBox.hasSize) {
+        final room = overlayBox.size.width - 2 * kDropdownEdgeMargin;
+        // Never narrower than it would have been unmeasured: a trigger wider
+        // than the window's margins already had a card that wide.
+        width = math.min(width, math.max(base, room));
+        final left = measured
+            .localToGlobal(Offset.zero, ancestor: overlayBox)
+            .dx;
+        final place = placeDropdownCard(
+          triggerLeft: left,
+          triggerRight: left + measured.size.width,
+          cardWidth: width,
+          overlayWidth: overlayBox.size.width,
+          alignRight: widget.alignRight,
+        );
+        _alignRight = place.alignRight;
+        _dx = place.dx;
+      }
+    }
+    _cardWidth = width;
     final entry = OverlayEntry(builder: (_) => _buildPicker());
     _entry = entry;
     overlay.insert(entry);
@@ -313,7 +415,7 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
   }
 
   Widget _buildPicker() {
-    final right = widget.alignRight;
+    final right = _alignRight;
     // The card hangs off whichever edge of the trigger it opens from, and
     // meets it with its own opposite edge.
     final anchor = _above
@@ -334,7 +436,7 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
           link: _link,
           targetAnchor: anchor,
           followerAnchor: follower,
-          offset: Offset(0, _above ? -_kGap : _kGap),
+          offset: Offset(_dx, _above ? -_kGap : _kGap),
           // The root overlay has no repaint boundary of its own, so without
           // this every frame of a scroll through the list re-records the whole
           // window under it — the settings panel and all its rows.
@@ -345,7 +447,7 @@ class _AnchoredSearchDropdownState<T> extends State<AnchoredSearchDropdown<T>> {
               behavior: HitTestBehavior.opaque,
               child: _DropdownPopup<T>(
                 config: widget,
-                width: _triggerWidth ?? widget.width,
+                width: _cardWidth,
                 onSelected: _select,
                 onDismiss: _close,
               ),
@@ -370,7 +472,8 @@ class _DropdownPopup<T> extends StatefulWidget {
   final AnchoredSearchDropdown<T> config;
 
   /// Resolved once at open — [AnchoredSearchDropdown.width], or the trigger's
-  /// own width under `matchTriggerWidth`.
+  /// own width under `matchTriggerWidth`, widened to the rows'
+  /// [AnchoredSearchDropdown.contentWidth].
   final double width;
   final ValueChanged<T> onSelected;
   final VoidCallback onDismiss;

@@ -1652,6 +1652,64 @@ const double _kDescribedMaxHeight = 420;
 const double _kDescribedRowPadding = 7;
 const double _kDescribedRowGap = 3;
 
+/// The space between a row's label and its [SettingsDropdownItem.detail].
+const double _kDetailGap = 8;
+
+/// The most of a row a [SettingsDropdownItem.detail] may take once the card
+/// has stopped growing at [kDropdownMaxCardWidth]; the label keeps the rest.
+const double _kDetailMaxShare = 0.5;
+
+/// The widest row content among [items], in the styles the rows render in:
+/// what [AnchoredSearchDropdown.contentWidth] asks for, so a card dropping
+/// from a trigger as wide as "Fill" is still wide enough to say "Contain".
+///
+/// The label, and the gap and the [SettingsDropdownItem.detail] beside it. A
+/// [SettingsDropdownItem.preview] is a widget and is not measured; only the
+/// described lists carry one, and those take their own width.
+///
+/// Remembered per list for the styles it was measured in, so a page of key
+/// bindings — each a picker over the same seven-hundred-key table — measures
+/// the table once, not once per open.
+double settingsDropdownContentWidth<T>(
+  List<SettingsDropdownItem<T>> items, {
+  required TextStyle labelStyle,
+  required TextStyle detailStyle,
+  required TextScaler textScaler,
+}) {
+  final key = Object.hash(labelStyle, detailStyle, textScaler, items.length);
+  final cached = _contentWidths[items];
+  if (cached != null && cached.$1 == key) return cached.$2;
+
+  final painter = TextPainter(
+    textDirection: TextDirection.ltr,
+    textScaler: textScaler,
+    maxLines: 1,
+  );
+  double measure(String text, TextStyle style) {
+    painter
+      ..text = TextSpan(text: text, style: style)
+      ..layout();
+    return painter.width;
+  }
+
+  var widest = 0.0;
+  for (final item in items) {
+    final detail = item.detail;
+    final width =
+        measure(item.label, labelStyle) +
+        (detail == null ? 0 : _kDetailGap + measure(detail, detailStyle));
+    if (width > widest) widest = width;
+  }
+  painter.dispose();
+  // Rounded up: a row given its paragraph's fractional width to the last
+  // subpixel can still ellipsise its last glyph.
+  final answer = widest.ceilToDouble() + 1;
+  _contentWidths[items] = (key, answer);
+  return answer;
+}
+
+final Expando<(int, double)> _contentWidths = Expando('dropdownContentWidth');
+
 /// How many lines of a [SettingsDropdownItem.description] are drawn. Beyond
 /// this the sentence ellipsises — a dropdown row is not a paragraph.
 const int _kDescriptionMaxLines = 3;
@@ -1784,6 +1842,23 @@ class SettingsDropdown<T> extends StatelessWidget {
       // Unless the caller named one, in which case it is anchored to the
       // trigger's right edge; see [cardWidth].
       matchTriggerWidth: width == null,
+      // ...and never narrower than its rows. A settings row lays its control
+      // out at its content's width, so the trigger is as wide as the
+      // *selected* label, and a card matched to it cut every longer option
+      // short — "Fill" left "Contain" reading "Conta…".
+      contentWidth: width == null
+          ? (context) => settingsDropdownContentWidth(
+              items,
+              labelStyle: DefaultTextStyle.of(
+                context,
+              ).style.merge(_dropdownLabelStyle(theme, selected: false)),
+              detailStyle: DefaultTextStyle.of(
+                context,
+              ).style.merge(_dropdownDetailStyle(theme)),
+              textScaler:
+                  MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling,
+            )
+          : null,
       width: width ?? 240,
       alignRight: width != null,
       showSearch: items.length >= searchFrom,
@@ -1918,6 +1993,12 @@ TextStyle _dropdownLabelStyle(ThemeConfig theme, {required bool selected}) =>
       color: selected ? theme.accentText : theme.popupForeground,
     );
 
+TextStyle _dropdownDetailStyle(ThemeConfig theme) => TextStyle(
+  fontSize: ShellFontSizes.caption,
+  fontFamily: theme.fontFamily,
+  color: theme.popupForeground.withValues(alpha: 0.4),
+);
+
 TextStyle _dropdownDescriptionStyle(ThemeConfig theme) => TextStyle(
   fontSize: ShellFontSizes.caption,
   fontFamily: theme.fontFamily,
@@ -1939,27 +2020,39 @@ class _DropdownRow<T> extends StatelessWidget {
     final detail = item.detail;
     final description = item.description;
     final preview = item.preview;
-    final label = Row(
-      children: [
-        Expanded(
-          child: Text(
-            item.label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: _dropdownLabelStyle(theme, selected: selected),
-          ),
-        ),
-        if (detail != null)
-          Text(
-            detail,
-            style: TextStyle(
-              fontSize: ShellFontSizes.caption,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground.withValues(alpha: 0.4),
+    final label = LayoutBuilder(
+      builder: (context, constraints) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _dropdownLabelStyle(theme, selected: selected),
             ),
           ),
-        if (preview != null) ...[const SizedBox(width: 8), preview],
-      ],
+          if (detail != null) ...[
+            const SizedBox(width: _kDetailGap),
+            // Capped, and ellipsised past the cap: an inflexible detail wider
+            // than the card's room — a long xkb name in a card that stopped
+            // growing at its maximum — overflowed the row instead.
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: constraints.hasBoundedWidth
+                    ? constraints.maxWidth * _kDetailMaxShare
+                    : double.infinity,
+              ),
+              child: Text(
+                detail,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: _dropdownDetailStyle(theme),
+              ),
+            ),
+          ],
+          if (preview != null) ...[const SizedBox(width: 8), preview],
+        ],
+      ),
     );
     if (description == null) return label;
     return Column(

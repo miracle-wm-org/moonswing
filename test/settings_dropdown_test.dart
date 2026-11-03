@@ -1,9 +1,11 @@
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/hover_region.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/search_list.dart';
 
 /// The host the trigger is measured through — a settings row's worth of width.
 const _hostKey = ValueKey('host');
@@ -89,7 +91,15 @@ Future<void> pumpInRow(
   required List<SettingsDropdownItem<String>> items,
   String? selected,
   ValueChanged<String>? onSelected,
+  bool atStart = false,
 }) async {
+  final dropdown = SettingsDropdown<String>(
+    key: _hostKey,
+    items: items,
+    selected: selected,
+    onSelected: onSelected ?? (_) {},
+  );
+  const spacer = Expanded(child: SizedBox());
   await tester.pumpWidget(
     Directionality(
       textDirection: TextDirection.ltr,
@@ -101,15 +111,7 @@ Future<void> pumpInRow(
             initialEntries: [
               OverlayEntry(
                 builder: (_) => Row(
-                  children: [
-                    const Expanded(child: SizedBox()),
-                    SettingsDropdown<String>(
-                      key: _hostKey,
-                      items: items,
-                      selected: selected,
-                      onSelected: onSelected ?? (_) {},
-                    ),
-                  ],
+                  children: atStart ? [dropdown, spacer] : [spacer, dropdown],
                 ),
               ),
             ],
@@ -423,6 +425,147 @@ void main() {
       await tester.pump();
 
       expect(picked, ['grow']);
+    });
+  });
+
+  group('a card in a settings row', () {
+    // The wallpaper's Fit: a row lays its control out at the selected label's
+    // width, and a card matched to that cut every longer option short.
+    const fits = <SettingsDropdownItem<String>>[
+      SettingsDropdownItem<String>(value: 'fill', label: 'Fill'),
+      SettingsDropdownItem<String>(value: 'contain', label: 'Contain'),
+      SettingsDropdownItem<String>(
+        value: 'natural',
+        label: 'Natural size, centred',
+      ),
+    ];
+
+    bool truncated(WidgetTester tester, String text) => tester
+        .renderObject<RenderParagraph>(find.text(text))
+        .didExceedMaxLines;
+
+    Rect cardOf(WidgetTester tester) => tester.getRect(find.byType(ListView));
+
+    testWidgets('is as wide as its longest option, not the selection',
+        (tester) async {
+      await pumpInRow(tester, items: fits, selected: 'fill', atStart: true);
+      final trigger = tester.getRect(find.byKey(_hostKey));
+      await openList(tester, on: 'Fill');
+
+      expect(cardOf(tester).width, greaterThan(trigger.width));
+      expect(truncated(tester, 'Contain'), isFalse);
+      expect(truncated(tester, 'Natural size, centred'), isFalse);
+      // Still hanging from the trigger's own edge.
+      expect(cardOf(tester).left, moreOrLessEquals(trigger.left + 1));
+    });
+
+    testWidgets('at the end of a row, grows leftwards inside the window',
+        (tester) async {
+      await pumpInRow(tester, items: fits, selected: 'fill');
+      final trigger = tester.getRect(find.byKey(_hostKey));
+      final window = tester.getRect(find.byType(Overlay).first);
+      await openList(tester, on: 'Fill');
+
+      final card = cardOf(tester);
+      expect(card.width, greaterThan(trigger.width));
+      expect(card.right, moreOrLessEquals(trigger.right - 1));
+      expect(card.right, lessThanOrEqualTo(window.right));
+      expect(truncated(tester, 'Natural size, centred'), isFalse);
+    });
+
+    testWidgets('fits a label and its detail on one line', (tester) async {
+      await pumpInRow(
+        tester,
+        items: const [
+          SettingsDropdownItem<String>(value: 'a', label: 'A'),
+          SettingsDropdownItem<String>(
+            value: 'b',
+            label: 'Left bracket ([)',
+            detail: 'bracketleft',
+          ),
+        ],
+        selected: 'a',
+        atStart: true,
+      );
+      await openList(tester, on: 'A');
+
+      expect(truncated(tester, 'Left bracket ([)'), isFalse);
+      expect(truncated(tester, 'bracketleft'), isFalse);
+    });
+
+    testWidgets('stops growing, and a long detail ellipsises in it',
+        (tester) async {
+      final long = 'x' * 200;
+      await pumpInRow(
+        tester,
+        items: [
+          const SettingsDropdownItem<String>(value: 'a', label: 'A'),
+          SettingsDropdownItem<String>(value: 'b', label: 'B', detail: long),
+        ],
+        selected: 'a',
+        atStart: true,
+      );
+      await openList(tester, on: 'A');
+
+      expect(tester.takeException(), isNull);
+      expect(
+        cardOf(tester).width,
+        lessThanOrEqualTo(kDropdownMaxCardWidth - 2 * kDropdownCardBorder),
+      );
+      expect(truncated(tester, long), isTrue);
+      expect(find.text('B'), findsOneWidget);
+    });
+  });
+
+  group('placeDropdownCard', () {
+    test('keeps the preferred edge where it fits', () {
+      final place = placeDropdownCard(
+        triggerLeft: 100,
+        triggerRight: 160,
+        cardWidth: 200,
+        overlayWidth: 1000,
+        alignRight: false,
+      );
+      expect(place.alignRight, isFalse);
+      expect(place.dx, 0);
+    });
+
+    test('flips to the other edge rather than leave the window', () {
+      final place = placeDropdownCard(
+        triggerLeft: 900,
+        triggerRight: 980,
+        cardWidth: 200,
+        overlayWidth: 1000,
+        alignRight: false,
+      );
+      expect(place.alignRight, isTrue);
+      expect(place.dx, 0);
+    });
+
+    test('slides back in when neither edge fits', () {
+      final place = placeDropdownCard(
+        triggerLeft: 150,
+        triggerRight: 160,
+        cardWidth: 280,
+        overlayWidth: 300,
+        alignRight: false,
+      );
+      expect(place.alignRight, isFalse);
+      // From 150..430 to 12..292: inside the 8px margin on the right.
+      expect(150 + place.dx + 280, lessThanOrEqualTo(300 - kDropdownEdgeMargin));
+      expect(150 + place.dx, greaterThanOrEqualTo(0));
+    });
+
+    test('never pushes a card off a trigger already at the edge', () {
+      final place = placeDropdownCard(
+        triggerLeft: 0,
+        triggerRight: 60,
+        cardWidth: 200,
+        overlayWidth: 1000,
+        alignRight: false,
+      );
+      expect(place.alignRight, isFalse);
+      expect(place.dx, 0);
     });
   });
 
