@@ -13,6 +13,7 @@ import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_join.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/builtin_themes.dart';
+import 'package:moonswing/theme/panel_gradient.dart';
 import 'package:moonswing/theme/surface_material.dart';
 
 const _top = PanelConfig(name: 'top', anchor: 'top', height: 32);
@@ -20,7 +21,10 @@ const _bottom = PanelConfig(name: 'bottom', anchor: 'bottom', height: 28);
 const _left = PanelConfig(name: 'left', anchor: 'left', height: 40);
 const _right = PanelConfig(name: 'right', anchor: 'right', height: 36);
 
-const _joined = ThemeConfig(panelJoinRadius: 12, panelGradient: false);
+const _joined = ThemeConfig(
+  panelJoinRadius: 12,
+  panelGradient: PanelGradient.none,
+);
 
 ThemeConfig _shipped(String slug) =>
     ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
@@ -293,7 +297,7 @@ void main() {
         panelJoinFill(_joined, 'left', start: true),
         _joined.panelBackground,
       );
-      const fading = ThemeConfig(panelGradient: true);
+      const fading = ThemeConfig(panelGradient: PanelGradient.accent);
       final accent = fading.accent.withValues(alpha: fading.panelBackground.a);
       // The fade starts at the left of a top bar and the top of a left one —
       // the two ends that meet in the top-left corner.
@@ -304,6 +308,26 @@ void main() {
         fading.panelBackground,
       );
       expect(panelJoinFill(fading, 'right', start: false), accent);
+    });
+
+    test('on a four-corner bar, the colour of its inner corner there', () {
+      const tl = Color(0xFF110000);
+      const tr = Color(0xFF002200);
+      const br = Color(0xFF000033);
+      const bl = Color(0xFF440044);
+      const corners = ThemeConfig(
+        panelGradient: PanelGradient.corners,
+        panelGradientTopLeft: tl,
+        panelGradientTopRight: tr,
+        panelGradientBottomRight: br,
+        panelGradientBottomLeft: bl,
+      );
+      // A left bar's inner edge is its right one: top-right at its top end.
+      expect(panelJoinFill(corners, 'left', start: true), tr);
+      expect(panelJoinFill(corners, 'left', start: false), br);
+      expect(panelJoinFill(corners, 'top', start: true), bl);
+      expect(panelJoinFill(corners, 'bottom', start: false), tr);
+      expect(panelJoinFill(corners, 'right', start: false), bl);
     });
   });
 

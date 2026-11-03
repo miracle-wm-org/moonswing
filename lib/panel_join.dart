@@ -37,6 +37,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/config.dart';
+import 'package:moonswing/theme/panel_gradient.dart';
 
 /// The bars a bar meets at its two ends, by their depth: 0 is no bar there.
 ///
@@ -188,21 +189,47 @@ const double _kLengthTolerance = 1.0;
 /// The colour the bar is at its [start] (or its end): what the fillet there is
 /// filled with, so it continues the bar rather than standing out of it.
 ///
-/// Flat on a flat bar. On a gradient bar the end `panelBackgroundDecoration`
-/// starts its fade at is the accent, at the bar's one alpha, and the other end
-/// is `panel_background` — and the two bars meeting in a corner are at the
-/// same end of their fades there, so the fillet matches both of them.
+/// Follows [ThemeConfig.panelGradient]:
+///
+/// - [PanelGradient.none]: `panel_background`, flat.
+/// - [PanelGradient.accent]: the end `panelBackgroundDecoration` starts its
+///   fade at is the accent, at the bar's one alpha, and the other end is
+///   `panel_background` — and the two bars meeting in a corner are at the same
+///   end of their fades there, so the fillet matches both of them.
+/// - [PanelGradient.corners]: the corner colour at the bar's *inner* corner at
+///   that end, which is the corner the fillet grows out of. The corners are the
+///   bar's own as it sits on the screen, so this is exact for the bar painting
+///   it; the bar across the corner blends its own corners and may differ.
 Color panelJoinFill(ThemeConfig theme, String anchor, {required bool start}) {
-  if (!theme.panelGradient) return theme.panelBackground;
-  // `panelBackgroundDecoration`'s `begin`: the left end of a top bar, the right
-  // of a bottom one, the top of a left one and the bottom of a right one.
-  final accentAtStart = switch (_edgeOf(anchor)) {
-    'bottom' || 'right' => false,
-    _ => true,
-  };
-  return start == accentAtStart
-      ? theme.accent.withValues(alpha: theme.panelBackground.a)
-      : theme.panelBackground;
+  final edge = _edgeOf(anchor);
+  switch (theme.panelGradient) {
+    case PanelGradient.none:
+      return theme.panelBackground;
+    case PanelGradient.corners:
+      return switch (edge) {
+        'bottom' =>
+          start ? theme.panelGradientTopLeft : theme.panelGradientTopRight,
+        'left' =>
+          start ? theme.panelGradientTopRight : theme.panelGradientBottomRight,
+        'right' =>
+          start ? theme.panelGradientTopLeft : theme.panelGradientBottomLeft,
+        _ =>
+          start
+              ? theme.panelGradientBottomLeft
+              : theme.panelGradientBottomRight,
+      };
+    case PanelGradient.accent:
+      // `panelBackgroundDecoration`'s `begin`: the left end of a top bar, the
+      // right of a bottom one, the top of a left one and the bottom of a right
+      // one.
+      final accentAtStart = switch (edge) {
+        'bottom' || 'right' => false,
+        _ => true,
+      };
+      return start == accentAtStart
+          ? theme.accent.withValues(alpha: theme.panelBackground.a)
+          : theme.panelBackground;
+  }
 }
 
 /// Where a fillet sits in a bar's surface of [size]: the [corner] of the work

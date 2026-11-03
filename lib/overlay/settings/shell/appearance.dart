@@ -12,6 +12,7 @@ import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/font_catalog.dart';
 import 'package:moonswing/theme/icon_pack.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/panel_gradient.dart';
 import 'package:moonswing/decor/material_textures.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
@@ -390,22 +391,27 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 SettingsRow.field(
                   SettingsCatalog.panelGradient,
                   info:
-                      'Off paints the bar as a flat panel background. On fades '
-                      'it from the accent across to that colour, with every '
-                      "stop at the panel background's alpha — so the bar has "
-                      'one opacity.',
-                  // Renders its value too, so it follows the store like the
-                  // font row does.
-                  control: StoreSelector<bool>(
-                    listenable: _themes,
-                    // The field, for the reason the font row states.
-                    selector: () => _themes.theme.panelGradient,
-                    builder: (context, gradient) => SettingsToggle(
-                      value: gradient,
-                      onChanged: builtIn
-                          ? (_) => _duplicate()
-                          : (v) => _themes.edit('panel_gradient', v),
-                    ),
+                      'Flat paints the bar as the panel background. Accent '
+                      'fade runs from the accent across to that colour, every '
+                      "stop at the panel background's alpha, so the bar has one "
+                      'opacity. Four corners blends the four Panel corner '
+                      'colours under Bar across the whole bar — two corners '
+                      'alike along one edge make a straight fade, opposite '
+                      'ones a diagonal.',
+                  control: _themeDropdown<PanelGradient>(
+                    key: ValueKey('panel_gradient-$active'),
+                    items: [
+                      for (final g in PanelGradient.values)
+                        SettingsDropdownItem<PanelGradient>(
+                          value: g,
+                          label: g.label,
+                          description: g.description,
+                        ),
+                    ],
+                    read: (t) => t.panelGradient,
+                    // Straight to `edit`, which forks a built-in itself, for
+                    // the reason the popup animation row gives.
+                    onSelected: (v) => _themes.edit('panel_gradient', v.slug),
                   ),
                 ),
                 // What the bar is made of. Every one of these, and the popups'
