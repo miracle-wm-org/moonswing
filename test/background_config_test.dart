@@ -225,9 +225,9 @@ void main() {
 
     /// The wallpaper currently on screen.
     ///
-    /// `.last`, not `.first`: the AnimatedSwitcher's layoutBuilder stacks the
-    /// outgoing children *under* the incoming one, so during a crossfade the
-    /// first Image is the one being faded out.
+    /// `.last`, not `.first`: the WallpaperSwitcher stacks the outgoing
+    /// wallpaper *under* the incoming one, so during a change the first Image
+    /// is the one leaving.
     String shownPath(WidgetTester tester) {
       final image = tester.widget<Image>(find.byType(Image).last);
       return (image.image as FileImage).file.path;

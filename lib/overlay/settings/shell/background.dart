@@ -332,6 +332,51 @@ class _BackgroundSectionState extends State<BackgroundSection> {
                 ),
               ),
             ),
+            SettingsRow.field(
+              SettingsCatalog.backgroundTransition,
+              info:
+                  '${SettingsCatalog.backgroundTransition.description} '
+                  'Random draws from every effect, never the same one twice '
+                  'running; Slide and Wipe come from a random edge each time.',
+              control: ConfigValue<String>(
+                store: store,
+                path: const ['background', 'transition'],
+                fallback: WallpaperTransition.fallback.slug,
+                builder: (context, value) => SettingsDropdown<
+                    WallpaperTransition>(
+                  // `description` rather than `detail`: a sentence in the tag
+                  // slot takes the whole row (see SettingsDropdownItem).
+                  items: [
+                    for (final t in WallpaperTransition.values)
+                      SettingsDropdownItem<WallpaperTransition>(
+                        value: t,
+                        label: t.label,
+                        description: t.description,
+                      ),
+                  ],
+                  selected: WallpaperTransition.fromSlug(value) ??
+                      WallpaperTransition.fallback,
+                  onSelected: (t) =>
+                      store.set(['background', 'transition'], t.slug),
+                ),
+              ),
+            ),
+            SettingsRow.field(
+              SettingsCatalog.backgroundTransitionDuration,
+              control: ConfigValue<num>(
+                store: store,
+                path: const ['background', 'transition_duration'],
+                fallback: 1500,
+                builder: (context, value) => SettingsNumberField(
+                  value: value!,
+                  isInt: true,
+                  onChanged: (v) => store.set(
+                    ['background', 'transition_duration'],
+                    v.toInt().clamp(0, BackgroundConfig.maxTransitionMillis),
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
         SliverList.list(

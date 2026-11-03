@@ -173,6 +173,11 @@ show_cursor = true
 [background]
 fit = "fill"
 interval_minutes = 5
+# How one wallpaper gives way to the next: fade, checkerboard, circle, flip,
+# slide, wipe, blinds, zoom, dissolve, none — or random, a different one each
+# time. transition_duration is in milliseconds.
+transition = "fade"
+transition_duration = 1500
 
 # The active theme's own wallpaper: switching theme moves the desktop to the
 # new one's. Add pictures of your own as more entries, each with a `path`.

@@ -24,6 +24,7 @@ import 'package:moonswing/polkit/polkit_config.dart';
 import 'package:moonswing/power/power_config.dart';
 import 'package:moonswing/screencast/cursor_policy.dart';
 import 'package:moonswing/theme/theme_config.dart';
+import 'package:moonswing/wallpaper_transition.dart';
 
 export 'package:moonswing/default_config.dart';
 export 'package:moonswing/desktop/desktop_config.dart';
@@ -33,6 +34,8 @@ export 'package:moonswing/media_paths.dart'
 export 'package:moonswing/polkit/polkit_config.dart';
 export 'package:moonswing/power/power_config.dart';
 export 'package:moonswing/theme/theme_config.dart';
+export 'package:moonswing/wallpaper_transition.dart'
+    show WallpaperTransition;
 
 enum BackgroundFit {
   fill,
@@ -93,13 +96,29 @@ class BackgroundEntry {
 }
 
 class BackgroundConfig {
+  /// The ceiling on [transitionMillis]: long enough for a slow, deliberate
+  /// change, short enough that a change is never still playing when the next
+  /// one is due at the one-minute minimum interval.
+  static const int maxTransitionMillis = 10000;
+
   final BackgroundFit fit;
   final int intervalMinutes;
+
+  /// How one wallpaper gives way to the next — `random` for a different effect
+  /// each time. See [WallpaperTransition].
+  final WallpaperTransition transition;
+
+  /// How long that change takes, in milliseconds. 0 is an instant cut, as
+  /// `transition = "none"` is.
+  final int transitionMillis;
+
   final List<BackgroundEntry> entries;
 
   const BackgroundConfig({
     this.fit = BackgroundFit.fill,
     this.intervalMinutes = 5,
+    this.transition = WallpaperTransition.fallback,
+    this.transitionMillis = 1500,
     this.entries = const [],
   });
 
@@ -107,10 +126,21 @@ class BackgroundConfig {
     return BackgroundConfig(
       fit: BackgroundFit.fromString(map.stringOr('fit', 'fill')),
       intervalMinutes: map.intOr('interval_minutes', 5, min: 1),
+      transition:
+          WallpaperTransition.fromSlug(map.stringOrNull('transition')) ??
+              WallpaperTransition.fallback,
+      transitionMillis: map.intOr(
+        'transition_duration',
+        1500,
+        min: 0,
+        max: maxTransitionMillis,
+      ),
       // List order is the canonical presentation order — do not sort.
       entries: map.tableListOr('entries').map(BackgroundEntry.fromMap).toList(),
     );
   }
+
+  Duration get transitionDuration => Duration(milliseconds: transitionMillis);
 
   @override
   bool operator ==(Object other) =>
@@ -118,12 +148,16 @@ class BackgroundConfig {
       other is BackgroundConfig &&
           other.fit == fit &&
           other.intervalMinutes == intervalMinutes &&
+          other.transition == transition &&
+          other.transitionMillis == transitionMillis &&
           listEquals(other.entries, entries);
 
   @override
   int get hashCode => Object.hash(
         fit,
         intervalMinutes,
+        transition,
+        transitionMillis,
         Object.hashAll(entries),
       );
 }

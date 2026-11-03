@@ -1561,6 +1561,37 @@ abstract final class SettingsCatalog {
       'timer',
     ],
   );
+  static final backgroundTransition = shellField(
+    'background.transition',
+    'Transition',
+    section: 'Wallpaper',
+    description:
+        'How one wallpaper gives way to the next — or a different way each '
+        'time.',
+    tags: const [
+      'wallpaper',
+      'background',
+      'animation',
+      'effect',
+      'fade',
+      'random',
+      'checkerboard',
+      'circle',
+      'flip',
+      'slide',
+      'wipe',
+      'blinds',
+      'zoom',
+      'dissolve',
+    ],
+  );
+  static final backgroundTransitionDuration = shellField(
+    'background.transition_duration',
+    'Transition duration (ms)',
+    section: 'Wallpaper',
+    description: 'How long the change from one wallpaper to the next takes.',
+    tags: const ['wallpaper', 'background', 'animation', 'speed', 'time'],
+  );
 
   // -------------------------------------------------------------------------
   // Shell › Desktop Grid
@@ -3052,6 +3083,8 @@ abstract final class SettingsCatalog {
     backgroundWallpapers,
     backgroundFit,
     backgroundIntervalMinutes,
+    backgroundTransition,
+    backgroundTransitionDuration,
     desktopEnabled,
     desktopCellWidth,
     desktopCellHeight,
