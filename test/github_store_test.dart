@@ -113,7 +113,10 @@ void main() {
       final client = FakeGithubClient();
       final store = storeWith(client);
       store.acquire();
-      await settle();
+      // The token read is file I/O, so turns alone cannot be relied on to see
+      // it land: without this the read could finish after teardown disposed
+      // the account, and the stage below would be checked before it was known.
+      await settleUntil(() => store.account.loaded);
 
       expect(store.stage, GithubAuthStage.signedOut);
       expect(client.fetchCalls, 0);

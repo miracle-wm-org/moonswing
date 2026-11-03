@@ -23,6 +23,7 @@ const Map<String, String> kBuiltInThemes = {
   'dracula': _dracula,
   'midnight': _midnight,
   'carbon': _carbon,
+  'classic95': _classic95,
 };
 
 const String _forest = '''
@@ -874,6 +875,153 @@ overlay_animation_curve = "ease_out"
 # Made of nothing but colour: no material, no end caps, no carve, no picture,
 # nothing growing off the bar and no roots under the menus. Spelled anyway,
 # because a shipped theme leans on no default.
+panel_texture        = "none"
+panel_texture_color  = "#FF6B4A2E"
+panel_end_texture    = "none"
+panel_end_color      = "#FF6E726B"
+panel_end_length     = 0.0
+panel_bevel          = 0.0
+panel_image          = ""
+panel_foliage        = "none"
+foliage_color        = "#FF3E7A3A"
+foliage_bloom        = "#FFE0A13A"
+foliage_density      = 1.0
+panel_overhang       = 0
+popup_texture        = "none"
+popup_texture_color  = "#206B4A2E"
+popup_border_texture = "none"
+popup_border_texture_color = "#FF5A4030"
+popup_image          = ""
+popup_roots          = 0.0
+''';
+
+const String _classic95 = '''
+# Classic 95 — battleship grey, navy and teal: the desktop of 1995.
+#
+# Windows 95's look, as closely as a flat colour engine can draw it. The bar is
+# the taskbar's #C0C0C0 with black type, every menu is the same grey card, the
+# one colour is the title-bar navy, and the wallpaper is the solid teal that
+# shipped as the default desktop. Nothing is translucent, nothing is rounded,
+# nothing fades in and nothing glides: the original had none of it, and each
+# of those keys is spelled to say so.
+#
+# What it cannot draw is the two-tone bevel — a white edge facing the light
+# and a black one facing away — because a rim here is one colour round the
+# whole box. So the bevel is assembled from the two pieces the engine has. The
+# rim is white, which is the lit edge; and the shadow is a hard black line,
+# no blur, no spread, displaced one pixel down and to the right, which is the
+# dark edge. Together they read as a raised Win95 menu rather than a card with
+# an outline. On the bar the rim alone does it: a bottom bar's one visible
+# edge is its top, and the taskbar's top edge was exactly a white line.
+#
+# This is the one shipped theme that is light. Every other one is a dark
+# palette, and this one puts black type on a light grey card.
+name = "Classic 95"
+
+# The original's MS Sans Serif ships with nothing on Linux. Liberation Sans is
+# metrically Arial — the closest common face to its plain grotesque — and is
+# installed almost everywhere; fontconfig substitutes the system sans where it
+# is not. One size: the type scale stays the shell's.
+font = "Liberation Sans"
+font_size = 13.0
+# Square terminals and crisp corners, the nearest of the packs to a world
+# drawn on a pixel grid.
+icon_pack = "material_sharp"
+
+# The default desktop: solid teal, RGB 0/128/128, and no picture at all
+# (original work for this repository; see assets/CREDITS.md).
+wallpaper = "wallpaper-classic95.jpg"
+
+# The sixteen-colour system palette's navy is the one accent — the title bar,
+# the highlighted menu row, the selected icon — and it is dark enough to carry
+# kOnAccent's white at 16:1 and to read as text on the grey card at nearly 9:1, so
+# accentText hands it back untouched.
+accent               = "#000080"
+foreground           = "#000000"
+# Text never changes colour on hover in this engine, so the hover cannot be the
+# navy highlight the original used for a menu row: black type on navy is not
+# read. A lighter grey stands in, the "3D light" shade the original drew its
+# outer bevel in, and pressing sinks a control to the button-shadow grey's
+# lighter neighbour — the focused workspace looks pushed in, as the active
+# taskbar button did.
+surface_hover        = "#E6E6E6"
+surface_pressed      = "#A0A0A0"
+workspace_background = "#D4D4D4"
+popup_background     = "#C0C0C0"
+popup_foreground     = "#000000"
+# Fields and list rows are white, as every text box and list view was.
+control_surface      = "#FFFFFF"
+slider_track         = "#808080"
+# The original greyed text out in #808080, embossed with a white copy one pixel
+# down-right — which this engine cannot draw, and without it #808080 on the
+# card is 2.2:1. A deeper grey keeps the tier receding and still readable.
+muted                = "#505050"
+# A separator was a groove of button-shadow grey over white; the grey half is
+# the line.
+divider              = "#808080"
+
+# Highlighter yellow out of the same sixteen colours, with black on it.
+notification_badge   = "#FFFF00"
+notification_badge_foreground = "#000000"
+# The Shut Down dialog dimmed the whole screen behind it with a 50% black
+# dither; this is that, without the dither.
+scrim                = "#80000000"
+
+# The taskbar: opaque grey, flush with the screen edge, square, no fade.
+panel_background     = "#FFC0C0C0"
+panel_gradient       = "none"
+# Read only under panel_gradient = "corners"; spelled as the bar, because a
+# shipped theme leans on no default.
+panel_gradient_top_left     = "#FFC0C0C0"
+panel_gradient_top_right    = "#FFC0C0C0"
+panel_gradient_bottom_right = "#FFC0C0C0"
+panel_gradient_bottom_left  = "#FFC0C0C0"
+
+# The taskbar's lit top edge: a white line along the side facing the desktop.
+# The rim runs round the whole bar, but a flush bar's other edges are the
+# screen's, and the menus float a gap off it, so none of them meets the line.
+panel_margin         = 0
+panel_radius         = 0.0
+panel_join_radius    = 0.0
+panel_border         = "#FFFFFF"
+panel_border_width   = 1.0
+
+# Square cards, the one shipped theme with none rounded — a rounded corner on
+# a Win95 menu is the one thing nobody would mistake for one. The white rim is
+# the lit half of the bevel.
+popup_radius         = 0.0
+popup_border         = "#FFFFFF"
+popup_border_width   = 1.0
+
+# The Start menu sat right on the taskbar, a couple of pixels off it rather
+# than joined: floating, so it keeps its own rim on every side.
+popup_gap            = 2.0
+popup_attach_radius  = 0.0
+
+# The dark half of the bevel: a solid black line one pixel down and to the
+# right, with no blur, because a soft drop shadow is twenty years too late.
+popup_shadow_color   = "#FF000000"
+popup_shadow_blur    = 0.0
+popup_shadow_spread  = 0.0
+popup_shadow_offset_x = 1.0
+popup_shadow_offset_y = 1.0
+
+# Menus appeared at once. The duration is unread under "none" and kept at a
+# sensible pace for a copy that switches an effect on.
+popup_animation      = "none"
+popup_animation_duration = 100
+
+# And so did dialogs, square-cornered.
+overlay_radius       = 0.0
+overlay_animation    = "none"
+overlay_animation_duration = 120
+overlay_animation_exit_ratio = 1.0
+overlay_animation_curve = "linear"
+
+# Made of nothing but colour — no material, no carve, nothing growing. The
+# taskbar's bevel is the rim above, not panel_bevel, which is a wood carve
+# lit in warm light. Spelled anyway, because a shipped theme leans on no
+# default.
 panel_texture        = "none"
 panel_texture_color  = "#FF6B4A2E"
 panel_end_texture    = "none"

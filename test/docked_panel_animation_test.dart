@@ -325,7 +325,9 @@ void main() {
       for (final slug in kBuiltInThemes.keys) {
         final theme = shipped(slug);
         final shadow = dockedPanelShadow(theme);
-        if (slug == 'carbon') {
+        // carbon has no shadow at all; classic95's is a hard edge that is all
+        // offset, and with the offset taken away nothing reaches past the panel.
+        if (slug == 'carbon' || slug == 'classic95') {
           expect(shadow, isNull, reason: slug);
           expect(dockedPanelShadowReach(theme), 0, reason: slug);
           continue;
