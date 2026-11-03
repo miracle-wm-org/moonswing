@@ -1257,7 +1257,7 @@ Themes live in their own files, one per theme, under `~/.config/moonswing/themes
 theme = "dracula"
 ```
 
-Six themes ship with the shell and are written into that directory the first time it starts:
+Seven themes ship with the shell and are written into that directory the first time it starts:
 
 | Name       | Looks like                                                        |
 | ---------- | ----------------------------------------------------------------- |
@@ -1267,12 +1267,13 @@ Six themes ship with the shell and are written into that directory the first tim
 | `dracula`  | The canonical [Dracula](https://draculatheme.com) palette.         |
 | `midnight` | Indigo over deep water, one type size up, and lit: its cards glow rather than casting a shadow. |
 | `carbon`   | Machined graphite. Flat, square, unlifted — and every bar menu grows out of the bar on a flared join. |
+| `classic95` | The desktop of 1995: a battleship-grey taskbar with a white top edge, square grey menus raised on a hard black edge, navy for the one colour and a solid teal desktop. The only light theme. |
 
-Each comes with a desktop wallpaper of its own — the full moon for `glassy`, and for the others a photograph from the Ubuntu wallpaper contests (credited in `assets/CREDITS.md`). While the **Theme default** wallpaper is selected under Settings → Shell → Background, switching theme switches the desktop to the new theme's; see [The theme's wallpaper](#the-themes-wallpaper).
+Each comes with a desktop wallpaper of its own — the full moon for `glassy`, solid teal for `classic95`, and for the others a photograph from the Ubuntu wallpaper contests (credited in `assets/CREDITS.md`). While the **Theme default** wallpaper is selected under Settings → Shell → Background, switching theme switches the desktop to the new theme's; see [The theme's wallpaper](#the-themes-wallpaper).
 
 If `theme` is absent, names a theme that does not exist, or names a file that will not parse, the shell falls back to `glassy` rather than starting unstyled. A single bad value inside a theme file costs only that key.
 
-The **Theme** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The six shipped themes are read-only there — editing one offers to duplicate it first.
+The **Theme** page in Settings → Shell is the easy way in: it lists every theme with a preview of its colors, switches on click with no restart, and offers **New theme…**. The shipped themes are read-only there — editing one offers to duplicate it first.
 
 Because the shell owns those six files, it rewrites any of them that differs from what it ships every time it starts, so a fix to a shipped palette reaches you on the next launch. Editing `dracula.toml` by hand will not stick; duplicate it and edit the copy. Your own theme files are never touched.
 
@@ -1724,7 +1725,7 @@ shown = true
 
 In Settings → Shell → Background it is the **Theme default** tile, always the first one offered: a preview of the current theme's wallpaper (an empty square when the theme has none). Selecting it puts it at the front of the rotation; like an installed wallpaper it cannot be removed, and deselecting it just returns it to Available. It mixes freely with wallpapers of your own — they rotate together in the order shown.
 
-A theme's `wallpaper` is resolved the way its pictures are: an absolute path, a path under `~/`, or a name beside the theme file — so a theme and its wallpaper can travel as one folder. A bare name found in none of those is one the shell installs itself: the shipped themes name `wallpaper.jpg`, `wallpaper-forest.jpg`, `wallpaper-autumn.jpg`, `wallpaper-dracula.jpg`, `wallpaper-midnight.jpg` and `wallpaper-carbon.jpg`, which `make install` puts in `$PREFIX/share/moonswing` and the snap ships. To give your own theme a wallpaper, set it in the theme file or on the Theme page's **Theme wallpaper** row.
+A theme's `wallpaper` is resolved the way its pictures are: an absolute path, a path under `~/`, or a name beside the theme file — so a theme and its wallpaper can travel as one folder. A bare name found in none of those is one the shell installs itself: the shipped themes name `wallpaper.jpg`, `wallpaper-forest.jpg`, `wallpaper-autumn.jpg`, `wallpaper-dracula.jpg`, `wallpaper-midnight.jpg`, `wallpaper-carbon.jpg` and `wallpaper-classic95.jpg`, which `make install` puts in `$PREFIX/share/moonswing` and the snap ships. To give your own theme a wallpaper, set it in the theme file or on the Theme page's **Theme wallpaper** row.
 
 ### Installed wallpapers
 

@@ -248,7 +248,9 @@ class DockedPanelAnimation {
 /// The shadow a docked panel casts across its inner edge: the theme's popup
 /// shadow, so a theme that drops its cards onto the desktop drops this column
 /// onto the windows the same way, `midnight`'s glow is a glow here too, and
-/// `carbon` — whose `popup_shadow_color` alpha is 0 — casts none.
+/// `carbon` — whose `popup_shadow_color` alpha is 0 — casts none. Nor does
+/// `classic95`, whose shadow is all offset: a hard bevel edge with no blur or
+/// spread has nothing left once the offset is taken away.
 ///
 /// Undisplaced, whatever the theme's offsets: they are a card's light falling
 /// from above, and a full-height column has no bottom edge for one to show

@@ -47,7 +47,8 @@ which the default `[background]` section of `config.toml` shows through its
 
 Each shipped theme names a desktop wallpaper of its own (`wallpaper` in the theme file), which
 is what the **Theme default** tile in Settings › Background shows while that theme is active.
-Glassy, the default theme, names `wallpaper.jpg` above; the other five are photographs and
+Glassy, the default theme, names `wallpaper.jpg` above, and Classic 95 names `wallpaper-classic95.jpg`
+below; the other five are photographs and
 artwork from the [Ubuntu wallpaper contests](https://launchpad.net/ubuntu-wallpapers), taken
 from Ubuntu 24.04's `ubuntu-wallpapers-<release>` packages, whose
 `/usr/share/doc/<package>/copyright` gives each file's author and licence.
@@ -74,6 +75,21 @@ from Ubuntu 24.04's `ubuntu-wallpapers-<release>` packages, whose
 
 Installed to `$PREFIX/share/moonswing/` by `make install` and staged by the snap; a theme
 names one by its bare file name and `lib/theme/theme_wallpaper.dart` finds it there.
+
+## `wallpaper-classic95.jpg`
+
+Classic 95's desktop: one solid colour, RGB 0/128/128 — the teal of the sixteen-colour system
+palette that a mid-nineties PC desktop showed when no picture was chosen. There is no picture in
+it, only the colour.
+
+- **Credit:** original work for this repository.
+- **License:** GPL-3.0, the same as the shell. A flat field of one colour carries no expression
+  of anybody's to license.
+- **Source:** generated with Pillow, and reproduced by
+  `python3 -c "from PIL import Image; Image.new('RGB', (3840, 2160), (0, 128, 128)).save('assets/wallpaper-classic95.jpg', quality=95, subsampling=0, optimize=True)"`.
+  JPEG's colour conversion rounds the blue channel to 129, which no eye can tell apart.
+
+Installed and staged with the other `wallpaper-*.jpg` files above.
 
 ## `moonswing-mark.svg`, `moonswing-banner.svg`
 

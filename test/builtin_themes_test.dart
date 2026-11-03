@@ -9,6 +9,7 @@ import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/theme/builtin_themes.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/theme/panel_gradient.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
@@ -355,6 +356,64 @@ void main() {
     }
   });
 
+  test('classic95 is the grey, navy and teal of 1995', () {
+    final classic = _shipped('classic95');
+    // The system palette, to the value.
+    expect(classic.panelBackground, const Color(0xFFC0C0C0));
+    expect(classic.popupBackground, const Color(0xFFC0C0C0));
+    expect(classic.accent, const Color(0xFF000080));
+    expect(classic.foreground, const Color(0xFF000000));
+    expect(classic.popupForeground, const Color(0xFF000000));
+    expect(classic.controlSurface, const Color(0xFFFFFFFF),
+        reason: 'every text box and list view was white');
+    expect(classic.wallpaper, 'wallpaper-classic95.jpg');
+    // Flat, flush, square and opaque: nothing in the original was any of the
+    // things these keys can add.
+    expect(classic.panelGradient, PanelGradient.none);
+    expect(classic.panelMargin, 0);
+    expect(classic.panelRadius, 0.0);
+    expect(classic.popupRadius, 0.0);
+    expect(classic.overlayRadius, 0.0);
+    expect(classic.panelHasDecor, isFalse);
+    // And nothing animated.
+    expect(classic.popupEffect, PopupEffect.none);
+    expect(classic.overlayEffect, OverlayEffect.none);
+    // The one light theme: black type on the grey card, and the navy fill
+    // carrying white the way a title bar did.
+    expect(_contrast(classic.foreground, classic.panelBackground),
+        greaterThan(7.0));
+    expect(_contrast(kOnAccent, classic.accent), greaterThan(7.0));
+    expect(classic.accentText, classic.accent,
+        reason: 'navy reads on the grey card as it is');
+  });
+
+  test('classic95 raises its menus on a two-tone bevel', () {
+    final classic = _shipped('classic95');
+    // The lit half: a white rim on the grey card.
+    expect(classic.popupBorder, const Color(0xFFFFFFFF));
+    expect(classic.popupBorderWidth, greaterThan(0));
+    // The dark half: a hard black line down and to the right — no blur, no
+    // spread, so it is an edge rather than a shadow.
+    final edge = popupShadow(classic)!;
+    expect(edge.color, const Color(0xFF000000));
+    expect(edge.blurRadius, 0.0);
+    expect(edge.spreadRadius, 0.0);
+    expect(edge.offset.dx, greaterThan(0));
+    expect(edge.offset.dy, greaterThan(0));
+    // Which grows the popup's surface on the two sides it falls on, and no
+    // other.
+    final insets = popupShadowInsets(classic);
+    expect(insets.left, 0.0);
+    expect(insets.top, 0.0);
+    expect(insets.right, edge.offset.dx);
+    expect(insets.bottom, edge.offset.dy);
+    // The bar's lit top edge, which a floating menu never meets.
+    expect(classic.panelBorder, const Color(0xFFFFFFFF));
+    expect(classic.panelBorderWidth, greaterThan(0));
+    expect(classic.popupGap, greaterThan(0));
+    expect(panelPaintsOwnRim(classic), isFalse);
+  });
+
   test('midnight glows rather than casting a shadow', () {
     final midnight = _shipped('midnight');
     final glow = popupShadow(midnight)!;
@@ -458,11 +517,14 @@ void main() {
   test('every shipped theme gives its popups a shape', () {
     // A shipped theme may turn its bar's rounding off — moonswing and dracula
     // both do — but a popup has no screen edge to sit flush against, so a
-    // square shipped card would only ever be an oversight.
+    // square shipped card would only ever be an oversight. Classic 95 is the
+    // one exception, and it is deliberate: a rounded Win95 menu is not one.
     for (final entry in kBuiltInThemes.entries) {
       final theme =
           ThemeConfig.fromMap(TomlDocument.parse(entry.value).toMap());
-      expect(theme.popupRadius, greaterThan(0), reason: 'in ${entry.key}');
+      if (entry.key != 'classic95') {
+        expect(theme.popupRadius, greaterThan(0), reason: 'in ${entry.key}');
+      }
       expect(theme.popupBorderWidth, greaterThan(0), reason: 'in ${entry.key}');
       expect(theme.popupBorder.a, greaterThan(0), reason: 'in ${entry.key}');
     }
@@ -526,8 +588,9 @@ void main() {
   });
 
   test('accentText darkens instead when the card is a pale one', () {
-    // No shipped theme is light, and the day somebody writes one the rule has
-    // to still be "away from the surface" rather than "upwards".
+    // Classic 95 is light, but its navy already reads on its grey card, so
+    // none of the shipped themes reaches this branch — and the rule has to
+    // still be "away from the surface" rather than "upwards" for one that does.
     const pale = ThemeConfig(
       accent: Color(0xFFFFE08A),
       popupBackground: Color(0xFFFAFAFA),
