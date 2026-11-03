@@ -8,6 +8,7 @@ import 'package:flutter/painting.dart' show HSLColor;
 import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/theme/icon_pack.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/panel_gradient.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/tokens.dart';
@@ -45,7 +46,8 @@ const double _kDefaultOverlayExitRatio = 0.8;
 /// coerces; [flag] and [text] are verbatim. [iconPack], [effect],
 /// [overlayEffect] and [overlayCurve] are each an enum spelled by its slug —
 /// closed sets, so an unknown slug falls back like any other wrongly-typed
-/// value.
+/// value. [panelGradient] is one too, which also reads the booleans the key
+/// was spelled in before it had a third answer.
 enum _ThemeKeyKind {
   color,
   number,
@@ -58,6 +60,7 @@ enum _ThemeKeyKind {
   overlayCurve,
   material,
   foliage,
+  panelGradient,
 }
 
 /// One TOML theme key: its spelling, its kind, its clamp range, and where it
@@ -147,6 +150,8 @@ class _ThemeKey {
       case _ThemeKeyKind.foliage:
         return FoliageStyle.fromSlug(map.stringOrNull(key)) ??
             fallback as FoliageStyle;
+      case _ThemeKeyKind.panelGradient:
+        return PanelGradient.fromValue(map[key]) ?? fallback as PanelGradient;
     }
   }
 
@@ -168,6 +173,8 @@ class _ThemeKey {
         return (value as SurfaceMaterial).slug;
       case _ThemeKeyKind.foliage:
         return (value as FoliageStyle).slug;
+      case _ThemeKeyKind.panelGradient:
+        return (value as PanelGradient).slug;
       default:
         return value;
     }
@@ -230,15 +237,37 @@ class ThemeConfig {
   /// The one surface that had no colour of its own — the panel used to be painted
   /// from [workspaceBackground] at a hardcoded 93% opacity, so a translucent theme
   /// could not see through the surface sitting on the desktop. Its alpha is
-  /// honoured verbatim and sets the whole bar's opacity: see [panelGradient].
+  /// honoured verbatim and, unless [panelGradient] is
+  /// [PanelGradient.corners], sets the whole bar's opacity.
   final Color panelBackground;
 
-  /// Whether the bar fades from [accent] across to [panelBackground].
+  /// The shape of the bar's background.
   ///
-  /// False gives a flat [panelBackground]. When true every gradient stop takes
-  /// its alpha from [panelBackground], so the bar has exactly one opacity and
-  /// cannot band partway across.
-  final bool panelGradient;
+  /// [PanelGradient.none] is a flat [panelBackground]. [PanelGradient.accent]
+  /// fades from [accent] across to [panelBackground], every stop taking its
+  /// alpha from [panelBackground] so the bar has exactly one opacity and
+  /// cannot band partway across. [PanelGradient.corners] blends the four
+  /// corner colours ([panelGradientTopLeft] and its siblings) across the bar,
+  /// each at its own alpha — they are colours the theme chose *for* the bar,
+  /// not borrowed from elsewhere in the palette, so their alpha is meant.
+  final PanelGradient panelGradient;
+
+  /// The colour of the bar's top-left corner under [PanelGradient.corners].
+  ///
+  /// The corners are the bar's as it sits on the screen, whichever edge it is
+  /// anchored to: a top bar's top-left is against the screen's top edge at its
+  /// left end, a left bar's is at the top of the screen. So a theme that wants
+  /// light from the top-left of the display gets it on every bar at once.
+  final Color panelGradientTopLeft;
+
+  /// The bar's top-right corner; see [panelGradientTopLeft].
+  final Color panelGradientTopRight;
+
+  /// The bar's bottom-right corner; see [panelGradientTopLeft].
+  final Color panelGradientBottomRight;
+
+  /// The bar's bottom-left corner; see [panelGradientTopLeft].
+  final Color panelGradientBottomLeft;
 
   /// How far each bar floats off the screen edges it is anchored to.
   ///
@@ -257,6 +286,26 @@ class ThemeConfig {
   /// rounds only the two facing the screen's interior, because rounding the pair
   /// against the screen edge cuts wallpaper wedges out of the display's corners.
   final double panelRadius;
+
+  /// The concave rounding filled into the inner corner where two flush bars
+  /// meet — a top or bottom bar and a left or right one — so the pair reads as
+  /// one frame round the screen rather than two strips butted together.
+  ///
+  /// The inverse of [panelRadius] the way [popupAttachRadius] is the inverse of
+  /// a corner radius: a fillet the bar *adds* past its own inner edge, painted in
+  /// the bar's own colour, rather than a corner it takes away. At a joined end
+  /// both bars square off the inner corner [panelRadius] would otherwise round,
+  /// since the fillet is what turns that corner now.
+  ///
+  /// The fillet lies outside both bars, in the screen's corner of the work
+  /// area, so it is painted into the strip a bar's surface reaches past the bar
+  /// (`panelSurfaceReach`) — cut out of the input region exactly as
+  /// [panelOverhang] is, so a click on it lands on the window beneath. Which bar
+  /// paints it, and only where two bars actually meet, is `panel_join.dart`'s.
+  ///
+  /// Read only at [panelMargin] 0: a floating bar meets nothing. The default of
+  /// 0 leaves the corner square, exactly as it always was.
+  final double panelJoinRadius;
 
   /// The colour of the bar's rim. Only drawn when [panelBorderWidth] > 0.
   final Color panelBorder;
@@ -667,9 +716,14 @@ class ThemeConfig {
     this.notificationBadge = const Color(0xFFF2B441),
     this.notificationBadgeForeground = const Color(0xFF2C1218),
     this.panelBackground = const Color(0xEE2C2C2C),
-    this.panelGradient = true,
+    this.panelGradient = PanelGradient.accent,
+    this.panelGradientTopLeft = const Color(0xEE853953),
+    this.panelGradientTopRight = const Color(0xEE612D53),
+    this.panelGradientBottomRight = const Color(0xEE2C2C2C),
+    this.panelGradientBottomLeft = const Color(0xEE612D53),
     this.panelMargin = 0,
     this.panelRadius = 0.0,
+    this.panelJoinRadius = 0.0,
     this.panelBorder = const Color(0x33F3F4F4),
     this.panelBorderWidth = 0.0,
     this.popupRadius = 8.0,
@@ -747,10 +801,25 @@ class ThemeConfig {
     _ThemeKey('notification_badge_foreground', _ThemeKeyKind.color,
         (t) => t.notificationBadgeForeground),
     _ThemeKey('panel_background', _ThemeKeyKind.color, (t) => t.panelBackground),
-    _ThemeKey('panel_gradient', _ThemeKeyKind.flag, (t) => t.panelGradient),
+    _ThemeKey(
+        'panel_gradient', _ThemeKeyKind.panelGradient, (t) => t.panelGradient),
+    // Clockwise from the top-left, the order the settings editor lists them in.
+    _ThemeKey('panel_gradient_top_left', _ThemeKeyKind.color,
+        (t) => t.panelGradientTopLeft),
+    _ThemeKey('panel_gradient_top_right', _ThemeKeyKind.color,
+        (t) => t.panelGradientTopRight),
+    _ThemeKey('panel_gradient_bottom_right', _ThemeKeyKind.color,
+        (t) => t.panelGradientBottomRight),
+    _ThemeKey('panel_gradient_bottom_left', _ThemeKeyKind.color,
+        (t) => t.panelGradientBottomLeft),
     _ThemeKey('panel_margin', _ThemeKeyKind.integer, (t) => t.panelMargin,
         min: 0.0, max: 256.0),
     _ThemeKey('panel_radius', _ThemeKeyKind.number, (t) => t.panelRadius,
+        min: 0.0, max: 64.0),
+    // Not blended: it sizes the panels' native surfaces, the reason geometry
+    // never moves halfway through a switch.
+    _ThemeKey(
+        'panel_join_radius', _ThemeKeyKind.number, (t) => t.panelJoinRadius,
         min: 0.0, max: 64.0),
     _ThemeKey('panel_border', _ThemeKeyKind.color, (t) => t.panelBorder),
     _ThemeKey(
@@ -916,8 +985,13 @@ class ThemeConfig {
       notificationBadgeForeground: v('notification_badge_foreground'),
       panelBackground: v('panel_background'),
       panelGradient: v('panel_gradient'),
+      panelGradientTopLeft: v('panel_gradient_top_left'),
+      panelGradientTopRight: v('panel_gradient_top_right'),
+      panelGradientBottomRight: v('panel_gradient_bottom_right'),
+      panelGradientBottomLeft: v('panel_gradient_bottom_left'),
       panelMargin: v('panel_margin'),
       panelRadius: v('panel_radius'),
+      panelJoinRadius: v('panel_join_radius'),
       panelBorder: v('panel_border'),
       panelBorderWidth: v('panel_border_width'),
       popupRadius: v('popup_radius'),

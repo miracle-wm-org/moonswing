@@ -215,9 +215,17 @@ abstract final class SettingsCatalog {
     'Panel gradient',
     section: 'Theme',
     description:
-        'Fades the bar from the accent across to the panel background instead '
-        'of painting it flat.',
-    tags: const ['bar', 'taskbar', 'fade', 'flat'],
+        'The shape of the bar’s fill: flat, a fade from the accent across to '
+        'the panel background, or a colour of its own in each corner.',
+    tags: const [
+      'bar',
+      'taskbar',
+      'fade',
+      'flat',
+      'gradient',
+      'corner',
+      'diagonal',
+    ],
   );
 
   static final panelMargin = shellField(
@@ -236,6 +244,16 @@ abstract final class SettingsCatalog {
     section: 'Theme',
     description: 'How far the bar’s corners are rounded.',
     tags: const ['bar', 'taskbar', 'rounded', 'corners'],
+  );
+
+  static final panelJoinRadius = shellField(
+    'theme.panel_join_radius',
+    'Panel join radius',
+    section: 'Theme',
+    description:
+        'Rounds the inside of the corner where two bars meet, so they read as '
+        'one frame. Zero leaves it square.',
+    tags: const ['bar', 'taskbar', 'rounded', 'corner', 'inner', 'fillet', 'join'],
   );
 
   static final panelBorderWidth = shellField(
@@ -544,6 +562,23 @@ abstract final class SettingsCatalog {
         'The bar’s own fill. Its alpha is what makes the bar see-through.',
       ),
     ),
+    for (final (key, label, where) in const [
+      ('panel_gradient_top_left', 'Panel top-left', 'top-left'),
+      ('panel_gradient_top_right', 'Panel top-right', 'top-right'),
+      ('panel_gradient_bottom_right', 'Panel bottom-right', 'bottom-right'),
+      ('panel_gradient_bottom_left', 'Panel bottom-left', 'bottom-left'),
+    ])
+      ThemeColorSetting(
+        key,
+        ThemeGroup.bar,
+        _color(
+          key,
+          label,
+          'The bar’s $where corner, as it sits on the screen, when Panel '
+              'gradient is Four corners. The four are blended across the '
+              'bar, each at its own alpha.',
+        ),
+      ),
     ThemeColorSetting(
       'panel_border',
       ThemeGroup.bar,
@@ -2982,6 +3017,7 @@ abstract final class SettingsCatalog {
     panelGradient,
     panelMargin,
     panelRadius,
+    panelJoinRadius,
     panelBorderWidth,
     popupRadius,
     popupGap,

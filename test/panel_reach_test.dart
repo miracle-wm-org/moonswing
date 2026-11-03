@@ -163,6 +163,35 @@ void main() {
     sequencer.dispose();
   });
 
+  testWidgets('a reach that moves without the theme moving', (
+    WidgetTester tester,
+  ) async {
+    // The root's: room for a fillet only while two bars meet, which a bar
+    // being added beside another changes under the same theme.
+    var joined = false;
+    sequencer = PanelReachSequencer(
+      initial: _plain,
+      target: () => target,
+      commit: commits.add,
+      reached: () => reached,
+      reachOf: (theme) => joined ? 12 : theme.panelReach,
+    );
+    expect(sequencer.committed, 0);
+
+    joined = true;
+    sequencer.update();
+    expect(commits, [12]);
+    reached = true;
+    await tester.pump();
+    expect(sequencer.shown.value, _plain);
+
+    joined = false;
+    sequencer.update();
+    await tester.pump();
+    expect(commits, [12, 0]);
+    sequencer.dispose();
+  });
+
   testWidgets('nothing is committed after dispose', (
     WidgetTester tester,
   ) async {

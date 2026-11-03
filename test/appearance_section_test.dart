@@ -10,6 +10,7 @@ import 'package:moonswing/overlay/settings/shell/appearance.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/font_catalog.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
+import 'package:moonswing/theme/panel_gradient.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/theme_store.dart';
@@ -117,6 +118,14 @@ void main() {
               (SurfaceMaterial.stone.slug, SurfaceMaterial.stone.label),
             ],
           ),
+        (
+          'panel_gradient',
+          (t) => t.panelGradient.label,
+          [
+            (PanelGradient.corners.slug, PanelGradient.corners.label),
+            (PanelGradient.none.slug, PanelGradient.none.label),
+          ],
+        ),
         (
           'panel_foliage',
           (t) => t.panelFoliage.label,

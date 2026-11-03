@@ -1293,9 +1293,10 @@ divider              = "#33EBDBB2"
 scrim                = "#88282828"
 
 panel_background     = "#EE282828"
-panel_gradient       = true
+panel_gradient       = "accent"
 panel_margin         = 0
 panel_radius         = 0.0
+panel_join_radius    = 0.0
 panel_border         = "#33EBDBB2"
 panel_border_width   = 0.0
 
@@ -1346,9 +1347,14 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `notification_badge`   | `#F2B441`     | What an unread notification is announced in (see the note below)           |
 | `notification_badge_foreground` | `#2C1218` | Text and glyphs drawn on `notification_badge`                           |
 | `panel_background`     | `#EE2C2C2C`   | The bar's background, and the opacity of the whole bar (see below)          |
-| `panel_gradient`       | `true`        | Whether the bar fades from `accent`, or is a flat `panel_background`        |
+| `panel_gradient`       | `accent`      | The bar's shape: `none` (flat `panel_background`), `accent` (a fade from `accent`) or `corners` (a colour in each corner) — see below |
+| `panel_gradient_top_left` | `#EE853953` | Under `panel_gradient = "corners"`, the colour of the bar's top-left corner, at its own alpha |
+| `panel_gradient_top_right` | `#EE612D53` | …its top-right corner                                                    |
+| `panel_gradient_bottom_right` | `#EE2C2C2C` | …its bottom-right corner                                             |
+| `panel_gradient_bottom_left` | `#EE612D53` | …its bottom-left corner                                               |
 | `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to              |
 | `panel_radius`         | `0.0`         | Corner rounding of each bar (see below for which corners)                   |
+| `panel_join_radius`    | `0.0`         | Rounds the inside of the corner where two flush bars meet; `0`–`64` (see below) |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
 | `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
 | `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card                 |
@@ -1401,12 +1407,32 @@ The bar has its own color, `panel_background`, and its alpha is used exactly as 
 
 `panel_gradient` decides its shape:
 
-- **`false`** — a flat sheet of `panel_background`. This is what `glassy` does.
-- **`true`** (the default) — a fade from `accent` at the bar's own edge, through `surface_pressed`, to `panel_background`. The bright end sits against the anchored edge: left-aligned on a top bar, top-aligned on a left bar, and so on.
+- **`"none"`** — a flat sheet of `panel_background`. This is what `glassy` does.
+- **`"accent"`** (the default) — a fade from `accent` at the bar's own edge, through `surface_pressed`, to `panel_background`. The bright end sits against the anchored edge: left-aligned on a top bar, top-aligned on a left bar, and so on.
+- **`"corners"`** — a colour of its own in each of the bar's four corners, `panel_gradient_top_left`, `panel_gradient_top_right`, `panel_gradient_bottom_right` and `panel_gradient_bottom_left`, blended smoothly across the whole bar. This is what `midnight` does.
+
+The key used to be a boolean, and a theme that still says `true` or `false` reads as `"accent"` or `"none"`; the settings editor writes the name back.
+
+Four corners is a gradient in any direction, and which direction is which corners you make alike:
+
+```toml
+panel_gradient = "corners"
+
+# Left to right: the two left corners match, and so do the two right ones.
+panel_gradient_top_left     = "#EE853953"
+panel_gradient_bottom_left  = "#EE853953"
+panel_gradient_top_right    = "#EE2C2C2C"
+panel_gradient_bottom_right = "#EE2C2C2C"
+
+# A diagonal instead: set the two corners across from each other to the two
+# ends, and the other two to a colour halfway between them.
+```
+
+The blend is bilinear: along every edge it is a straight fade between that edge's two corners, and inside the bar it is those fades blended into each other, so four different colours give a wash that runs in no single direction. The corners are the bar's **as it sits on the screen**, whichever edge it is anchored to — a left bar's top-left corner is at the top of the screen — so a theme lit from one corner of the display is lit from there on every bar at once. Bars are long and thin, so the left-to-right pair of a top bar spreads across the whole screen while the top-to-bottom pair is a sheen across its few dozen pixels of depth.
 
 A translucent bar shows the wallpaper the shell itself draws (`[background]`). Over a bare desktop with no `[background]` section there is nothing behind the bar but whatever your compositor paints, which may simply be black.
 
-In gradient mode **every stop is drawn at `panel_background`'s alpha**, not its own. The bar has exactly one opacity, so setting `panel_background = "#402C2C2C"` makes the whole bar 25% opaque without having to give `accent` and `surface_pressed` a matching alpha — and no stop can end up more opaque than the rest and read as a band across the middle.
+In `"accent"` mode **every stop is drawn at `panel_background`'s alpha**, not its own. The bar has exactly one opacity, so setting `panel_background = "#402C2C2C"` makes the whole bar 25% opaque without having to give `accent` and `surface_pressed` a matching alpha — and no stop can end up more opaque than the rest and read as a band across the middle.
 
 ### Floating the bar
 
@@ -1422,6 +1448,17 @@ The gap is real, not painted: the bar's surface genuinely shrinks, so **windows 
 `panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
 
 All three follow a theme switch live; no restart is needed.
+
+### Where two bars meet
+
+`panel_join_radius` is for a screen with a bar on two adjacent edges — a top or bottom bar and a left or right one. Where the two meet, their inner edges make a sharp right angle at the corner of the space your windows tile into; this fills that angle with a quarter round of the given radius, in the bar's own colour, so the pair reads as one frame around the screen instead of two strips butted together. `dracula` is the one shipped theme that sets it, at `12`.
+
+- **Only flush bars meet.** At `panel_margin` above zero the bars float apart and the key is not read.
+- **Only one bar per edge.** Two bars stacked on one edge take no part in a join, since which of them is innermost is the compositor's decision and nothing reports it.
+- **The bars square off the corner the fillet turns.** At a joined end, the inner corner `panel_radius` would round is left square; the bar's other corners round as before.
+- **It is real surface, and it does not take your clicks** — the same arrangement as the foliage below. Every bar's surface grows by the radius while any two bars meet, and that strip is cut out of the surface's input region, so a click on the fillet lands on the window behind it. Windows still tile right up to the bars. Should the shell be unable to set an input region, the surface is not grown and the corner stays square.
+- **The bar that stops at the corner paints it.** The compositor decides which of the two bars runs across the corner (Mir, and so miracle-wm, stretches top and bottom bars across and fits side bars between them; sway goes by the order the bars were made in), and the shell tells which by measuring each bar against the screen. When it cannot tell — say a left and a right bar of equal height under a top bar the compositor shortened at only one end — that corner is left square rather than painted over a bar's buttons.
+- The fillet continues a gradient bar's colour at that end and a rimmed bar's rim round the corner; it does not continue a `panel_texture` or `panel_image`.
 
 ### Popups
 
