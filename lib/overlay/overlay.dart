@@ -743,6 +743,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         return ShellSettingsPage(
           initialCategory: widget.route?.shellCategory,
           initialModule: widget.route?.module,
+          initialPanel: widget.route?.panel,
         );
       default:
         return const SizedBox.shrink();

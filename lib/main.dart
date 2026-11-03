@@ -126,6 +126,7 @@ import 'package:moonswing/switcher/switcher_controller.dart';
 import 'package:moonswing/switcher/switcher_overlay.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/context_menus.dart';
 import 'package:moonswing/desktop/app_chooser.dart';
 import 'package:moonswing/desktop/desktop_actions.dart';
 import 'package:moonswing/desktop/desktop_layout.dart';
@@ -2023,15 +2024,16 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     }
     final route = controller.pending;
     if (route == null) return;
+    final output = controller.output;
     controller.consume();
 
     if (!_settings.isOpen) {
-      _openSettings(route);
+      _openSettings(route, output);
       return;
     }
     if (_settingsRoute == route) return;
     _pendingSettingsRoute = route;
-    _pendingSettingsOutput = null;
+    _pendingSettingsOutput = output;
     _settings.closing.value = true;
   }
 
@@ -2738,8 +2740,15 @@ class _MoonswingRootState extends State<MoonswingRoot> {
                       // [_syncPanels] has brought in line with this config
                       // before this rebuild runs.
                       panels: _panelGeometry,
-                      onChangeBackground: () => SettingsController.instance
-                          .open(SettingsRoute.background),
+                      // On this output: the right-click that asked was on
+                      // this screen's desktop.
+                      onOpenSettings: (route) =>
+                          SettingsController.instance.open(
+                            route,
+                            surfaces.monitor.connector.isEmpty
+                                ? null
+                                : surfaces.monitor.connector,
+                          ),
                       onAddRequested: _onDesktopAddRequested,
                       onKeyboardRequested: (wanted) => _setDesktopKeyboard(
                         monitorKey(surfaces.monitor),
@@ -3226,9 +3235,16 @@ class _PanelMainState extends State<PanelMain> {
     // time, so nothing about this widget's inputs says they moved —
     // [Module.configChanges] is what does. Listening per module keeps a
     // `[modules.clock]` edit off every other module in the bar.
-    return ListenableBuilder(
-      listenable: Module.configChanges,
-      builder: (context, _) => module.builder(context),
+    //
+    // Inside the module's right-click menu, which every module has: its quick
+    // settings and the way to the page that configures it (`context_menus.dart`).
+    return ModuleMenuRegion(
+      moduleKey: name,
+      panelName: widget.panelConfig.name,
+      child: ListenableBuilder(
+        listenable: Module.configChanges,
+        builder: (context, _) => module.builder(context),
+      ),
     );
   }
 
@@ -3302,11 +3318,16 @@ class _PanelMainState extends State<PanelMain> {
     // past it, so a fill that takes the whole depth (`BarFill`) does not run
     // over the line around the bar — see [panelModuleInset].
     final double inset = panelModuleInset(theme);
-    final Widget content = Padding(
-      padding: vertical
-          ? EdgeInsets.fromLTRB(inset, pad, inset, pad)
-          : EdgeInsets.fromLTRB(pad, inset, pad, inset),
-      child: Stack(children: stackChildren),
+    // A right-click on the bar where no module is opens the bar's own menu;
+    // each module's region is deeper and wins on its own box.
+    final Widget content = PanelMenuRegion(
+      panelName: widget.panelConfig.name,
+      child: Padding(
+        padding: vertical
+            ? EdgeInsets.fromLTRB(inset, pad, inset, pad)
+            : EdgeInsets.fromLTRB(pad, inset, pad, inset),
+        child: Stack(children: stackChildren),
+      ),
     );
     // A rimmed bar that attaches its popups paints its own rim, because that
     // rim has to be left out across the mouth of an open menu and a `Border`

@@ -129,6 +129,7 @@ class WorkspaceMenu extends StatefulWidget {
     required this.onSetPolicy,
     required this.onMoveToOutput,
     this.showPolicy = true,
+    this.footer = const [],
   });
 
   final WorkspaceResult workspace;
@@ -147,6 +148,11 @@ class WorkspaceMenu extends StatefulWidget {
   /// this is called with the policy the workspace already has, and the host is
   /// what decides that means closing the menu rather than a round-trip.
   final void Function(WindowPlacementPolicy policy) onSetPolicy;
+
+  /// Rows after the workspace's own, on the first page only — the workspaces
+  /// module's quick settings and settings links (`ModuleMenuScope.itemsFor`),
+  /// since this menu answers the right-click the module's menu would.
+  final List<DesktopMenuItem> footer;
 
   /// Moves the workspace onto the named output.
   final void Function(String outputName) onMoveToOutput;
@@ -223,6 +229,7 @@ class _WorkspaceMenuState extends State<WorkspaceMenu> {
           enabled: targets.isNotEmpty,
           onTap: () => setState(() => _choosingOutput = true),
         ),
+        ...widget.footer,
       ],
     );
   }

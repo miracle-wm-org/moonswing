@@ -35,6 +35,7 @@ class ShellSettingsPage extends StatefulWidget {
     super.key,
     this.initialCategory,
     this.initialModule,
+    this.initialPanel,
     this.store,
   });
 
@@ -46,6 +47,10 @@ class ShellSettingsPage extends StatefulWidget {
   /// see [SettingsRoute.module]. Read only when [initialCategory] is
   /// Modules.
   final String? initialModule;
+
+  /// A `[panels.<name>]` key whose tab to select — see [SettingsRoute.panel].
+  /// Read only when [initialCategory] is Panels & Layout.
+  final String? initialPanel;
 
   /// The store to edit instead of [ConfigStore.instance], which no widget test
   /// initialises.
@@ -93,7 +98,12 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
     final navigator = _navigator.currentState;
     if (navigator == null) return;
     navigator.popUntil((route) => route.isFirst);
-    for (final view in _viewsFor(category, route?.module, _store)) {
+    for (final view in _viewsFor(
+      category,
+      route?.module,
+      _store,
+      panel: route?.panel,
+    )) {
       navigator.push(_categoryRoute(view));
     }
   }
@@ -138,6 +148,7 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
       fromJump ? pending!.shellCategory : widget.initialCategory,
     );
     final initialModule = fromJump ? pending!.module : widget.initialModule;
+    final initialPanel = fromJump ? pending!.panel : widget.initialPanel;
     // A nested Navigator lets the Shell pane drill from the category menu into
     // a single category's settings and back, while the outer Settings bar and
     // sidebar (owned by SettingsOverlay) stay put around this pane.
@@ -153,7 +164,12 @@ class _ShellSettingsPageState extends State<ShellSettingsPage> {
         // than replacing it — and a module's page on top of the module list —
         // so Back still goes where the user expects.
         if (initial != null)
-          for (final view in _viewsFor(initial, initialModule, store))
+          for (final view in _viewsFor(
+            initial,
+            initialModule,
+            store,
+            panel: initialPanel,
+          ))
             _categoryRoute(view),
       ],
     );
@@ -177,12 +193,23 @@ bool isShellCategory(String title) => _shellCategoryByTitle(title) != null;
 
 /// The views a route stacks over the landing page, bottom first: the
 /// category's own, and — when it is Modules and [module] names a page —
-/// that module's page over the module list.
+/// that module's page over the module list. A [panel] selects that panel's
+/// tab when the category is Panels & Layout.
 List<Widget> _viewsFor(
   _ShellCategory category,
   String? module,
-  ConfigStore store,
-) {
+  ConfigStore store, {
+  String? panel,
+}) {
+  if (category.title == kPanelsSettingsCategory && panel != null) {
+    return [
+      _SettingsPageView(
+        title: category.title,
+        route: SettingsRoute.panel(panel),
+        sliver: PanelsSection(store: store, initialPanel: panel),
+      ),
+    ];
+  }
   final build = category.build;
   if (build == null) {
     final page = moduleSettingsPageByKey(module);
@@ -241,7 +268,7 @@ class _ShellCategory {
 
 const List<_ShellCategory> _shellCategories = [
   _ShellCategory(
-    title: 'Panels & Layout',
+    title: kPanelsSettingsCategory,
     subtitle: 'Size, anchor, module slots',
     icon: ShellGlyph.columns,
     build: _buildPanels,

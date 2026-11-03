@@ -177,6 +177,48 @@ void main() {
       await tester.pump();
 
       expect(tapped, ['app', 'file', 'organize', 'background']);
+      // No shell behind it, so no settings links.
+      expect(find.text('Settings…'), findsNothing);
+    });
+
+    // A right-click on bare desktop always reaches Settings.
+    testWidgets('ends with the desktop\'s settings and Settings', (tester) async {
+      final tapped = <String>[];
+      await pumpMenu(
+        tester,
+        DesktopEmptyMenu(
+          onAddApplication: () {},
+          onAddFile: () {},
+          onOrganize: () {},
+          onChangeBackground: () {},
+          onOpenDesktopSettings: () => tapped.add('desktop'),
+          onOpenSettings: () => tapped.add('settings'),
+        ),
+      );
+      await tester.tap(find.text('Desktop settings…'));
+      await tester.tap(find.text('Settings…'));
+      await tester.pump();
+      expect(tapped, ['desktop', 'settings']);
+    });
+  });
+
+  group('DesktopBackgroundMenu', () {
+    testWidgets('a wallpaper with no grid still reaches Settings',
+        (tester) async {
+      final tapped = <String>[];
+      await pumpMenu(
+        tester,
+        DesktopBackgroundMenu(
+          onChangeBackground: () => tapped.add('background'),
+          onOpenSettings: () => tapped.add('settings'),
+        ),
+      );
+      await tester.tap(find.text('Change background…'));
+      await tester.tap(find.text('Settings…'));
+      await tester.pump();
+      expect(tapped, ['background', 'settings']);
+      // Nothing to add or arrange without the grid.
+      expect(find.text('Add application…'), findsNothing);
     });
   });
 
@@ -272,6 +314,61 @@ void main() {
         theme.popupForeground,
       );
       expect(findGlyph(ShellGlyph.check), findsOneWidget);
+    });
+  });
+
+  group('DesktopMenuCard switches', () {
+    // The surface is sized once, at open: a switch and a check must not change
+    // a row's width when they flip.
+    testWidgets('a switch or a moving check keeps every row\'s width',
+        (tester) async {
+      Future<double> widthWith({required bool on}) async {
+        await pumpMenu(
+          tester,
+          Align(
+            alignment: Alignment.topLeft,
+            child: DesktopMenuCard(
+              entries: [
+                DesktopMenuEntry(label: 'Short', checked: on, onTap: () {}),
+                DesktopMenuEntry(
+                  label: 'A much longer option',
+                  selected: !on,
+                  selectable: true,
+                  onTap: () {},
+                ),
+                DesktopMenuEntry(
+                  label: 'Other',
+                  selected: on,
+                  selectable: true,
+                  onTap: () {},
+                ),
+              ],
+            ),
+          ),
+        );
+        return tester.getSize(find.byType(DesktopMenuCard)).width;
+      }
+
+      expect(await widthWith(on: true), await widthWith(on: false));
+    });
+
+    testWidgets('a heading and a divider are not rows', (tester) async {
+      var taps = 0;
+      await pumpMenu(
+        tester,
+        DesktopMenuCard(
+          entries: [
+            const DesktopMenuHeading('Unit'),
+            DesktopMenuEntry(label: 'Celsius', onTap: () => taps++),
+            const DesktopMenuDivider(),
+          ],
+        ),
+      );
+      await tester.tap(find.text('Unit'), warnIfMissed: false);
+      await tester.pump();
+      expect(taps, 0);
+      await tester.tap(find.text('Celsius'));
+      expect(taps, 1);
     });
   });
 
@@ -407,6 +504,38 @@ void main() {
 
     // A placeholder for a type this build does not have still has to be
     // removable, and has no default size to reset to.
+    testWidgets('leads with its quick settings and ends with its page',
+        (tester) async {
+      final tapped = <String>[];
+      await pumpMenu(
+        tester,
+        DesktopWidgetMenu(
+          item: item,
+          spec: spec,
+          onRemove: () {},
+          quickSettings: [
+            DesktopMenuEntry(
+              label: 'Quick',
+              checked: true,
+              onTap: () => tapped.add('quick'),
+            ),
+          ],
+          settingsLabel: 'Fake widget settings…',
+          onOpenWidgetSettings: () => tapped.add('settings'),
+        ),
+      );
+      final quick = tester.getTopLeft(find.text('Quick')).dy;
+      final remove = tester.getTopLeft(find.text('Remove widget')).dy;
+      final settings = tester.getTopLeft(find.text('Fake widget settings…')).dy;
+      expect(quick, lessThan(remove));
+      expect(remove, lessThan(settings));
+
+      await tester.tap(find.text('Quick'));
+      await tester.tap(find.text('Fake widget settings…'));
+      await tester.pump();
+      expect(tapped, ['quick', 'settings']);
+    });
+
     testWidgets('an unknown type offers removal only', (tester) async {
       var removed = 0;
       await pumpMenu(

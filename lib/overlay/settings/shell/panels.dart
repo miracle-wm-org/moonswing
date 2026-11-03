@@ -7,6 +7,7 @@ import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/overlay/settings/shell/modules.dart'
     show moduleSettingsPageByKey;
 import 'package:moonswing/theme/tokens.dart';
@@ -16,9 +17,13 @@ import 'package:moonswing/underline_tabs.dart';
 /// The Panels & Layout category: a tab per configured panel over that panel's
 /// geometry and module-slot editors, plus an "Add panel" tab.
 class PanelsSection extends StatefulWidget {
-  const PanelsSection({super.key, required this.store});
+  const PanelsSection({super.key, required this.store, this.initialPanel});
 
   final ConfigStore store;
+
+  /// The `[panels.<name>]` whose tab is selected first — the bar the user
+  /// right-clicked. Null, or a name that is not configured, selects the first.
+  final String? initialPanel;
 
   @override
   State<PanelsSection> createState() => _PanelsSectionState();
@@ -46,6 +51,11 @@ class _PanelsSectionState extends State<PanelsSection> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialPanel;
+    if (initial != null) {
+      final index = store.panelNames.indexOf(initial);
+      if (index >= 0) _selected = index;
+    }
     _nameFocus.addListener(() => setState(() {}));
   }
 
@@ -153,7 +163,7 @@ class _PanelsSectionState extends State<PanelsSection> {
     final names = store.panelNames;
     final selected = names.isEmpty ? -1 : _selected.clamp(0, names.length - 1);
     return SliverSettingsSection(
-      label: 'Panels & Layout',
+      label: kPanelsSettingsCategory,
       children: [
         _buildTabs(names, selected),
         if (_adding) _buildAddField(names),

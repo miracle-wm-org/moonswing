@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/config_store.dart';
+import 'package:moonswing/context_menus.dart';
+import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/notification_service.dart';
@@ -188,23 +190,47 @@ silenced = "yes"
       expect(_icon(ShellGlyph.bell), findsNothing);
     });
 
-    testWidgets('right-click silences and unsilences it', (tester) async {
-      await tester.pumpWidget(_bell());
+    // The bell has no right-click of its own any more: the module's menu
+    // answers it (`context_menus.dart`), and leads with this switch.
+    testWidgets('its menu\'s first quick setting silences and unsilences it',
+        (tester) async {
+      final quick = notificationsModule.quickSettings;
+      expect(quick.first.label, 'Silence notifications');
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ThemeScope(
+            theme: const ThemeConfig(),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: DesktopMenuCard(
+                entries: quickSettingItems(quick, store: null, close: () {}),
+              ),
+            ),
+          ),
+        ),
+      );
 
-      Future<void> rightClick() async {
-        final gesture = await tester.startGesture(
-          tester.getCenter(find.byType(Notifications)),
-          buttons: kSecondaryMouseButton,
-          kind: PointerDeviceKind.mouse,
-        );
-        await gesture.up();
-        await tester.pump();
-      }
-
-      await rightClick();
+      await tester.tap(find.text('Silence notifications'));
+      await tester.pump();
       expect(store.silenced, isTrue);
 
-      await rightClick();
+      // The menu stays open and follows the store, so a second tap undoes it.
+      await tester.tap(find.text('Silence notifications'));
+      await tester.pump();
+      expect(store.silenced, isFalse);
+    });
+
+    testWidgets('a right-click on the bell itself silences nothing',
+        (tester) async {
+      await tester.pumpWidget(_bell());
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(Notifications)),
+        buttons: kSecondaryMouseButton,
+        kind: PointerDeviceKind.mouse,
+      );
+      await gesture.up();
+      await tester.pump();
       expect(store.silenced, isFalse);
     });
 

@@ -24,6 +24,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/app_info.dart' show openUriWithDefault;
 import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
 import 'package:moonswing/desktop/desktop_layout.dart' show GridSpan;
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
 import 'package:moonswing/hover_region.dart';
@@ -33,10 +34,13 @@ import 'package:moonswing/loading_indicator.dart';
 // The accent pill every desktop card's empty state uses; it lives with the
 // stock strip because that is where the first one was.
 import 'package:moonswing/modules/stocks.dart' show StockActionButton;
+import 'package:moonswing/news/news_config.dart';
 import 'package:moonswing/news/news_feed.dart';
+import 'package:moonswing/news/news_source.dart';
 import 'package:moonswing/news/news_format.dart';
 import 'package:moonswing/news/news_store.dart';
 import 'package:moonswing/overlay/settings_route.dart';
+import 'package:moonswing/quick_settings.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/stocks/stock_format.dart' show formatStockTime;
 import 'package:moonswing/theme/tokens.dart';
@@ -450,5 +454,46 @@ final DesktopWidgetSpec newsDesktopWidget = DesktopWidgetSpec(
   // The rows' hover fill runs nearly to the rim, so the card's own inset is
   // the content's.
   padding: EdgeInsets.zero,
+  // `[news]` is edited on the Desktop Grid page, under the grid's own rows.
+  settings: SettingsRoute.desktop,
+  quickSettings: newsOutletQuickSettings,
   builder: (context, widget) => NewsWidget(span: widget.span),
 );
+
+/// One switch per shipped outlet for the card's right-click menu, writing
+/// `[news] sources` the way Settings' chips do: the presets in the order
+/// Settings offers them, then every feed of the user's own where it was.
+///
+/// Empty before `ConfigStore.initShared` — a widget test with no config.
+List<QuickSetting> newsOutletQuickSettings() {
+  final ConfigStore store;
+  try {
+    store = ConfigStore.instance;
+  } on StateError {
+    return const [];
+  }
+  const path = ['news', 'sources'];
+  // An absent key is the default pair, not an empty list — read as the card
+  // reads it.
+  List<String> sources() =>
+      NewsConfig.fromMap(store.get<Map<String, dynamic>>(const ['news'])).sources;
+  return [
+    for (final preset in kNewsPresets)
+      QuickAction(
+        label: preset.name,
+        listenable: store,
+        checked: () => sources().contains(preset.id),
+        onTap: () {
+          final current = sources();
+          final on = current.contains(preset.id);
+          store.set(path, [
+            for (final other in kNewsPresets)
+              if (other.id == preset.id ? !on : current.contains(other.id))
+                other.id,
+            for (final s in current)
+              if (newsPreset(s) == null) s,
+          ]);
+        },
+      ),
+  ];
+}

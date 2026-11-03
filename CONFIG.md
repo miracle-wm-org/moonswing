@@ -110,6 +110,14 @@ A module omitted from all sections of all panels is disabled entirely. You can p
 
 **Note:** When a layout section is present, all three keys (`left`, `center`, `right`) should be specified. An omitted key defaults to an empty list, not to the default modules.
 
+### Right-clicking a panel
+
+**Right-click any module** for its menu: a few of its options you can flip in place — the clock's date and seconds, the weather's unit, the clipboard's side, the bell's silence — and below them the way to the settings that configure it: its own page under Settings › Shell › Modules (or the machine's settings it is a view of, such as Sound or Keyboard), and **Panel settings…** for the panel it sits in. The menu stays open while you flip switches, and follows a change made in Settings underneath it. A module with a right-click menu of its own — a workspace button, a dock icon — keeps it, with the module's menu added at the bottom.
+
+**Right-click a panel's blank space** for **Panel settings…**, which opens Settings › Shell › Panels & Layout on that panel's tab, and **Settings…**. Either opens Settings on the screen you clicked.
+
+Which options a module's menu offers is the shell's choice, not a config key: the ones that are a switch or a short list, and that you might want to flip without opening Settings.
+
 ## Module Settings
 
 Per-module settings live under `[modules.<name>]`. These are global and shared across all panels.
@@ -285,7 +293,9 @@ is read at all while `show_app_icons` is off, and one reader serves every panel
 on every monitor.
 
 **Right-clicking a workspace button opens a menu** for that workspace — not the
-focused one, whichever button was clicked. It has two things on it.
+focused one, whichever button was clicked. It has two things on it, and under
+them the workspaces module's own menu (see
+[Right-clicking a panel](#right-clicking-a-panel)).
 
 With `show_policy_toggle` on, the first two rows are the workspace's window
 placement: *Tile new windows* and *Float new windows*, with the one it is
@@ -1759,7 +1769,7 @@ shown = true
 
 The `[desktop]` section puts a grid of pinned icons on the wallpaper: applications, files and folders. Double-clicking an item opens it — an application launches, a file opens in its default handler, and a folder opens your file manager. Clicking selects, dragging rearranges, and dropping one icon onto another swaps their places. The grid lines are only drawn while you are dragging.
 
-Right-clicking an icon offers **Open**, **Open with…** (files and folders), **Rename** and **Remove from desktop**. Right-clicking bare desktop offers **Add application…**, **Add file or folder…**, **Organize** (compact the icons) and **Change background…** (jump to the wallpaper settings).
+Right-clicking an icon offers **Open**, **Open with…** (files and folders), **Rename** and **Remove from desktop**. Right-clicking bare desktop offers **Add application…**, **Add file or folder…**, **Organize** (compact the icons) and **Change background…** (jump to the wallpaper settings), then **Desktop settings…** and **Settings…**, which open on the screen you clicked. With the grid switched off (`enabled = false`), right-clicking the wallpaper still offers **Change background…** and **Settings…**.
 
 **Add application…** opens a searchable list of everything installed, each with its own icon — type to filter, arrow keys and Enter to pick, Escape to dismiss. It searches names, generic names and the keywords a desktop entry declares, so "internet" finds your browser. **Add file or folder…** opens the file picker, where folders are selectable as well as browsable.
 
@@ -1827,7 +1837,7 @@ Items on a cell that does not exist on a smaller monitor are drawn in the neares
 
 ## Desktop Widgets
 
-Alongside the icons, the grid holds **widgets** — cards that take a rectangle of cells rather than a single one, and that you resize by dragging a corner. Right-click bare desktop and choose **Add widget…** to place one; right-click a widget for **Remove**. Widgets are dragged from anywhere on the card, and their own buttons still work: a press that moves is a drag, one that does not is a click.
+Alongside the icons, the grid holds **widgets** — cards that take a rectangle of cells rather than a single one, and that you resize by dragging a corner. Right-click bare desktop and choose **Add widget…** to place one; right-click a widget for its menu: the options worth flipping in place (the weather card's unit, the news card's outlets), **Reset size**, **Remove widget**, and a link to the settings that configure it — the weather and stock cards share their bar module's page, and the rest the desktop's own. Widgets are dragged from anywhere on the card, and their own buttons still work: a press that moves is a drag, one that does not is a click.
 
 Eight types ship:
 
@@ -2090,7 +2100,7 @@ refresh_minutes = 5
 
 ## Notifications
 
-The `[notifications]` section holds the state of the notification bell's **silence** switch. The shell writes this key itself — right-click the bell, or use the switch at the top of the notification panel — so it is documented because the file is yours to edit, not because you have to.
+The `[notifications]` section holds the state of the notification bell's **silence** switch. The shell writes this key itself — *Silence notifications* in the bell's right-click menu, or the switch at the top of the notification panel — so it is documented because the file is yours to edit, not because you have to.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|

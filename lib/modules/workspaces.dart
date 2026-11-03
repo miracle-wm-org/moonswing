@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/bar_button.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/context_menus.dart' show ModuleMenuScope;
 import 'package:moonswing/icons/shell_glyph.dart';
 import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
@@ -485,6 +486,7 @@ class WorkspacesState extends State<Workspaces> {
                           close();
                           unawaited(_moveToOutput(workspace, outputName));
                         },
+                        footer: ModuleMenuScope.itemsFor(context, close: close),
                       ),
               child: _WorkspaceLabel(
                 label: workspace.name ?? workspace.num?.toString() ?? '?',
@@ -729,9 +731,10 @@ class _WorkspaceButtonState extends State<_WorkspaceButton>
         context,
         // Loose: the menu sizes to its content (see [DesktopMenuCard]). Tall
         // enough for the two placement rows, the move row and a page of
-        // outputs; wide enough for a connector name and a monitor's model.
+        // outputs, and for the module's own rows under them; wide enough for a
+        // connector name and a monitor's model.
         preferredConstraints:
-            const BoxConstraints(maxWidth: 320, maxHeight: 320),
+            const BoxConstraints(maxWidth: 320, maxHeight: 560),
         // The card lays out under its own FlutterView, so it carries its own
         // theme — `ThemeScope` is an InheritedWidget and cannot span views.
         child: ThemeProvider(

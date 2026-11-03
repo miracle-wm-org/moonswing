@@ -650,5 +650,7 @@ final DesktopWidgetSpec stocksDesktopWidget = DesktopWidgetSpec(
   // The rows' hover fill runs nearly to the rim, so the card's own inset is
   // the content's.
   padding: EdgeInsets.zero,
+  // The watchlist is the stocks module's, shared with the bar.
+  settings: SettingsRoute.stocks,
   builder: (context, widget) => StocksWidget(span: widget.span),
 );

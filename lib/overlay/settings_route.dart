@@ -5,6 +5,9 @@ import 'package:moonswing/request_controller.dart';
 /// The Shell category that lists every module, each pushing its own page.
 const String kModuleSettingsCategory = 'Modules';
 
+/// The Shell category with a tab per configured panel.
+const String kPanelsSettingsCategory = 'Panels & Layout';
+
 /// The overview's top tab ids, in the order the tab strip draws them.
 ///
 /// The overview — the panel the clock opens — is the one window the calendar,
@@ -33,7 +36,13 @@ class SettingsRoute {
     this.shellCategory,
     this.miracleCategory,
     this.module,
+    this.panel,
   });
+
+  /// One panel's tab in Shell › Panels & Layout, named by its `[panels.<name>]`
+  /// key — where a right-click on a bar's blank space goes.
+  const SettingsRoute.panel(String name)
+    : this(shellCategory: kPanelsSettingsCategory, panel: name);
 
   /// One module's own page inside Shell › Modules, named by its
   /// `[modules.<key>]` config key — `clock`, `screen_recorder`.
@@ -75,6 +84,10 @@ class SettingsRoute {
   /// already in every module row's id — the catalogue derives this field from
   /// it, so a row cannot point at another module's page.
   final String? module;
+
+  /// A `[panels.<name>]` key inside [kPanelsSettingsCategory]: that panel's
+  /// tab is selected. Null, or a name no longer configured, lands on the first.
+  final String? panel;
 
   /// Where "Change background…" on the desktop goes.
   static const SettingsRoute background =
@@ -127,11 +140,12 @@ class SettingsRoute {
       other.category == category &&
       other.shellCategory == shellCategory &&
       other.miracleCategory == miracleCategory &&
-      other.module == module;
+      other.module == module &&
+      other.panel == panel;
 
   @override
   int get hashCode =>
-      Object.hash(tab, category, shellCategory, miracleCategory, module);
+      Object.hash(tab, category, shellCategory, miracleCategory, module, panel);
 }
 
 /// The seam between "something deep in a surface wants the overview open at a
@@ -163,7 +177,7 @@ class SettingsController extends SignalController {
   /// yet, or null.
   String? get pendingToggle => _pendingToggle;
 
-  /// The connector name (`DP-1`) of the output the last [toggle] came from, or
+  /// The connector name (`DP-1`) of the output the last [toggle] or [open] came from, or
   /// null when the caller did not know it yet — the root then lets the
   /// compositor pick the focused output, which is where a click just happened.
   String? get output => _output;
@@ -173,10 +187,14 @@ class SettingsController extends SignalController {
   /// Unlike [LauncherController.toggle] this never closes an open overlay: it
   /// is reached from menu items that name a destination, and a "Change
   /// background…" that dismissed the settings would be nonsense.
-  void open([SettingsRoute route = const SettingsRoute()]) {
+  ///
+  /// [output] is the connector of the screen the request was made on — a
+  /// right-click on a bar or the desktop — so the overlay opens there rather
+  /// than on the first monitor. Null leaves the choice to the root.
+  void open([SettingsRoute route = const SettingsRoute(), String? output]) {
     _pending = route;
     _pendingToggle = null;
-    _output = null;
+    _output = output;
     signal();
   }
 

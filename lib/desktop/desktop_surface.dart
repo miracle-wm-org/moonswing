@@ -7,13 +7,19 @@ import 'package:layer_shell/layer_shell.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/background.dart';
 import 'package:moonswing/config.dart';
+import 'package:moonswing/config_store.dart';
+import 'package:moonswing/context_menus.dart' show quickSettingItems;
 import 'package:moonswing/desktop/desktop_actions.dart';
 import 'package:moonswing/desktop/desktop_grid.dart';
 import 'package:moonswing/desktop/desktop_layout.dart';
 import 'package:moonswing/desktop/desktop_menu.dart';
 import 'package:moonswing/desktop/desktop_store.dart';
 import 'package:moonswing/desktop/widgets/desktop_widget.dart';
+import 'package:moonswing/overlay/settings/shell/modules.dart'
+    show moduleSettingsPageByKey;
+import 'package:moonswing/overlay/settings_route.dart';
 import 'package:moonswing/popup.dart';
+import 'package:moonswing/quick_settings.dart';
 import 'package:moonswing/theme/theme_provider.dart';
 
 /// What the background layer-shell window renders: the wallpaper, with the
@@ -29,7 +35,7 @@ class DesktopSurface extends StatefulWidget {
     required this.desktop,
     required this.store,
     this.panels = const {},
-    this.onChangeBackground,
+    this.onOpenSettings,
     this.onAddRequested,
     this.onKeyboardRequested,
   });
@@ -39,9 +45,10 @@ class DesktopSurface extends StatefulWidget {
   final DesktopStore store;
   final Map<String, PanelConfig> panels;
 
-  /// "Change background…" — opens the settings overlay, which only the root
-  /// can do, so it arrives as a callback.
-  final VoidCallback? onChangeBackground;
+  /// Opens the settings overlay at a route — "Change background…", "Settings…",
+  /// a widget's own page — which only the root can do, so it arrives as a
+  /// callback. Null hides every row that would call it.
+  final void Function(SettingsRoute route)? onOpenSettings;
 
   /// "Add…" — the file picker cannot render from this surface (it would draw
   /// on the background layer, under every application window), so the root
@@ -191,21 +198,78 @@ class _DesktopSurfaceState extends State<DesktopSurface>
           final geometry = _geometry;
           if (geometry != null) widget.store.organize(geometry);
         },
-        onChangeBackground: () {
-          closePopup();
-          widget.onChangeBackground?.call();
-        },
+        onChangeBackground: () => _goToSettings(SettingsRoute.background),
+        onOpenDesktopSettings: widget.onOpenSettings == null
+            ? null
+            : () => _goToSettings(SettingsRoute.desktop),
+        onOpenSettings: widget.onOpenSettings == null
+            ? null
+            : () => _goToSettings(const SettingsRoute()),
       ),
     );
   }
 
+  /// Closes the open menu and asks the root for the settings overlay at
+  /// [route].
+  void _goToSettings(SettingsRoute route) {
+    closePopup();
+    widget.onOpenSettings?.call(route);
+  }
+
+  /// A right-click on the wallpaper of an output with the grid switched off:
+  /// there is nothing to add or arrange, but bare background still reaches
+  /// Settings.
+  void _onBackgroundMenu(TapDownDetails details) {
+    if (widget.onOpenSettings == null) return;
+    _openMenu(
+      details.localPosition,
+      DesktopBackgroundMenu(
+        onChangeBackground: () => _goToSettings(SettingsRoute.background),
+        onOpenSettings: () => _goToSettings(const SettingsRoute()),
+      ),
+    );
+  }
+
+  /// The shared store, or null before `ConfigStore.initShared` — a widget test.
+  static ConfigStore? _store() {
+    try {
+      return ConfigStore.instance;
+    } on StateError {
+      return null;
+    }
+  }
+
   void _onWidgetMenu(DesktopWidgetItem item, Offset position) {
     final spec = DesktopWidgetRegistry.lookup(item.type);
+    // The page that configures the widget: its spec's, or the desktop grid's,
+    // where every widget is added and laid out. A widget configured by a
+    // module's page — the weather card by the weather module's — may offer
+    // that page's quick rows too.
+    final route = spec?.settings ?? SettingsRoute.desktop;
+    final page = spec?.offersPageQuickSettings ?? false
+        ? moduleSettingsPageByKey(route.module)
+        : null;
+    final quick = <QuickSetting>[
+      ...?spec?.quickSettings?.call(),
+      ...?page?.quickSettings,
+    ];
+    final onOpenSettings = widget.onOpenSettings;
     _openMenu(
       position,
       DesktopWidgetMenu(
         item: item,
         spec: spec,
+        quickSettings: quickSettingItems(
+          quick,
+          store: _store(),
+          close: closePopup,
+        ),
+        settingsLabel: spec?.settings == null
+            ? 'Desktop settings…'
+            : '${spec!.name} settings…',
+        onOpenWidgetSettings: onOpenSettings == null
+            ? null
+            : () => _goToSettings(route),
         onResetSize: spec == null
             ? null
             : () {
@@ -246,7 +310,17 @@ class _DesktopSurfaceState extends State<DesktopSurface>
           // pointer. Without a boundary every hover, band move and drag
           // re-records that scale into the surface's one picture.
           if (widget.background != null)
-            RepaintBoundary(child: BackgroundWindow(config: widget.background!))
+            // With the grid off nothing else on this surface answers a
+            // right-click, so the wallpaper does. With it on, the grid's own
+            // empty-space menu is the one, and this listens to nothing.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onSecondaryTapDown:
+                  widget.desktop.enabled ? null : _onBackgroundMenu,
+              child: RepaintBoundary(
+                child: BackgroundWindow(config: widget.background!),
+              ),
+            )
           else
             const SizedBox.expand(),
           // No ListenableBuilder here: DesktopLayer subscribes to the store
