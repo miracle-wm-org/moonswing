@@ -1639,7 +1639,7 @@ Older versions kept the palette in a `[theme]` table inside `config.toml`. That 
 
 ## Background
 
-The `[background]` section enables a full-screen wallpaper window displayed behind all other surfaces. It rotates through a list of images on a timer, with an animated crossfade between them.
+The `[background]` section enables a full-screen wallpaper window displayed behind all other surfaces. It rotates through a list of images on a timer, with an animated transition between them — a crossfade by default, or one of the effects under [Wallpaper transitions](#wallpaper-transitions), or a different one each time.
 
 If this section is absent, no background window is created.
 
@@ -1648,6 +1648,8 @@ If this section is absent, no background window is created.
 fit = "fill"
 
 interval_minutes = 5
+transition = "random"
+transition_duration = 1500
 
 [[background.entries]]
 path = "/home/user/wallpapers/day.jpg"
@@ -1664,6 +1666,8 @@ shown = true
 | ------------------ | ------ | -------- | ------------------------------------------------------ |
 | `fit`              | string | `"fill"` | How the image is sized within the screen                |
 | `interval_minutes` | number | `5`      | Minutes between wallpapers when more than one is shown |
+| `transition`       | string | `"fade"` | How one wallpaper gives way to the next — see [Wallpaper transitions](#wallpaper-transitions) |
+| `transition_duration` | number | `1500` | How long that change takes, in milliseconds, clamped to 0–10000. `0` is an instant cut |
 
 **`fit` values:**
 
@@ -1687,7 +1691,7 @@ Wallpapers are shown in the order they appear, advancing every `interval_minutes
 
 ### The theme's wallpaper
 
-An entry with `theme = true` in place of a `path` is not a file but *whichever wallpaper the active theme comes with* — the theme file's `wallpaper` key. It is looked up each time it is painted, never written down as a path, so with it shown, switching theme switches the wallpaper: from the moon under `glassy` to a mountain stream under `forest`, with the usual crossfade, and nothing in `config.toml` changes. A theme with no `wallpaper` adds nothing to the rotation while it is active. The default `config.toml` shows exactly this entry:
+An entry with `theme = true` in place of a `path` is not a file but *whichever wallpaper the active theme comes with* — the theme file's `wallpaper` key. It is looked up each time it is painted, never written down as a path, so with it shown, switching theme switches the wallpaper: from the moon under `glassy` to a mountain stream under `forest`, with the usual transition, and nothing in `config.toml` changes. A theme with no `wallpaper` adds nothing to the rotation while it is active. The default `config.toml` shows exactly this entry:
 
 ```toml
 [[background.entries]]
@@ -1707,7 +1711,25 @@ These are discovered on every visit rather than written to `config.toml`, which 
 
 Supported image formats: JPEG, PNG, GIF, WebP, BMP, and anything Flutter's `Image` widget can decode. Entries whose path is missing, or is not one of those formats, are pruned by the settings UI.
 
-Transitions between wallpapers use a 1.5-second crossfade animation.
+### Wallpaper transitions
+
+Every change of wallpaper — the rotation advancing, a theme switch with the Theme default shown, an edit to what is shown — plays `transition`, over `transition_duration` milliseconds:
+
+| Value            | What the change looks like                                                           |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `"fade"`         | The new wallpaper fades in over the old one. The default                              |
+| `"checkerboard"` | A chequered grid of squares wipes across, every other square half a step behind       |
+| `"circle"`       | A circle opens from the middle of the screen and grows out to the corners             |
+| `"flip"`         | The old wallpaper turns over like a card, and the new one is on its back              |
+| `"slide"`        | The new wallpaper slides in over the old one from a random edge                       |
+| `"wipe"`         | A straight edge sweeps across from a random side, uncovering the new wallpaper        |
+| `"blinds"`       | The new wallpaper opens in horizontal slats, like a blind                             |
+| `"zoom"`         | The new wallpaper settles back to size from slightly larger as it fades in            |
+| `"dissolve"`     | The new wallpaper arrives as a scatter of small tiles, each at its own moment         |
+| `"none"`         | No animation: the new wallpaper replaces the old one at once                          |
+| `"random"`       | A different effect from the list above (never `none`) each time, never the same one twice running |
+
+`slide` and `wipe` pick their edge afresh on every change, whether chosen directly or by `random`. An unknown value is read as `"fade"`. The first wallpaper the shell paints at start-up appears without a transition, and changing either key never plays one by itself: it applies from the next change. A flip shows a dark fill behind the turning wallpaper for the moment it is edge-on.
 
 **A single, fixed wallpaper:**
 

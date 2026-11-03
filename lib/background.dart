@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'background_transition.dart';
 import 'config.dart';
 import 'media_paths.dart';
 import 'scopes.dart';
@@ -71,9 +73,14 @@ class BackgroundWindow extends StatefulWidget {
     super.key,
     required this.config,
     this.themeWallpaperOf = resolveThemeWallpaper,
+    this.random,
   });
 
   final BackgroundConfig config;
+
+  /// The source of `transition = "random"`'s picks, and of each change's
+  /// edge. Injectable so tests can pin a sequence.
+  final math.Random? random;
 
   /// Turns the theme above into its wallpaper's file. Injectable so tests need
   /// no installed wallpapers.
@@ -188,17 +195,10 @@ class _BackgroundWindowState extends State<BackgroundWindow> {
     return Directionality(
       textDirection: TextDirection.ltr,
       child: SizedBox.expand(
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 1500),
-          transitionBuilder: (child, animation) =>
-              FadeTransition(opacity: animation, child: child),
-          layoutBuilder: (currentChild, previousChildren) => Stack(
-            fit: StackFit.expand,
-            children: [
-              ...previousChildren,
-              ?currentChild,
-            ],
-          ),
+        child: WallpaperSwitcher(
+          transition: widget.config.transition,
+          duration: widget.config.transitionDuration,
+          random: widget.random,
           child: _buildMedia(_currentPath),
         ),
       ),
