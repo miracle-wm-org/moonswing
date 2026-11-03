@@ -1,6 +1,7 @@
 // `widgets.dart` re-exports foundation with a `show` list that carries
 // ValueNotifier but not ValueListenable, which is what a dock slot takes.
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/bar_button.dart';
@@ -105,6 +106,63 @@ List<String> mergeDockOrder(List<String> configIds, List<String> newOrder) {
     if (slots[i] == null) slots[i] = newOrder[next++];
   }
   return slots.cast<String>();
+}
+
+// Selection
+
+/// The tint of a selected dock icon: the theme's accent, washed out as the
+/// shell's other selected rows are, so the icon on it stays legible.
+Color dockSelectedColor(Color accent) => accent.withValues(alpha: 0.3);
+
+/// Whether one dock icon is selected.
+///
+/// A single click selects an icon, and it stays selected until the user either
+/// double clicks it (which opens it) or presses anywhere else in the shell —
+/// another icon, another module, another monitor's panel, a popup. Nothing
+/// reports that last one to the icon, and a panel takes no grab, so while
+/// selected this holds a global pointer route, which sees every pointer down in
+/// the process whichever FlutterView it lands in. Held only while selected: a
+/// dock with nothing selected costs no route at all.
+///
+/// One icon at a time falls out of that without any shared state: selecting
+/// another icon is a press outside this one.
+class DockSelection extends ValueNotifier<bool> {
+  DockSelection({required this.contains}) : super(false);
+
+  /// Whether a pointer down landed on the icon itself, which leaves it
+  /// selected: the press may be the first half of a drag, a right click for its
+  /// menu, or the second click of the double click that will clear it anyway.
+  final bool Function(PointerDownEvent event) contains;
+
+  bool _watching = false;
+
+  void select() {
+    value = true;
+    if (_watching) return;
+    _watching = true;
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
+  }
+
+  void clear() {
+    value = false;
+    _unwatch();
+  }
+
+  void _unwatch() {
+    if (!_watching) return;
+    _watching = false;
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+  }
+
+  void _onPointer(PointerEvent event) {
+    if (event is PointerDownEvent && !contains(event)) clear();
+  }
+
+  @override
+  void dispose() {
+    _unwatch();
+    super.dispose();
+  }
 }
 
 // Dock widget
@@ -507,13 +565,40 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   /// a tap, and a pan that never passed the drag threshold — report here.
   final DockDoubleClick _clicks = DockDoubleClick();
 
+  /// Selected by a single click; see [DockSelection].
+  late final DockSelection _selection = DockSelection(contains: _containsPointer)
+    ..addListener(_onSelectionChanged);
+
+  void _onSelectionChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Whether [event] landed on this button. Another FlutterView — a popup,
+  /// another monitor's panel — is outside by definition; its coordinates mean
+  /// nothing in this one.
+  bool _containsPointer(PointerDownEvent event) {
+    if (!mounted) return false;
+    final box = context.findRenderObject();
+    return box is RenderBox &&
+        box.attached &&
+        box.hasSize &&
+        event.viewId == View.maybeOf(context)?.viewId &&
+        (Offset.zero & box.size).contains(box.globalToLocal(event.position));
+  }
+
   void _onClick() {
-    if (_clicks.click()) widget.onOpen();
+    if (_clicks.click()) {
+      _selection.clear();
+      widget.onOpen();
+    } else {
+      _selection.select();
+    }
   }
 
   @override
   void dispose() {
     closePopup();
+    _selection.dispose();
     super.dispose();
   }
 
@@ -618,6 +703,8 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
     Color color = const Color(0x00000000);
     if (_pressed) {
       color = theme.surfacePressed;
+    } else if (_selection.value) {
+      color = dockSelectedColor(theme.accent);
     } else if (_hovered) {
       color = theme.surfaceHover;
     }
