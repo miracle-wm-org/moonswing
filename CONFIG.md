@@ -1293,7 +1293,7 @@ divider              = "#33EBDBB2"
 scrim                = "#88282828"
 
 panel_background     = "#EE282828"
-panel_gradient       = true
+panel_gradient       = "accent"
 panel_margin         = 0
 panel_radius         = 0.0
 panel_border         = "#33EBDBB2"
@@ -1346,7 +1346,11 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `notification_badge`   | `#F2B441`     | What an unread notification is announced in (see the note below)           |
 | `notification_badge_foreground` | `#2C1218` | Text and glyphs drawn on `notification_badge`                           |
 | `panel_background`     | `#EE2C2C2C`   | The bar's background, and the opacity of the whole bar (see below)          |
-| `panel_gradient`       | `true`        | Whether the bar fades from `accent`, or is a flat `panel_background`        |
+| `panel_gradient`       | `accent`      | The bar's shape: `none` (flat `panel_background`), `accent` (a fade from `accent`) or `corners` (a colour in each corner) — see below |
+| `panel_gradient_top_left` | `#EE853953` | Under `panel_gradient = "corners"`, the colour of the bar's top-left corner, at its own alpha |
+| `panel_gradient_top_right` | `#EE612D53` | …its top-right corner                                                    |
+| `panel_gradient_bottom_right` | `#EE2C2C2C` | …its bottom-right corner                                             |
+| `panel_gradient_bottom_left` | `#EE612D53` | …its bottom-left corner                                               |
 | `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to              |
 | `panel_radius`         | `0.0`         | Corner rounding of each bar (see below for which corners)                   |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
@@ -1401,12 +1405,32 @@ The bar has its own color, `panel_background`, and its alpha is used exactly as 
 
 `panel_gradient` decides its shape:
 
-- **`false`** — a flat sheet of `panel_background`. This is what `glassy` does.
-- **`true`** (the default) — a fade from `accent` at the bar's own edge, through `surface_pressed`, to `panel_background`. The bright end sits against the anchored edge: left-aligned on a top bar, top-aligned on a left bar, and so on.
+- **`"none"`** — a flat sheet of `panel_background`. This is what `glassy` does.
+- **`"accent"`** (the default) — a fade from `accent` at the bar's own edge, through `surface_pressed`, to `panel_background`. The bright end sits against the anchored edge: left-aligned on a top bar, top-aligned on a left bar, and so on.
+- **`"corners"`** — a colour of its own in each of the bar's four corners, `panel_gradient_top_left`, `panel_gradient_top_right`, `panel_gradient_bottom_right` and `panel_gradient_bottom_left`, blended smoothly across the whole bar. This is what `midnight` does.
+
+The key used to be a boolean, and a theme that still says `true` or `false` reads as `"accent"` or `"none"`; the settings editor writes the name back.
+
+Four corners is a gradient in any direction, and which direction is which corners you make alike:
+
+```toml
+panel_gradient = "corners"
+
+# Left to right: the two left corners match, and so do the two right ones.
+panel_gradient_top_left     = "#EE853953"
+panel_gradient_bottom_left  = "#EE853953"
+panel_gradient_top_right    = "#EE2C2C2C"
+panel_gradient_bottom_right = "#EE2C2C2C"
+
+# A diagonal instead: set the two corners across from each other to the two
+# ends, and the other two to a colour halfway between them.
+```
+
+The blend is bilinear: along every edge it is a straight fade between that edge's two corners, and inside the bar it is those fades blended into each other, so four different colours give a wash that runs in no single direction. The corners are the bar's **as it sits on the screen**, whichever edge it is anchored to — a left bar's top-left corner is at the top of the screen — so a theme lit from one corner of the display is lit from there on every bar at once. Bars are long and thin, so the left-to-right pair of a top bar spreads across the whole screen while the top-to-bottom pair is a sheen across its few dozen pixels of depth.
 
 A translucent bar shows the wallpaper the shell itself draws (`[background]`). Over a bare desktop with no `[background]` section there is nothing behind the bar but whatever your compositor paints, which may simply be black.
 
-In gradient mode **every stop is drawn at `panel_background`'s alpha**, not its own. The bar has exactly one opacity, so setting `panel_background = "#402C2C2C"` makes the whole bar 25% opaque without having to give `accent` and `surface_pressed` a matching alpha — and no stop can end up more opaque than the rest and read as a band across the middle.
+In `"accent"` mode **every stop is drawn at `panel_background`'s alpha**, not its own. The bar has exactly one opacity, so setting `panel_background = "#402C2C2C"` makes the whole bar 25% opaque without having to give `accent` and `surface_pressed` a matching alpha — and no stop can end up more opaque than the rest and read as a band across the middle.
 
 ### Floating the bar
 
