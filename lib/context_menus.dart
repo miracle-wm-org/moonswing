@@ -348,7 +348,7 @@ class _ModuleMenuRegionState extends State<ModuleMenuRegion>
     // dock's, for the dock's reason (see `_openUnpinMenu`).
     if (isPopupOpen) {
       closePopup();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _show());
+      afterNextFrame(_show);
     } else {
       _show();
     }
@@ -431,7 +431,7 @@ class _PanelMenuRegionState extends State<PanelMenuRegion>
     if (widget.debugOnMenu case final onMenu?) return onMenu(at);
     if (isPopupOpen) {
       closePopup();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _show(at));
+      afterNextFrame(() => _show(at));
     } else {
       _show(at);
     }
