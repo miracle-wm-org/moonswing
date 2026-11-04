@@ -55,6 +55,8 @@ void main() {
       'panel_radius',
       'panel_corners',
       'panel_join_radius',
+      'panel_join',
+      'panel_square_flush_corners',
       'panel_border_width',
       'popup_radius',
       'popup_gap',

@@ -30,6 +30,16 @@
 ///   spans the corner paints nothing. A bar tells which it is by its length
 ///   against the screen's: a bar that stops short of a corner is short by the
 ///   other bar's depth.
+///
+/// Under `panel_join` ([ThemeConfig.panelJoin]) the bars are one frame and the
+/// theme's margins no longer decide whether two of them meet: every pair
+/// [panelJoinsFor] finds is joined, and [panelScreenMargins] places them so
+/// they do. That needs the compositor's corner placement *known*, not
+/// measured, since a margin is what decides it: the top or bottom bar runs
+/// across the corner ([panelCrossesCorners]) and the side bar's end stops
+/// against it. That is Mir's own rule, and the root creates the top and bottom
+/// bars before the side ones (`_createSurfaces`, `_syncPanels`) so that sway,
+/// which places in the order surfaces were made, agrees.
 library;
 
 import 'dart:math' as math;
@@ -125,29 +135,50 @@ Iterable<PanelCorner> _cornersOf(String anchor, PanelJoins joins) => [
   if (joins.end > 0) PanelCorner.of(anchor, outer: true, start: false),
 ];
 
-/// The fillet [theme] asks for, or 0 when it asks for none — and always 0 when
-/// its margins leave no corner of the screen where both bars would be flush,
-/// since bars floating apart meet nowhere.
-double panelJoinRadiusOf(ThemeConfig theme) =>
-    theme.panelMargin.anyFlushCorner && theme.panelJoinRadius > 0
-    ? theme.panelJoinRadius
-    : 0.0;
+/// Whether a bar anchored to [anchor] runs across the corner at a joined end —
+/// whether the bar it meets there stops against this one's inner edge.
+///
+/// A top or bottom bar does and a side bar does not: Mir places the full-width
+/// bars first and fits the side ones between them, and the root makes the
+/// surfaces in that order for every other compositor's sake. Under
+/// `panel_join` this is a rule the margins are built on rather than a
+/// measurement ([panelScreenMargins]); the fillet still measures which bar is
+/// short ([panelJoinOwnership]), because it can.
+bool panelCrossesCorners(String anchor) => !isVerticalAnchor(anchor);
 
-/// [joins] as [theme] draws them on a bar anchored to [anchor]: each end's join
-/// while the theme has a fillet to put in it and the screen corner at that end
-/// is flush for *both* bars that meet in it ([PanelMargins.flushAt]) — this
-/// bar against its own edge and at that end, and the bar across the corner
-/// likewise — and nothing otherwise. The two read the corner from different
-/// keys, since margins are in each bar's own frame, so this bar's margins alone
-/// cannot answer it. A theme without the key keeps exactly the corners it
-/// always had, and a bar that floats off one end can still meet its neighbour
-/// at the other.
+/// The fillet [theme] asks for, or 0 when it asks for none — and, unless the
+/// theme joins its bars ([ThemeConfig.panelJoin]), always 0 when its margins
+/// leave no corner of the screen where both bars would be flush, since bars
+/// floating apart meet nowhere.
+double panelJoinRadiusOf(ThemeConfig theme) {
+  if (theme.panelJoinRadius <= 0) return 0.0;
+  return theme.panelJoin || theme.panelMargin.anyFlushCorner
+      ? theme.panelJoinRadius
+      : 0.0;
+}
+
+/// [joins] as [theme] draws them on a bar anchored to [anchor].
+///
+/// Under `panel_join` every join, whatever the margins and whether or not
+/// there is a fillet: the frame is closed by construction
+/// ([panelScreenMargins]).
+///
+/// Otherwise each end's join while the theme has a fillet to put in it and the
+/// screen corner at that end is flush for *both* bars that meet in it
+/// ([PanelMargins.flushAt]) — this bar against its own edge and at that end,
+/// and the bar across the corner likewise — and nothing otherwise. The two
+/// read the corner from different keys, since margins are in each bar's own
+/// frame, so this bar's margins alone cannot answer it. A theme without the
+/// key keeps exactly the corners it always had, and a bar that floats off one
+/// end can still meet its neighbour at the other.
 PanelJoins activePanelJoins(
   ThemeConfig theme,
   PanelJoins joins, {
   String anchor = 'top',
 }) {
-  if (joins.isEmpty || panelJoinRadiusOf(theme) <= 0) return PanelJoins.none;
+  if (joins.isEmpty) return PanelJoins.none;
+  if (theme.panelJoin) return joins;
+  if (panelJoinRadiusOf(theme) <= 0) return PanelJoins.none;
   final margin = theme.panelMargin;
   bool flush(bool start) =>
       margin.flushAt(PanelCorner.of(anchor, outer: true, start: start));
@@ -158,14 +189,57 @@ PanelJoins activePanelJoins(
   return active.isEmpty ? PanelJoins.none : active;
 }
 
+/// The margins a bar anchored to [anchor] is given on the screen under
+/// [theme], meeting [joins] (the geometry's, from [panelJoinsFor]) — what its
+/// layer-shell surface is floated by, as the screen reads them.
+///
+/// Without `panel_join`, the theme's margins in the bar's own frame turned onto
+/// the screen ([PanelMargins.onScreen]), exactly as they always were.
+///
+/// Under `panel_join` the margins are the frame's, in the screen's frame: the
+/// bar stands off its own edge by that edge's margin, and off the screen's side
+/// at either end by that side's — except at an end that meets another bar
+/// where the other bar runs across the corner ([panelCrossesCorners]). A side
+/// bar's end there is 0, because the compositor has already stopped it at the
+/// other bar's exclusive zone, and that zone includes the other bar's margin
+/// off its own edge. So a `bottom` margin lifts the bottom bar alone, and the
+/// side bars' ends follow it up; and a `left` margin floats the left bar and
+/// the top and bottom bars' left ends together, which is what keeps the corner
+/// closed.
+///
+/// The side facing the middle of the screen is not anchored and never read.
+PanelMargins panelScreenMargins(
+  ThemeConfig theme,
+  String anchor, {
+  PanelJoins joins = PanelJoins.none,
+}) {
+  if (!theme.panelJoin) return theme.panelMargin.onScreen(anchor);
+  final frame = theme.panelMargin;
+  if (panelCrossesCorners(anchor)) return frame;
+  final active = activePanelJoins(theme, joins, anchor: anchor);
+  final (startEdge, endEdge) = panelEndEdges(anchor);
+  var margin = frame;
+  if (active.start > 0) margin = margin.withEdge(startEdge, 0);
+  if (active.end > 0) margin = margin.withEdge(endEdge, 0);
+  return margin;
+}
+
+/// How far a bar on the screen edge [edge] stands off it under [theme]: the
+/// margin that edge's exclusive zone includes. The same for every bar on that
+/// edge, joined or not.
+int panelOuterMargin(ThemeConfig theme, String edge) =>
+    panelScreenMargins(theme, edge).of(edge);
+
 /// How far past its bar every panel's surface reaches under [theme]: the
 /// foliage's overhang, or room for the fillet when the bars meet in any of the
-/// screen corners [joined] that the theme leaves flush — whichever is the
-/// larger. The two share the one strip, and the strip is handed back to the
-/// windows beneath either way.
+/// screen corners [joined] that the theme leaves flush (any of them at all,
+/// under `panel_join`) — whichever is the larger. The two share the one strip,
+/// and the strip is handed back to the windows beneath either way.
 int panelSurfaceReach(ThemeConfig theme, {required Set<PanelCorner> joined}) {
-  final flush = joined.any(theme.panelMargin.flushAt);
-  final join = flush ? panelJoinRadiusOf(theme).ceil() : 0;
+  final meets = theme.panelJoin
+      ? joined.isNotEmpty
+      : joined.any(theme.panelMargin.flushAt);
+  final join = meets ? panelJoinRadiusOf(theme).ceil() : 0;
   return math.max(theme.panelReach, join);
 }
 
@@ -463,16 +537,15 @@ Widget? panelJoinLayer({
   // Measured as though no margin had been taken off: a bar's own margin at an
   // end shortens it by that much, and a neighbour's zone there includes that
   // neighbour's margin off its own edge — which is the screen edge at this
-  // bar's end, though the two read it from different keys (margins are in each
-  // bar's own frame). All are 0 at a joined end, so this only keeps a floating
-  // far end from reading as a stop.
-  final margin = theme.panelMargin;
-  final own = margin.onScreen(anchor);
+  // bar's end, though without `panel_join` the two read it from different keys
+  // (margins are in each bar's own frame). Without `panel_join` all are 0 at a
+  // joined end, so this only keeps a floating far end from reading as a stop.
+  final own = panelScreenMargins(theme, anchor, joins: joins);
   final (startEdge, endEdge) = panelEndEdges(anchor);
   final startMargin = own.of(startEdge).toDouble();
   final endMargin = own.of(endEdge).toDouble();
-  final startZone = margin.onScreen(startEdge).of(startEdge).toDouble();
-  final endZone = margin.onScreen(endEdge).of(endEdge).toDouble();
+  final startZone = panelOuterMargin(theme, startEdge).toDouble();
+  final endZone = panelOuterMargin(theme, endEdge).toDouble();
   final owns = panelJoinOwnership(
     joins: PanelJoins(
       start: joins.start > 0 ? joins.start + startZone : 0,

@@ -403,7 +403,11 @@ class DesktopLayerState extends State<DesktopLayer> {
           // The margin comes from the live theme rather than a stored copy, so
           // a theme change that re-floats the bars re-insets the grid on the
           // same frame with no listener of its own.
-          insets: panelInsetsFor(widget.panels, theme.panelMargin),
+          insets: panelInsetsFor(
+            widget.panels,
+            theme.panelMargin,
+            join: theme.panelJoin,
+          ),
         );
         widget.onGeometry?.call(geometry);
 

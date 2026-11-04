@@ -339,8 +339,10 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                       "towards the screen's left edge and Bottom the side "
                       'towards its right — so Right always moves the far end '
                       'of a bar. Two bars join only where both are flush in '
-                      'that corner. The gap is real — windows will not tile '
-                      'into it, and clicks that land there reach the desktop.',
+                      'that corner — unless Join panels is on, when the sides '
+                      "are the screen's and each moves that edge of the frame "
+                      'alone. The gap is real — windows will not tile into '
+                      'it, and clicks that land there reach the desktop.',
                   control: SettingsSidesField(
                     fieldKey: 'panel_margin-$active',
                     top: margin.top,
@@ -361,7 +363,9 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                       'corners chosen under Rounded corners. Corners are named '
                       'as the margins are, in the bar\'s own frame: on a side '
                       'bar Top right is the corner at its top end, on the side '
-                      "towards the screen's left edge.",
+                      "towards the screen's left edge. With Join panels on "
+                      "they are the screen's: one radius for each corner of "
+                      'the frame.',
                   control: SettingsCornersField(
                     fieldKey: 'panel_radius-$active',
                     topLeft: radii.topLeft,
@@ -448,7 +452,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                       "inside of the corner between them in the bar's own "
                       'colour, so the two read as one frame round the screen. '
                       'Bars meet only in a corner where both are flush, with '
-                      'no margin there; zero leaves the corner square.',
+                      'no margin there, or everywhere with Join panels on; '
+                      'zero leaves the corner square.',
                   control: SettingsNumberField(
                     key: ValueKey('panel_join_radius-$active'),
                     value: current['panel_join_radius'] as num? ?? 0,
@@ -456,6 +461,51 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     onChanged: (v) => _themes.edit(
                       'panel_join_radius',
                       v.toDouble().clamp(0.0, 64.0),
+                    ),
+                  ),
+                ),
+                SettingsRow.field(
+                  SettingsCatalog.panelJoin,
+                  info:
+                      'Makes the bars one frame round the screen. Wherever a '
+                      'top or bottom bar and a side bar both exist they meet '
+                      'in the corner, whatever the margins: the margins are '
+                      "then the screen's, each moving its edge of the frame — "
+                      'a Bottom margin lifts the bottom bar, and the side '
+                      "bars' ends come up with it. The top and bottom bars "
+                      'run across the corners, the rim between two joined '
+                      'bars is left out, and the corners they meet in stay '
+                      'square. Two bars on one edge never join.',
+                  // Follows the store, as the corner choice does: the
+                  // section rebuilds only when the active theme changes.
+                  control: StoreSelector<bool>(
+                    key: ValueKey('panel_join-$active'),
+                    listenable: _themes,
+                    selector: () => _themes.theme.panelJoin,
+                    builder: (context, on) => SettingsToggle(
+                      value: on,
+                      onChanged: (v) => _themes.edit('panel_join', v),
+                    ),
+                  ),
+                ),
+                SettingsRow.field(
+                  SettingsCatalog.panelSquareFlushCorners,
+                  info:
+                      'Leaves a corner square wherever it lies on a screen '
+                      'edge the bar touches, whatever Rounded corners picks. '
+                      'A bar touches an edge only where no margin separates '
+                      'it from it: a bar flush against the top of the screen '
+                      'squares its two top corners, and one whose end runs to '
+                      "the screen's side squares both corners at that end.",
+                  // Follows the store, as the corner choice does: the
+                  // section rebuilds only when the active theme changes.
+                  control: StoreSelector<bool>(
+                    key: ValueKey('panel_square_flush_corners-$active'),
+                    listenable: _themes,
+                    selector: () => _themes.theme.panelSquareFlushCorners,
+                    builder: (context, on) => SettingsToggle(
+                      value: on,
+                      onChanged: (v) => _themes.edit('panel_square_flush_corners', v),
                     ),
                   ),
                 ),
