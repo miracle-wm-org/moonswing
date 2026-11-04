@@ -584,6 +584,19 @@ class WindowTeardown {
   }
 }
 
+/// Runs [callback] after the next frame, and asks for that frame.
+///
+/// `addPostFrameCallback` alone does not request a frame, and a shell with
+/// nothing animating produces none — [WindowTeardown]'s rule. A right-click
+/// changes no state of its own, so a menu opened through a bare post-frame hop
+/// waited for whatever painted next: the hover exit, which is why a workspace's
+/// or a dock icon's menu appeared only once the pointer left it.
+void afterNextFrame(VoidCallback callback) {
+  final binding = WidgetsBinding.instance;
+  binding.addPostFrameCallback((_) => callback());
+  binding.scheduleFrame();
+}
+
 /// Whether the framework still holds a render tree for [view].
 ///
 /// The framework's own view of it: the engine only drops the view when the

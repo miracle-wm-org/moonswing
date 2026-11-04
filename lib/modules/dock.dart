@@ -652,7 +652,7 @@ class _DockButtonState extends State<_DockButton> with PopupHost<_DockButton> {
   void _openUnpinMenu(BuildContext context) {
     // Replace any open tooltip with the context menu.
     closePopup();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    afterNextFrame(() {
       if (!mounted) return;
       openBarPopup(
         context,

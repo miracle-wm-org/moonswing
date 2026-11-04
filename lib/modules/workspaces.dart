@@ -725,7 +725,7 @@ class _WorkspaceButtonState extends State<_WorkspaceButton>
     final menuBuilder = widget.menuBuilder;
     if (menuBuilder == null) return;
     closePopup();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    afterNextFrame(() {
       if (!mounted) return;
       openBarPopup(
         context,

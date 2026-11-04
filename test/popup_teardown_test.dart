@@ -105,4 +105,22 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     expect(viewIsAttached(tester.view), isTrue);
   });
+
+  // A right-click changes no state of its own, so a menu opened through a bare
+  // post-frame hop waited for the next thing to paint — the hover exit — and
+  // appeared only once the pointer left the workspace or dock button.
+  testWidgets('afterNextFrame asks for the frame it waits on',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.binding.hasScheduledFrame, isFalse,
+        reason: 'an idle shell produces no frames');
+
+    var runs = 0;
+    afterNextFrame(() => runs++);
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    expect(runs, 0, reason: 'not before the frame');
+
+    await tester.pump();
+    expect(runs, 1);
+  });
 }
