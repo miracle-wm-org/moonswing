@@ -34,7 +34,9 @@ import 'package:moonswing/theme/panel_gradient.dart';
 ///
 /// Both keys name their corners in the bar's own frame (`panel_shape.dart`),
 /// so each screen corner a side bar rounds takes the radius its own frame names
-/// it by ([PanelCorner.onBar]); the [BorderRadius] answered is the screen's.
+/// it by ([PanelCorner.onBar]) — except under `panel_join`, where the bars are
+/// one frame and each key names a corner of the screen, one radius for each
+/// corner of the frame. The [BorderRadius] answered is the screen's either way.
 ///
 /// Returns [BorderRadius.zero] when no corner rounds, which callers use to skip
 /// the clip layer.
@@ -49,7 +51,7 @@ BorderRadius panelCornerRadius({
   if (corners.isEmpty) return BorderRadius.zero;
   Radius at(PanelCorner corner) {
     if (!corners.contains(corner)) return Radius.zero;
-    final r = radii.of(corner.onBar(anchor));
+    final r = radii.of(theme.panelJoin ? corner : corner.onBar(anchor));
     return r > 0 ? Radius.circular(r) : Radius.zero;
   }
 
@@ -72,24 +74,34 @@ BorderRadius panelCornerRadius({
 /// all four, a flush one the inner two, and one flush at one end and floating
 /// at the other rounds both corners at the floating end. A chosen set of
 /// corners is named in the bar's own frame and turned onto the screen
-/// ([PanelCorner.onScreen]).
+/// ([PanelCorner.onScreen]); under `panel_join` it is the screen's already.
+/// The margins read are the ones the bar is actually given
+/// ([panelScreenMargins]).
 ///
-/// Either way, the inner corner at an end that meets another flush bar
-/// ([joins], while the theme has a `panel_join_radius` and both bars are flush
-/// in that screen corner) is square: the two bars are one frame across that
-/// corner, and a rounded one would cut a notch out of it — the fillet is what
-/// turns it now (`panel_join.dart`).
+/// Either way, the inner corner at an end that meets another bar ([joins],
+/// while the theme joins them — [activePanelJoins]) is square: the two bars are
+/// one frame across that corner, and a rounded one would cut a notch out of it
+/// — the fillet is what turns it now (`panel_join.dart`). A side bar squares
+/// its outer corner there too, since its end butts against the inner edge of
+/// the bar running across the corner ([panelCrossesCorners]), which holds the
+/// frame's corner itself.
+///
+/// Under `panel_square_flush_corners` a corner lying on a screen edge the bar
+/// touches — anchored there with no margin between them — is square as well.
 Set<PanelCorner> panelRoundedCorners({
   String anchor = 'top',
   required ThemeConfig theme,
   PanelJoins joins = PanelJoins.none,
 }) {
-  final margin = theme.panelMargin.onScreen(anchor);
+  final margin = panelScreenMargins(theme, anchor, joins: joins);
   final (startEdge, endEdge) = panelEndEdges(anchor);
   final floats = margin.of(anchor) > 0;
   final chosen = theme.panelCorners.corners;
   final rounded = chosen != null
-      ? {for (final corner in chosen) corner.onScreen(anchor)}
+      ? {
+          for (final corner in chosen)
+            theme.panelJoin ? corner : corner.onScreen(anchor),
+        }
       : {
           PanelCorner.of(anchor, outer: false, start: true),
           PanelCorner.of(anchor, outer: false, start: false),
@@ -99,11 +111,21 @@ Set<PanelCorner> panelRoundedCorners({
             PanelCorner.of(anchor, outer: true, start: false),
         };
   final joined = activePanelJoins(theme, joins, anchor: anchor);
-  if (joined.start > 0) {
-    rounded.remove(PanelCorner.of(anchor, outer: false, start: true));
+  final butts = !panelCrossesCorners(anchor);
+  for (final (start, depth) in [(true, joined.start), (false, joined.end)]) {
+    if (depth <= 0) continue;
+    rounded.remove(PanelCorner.of(anchor, outer: false, start: start));
+    if (butts) rounded.remove(PanelCorner.of(anchor, outer: true, start: start));
   }
-  if (joined.end > 0) {
-    rounded.remove(PanelCorner.of(anchor, outer: false, start: false));
+  if (theme.panelSquareFlushCorners) {
+    final touching = {
+      for (final edge in [screenEdgeOf(anchor), startEdge, endEdge])
+        if (margin.of(edge) == 0) edge,
+    };
+    rounded.removeWhere((corner) {
+      final (across, along) = corner.edges;
+      return touching.contains(across) || touching.contains(along);
+    });
   }
   return rounded;
 }

@@ -133,11 +133,77 @@ PanelRimBreak attachedMouthRange({
 /// Whether [theme] wants its bar's rim painted by [PanelRimPainter] rather than
 /// by the `Border` in `panelBackgroundDecoration`.
 ///
-/// Only a bar that carries a rim *and* attaches its popups has a seam to
-/// remove, and only that case takes the painter — so every other theme keeps
-/// byte-for-byte the decoration, the layers and the paint it always had.
-bool panelPaintsOwnRim(ThemeConfig theme) =>
-    theme.panelBorderWidth > 0 && theme.popupGap <= 0;
+/// Only a bar that carries a rim *and* has a seam to remove takes the painter:
+/// one that attaches its popups, or one that meets another bar under the theme
+/// ([joins], filtered by [activePanelJoins] here), where the rim between the
+/// two is left out ([panelJoinSeams]). Every other theme keeps byte-for-byte
+/// the decoration, the layers and the paint it always had.
+bool panelPaintsOwnRim(
+  ThemeConfig theme, {
+  String anchor = 'top',
+  PanelJoins joins = PanelJoins.none,
+}) =>
+    theme.panelBorderWidth > 0 &&
+    (theme.popupGap <= 0 ||
+        !activePanelJoins(theme, joins, anchor: anchor).isEmpty);
+
+/// The bands of a bar's rim to leave out where it meets another bar, for a bar
+/// of [size] anchored to [anchor] with a rim [width] wide, meeting [joins]
+/// (already filtered by the theme — [activePanelJoins]).
+///
+/// Joined bars have one outline between them, not two lines butted together.
+/// At a corner one bar runs across it and the other stops against its inner
+/// edge ([panelCrossesCorners]), and each leaves out its half of the seam:
+///
+/// - the bar that **stops** leaves out the rim across its end, but not the
+///   long sides' lines, which run on to the end of its box and meet the other
+///   bar's rim there;
+/// - the bar that **runs across** leaves out its inner rim where the other's
+///   end lies against it — the other bar's depth, which starts at this bar's
+///   end because their margins off that side are one — less a rim's width at
+///   either side, so its own end line still turns the outer corner and its
+///   inner line still meets the other bar's inner one.
+///
+/// Every band is exactly the rim's own thickness deep, so the clip takes the
+/// line and none of the fill under it.
+List<Rect> panelJoinSeams({
+  required String anchor,
+  required Size size,
+  required double width,
+  required PanelJoins joins,
+}) {
+  if (width <= 0 || joins.isEmpty) return const [];
+  final vertical = isVerticalAnchor(anchor);
+  final length = vertical ? size.height : size.width;
+  final depth = vertical ? size.width : size.height;
+  // Bands in the bar's own (along, across) coordinates, turned onto the box.
+  Rect band(double a0, double a1, double c0, double c1) => vertical
+      ? Rect.fromLTRB(c0, a0, c1, a1)
+      : Rect.fromLTRB(a0, c0, a1, c1);
+  final edge = screenEdgeOf(anchor);
+  // The inner rim's band across the depth: the side facing the screen's middle.
+  final (innerFrom, innerTo) = switch (edge) {
+    'bottom' || 'right' => (0.0, width),
+    _ => (depth - width, depth),
+  };
+  final crosses = panelCrossesCorners(anchor);
+  final seams = <Rect>[];
+  for (final (start, neighbour) in [(true, joins.start), (false, joins.end)]) {
+    if (neighbour <= 0) continue;
+    if (!crosses) {
+      final (a0, a1) = start ? (0.0, width) : (length - width, length);
+      if (depth > 2 * width) seams.add(band(a0, a1, width, depth - width));
+      continue;
+    }
+    final reach = math.min(neighbour, length / 2);
+    if (reach <= 2 * width) continue;
+    final (a0, a1) = start
+        ? (width, reach - width)
+        : (length - reach + width, length - width);
+    seams.add(band(a0, a1, innerFrom, innerTo));
+  }
+  return seams;
+}
 
 /// The bar's rim, with the stretch an attached popup's mouth covers left out.
 ///
@@ -155,6 +221,7 @@ class PanelRimPainter extends CustomPainter {
     required this.radius,
     required this.anchor,
     this.gap,
+    this.joins = PanelJoins.none,
   });
 
   /// [ThemeConfig.panelBorder].
@@ -172,6 +239,10 @@ class PanelRimPainter extends CustomPainter {
 
   /// The stretch of the inner edge to leave unpainted, or null for none.
   final PanelRimBreak? gap;
+
+  /// The bars this one meets as the theme draws them ([activePanelJoins]),
+  /// whose seams are left unpainted ([panelJoinSeams]).
+  final PanelJoins joins;
 
   /// The band of [size] the break occupies: the inner edge's rim, over the
   /// range the mouth covers.
@@ -199,6 +270,14 @@ class PanelRimPainter extends CustomPainter {
     final cut = breakRect(size);
     canvas.save();
     if (cut != null) canvas.clipRect(cut, clipOp: ClipOp.difference);
+    for (final seam in panelJoinSeams(
+      anchor: anchor,
+      size: size,
+      width: width,
+      joins: joins,
+    )) {
+      canvas.clipRect(seam, clipOp: ClipOp.difference);
+    }
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = width
@@ -221,7 +300,8 @@ class PanelRimPainter extends CustomPainter {
       old.width != width ||
       old.radius != radius ||
       old.anchor != anchor ||
-      old.gap != gap;
+      old.gap != gap ||
+      old.joins != joins;
 }
 
 /// [content] with the bar's rim painted over it, or [content] unchanged when
@@ -248,8 +328,9 @@ Widget panelWithRim({
   required Widget content,
   PanelJoins joins = PanelJoins.none,
 }) {
-  if (!panelPaintsOwnRim(theme)) return content;
+  if (!panelPaintsOwnRim(theme, anchor: anchor, joins: joins)) return content;
   final radius = panelCornerRadius(anchor: anchor, theme: theme, joins: joins);
+  final seams = activePanelJoins(theme, joins, anchor: anchor);
   return ListenableBuilder(
     listenable: PanelRimBreaks.instance,
     builder: (context, child) => CustomPaint(
@@ -258,7 +339,12 @@ Widget panelWithRim({
         width: theme.panelBorderWidth,
         radius: radius,
         anchor: anchor,
-        gap: _rimGap(theme, PanelRimBreaks.instance.of(panel)),
+        // Only a theme that attaches its popups has a mouth to break; one
+        // here for its joins alone would otherwise open a gap no menu covers.
+        gap: theme.popupGap <= 0
+            ? _rimGap(theme, PanelRimBreaks.instance.of(panel))
+            : null,
+        joins: seams,
       ),
       child: child,
     ),

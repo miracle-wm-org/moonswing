@@ -1309,6 +1309,8 @@ panel_margin         = 0
 panel_radius         = 0.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
+panel_join           = false
+panel_square_flush_corners = false
 panel_border         = "#33EBDBB2"
 panel_border_width   = 0.0
 
@@ -1368,6 +1370,8 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `panel_radius`         | `0.0`         | Corner rounding of each bar, at the corners `panel_corners` picks: one number, or a table giving each corner its own (see below) |
 | `panel_corners`        | `auto`        | Which corners `panel_radius` rounds: `auto`, `all`, `none`, or a list of `top_left`, `top_right`, `bottom_right`, `bottom_left` (see below) |
 | `panel_join_radius`    | `0.0`         | Rounds the inside of the corner where two flush bars meet; `0`–`64` (see below) |
+| `panel_join`           | `false`       | Makes the bars one frame round the screen: every top or bottom bar meets the side bars, whatever the margins, which are then the screen's (see below) |
+| `panel_square_flush_corners` | `false` | Leaves square every corner on a screen edge the bar touches, with no margin between them (see below) |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
 | `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
 | `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card                 |
@@ -1471,7 +1475,7 @@ The sides are the **bar's**, so a name always means the same part of a bar, whic
 
 So `right` is always a bar's far end, and with the table above a top bar stops 8px short of the screen's right edge and a side bar 8px short of its top. Each bar is floated off the screen edge it sits on by the side against that edge — `top` for a top or left bar, `bottom` for a bottom or right one — and its ends by `left` and `right`; the side facing the middle of the screen has nothing to push against and is not read. A margin that is the same on every side is written back as one number, as it always was, and means the same thing either way.
 
-Because each bar reads its own frame, a top bar and a side bar meeting in a corner read that corner from different keys: in the top-left, the top bar's `top` and `left` and the left bar's `top` and `right` (its top end). They are flush there — and can join, see [Where two bars meet](#where-two-bars-meet) — only when all three are `0`.
+Because each bar reads its own frame, a top bar and a side bar meeting in a corner read that corner from different keys: in the top-left, the top bar's `top` and `left` and the left bar's `top` and `right` (its top end). They are flush there — and can join, see [Where two bars meet](#where-two-bars-meet) — only when all three are `0`. Under `panel_join` none of this applies: the bars are one frame, and its margins and corners are named as the screen's — see [Joining the bars](#joining-the-bars).
 
 `panel_radius` rounds the bar's corners, and `panel_corners` says which. Like the margin, the radius is one number for every corner or a table giving each its own, a corner left out being `0`:
 
@@ -1492,7 +1496,9 @@ To pick the corners yourself, give `panel_corners` a list, or `"all"` or `"none"
 panel_corners = ["top_right", "bottom_right"]   # round only the far end
 ```
 
-The list is named in the bar's frame too, and applies to every bar as written, whether or not it floats — so the line above rounds a top bar's right-hand end and a side bar's top end. Settings › Appearance › Bar offers both, as **Automatic** and **Chosen**. Either way, the inner corner where two bars meet under a `panel_join_radius` stays square, because the fillet is what turns it.
+The list is named in the bar's frame too, and applies to every bar as written, whether or not it floats — so the line above rounds a top bar's right-hand end and a side bar's top end. Settings › Appearance › Bar offers both, as **Automatic** and **Chosen**. Either way, the corners where two bars meet in a join stay square — see [Where two bars meet](#where-two-bars-meet).
+
+`panel_square_flush_corners = true` leaves a corner square wherever it lies on a screen edge the bar *touches*, whatever `panel_corners` picks. A bar touches an edge only where no margin separates it from that edge: a top bar flush against the top of the screen squares its two top corners, and one whose right-hand end runs to the screen's side squares both corners at that end. A bar floating clear of every edge rounds every corner it picks.
 
 `panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
 
@@ -1502,12 +1508,28 @@ All of these follow a theme switch live; no restart is needed.
 
 `panel_join_radius` is for a screen with a bar on two adjacent edges — a top or bottom bar and a left or right one. Where the two meet, their inner edges make a sharp right angle at the corner of the space your windows tile into; this fills that angle with a quarter round of the given radius, in the bar's own colour, so the pair reads as one frame around the screen instead of two strips butted together. `dracula` is the one shipped theme that sets it, at `12`.
 
-- **Only flush bars meet.** Two bars meet in a corner of the screen only when *both* are flush against both of its edges — three of the four `panel_margin` sides, since the two bars read the corner from different keys; anywhere else they float apart and the key is not read there. With a per-side margin, a pair can be joined at one corner and float at its other ends: `panel_margin = { left = 8 }` joins a top bar and a right bar in the top-right corner, with the top bar's left-hand end and the right bar's bottom end floating — see [Floating the bar](#floating-the-bar).
+- **Only flush bars meet** — unless the theme joins them, see [Joining the bars](#joining-the-bars). Two bars meet in a corner of the screen only when *both* are flush against both of its edges — three of the four `panel_margin` sides, since the two bars read the corner from different keys; anywhere else they float apart and the key is not read there. With a per-side margin, a pair can be joined at one corner and float at its other ends: `panel_margin = { left = 8 }` joins a top bar and a right bar in the top-right corner, with the top bar's left-hand end and the right bar's bottom end floating — see [Floating the bar](#floating-the-bar).
 - **Only one bar per edge.** Two bars stacked on one edge take no part in a join, since which of them is innermost is the compositor's decision and nothing reports it.
 - **The bars square off the corner the fillet turns.** At a joined end, the inner corner `panel_radius` would round is left square, even one picked by `panel_corners`; the bar's other corners round as before.
 - **It is real surface, and it does not take your clicks** — the same arrangement as the foliage below. Every bar's surface grows by the radius while any two bars meet, and that strip is cut out of the surface's input region, so a click on the fillet lands on the window behind it. Windows still tile right up to the bars. Should the shell be unable to set an input region, the surface is not grown and the corner stays square.
 - **The bar that stops at the corner paints it.** The compositor decides which of the two bars runs across the corner (Mir, and so miracle-wm, stretches top and bottom bars across and fits side bars between them; sway goes by the order the bars were made in), and the shell tells which by measuring each bar against the screen. When it cannot tell — say a left and a right bar of equal height under a top bar the compositor shortened at only one end — that corner is left square rather than painted over a bar's buttons.
 - The fillet continues a gradient bar's colour at that end and a rimmed bar's rim round the corner; it does not continue a `panel_texture` or `panel_image`.
+- **A rimmed pair has one outline.** Where two bars meet, the rim between them is left out: the bar that stops at the corner drops the line across its end, and the bar running across it drops its inner line where the other's end lies against it, so the two rims turn the corner as one.
+
+#### Joining the bars
+
+`panel_join = true` makes the bars one frame round the screen. Every top or bottom bar meets the side bars at its ends, **whatever the margins say** — the flush rule above no longer applies — and `panel_join_radius`, if set, rounds every one of those inside corners.
+
+```toml
+panel_join   = true
+panel_margin = { bottom = 10 }   # the frame stands 10px off the bottom of the screen
+```
+
+- **The margins are the screen's.** Under `panel_join` each side of `panel_margin` is how far the frame stands off that screen edge, and it moves only the bar on that edge: `bottom = 10` lifts the bottom bar, and a side bar's bottom end comes up with it rather than taking a margin of its own; `left = 10` floats the left bar and the top and bottom bars' left-hand ends together, so the corner stays closed. A bar's end that meets nothing keeps the margin of its side.
+- **The top and bottom bars run across the corners**, and the side bars stop against them — Mir's own placement, and the shell makes the top and bottom bars before the side ones so that sway, which places bars in the order they were made, agrees. Keep joined bars on one `layer`: sway places a higher layer's bars first.
+- **One radius for each corner of the frame.** `panel_radius` and `panel_corners` name the screen's corners too: `top_left` is the screen's top-left wherever a bar holds it. The bar running across a corner rounds the frame's corner there; the side bar's end and the inside corner stay square.
+- **No rim between them**, as above.
+- Two bars on one edge still never join.
 
 ### Popups
 

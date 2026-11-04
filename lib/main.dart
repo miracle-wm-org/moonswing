@@ -872,12 +872,15 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// each with `setState` rebuilt every view the root owns.
   late final ValueNotifier<AppConfig> _liveConfig;
 
-  /// The panel margin currently committed to the native surfaces.
+  /// The margins currently committed to each panel's native surface, as the
+  /// screen reads them ([panelScreenMargins]).
   ///
-  /// Cached so [_onThemeChanged] can tell whether it actually moved: the store
-  /// notifies on every frame of a colour-picker drag, and re-committing every
-  /// layer surface that often makes the bars flicker.
-  PanelMargins _panelMargin = PanelMargins.zero;
+  /// Cached so [_applyPanelMargins] can tell whether one actually moved: the
+  /// store notifies on every frame of a colour-picker drag, and re-committing
+  /// every layer surface that often makes the bars flicker. Per surface rather
+  /// than one value, because under `panel_join` a bar's margins depend on the
+  /// bars it meets as well as on the theme.
+  final Map<LayershellWindowController, PanelMargins> _panelMargins = {};
 
   /// How far past the bar the panel surfaces reach, and the theme the panels
   /// render — which lags the store across a switch that moves the reach, so a
@@ -947,8 +950,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     }
     // startThemeService() resolved the palette in main(), so the margin is known
     // before the first surface is built and no bar is created flush and then
-    // nudged.
-    _panelMargin = ThemeStore.instance.theme.panelMargin;
+    // nudged ([_createPanel] reads the store).
     _panelsJoined = panelJoinCorners(_panelGeometry.values);
     _panelTheme = PanelReachSequencer(
       initial: ThemeStore.instance.theme,
@@ -1006,9 +1008,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       spanFullOutput(background);
     }
 
+    // The top and bottom bars first: see [_panelCreationOrder].
     final panels = <String, LayershellWindowController>{
-      for (final entry in _panelGeometry.entries)
-        entry.key: _createPanel(monitor, entry.value),
+      for (final key in _panelCreationOrder(_panelGeometry.keys))
+        key: _createPanel(monitor, _panelGeometry[key]!),
     };
 
     return _MonitorSurfaces(monitor, background, panels);
@@ -1044,13 +1047,9 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       exclusiveZone: panelConfig.height,
       monitor: monitor.gdkMonitor,
     );
-    // Reading the field rather than the store means a monitor hot-plugged
-    // after a theme change gets the current margin with no second call site.
-    setPanelMargin(
-      controller,
-      anchor: panelConfig.anchor,
-      margin: _panelMargin,
-    );
+    // Read when the window is made, so a monitor hot-plugged after a theme
+    // change gets the current margin with no second call site.
+    _commitPanelMargin(controller, panelConfig);
     // Grown past the bar only where the theme hangs something off it, and
     // only once the overhang has been handed back to the windows beneath.
     // A theme with nothing to hang leaves the surface exactly as created.
@@ -2129,7 +2128,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   ///
   /// Not left `onDemand`: a full-output surface that can take focus would let a
   /// stray desktop click steal it from the focused application. Cached in a set
-  /// on the [_panelMargin] precedent, and force-committed for [setPanelMargin]'s
+  /// on the [_panelMargins] precedent, and force-committed for [setPanelMargin]'s
   /// reason.
   void _setDesktopKeyboard(String monitorKey, bool wanted) {
     if (_desktopKeyboard.contains(monitorKey) == wanted) return;
@@ -2292,6 +2291,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
       if (!incoming.containsKey(key)) {
         final gone = _surfaces.remove(key)!;
         gone.panels.values.forEach(_panelDepths.remove);
+        gone.panels.values.forEach(_panelMargins.remove);
         removed.addAll(gone.controllers);
         final osd = _osd.remove(key);
         if (osd != null) removed.add(osd);
@@ -2435,6 +2435,19 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         if (stale.contains(key) || !current.containsKey(key)) key,
     };
     if (stale.isEmpty && fresh.isEmpty) return;
+    // A top or bottom bar made now would be made after the side bars, and sway
+    // places surfaces in the order they were made — so the side bars are made
+    // again after it, and the top and bottom bars still run across the
+    // corners ([panelCrossesCorners]).
+    if (fresh.any((key) => panelCrossesCorners(live[key]!.anchor))) {
+      for (final MapEntry(:key, :value) in live.entries) {
+        if (panelCrossesCorners(value.anchor) || !current.containsKey(key)) {
+          continue;
+        }
+        stale.add(key);
+        fresh.add(key);
+      }
+    }
 
     _panelGeometry = live;
     final removed = <LayershellWindowController>[];
@@ -2444,15 +2457,19 @@ class _MoonswingRootState extends State<MoonswingRoot> {
         final controller = surfaces.panels.remove(key);
         if (controller == null) continue;
         _panelDepths.remove(controller);
+        _panelMargins.remove(controller);
         removed.add(controller);
       }
-      for (final key in fresh) {
+      for (final key in _panelCreationOrder(fresh)) {
         surfaces.panels[key] = _createPanel(surfaces.monitor, live[key]!);
       }
     }
     // Detach the dropped views first — the hotplug order in [_syncMonitors].
     _refreshWindows();
     _destroyAfterFrame(removed);
+    // The bars that stayed may meet a different set now, which under
+    // `panel_join` moves their margins.
+    _applyPanelMargins();
     // A bar arriving beside another, or the last one it met leaving, moves the
     // reach every bar's surface needs for a fillet. After the new windows
     // exist, so they are grown with the rest.
@@ -2470,20 +2487,58 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// rather than by recreating it: a bar that rounded its corners without
   /// lifting off the screen edge would look broken, and a new window per
   /// colour-picker frame would flicker. No [setState] — nothing in the tree
-  /// reads [_panelMargin].
+  /// reads [_panelMargins].
   void _onThemeChanged() {
     if (!mounted) return;
     _panelTheme.update();
-    final margin = ThemeStore.instance.theme.panelMargin;
-    if (margin == _panelMargin) return;
-    _panelMargin = margin;
+    _applyPanelMargins();
+  }
+
+  /// The order panel windows are made in: the top and bottom bars before the
+  /// side ones, each group in [keys]' own order.
+  ///
+  /// `panel_join` builds its margins on the top and bottom bars running across
+  /// the corners ([panelCrossesCorners]). Mir places them that way whatever the
+  /// order; sway places each layer's surfaces in the order they were made, so
+  /// this is what makes it agree.
+  List<String> _panelCreationOrder(Iterable<String> keys) {
+    bool crosses(String key) =>
+        panelCrossesCorners(_panelGeometry[key]?.anchor ?? 'top');
+    return [
+      for (final key in keys)
+        if (crosses(key)) key,
+      for (final key in keys)
+        if (!crosses(key)) key,
+    ];
+  }
+
+  /// Commits [panelConfig]'s margins under the store's theme to [controller],
+  /// unless they are already what it has.
+  void _commitPanelMargin(
+    LayershellWindowController controller,
+    PanelConfig panelConfig,
+  ) {
+    final margin = panelScreenMargins(
+      ThemeStore.instance.theme,
+      panelConfig.anchor,
+      // The built geometry, as the panels' own `joins` are.
+      joins: panelJoinsFor(panelConfig, _panelGeometry.values),
+    );
+    if (_panelMargins[controller] == margin) return;
+    _panelMargins[controller] = margin;
+    setPanelMargin(controller, anchor: panelConfig.anchor, margin: margin);
+  }
+
+  /// Brings every panel surface's margins in line with the theme and the bars
+  /// each one meets, committing only the ones that moved.
+  void _applyPanelMargins() {
     for (final surfaces in _surfaces.values) {
       surfaces.panels.forEach((key, controller) {
         // The geometry the surface was built with, like [effectivePanel]: the
         // anchor cannot change without recreating it, which [_syncPanels] does.
         final panelConfig = _panelGeometry[key];
         if (panelConfig == null) return;
-        setPanelMargin(controller, anchor: panelConfig.anchor, margin: margin);
+        _commitPanelMargin(controller, panelConfig);
       });
     }
   }
@@ -3339,11 +3394,14 @@ class _PanelMainState extends State<PanelMain> {
     // painter over the bar's own content, which is what keeps the modules
     // clickable — a `CustomPaint` laid over them as a background painter is
     // opaque to hits.
-    final paintsOwnRim = panelPaintsOwnRim(theme);
-
     final anchor = widget.panelConfig.anchor;
     final thickness = widget.panelConfig.height.toDouble();
     final joins = widget.joins;
+    final paintsOwnRim = panelPaintsOwnRim(
+      theme,
+      anchor: anchor,
+      joins: joins,
+    );
     final radius = panelCornerRadius(anchor: anchor, theme: theme, joins: joins);
     final view = View.maybeOf(context);
 

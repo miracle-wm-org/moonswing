@@ -308,6 +308,11 @@ class ThemeConfig {
   /// anticlockwise, so `right` is the far end of every bar — a top bar's
   /// right-hand end, a side bar's top end.
   ///
+  /// Under [panelJoin] the bars are one frame and this is read in the
+  /// *screen's* frame instead: each side is how far the frame stands off that
+  /// screen edge, and moves only the bar on that edge — a bar's end that meets
+  /// another bar follows it rather than taking a margin of its own.
+  ///
   /// A *native* `gtk_layer_set_margin`, never a Flutter `Padding`: with no
   /// input-region support, an inset inside a full-size surface would swallow
   /// every click in the gap.
@@ -319,7 +324,8 @@ class ThemeConfig {
 
   /// The bar's corner rounding, at the corners [panelCorners] picks — one
   /// number for every corner, or each corner its own ([PanelRadii]), named in
-  /// the bar's own frame as [panelMargin]'s sides are.
+  /// the bar's own frame as [panelMargin]'s sides are (the screen's, under
+  /// [panelJoin], where each names one corner of the frame).
   final PanelRadii panelRadius;
 
   /// Which corners [panelRadius] rounds ([PanelCornerChoice]), named in the
@@ -353,7 +359,35 @@ class ThemeConfig {
   /// ([PanelMargins.flushAt]): a bar floating off either edge meets nothing
   /// there.
   /// The default of 0 leaves the corner square, exactly as it always was.
+  ///
+  /// Under [panelJoin] every corner where two bars meet is a join, whatever
+  /// the margins, and takes this fillet.
   final double panelJoinRadius;
+
+  /// Whether the bars are one frame round the screen (`panel_join`).
+  ///
+  /// Where a top or bottom bar and a side bar both exist, they meet in the
+  /// corner between them whatever [panelMargin] says: the margins are read in
+  /// the screen's frame and move the frame's edges, the top or bottom bar runs
+  /// across the corner, and the side bar's end stops against it with no margin
+  /// of its own — so a `bottom` margin lifts the bottom bar and the side bars'
+  /// ends come up with it. At a join both bars square the corners they meet
+  /// in, the rim between them is left out so the pair has one outline, and
+  /// [panelRadius] and [panelCorners] name the screen's corners, one radius for
+  /// each corner of the frame. Which bars meet is `panel_join.dart`'s.
+  ///
+  /// Off by default: two bars then meet only in a corner where both are flush,
+  /// and only under a [panelJoinRadius].
+  final bool panelJoin;
+
+  /// Whether a corner lying on a screen edge the bar touches is left square
+  /// whatever [panelCorners] picks (`panel_square_flush_corners`).
+  ///
+  /// A bar touches an edge only where no margin separates it from that edge,
+  /// so a top bar flush against the top of the screen squares its two top
+  /// corners, and one whose right end runs to the screen's side squares both
+  /// corners at that end. Off by default, which rounds every corner picked.
+  final bool panelSquareFlushCorners;
 
   /// The colour of the bar's rim. Only drawn when [panelBorderWidth] > 0.
   final Color panelBorder;
@@ -773,6 +807,8 @@ class ThemeConfig {
     this.panelRadius = PanelRadii.zero,
     this.panelCorners = PanelCornerChoice.auto,
     this.panelJoinRadius = 0.0,
+    this.panelJoin = false,
+    this.panelSquareFlushCorners = false,
     this.panelBorder = const Color(0x33F3F4F4),
     this.panelBorderWidth = 0.0,
     this.popupRadius = 8.0,
@@ -871,6 +907,10 @@ class ThemeConfig {
     _ThemeKey(
         'panel_join_radius', _ThemeKeyKind.number, (t) => t.panelJoinRadius,
         min: 0.0, max: 64.0),
+    // Geometry too, for the same reason: they move the panels' margins.
+    _ThemeKey('panel_join', _ThemeKeyKind.flag, (t) => t.panelJoin),
+    _ThemeKey('panel_square_flush_corners', _ThemeKeyKind.flag,
+        (t) => t.panelSquareFlushCorners),
     _ThemeKey('panel_border', _ThemeKeyKind.color, (t) => t.panelBorder),
     _ThemeKey(
         'panel_border_width', _ThemeKeyKind.number, (t) => t.panelBorderWidth,
@@ -1043,6 +1083,8 @@ class ThemeConfig {
       panelRadius: v('panel_radius'),
       panelCorners: v('panel_corners'),
       panelJoinRadius: v('panel_join_radius'),
+      panelJoin: v('panel_join'),
+      panelSquareFlushCorners: v('panel_square_flush_corners'),
       panelBorder: v('panel_border'),
       panelBorderWidth: v('panel_border_width'),
       popupRadius: v('popup_radius'),

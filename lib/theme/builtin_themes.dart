@@ -99,6 +99,8 @@ panel_margin         = 6
 panel_radius         = 7.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
+panel_join           = false
+panel_square_flush_corners = false
 # A dark bark line round the beam, broken where a trunk grows out of it.
 panel_border         = "#E61A0F07"
 panel_border_width   = 1.5
@@ -242,6 +244,8 @@ panel_margin         = 0
 panel_radius         = 8.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
+panel_join           = false
+panel_square_flush_corners = false
 # A dark line round the beam, broken where a trunk grows out of it.
 panel_border         = "#E6180C04"
 panel_border_width   = 1.5
@@ -359,6 +363,8 @@ panel_corners        = "auto"
 # as one frame round the screen. Square everywhere else, and unread on a
 # single bar.
 panel_join_radius    = 12.0
+panel_join           = false
+panel_square_flush_corners = false
 panel_border         = "#33F8F8F2"
 panel_border_width   = 0.0
 
@@ -484,6 +490,8 @@ panel_margin         = 8
 panel_radius         = 12.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
+panel_join           = false
+panel_square_flush_corners = false
 panel_border         = "#40FFFFFF"
 panel_border_width   = 1.0
 
@@ -637,6 +645,8 @@ panel_margin         = 12
 panel_radius         = 18.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
+panel_join           = false
+panel_square_flush_corners = false
 panel_border         = "#665F87F5"
 panel_border_width   = 1.5
 
@@ -824,6 +834,8 @@ panel_margin         = 0
 panel_radius         = 0.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
+panel_join           = false
+panel_square_flush_corners = false
 panel_border         = "#525252"
 panel_border_width   = 1.0
 
@@ -990,6 +1002,8 @@ panel_margin         = 0
 panel_radius         = 0.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
+panel_join           = false
+panel_square_flush_corners = false
 panel_border         = "#FFFFFF"
 panel_border_width   = 1.0
 

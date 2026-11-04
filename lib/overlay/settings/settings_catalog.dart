@@ -239,8 +239,9 @@ abstract final class SettingsCatalog {
     section: 'Theme',
     description:
         'Floats the bars off the screen edges, every side its own, named as '
-        'the bar sits — a side bar’s right is its top end. The gap is real — '
-        'windows will not tile into it.',
+        'the bar sits — a side bar’s right is its top end. With joined bars, '
+        'each side moves that edge of the frame. The gap is real — windows '
+        'will not tile into it.',
     tags: const [
       'bar',
       'taskbar',
@@ -299,6 +300,27 @@ abstract final class SettingsCatalog {
         'Rounds the inside of the corner where two bars meet, so they read as '
         'one frame. Zero leaves it square.',
     tags: const ['bar', 'taskbar', 'rounded', 'corner', 'inner', 'fillet', 'join'],
+  );
+
+  static final panelJoin = shellField(
+    'theme.panel_join',
+    'Join panels',
+    section: 'Theme',
+    description:
+        'Makes the bars one frame round the screen: where a top or bottom bar '
+        'and a side bar both exist they meet in the corner whatever the '
+        'margins, with no rim between them.',
+    tags: const ['bar', 'taskbar', 'frame', 'join', 'connect', 'merge', 'seam'],
+  );
+
+  static final panelSquareFlushCorners = shellField(
+    'theme.panel_square_flush_corners',
+    'Square corners at the screen edge',
+    section: 'Theme',
+    description:
+        'Leaves square every corner on a screen edge the bar touches, with no '
+        'margin between them.',
+    tags: const ['bar', 'taskbar', 'rounded', 'corners', 'flush', 'edge'],
   );
 
   static final panelBorderWidth = shellField(
@@ -3095,6 +3117,8 @@ abstract final class SettingsCatalog {
     panelRadius,
     panelCorners,
     panelJoinRadius,
+    panelJoin,
+    panelSquareFlushCorners,
     panelBorderWidth,
     popupRadius,
     popupGap,
