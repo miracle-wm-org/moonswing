@@ -32,6 +32,7 @@ import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/popup_transition.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/panel_shape.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:layer_shell/layer_shell.dart';
@@ -285,7 +286,8 @@ void spanFullOutput(LayershellWindowController controller) {
   controller.setExclusiveZone(-1);
 }
 
-/// Floats a panel [margin] px off each screen edge it is anchored to.
+/// Floats a panel off each screen edge it is anchored to, by that edge's
+/// [margin] — its own edge's, and the two at its ends ([PanelMargins]).
 ///
 /// A native layer-shell margin rather than a Flutter inset because the shell has
 /// no input-region support: padding inside a full-size surface would leave the
@@ -298,10 +300,10 @@ void spanFullOutput(LayershellWindowController controller) {
 void setPanelMargin(
   LayershellWindowController controller, {
   required String anchor,
-  required int margin,
+  required PanelMargins margin,
 }) {
   for (final edge in anchorEdgesForPosition(anchor)) {
-    controller.setMargin(edge, margin);
+    controller.setMargin(edge, margin.of(edge.name));
   }
   // Once the surface is mapped a margin change only queues a resize, so a live
   // theme edit would otherwise sit unsent until something else forced a frame.

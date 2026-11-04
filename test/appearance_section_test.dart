@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -176,4 +177,55 @@ void main() {
       await themes.flush();
     });
   }
+
+  testWidgets('the bar margin is edited edge by edge', (tester) async {
+    await pump(tester);
+    final before = themes.theme.panelMargin;
+    final left = find.descendant(
+      of: find.byKey(ValueKey('panel_margin-$slug-left')),
+      matching: find.byType(EditableText),
+    );
+    await tester.tap(left);
+    await tester.enterText(left, '12');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(themes.activeName, slug);
+    expect(themes.theme.panelMargin, before.withEdge('left', 12));
+    expect(themes.theme.panelMargin.isUniform, isFalse);
+    await themes.flush();
+  });
+
+  testWidgets('the rounded corners are picked one by one', (tester) async {
+    await pump(tester);
+    expect(find.text('Automatic'), findsOneWidget);
+    expect(find.byKey(ValueKey('panel_corners-$slug')), findsNothing);
+
+    // An edit to Chosen made anywhere brings the toggles up: the row follows
+    // the store, not the section's seed.
+    themes.edit(
+      'panel_corners',
+      const PanelCornerChoice.only({
+        PanelCorner.bottomLeft,
+        PanelCorner.bottomRight,
+      }).encode(),
+    );
+    await tester.pump();
+    final toggles = find.byKey(ValueKey('panel_corners-$slug'));
+    expect(toggles, findsOneWidget);
+
+    await tester.tap(
+      find.descendant(of: toggles, matching: find.text('Top right')),
+    );
+    await tester.pump();
+    expect(
+      themes.theme.panelCorners,
+      const PanelCornerChoice.only({
+        PanelCorner.topRight,
+        PanelCorner.bottomLeft,
+        PanelCorner.bottomRight,
+      }),
+    );
+    await themes.flush();
+  });
 }

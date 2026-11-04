@@ -30,7 +30,7 @@ void main() {
         'bottom': PanelConfig(anchor: 'bottom', height: 40),
         'left': PanelConfig(anchor: 'left', height: 48),
         'right': PanelConfig(anchor: 'right', height: 56),
-      }, 0);
+      }, PanelMargins.zero);
       expect(insets, const EdgeInsets.fromLTRB(48, 32, 56, 40));
     });
 
@@ -39,7 +39,7 @@ void main() {
     test('adds the theme panel margin to each panel it insets', () {
       final insets = panelInsetsFor(
         const {'top': PanelConfig(anchor: 'top', height: 32)},
-        8,
+        const PanelMargins.all(8),
       );
       expect(insets.top, 40);
     });
@@ -48,12 +48,12 @@ void main() {
       final insets = panelInsetsFor(const {
         'a': PanelConfig(anchor: 'top', height: 32),
         'b': PanelConfig(anchor: 'top', height: 24),
-      }, 0);
+      }, PanelMargins.zero);
       expect(insets.top, 56);
     });
 
     test('no panels means no inset', () {
-      expect(panelInsetsFor(const {}, 8), EdgeInsets.zero);
+      expect(panelInsetsFor(const {}, const PanelMargins.all(8)), EdgeInsets.zero);
     });
   });
 

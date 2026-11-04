@@ -29,16 +29,8 @@ import 'package:moonswing/theme/panel_gradient.dart';
 /// ([panelCornerRadius]); a theme that sets neither gets the decoration it
 /// always did.
 ///
-/// The bar's corner rounding, from [ThemeConfig.panelRadius].
-///
-/// A floating bar rounds all four corners. A flush one rounds only the two facing
-/// the screen's interior: rounding the pair against the screen edge would cut
-/// wallpaper wedges out of the display's own corners.
-///
-/// At an end that meets another flush bar ([joins], while the theme has a
-/// `panel_join_radius`), the inner corner there is square instead: the two bars
-/// are one frame across that corner, and a rounded one would cut a notch out of
-/// it — the fillet is what turns it now (`panel_join.dart`).
+/// The bar's corner rounding, from [ThemeConfig.panelRadius], at the corners
+/// [ThemeConfig.panelCorners] picks ([panelRoundedCorners]).
 ///
 /// Returns [BorderRadius.zero] for a radius of 0, which callers use to skip the
 /// clip layer.
@@ -48,25 +40,62 @@ BorderRadius panelCornerRadius({
   PanelJoins joins = PanelJoins.none,
 }) {
   if (theme.panelRadius <= 0) return BorderRadius.zero;
+  final corners = panelRoundedCorners(anchor: anchor, theme: theme, joins: joins);
+  if (corners.isEmpty) return BorderRadius.zero;
   final r = Radius.circular(theme.panelRadius);
-  if (theme.panelMargin > 0) return BorderRadius.all(r);
+  Radius at(PanelCorner corner) => corners.contains(corner) ? r : Radius.zero;
+  return BorderRadius.only(
+    topLeft: at(PanelCorner.topLeft),
+    topRight: at(PanelCorner.topRight),
+    bottomRight: at(PanelCorner.bottomRight),
+    bottomLeft: at(PanelCorner.bottomLeft),
+  );
+}
 
-  final joined = activePanelJoins(theme, joins);
-  final start = joined.start > 0 ? Radius.zero : r;
-  final end = joined.end > 0 ? Radius.zero : r;
-  final BorderRadius radius;
-  switch (anchor) {
-    case 'bottom':
-      radius = BorderRadius.only(topLeft: start, topRight: end);
-    case 'left':
-      radius = BorderRadius.only(topRight: start, bottomRight: end);
-    case 'right':
-      radius = BorderRadius.only(topLeft: start, bottomLeft: end);
-    case 'top':
-    default:
-      radius = BorderRadius.only(bottomLeft: start, bottomRight: end);
+/// The corners of a bar anchored to [anchor] that `panel_radius` rounds, as the
+/// bar sits on the screen.
+///
+/// Under [PanelCornerChoice.auto] the two corners facing the screen's interior
+/// round, and each corner against the screen edge rounds only where the bar is
+/// off the display's own corner there — a margin on its own edge, or on the
+/// edge at that end — because rounding one flush in the display's corner would
+/// cut a wallpaper wedge out of it. A bar floating on every side therefore
+/// rounds all four, a flush one the inner two, and one flush at one end and
+/// floating at the other rounds both corners at the floating end. A chosen set
+/// of corners is taken as written.
+///
+/// Either way, the inner corner at an end that meets another flush bar
+/// ([joins], while the theme has a `panel_join_radius` and leaves that screen
+/// corner flush) is square: the two bars are one frame across that corner, and
+/// a rounded one would cut a notch out of it — the fillet is what turns it now
+/// (`panel_join.dart`).
+Set<PanelCorner> panelRoundedCorners({
+  String anchor = 'top',
+  required ThemeConfig theme,
+  PanelJoins joins = PanelJoins.none,
+}) {
+  final margin = theme.panelMargin;
+  final (startEdge, endEdge) = panelEndEdges(anchor);
+  final floats = margin.of(anchor) > 0;
+  final chosen = theme.panelCorners.corners;
+  final rounded = chosen != null
+      ? {...chosen}
+      : {
+          PanelCorner.of(anchor, outer: false, start: true),
+          PanelCorner.of(anchor, outer: false, start: false),
+          if (floats || margin.of(startEdge) > 0)
+            PanelCorner.of(anchor, outer: true, start: true),
+          if (floats || margin.of(endEdge) > 0)
+            PanelCorner.of(anchor, outer: true, start: false),
+        };
+  final joined = activePanelJoins(theme, joins, anchor: anchor);
+  if (joined.start > 0) {
+    rounded.remove(PanelCorner.of(anchor, outer: false, start: true));
   }
-  return radius == BorderRadius.zero ? BorderRadius.zero : radius;
+  if (joined.end > 0) {
+    rounded.remove(PanelCorner.of(anchor, outer: false, start: false));
+  }
+  return rounded;
 }
 
 /// The breathing room between a module's fill and the bar's edge.

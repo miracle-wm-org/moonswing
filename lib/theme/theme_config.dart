@@ -9,9 +9,12 @@ import 'package:moonswing/config_reader.dart';
 import 'package:moonswing/theme/icon_pack.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/theme/panel_gradient.dart';
+import 'package:moonswing/theme/panel_shape.dart';
 import 'package:moonswing/theme/popup_effect.dart';
 import 'package:moonswing/theme/surface_material.dart';
 import 'package:moonswing/theme/tokens.dart';
+
+export 'package:moonswing/theme/panel_shape.dart';
 
 /// The theme selected when `config.toml` names none, and the one every
 /// failure path falls back to. Matches `lib/theme/builtin_themes.dart`.
@@ -61,6 +64,8 @@ enum _ThemeKeyKind {
   material,
   foliage,
   panelGradient,
+  margins,
+  corners,
 }
 
 /// One TOML theme key: its spelling, its kind, its clamp range, and where it
@@ -152,6 +157,17 @@ class _ThemeKey {
             fallback as FoliageStyle;
       case _ThemeKeyKind.panelGradient:
         return PanelGradient.fromValue(map[key]) ?? fallback as PanelGradient;
+      case _ThemeKeyKind.margins:
+        return PanelMargins.fromValue(
+              map[key],
+              fallback: fallback as PanelMargins,
+              min: (min ?? 0).round(),
+              max: (max ?? 256).round(),
+            ) ??
+            fallback;
+      case _ThemeKeyKind.corners:
+        return PanelCornerChoice.fromValue(map[key]) ??
+            fallback as PanelCornerChoice;
     }
   }
 
@@ -175,6 +191,10 @@ class _ThemeKey {
         return (value as FoliageStyle).slug;
       case _ThemeKeyKind.panelGradient:
         return (value as PanelGradient).slug;
+      case _ThemeKeyKind.margins:
+        return (value as PanelMargins).encode();
+      case _ThemeKeyKind.corners:
+        return (value as PanelCornerChoice).encode();
       default:
         return value;
     }
@@ -269,7 +289,13 @@ class ThemeConfig {
   /// The bar's bottom-left corner; see [panelGradientTopLeft].
   final Color panelGradientBottomLeft;
 
-  /// How far each bar floats off the screen edges it is anchored to.
+  /// How far the bars float off each screen edge they are anchored to — one
+  /// number for every edge, or each edge its own ([PanelMargins]).
+  ///
+  /// Read as the bar sits on the screen: a bar is given its own edge's margin,
+  /// off the screen edge it sits on, and the margins of the two edges at its
+  /// ends. So a margin of 0 on the edge where a top bar meets a side bar keeps
+  /// the pair flush there, for `panel_join_radius`, while its other end floats.
   ///
   /// A *native* `gtk_layer_set_margin`, never a Flutter `Padding`: with no
   /// input-region support, an inset inside a full-size surface would swallow
@@ -278,14 +304,20 @@ class ThemeConfig {
   /// The exclusive zone is left at the panel's thickness. Per wlr-layer-shell,
   /// "the exclusive zone includes the margin", so reserving `height + margin`
   /// would reserve it twice.
-  final int panelMargin;
+  final PanelMargins panelMargin;
 
-  /// The bar's corner rounding.
-  ///
-  /// A floating bar ([panelMargin] > 0) rounds all four corners. A flush one
-  /// rounds only the two facing the screen's interior, because rounding the pair
-  /// against the screen edge cuts wallpaper wedges out of the display's corners.
+  /// The bar's corner rounding, at the corners [panelCorners] picks.
   final double panelRadius;
+
+  /// Which corners [panelRadius] rounds ([PanelCornerChoice]).
+  ///
+  /// [PanelCornerChoice.auto] by default: the two corners facing the screen's
+  /// interior always, and a corner against the screen edge only where the bar
+  /// is not flush in the display's own corner — rounding one there would cut a
+  /// wallpaper wedge out of it. So a bar floating on every side rounds all four
+  /// and a flush one the inner two, as the bar always did. A choice of corners
+  /// rounds exactly those, on every bar.
+  final PanelCornerChoice panelCorners;
 
   /// The concave rounding filled into the inner corner where two flush bars
   /// meet — a top or bottom bar and a left or right one — so the pair reads as
@@ -303,8 +335,9 @@ class ThemeConfig {
   /// [panelOverhang] is, so a click on it lands on the window beneath. Which bar
   /// paints it, and only where two bars actually meet, is `panel_join.dart`'s.
   ///
-  /// Read only at [panelMargin] 0: a floating bar meets nothing. The default of
-  /// 0 leaves the corner square, exactly as it always was.
+  /// Read only in a corner of the screen whose two edges both have a
+  /// [panelMargin] of 0: a bar floating off either edge meets nothing there.
+  /// The default of 0 leaves the corner square, exactly as it always was.
   final double panelJoinRadius;
 
   /// The colour of the bar's rim. Only drawn when [panelBorderWidth] > 0.
@@ -721,8 +754,9 @@ class ThemeConfig {
     this.panelGradientTopRight = const Color(0xEE612D53),
     this.panelGradientBottomRight = const Color(0xEE2C2C2C),
     this.panelGradientBottomLeft = const Color(0xEE612D53),
-    this.panelMargin = 0,
+    this.panelMargin = PanelMargins.zero,
     this.panelRadius = 0.0,
+    this.panelCorners = PanelCornerChoice.auto,
     this.panelJoinRadius = 0.0,
     this.panelBorder = const Color(0x33F3F4F4),
     this.panelBorderWidth = 0.0,
@@ -812,10 +846,11 @@ class ThemeConfig {
         (t) => t.panelGradientBottomRight),
     _ThemeKey('panel_gradient_bottom_left', _ThemeKeyKind.color,
         (t) => t.panelGradientBottomLeft),
-    _ThemeKey('panel_margin', _ThemeKeyKind.integer, (t) => t.panelMargin,
+    _ThemeKey('panel_margin', _ThemeKeyKind.margins, (t) => t.panelMargin,
         min: 0.0, max: 256.0),
     _ThemeKey('panel_radius', _ThemeKeyKind.number, (t) => t.panelRadius,
         min: 0.0, max: 64.0),
+    _ThemeKey('panel_corners', _ThemeKeyKind.corners, (t) => t.panelCorners),
     // Not blended: it sizes the panels' native surfaces, the reason geometry
     // never moves halfway through a switch.
     _ThemeKey(
@@ -991,6 +1026,7 @@ class ThemeConfig {
       panelGradientBottomLeft: v('panel_gradient_bottom_left'),
       panelMargin: v('panel_margin'),
       panelRadius: v('panel_radius'),
+      panelCorners: v('panel_corners'),
       panelJoinRadius: v('panel_join_radius'),
       panelBorder: v('panel_border'),
       panelBorderWidth: v('panel_border_width'),

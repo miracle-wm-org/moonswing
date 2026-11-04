@@ -4,7 +4,7 @@ import 'dart:io' show Platform;
 
 // ignore_for_file: invalid_use_of_internal_member
 // ignore_for_file: implementation_imports
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart' show ValueListenable, setEquals;
 import 'package:flutter/widgets.dart';
 // The controller supertype every window in the registry is keyed on.
 // `layer_shell` re-exports WindowManager / WindowRegistry / WindowEntry but not
@@ -877,7 +877,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// Cached so [_onThemeChanged] can tell whether it actually moved: the store
   /// notifies on every frame of a colour-picker drag, and re-committing every
   /// layer surface that often makes the bars flicker.
-  int _panelMargin = 0;
+  PanelMargins _panelMargin = PanelMargins.zero;
 
   /// How far past the bar the panel surfaces reach, and the theme the panels
   /// render — which lags the store across a switch that moves the reach, so a
@@ -899,10 +899,10 @@ class _MoonswingRootState extends State<MoonswingRoot> {
   /// window geometry moves.
   late Map<String, PanelConfig> _panelGeometry;
 
-  /// Whether any two bars in [_panelGeometry] meet in a corner, which is what
-  /// grows every bar's surface for a `panel_join_radius` fillet; see
-  /// `panel_join.dart`.
-  bool _panelsJoined = false;
+  /// The screen corners two bars in [_panelGeometry] meet in, which — where
+  /// the theme leaves that corner flush — is what grows every bar's surface for
+  /// a `panel_join_radius` fillet; see `panel_join.dart`.
+  Set<PanelCorner> _panelsJoined = const {};
 
   @override
   void initState() {
@@ -949,7 +949,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // before the first surface is built and no bar is created flush and then
     // nudged.
     _panelMargin = ThemeStore.instance.theme.panelMargin;
-    _panelsJoined = panelsJoin(_panelGeometry.values);
+    _panelsJoined = panelJoinCorners(_panelGeometry.values);
     _panelTheme = PanelReachSequencer(
       initial: ThemeStore.instance.theme,
       target: () => ThemeStore.instance.theme,
@@ -2438,7 +2438,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
 
     _panelGeometry = live;
     final removed = <LayershellWindowController>[];
-    final joined = panelsJoin(live.values);
+    final joined = panelJoinCorners(live.values);
     for (final surfaces in _surfaces.values) {
       for (final key in stale) {
         final controller = surfaces.panels.remove(key);
@@ -2456,7 +2456,7 @@ class _MoonswingRootState extends State<MoonswingRoot> {
     // A bar arriving beside another, or the last one it met leaving, moves the
     // reach every bar's surface needs for a fillet. After the new windows
     // exist, so they are grown with the rest.
-    if (joined != _panelsJoined) {
+    if (!setEquals(joined, _panelsJoined)) {
       _panelsJoined = joined;
       _panelTheme.update();
     }
