@@ -7,6 +7,7 @@ import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_search.dart' show SettingsField;
 import 'package:moonswing/hover_region.dart';
+import 'package:moonswing/panel_background.dart' show panelRoundedCorners;
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/font_catalog.dart';
@@ -174,6 +175,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
             // Read straight off the resolved theme rather than the file, so a
             // key the file omits shows the value actually in use.
             final current = _themes.theme.toMap();
+            final margin = _themes.theme.panelMargin;
             // One section per thing a key paints, so somebody after the bar's
             // corners or a menu's shadow reads one card rather than the whole
             // theme. The palette joins each section from the catalogue by its
@@ -328,25 +330,31 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 const SettingsSubLabel('Shape'),
                 SettingsRow.field(
                   SettingsCatalog.panelMargin,
+                  alignTop: true,
                   info:
-                      'Floats the bar off the screen edges. The gap is real — '
-                      'windows will not tile into it, and clicks that land '
-                      'there reach the desktop.',
-                  control: SettingsNumberField(
-                    key: ValueKey('panel_margin-$active'),
-                    value: current['panel_margin'] as num? ?? 0,
-                    isInt: true,
-                    onChanged: (v) =>
-                        _themes.edit('panel_margin', v.toInt().clamp(0, 256)),
+                      'Floats the bars off the screen edges, each edge its '
+                      'own. A bar takes the margin of the edge it sits on and '
+                      'of the two at its ends, so a 0 where a top bar meets a '
+                      'side bar keeps the pair joined there while the other '
+                      'end floats. The gap is real — windows will not tile '
+                      'into it, and clicks that land there reach the desktop.',
+                  control: SettingsSidesField(
+                    fieldKey: 'panel_margin-$active',
+                    top: margin.top,
+                    right: margin.right,
+                    bottom: margin.bottom,
+                    left: margin.left,
+                    onChanged: (side, v) => _themes.edit(
+                      'panel_margin',
+                      _themes.theme.panelMargin.withEdge(side, v).encode(),
+                    ),
                   ),
                 ),
                 SettingsRow.field(
                   SettingsCatalog.panelRadius,
                   info:
-                      "How far the bar's corners are rounded. A floating bar "
-                      'rounds all four; one with no margin rounds only the two '
-                      "facing the screen, so the display's own corners stay "
-                      'square.',
+                      "How far the bar's corners are rounded, at the corners "
+                      'chosen under Rounded corners.',
                   control: SettingsNumberField(
                     key: ValueKey('panel_radius-$active'),
                     value: current['panel_radius'] as num? ?? 0,
@@ -357,14 +365,78 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                // Follows the store itself, as the dropdowns do: whether the
+                // corner toggles show at all is the value, and the section is
+                // rebuilt only when the active theme changes.
+                StoreSelector<PanelCornerChoice>(
+                  key: ValueKey('panel_corners_choice-$active'),
+                  listenable: _themes,
+                  selector: () => _themes.theme.panelCorners,
+                  builder: (context, corners) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SettingsRow.field(
+                        SettingsCatalog.panelCorners,
+                        info:
+                            'Automatic rounds the two corners facing the '
+                            'middle of the screen, and a corner against the '
+                            'screen edge only where the bar is off the '
+                            "display's own corner — so a bar floating on every "
+                            'side rounds all four, and one floating at one end '
+                            'rounds that end. Chosen rounds the corners picked '
+                            'below, as each bar sits on the screen, on every '
+                            'bar. Where two bars meet in a join, the inside '
+                            'corner stays square either way.',
+                        control: SettingsChoice<bool>(
+                          options: const [true, false],
+                          value: corners.isAuto,
+                          labelOf: (auto) => auto ? 'Automatic' : 'Chosen',
+                          onChanged: (auto) {
+                            if (auto == corners.isAuto) return;
+                            _themes.edit(
+                              'panel_corners',
+                              (auto
+                                      ? PanelCornerChoice.auto
+                                      // Starts from what automatic rounds on
+                                      // a top bar now, so picking Chosen
+                                      // moves nothing until a corner is
+                                      // toggled.
+                                      : PanelCornerChoice.only(
+                                          panelRoundedCorners(
+                                            theme: _themes.theme,
+                                          ),
+                                        ))
+                                  .encode(),
+                            );
+                          },
+                        ),
+                      ),
+                      if (corners.corners case final chosen?)
+                        SettingsRow(
+                          label: 'Rounded',
+                          control: SettingsChipToggles<PanelCorner>(
+                            key: ValueKey('panel_corners-$active'),
+                            options: PanelCorner.values,
+                            selected: chosen,
+                            labelOf: (c) => c.label,
+                            onChanged: (set) => _themes.edit(
+                              'panel_corners',
+                              PanelCornerChoice.only(set).encode(),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
                 SettingsRow.field(
                   SettingsCatalog.panelJoinRadius,
                   info:
                       'Where a top or bottom bar meets a side one, rounds the '
                       "inside of the corner between them in the bar's own "
                       'colour, so the two read as one frame round the screen. '
-                      'Only bars with no margin meet; zero leaves the corner '
-                      'square.',
+                      'Bars meet only in a corner whose two edges both have a '
+                      'margin of 0; zero leaves the corner square.',
                   control: SettingsNumberField(
                     key: ValueKey('panel_join_radius-$active'),
                     value: current['panel_join_radius'] as num? ?? 0,

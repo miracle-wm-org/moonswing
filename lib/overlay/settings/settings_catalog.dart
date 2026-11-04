@@ -238,9 +238,18 @@ abstract final class SettingsCatalog {
     'Panel margin',
     section: 'Theme',
     description:
-        'Floats the bar off the screen edges. The gap is real — windows will '
-        'not tile into it.',
-    tags: const ['bar', 'taskbar', 'float', 'gap', 'inset', 'spacing'],
+        'Floats the bars off each screen edge, every edge its own. The gap is '
+        'real — windows will not tile into it.',
+    tags: const [
+      'bar',
+      'taskbar',
+      'float',
+      'gap',
+      'inset',
+      'spacing',
+      'asymmetric',
+      'edge',
+    ],
   );
 
   static final panelRadius = shellField(
@@ -249,6 +258,26 @@ abstract final class SettingsCatalog {
     section: 'Theme',
     description: 'How far the bar’s corners are rounded.',
     tags: const ['bar', 'taskbar', 'rounded', 'corners'],
+  );
+
+  static final panelCorners = shellField(
+    'theme.panel_corners',
+    'Panel rounded corners',
+    section: 'Theme',
+    description:
+        'Which of the bar’s corners the radius rounds. Automatic rounds the '
+        'corners facing the screen, and those against the edge only where the '
+        'bar floats.',
+    tags: const [
+      'bar',
+      'taskbar',
+      'rounded',
+      'corners',
+      'top left',
+      'top right',
+      'bottom left',
+      'bottom right',
+    ],
   );
 
   static final panelJoinRadius = shellField(
@@ -3053,6 +3082,7 @@ abstract final class SettingsCatalog {
     panelGradient,
     panelMargin,
     panelRadius,
+    panelCorners,
     panelJoinRadius,
     panelBorderWidth,
     popupRadius,

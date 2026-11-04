@@ -104,35 +104,65 @@ PanelJoins panelJoinsFor(PanelConfig panel, Iterable<PanelConfig> panels) {
   );
 }
 
-/// Whether any two of [panels] meet: what decides whether [panelSurfaceReach]
-/// grows the bars for a fillet at all, so a single bar is never grown for a
-/// corner it does not have.
-bool panelsJoin(Iterable<PanelConfig> panels) {
-  for (final panel in panels) {
-    if (!panelJoinsFor(panel, panels).isEmpty) return true;
-  }
-  return false;
-}
+/// The screen corners in which two of [panels] meet, read off the geometry
+/// alone: what decides, against the theme's margins, whether
+/// [panelSurfaceReach] grows the bars for a fillet at all — so a single bar is
+/// never grown for a corner it does not have, nor a pair for a corner the theme
+/// floats them apart in.
+Set<PanelCorner> panelJoinCorners(Iterable<PanelConfig> panels) => {
+  for (final panel in panels)
+    ..._cornersOf(panel.anchor, panelJoinsFor(panel, panels)),
+};
 
-/// The fillet [theme] asks for, or 0 when it asks for none — and always 0 on a
-/// floating bar, which meets nothing.
+/// Whether any two of [panels] meet; see [panelJoinCorners].
+bool panelsJoin(Iterable<PanelConfig> panels) =>
+    panelJoinCorners(panels).isNotEmpty;
+
+/// The screen corners a bar anchored to [anchor] meets [joins] in. A joined end
+/// lies in the screen corner its own edge shares with the edge at that end.
+Iterable<PanelCorner> _cornersOf(String anchor, PanelJoins joins) => [
+  if (joins.start > 0) PanelCorner.of(anchor, outer: true, start: true),
+  if (joins.end > 0) PanelCorner.of(anchor, outer: true, start: false),
+];
+
+/// The fillet [theme] asks for, or 0 when it asks for none — and always 0 when
+/// its margins leave no corner of the screen flush on both sides, since bars
+/// floating apart meet nowhere.
 double panelJoinRadiusOf(ThemeConfig theme) =>
-    theme.panelMargin <= 0 && theme.panelJoinRadius > 0
+    theme.panelMargin.anyFlushCorner && theme.panelJoinRadius > 0
     ? theme.panelJoinRadius
     : 0.0;
 
-/// [joins] as [theme] draws them: the joins themselves while the theme has a
-/// fillet to put in them, and [PanelJoins.none] while it has not — so a theme
-/// without the key keeps exactly the corners it always had.
-PanelJoins activePanelJoins(ThemeConfig theme, PanelJoins joins) =>
-    panelJoinRadiusOf(theme) > 0 ? joins : PanelJoins.none;
+/// [joins] as [theme] draws them on a bar anchored to [anchor]: each end's join
+/// while the theme has a fillet to put in it and the bar is flush there — a
+/// margin of 0 on its own edge and on the edge at that end, which is the screen
+/// corner the two bars share — and nothing otherwise. So a theme without the
+/// key keeps exactly the corners it always had, and a bar that floats off one
+/// end still meets its neighbour at the other.
+PanelJoins activePanelJoins(
+  ThemeConfig theme,
+  PanelJoins joins, {
+  String anchor = 'top',
+}) {
+  if (joins.isEmpty || panelJoinRadiusOf(theme) <= 0) return PanelJoins.none;
+  final margin = theme.panelMargin;
+  if (margin.of(anchor) > 0) return PanelJoins.none;
+  final (startEdge, endEdge) = panelEndEdges(anchor);
+  final active = PanelJoins(
+    start: margin.of(startEdge) == 0 ? joins.start : 0,
+    end: margin.of(endEdge) == 0 ? joins.end : 0,
+  );
+  return active.isEmpty ? PanelJoins.none : active;
+}
 
 /// How far past its bar every panel's surface reaches under [theme]: the
-/// foliage's overhang, or room for the fillet when [joined] — any two bars
-/// meet — whichever is the larger. The two share the one strip, and the strip
-/// is handed back to the windows beneath either way.
-int panelSurfaceReach(ThemeConfig theme, {required bool joined}) {
-  final join = joined ? panelJoinRadiusOf(theme).ceil() : 0;
+/// foliage's overhang, or room for the fillet when the bars meet in any of the
+/// screen corners [joined] that the theme leaves flush — whichever is the
+/// larger. The two share the one strip, and the strip is handed back to the
+/// windows beneath either way.
+int panelSurfaceReach(ThemeConfig theme, {required Set<PanelCorner> joined}) {
+  final flush = joined.any(theme.panelMargin.flushAt);
+  final join = flush ? panelJoinRadiusOf(theme).ceil() : 0;
   return math.max(theme.panelReach, join);
 }
 
@@ -400,8 +430,8 @@ class PanelJoinPainter extends CustomPainter {
 }
 
 /// A bar's fillets, for a surface laid out in [constraints]: nothing at all
-/// unless [theme] has a fillet, [joins] meets a bar, and this bar is the one
-/// that paints there.
+/// unless [theme] has a fillet, [joins] meets a bar at an end the theme leaves
+/// flush ([activePanelJoins]), and this bar is the one that paints there.
 ///
 /// [screenSize] is read here, per layout, rather than handed in: a monitor
 /// reconfigured under a bar resizes the bar's view, which re-runs the layout
@@ -415,7 +445,8 @@ Widget? panelJoinLayer({
   required Size? Function()? screenSize,
 }) {
   final radius = panelJoinRadiusOf(theme);
-  if (radius <= 0 || joins.isEmpty) return null;
+  final active = activePanelJoins(theme, joins, anchor: anchor);
+  if (radius <= 0 || active.isEmpty) return null;
   final vertical = _isVertical(_edgeOf(anchor));
   final length = vertical ? surface.height : surface.width;
   final depth = vertical ? surface.width : surface.height;
@@ -426,15 +457,28 @@ Widget? panelJoinLayer({
   final r = math.min(radius, math.min(strip, length / 2));
   if (r <= 0) return null;
   final screen = screenSize?.call();
+  // Measured as though no margin had been taken off: a bar's own margin at an
+  // end shortens it by that much, and a neighbour's zone there includes that
+  // neighbour's margin, which is the same edge's. Both are 0 at a joined end,
+  // so this only keeps a floating far end from reading as a stop.
+  final margin = theme.panelMargin;
+  final (startEdge, endEdge) = panelEndEdges(anchor);
+  final startMargin = margin.of(startEdge).toDouble();
+  final endMargin = margin.of(endEdge).toDouble();
   final own = panelJoinOwnership(
-    joins: joins,
+    joins: PanelJoins(
+      start: joins.start > 0 ? joins.start + startMargin : 0,
+      end: joins.end > 0 ? joins.end + endMargin : 0,
+    ),
     vertical: vertical,
-    length: length,
+    length: length + startMargin + endMargin,
     screenLength: screen == null
         ? null
         : (vertical ? screen.height : screen.width),
   );
-  if (!own.start && !own.end) return null;
+  final atStart = own.start && active.start > 0;
+  final atEnd = own.end && active.end > 0;
+  if (!atStart && !atEnd) return null;
   return IgnorePointer(
     child: CustomPaint(
       size: surface,
@@ -442,8 +486,8 @@ Widget? panelJoinLayer({
         anchor: anchor,
         thickness: thickness,
         radius: r,
-        atStart: own.start,
-        atEnd: own.end,
+        atStart: atStart,
+        atEnd: atEnd,
         startFill: panelJoinFill(theme, anchor, start: true),
         endFill: panelJoinFill(theme, anchor, start: false),
         rimColor: theme.panelBorder,

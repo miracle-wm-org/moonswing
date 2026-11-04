@@ -167,7 +167,7 @@ void main() {
     final reparsed = ThemeConfig.fromMap(map);
     expect(reparsed.accent, const Color(0xFF00FF00));
     expect(reparsed.fontFamily, 'Cantarell');
-    expect(reparsed.panelMargin, 12);
+    expect(reparsed.panelMargin, PanelMargins.all(12));
     expect(reparsed.panelRadius, 10.0);
     expect(reparsed.panelBorderWidth, 1.5);
     expect(reparsed, themes.theme);

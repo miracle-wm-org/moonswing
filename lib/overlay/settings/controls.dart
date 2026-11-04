@@ -2496,10 +2496,15 @@ class SettingsNumberField extends StatelessWidget {
     required this.onChanged,
     required this.isInt,
     this.allowNegative = false,
+    this.width = 90,
   });
 
   final num value;
   final bool isInt;
+
+  /// The field's width. Wide enough for any setting by default; a row of
+  /// several, like [SettingsSidesField]'s, narrows them.
+  final double width;
 
   /// Whether a minus sign may be typed.
   ///
@@ -2540,7 +2545,7 @@ class SettingsNumberField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SettingsCommitField(
-      width: 90,
+      width: width,
       initial: isInt ? '${value.toInt()}' : _trimDouble(value.toDouble()),
       inputFormatters: isInt
           ? (allowNegative ? _intSigned : _intOnly)
@@ -2553,6 +2558,74 @@ class SettingsNumberField extends StatelessWidget {
   static String _trimDouble(double v) {
     if (v == v.roundToDouble()) return v.toStringAsFixed(1);
     return '$v';
+  }
+}
+
+/// One whole number per side of something — the bars' margin off each screen
+/// edge — as four small [SettingsNumberField]s, each under the name of its side.
+///
+/// Each side commits on its own, by the [SettingsCommitField] rule, so typing a
+/// margin into one side never applies a half-typed value to another; [onChanged]
+/// is handed the side that moved (`top`, `right`, `bottom` or `left`) and its
+/// new value, clamped into [min]..[max].
+///
+/// [fieldKey] seeds each field's key, so a caller whose fields have to be
+/// rebuilt from scratch — a theme switch — passes a key that moves with it.
+class SettingsSidesField extends StatelessWidget {
+  const SettingsSidesField({
+    super.key,
+    required this.top,
+    required this.right,
+    required this.bottom,
+    required this.left,
+    required this.onChanged,
+    this.min = 0,
+    this.max = 256,
+    this.fieldKey = '',
+  });
+
+  final int top;
+  final int right;
+  final int bottom;
+  final int left;
+  final void Function(String side, int value) onChanged;
+  final int min;
+  final int max;
+  final String fieldKey;
+
+  static const _sides = ['top', 'right', 'bottom', 'left'];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final values = [top, right, bottom, left];
+    final caption = TextStyle(
+      fontSize: ShellFontSizes.caption,
+      fontFamily: theme.fontFamily,
+      color: theme.popupForeground.withValues(alpha: 0.6),
+    );
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final (i, side) in _sides.indexed)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${side[0].toUpperCase()}${side.substring(1)}', style: caption),
+              const SizedBox(height: 4),
+              SettingsNumberField(
+                key: ValueKey('$fieldKey-$side'),
+                width: 64,
+                value: values[i],
+                isInt: true,
+                onChanged: (v) => onChanged(side, v.toInt().clamp(min, max)),
+              ),
+            ],
+          ),
+      ],
+    );
   }
 }
 

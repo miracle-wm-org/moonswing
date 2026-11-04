@@ -21,6 +21,9 @@ const _bottom = PanelConfig(name: 'bottom', anchor: 'bottom', height: 28);
 const _left = PanelConfig(name: 'left', anchor: 'left', height: 40);
 const _right = PanelConfig(name: 'right', anchor: 'right', height: 36);
 
+/// The one corner [_top] and [_left] meet in.
+const _topLeft = {PanelCorner.topLeft};
+
 const _joined = ThemeConfig(
   panelJoinRadius: 12,
   panelGradient: PanelGradient.none,
@@ -71,29 +74,29 @@ void main() {
 
   group('how far the surfaces reach', () {
     test('room for the fillet only while two bars meet', () {
-      expect(panelSurfaceReach(_joined, joined: true), 12);
+      expect(panelSurfaceReach(_joined, joined: _topLeft), 12);
       expect(
-        panelSurfaceReach(_joined, joined: false),
+        panelSurfaceReach(_joined, joined: const {}),
         0,
         reason: 'a lone bar is never grown for a corner it does not have',
       );
-      expect(panelSurfaceReach(const ThemeConfig(), joined: true), 0);
+      expect(panelSurfaceReach(const ThemeConfig(), joined: _topLeft), 0);
     });
 
     test('a fractional radius is given whole pixels of surface', () {
       expect(
         panelSurfaceReach(
           const ThemeConfig(panelJoinRadius: 7.5),
-          joined: true,
+          joined: _topLeft,
         ),
         8,
       );
     });
 
     test('a floating bar meets nothing', () {
-      const floating = ThemeConfig(panelJoinRadius: 12, panelMargin: 8);
+      const floating = ThemeConfig(panelJoinRadius: 12, panelMargin: PanelMargins.all(8));
       expect(panelJoinRadiusOf(floating), 0);
-      expect(panelSurfaceReach(floating, joined: true), 0);
+      expect(panelSurfaceReach(floating, joined: _topLeft), 0);
       expect(
         activePanelJoins(floating, const PanelJoins(start: 32)),
         PanelJoins.none,
@@ -106,9 +109,9 @@ void main() {
         panelFoliage: FoliageStyle.ivy,
         panelOverhang: 64,
       );
-      expect(panelSurfaceReach(both, joined: true), 64);
+      expect(panelSurfaceReach(both, joined: _topLeft), 64);
       expect(
-        panelSurfaceReach(both.copyWithJoin(80), joined: true),
+        panelSurfaceReach(both.copyWithJoin(80), joined: _topLeft),
         64,
         reason: 'clamped to 64 like panel_radius',
       );

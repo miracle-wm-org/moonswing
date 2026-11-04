@@ -53,6 +53,7 @@ void main() {
       'panel_gradient',
       'panel_margin',
       'panel_radius',
+      'panel_corners',
       'panel_join_radius',
       'panel_border_width',
       'popup_radius',
@@ -107,7 +108,7 @@ void main() {
     for (final slug in const ['dracula']) {
       final theme =
           ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
-      expect(theme.panelMargin, 0, reason: 'in $slug');
+      expect(theme.panelMargin, PanelMargins.zero, reason: 'in $slug');
       expect(theme.panelRadius, 0.0, reason: 'in $slug');
       expect(theme.panelBorderWidth, 0.0, reason: 'in $slug');
     }
@@ -118,7 +119,7 @@ void main() {
     // but it still read as a strip of tint rather than a pane of glass.
     final glassy =
         ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['glassy']!).toMap());
-    expect(glassy.panelMargin, greaterThan(0));
+    expect(glassy.panelMargin.isZero, isFalse);
     expect(glassy.panelRadius, greaterThan(0));
     expect(glassy.panelBorderWidth, greaterThan(0));
     expect(glassy.panelBorder.a, greaterThan(0),
@@ -155,7 +156,7 @@ void main() {
     expect(forest.panelGradient, PanelGradient.none);
     expect(forest.panelTextureColor.a, 1.0);
     // Floating, so the leaves hang from something that is visibly hung.
-    expect(forest.panelMargin, greaterThan(0));
+    expect(forest.panelMargin.isZero, isFalse);
     expect(panelCornerRadius(theme: forest),
         BorderRadius.circular(forest.panelRadius));
   });
@@ -200,7 +201,7 @@ void main() {
     expect(autumn.panelEndLength, greaterThan(0));
     expect(autumn.panelGradient, PanelGradient.none);
     // Flush, so the leaves framing the screen start at its very corners.
-    expect(autumn.panelMargin, 0);
+    expect(autumn.panelMargin, PanelMargins.zero);
     // The harvest: turning leaves and pumpkins, with room for the corner
     // heaps to spill down the side of the screen.
     expect(autumn.panelFoliage, FoliageStyle.harvest);
@@ -255,7 +256,7 @@ void main() {
     expect(carbon.panelBackground.a, 1.0,
         reason: 'a translucent bar lets the wallpaper decide what colour the '
             'flattest surface in the theme is');
-    expect(carbon.panelMargin, 0);
+    expect(carbon.panelMargin, PanelMargins.zero);
     expect(carbon.panelRadius, 0.0);
     // popup_shadow_color's alpha is the documented off switch, and switching
     // it off has to give back the geometry of a shell built before shadows
@@ -370,7 +371,7 @@ void main() {
     // Flat, flush, square and opaque: nothing in the original was any of the
     // things these keys can add.
     expect(classic.panelGradient, PanelGradient.none);
-    expect(classic.panelMargin, 0);
+    expect(classic.panelMargin, PanelMargins.zero);
     expect(classic.panelRadius, 0.0);
     expect(classic.popupRadius, 0.0);
     expect(classic.overlayRadius, 0.0);
@@ -500,8 +501,8 @@ void main() {
     // a menu glued to it, and a menu should read as a pane dropped out of the
     // pane it came from — same gap, same corner, same rim, same weight of rim.
     final midnight = _shipped('midnight');
-    expect(midnight.panelMargin, greaterThan(0));
-    expect(midnight.popupGap, midnight.panelMargin.toDouble());
+    expect(midnight.panelMargin.isZero, isFalse);
+    expect(midnight.popupGap, midnight.panelMargin.top.toDouble());
     expect(midnight.popupRadius, midnight.panelRadius);
     expect(midnight.popupBorder, midnight.panelBorder);
     expect(midnight.popupBorderWidth, midnight.panelBorderWidth);

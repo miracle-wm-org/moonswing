@@ -23,7 +23,7 @@ void main() {
         'popup_border_width': {'a': 1},
         'overlay_radius': 'round',
       });
-      expect(theme.panelMargin, 0);
+      expect(theme.panelMargin, PanelMargins.zero);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
       // The popup fallbacks are not zero, so a garbled value must land on the
@@ -42,7 +42,7 @@ void main() {
         'popup_border_width': -0.5,
         'overlay_radius': -1.0,
       });
-      expect(theme.panelMargin, 0);
+      expect(theme.panelMargin, PanelMargins.zero);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
       // Clamped, not fallen back: zero is a legitimate popup shape — a square
@@ -61,7 +61,7 @@ void main() {
         'popup_border_width': 999,
         'overlay_radius': 1e9,
       });
-      expect(theme.panelMargin, 256);
+      expect(theme.panelMargin, PanelMargins.all(256));
       expect(theme.panelRadius, 64.0);
       expect(theme.panelBorderWidth, 16.0);
       expect(theme.popupRadius, 64.0);
@@ -81,7 +81,7 @@ void main() {
         'popup_border_width': double.nan,
         'overlay_radius': double.nan,
       });
-      expect(theme.panelMargin, 0);
+      expect(theme.panelMargin, PanelMargins.zero);
       expect(theme.panelRadius, 0.0);
       expect(theme.panelBorderWidth, 0.0);
       expect(theme.popupRadius, 8.0);
@@ -98,7 +98,7 @@ void main() {
         'popup_radius': double.infinity,
         'popup_border_width': double.negativeInfinity,
       });
-      expect(theme.panelMargin, 0);
+      expect(theme.panelMargin, PanelMargins.zero);
       expect(theme.panelRadius, 0.0);
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
@@ -130,7 +130,7 @@ void main() {
     const base = ThemeConfig();
 
     test('panel_margin', () {
-      expect(base, isNot(const ThemeConfig(panelMargin: 8)));
+      expect(base, isNot(const ThemeConfig(panelMargin: PanelMargins.all(8))));
     });
 
     test('panel_radius', () {
@@ -168,7 +168,7 @@ void main() {
     test('and hashCode moves with them', () {
       final hashes = {
         base.hashCode,
-        const ThemeConfig(panelMargin: 8).hashCode,
+        const ThemeConfig(panelMargin: PanelMargins.all(8)).hashCode,
         const ThemeConfig(panelRadius: 12.0).hashCode,
         const ThemeConfig(panelBorder: Color(0xFFFF0000)).hashCode,
         const ThemeConfig(panelBorderWidth: 1.0).hashCode,
@@ -241,7 +241,7 @@ void main() {
     // Every install that has never opened the theme editor resolves to these,
     // so they are what guarantee this feature changes nothing until asked for.
     const theme = ThemeConfig();
-    expect(theme.panelMargin, 0);
+    expect(theme.panelMargin, PanelMargins.zero);
     expect(theme.panelRadius, 0.0);
     expect(theme.panelBorderWidth, 0.0);
   });
@@ -596,7 +596,7 @@ void main() {
 
   test('the new keys round-trip through toMap', () {
     const theme = ThemeConfig(
-      panelMargin: 8,
+      panelMargin: PanelMargins.all(8),
       panelRadius: 12.0,
       panelBorder: Color(0x40FFFFFF),
       panelBorderWidth: 1.5,

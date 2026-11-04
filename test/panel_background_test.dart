@@ -84,7 +84,7 @@ void main() {
     for (final gradient in PanelGradient.values) {
       final theme = ThemeConfig(
         panelGradient: gradient,
-        panelMargin: 8,
+        panelMargin: PanelMargins.all(8),
         panelRadius: 12,
         panelBorder: const Color(0x40FFFFFF),
         panelBorderWidth: 1.5,
@@ -105,7 +105,7 @@ void main() {
       expect(
         panelCornerRadius(
           anchor: anchor,
-          theme: const ThemeConfig(panelMargin: 8, panelRadius: 12),
+          theme: const ThemeConfig(panelMargin: PanelMargins.all(8), panelRadius: 12),
         ),
         BorderRadius.circular(12),
         reason: 'anchor $anchor',
@@ -126,7 +126,7 @@ void main() {
       expect(
         panelCornerRadius(
           anchor: anchor,
-          theme: const ThemeConfig(panelMargin: 0, panelRadius: 12),
+          theme: const ThemeConfig(panelMargin: PanelMargins.zero, panelRadius: 12),
         ),
         expected,
         reason: 'anchor $anchor',
@@ -138,7 +138,7 @@ void main() {
     // main.dart keys the ClipRRect off BorderRadius.zero, so this is what keeps
     // an unstyled bar at exactly the layer count it had before.
     expect(
-      panelCornerRadius(theme: const ThemeConfig(panelMargin: 8)),
+      panelCornerRadius(theme: const ThemeConfig(panelMargin: PanelMargins.all(8))),
       BorderRadius.zero,
     );
   });
@@ -239,7 +239,7 @@ void main() {
       final decoration = panelBackgroundDecoration(
         theme: const ThemeConfig(
           panelGradient: PanelGradient.corners,
-          panelMargin: 8,
+          panelMargin: PanelMargins.all(8),
           panelRadius: 12,
           panelBorder: Color(0x40FFFFFF),
           panelBorderWidth: 1.5,
