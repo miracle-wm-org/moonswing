@@ -90,7 +90,7 @@ void main() {
     double top(Finder f) => tester.getTopLeft(f).dy;
     final bar = top(find.text(ThemeGroup.bar.label.toUpperCase()));
     final popups = top(find.text(ThemeGroup.popup.label.toUpperCase()));
-    final radius = top(find.byKey(ValueKey('panel_radius-$slug')));
+    final radius = top(find.byKey(ValueKey('panel_radius-$slug-top_left')));
     expect(radius, greaterThan(bar));
     expect(radius, lessThan(popups));
   });
@@ -193,6 +193,27 @@ void main() {
     expect(themes.activeName, slug);
     expect(themes.theme.panelMargin, before.withEdge('left', 12));
     expect(themes.theme.panelMargin.isUniform, isFalse);
+    await themes.flush();
+  });
+
+  testWidgets('the bar radius is edited corner by corner', (tester) async {
+    await pump(tester);
+    final before = themes.theme.panelRadius;
+    final corner = find.descendant(
+      of: find.byKey(ValueKey('panel_radius-$slug-bottom_right')),
+      matching: find.byType(EditableText),
+    );
+    await tester.tap(corner);
+    await tester.enterText(corner, '20');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+
+    expect(themes.activeName, slug);
+    expect(
+      themes.theme.panelRadius,
+      before.withCorner(PanelCorner.bottomRight, 20),
+    );
+    expect(themes.theme.panelRadius.isUniform, isFalse);
     await themes.flush();
   });
 

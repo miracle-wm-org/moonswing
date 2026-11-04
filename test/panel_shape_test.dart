@@ -1,6 +1,8 @@
-// The bar's shape against the screen: a margin per screen edge
-// (`panel_margin`), which corners round (`panel_corners`), and how both meet
-// the join where two flush bars share a corner (`panel_join_radius`).
+// The bar's shape against the screen: a margin per side (`panel_margin`), a
+// radius per corner (`panel_radius`), which corners round (`panel_corners`) —
+// all three in the bar's own frame, a side bar's being a top bar's turned a
+// quarter turn anticlockwise — and how they meet the join where two flush bars
+// share a corner (`panel_join_radius`).
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -15,13 +17,14 @@ import 'package:moonswing/panel_join.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/panel_gradient.dart';
 
-/// A top bar and a left bar joined in the top-left corner, both floating 8px
-/// off the screen's right and bottom edges: the frame the per-edge margin
-/// exists for.
-const _frame = PanelMargins(right: 8, bottom: 8);
+/// A top bar and a right bar joined in the top-right corner, each with its
+/// `left` end floating 8px: the top bar's left-hand end, the right bar's bottom
+/// one. The only margin a top/right pair can float by and still meet, since
+/// the corner they share is read off the other three.
+const _frame = PanelMargins(left: 8);
 
 const _theme = ThemeConfig(
-  panelRadius: 10,
+  panelRadius: PanelRadii.all(10),
   panelJoinRadius: 12,
   panelMargin: _frame,
   panelGradient: PanelGradient.none,
@@ -67,7 +70,7 @@ void main() {
         'panel_radius': 7.0,
       });
       expect(theme.panelMargin, const PanelMargins(right: 256));
-      expect(theme.panelRadius, 7.0);
+      expect(theme.panelRadius, const PanelRadii.all(7.0));
       expect(
         ThemeConfig.fromMap({'panel_margin': true}).panelMargin,
         PanelMargins.zero,
@@ -112,12 +115,188 @@ void main() {
       expect(margin.of('middle'), 1, reason: 'an unknown anchor is top');
     });
 
+    test('a side bar reads its margins turned a quarter turn', () {
+      const margin = PanelMargins(top: 1, right: 2, bottom: 3, left: 4);
+      expect(margin.onScreen('top'), margin);
+      expect(margin.onScreen('bottom'), margin);
+      // Right is the far end of every bar: a side bar's top end. Top is the
+      // side towards the screen's left, bottom the side towards its right.
+      for (final anchor in const ['left', 'right']) {
+        expect(
+          margin.onScreen(anchor),
+          const PanelMargins(top: 2, right: 3, bottom: 4, left: 1),
+          reason: anchor,
+        );
+      }
+      expect(
+        const PanelMargins.all(6).onScreen('left'),
+        const PanelMargins.all(6),
+      );
+    });
+
     test('the desktop grid clears each bar by its own edge only', () {
       final insets = panelInsetsFor(const {
         'top': PanelConfig(anchor: 'top', height: 32),
         'left': PanelConfig(anchor: 'left', height: 40),
-      }, const PanelMargins(top: 0, left: 6, right: 8, bottom: 8));
-      expect(insets, const EdgeInsets.fromLTRB(46, 32, 0, 0));
+        'right': PanelConfig(anchor: 'right', height: 36),
+      }, const PanelMargins(top: 6, right: 8, bottom: 2, left: 0));
+      // A left bar floats off its edge by `top`, a right one by `bottom`.
+      expect(insets, const EdgeInsets.fromLTRB(46, 38, 38, 0));
+    });
+
+    test('a corner is flush only where both bars that meet in it are', () {
+      // Top-left: the top bar's top and left, the left bar's top (its outer
+      // side) and right (its top end).
+      const leftFloats = PanelMargins(left: 8);
+      expect(leftFloats.flushAt(PanelCorner.topRight), isTrue);
+      expect(leftFloats.flushAt(PanelCorner.topLeft), isFalse);
+      expect(leftFloats.flushAt(PanelCorner.bottomLeft), isFalse);
+      expect(leftFloats.flushAt(PanelCorner.bottomRight), isFalse);
+      // The top bar is flush at its left end, but the left bar's top end is
+      // `right`, and floats.
+      const rightFloats = PanelMargins(right: 8);
+      expect(rightFloats.flushAt(PanelCorner.topLeft), isFalse);
+      expect(rightFloats.flushAt(PanelCorner.bottomLeft), isTrue);
+      // The inner sides of a top and a left bar are nobody's corner.
+      const bottomFloats = PanelMargins(bottom: 8);
+      expect(bottomFloats.flushAt(PanelCorner.topLeft), isTrue);
+      expect(bottomFloats.anyFlushCorner, isTrue);
+      expect(const PanelMargins.all(1).anyFlushCorner, isFalse);
+      expect(PanelMargins.zero.anyFlushCorner, isTrue);
+    });
+  });
+
+  group('panel_radius', () {
+    test('one number is every corner, and is written back as one', () {
+      final theme = ThemeConfig.fromMap({'panel_radius': 7});
+      expect(theme.panelRadius, const PanelRadii.all(7));
+      expect(theme.toMap()['panel_radius'], 7.0);
+    });
+
+    test('a table gives each corner its own, a missing corner 0', () {
+      final theme = ThemeConfig.fromMap({
+        'panel_radius': {'top_right': 8, 'bottom_left': 4.5},
+      });
+      expect(theme.panelRadius, const PanelRadii(topRight: 8, bottomLeft: 4.5));
+      expect(theme.toMap()['panel_radius'], {
+        'top_left': 0.0,
+        'top_right': 8.0,
+        'bottom_right': 0.0,
+        'bottom_left': 4.5,
+      });
+    });
+
+    test('a bad corner costs that corner, never the key or the theme', () {
+      final theme = ThemeConfig.fromMap({
+        'panel_radius': {
+          'top_left': 'lots',
+          'top_right': 1e9,
+          'bottom_left': -3,
+        },
+        'panel_margin': 6,
+      });
+      expect(theme.panelRadius, const PanelRadii(topRight: 64));
+      expect(theme.panelMargin, const PanelMargins.all(6));
+      for (final bad in <Object>[true, 'round', double.nan, double.infinity]) {
+        expect(
+          ThemeConfig.fromMap({'panel_radius': bad}).panelRadius,
+          PanelRadii.zero,
+          reason: '$bad',
+        );
+      }
+    });
+
+    test('a theme file round-trips either form', () {
+      for (final radius in const [
+        PanelRadii.all(12),
+        PanelRadii(topLeft: 0, topRight: 8, bottomRight: 8.5, bottomLeft: 0),
+      ]) {
+        final theme = ThemeConfig(panelRadius: radius);
+        final text = TomlDocument.fromMap(theme.toMap()).toString();
+        final back = ThemeConfig.fromMap(TomlDocument.parse(text).toMap());
+        expect(back.panelRadius, radius);
+        expect(back, theme);
+      }
+    });
+
+    test('withCorner moves one corner and nothing else', () {
+      expect(
+        const PanelRadii.all(4).withCorner(PanelCorner.bottomLeft, 0),
+        const PanelRadii(topLeft: 4, topRight: 4, bottomRight: 4),
+      );
+      expect(
+        const PanelRadii.all(4).withCorner(PanelCorner.topLeft, 4).isUniform,
+        isTrue,
+      );
+      expect(const PanelRadii(bottomRight: 9).largest, 9);
+    });
+
+    test('each corner is rounded by its own radius, in the bar\'s frame', () {
+      const theme = ThemeConfig(
+        panelRadius: PanelRadii(
+          topLeft: 4,
+          topRight: 8,
+          bottomRight: 12,
+          bottomLeft: 16,
+        ),
+        panelCorners: PanelCornerChoice.all,
+      );
+      for (final anchor in const ['top', 'bottom']) {
+        expect(
+          panelCornerRadius(anchor: anchor, theme: theme),
+          const BorderRadius.only(
+            topLeft: Radius.circular(4),
+            topRight: Radius.circular(8),
+            bottomRight: Radius.circular(12),
+            bottomLeft: Radius.circular(16),
+          ),
+          reason: anchor,
+        );
+      }
+      // A side bar's top-right corner is at its top end, on the side towards
+      // the screen's left: the screen's top-left.
+      for (final anchor in const ['left', 'right']) {
+        expect(
+          panelCornerRadius(anchor: anchor, theme: theme),
+          const BorderRadius.only(
+            topLeft: Radius.circular(8),
+            topRight: Radius.circular(12),
+            bottomRight: Radius.circular(16),
+            bottomLeft: Radius.circular(4),
+          ),
+          reason: anchor,
+        );
+      }
+    });
+
+    test('a corner picked with no radius stays square', () {
+      const theme = ThemeConfig(
+        panelRadius: PanelRadii(bottomRight: 12),
+        panelCorners: PanelCornerChoice.all,
+      );
+      expect(
+        panelCornerRadius(theme: theme),
+        const BorderRadius.only(bottomRight: Radius.circular(12)),
+      );
+      // Automatic still decides which corners may round: a flush top bar's
+      // inner two.
+      expect(
+        panelCornerRadius(
+          theme: const ThemeConfig(panelRadius: PanelRadii(topLeft: 12)),
+        ),
+        BorderRadius.zero,
+      );
+    });
+
+    test('the corners turn onto the screen and back', () {
+      for (final corner in PanelCorner.values) {
+        for (final anchor in const ['top', 'bottom', 'left', 'right']) {
+          expect(corner.onScreen(anchor).onBar(anchor), corner);
+        }
+        expect(corner.onScreen('top'), corner);
+      }
+      expect(PanelCorner.topRight.onScreen('left'), PanelCorner.topLeft);
+      expect(PanelCorner.bottomRight.onScreen('right'), PanelCorner.topRight);
     });
   });
 
@@ -171,7 +350,7 @@ void main() {
 
   group('the corners a bar rounds', () {
     test('automatic keeps the rule every existing theme was drawn by', () {
-      const flush = ThemeConfig(panelRadius: 10);
+      const flush = ThemeConfig(panelRadius: PanelRadii.all(10));
       expect(_rounded('top', theme: flush), {
         PanelCorner.bottomLeft,
         PanelCorner.bottomRight,
@@ -181,7 +360,7 @@ void main() {
         PanelCorner.bottomLeft,
       });
       const floating = ThemeConfig(
-        panelRadius: 10,
+        panelRadius: PanelRadii.all(10),
         panelMargin: PanelMargins.all(8),
       );
       for (final anchor in const ['top', 'bottom', 'left', 'right']) {
@@ -194,37 +373,46 @@ void main() {
     });
 
     test('automatic rounds the outer corner at an end that floats', () {
-      // Flush against the top and the left, short of the right edge.
+      // Flush against the top and the right, short of the left edge.
       expect(_rounded('top'), {
         PanelCorner.bottomLeft,
         PanelCorner.bottomRight,
-        PanelCorner.topRight,
+        PanelCorner.topLeft,
       });
-      // Flush against the left and the top, short of the bottom edge.
+      // Flush against the right and the top, its `left` end — the bottom one
+      // — short of the bottom edge.
+      expect(_rounded('right'), {
+        PanelCorner.topLeft,
+        PanelCorner.bottomLeft,
+        PanelCorner.bottomRight,
+      });
       expect(_rounded('left'), {
         PanelCorner.topRight,
         PanelCorner.bottomRight,
         PanelCorner.bottomLeft,
       });
-      // A bottom bar sits on the edge that floats, so all four round.
-      expect(_rounded('bottom'), PanelCorner.values.toSet());
+      expect(_rounded('bottom'), {
+        PanelCorner.topLeft,
+        PanelCorner.topRight,
+        PanelCorner.bottomLeft,
+      });
     });
 
     test('a joined frame: flush at the join, round at the far ends', () {
-      // The feature's own picture: the pair meets in the top-left corner, the
+      // The feature's own picture: the pair meets in the top-right corner, the
       // inner corners there square off for the fillet, and every corner at an
       // end that floats rounds.
       expect(
         panelCornerRadius(
           anchor: 'top',
           theme: _theme,
-          joins: const PanelJoins(start: 40),
+          joins: const PanelJoins(end: 36),
         ),
-        const BorderRadius.only(topRight: _r, bottomRight: _r),
+        const BorderRadius.only(topLeft: _r, bottomLeft: _r),
       );
       expect(
         panelCornerRadius(
-          anchor: 'left',
+          anchor: 'right',
           theme: _theme,
           joins: const PanelJoins(start: 32),
         ),
@@ -232,25 +420,48 @@ void main() {
       );
     });
 
-    test('chosen corners are taken as written, on every bar', () {
+    test('chosen corners are named in the bar\'s frame, on every bar', () {
       const chosen = ThemeConfig(
-        panelRadius: 10,
+        panelRadius: PanelRadii.all(10),
         panelCorners: PanelCornerChoice.only({
           PanelCorner.topLeft,
           PanelCorner.bottomRight,
         }),
       );
-      for (final anchor in const ['top', 'bottom', 'left', 'right']) {
+      for (final anchor in const ['top', 'bottom']) {
         expect(
           panelCornerRadius(anchor: anchor, theme: chosen),
           const BorderRadius.only(topLeft: _r, bottomRight: _r),
           reason: anchor,
         );
       }
+      for (final anchor in const ['left', 'right']) {
+        expect(
+          panelCornerRadius(anchor: anchor, theme: chosen),
+          const BorderRadius.only(bottomLeft: _r, topRight: _r),
+          reason: anchor,
+        );
+      }
+      // The right-hand end of a top bar is the top end of a side one.
+      const farEnd = ThemeConfig(
+        panelRadius: PanelRadii.all(10),
+        panelCorners: PanelCornerChoice.only({
+          PanelCorner.topRight,
+          PanelCorner.bottomRight,
+        }),
+      );
+      expect(
+        panelCornerRadius(anchor: 'top', theme: farEnd),
+        const BorderRadius.only(topRight: _r, bottomRight: _r),
+      );
+      expect(
+        panelCornerRadius(anchor: 'left', theme: farEnd),
+        const BorderRadius.only(topLeft: _r, topRight: _r),
+      );
       expect(
         panelCornerRadius(
           theme: const ThemeConfig(
-            panelRadius: 10,
+            panelRadius: PanelRadii.all(10),
             panelMargin: PanelMargins.all(8),
             panelCorners: PanelCornerChoice.none,
           ),
@@ -261,7 +472,7 @@ void main() {
 
     test('a join still squares a chosen inner corner', () {
       const chosen = ThemeConfig(
-        panelRadius: 10,
+        panelRadius: PanelRadii.all(10),
         panelJoinRadius: 12,
         panelCorners: PanelCornerChoice.all,
       );
@@ -276,30 +487,44 @@ void main() {
     });
   });
 
-  group('the join under per-edge margins', () {
-    test('an end meets its neighbour only where both edges are flush', () {
+  group('the join under per-side margins', () {
+    test('an end meets its neighbour only where both bars are flush', () {
       const both = PanelJoins(start: 40, end: 36);
       expect(
         activePanelJoins(_theme, both, anchor: 'top'),
+        const PanelJoins(end: 36),
+        reason: 'flush on the right, floating off the left',
+      );
+      expect(
+        activePanelJoins(_theme, both, anchor: 'right'),
         const PanelJoins(start: 40),
-        reason: 'flush on the left, floating off the right',
+        reason: 'flush at the top, its left end floating off the bottom',
       );
       expect(
         activePanelJoins(_theme, both, anchor: 'left'),
-        const PanelJoins(start: 40),
-        reason: 'flush at the top, floating off the bottom',
+        PanelJoins.none,
+        reason: 'a left bar\'s two ends are both a floating corner',
+      );
+    });
+
+    test('the neighbour\'s own margin there is read too', () {
+      // The top bar is flush at its left end; the left bar's top end is its
+      // `right`, which floats — so they do not meet in the top-left.
+      const theme = ThemeConfig(
+        panelRadius: PanelRadii.all(10),
+        panelJoinRadius: 12,
+        panelMargin: PanelMargins(right: 8),
       );
       expect(
-        activePanelJoins(_theme, both, anchor: 'bottom'),
+        activePanelJoins(theme, const PanelJoins(start: 40), anchor: 'top'),
         PanelJoins.none,
-        reason: 'a bar that floats off its own edge meets nothing',
       );
     });
 
     test('the bars grow for a fillet only in a corner left flush', () {
       expect(panelJoinRadiusOf(_theme), 12);
-      expect(panelSurfaceReach(_theme, joined: {PanelCorner.topLeft}), 12);
-      expect(panelSurfaceReach(_theme, joined: {PanelCorner.topRight}), 0);
+      expect(panelSurfaceReach(_theme, joined: {PanelCorner.topRight}), 12);
+      expect(panelSurfaceReach(_theme, joined: {PanelCorner.topLeft}), 0);
       expect(panelSurfaceReach(_theme, joined: const {}), 0);
     });
 
@@ -317,32 +542,32 @@ void main() {
 
     test('a far end that floats is not read as a stop', () {
       // Mir's placement: the top bar spans the joined corner and stops 8px
-      // short of the right edge for its margin, the left bar starts under it
+      // short of the left edge for its margin, the right bar starts under it
       // and stops 8px short of the bottom. Measured as though the margins
-      // were not taken off, the left bar is the one stopped at its start —
+      // were not taken off, the right bar is the one stopped at its start —
       // so it paints the fillet there, and the top bar paints nothing.
       Widget? layer(String anchor, Size surface, PanelJoins joins) =>
           panelJoinLayer(
             theme: _theme,
             anchor: anchor,
-            thickness: anchor == 'top' ? 32 : 40,
+            thickness: anchor == 'top' ? 32 : 36,
             joins: joins,
             surface: surface,
             screenSize: () => const Size(1920, 1080),
           );
 
       expect(
-        layer('top', const Size(1912, 44), const PanelJoins(start: 40)),
+        layer('top', const Size(1912, 44), const PanelJoins(end: 36)),
         isNull,
       );
-      final left = layer(
-        'left',
-        const Size(52, 1080 - 32 - 8),
+      final right = layer(
+        'right',
+        const Size(48, 1080 - 32 - 8),
         const PanelJoins(start: 32),
       );
-      expect(left, isNotNull);
+      expect(right, isNotNull);
       final painter =
-          ((left! as IgnorePointer).child! as CustomPaint).painter!
+          ((right! as IgnorePointer).child! as CustomPaint).painter!
               as PanelJoinPainter;
       expect(painter.atStart, isTrue);
       expect(painter.atEnd, isFalse);
@@ -386,6 +611,48 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await tester.pump();
       expect(moved, [('left', 256)]);
+    });
+
+    testWidgets('each corner commits on its own', (tester) async {
+      final moved = <(String, double)>[];
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: ThemeScope(
+            theme: const ThemeConfig(),
+            child: Overlay(
+              initialEntries: [
+                OverlayEntry(
+                  builder: (_) => Align(
+                    alignment: Alignment.topLeft,
+                    child: SettingsCornersField(
+                      topLeft: 0,
+                      topRight: 8,
+                      bottomRight: 8,
+                      bottomLeft: 0,
+                      onChanged: (corner, v) => moved.add((corner, v)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      for (final corner in const [
+        'Top left',
+        'Top right',
+        'Bottom right',
+        'Bottom left',
+      ]) {
+        expect(find.text(corner), findsOneWidget);
+      }
+      final bottomRight = find.byType(EditableText).at(2);
+      await tester.tap(bottomRight);
+      await tester.enterText(bottomRight, '999');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+      expect(moved, [('bottom_right', 64.0)]);
     });
   });
 }

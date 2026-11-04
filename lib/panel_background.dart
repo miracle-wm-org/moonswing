@@ -32,18 +32,27 @@ import 'package:moonswing/theme/panel_gradient.dart';
 /// The bar's corner rounding, from [ThemeConfig.panelRadius], at the corners
 /// [ThemeConfig.panelCorners] picks ([panelRoundedCorners]).
 ///
-/// Returns [BorderRadius.zero] for a radius of 0, which callers use to skip the
-/// clip layer.
+/// Both keys name their corners in the bar's own frame (`panel_shape.dart`),
+/// so each screen corner a side bar rounds takes the radius its own frame names
+/// it by ([PanelCorner.onBar]); the [BorderRadius] answered is the screen's.
+///
+/// Returns [BorderRadius.zero] when no corner rounds, which callers use to skip
+/// the clip layer.
 BorderRadius panelCornerRadius({
   String anchor = 'top',
   required ThemeConfig theme,
   PanelJoins joins = PanelJoins.none,
 }) {
-  if (theme.panelRadius <= 0) return BorderRadius.zero;
+  final radii = theme.panelRadius;
+  if (radii.isZero) return BorderRadius.zero;
   final corners = panelRoundedCorners(anchor: anchor, theme: theme, joins: joins);
   if (corners.isEmpty) return BorderRadius.zero;
-  final r = Radius.circular(theme.panelRadius);
-  Radius at(PanelCorner corner) => corners.contains(corner) ? r : Radius.zero;
+  Radius at(PanelCorner corner) {
+    if (!corners.contains(corner)) return Radius.zero;
+    final r = radii.of(corner.onBar(anchor));
+    return r > 0 ? Radius.circular(r) : Radius.zero;
+  }
+
   return BorderRadius.only(
     topLeft: at(PanelCorner.topLeft),
     topRight: at(PanelCorner.topRight),
@@ -52,34 +61,35 @@ BorderRadius panelCornerRadius({
   );
 }
 
-/// The corners of a bar anchored to [anchor] that `panel_radius` rounds, as the
-/// bar sits on the screen.
+/// The *screen* corners of a bar anchored to [anchor] that `panel_corners`
+/// lets round.
 ///
 /// Under [PanelCornerChoice.auto] the two corners facing the screen's interior
 /// round, and each corner against the screen edge rounds only where the bar is
-/// off the display's own corner there — a margin on its own edge, or on the
-/// edge at that end — because rounding one flush in the display's corner would
-/// cut a wallpaper wedge out of it. A bar floating on every side therefore
-/// rounds all four, a flush one the inner two, and one flush at one end and
-/// floating at the other rounds both corners at the floating end. A chosen set
-/// of corners is taken as written.
+/// off the display's own corner there — a margin on its own edge, or at that
+/// end — because rounding one flush in the display's corner would cut a
+/// wallpaper wedge out of it. A bar floating on every side therefore rounds
+/// all four, a flush one the inner two, and one flush at one end and floating
+/// at the other rounds both corners at the floating end. A chosen set of
+/// corners is named in the bar's own frame and turned onto the screen
+/// ([PanelCorner.onScreen]).
 ///
 /// Either way, the inner corner at an end that meets another flush bar
-/// ([joins], while the theme has a `panel_join_radius` and leaves that screen
-/// corner flush) is square: the two bars are one frame across that corner, and
-/// a rounded one would cut a notch out of it — the fillet is what turns it now
-/// (`panel_join.dart`).
+/// ([joins], while the theme has a `panel_join_radius` and both bars are flush
+/// in that screen corner) is square: the two bars are one frame across that
+/// corner, and a rounded one would cut a notch out of it — the fillet is what
+/// turns it now (`panel_join.dart`).
 Set<PanelCorner> panelRoundedCorners({
   String anchor = 'top',
   required ThemeConfig theme,
   PanelJoins joins = PanelJoins.none,
 }) {
-  final margin = theme.panelMargin;
+  final margin = theme.panelMargin.onScreen(anchor);
   final (startEdge, endEdge) = panelEndEdges(anchor);
   final floats = margin.of(anchor) > 0;
   final chosen = theme.panelCorners.corners;
   final rounded = chosen != null
-      ? {...chosen}
+      ? {for (final corner in chosen) corner.onScreen(anchor)}
       : {
           PanelCorner.of(anchor, outer: false, start: true),
           PanelCorner.of(anchor, outer: false, start: false),

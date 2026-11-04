@@ -168,7 +168,7 @@ void main() {
     expect(reparsed.accent, const Color(0xFF00FF00));
     expect(reparsed.fontFamily, 'Cantarell');
     expect(reparsed.panelMargin, PanelMargins.all(12));
-    expect(reparsed.panelRadius, 10.0);
+    expect(reparsed.panelRadius, const PanelRadii.all(10.0));
     expect(reparsed.panelBorderWidth, 1.5);
     expect(reparsed, themes.theme);
     // The display name survives a write.

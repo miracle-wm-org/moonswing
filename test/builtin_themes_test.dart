@@ -109,7 +109,7 @@ void main() {
       final theme =
           ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes[slug]!).toMap());
       expect(theme.panelMargin, PanelMargins.zero, reason: 'in $slug');
-      expect(theme.panelRadius, 0.0, reason: 'in $slug');
+      expect(theme.panelRadius, const PanelRadii.all(0.0), reason: 'in $slug');
       expect(theme.panelBorderWidth, 0.0, reason: 'in $slug');
     }
   });
@@ -120,13 +120,13 @@ void main() {
     final glassy =
         ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['glassy']!).toMap());
     expect(glassy.panelMargin.isZero, isFalse);
-    expect(glassy.panelRadius, greaterThan(0));
+    expect(glassy.panelRadius.isZero, isFalse);
     expect(glassy.panelBorderWidth, greaterThan(0));
     expect(glassy.panelBorder.a, greaterThan(0),
         reason: 'a rim with a transparent colour draws nothing');
     // Floating means all four corners round.
     expect(panelCornerRadius(theme: glassy),
-        BorderRadius.circular(glassy.panelRadius));
+        BorderRadius.circular(glassy.panelRadius.topLeft));
   });
 
   test('glassy popups are made of the same material as its bar', () {
@@ -135,7 +135,7 @@ void main() {
     // pane it came from, so the two shapes are pinned to each other.
     final glassy =
         ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['glassy']!).toMap());
-    expect(glassy.popupRadius, glassy.panelRadius);
+    expect(PanelRadii.all(glassy.popupRadius), glassy.panelRadius);
     expect(glassy.popupBorder, glassy.panelBorder);
     expect(glassy.popupBorderWidth, greaterThan(0));
     expect(glassy.popupBorder.a, greaterThan(0),
@@ -158,7 +158,7 @@ void main() {
     // Floating, so the leaves hang from something that is visibly hung.
     expect(forest.panelMargin.isZero, isFalse);
     expect(panelCornerRadius(theme: forest),
-        BorderRadius.circular(forest.panelRadius));
+        BorderRadius.circular(forest.panelRadius.topLeft));
   });
 
   test('forest is overgrown, and the overgrowth hangs over the windows', () {
@@ -257,7 +257,7 @@ void main() {
         reason: 'a translucent bar lets the wallpaper decide what colour the '
             'flattest surface in the theme is');
     expect(carbon.panelMargin, PanelMargins.zero);
-    expect(carbon.panelRadius, 0.0);
+    expect(carbon.panelRadius, const PanelRadii.all(0.0));
     // popup_shadow_color's alpha is the documented off switch, and switching
     // it off has to give back the geometry of a shell built before shadows
     // existed: an off shadow that still grew every popup's window would be
@@ -372,7 +372,7 @@ void main() {
     // things these keys can add.
     expect(classic.panelGradient, PanelGradient.none);
     expect(classic.panelMargin, PanelMargins.zero);
-    expect(classic.panelRadius, 0.0);
+    expect(classic.panelRadius, const PanelRadii.all(0.0));
     expect(classic.popupRadius, 0.0);
     expect(classic.overlayRadius, 0.0);
     expect(classic.panelHasDecor, isFalse);
@@ -503,7 +503,7 @@ void main() {
     final midnight = _shipped('midnight');
     expect(midnight.panelMargin.isZero, isFalse);
     expect(midnight.popupGap, midnight.panelMargin.top.toDouble());
-    expect(midnight.popupRadius, midnight.panelRadius);
+    expect(PanelRadii.all(midnight.popupRadius), midnight.panelRadius);
     expect(midnight.popupBorder, midnight.panelBorder);
     expect(midnight.popupBorderWidth, midnight.panelBorderWidth);
     expect(midnight.panelBorderWidth, greaterThan(1.0),
@@ -512,7 +512,7 @@ void main() {
         reason: 'a rim with a transparent colour draws nothing');
     // Floating means all four corners round.
     expect(panelCornerRadius(theme: midnight),
-        BorderRadius.circular(midnight.panelRadius));
+        BorderRadius.circular(midnight.panelRadius.topLeft));
   });
 
   test('every shipped theme gives its popups a shape', () {

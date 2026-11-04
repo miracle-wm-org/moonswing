@@ -85,7 +85,7 @@ void main() {
       final theme = ThemeConfig(
         panelGradient: gradient,
         panelMargin: PanelMargins.all(8),
-        panelRadius: 12,
+        panelRadius: PanelRadii.all(12),
         panelBorder: const Color(0x40FFFFFF),
         panelBorderWidth: 1.5,
       );
@@ -105,7 +105,7 @@ void main() {
       expect(
         panelCornerRadius(
           anchor: anchor,
-          theme: const ThemeConfig(panelMargin: PanelMargins.all(8), panelRadius: 12),
+          theme: const ThemeConfig(panelMargin: PanelMargins.all(8), panelRadius: PanelRadii.all(12)),
         ),
         BorderRadius.circular(12),
         reason: 'anchor $anchor',
@@ -126,7 +126,7 @@ void main() {
       expect(
         panelCornerRadius(
           anchor: anchor,
-          theme: const ThemeConfig(panelMargin: PanelMargins.zero, panelRadius: 12),
+          theme: const ThemeConfig(panelMargin: PanelMargins.zero, panelRadius: PanelRadii.all(12)),
         ),
         expected,
         reason: 'anchor $anchor',
@@ -240,7 +240,7 @@ void main() {
         theme: const ThemeConfig(
           panelGradient: PanelGradient.corners,
           panelMargin: PanelMargins.all(8),
-          panelRadius: 12,
+          panelRadius: PanelRadii.all(12),
           panelBorder: Color(0x40FFFFFF),
           panelBorderWidth: 1.5,
         ),

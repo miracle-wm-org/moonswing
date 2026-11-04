@@ -76,7 +76,7 @@ String _edgeOf(String anchor) => switch (anchor) {
   _ => 'top',
 };
 
-bool _isVertical(String anchor) => anchor == 'left' || anchor == 'right';
+bool _isVertical(String anchor) => isVerticalAnchor(anchor);
 
 /// The bars [panel] meets at its ends, among [panels] — which includes [panel]
 /// itself, and is the geometry the bars' windows were built from.
@@ -126,19 +126,22 @@ Iterable<PanelCorner> _cornersOf(String anchor, PanelJoins joins) => [
 ];
 
 /// The fillet [theme] asks for, or 0 when it asks for none — and always 0 when
-/// its margins leave no corner of the screen flush on both sides, since bars
-/// floating apart meet nowhere.
+/// its margins leave no corner of the screen where both bars would be flush,
+/// since bars floating apart meet nowhere.
 double panelJoinRadiusOf(ThemeConfig theme) =>
     theme.panelMargin.anyFlushCorner && theme.panelJoinRadius > 0
     ? theme.panelJoinRadius
     : 0.0;
 
 /// [joins] as [theme] draws them on a bar anchored to [anchor]: each end's join
-/// while the theme has a fillet to put in it and the bar is flush there — a
-/// margin of 0 on its own edge and on the edge at that end, which is the screen
-/// corner the two bars share — and nothing otherwise. So a theme without the
-/// key keeps exactly the corners it always had, and a bar that floats off one
-/// end still meets its neighbour at the other.
+/// while the theme has a fillet to put in it and the screen corner at that end
+/// is flush for *both* bars that meet in it ([PanelMargins.flushAt]) — this
+/// bar against its own edge and at that end, and the bar across the corner
+/// likewise — and nothing otherwise. The two read the corner from different
+/// keys, since margins are in each bar's own frame, so this bar's margins alone
+/// cannot answer it. A theme without the key keeps exactly the corners it
+/// always had, and a bar that floats off one end can still meet its neighbour
+/// at the other.
 PanelJoins activePanelJoins(
   ThemeConfig theme,
   PanelJoins joins, {
@@ -146,11 +149,11 @@ PanelJoins activePanelJoins(
 }) {
   if (joins.isEmpty || panelJoinRadiusOf(theme) <= 0) return PanelJoins.none;
   final margin = theme.panelMargin;
-  if (margin.of(anchor) > 0) return PanelJoins.none;
-  final (startEdge, endEdge) = panelEndEdges(anchor);
+  bool flush(bool start) =>
+      margin.flushAt(PanelCorner.of(anchor, outer: true, start: start));
   final active = PanelJoins(
-    start: margin.of(startEdge) == 0 ? joins.start : 0,
-    end: margin.of(endEdge) == 0 ? joins.end : 0,
+    start: flush(true) ? joins.start : 0,
+    end: flush(false) ? joins.end : 0,
   );
   return active.isEmpty ? PanelJoins.none : active;
 }
@@ -459,16 +462,21 @@ Widget? panelJoinLayer({
   final screen = screenSize?.call();
   // Measured as though no margin had been taken off: a bar's own margin at an
   // end shortens it by that much, and a neighbour's zone there includes that
-  // neighbour's margin, which is the same edge's. Both are 0 at a joined end,
-  // so this only keeps a floating far end from reading as a stop.
+  // neighbour's margin off its own edge — which is the screen edge at this
+  // bar's end, though the two read it from different keys (margins are in each
+  // bar's own frame). All are 0 at a joined end, so this only keeps a floating
+  // far end from reading as a stop.
   final margin = theme.panelMargin;
+  final own = margin.onScreen(anchor);
   final (startEdge, endEdge) = panelEndEdges(anchor);
-  final startMargin = margin.of(startEdge).toDouble();
-  final endMargin = margin.of(endEdge).toDouble();
-  final own = panelJoinOwnership(
+  final startMargin = own.of(startEdge).toDouble();
+  final endMargin = own.of(endEdge).toDouble();
+  final startZone = margin.onScreen(startEdge).of(startEdge).toDouble();
+  final endZone = margin.onScreen(endEdge).of(endEdge).toDouble();
+  final owns = panelJoinOwnership(
     joins: PanelJoins(
-      start: joins.start > 0 ? joins.start + startMargin : 0,
-      end: joins.end > 0 ? joins.end + endMargin : 0,
+      start: joins.start > 0 ? joins.start + startZone : 0,
+      end: joins.end > 0 ? joins.end + endZone : 0,
     ),
     vertical: vertical,
     length: length + startMargin + endMargin,
@@ -476,8 +484,8 @@ Widget? panelJoinLayer({
         ? null
         : (vertical ? screen.height : screen.width),
   );
-  final atStart = own.start && active.start > 0;
-  final atEnd = own.end && active.end > 0;
+  final atStart = owns.start && active.start > 0;
+  final atEnd = owns.end && active.end > 0;
   if (!atStart && !atEnd) return null;
   return IgnorePointer(
     child: CustomPaint(

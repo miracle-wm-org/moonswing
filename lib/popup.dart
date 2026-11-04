@@ -286,8 +286,9 @@ void spanFullOutput(LayershellWindowController controller) {
   controller.setExclusiveZone(-1);
 }
 
-/// Floats a panel off each screen edge it is anchored to, by that edge's
-/// [margin] — its own edge's, and the two at its ends ([PanelMargins]).
+/// Floats a panel off each screen edge it is anchored to, by [margin] — given
+/// in the bar's own frame and turned onto the screen for [anchor]
+/// ([PanelMargins.onScreen]): its outer side's, and its two ends'.
 ///
 /// A native layer-shell margin rather than a Flutter inset because the shell has
 /// no input-region support: padding inside a full-size surface would leave the
@@ -302,8 +303,9 @@ void setPanelMargin(
   required String anchor,
   required PanelMargins margin,
 }) {
+  final onScreen = margin.onScreen(anchor);
   for (final edge in anchorEdgesForPosition(anchor)) {
-    controller.setMargin(edge, margin.of(edge.name));
+    controller.setMargin(edge, onScreen.of(edge.name));
   }
   // Once the surface is mapped a margin change only queues a resize, so a live
   // theme edit would otherwise sit unsent until something else forced a frame.

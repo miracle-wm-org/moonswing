@@ -176,6 +176,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
             // key the file omits shows the value actually in use.
             final current = _themes.theme.toMap();
             final margin = _themes.theme.panelMargin;
+            final radii = _themes.theme.panelRadius;
             // One section per thing a key paints, so somebody after the bar's
             // corners or a menu's shadow reads one card rather than the whole
             // theme. The palette joins each section from the catalogue by its
@@ -332,11 +333,13 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                   SettingsCatalog.panelMargin,
                   alignTop: true,
                   info:
-                      'Floats the bars off the screen edges, each edge its '
-                      'own. A bar takes the margin of the edge it sits on and '
-                      'of the two at its ends, so a 0 where a top bar meets a '
-                      'side bar keeps the pair joined there while the other '
-                      'end floats. The gap is real — windows will not tile '
+                      'Floats the bars off the screen edges, each side its '
+                      'own. The sides are the bar\'s: on a side bar Right is '
+                      'its top end and Left its bottom end, Top the side '
+                      "towards the screen's left edge and Bottom the side "
+                      'towards its right — so Right always moves the far end '
+                      'of a bar. Two bars join only where both are flush in '
+                      'that corner. The gap is real — windows will not tile '
                       'into it, and clicks that land there reach the desktop.',
                   control: SettingsSidesField(
                     fieldKey: 'panel_margin-$active',
@@ -352,16 +355,24 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                 ),
                 SettingsRow.field(
                   SettingsCatalog.panelRadius,
+                  alignTop: true,
                   info:
-                      "How far the bar's corners are rounded, at the corners "
-                      'chosen under Rounded corners.',
-                  control: SettingsNumberField(
-                    key: ValueKey('panel_radius-$active'),
-                    value: current['panel_radius'] as num? ?? 0,
-                    isInt: false,
-                    onChanged: (v) => _themes.edit(
+                      "How far each of the bar's corners is rounded, at the "
+                      'corners chosen under Rounded corners. Corners are named '
+                      'as the margins are, in the bar\'s own frame: on a side '
+                      'bar Top right is the corner at its top end, on the side '
+                      "towards the screen's left edge.",
+                  control: SettingsCornersField(
+                    fieldKey: 'panel_radius-$active',
+                    topLeft: radii.topLeft,
+                    topRight: radii.topRight,
+                    bottomRight: radii.bottomRight,
+                    bottomLeft: radii.bottomLeft,
+                    onChanged: (slug, v) => _themes.edit(
                       'panel_radius',
-                      v.toDouble().clamp(0.0, 64.0),
+                      _themes.theme.panelRadius
+                          .withCorner(PanelCorner.fromSlug(slug)!, v)
+                          .encode(),
                     ),
                   ),
                 ),
@@ -385,9 +396,10 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                             "display's own corner — so a bar floating on every "
                             'side rounds all four, and one floating at one end '
                             'rounds that end. Chosen rounds the corners picked '
-                            'below, as each bar sits on the screen, on every '
-                            'bar. Where two bars meet in a join, the inside '
-                            'corner stays square either way.',
+                            'below on every bar, named as the margins are — on '
+                            'a side bar, Top right is at its top end. Where '
+                            'two bars meet in a join, the inside corner stays '
+                            'square either way.',
                         control: SettingsChoice<bool>(
                           options: const [true, false],
                           value: corners.isAuto,
@@ -435,8 +447,8 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                       'Where a top or bottom bar meets a side one, rounds the '
                       "inside of the corner between them in the bar's own "
                       'colour, so the two read as one frame round the screen. '
-                      'Bars meet only in a corner whose two edges both have a '
-                      'margin of 0; zero leaves the corner square.',
+                      'Bars meet only in a corner where both are flush, with '
+                      'no margin there; zero leaves the corner square.',
                   control: SettingsNumberField(
                     key: ValueKey('panel_join_radius-$active'),
                     value: current['panel_join_radius'] as num? ?? 0,

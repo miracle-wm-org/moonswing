@@ -1364,8 +1364,8 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `panel_gradient_top_right` | `#EE612D53` | …its top-right corner                                                    |
 | `panel_gradient_bottom_right` | `#EE2C2C2C` | …its bottom-right corner                                             |
 | `panel_gradient_bottom_left` | `#EE612D53` | …its bottom-left corner                                               |
-| `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to: one number, or a table giving each edge its own (see below) |
-| `panel_radius`         | `0.0`         | Corner rounding of each bar, at the corners `panel_corners` picks           |
+| `panel_margin`         | `0`           | Pixels between each bar and the screen edges it is anchored to: one number, or a table giving each side of the bar its own (see below) |
+| `panel_radius`         | `0.0`         | Corner rounding of each bar, at the corners `panel_corners` picks: one number, or a table giving each corner its own (see below) |
 | `panel_corners`        | `auto`        | Which corners `panel_radius` rounds: `auto`, `all`, `none`, or a list of `top_left`, `top_right`, `bottom_right`, `bottom_left` (see below) |
 | `panel_join_radius`    | `0.0`         | Rounds the inside of the corner where two flush bars meet; `0`–`64` (see below) |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
@@ -1453,29 +1453,46 @@ In `"accent"` mode **every stop is drawn at `panel_background`'s alpha**, not it
 
 The gap is real, not painted: the bar's surface genuinely shrinks, so **windows will not tile into it** and **clicks that land in the gap reach the desktop** rather than being swallowed by an invisible part of the bar. The space the bar reserves grows with the margin automatically — a 32px bar with an 8px margin keeps maximized windows 40px clear of the screen edge.
 
-Each edge of the screen can have a margin of its own, written as a table instead of one number; an edge left out of the table is `0`:
+Each side of the bar can have a margin of its own, written as a table instead of one number; a side left out of the table is `0`:
 
 ```toml
-# Flush against the top and left of the screen, floating 8px off the right and bottom.
-panel_margin = { top = 0, right = 8, bottom = 8, left = 0 }
+# Every bar's far end floats 8px short of the screen's side; the rest are flush.
+panel_margin = { top = 0, right = 8, bottom = 0, left = 0 }
 ```
 
-The edges are the **screen's**, not the bar's. Each bar takes the margin of the edge it sits on, which floats it off that edge, and the margins of the two edges at its ends, which stop its ends short of the screen's sides. So with the table above a top bar is flush against the top and runs from the screen's left edge to 8px short of its right, and a left bar is flush against the left and stops 8px short of the bottom. Where the two meet, in the top-left corner, both are flush, which is what lets them join there (see [Where two bars meet](#where-two-bars-meet)) while their far ends float. A margin that is the same on every edge is written back as one number, as it always was.
+The sides are the **bar's**, so a name always means the same part of a bar, whichever edge it is on. On a top or bottom bar they are the screen's: `top` and `bottom` are its long sides and `left` and `right` its ends. A left or right bar is a top bar turned a quarter turn anticlockwise:
 
-`panel_radius` rounds the bar's corners, and `panel_corners` says which. Under the default, `"auto"`:
+| Key      | Top or bottom bar  | Left or right bar                       |
+|----------|--------------------|-----------------------------------------|
+| `right`  | its right-hand end | its **top** end                         |
+| `left`   | its left-hand end  | its **bottom** end                      |
+| `top`    | its top side       | its side towards the screen's left edge |
+| `bottom` | its bottom side    | its side towards the screen's right edge |
+
+So `right` is always a bar's far end, and with the table above a top bar stops 8px short of the screen's right edge and a side bar 8px short of its top. Each bar is floated off the screen edge it sits on by the side against that edge — `top` for a top or left bar, `bottom` for a bottom or right one — and its ends by `left` and `right`; the side facing the middle of the screen has nothing to push against and is not read. A margin that is the same on every side is written back as one number, as it always was, and means the same thing either way.
+
+Because each bar reads its own frame, a top bar and a side bar meeting in a corner read that corner from different keys: in the top-left, the top bar's `top` and `left` and the left bar's `top` and `right` (its top end). They are flush there — and can join, see [Where two bars meet](#where-two-bars-meet) — only when all three are `0`.
+
+`panel_radius` rounds the bar's corners, and `panel_corners` says which. Like the margin, the radius is one number for every corner or a table giving each its own, a corner left out being `0`:
+
+```toml
+panel_radius = { top_left = 0, top_right = 12, bottom_right = 12, bottom_left = 4 }
+```
+
+Corners are named in the same frame as the margin's sides: `top_right` is where the bar's `top` side meets its `right` end, which on a side bar is its top end, on the side towards the screen's left — the screen's top-left corner. A corner with a radius of `0` stays square whatever `panel_corners` says. Under the default, `"auto"`:
 
 - **The two corners facing the middle of the screen** always round.
 - **A corner against the screen edge** rounds only where the bar is off the display's own corner there — the bar floats off the edge it sits on, or that end of it stops short of the screen's side. A flush bar with rounded outer corners would cut wallpaper wedges out of the display's own corners, which reads as misalignment rather than styling.
 
-So a bar with the same margin above zero on every edge rounds all four corners, a flush one rounds only the inner two, and a bar flush at one end and floating at the other rounds both corners at the floating end.
+So a bar with the same margin above zero on every side rounds all four corners, a flush one rounds only the inner two, and a bar flush at one end and floating at the other rounds both corners at the floating end.
 
 To pick the corners yourself, give `panel_corners` a list, or `"all"` or `"none"`:
 
 ```toml
-panel_corners = ["top_right", "bottom_right"]   # round only the right-hand end
+panel_corners = ["top_right", "bottom_right"]   # round only the far end
 ```
 
-Corners are named **as each bar sits on the screen**, the way the `panel_gradient_*` corners are, and the list applies to every bar as written, whether or not it floats. Settings › Appearance › Bar offers both, as **Automatic** and **Chosen**. Either way, the inner corner where two bars meet under a `panel_join_radius` stays square, because the fillet is what turns it.
+The list is named in the bar's frame too, and applies to every bar as written, whether or not it floats — so the line above rounds a top bar's right-hand end and a side bar's top end. Settings › Appearance › Bar offers both, as **Automatic** and **Chosen**. Either way, the inner corner where two bars meet under a `panel_join_radius` stays square, because the fillet is what turns it.
 
 `panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
 
@@ -1485,7 +1502,7 @@ All of these follow a theme switch live; no restart is needed.
 
 `panel_join_radius` is for a screen with a bar on two adjacent edges — a top or bottom bar and a left or right one. Where the two meet, their inner edges make a sharp right angle at the corner of the space your windows tile into; this fills that angle with a quarter round of the given radius, in the bar's own colour, so the pair reads as one frame around the screen instead of two strips butted together. `dracula` is the one shipped theme that sets it, at `12`.
 
-- **Only flush bars meet.** Two bars meet in a corner of the screen only when *both* edges of that corner have a `panel_margin` of `0`; anywhere else they float apart and the key is not read there. With a per-edge margin, a pair can be joined at one corner and float at the others — see [Floating the bar](#floating-the-bar).
+- **Only flush bars meet.** Two bars meet in a corner of the screen only when *both* are flush against both of its edges — three of the four `panel_margin` sides, since the two bars read the corner from different keys; anywhere else they float apart and the key is not read there. With a per-side margin, a pair can be joined at one corner and float at its other ends: `panel_margin = { left = 8 }` joins a top bar and a right bar in the top-right corner, with the top bar's left-hand end and the right bar's bottom end floating — see [Floating the bar](#floating-the-bar).
 - **Only one bar per edge.** Two bars stacked on one edge take no part in a join, since which of them is innermost is the compositor's decision and nothing reports it.
 - **The bars square off the corner the fillet turns.** At a joined end, the inner corner `panel_radius` would round is left square, even one picked by `panel_corners`; the bar's other corners round as before.
 - **It is real surface, and it does not take your clicks** — the same arrangement as the foliage below. Every bar's surface grows by the radius while any two bars meet, and that strip is cut out of the surface's input region, so a click on the fillet lands on the window behind it. Windows still tile right up to the bars. Should the shell be unable to set an input region, the surface is not grown and the corner stays square.

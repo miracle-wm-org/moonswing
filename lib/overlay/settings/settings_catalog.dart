@@ -238,8 +238,9 @@ abstract final class SettingsCatalog {
     'Panel margin',
     section: 'Theme',
     description:
-        'Floats the bars off each screen edge, every edge its own. The gap is '
-        'real — windows will not tile into it.',
+        'Floats the bars off the screen edges, every side its own, named as '
+        'the bar sits — a side bar’s right is its top end. The gap is real — '
+        'windows will not tile into it.',
     tags: const [
       'bar',
       'taskbar',
@@ -256,8 +257,18 @@ abstract final class SettingsCatalog {
     'theme.panel_radius',
     'Panel corner radius',
     section: 'Theme',
-    description: 'How far the bar’s corners are rounded.',
-    tags: const ['bar', 'taskbar', 'rounded', 'corners'],
+    description:
+        'How far each of the bar’s corners is rounded, every corner its own.',
+    tags: const [
+      'bar',
+      'taskbar',
+      'rounded',
+      'corners',
+      'top left',
+      'top right',
+      'bottom left',
+      'bottom right',
+    ],
   );
 
   static final panelCorners = shellField(
