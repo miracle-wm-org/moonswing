@@ -102,7 +102,8 @@ class DesktopGridGeometry {
 ///
 /// The background surface calls `spanFullOutput`, so it reaches *under* the bars
 /// and an icon placed there would be hidden. Each panel contributes its thickness
-/// plus the theme's [panelMargin] on that edge to the edge its anchor names,
+/// plus the theme's [panelMargin] off that edge (in the bar's own frame, turned
+/// onto the screen by [PanelMargins.onScreen]) to the edge its anchor names,
 /// because per wlr-layer-shell the exclusive zone includes the margin. Two
 /// panels on the same edge stack, so their insets add.
 EdgeInsets panelInsetsFor(
@@ -114,7 +115,8 @@ EdgeInsets panelInsetsFor(
   var left = 0.0;
   var right = 0.0;
   for (final panel in panels.values) {
-    final thickness = (panel.height + panelMargin.of(panel.anchor)).toDouble();
+    final margin = panelMargin.onScreen(panel.anchor).of(panel.anchor);
+    final thickness = (panel.height + margin).toDouble();
     switch (panel.anchor) {
       case 'bottom':
         bottom += thickness;

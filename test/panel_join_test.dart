@@ -335,7 +335,7 @@ void main() {
   });
 
   group('the corners a joined bar squares off', () {
-    const rounded = ThemeConfig(panelRadius: 8, panelJoinRadius: 12);
+    const rounded = ThemeConfig(panelRadius: PanelRadii.all(8), panelJoinRadius: 12);
 
     test('the inner corner at a joined end, and only that one', () {
       expect(
@@ -365,7 +365,7 @@ void main() {
     });
 
     test('nothing moves for a theme without a fillet', () {
-      const plain = ThemeConfig(panelRadius: 8);
+      const plain = ThemeConfig(panelRadius: PanelRadii.all(8));
       expect(
         panelCornerRadius(
           anchor: 'top',

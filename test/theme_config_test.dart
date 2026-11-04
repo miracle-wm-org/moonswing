@@ -24,7 +24,7 @@ void main() {
         'overlay_radius': 'round',
       });
       expect(theme.panelMargin, PanelMargins.zero);
-      expect(theme.panelRadius, 0.0);
+      expect(theme.panelRadius, const PanelRadii.all(0.0));
       expect(theme.panelBorderWidth, 0.0);
       // The popup fallbacks are not zero, so a garbled value must land on the
       // shipped card shape rather than on the panel's flush-and-square one.
@@ -43,7 +43,7 @@ void main() {
         'overlay_radius': -1.0,
       });
       expect(theme.panelMargin, PanelMargins.zero);
-      expect(theme.panelRadius, 0.0);
+      expect(theme.panelRadius, const PanelRadii.all(0.0));
       expect(theme.panelBorderWidth, 0.0);
       // Clamped, not fallen back: zero is a legitimate popup shape — a square
       // card with no rim — and a negative one is the nearest thing to it.
@@ -62,7 +62,7 @@ void main() {
         'overlay_radius': 1e9,
       });
       expect(theme.panelMargin, PanelMargins.all(256));
-      expect(theme.panelRadius, 64.0);
+      expect(theme.panelRadius, const PanelRadii.all(64.0));
       expect(theme.panelBorderWidth, 16.0);
       expect(theme.popupRadius, 64.0);
       expect(theme.popupBorderWidth, 16.0);
@@ -82,7 +82,7 @@ void main() {
         'overlay_radius': double.nan,
       });
       expect(theme.panelMargin, PanelMargins.zero);
-      expect(theme.panelRadius, 0.0);
+      expect(theme.panelRadius, const PanelRadii.all(0.0));
       expect(theme.panelBorderWidth, 0.0);
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
@@ -99,7 +99,7 @@ void main() {
         'popup_border_width': double.negativeInfinity,
       });
       expect(theme.panelMargin, PanelMargins.zero);
-      expect(theme.panelRadius, 0.0);
+      expect(theme.panelRadius, const PanelRadii.all(0.0));
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
     });
@@ -134,7 +134,7 @@ void main() {
     });
 
     test('panel_radius', () {
-      expect(base, isNot(const ThemeConfig(panelRadius: 12.0)));
+      expect(base, isNot(const ThemeConfig(panelRadius: PanelRadii.all(12.0))));
     });
 
     test('panel_border', () {
@@ -169,7 +169,7 @@ void main() {
       final hashes = {
         base.hashCode,
         const ThemeConfig(panelMargin: PanelMargins.all(8)).hashCode,
-        const ThemeConfig(panelRadius: 12.0).hashCode,
+        const ThemeConfig(panelRadius: PanelRadii.all(12.0)).hashCode,
         const ThemeConfig(panelBorder: Color(0xFFFF0000)).hashCode,
         const ThemeConfig(panelBorderWidth: 1.0).hashCode,
         const ThemeConfig(popupRadius: 12.0).hashCode,
@@ -242,7 +242,7 @@ void main() {
     // so they are what guarantee this feature changes nothing until asked for.
     const theme = ThemeConfig();
     expect(theme.panelMargin, PanelMargins.zero);
-    expect(theme.panelRadius, 0.0);
+    expect(theme.panelRadius, const PanelRadii.all(0.0));
     expect(theme.panelBorderWidth, 0.0);
   });
 
@@ -299,7 +299,7 @@ void main() {
           'panel_radius': 12.0,
         });
         expect(theme.panelGradient, PanelGradient.accent, reason: '$bad');
-        expect(theme.panelRadius, 12.0, reason: '$bad');
+        expect(theme.panelRadius, const PanelRadii.all(12.0), reason: '$bad');
       }
     });
 
@@ -597,7 +597,7 @@ void main() {
   test('the new keys round-trip through toMap', () {
     const theme = ThemeConfig(
       panelMargin: PanelMargins.all(8),
-      panelRadius: 12.0,
+      panelRadius: PanelRadii.all(12.0),
       panelBorder: Color(0x40FFFFFF),
       panelBorderWidth: 1.5,
       popupRadius: 10.0,

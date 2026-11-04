@@ -65,6 +65,7 @@ enum _ThemeKeyKind {
   foliage,
   panelGradient,
   margins,
+  radii,
   corners,
 }
 
@@ -165,6 +166,14 @@ class _ThemeKey {
               max: (max ?? 256).round(),
             ) ??
             fallback;
+      case _ThemeKeyKind.radii:
+        return PanelRadii.fromValue(
+              map[key],
+              fallback: fallback as PanelRadii,
+              min: min ?? 0,
+              max: max ?? 64,
+            ) ??
+            fallback;
       case _ThemeKeyKind.corners:
         return PanelCornerChoice.fromValue(map[key]) ??
             fallback as PanelCornerChoice;
@@ -193,6 +202,8 @@ class _ThemeKey {
         return (value as PanelGradient).slug;
       case _ThemeKeyKind.margins:
         return (value as PanelMargins).encode();
+      case _ThemeKeyKind.radii:
+        return (value as PanelRadii).encode();
       case _ThemeKeyKind.corners:
         return (value as PanelCornerChoice).encode();
       default:
@@ -289,13 +300,13 @@ class ThemeConfig {
   /// The bar's bottom-left corner; see [panelGradientTopLeft].
   final Color panelGradientBottomLeft;
 
-  /// How far the bars float off each screen edge they are anchored to — one
-  /// number for every edge, or each edge its own ([PanelMargins]).
+  /// How far the bars float off the screen edges they are anchored to — one
+  /// number for every side, or each side its own ([PanelMargins]).
   ///
-  /// Read as the bar sits on the screen: a bar is given its own edge's margin,
-  /// off the screen edge it sits on, and the margins of the two edges at its
-  /// ends. So a margin of 0 on the edge where a top bar meets a side bar keeps
-  /// the pair flush there, for `panel_join_radius`, while its other end floats.
+  /// Read in the bar's own frame (`panel_shape.dart`): a top or bottom bar's
+  /// sides are the screen's, and a side bar is a top bar turned a quarter turn
+  /// anticlockwise, so `right` is the far end of every bar — a top bar's
+  /// right-hand end, a side bar's top end.
   ///
   /// A *native* `gtk_layer_set_margin`, never a Flutter `Padding`: with no
   /// input-region support, an inset inside a full-size surface would swallow
@@ -306,10 +317,13 @@ class ThemeConfig {
   /// would reserve it twice.
   final PanelMargins panelMargin;
 
-  /// The bar's corner rounding, at the corners [panelCorners] picks.
-  final double panelRadius;
+  /// The bar's corner rounding, at the corners [panelCorners] picks — one
+  /// number for every corner, or each corner its own ([PanelRadii]), named in
+  /// the bar's own frame as [panelMargin]'s sides are.
+  final PanelRadii panelRadius;
 
-  /// Which corners [panelRadius] rounds ([PanelCornerChoice]).
+  /// Which corners [panelRadius] rounds ([PanelCornerChoice]), named in the
+  /// bar's own frame.
   ///
   /// [PanelCornerChoice.auto] by default: the two corners facing the screen's
   /// interior always, and a corner against the screen edge only where the bar
@@ -335,8 +349,9 @@ class ThemeConfig {
   /// [panelOverhang] is, so a click on it lands on the window beneath. Which bar
   /// paints it, and only where two bars actually meet, is `panel_join.dart`'s.
   ///
-  /// Read only in a corner of the screen whose two edges both have a
-  /// [panelMargin] of 0: a bar floating off either edge meets nothing there.
+  /// Read only in a corner of the screen where both bars are flush
+  /// ([PanelMargins.flushAt]): a bar floating off either edge meets nothing
+  /// there.
   /// The default of 0 leaves the corner square, exactly as it always was.
   final double panelJoinRadius;
 
@@ -755,7 +770,7 @@ class ThemeConfig {
     this.panelGradientBottomRight = const Color(0xEE2C2C2C),
     this.panelGradientBottomLeft = const Color(0xEE612D53),
     this.panelMargin = PanelMargins.zero,
-    this.panelRadius = 0.0,
+    this.panelRadius = PanelRadii.zero,
     this.panelCorners = PanelCornerChoice.auto,
     this.panelJoinRadius = 0.0,
     this.panelBorder = const Color(0x33F3F4F4),
@@ -848,7 +863,7 @@ class ThemeConfig {
         (t) => t.panelGradientBottomLeft),
     _ThemeKey('panel_margin', _ThemeKeyKind.margins, (t) => t.panelMargin,
         min: 0.0, max: 256.0),
-    _ThemeKey('panel_radius', _ThemeKeyKind.number, (t) => t.panelRadius,
+    _ThemeKey('panel_radius', _ThemeKeyKind.radii, (t) => t.panelRadius,
         min: 0.0, max: 64.0),
     _ThemeKey('panel_corners', _ThemeKeyKind.corners, (t) => t.panelCorners),
     // Not blended: it sizes the panels' native surfaces, the reason geometry

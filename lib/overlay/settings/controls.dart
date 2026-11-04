@@ -2561,8 +2561,9 @@ class SettingsNumberField extends StatelessWidget {
   }
 }
 
-/// One whole number per side of something — the bars' margin off each screen
-/// edge — as four small [SettingsNumberField]s, each under the name of its side.
+/// One whole number per side of something — the bars' margin off each of their
+/// sides — as four small [SettingsNumberField]s, each under the name of its
+/// side.
 ///
 /// Each side commits on its own, by the [SettingsCommitField] rule, so typing a
 /// margin into one side never applies a half-typed value to another; [onChanged]
@@ -2593,12 +2594,84 @@ class SettingsSidesField extends StatelessWidget {
   final int max;
   final String fieldKey;
 
-  static const _sides = ['top', 'right', 'bottom', 'left'];
+  @override
+  Widget build(BuildContext context) => _SettingsFourNumbers(
+    fieldKey: fieldKey,
+    isInt: true,
+    entries: [
+      ('top', 'Top', top),
+      ('right', 'Right', right),
+      ('bottom', 'Bottom', bottom),
+      ('left', 'Left', left),
+    ],
+    onChanged: (side, v) => onChanged(side, v.toInt().clamp(min, max)),
+  );
+}
+
+/// One number per corner of something — the bars' rounding at each corner — as
+/// four small [SettingsNumberField]s, each under the name of its corner, in
+/// the order [SettingsSidesField] lists the sides: clockwise from the top-left.
+///
+/// [onChanged] is handed the corner that moved, spelled as a theme file spells
+/// it (`top_left`, `top_right`, `bottom_right` or `bottom_left`), and its new
+/// value clamped into [min]..[max]; each corner commits on its own, as each side
+/// does there.
+class SettingsCornersField extends StatelessWidget {
+  const SettingsCornersField({
+    super.key,
+    required this.topLeft,
+    required this.topRight,
+    required this.bottomRight,
+    required this.bottomLeft,
+    required this.onChanged,
+    this.min = 0,
+    this.max = 64,
+    this.fieldKey = '',
+  });
+
+  final double topLeft;
+  final double topRight;
+  final double bottomRight;
+  final double bottomLeft;
+  final void Function(String corner, double value) onChanged;
+  final double min;
+  final double max;
+  final String fieldKey;
+
+  @override
+  Widget build(BuildContext context) => _SettingsFourNumbers(
+    fieldKey: fieldKey,
+    isInt: false,
+    entries: [
+      ('top_left', 'Top left', topLeft),
+      ('top_right', 'Top right', topRight),
+      ('bottom_right', 'Bottom right', bottomRight),
+      ('bottom_left', 'Bottom left', bottomLeft),
+    ],
+    onChanged: (corner, v) => onChanged(corner, v.toDouble().clamp(min, max)),
+  );
+}
+
+/// [SettingsSidesField] and [SettingsCornersField]'s one layout: four small
+/// number fields, each keyed `<fieldKey>-<slug>` under a caption.
+class _SettingsFourNumbers extends StatelessWidget {
+  const _SettingsFourNumbers({
+    required this.fieldKey,
+    required this.isInt,
+    required this.entries,
+    required this.onChanged,
+  });
+
+  final String fieldKey;
+  final bool isInt;
+
+  /// Each field's slug, caption and value, in the order they are laid out.
+  final List<(String, String, num)> entries;
+  final void Function(String slug, num value) onChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    final values = [top, right, bottom, left];
     final caption = TextStyle(
       fontSize: ShellFontSizes.caption,
       fontFamily: theme.fontFamily,
@@ -2608,19 +2681,19 @@ class SettingsSidesField extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final (i, side) in _sides.indexed)
+        for (final (slug, label, value) in entries)
           Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${side[0].toUpperCase()}${side.substring(1)}', style: caption),
+              Text(label, style: caption),
               const SizedBox(height: 4),
               SettingsNumberField(
-                key: ValueKey('$fieldKey-$side'),
+                key: ValueKey('$fieldKey-$slug'),
                 width: 64,
-                value: values[i],
-                isInt: true,
-                onChanged: (v) => onChanged(side, v.toInt().clamp(min, max)),
+                value: value,
+                isInt: isInt,
+                onChanged: (v) => onChanged(slug, v),
               ),
             ],
           ),
