@@ -17,6 +17,13 @@ description: |
   `/etc/pam.d/moonswing` needs root, so the lock screen falls back to the
   system `login` service — it still authenticates.
 grade: devel
+# Classic is required, not just convenient. Wayland is fine confined: miracle-wm
+# offers every extension to every client. The problem is that a strict snap's
+# `/` is core22, so the host's applications (the launcher starts them), its PAM
+# stack (lock), the setuid polkit-agent-helper-1 and pkexec, libmiracle-wm-c and
+# the host tools the shell runs are all out of reach, and no snapd interface
+# brings them back on a classic host. devmode keeps the same mount namespace.
+# The full table is in website/src/content/docs/wiki/packaging.md.
 confinement: classic
 platforms:
   amd64:

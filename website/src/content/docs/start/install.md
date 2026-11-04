@@ -30,7 +30,9 @@ curl -fsSL https://raw.githubusercontent.com/miracle-wm-org/moonswing/main/insta
 The script looks up the rolling `nightly` release, downloads the newest
 `moonswing_*.snap` asset and installs it with `--classic --dangerous`:
 
-- `--classic` because the shell needs unconfined access to the Wayland compositor.
+- `--classic` because a shell has to reach the host: it launches the host's applications,
+  authenticates through its PAM and polkit, and runs its tools. A strict snap sees none of
+  these. See [Packaging](../../wiki/packaging/#why-classic-and-not-strict).
 - `--dangerous` because the file is downloaded from a GitHub release, not store-signed.
 
 If you would rather do it by hand, download the asset from the
