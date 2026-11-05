@@ -13,6 +13,7 @@ import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart' show Utf8;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:xdg_icons/xdg_icons.dart';
 
 import 'app_scope.dart';
@@ -944,9 +945,16 @@ String mainCategoryOf(AppEntry entry) {
 // Shared icon widget
 // ---------------------------------------------------------------------------
 
-/// Renders an application icon by its GIO icon name: an absolute path is drawn
-/// with [Image.file], a themed name with [XdgIcon], and anything unresolved
-/// falls back to the app's first letter.
+/// Renders an application icon by its GIO icon name: an absolute path (or a
+/// `file://` URI) is drawn from that file, a themed name with [XdgIcon], and
+/// anything unresolved falls back to the app's first letter.
+///
+/// A path is decoded by its extension, because `Image.file` cannot read SVG and
+/// SVG is what snaps ship: snapd rewrites a snap's `Icon=${SNAP}/meta/gui/…`
+/// to an absolute `/snap/<name>/current/…` path, and GIO hands that over as a
+/// `GFileIcon` rather than a themed name, so no icon theme is ever consulted —
+/// every snap with a vector icon drew its first letter in the launcher, the
+/// dock and the workspace row.
 class AppIconImage extends StatelessWidget {
   const AppIconImage({
     super.key,
@@ -976,11 +984,22 @@ class AppIconImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (iconName.startsWith('/')) {
+    final path = appIconFilePath(iconName);
+    if (path != null) {
+      final extent = size.toDouble();
+      if (path.toLowerCase().endsWith('.svg')) {
+        return SvgPicture.file(
+          File(path),
+          width: extent,
+          height: extent,
+          fit: BoxFit.contain,
+          errorBuilder: (_, _, _) => _fallback(),
+        );
+      }
       return Image.file(
-        File(iconName),
-        width: size.toDouble(),
-        height: size.toDouble(),
+        File(path),
+        width: extent,
+        height: extent,
         filterQuality: FilterQuality.medium,
         errorBuilder: (_, _, _) => _fallback(),
       );
@@ -991,4 +1010,20 @@ class AppIconImage extends StatelessWidget {
       iconNotFoundBuilder: _fallback,
     );
   }
+}
+
+/// The file [iconName] names, when it names one rather than a themed icon:
+/// an absolute path verbatim, or the path of a `file://` URI (what
+/// `g_icon_to_string` gives a `GFileIcon` it cannot spell as a plain path).
+/// Null for a themed name.
+String? appIconFilePath(String iconName) {
+  if (iconName.startsWith('/')) return iconName;
+  if (iconName.startsWith('file://')) {
+    try {
+      return Uri.parse(iconName).toFilePath();
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
 }

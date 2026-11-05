@@ -444,8 +444,15 @@ class WorkspaceAppsStore extends ChangeNotifier {
   }
 
   /// An install or a removal can change what an `app_id` resolves to, and the
-  /// cache is keyed on the `app_id` alone.
-  void _onApplicationsChanged() => _icons.clear();
+  /// cache is keyed on the `app_id` alone. So can the index's *first* build:
+  /// it lands last of the start-up services, after the row has drawn, and an
+  /// `app_id` that only the index can place — a snap's `firefox` against its
+  /// `firefox_firefox.desktop` — drew its first-letter fallback until the
+  /// window set next changed. Hence the notify, but only when something the
+  /// row has drawn now resolves differently.
+  void _onApplicationsChanged() {
+    if (_icons.refresh()) notifyListeners();
+  }
 
   Future<void> _fetch() async {
     if (_fetchInFlight) {
@@ -509,6 +516,15 @@ class WorkspaceAppIcon {
 
   final String iconName;
   final String name;
+
+  @override
+  bool operator ==(Object other) =>
+      other is WorkspaceAppIcon &&
+      other.iconName == iconName &&
+      other.name == name;
+
+  @override
+  int get hashCode => Object.hash(iconName, name);
 }
 
 /// Resolves compositor `app_id`s to installed applications, once each.
@@ -520,7 +536,17 @@ class WorkspaceAppIcon {
 class _AppIconCache {
   final Map<String, WorkspaceAppIcon> _entries = {};
 
-  void clear() => _entries.clear();
+  /// Re-resolves every `app_id` already asked about, and says whether any of
+  /// them now draws differently.
+  bool refresh() {
+    final before = Map.of(_entries);
+    _entries.clear();
+    var changed = false;
+    for (final MapEntry(:key, :value) in before.entries) {
+      if (lookup(key) != value) changed = true;
+    }
+    return changed;
+  }
 
   WorkspaceAppIcon lookup(String appId) =>
       _entries[appId] ??= _resolve(appId);
@@ -557,33 +583,59 @@ class _AppIconCache {
   }
 
   WorkspaceAppIcon? _byIndex(String appId) {
-    final wanted = appId.toLowerCase();
     try {
-      final apps = AppIndex.instance.apps;
-      // `StartupWMClass=` is the entry declaring this very mapping, so it wins
-      // outright over any spelling heuristic.
-      for (final entry in apps) {
-        if (entry.startupWmClass.isNotEmpty &&
-            entry.startupWmClass.toLowerCase() == wanted) {
-          return WorkspaceAppIcon(iconName: entry.iconName, name: entry.name);
-        }
-      }
-      final tail = _lastSegment(wanted);
-      for (final entry in apps) {
-        final id = entry.id.toLowerCase();
-        if (id == wanted || _lastSegment(id) == tail) {
-          return WorkspaceAppIcon(iconName: entry.iconName, name: entry.name);
-        }
-      }
+      final entry = entryForAppId(appId, AppIndex.instance.apps);
+      if (entry == null) return null;
+      return WorkspaceAppIcon(iconName: entry.iconName, name: entry.name);
     } catch (_) {
       // Same as above: an index that could not be built is simply empty.
+      return null;
     }
-    return null;
   }
 
-  /// `org.gnome.nautilus` -> `nautilus`; anything undotted is its own tail.
-  static String _lastSegment(String id) {
-    final dot = id.lastIndexOf('.');
-    return dot < 0 || dot == id.length - 1 ? id : id.substring(dot + 1);
+}
+
+/// The installed application a window's `app_id` belongs to, from [apps], or
+/// null when nothing claims it.
+///
+/// Ranked, because the looser spellings collide: `StartupWMClass=` is the entry
+/// declaring this very mapping, so it wins outright; then the desktop id itself,
+/// or its last reverse-DNS segment (`org.gnome.Nautilus` → `nautilus`); then a
+/// snap's. snapd names every desktop file `<snap>_<app>.desktop` while the
+/// window is usually just `<app>` — Firefox's is `firefox_firefox`, its window
+/// `firefox` — so the app half is tried before the snap half, which every app
+/// in a multi-app snap shares (`firefox_geckodriver` must not draw Firefox's
+/// window just because it sorts first).
+AppEntry? entryForAppId(String appId, Iterable<AppEntry> apps) {
+  final wanted = appId.toLowerCase();
+  if (wanted.isEmpty) return null;
+  final tail = _lastSegment(wanted);
+  AppEntry? byId, byAppHalf, bySnapHalf;
+  for (final entry in apps) {
+    if (entry.startupWmClass.isNotEmpty &&
+        entry.startupWmClass.toLowerCase() == wanted) {
+      return entry;
+    }
+    final id = entry.id.toLowerCase();
+    if (byId == null && (id == wanted || _lastSegment(id) == tail)) {
+      byId = entry;
+      continue;
+    }
+    final underscore = id.indexOf('_');
+    if (underscore <= 0 || underscore == id.length - 1) continue;
+    final snap = id.substring(0, underscore);
+    final app = id.substring(underscore + 1);
+    if (byAppHalf == null && (app == wanted || _lastSegment(app) == tail)) {
+      byAppHalf = entry;
+    } else if (bySnapHalf == null && snap == wanted) {
+      bySnapHalf = entry;
+    }
   }
+  return byId ?? byAppHalf ?? bySnapHalf;
+}
+
+/// `org.gnome.nautilus` -> `nautilus`; anything undotted is its own tail.
+String _lastSegment(String id) {
+  final dot = id.lastIndexOf('.');
+  return dot < 0 || dot == id.length - 1 ? id : id.substring(dot + 1);
 }

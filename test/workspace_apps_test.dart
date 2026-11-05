@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:ffi' as ffi;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:moonswing/app_info.dart';
 import 'package:moonswing/modules/workspace_apps.dart';
 import 'package:miracle/miracle.dart';
 
@@ -14,6 +16,66 @@ import 'workspace_result.dart';
 /// this also fails if the reply shape the walk assumes stops being the one the
 /// library produces.
 void main() {
+  group('entryForAppId', () {
+    AppEntry entry(String id, {String wmClass = ''}) => AppEntry(
+          id: id,
+          name: id,
+          iconName: id,
+          categories: const [],
+          appInfo: ffi.nullptr,
+          startupWmClass: wmClass,
+        );
+    String? pick(String appId, List<AppEntry> apps) =>
+        entryForAppId(appId, apps)?.id;
+
+    test('a snap window finds its <snap>_<app> desktop entry', () {
+      expect(pick('firefox', [entry('firefox_firefox')]), 'firefox_firefox');
+      expect(pick('Code', [entry('code_code')]), 'code_code');
+      expect(pick('telegram-desktop',
+              [entry('telegram-desktop_telegram-desktop')]),
+          'telegram-desktop_telegram-desktop');
+    });
+
+    test('the app half outranks the snap half', () {
+      // Both claim `firefox` by one half or the other; geckodriver sorts first.
+      final apps = [entry('firefox_geckodriver'), entry('firefox_firefox')];
+      expect(pick('firefox', apps), 'firefox_firefox');
+      // …but a snap whose app is named differently still resolves by the snap.
+      expect(pick('libreoffice', [entry('libreoffice_writer')]),
+          'libreoffice_writer');
+    });
+
+    test('a non-snap match outranks a snap one', () {
+      final apps = [entry('firefox_firefox'), entry('firefox')];
+      expect(pick('firefox', apps), 'firefox');
+      expect(pick('org.gnome.Nautilus', [entry('nautilus_nautilus'),
+              entry('org.gnome.Nautilus')]),
+          'org.gnome.Nautilus');
+    });
+
+    test('StartupWMClass wins outright', () {
+      final apps = [
+        entry('firefox_firefox'),
+        entry('mozilla_browser', wmClass: 'Firefox'),
+      ];
+      expect(pick('firefox', apps), 'mozilla_browser');
+    });
+
+    test('reverse-DNS tails still match, snap or not', () {
+      expect(pick('nautilus', [entry('org.gnome.Nautilus')]),
+          'org.gnome.Nautilus');
+      expect(pick('org.example.Tool', [entry('tool_org.example.Tool')]),
+          'tool_org.example.Tool');
+    });
+
+    test('nothing claims an unrelated or empty app_id', () {
+      expect(pick('gimp', [entry('firefox_firefox')]), isNull);
+      expect(pick('', [entry('firefox_firefox')]), isNull);
+      // A leading or trailing underscore is not a snap's separator.
+      expect(pick('firefox', [entry('_firefox'), entry('firefox_')]), isNull);
+    });
+  });
+
   group('collectWorkspaceApps', () {
     test('collects one entry per workspace, across outputs', () {
       final tree = BaseNode.fromJson(_root([
