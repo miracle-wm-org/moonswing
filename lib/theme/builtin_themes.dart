@@ -105,6 +105,17 @@ panel_square_flush_corners = false
 panel_border         = "#E61A0F07"
 panel_border_width   = 1.5
 
+# One surface, not islands: the modules are drawn straight onto the bar.
+# Spelled anyway, because a shipped theme leans on no default, and spelled as
+# the bar so that switching islands on in a copy starts from this bar.
+panel_sections       = false
+panel_section_background = "#FF1E150D"
+panel_section_gradient = "none"
+panel_section_radius = 8.0
+panel_section_padding = 8.0
+panel_section_border = "#E61A0F07"
+panel_section_border_width = 0.0
+
 panel_texture        = "wood"
 panel_texture_color  = "#FF6E4A2A"
 panel_end_texture    = "stone"
@@ -250,6 +261,17 @@ panel_square_flush_corners = false
 panel_border         = "#E6180C04"
 panel_border_width   = 1.5
 
+# One surface, not islands: the modules are drawn straight onto the bar.
+# Spelled anyway, because a shipped theme leans on no default, and spelled as
+# the bar so that switching islands on in a copy starts from this bar.
+panel_sections       = false
+panel_section_background = "#FF2A190D"
+panel_section_gradient = "none"
+panel_section_radius = 8.0
+panel_section_padding = 8.0
+panel_section_border = "#E6180C04"
+panel_section_border_width = 0.0
+
 # Chestnut at nine tenths, over the dark fill: the grain softened rather than
 # gone, which is what reads as a smooth brown.
 panel_texture        = "wood"
@@ -368,6 +390,17 @@ panel_square_flush_corners = false
 panel_border         = "#33F8F8F2"
 panel_border_width   = 0.0
 
+# One surface, not islands: the modules are drawn straight onto the bar.
+# Spelled anyway, because a shipped theme leans on no default, and spelled as
+# the bar so that switching islands on in a copy starts from this bar.
+panel_sections       = false
+panel_section_background = "#FF282A36"
+panel_section_gradient = "none"
+panel_section_radius = 8.0
+panel_section_padding = 8.0
+panel_section_border = "#33F8F8F2"
+panel_section_border_width = 0.0
+
 # The shell's default card shape; the rim takes Dracula's own divider.
 popup_radius         = 8.0
 popup_border         = "#33F8F8F2"
@@ -467,37 +500,53 @@ notification_badge   = "#FFCB6B"
 notification_badge_foreground = "#141821"
 scrim                = "#66101318"
 
-# No gradient: a sheet of glass, not a coloured fade. A gradient here would
-# put the accent against the screen edge at the bar's own opacity, which is
-# the one place this theme wants nothing but the wallpaper.
-panel_background     = "#40121722"
+# Islands of glass, not one sheet: the bar itself is fully transparent and
+# each of its sections — the workspaces, the clock, the status icons — is a
+# pane of its own, drawn tightly round what it holds (panel_sections). Between
+# them is nothing but the wallpaper, which is the one thing this theme wants
+# along the screen edge. No gradient, on the bar or the panes: a gradient puts
+# the accent against the screen edge, and glass is not a coloured fade.
+panel_background     = "#00121722"
 panel_gradient       = "none"
-# Read only under panel_gradient = "corners"; spelled because a shipped theme
-# leans on no default, and spelled as the bar so that switching the shape on
-# in a copy starts from the bar this theme already has.
+# Read only under a "corners" gradient; spelled because a shipped theme leans
+# on no default, and spelled as the panes so that switching the shape on in a
+# copy starts from the glass this theme already has.
 panel_gradient_top_left     = "#40121722"
 panel_gradient_top_right    = "#40121722"
 panel_gradient_bottom_right = "#40121722"
 panel_gradient_bottom_left  = "#40121722"
 
-# A floating pane rather than a strip: an 8px gap on every anchored edge, cut
-# by a real gtk-layer-shell margin, so nothing tiles into the gap (the
-# compositor folds the margin into the bar's reserved space) and clicks that
-# land in it still reach the desktop. The 1px rim is what gives an edge to a
-# sheet this translucent — without it the bar has no boundary at all over a
-# busy wallpaper.
+# Floating: an 8px gap on every anchored edge, cut by a real gtk-layer-shell
+# margin, so nothing tiles into the gap (the compositor folds the margin into
+# the bar's reserved space) and clicks that land in it still reach the
+# desktop. The bar draws nothing, so it needs neither a corner nor a rim of its
+# own — the panes carry both, and a radius on an invisible bar would only clip
+# them at its ends.
 panel_margin         = 8
-panel_radius         = 12.0
+panel_radius         = 0.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
 panel_join           = false
 panel_square_flush_corners = false
 panel_border         = "#40FFFFFF"
-panel_border_width   = 1.0
+panel_border_width   = 0.0
 
-# Popups are the bar's material: the same 12px corner and the same rim, so a
+# The panes: the glass the whole bar used to be, at its alpha, its 12px corner
+# and its 1px rim — the rim is what gives an edge to a sheet this translucent,
+# without it a pane has no boundary at all over a busy wallpaper. A 32px bar
+# leaves each pane 28px deep, so the corner is very nearly a capsule's, and the
+# 10px at either end keeps a hovered module's fill clear of the curve.
+panel_sections       = true
+panel_section_background = "#40121722"
+panel_section_gradient = "none"
+panel_section_radius = 12.0
+panel_section_padding = 10.0
+panel_section_border = "#40FFFFFF"
+panel_section_border_width = 1.0
+
+# Popups are the panes' material: the same 12px corner and the same rim, so a
 # menu reads as a pane dropped out of the pane it came from. The rim is
-# panel_border rather than the softer `divider` — a card floating over a busy
+# panel_section_border rather than the softer `divider` — a card floating over a busy
 # wallpaper needs an edge, not a hairline.
 popup_radius         = 12.0
 popup_border         = "#40FFFFFF"
@@ -507,7 +556,7 @@ popup_border_width   = 1.0
 # so a menu glued to that bar would be the only thing on screen touching
 # anything; matching the margin keeps the two gaps equal. Attaching would also
 # expose the seam a translucent card cannot avoid: popup_background is #B0 and
-# panel_background is #40, so at a zero gap the two fills composite separately
+# the panes are #40, so at a zero gap the two fills composite separately
 # against the wallpaper and the join shows a step in tone — which a flare would
 # only make wider. popup_attach_radius is therefore unread here, and spelled
 # only because every theme spells every key.
@@ -622,36 +671,54 @@ notification_badge_foreground = "#0A0F22"
 # read over a bright wallpaper at this little contrast.
 scrim                = "#A6050816"
 
-# The bar is lit from the top-left of the screen, the way the moon over its
-# wallpaper is: a corner of its own in each corner of the bar. Indigo where
-# the light is, a violet dusk along the top towards the right, deep water
-# blue down the left, and midnight in the far corner — so along the bar it
-# fades from lit to dark, and across its depth the top edge carries a sheen
-# the bottom does not. Every corner is at the same alpha panel_background is,
-# so the bar is one opacity over the Milky Way however the colours fall, and
-# all four are dark enough that the foreground holds better than 7:1 on each.
-panel_background     = "#F00A0F22"
-panel_gradient       = "corners"
+# Islands of night sky: the bar itself is fully transparent, and each of its
+# sections is a lit pane of its own, drawn tightly round what it holds
+# (panel_sections), with the Milky Way between them.
+#
+# Each pane is lit from its top-left, the way the moon over the wallpaper is:
+# a corner of its own in each corner (panel_section_gradient = "corners",
+# which reads the four panel_gradient_* colours). Indigo where the light is, a
+# violet dusk along the top towards the right, deep water blue down the left,
+# and midnight in the far corner — so along a pane it fades from lit to dark,
+# and across its depth the top edge carries a sheen the bottom does not. Every
+# corner is at the same alpha panel_section_background is, so a pane is one
+# opacity however the colours fall, and all four are dark enough that the
+# foreground holds better than 7:1 on each. The bar's own gradient is none:
+# it draws nothing at all.
+panel_background     = "#000A0F22"
+panel_gradient       = "none"
 panel_gradient_top_left     = "#F0263378"
 panel_gradient_top_right    = "#F02E1A52"
 panel_gradient_bottom_right = "#F00A0F22"
 panel_gradient_bottom_left  = "#F00E2242"
 
-# The most lifted bar shipped: a 12px gap on every anchored edge, an 18px
-# corner, and a rim half again as thick as a hairline. All three go together —
-# at this radius a 1px rim thins out visibly around the corners, and the rim is
-# what gives a dark bar an edge against a dark wallpaper.
+# The most lifted bar shipped: a 12px gap on every anchored edge. The bar is
+# invisible, so it takes neither a corner nor a rim — its panes do, and a
+# radius on the bar would only clip them at its ends.
 panel_margin         = 12
-panel_radius         = 18.0
+panel_radius         = 0.0
 panel_corners        = "auto"
 panel_join_radius    = 0.0
 panel_join           = false
 panel_square_flush_corners = false
 panel_border         = "#665F87F5"
-panel_border_width   = 1.5
+panel_border_width   = 0.0
 
-# The bar's own material, so a menu reads as a pane dropped out of the pane it
-# came from: the same corner, the same rim, the same weight of it.
+# The panes: an 18px corner — a capsule on a bar of the default depth — and a
+# rim half again as thick as a hairline. The two go together: at this radius a
+# 1px rim thins out visibly round the ends, and the rim is what gives a dark
+# pane an edge against a dark wallpaper. 12px at either end keeps a hovered
+# module's fill clear of the curve.
+panel_sections       = true
+panel_section_background = "#F00A0F22"
+panel_section_gradient = "corners"
+panel_section_radius = 18.0
+panel_section_padding = 12.0
+panel_section_border = "#665F87F5"
+panel_section_border_width = 1.5
+
+# The panes' own material, so a menu reads as a pane dropped out of the pane
+# it came from: the same corner, the same rim, the same weight of it.
 popup_radius         = 18.0
 popup_border         = "#665F87F5"
 popup_border_width   = 1.5
@@ -839,6 +906,17 @@ panel_square_flush_corners = false
 panel_border         = "#525252"
 panel_border_width   = 1.0
 
+# One surface, not islands: the modules are drawn straight onto the bar.
+# Spelled anyway, because a shipped theme leans on no default, and spelled as
+# the bar so that switching islands on in a copy starts from this bar.
+panel_sections       = false
+panel_section_background = "#161616"
+panel_section_gradient = "none"
+panel_section_radius = 8.0
+panel_section_padding = 8.0
+panel_section_border = "#525252"
+panel_section_border_width = 0.0
+
 # A 4px corner: the smallest rounding that still reads as deliberate, on the
 # two corners away from the join. The rim is Carbon's border-strong rather than
 # the divider's border-subtle, because with no shadow beneath it and no colour
@@ -1006,6 +1084,17 @@ panel_join           = false
 panel_square_flush_corners = false
 panel_border         = "#FFFFFF"
 panel_border_width   = 1.0
+
+# One surface, not islands: the modules are drawn straight onto the bar.
+# Spelled anyway, because a shipped theme leans on no default, and spelled as
+# the bar so that switching islands on in a copy starts from this bar.
+panel_sections       = false
+panel_section_background = "#FFC0C0C0"
+panel_section_gradient = "none"
+panel_section_radius = 8.0
+panel_section_padding = 8.0
+panel_section_border = "#FFFFFF"
+panel_section_border_width = 0.0
 
 # Square cards, the one shipped theme with none rounded — a rounded corner on
 # a Win95 menu is the one thing nobody would mistake for one. The white rim is

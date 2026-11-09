@@ -1314,6 +1314,14 @@ panel_square_flush_corners = false
 panel_border         = "#33EBDBB2"
 panel_border_width   = 0.0
 
+panel_sections       = false
+panel_section_background = "#EE282828"
+panel_section_gradient = "none"
+panel_section_radius = 8.0
+panel_section_padding = 8.0
+panel_section_border = "#33EBDBB2"
+panel_section_border_width = 0.0
+
 popup_radius         = 8.0
 popup_gap            = 0.0
 popup_attach_radius  = 0.0
@@ -1374,6 +1382,13 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `panel_square_flush_corners` | `false` | Leaves square every corner on a screen edge the bar touches, with no margin between them (see below) |
 | `panel_border`         | `#33F3F4F4`   | The bar's rim color; drawn only when `panel_border_width` is above zero     |
 | `panel_border_width`   | `0.0`         | The bar's rim thickness, or `0` for no rim                                  |
+| `panel_sections`       | `false`       | Draws each section of the bar — its left, centre and right groups — as an island of its own, tightly round what it holds (see [Sections as islands](#sections-as-islands)) |
+| `panel_section_background` | `#EE2C2C2C` | Each island's fill, at its own alpha                                     |
+| `panel_section_gradient` | `none`      | Each island's shape: `none`, `accent` or `corners`, as `panel_gradient` is the bar's |
+| `panel_section_radius` | `8.0`         | Each island's corner rounding; past half its depth it is a capsule; `0`–`64` |
+| `panel_section_padding` | `8.0`        | How far each island reaches past its first and last module along the bar; `0`–`64` |
+| `panel_section_border` | `#33F3F4F4`   | Each island's rim color; drawn only when `panel_section_border_width` is above zero |
+| `panel_section_border_width` | `0.0`   | Each island's rim thickness, or `0` for no rim                              |
 | `popup_radius`         | `8.0`         | Corner rounding of popups, menus, flyouts and the OSD card                 |
 | `popup_gap`            | `0.0`         | Pixels between a bar popup and the bar; `0` attaches it to the bar          |
 | `popup_attach_radius`  | `0.0`         | How far an attached popup flares outward into the bar; read only at gap `0` |
@@ -1424,9 +1439,9 @@ The bar has its own color, `panel_background`, and its alpha is used exactly as 
 
 `panel_gradient` decides its shape:
 
-- **`"none"`** — a flat sheet of `panel_background`. This is what `glassy` does.
+- **`"none"`** — a flat sheet of `panel_background`. This is what `dracula` does.
 - **`"accent"`** (the default) — a fade from `accent` at the bar's own edge, through `surface_pressed`, to `panel_background`. The bright end sits against the anchored edge: left-aligned on a top bar, top-aligned on a left bar, and so on.
-- **`"corners"`** — a colour of its own in each of the bar's four corners, `panel_gradient_top_left`, `panel_gradient_top_right`, `panel_gradient_bottom_right` and `panel_gradient_bottom_left`, blended smoothly across the whole bar. This is what `midnight` does.
+- **`"corners"`** — a colour of its own in each of the bar's four corners, `panel_gradient_top_left`, `panel_gradient_top_right`, `panel_gradient_bottom_right` and `panel_gradient_bottom_left`, blended smoothly across the whole bar. `midnight` lights each of its islands this way, with `panel_section_gradient` — see [Sections as islands](#sections-as-islands).
 
 The key used to be a boolean, and a theme that still says `true` or `false` reads as `"accent"` or `"none"`; the settings editor writes the name back.
 
@@ -1503,6 +1518,32 @@ The list is named in the bar's frame too, and applies to every bar as written, w
 `panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
 
 All of these follow a theme switch live; no restart is needed.
+
+### Sections as islands
+
+`panel_sections = true` breaks the bar into islands: each of its sections — the `left`, `center` and `right` lists of its `[[panels]] layout` — is drawn on a background of its own, drawn tightly round whatever that section holds. Along the bar an island is as long as its modules plus `panel_section_padding` at either end; across it, it takes the bar's whole depth inside the bar's own rim, so every island on a bar is the same height whatever its modules measure. This is what `glassy` and `midnight` do.
+
+```toml
+panel_background     = "#00000000"   # the bar itself draws nothing
+panel_gradient       = "none"
+panel_border_width   = 0.0
+panel_radius         = 0.0
+
+panel_sections       = true
+panel_section_background = "#40121722"
+panel_section_gradient = "none"
+panel_section_radius = 12.0
+panel_section_padding = 10.0
+panel_section_border = "#40FFFFFF"
+panel_section_border_width = 1.0
+```
+
+- **The bar is still drawn beneath the islands.** To show the islands alone, give `panel_background` an alpha of `0` and leave `panel_gradient` at `"none"` — a `"corners"` gradient is drawn at its corner colours' own alphas — as the two shipped themes do. Leave `panel_radius` at `0` too: a rounded bar clips what is inside it, and an invisible one would only trim the islands at its ends.
+- **`panel_section_gradient` is `panel_gradient` for each island**: `"none"` is a flat `panel_section_background`, `"accent"` fades from `accent` across to it at its alpha, and `"corners"` blends the four `panel_gradient_*` colours across each island — so every island is lit from the same corner.
+- **`panel_section_radius` rounds all four corners**, and a radius past half the island's depth is a capsule: on a 32px bar anything from `14` up gives round ends.
+- **`panel_section_border` and `panel_section_border_width`** are the island's rim, and width is the switch, as it is for the bar's. The modules sit inside the rim with a couple of pixels to spare, as they do inside the bar's, so a hovered module's highlight stops short of the line; and they are clipped to the island's rounding.
+- **A section with nothing to show draws no island.** A module with nothing to show on this machine — a battery on a desktop, a tray nothing has registered with — takes no room on the bar, and a section holding only such modules is no island at all rather than an empty capsule. It comes back on its own when one of them has something to show.
+- **The space between the islands is still the bar's.** It is still part of the bar's surface, so it reserves the same space and a right-click there opens the bar's menu, as it does anywhere on the bar that no module is. Use `panel_margin` to lift the islands off the screen edge.
 
 ### Where two bars meet
 

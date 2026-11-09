@@ -94,6 +94,7 @@ import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_join.dart';
 import 'package:moonswing/panel_reach.dart';
 import 'package:moonswing/panel_rim.dart';
+import 'package:moonswing/panel_section.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/input_capture/consent_controller.dart';
@@ -3352,27 +3353,40 @@ class _PanelMainState extends State<PanelMain> {
         widget.panelConfig.anchor == 'left' ||
         widget.panelConfig.anchor == 'right';
 
+    final theme = ThemeScope.of(context);
+    // Each section on an island of its own under `panel_sections`, drawn
+    // tightly round what it holds, and nothing at all when it holds nothing.
+    // Always wrapped, whatever the theme, so turning islands on or off moves
+    // no module to a new depth.
+    final islands = PanelSection.themeFor(theme);
+    Widget section(List<String> modules) => PanelSection(
+      axis: vertical ? Axis.vertical : Axis.horizontal,
+      theme: islands,
+      anchor: widget.panelConfig.anchor,
+      child: _buildSection(modules),
+    );
+
     final stackChildren = <Widget>[
       if (layout.left.isNotEmpty)
         Align(
           alignment: vertical ? Alignment.topCenter : Alignment.centerLeft,
-          child: _buildSection(layout.left),
+          child: section(layout.left),
         ),
       if (layout.center.isNotEmpty)
-        Align(alignment: Alignment.center, child: _buildSection(layout.center)),
+        Align(alignment: Alignment.center, child: section(layout.center)),
       if (layout.right.isNotEmpty)
         Align(
           alignment: vertical ? Alignment.bottomCenter : Alignment.centerRight,
-          child: _buildSection(layout.right),
+          child: section(layout.right),
         ),
     ];
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();
 
-    final theme = ThemeScope.of(context);
-    // Across the bar's depth the modules stop short of the rim, and a little
+    // Across the bar's depth the sections stop short of the rim, and a little
     // past it, so a fill that takes the whole depth (`BarFill`) does not run
-    // over the line around the bar — see [panelModuleInset].
-    final double inset = panelModuleInset(theme);
+    // over the line around the bar — see [panelContentInset]. An island's own
+    // rim and gap are the section's to keep ([panelModuleInset]).
+    final double inset = panelContentInset(theme);
     // A right-click on the bar where no module is opens the bar's own menu;
     // each module's region is deeper and wins on its own box.
     final Widget content = PanelMenuRegion(

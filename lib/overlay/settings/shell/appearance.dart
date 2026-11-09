@@ -521,6 +521,58 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                const SettingsSubLabel('Sections'),
+                SettingsRow.field(
+                  SettingsCatalog.panelSections,
+                  info:
+                      'Draws each section of the bar — its left, centre and '
+                      'right groups of modules — on an island of its own, '
+                      'as long as what it holds plus the padding at either '
+                      'end, and the bar’s depth across. A section with '
+                      'nothing to show draws no island. The bar is still '
+                      'drawn beneath them: give Panel background an alpha '
+                      'of zero, and Panel gradient Flat, to show the islands '
+                      'alone.',
+                  // Follows the store, as Join panels does: the section
+                  // rebuilds only when the active theme changes.
+                  control: StoreSelector<bool>(
+                    key: ValueKey('panel_sections-$active'),
+                    listenable: _themes,
+                    selector: () => _themes.theme.panelSections,
+                    builder: (context, on) => SettingsToggle(
+                      value: on,
+                      onChanged: (v) => _themes.edit('panel_sections', v),
+                    ),
+                  ),
+                ),
+                SettingsRow.field(
+                  SettingsCatalog.panelSectionGradient,
+                  info:
+                      'Flat paints each island as the section background. '
+                      'Accent fade runs from the accent across to that '
+                      'colour, at its alpha. Four corners blends the four '
+                      'Panel corner colours across each island.',
+                  control: _themeDropdown<PanelGradient>(
+                    key: ValueKey('panel_section_gradient-$active'),
+                    items: [
+                      for (final g in PanelGradient.values)
+                        SettingsDropdownItem<PanelGradient>(
+                          value: g,
+                          label: g.label,
+                          description: g.description,
+                        ),
+                    ],
+                    read: (t) => t.panelSectionGradient,
+                    onSelected: (v) =>
+                        _themes.edit('panel_section_gradient', v.slug),
+                  ),
+                ),
+                _numberRow(SettingsCatalog.panelSectionRadius,
+                    'panel_section_radius', current, active, max: 64),
+                _numberRow(SettingsCatalog.panelSectionPadding,
+                    'panel_section_padding', current, active, max: 64),
+                _numberRow(SettingsCatalog.panelSectionBorderWidth,
+                    'panel_section_border_width', current, active, max: 16),
                 const SettingsSubLabel('Surface'),
                 SettingsRow.field(
                   SettingsCatalog.panelGradient,

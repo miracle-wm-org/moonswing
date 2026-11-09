@@ -316,12 +316,14 @@ void main() {
 
     testWidgets('across every shape a shipped theme gives the bar',
         (tester) async {
-      final glassy = shipped('glassy');
+      // Forest's beam is the rounded bar: glassy's and midnight's bars draw
+      // nothing and leave the rounding to their islands.
+      final forest = shipped('forest');
       final dracula = shipped('dracula');
       final carbon = shipped('carbon');
       // The three shapes, or this would pass without exercising anything:
       // rounded, square and plain, and square with its own rim.
-      expect(panelCornerRadius(theme: glassy), isNot(BorderRadius.zero));
+      expect(panelCornerRadius(theme: forest), isNot(BorderRadius.zero));
       expect(panelCornerRadius(theme: dracula), BorderRadius.zero);
       expect(panelPaintsOwnRim(dracula), isFalse);
       expect(panelPaintsOwnRim(carbon), isTrue);
@@ -334,7 +336,7 @@ void main() {
         onDispose: () => disposed++,
         onTap: () => taps++,
       );
-      for (final theme in [glassy, dracula, carbon, glassy, carbon, dracula]) {
+      for (final theme in [forest, dracula, carbon, forest, carbon, dracula]) {
         await tester.pumpWidget(bar(theme, probe));
       }
       expect(created, 1);
