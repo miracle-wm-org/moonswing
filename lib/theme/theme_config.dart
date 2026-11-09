@@ -404,6 +404,51 @@ class ThemeConfig {
   /// [popupAttachRadius] decides only how the line resumes at either end.
   final double panelBorderWidth;
 
+  /// Whether each section of the bar — its left, centre and right groups of
+  /// modules — is drawn as an island of its own (`panel_sections`).
+  ///
+  /// Each section takes a background, a rim and a corner rounding of its own
+  /// ([panelSectionBackground] and the keys after it), drawn tightly round
+  /// whatever the section holds: as long as its modules plus
+  /// [panelSectionPadding] at either end, and the bar's depth across, inside
+  /// the bar's own rim. The bar is still drawn beneath them, so a theme that
+  /// wants the islands alone gives [panelBackground] an alpha of zero (and its
+  /// gradient none) — which is what the shipped themes that use this do.
+  ///
+  /// A section with nothing to show — every module in it empty on this
+  /// machine — draws no island at all, as an empty module costs no gap
+  /// (`panel_section.dart`). Off by default, which draws exactly the bar it
+  /// always did.
+  final bool panelSections;
+
+  /// Each section's fill under [panelSections]. Its alpha is honoured
+  /// verbatim, as [panelBackground]'s is.
+  final Color panelSectionBackground;
+
+  /// The shape of each section's fill, as [panelGradient] is the bar's:
+  /// [PanelGradient.none] is a flat [panelSectionBackground];
+  /// [PanelGradient.accent] fades from [accent] to it at its alpha; and
+  /// [PanelGradient.corners] blends the bar's four corner colours
+  /// ([panelGradientTopLeft] and its siblings) across each section.
+  final PanelGradient panelSectionGradient;
+
+  /// Each section's corner rounding, on all four corners. Clamped when painted
+  /// to half the island's depth, so a large radius is a capsule.
+  final double panelSectionRadius;
+
+  /// How far each island reaches past its first and last module along the
+  /// bar — room for the rounding, so a module's hover fill is not cut by it.
+  final double panelSectionPadding;
+
+  /// The colour of each section's rim. Only drawn when
+  /// [panelSectionBorderWidth] > 0.
+  final Color panelSectionBorder;
+
+  /// Each section's rim thickness, or 0 for none. The modules sit inside it,
+  /// a couple of pixels clear, as they sit inside the bar's own
+  /// (`panelModuleInset`).
+  final double panelSectionBorderWidth;
+
   /// A popup card's corner rounding.
   ///
   /// All four corners for a popup that floats. A bar popup at [popupGap] 0 is the
@@ -811,6 +856,13 @@ class ThemeConfig {
     this.panelSquareFlushCorners = false,
     this.panelBorder = const Color(0x33F3F4F4),
     this.panelBorderWidth = 0.0,
+    this.panelSections = false,
+    this.panelSectionBackground = const Color(0xEE2C2C2C),
+    this.panelSectionGradient = PanelGradient.none,
+    this.panelSectionRadius = 8.0,
+    this.panelSectionPadding = 8.0,
+    this.panelSectionBorder = const Color(0x33F3F4F4),
+    this.panelSectionBorderWidth = 0.0,
     this.popupRadius = 8.0,
     this.popupGap = 0.0,
     this.popupAttachRadius = 0.0,
@@ -914,6 +966,23 @@ class ThemeConfig {
     _ThemeKey('panel_border', _ThemeKeyKind.color, (t) => t.panelBorder),
     _ThemeKey(
         'panel_border_width', _ThemeKeyKind.number, (t) => t.panelBorderWidth,
+        min: 0.0, max: 16.0),
+    _ThemeKey('panel_sections', _ThemeKeyKind.flag, (t) => t.panelSections),
+    _ThemeKey('panel_section_background', _ThemeKeyKind.color,
+        (t) => t.panelSectionBackground),
+    _ThemeKey('panel_section_gradient', _ThemeKeyKind.panelGradient,
+        (t) => t.panelSectionGradient),
+    _ThemeKey(
+        'panel_section_radius', _ThemeKeyKind.number, (t) => t.panelSectionRadius,
+        min: 0.0, max: 64.0),
+    // Geometry: it sets how long each island is, so it lands at once.
+    _ThemeKey('panel_section_padding', _ThemeKeyKind.number,
+        (t) => t.panelSectionPadding,
+        min: 0.0, max: 64.0),
+    _ThemeKey(
+        'panel_section_border', _ThemeKeyKind.color, (t) => t.panelSectionBorder),
+    _ThemeKey('panel_section_border_width', _ThemeKeyKind.number,
+        (t) => t.panelSectionBorderWidth,
         min: 0.0, max: 16.0),
     _ThemeKey('popup_radius', _ThemeKeyKind.number, (t) => t.popupRadius,
         min: 0.0, max: 64.0),
@@ -1087,6 +1156,13 @@ class ThemeConfig {
       panelSquareFlushCorners: v('panel_square_flush_corners'),
       panelBorder: v('panel_border'),
       panelBorderWidth: v('panel_border_width'),
+      panelSections: v('panel_sections'),
+      panelSectionBackground: v('panel_section_background'),
+      panelSectionGradient: v('panel_section_gradient'),
+      panelSectionRadius: v('panel_section_radius'),
+      panelSectionPadding: v('panel_section_padding'),
+      panelSectionBorder: v('panel_section_border'),
+      panelSectionBorderWidth: v('panel_section_border_width'),
       popupRadius: v('popup_radius'),
       popupGap: v('popup_gap'),
       popupAttachRadius: v('popup_attach_radius'),

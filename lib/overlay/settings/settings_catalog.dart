@@ -331,6 +331,63 @@ abstract final class SettingsCatalog {
     tags: const ['bar', 'taskbar', 'outline', 'rim', 'stroke'],
   );
 
+  static final panelSections = shellField(
+    'theme.panel_sections',
+    'Sections as islands',
+    section: 'Theme',
+    description:
+        'Draws each section of the bar — its left, centre and right groups — '
+        'on a background of its own, drawn tightly round what it holds.',
+    tags: const [
+      'bar',
+      'taskbar',
+      'islands',
+      'pills',
+      'capsules',
+      'groups',
+      'sections',
+      'floating',
+    ],
+  );
+
+  static final panelSectionGradient = shellField(
+    'theme.panel_section_gradient',
+    'Section gradient',
+    section: 'Theme',
+    description:
+        'The shape of each section’s fill: flat, a fade from the accent, or the '
+        'four panel corner colours blended across it.',
+    tags: const ['bar', 'islands', 'sections', 'fade', 'gradient', 'corner'],
+  );
+
+  static final panelSectionRadius = shellField(
+    'theme.panel_section_radius',
+    'Section corner radius',
+    section: 'Theme',
+    description:
+        'How far each section’s background is rounded. Past half its depth it '
+        'is a capsule.',
+    tags: const ['bar', 'islands', 'sections', 'rounded', 'corners', 'pill'],
+  );
+
+  static final panelSectionPadding = shellField(
+    'theme.panel_section_padding',
+    'Section padding',
+    section: 'Theme',
+    description:
+        'How far each section’s background reaches past its first and last '
+        'module along the bar.',
+    tags: const ['bar', 'islands', 'sections', 'spacing', 'room', 'ends'],
+  );
+
+  static final panelSectionBorderWidth = shellField(
+    'theme.panel_section_border_width',
+    'Section border width',
+    section: 'Theme',
+    description: 'The rim drawn around each section. Zero draws none.',
+    tags: const ['bar', 'islands', 'sections', 'outline', 'rim', 'stroke'],
+  );
+
   static final popupRadius = shellField(
     'theme.popup_radius',
     'Popup corner radius',
@@ -650,6 +707,25 @@ abstract final class SettingsCatalog {
       'panel_border',
       ThemeGroup.bar,
       _color('panel_border', 'Panel border', 'The rim drawn around the bar.'),
+    ),
+    ThemeColorSetting(
+      'panel_section_background',
+      ThemeGroup.bar,
+      _color(
+        'panel_section_background',
+        'Section background',
+        'Each section’s own fill when Sections as islands is on. Give the '
+            'panel background an alpha of zero to show the islands alone.',
+      ),
+    ),
+    ThemeColorSetting(
+      'panel_section_border',
+      ThemeGroup.bar,
+      _color(
+        'panel_section_border',
+        'Section border',
+        'The rim drawn around each section when Sections as islands is on.',
+      ),
     ),
     ThemeColorSetting(
       'foreground',
@@ -3120,6 +3196,11 @@ abstract final class SettingsCatalog {
     panelJoin,
     panelSquareFlushCorners,
     panelBorderWidth,
+    panelSections,
+    panelSectionGradient,
+    panelSectionRadius,
+    panelSectionPadding,
+    panelSectionBorderWidth,
     popupRadius,
     popupGap,
     popupAttachRadius,

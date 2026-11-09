@@ -7,6 +7,7 @@ import 'package:toml/toml.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_rim.dart';
+import 'package:moonswing/panel_section.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/theme/builtin_themes.dart';
 import 'package:moonswing/theme/overlay_effect.dart';
@@ -58,6 +59,11 @@ void main() {
       'panel_join',
       'panel_square_flush_corners',
       'panel_border_width',
+      'panel_sections',
+      'panel_section_gradient',
+      'panel_section_radius',
+      'panel_section_padding',
+      'panel_section_border_width',
       'popup_radius',
       'popup_gap',
       'popup_attach_radius',
@@ -116,32 +122,53 @@ void main() {
     }
   });
 
-  test('glassy floats, rounds, and has a visible rim', () {
-    // The theme this feature exists for: alpha alone made the bar see-through,
-    // but it still read as a strip of tint rather than a pane of glass.
-    final glassy =
-        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['glassy']!).toMap());
+  test('glassy floats, and its sections are rounded, rimmed panes', () {
+    // Alpha alone made the bar see-through, but it still read as a strip of
+    // tint rather than glass. Now the strip is gone altogether: the bar draws
+    // nothing, and each section is a pane of its own.
+    final glassy = _shipped('glassy');
     expect(glassy.panelMargin.isZero, isFalse);
-    expect(glassy.panelRadius.isZero, isFalse);
-    expect(glassy.panelBorderWidth, greaterThan(0));
-    expect(glassy.panelBorder.a, greaterThan(0),
+    expect(glassy.panelSections, isTrue);
+    expect(glassy.panelSectionRadius, greaterThan(0));
+    expect(glassy.panelSectionBorderWidth, greaterThan(0));
+    expect(glassy.panelSectionBorder.a, greaterThan(0),
         reason: 'a rim with a transparent colour draws nothing');
-    // Floating means all four corners round.
-    expect(panelCornerRadius(theme: glassy),
-        BorderRadius.circular(glassy.panelRadius.topLeft));
+    expect(glassy.panelSectionBackground.a, greaterThan(0));
   });
 
-  test('glassy popups are made of the same material as its bar', () {
+  test('glassy popups are made of the same material as its panes', () {
     // The reported bug: glassy's bar was rounded and rimmed while its popups
     // were flat rectangles. A menu should read as a pane dropped out of the
     // pane it came from, so the two shapes are pinned to each other.
-    final glassy =
-        ThemeConfig.fromMap(TomlDocument.parse(kBuiltInThemes['glassy']!).toMap());
-    expect(PanelRadii.all(glassy.popupRadius), glassy.panelRadius);
-    expect(glassy.popupBorder, glassy.panelBorder);
-    expect(glassy.popupBorderWidth, greaterThan(0));
+    final glassy = _shipped('glassy');
+    expect(glassy.popupRadius, glassy.panelSectionRadius);
+    expect(glassy.popupBorder, glassy.panelSectionBorder);
+    expect(glassy.popupBorderWidth, glassy.panelSectionBorderWidth);
     expect(glassy.popupBorder.a, greaterThan(0),
         reason: 'a rim with a transparent colour draws nothing');
+  });
+
+  test('a shipped theme with islands draws no bar beneath them', () {
+    // The point of an island is the wallpaper between it and the next one: a
+    // bar painted under the panes would be a strip with lumps on it.
+    final islands = [
+      for (final slug in kBuiltInThemes.keys)
+        if (_shipped(slug).panelSections) slug,
+    ];
+    expect(islands, containsAll(['glassy', 'midnight']));
+    for (final slug in islands) {
+      final theme = _shipped(slug);
+      expect(theme.panelBackground.a, 0.0, reason: 'in $slug');
+      expect(theme.panelGradient, PanelGradient.none, reason: 'in $slug');
+      expect(theme.panelBorderWidth, 0.0, reason: 'in $slug');
+      expect(theme.panelHasDecor, isFalse, reason: 'in $slug');
+      // A rounded bar clips its content, and an invisible one would cut the
+      // panes at its ends for no corner anybody can see.
+      expect(panelCornerRadius(theme: theme), BorderRadius.zero,
+          reason: 'in $slug');
+      expect(theme.panelSectionPadding, greaterThan(0),
+          reason: 'in $slug: room for the curve at either end');
+    }
   });
 
   test('forest is made of something', () {
@@ -459,11 +486,11 @@ void main() {
     }
   });
 
-  test('midnight lights its bar from one corner, in four colours', () {
-    // The shipped demonstration of panel_gradient = "corners", and the only
-    // theme that uses it.
+  test('midnight lights each pane from one corner, in four colours', () {
+    // The shipped demonstration of a "corners" gradient, and the only theme
+    // that uses one — on its sections, since its bar draws nothing.
     final midnight = _shipped('midnight');
-    expect(midnight.panelGradient, PanelGradient.corners);
+    expect(midnight.panelSectionGradient, PanelGradient.corners);
     final corners = PanelCorners.of(midnight);
     final colours = [
       corners.topLeft,
@@ -476,7 +503,7 @@ void main() {
     for (final c in colours) {
       // One opacity, as the accent fade has, so no corner reads as a patch of
       // the wallpaper showing through more than the rest.
-      expect(c.a, midnight.panelBackground.a);
+      expect(c.a, midnight.panelSectionBackground.a);
       expect(_contrast(midnight.foreground, c.withValues(alpha: 1)),
           greaterThan(7.0),
           reason: 'the bar is read in every corner of it');
@@ -488,33 +515,32 @@ void main() {
       expect(corners.bottomRight.computeLuminance(),
           lessThanOrEqualTo(c.computeLuminance()));
     }
-    expect(panelBackgroundDecoration(theme: midnight),
-        isA<PanelCornerDecoration>());
+    expect(panelSectionDecoration(midnight), isA<PanelCornerDecoration>());
 
     for (final slug in kBuiltInThemes.keys) {
       if (slug == 'midnight') continue;
       expect(_shipped(slug).panelGradient, isNot(PanelGradient.corners),
           reason: 'in $slug');
+      expect(_shipped(slug).panelSectionGradient, isNot(PanelGradient.corners),
+          reason: 'in $slug');
     }
   });
 
-  test('midnight floats, and its popups are made of the bar', () {
+  test('midnight floats, and its popups are made of its panes', () {
     // glassy's rule: a bar lifted off the screen edge cannot open
     // a menu glued to it, and a menu should read as a pane dropped out of the
     // pane it came from — same gap, same corner, same rim, same weight of rim.
     final midnight = _shipped('midnight');
     expect(midnight.panelMargin.isZero, isFalse);
     expect(midnight.popupGap, midnight.panelMargin.top.toDouble());
-    expect(PanelRadii.all(midnight.popupRadius), midnight.panelRadius);
-    expect(midnight.popupBorder, midnight.panelBorder);
-    expect(midnight.popupBorderWidth, midnight.panelBorderWidth);
-    expect(midnight.panelBorderWidth, greaterThan(1.0),
+    expect(midnight.panelSections, isTrue);
+    expect(midnight.popupRadius, midnight.panelSectionRadius);
+    expect(midnight.popupBorder, midnight.panelSectionBorder);
+    expect(midnight.popupBorderWidth, midnight.panelSectionBorderWidth);
+    expect(midnight.panelSectionBorderWidth, greaterThan(1.0),
         reason: 'a hairline thins out visibly around a corner this round');
-    expect(midnight.panelBorder.a, greaterThan(0),
+    expect(midnight.panelSectionBorder.a, greaterThan(0),
         reason: 'a rim with a transparent colour draws nothing');
-    // Floating means all four corners round.
-    expect(panelCornerRadius(theme: midnight),
-        BorderRadius.circular(midnight.panelRadius.topLeft));
   });
 
   test('every shipped theme gives its popups a shape', () {

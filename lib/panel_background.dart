@@ -142,9 +142,28 @@ const double kPanelModuleGap = 2;
 /// so a highlighted workspace sat flush against, and on top of, the line around
 /// it. The panel insets its module area by this across its depth, and anything
 /// that sizes itself to `BarScope.thickness` subtracts it twice.
+///
+/// Under `panel_sections` the modules sit inside a section's island as well,
+/// which is a bar in miniature: its rim, then the same gap
+/// ([panelSectionInnerInset]).
 double panelModuleInset(ThemeConfig theme) =>
+    panelContentInset(theme) + panelSectionInnerInset(theme);
+
+/// How far the bar's content — its sections, and under `panel_sections` the
+/// islands they are drawn on — sits in from each long edge of the bar: the
+/// rim's width, then [kPanelModuleGap].
+double panelContentInset(ThemeConfig theme) =>
     (theme.panelBorderWidth > 0 ? theme.panelBorderWidth : 0) +
     kPanelModuleGap;
+
+/// How far a section's modules sit in from each long edge of its island under
+/// `panel_sections`: the island's rim, then [kPanelModuleGap] — so a hover fill
+/// stops short of the island's edge exactly as it stops short of the bar's.
+/// Zero with `panel_sections` off, where there is no island.
+double panelSectionInnerInset(ThemeConfig theme) => theme.panelSections
+    ? (theme.panelSectionBorderWidth > 0 ? theme.panelSectionBorderWidth : 0) +
+          kPanelModuleGap
+    : 0;
 
 /// The bar's rim, or null when [ThemeConfig.panelBorderWidth] is 0.
 ///
@@ -179,8 +198,32 @@ BoxDecoration panelBackgroundDecoration({
   final BorderRadius? borderRadius =
       radius == BorderRadius.zero ? null : radius;
   final border = includeRim ? _panelBorder(theme) : null;
+  return panelFillDecoration(
+    theme: theme,
+    gradient: theme.panelGradient,
+    base: theme.panelBackground,
+    anchor: anchor,
+    borderRadius: borderRadius,
+    border: border,
+  );
+}
 
-  if (theme.panelGradient == PanelGradient.corners) {
+/// A bar-shaped fill: [base] in the shape [gradient] names, under [border]
+/// and [borderRadius] — the bar's own ([panelBackgroundDecoration]), and under
+/// `panel_sections` each section's island's (`panel_section.dart`), which is
+/// why the colour and the shape are parameters rather than read off [theme].
+///
+/// [theme] supplies what a shape borrows from the rest of the palette: the
+/// accent fade's `accent` and `surfacePressed`, and the four corner colours.
+BoxDecoration panelFillDecoration({
+  required ThemeConfig theme,
+  required PanelGradient gradient,
+  required Color base,
+  String anchor = 'top',
+  BorderRadius? borderRadius,
+  BoxBorder? border,
+}) {
+  if (gradient == PanelGradient.corners) {
     return PanelCornerDecoration(
       corners: PanelCorners.of(theme),
       borderRadius: borderRadius,
@@ -188,16 +231,16 @@ BoxDecoration panelBackgroundDecoration({
     );
   }
 
-  if (theme.panelGradient == PanelGradient.none) {
+  if (gradient == PanelGradient.none) {
     return BoxDecoration(
-      color: theme.panelBackground,
+      color: base,
       borderRadius: borderRadius,
       border: border,
     );
   }
 
-  final alpha = theme.panelBackground.a;
-  final dark = theme.panelBackground;
+  final alpha = base.a;
+  final dark = base;
   final mid = theme.surfacePressed.withValues(alpha: alpha);
   final light = theme.accent.withValues(alpha: alpha);
 
