@@ -130,6 +130,42 @@ Set<PanelCorner> panelRoundedCorners({
   return rounded;
 }
 
+/// The screen edges a bar anchored to [anchor] lies flush against, meeting
+/// [joins] (the geometry's, from `panelJoinsFor`): the sides of the bar its
+/// rim leaves out.
+///
+/// A rim is a boundary between the bar and what is beside it, and along a
+/// screen edge there is nothing beside it — the line would only draw the edge
+/// of the display a second time, a pixel in. So a side of the bar is left
+/// unrimmed exactly where there is no margin between it and the screen edge:
+/// its outer side when the margin off its own edge is 0, and an end when the
+/// margin off that side of the screen is 0. A margin above zero floats that
+/// side off the edge and it keeps its rim.
+///
+/// An end that butts against another bar rather than the screen is not flush,
+/// whatever its margin says: a side bar's end stops at the inner edge of the
+/// bar running across the corner ([panelCrossesCorners]), so there is a bar
+/// beside it, not the screen's edge. Its seam, where the theme joins the two,
+/// is `panelJoinSeams`' (`panel_rim.dart`) to leave out. The inner side,
+/// facing the middle of the screen, is never flush.
+///
+/// The margins read are the ones the bar is actually given
+/// ([panelScreenMargins]), and the edges are the screen's.
+Set<String> panelFlushEdges({
+  String anchor = 'top',
+  required ThemeConfig theme,
+  PanelJoins joins = PanelJoins.none,
+}) {
+  final margin = panelScreenMargins(theme, anchor, joins: joins);
+  final (startEdge, endEdge) = panelEndEdges(anchor);
+  final crosses = panelCrossesCorners(anchor);
+  return {
+    if (margin.of(anchor) == 0) screenEdgeOf(anchor),
+    if (margin.of(startEdge) == 0 && (crosses || joins.start <= 0)) startEdge,
+    if (margin.of(endEdge) == 0 && (crosses || joins.end <= 0)) endEdge,
+  };
+}
+
 /// The breathing room between a module's fill and the bar's edge.
 const double kPanelModuleGap = 2;
 
@@ -178,9 +214,10 @@ Border? _panelBorder(ThemeConfig theme) => theme.panelBorderWidth > 0
 /// paint the built-in colours over whatever theme is actually active.
 ///
 /// [includeRim] false leaves the border out for a bar that paints its own —
-/// which is a bar whose theme attaches its popups and carries a rim, because
-/// that rim has to be interrupted across the mouth of an open menu and no
-/// [Border] can have a gap in it. `panelPaintsOwnRim` (`panel_rim.dart`) is the
+/// which is a rimmed bar whose rim has to be interrupted somewhere, and no
+/// [Border.all] can have a gap in it: across the mouth of an open menu when the
+/// theme attaches its popups, and along every side that lies flush against the
+/// screen ([panelFlushEdges]). `panelPaintsOwnRim` (`panel_rim.dart`) is the
 /// predicate, [PanelRimPainter] draws what this then leaves out, and the two
 /// agree on the outline: `Border.all` strokes it deflated by half its width and
 /// so does the painter.

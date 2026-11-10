@@ -441,7 +441,10 @@ void main() {
     expect(classic.panelBorder, const Color(0xFFFFFFFF));
     expect(classic.panelBorderWidth, greaterThan(0));
     expect(classic.popupGap, greaterThan(0));
-    expect(panelPaintsOwnRim(classic), isFalse);
+    // Flush on three sides, which are the screen's own edges and draw no line,
+    // so the painter draws the one side that is left: the lit inner edge.
+    expect(panelPaintsOwnRim(classic), isTrue);
+    expect(panelFlushEdges(theme: classic), {'top', 'left', 'right'});
   });
 
   test('midnight glows rather than casting a shadow', () {

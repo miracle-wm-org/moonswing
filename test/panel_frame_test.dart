@@ -346,10 +346,16 @@ void main() {
         ),
         isTrue,
       );
-      expect(panelPaintsOwnRim(rimmed, anchor: 'left'), isFalse);
-      // A bar meeting nothing under a theme without the flag keeps its Border.
-      final apart = ThemeConfig.fromMap({
+      // Floating clear of every screen edge, so there is no flush side to
+      // leave out either: a bar meeting nothing keeps its Border.
+      final floating = ThemeConfig.fromMap({
         ...rimmed.toMap(),
+        'panel_margin': 8,
+      });
+      expect(panelPaintsOwnRim(floating, anchor: 'left'), isFalse);
+      // Nor does one meeting another under a theme without the flag.
+      final apart = ThemeConfig.fromMap({
+        ...floating.toMap(),
         'panel_join': false,
       });
       expect(
@@ -454,6 +460,9 @@ void main() {
           .single;
       expect(rim.joins, const PanelJoins(start: 32));
       expect(rim.gap, isNull);
+      // Flush against the screen's left and bottom edges, which draw no rim;
+      // its top end lies against the top bar, which is the seam's business.
+      expect(rim.flush, {'left', 'bottom'});
       // The decoration has given its Border up to the painter.
       final decorations = tester
           .widgetList<DecoratedBox>(find.byType(DecoratedBox))
