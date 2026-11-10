@@ -1546,6 +1546,8 @@ The list is named in the bar's frame too, and applies to every bar as written, w
 
 `panel_border` and `panel_border_width` draw a rim around the bar. **Width is the switch**, not alpha: leave `panel_border_width = 0` and no rim is drawn whatever the color says. A 1px rim is usually what a translucent bar wants — without one a glass bar has no visible boundary over a busy wallpaper.
 
+The rim is left off every side of the bar that lies **flush against the edge of the screen** — there is nothing beyond it for a line to separate the bar from, so it would only draw the display's own edge a pixel in. A side is flush exactly where its margin is zero: a top bar with `panel_margin = 0` draws only the line along its bottom, facing the desktop; give it `panel_margin = { top = 4 }` and the top line comes back, while its two ends, still at the screen's sides, stay open. A side bar reads its margins in its own frame, as above. An end that stops against another bar, rather than at the screen's edge, keeps its line — or, where the two are joined, leaves the seam to the join.
+
 All of these follow a theme switch live; no restart is needed.
 
 ### Sections as islands

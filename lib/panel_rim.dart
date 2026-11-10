@@ -25,6 +25,7 @@ import 'dart:math' as math;
 // re-exports, unlike Canvas, Paint and PaintingStyle beside it.
 import 'dart:ui' show ClipOp;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:moonswing/config.dart';
@@ -133,11 +134,13 @@ PanelRimBreak attachedMouthRange({
 /// Whether [theme] wants its bar's rim painted by [PanelRimPainter] rather than
 /// by the `Border` in `panelBackgroundDecoration`.
 ///
-/// Only a bar that carries a rim *and* has a seam to remove takes the painter:
-/// one that attaches its popups, or one that meets another bar under the theme
-/// ([joins], filtered by [activePanelJoins] here), where the rim between the
-/// two is left out ([panelJoinSeams]). Every other theme keeps byte-for-byte
-/// the decoration, the layers and the paint it always had.
+/// Only a bar that carries a rim *and* has something to leave out of it takes
+/// the painter: one that attaches its popups, one that meets another bar under
+/// the theme ([joins], filtered by [activePanelJoins] here), where the rim
+/// between the two is left out ([panelJoinSeams]), or one lying flush against
+/// a screen edge, which draws no rim along it ([panelFlushEdges]). A rimmed bar
+/// floating clear of every edge, with its menus floating clear of it, keeps
+/// byte-for-byte the decoration, the layers and the paint it always had.
 bool panelPaintsOwnRim(
   ThemeConfig theme, {
   String anchor = 'top',
@@ -145,7 +148,9 @@ bool panelPaintsOwnRim(
 }) =>
     theme.panelBorderWidth > 0 &&
     (theme.popupGap <= 0 ||
-        !activePanelJoins(theme, joins, anchor: anchor).isEmpty);
+        !activePanelJoins(theme, joins, anchor: anchor).isEmpty ||
+        panelFlushEdges(anchor: anchor, theme: theme, joins: joins)
+            .isNotEmpty);
 
 /// The bands of a bar's rim to leave out where it meets another bar, for a bar
 /// of [size] anchored to [anchor] with a rim [width] wide, meeting [joins]
@@ -205,7 +210,8 @@ List<Rect> panelJoinSeams({
   return seams;
 }
 
-/// The bar's rim, with the stretch an attached popup's mouth covers left out.
+/// The bar's rim, with the stretch an attached popup's mouth covers left out,
+/// and no line at all along a side flush against the screen.
 ///
 /// It draws exactly what `Border.all` would — the same deflated outline stroked
 /// at the same width, so a bar with no popup open is pixel-identical to one
@@ -214,6 +220,12 @@ List<Rect> panelJoinSeams({
 /// segments is what keeps [radius] free: the corner arcs are part of the same
 /// stroked outline and are never near the break, which is bounded by the
 /// module's own popup.
+///
+/// A [flush] side is not clipped away but pushed out of the box: the outline is
+/// stroked a rim's width past that edge, so the line lies outside the bar and
+/// the two sides that meet it run on to the screen's edge. Clipping a band
+/// there instead would also take the last rim's width of those two lines and
+/// leave a notch of fill showing at the screen edge beside each.
 class PanelRimPainter extends CustomPainter {
   const PanelRimPainter({
     required this.color,
@@ -222,6 +234,7 @@ class PanelRimPainter extends CustomPainter {
     required this.anchor,
     this.gap,
     this.joins = PanelJoins.none,
+    this.flush = const <String>{},
   });
 
   /// [ThemeConfig.panelBorder].
@@ -243,6 +256,23 @@ class PanelRimPainter extends CustomPainter {
   /// The bars this one meets as the theme draws them ([activePanelJoins]),
   /// whose seams are left unpainted ([panelJoinSeams]).
   final PanelJoins joins;
+
+  /// The screen edges the bar lies flush against ([panelFlushEdges]), along
+  /// which no rim is drawn.
+  final Set<String> flush;
+
+  /// The outline the rim is stroked along, before `Border.all`'s deflation:
+  /// the bar's box, pushed out by the rim's width past each [flush] edge so the
+  /// line there falls outside it.
+  Rect outlineRect(Size size) {
+    double out(String edge) => flush.contains(edge) ? width : 0;
+    return Rect.fromLTRB(
+      -out('left'),
+      -out('top'),
+      size.width + out('right'),
+      size.height + out('bottom'),
+    );
+  }
 
   /// The band of [size] the break occupies: the inner edge's rim, over the
   /// range the mouth covers.
@@ -266,9 +296,12 @@ class PanelRimPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (width <= 0) return;
-    final rect = Offset.zero & size;
+    final rect = outlineRect(size);
     final cut = breakRect(size);
     canvas.save();
+    // The line pushed past a flush edge must not land on whatever the surface
+    // holds beyond the bar: the overhang a theme's foliage or fillet grows.
+    if (flush.isNotEmpty) canvas.clipRect(Offset.zero & size);
     if (cut != null) canvas.clipRect(cut, clipOp: ClipOp.difference);
     for (final seam in panelJoinSeams(
       anchor: anchor,
@@ -301,7 +334,8 @@ class PanelRimPainter extends CustomPainter {
       old.radius != radius ||
       old.anchor != anchor ||
       old.gap != gap ||
-      old.joins != joins;
+      old.joins != joins ||
+      !setEquals(old.flush, flush);
 }
 
 /// [content] with the bar's rim painted over it, or [content] unchanged when
@@ -331,6 +365,7 @@ Widget panelWithRim({
   if (!panelPaintsOwnRim(theme, anchor: anchor, joins: joins)) return content;
   final radius = panelCornerRadius(anchor: anchor, theme: theme, joins: joins);
   final seams = activePanelJoins(theme, joins, anchor: anchor);
+  final flush = panelFlushEdges(anchor: anchor, theme: theme, joins: joins);
   return ListenableBuilder(
     listenable: PanelRimBreaks.instance,
     builder: (context, child) => CustomPaint(
@@ -345,6 +380,7 @@ Widget panelWithRim({
             ? _rimGap(theme, PanelRimBreaks.instance.of(panel))
             : null,
         joins: seams,
+        flush: flush,
       ),
       child: child,
     ),

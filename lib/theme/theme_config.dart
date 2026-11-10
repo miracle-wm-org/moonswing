@@ -396,9 +396,11 @@ class ThemeConfig {
   ///
   /// Width, not alpha, is the off switch: at 0 no `Border` is built at all.
   ///
-  /// The rim is drawn round the whole bar, its **inner** edge included — the edge
-  /// an attached popup meets, and on a flush bar the only side of it anybody can
-  /// see. A bar popup is placed *below* that edge and can never paint over it,
+  /// The rim is drawn round the bar, its **inner** edge included — the edge an
+  /// attached popup meets — except along a side lying flush against the screen
+  /// (`panelFlushEdges`, `panel_background.dart`), where there is nothing beyond
+  /// the bar for a line to separate it from. On a flush bar the inner edge is
+  /// therefore the only side drawn. A bar popup is placed *below* that edge and can never paint over it,
   /// so at [popupGap] 0 the **panel** leaves the line out across the mouth of
   /// whatever menu is open and draws the rest of it itself; see `panel_rim.dart`.
   /// [popupAttachRadius] decides only how the line resumes at either end.

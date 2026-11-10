@@ -1,9 +1,13 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:toml/toml.dart';
 
 import 'package:moonswing/config.dart';
 import 'package:moonswing/panel_background.dart';
+import 'package:moonswing/panel_join.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/theme/builtin_themes.dart';
 
@@ -28,12 +32,31 @@ void main() {
       // No rim: nothing to break, and the decoration keeps building no Border
       // at all.
       expect(panelPaintsOwnRim(const ThemeConfig()), isFalse);
-      // A gap: the cards genuinely float clear of the bar, so the rim is a
-      // boundary again and stays the decoration's.
+      // A gap, and a bar floating clear of every screen edge: the cards
+      // genuinely float clear of the bar and every side of it is a boundary,
+      // so the rim stays the decoration's.
+      expect(
+          panelPaintsOwnRim(const ThemeConfig(
+            panelBorderWidth: 1.0,
+            popupGap: 6.0,
+            panelMargin: PanelMargins.all(8),
+          )),
+          isFalse);
+    });
+
+    test('or a rimmed bar lying flush against a screen edge', () {
+      // The rim leaves that side out, and a `Border.all` cannot.
       expect(
           panelPaintsOwnRim(
               const ThemeConfig(panelBorderWidth: 1.0, popupGap: 6.0)),
-          isFalse);
+          isTrue);
+      expect(
+          panelPaintsOwnRim(const ThemeConfig(
+            panelBorderWidth: 1.0,
+            popupGap: 6.0,
+            panelMargin: PanelMargins(right: 8, bottom: 8, left: 8),
+          )),
+          isTrue);
     });
 
     test('and only then does the decoration give the rim up', () {
@@ -45,6 +68,154 @@ void main() {
           isNull);
       expect(panelBackgroundDecoration(theme: _carbonish).border,
           Border.all(color: _carbonish.panelBorder, width: 1.0));
+    });
+  });
+
+  group('the sides lying flush against the screen', () {
+    ThemeConfig margins(PanelMargins margin, {bool join = false}) =>
+        ThemeConfig(panelBorderWidth: 1.0, panelMargin: margin, panelJoin: join);
+
+    test('are the outer side and the ends with no margin off them', () {
+      expect(panelFlushEdges(theme: margins(PanelMargins.zero)),
+          {'top', 'left', 'right'});
+      expect(
+          panelFlushEdges(
+              anchor: 'bottom', theme: margins(PanelMargins.zero)),
+          {'bottom', 'left', 'right'});
+      // A side bar reads its margins in its own frame: `right` is its top end
+      // and `top` the side against the screen's left edge.
+      expect(
+          panelFlushEdges(anchor: 'left', theme: margins(PanelMargins.zero)),
+          {'left', 'top', 'bottom'});
+    });
+
+    test('and a margin above zero gives that side its rim back', () {
+      expect(
+          panelFlushEdges(theme: margins(const PanelMargins(top: 4))),
+          {'left', 'right'});
+      expect(
+          panelFlushEdges(theme: margins(const PanelMargins(left: 4))),
+          {'top', 'right'});
+      expect(panelFlushEdges(theme: margins(PanelMargins.all(4))), isEmpty);
+      // The side bar's top end is its `right`.
+      expect(
+          panelFlushEdges(
+              anchor: 'left', theme: margins(const PanelMargins(right: 4))),
+          {'left', 'bottom'});
+    });
+
+    test('never at an end that butts against another bar', () {
+      // A side bar stops at the inner edge of the bar running across the
+      // corner, so there is a bar beside its end, not the screen.
+      expect(
+          panelFlushEdges(
+            anchor: 'left',
+            theme: margins(PanelMargins.zero),
+            joins: const PanelJoins(start: 32),
+          ),
+          {'left', 'bottom'});
+      expect(
+          panelFlushEdges(
+            anchor: 'left',
+            theme: margins(PanelMargins.zero, join: true),
+            joins: const PanelJoins(start: 32, end: 28),
+          ),
+          {'left'});
+      // The bar running across reaches the screen's side all the same.
+      expect(
+          panelFlushEdges(
+            theme: margins(PanelMargins.zero),
+            joins: const PanelJoins(start: 40),
+          ),
+          {'top', 'left', 'right'});
+    });
+
+    test('push the outline a rim past the box, so no line lies inside it', () {
+      Rect outline(Set<String> flush, {double width = 2}) => PanelRimPainter(
+            color: const Color(0xFF525252),
+            width: width,
+            radius: BorderRadius.zero,
+            anchor: 'top',
+            flush: flush,
+          ).outlineRect(const Size(1600, 32));
+
+      expect(outline(const {}), const Rect.fromLTRB(0, 0, 1600, 32));
+      expect(outline(const {'top', 'left', 'right'}),
+          const Rect.fromLTRB(-2, -2, 1602, 32));
+      expect(outline(const {'top'}, width: 1.5),
+          const Rect.fromLTRB(0, -1.5, 1600, 32));
+    });
+
+    test('repaint when they change', () {
+      const base = PanelRimPainter(
+        color: Color(0xFF525252),
+        width: 1,
+        radius: BorderRadius.zero,
+        anchor: 'top',
+        flush: {'top'},
+      );
+      expect(
+          base.shouldRepaint(const PanelRimPainter(
+            color: Color(0xFF525252),
+            width: 1,
+            radius: BorderRadius.zero,
+            anchor: 'top',
+            flush: {'top'},
+          )),
+          isFalse);
+      expect(
+          base.shouldRepaint(const PanelRimPainter(
+            color: Color(0xFF525252),
+            width: 1,
+            radius: BorderRadius.zero,
+            anchor: 'top',
+            flush: {'top', 'left'},
+          )),
+          isTrue);
+    });
+
+    testWidgets('leaves no rim pixel along a flush edge', (tester) async {
+      // Painted for real: a 40x20 top bar flush on top and at both ends, a 2px
+      // white rim on black. The inner edge keeps its line, edge to edge.
+      final key = GlobalKey();
+      await tester.pumpWidget(Center(
+        child: RepaintBoundary(
+          key: key,
+          child: Container(
+            width: 40,
+            height: 20,
+            color: const Color(0xFF000000),
+            child: CustomPaint(
+              painter: const PanelRimPainter(
+                color: Color(0xFFFFFFFF),
+                width: 2,
+                radius: BorderRadius.zero,
+                anchor: 'top',
+                flush: {'top', 'left', 'right'},
+              ),
+            ),
+          ),
+        ),
+      ));
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await tester.runAsync(() => boundary.toImage());
+      final bytes = (await tester.runAsync(
+          () => image!.toByteData(format: ui.ImageByteFormat.rawRgba)))!;
+      int red(int x, int y) => bytes.getUint8((y * 40 + x) * 4);
+      // Top row, and the outer columns down the middle: fill, no line.
+      for (var x = 0; x < 40; x++) {
+        expect(red(x, 0), 0, reason: 'top row at $x');
+      }
+      for (var y = 0; y < 17; y++) {
+        expect(red(0, y), 0, reason: 'left column at $y');
+        expect(red(39, y), 0, reason: 'right column at $y');
+      }
+      // The inner edge, right out to both screen edges.
+      expect(red(0, 19), 255);
+      expect(red(20, 19), 255);
+      expect(red(39, 19), 255);
+      image!.dispose();
     });
   });
 

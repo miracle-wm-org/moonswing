@@ -1077,8 +1077,8 @@ panel_gradient_bottom_right = "#FFC0C0C0"
 panel_gradient_bottom_left  = "#FFC0C0C0"
 
 # The taskbar's lit top edge: a white line along the side facing the desktop.
-# The rim runs round the whole bar, but a flush bar's other edges are the
-# screen's, and the menus float a gap off it, so none of them meets the line.
+# It is the only side drawn: a bar draws no rim along an edge it lies flush
+# against, and the menus float a gap off it, so none of them meets the line.
 panel_margin         = 0
 panel_radius         = 0.0
 panel_corners        = "auto"
