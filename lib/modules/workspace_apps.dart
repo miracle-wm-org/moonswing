@@ -24,6 +24,8 @@ class WorkspacesConfig {
     this.flashUrgent = true,
     this.urgentFlashSeconds = 5.0,
     this.showPolicyToggle = true,
+    this.showLabels = true,
+    this.selectedAppsOnly = false,
   });
 
   /// Whether each workspace button carries the icons of the applications open on
@@ -66,6 +68,21 @@ class WorkspacesConfig {
   /// opens already knowing which of the two placements is checked.
   final bool showPolicyToggle;
 
+  /// Whether each workspace's dot carries its number (or name). On by default.
+  ///
+  /// Off, a workspace with nothing else to show is a bare dot, and the row is
+  /// read by position and by the selection alone.
+  final bool showLabels;
+
+  /// Whether only the selected workspace — the one on screen on this bar's
+  /// output — shows its app icons. Off by default.
+  ///
+  /// The others keep their icons in the tree and fold them away, so switching
+  /// workspace slides one set out as the other slides in. Nothing is read any
+  /// less: the icons of every workspace are one `GET_TREE`, and the next switch
+  /// needs them.
+  final bool selectedAppsOnly;
+
   factory WorkspacesConfig.fromMap(Map<String, dynamic>? map) {
     if (map == null) return const WorkspacesConfig();
     return WorkspacesConfig(
@@ -76,6 +93,8 @@ class WorkspacesConfig {
       urgentFlashSeconds:
           map.doubleOr('urgent_flash_seconds', 5.0, min: 1, max: 30),
       showPolicyToggle: map.boolOr('show_policy_toggle', true),
+      showLabels: map.boolOr('show_labels', true),
+      selectedAppsOnly: map.boolOr('selected_apps_only', false),
     );
   }
 }
@@ -204,6 +223,30 @@ String? workspaceSelector(WorkspaceResult workspace) {
   return name != null && name.isNotEmpty ? name : null;
 }
 
+/// Which of [onOutput] — the workspaces of one output, in row order — the row
+/// marks as selected, or null when it marks none.
+///
+/// The focused workspace when it is on this output; otherwise the one this
+/// output is *showing*. `focused` is global: there is exactly one focused
+/// workspace across every monitor, so a row that marked only that would show no
+/// selection at all on every other monitor, and under focus-follows-mouse the
+/// indicator would blink out of a bar each time the pointer crossed a seam.
+/// [WorkspaceResult.visible] is what each output is showing, which is the
+/// answer to "where am I" on that monitor whether it has the focus or not.
+int? selectedWorkspaceIndex(List<WorkspaceResult> onOutput) {
+  final focused = onOutput.indexWhere((ws) => ws.focused);
+  if (focused >= 0) return focused;
+  final visible = onOutput.indexWhere((ws) => ws.visible);
+  return visible >= 0 ? visible : null;
+}
+
+/// Whether [workspace]'s dot shows its app icons.
+///
+/// Always, unless `selected_apps_only` is set — then only on the [selected]
+/// one, and the others fold theirs away.
+bool showsWorkspaceApps(WorkspacesConfig config, {required bool selected}) =>
+    config.showAppIcons && (!config.selectedAppsOnly || selected);
+
 /// Whether the right-click menu for [workspace] carries the tile/float rows.
 ///
 /// **Any workspace, not just the focused one.** It used to be the focused one
@@ -228,12 +271,14 @@ bool shouldShowPolicyToggle(
 /// output, on each monitor.
 ///
 /// Carries exactly the fields the row and its menu read — the label, the output
-/// it is filtered onto, the focus fill, the urgency flash and the placement the
-/// menu checks — and nothing else, so a reply differing only in something
-/// invisible (a rect, a `visible` flag the row does not use) costs no rebuild.
+/// it is filtered onto, the focus and the `visible` flag the selection is
+/// chosen by (see [selectedWorkspaceIndex]), the urgency flash and the
+/// placement the menu checks — and nothing else, so a reply differing only in
+/// something invisible (a rect) costs no rebuild.
 String workspaceRowSignature(List<WorkspaceResult> workspaces) => workspaces
     .map((ws) => '${ws.output}\u0000${ws.num}\u0000${ws.name}'
-        '\u0000${ws.focused}\u0000${ws.urgent}\u0000${ws.policy}')
+        '\u0000${ws.focused}\u0000${ws.visible}\u0000${ws.urgent}'
+        '\u0000${ws.policy}')
     .join('\u0001');
 
 /// The same guard for the right-click menu's second page, over the fields

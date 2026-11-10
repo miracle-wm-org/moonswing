@@ -330,12 +330,22 @@ ModuleSettingsPage? moduleSettingsPageByKey(String? key) {
 final List<ModuleSettingsPage> moduleSettingsPages = [
   ModuleSettingsPage._(
     'workspaces',
-    'App icons and urgency',
+    'Numbers, app icons and urgency',
     ShellGlyph.gridLarge,
     [
       _ModuleSetting.toggle(
+        SettingsCatalog.workspacesShowLabels,
+        defaultValue: const WorkspacesConfig().showLabels,
+        quick: true,
+      ),
+      _ModuleSetting.toggle(
         SettingsCatalog.workspacesShowAppIcons,
         defaultValue: const WorkspacesConfig().showAppIcons,
+        quick: true,
+      ),
+      _ModuleSetting.toggle(
+        SettingsCatalog.workspacesSelectedAppsOnly,
+        defaultValue: const WorkspacesConfig().selectedAppsOnly,
         quick: true,
       ),
       _ModuleSetting.number(
