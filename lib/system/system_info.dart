@@ -55,6 +55,91 @@ class SystemInfo {
   final List<InputDevice> inputDevices;
 }
 
+/// One labelled value on the System Info page. [value] is null where the
+/// machine did not report it.
+typedef SystemInfoRow = ({String label, String? value});
+
+/// One titled group of [SystemInfoRow]s.
+typedef SystemInfoSection = ({String title, List<SystemInfoRow> rows});
+
+/// [info] as the System Info page lays it out: its sections, in order, each
+/// with its rows in order.
+///
+/// The one spelling of the page's shape, read by both the page and
+/// [systemInfoPlainText], so what is copied cannot drift from what is shown.
+List<SystemInfoSection> systemInfoSections(SystemInfo info) => [
+  (
+    title: 'Hardware',
+    rows: [
+      (label: 'Processor', value: info.cpuModel),
+      (label: 'Cores', value: info.cpuCores),
+      (label: 'Memory', value: info.totalMemory),
+      (label: 'Swap', value: info.totalSwap),
+      (label: 'Graphics', value: info.gpu),
+    ],
+  ),
+  (
+    title: 'Input devices',
+    // The kind is repeated on every row rather than heading a group of them,
+    // because the page's whole shape is a label column against a value column:
+    // a device whose label cell were left blank would read as a continuation
+    // of the value above it. An empty list is one unreported "Devices" row.
+    rows: info.inputDevices.isEmpty
+        ? [(label: 'Devices', value: null)]
+        : [
+            for (final device in info.inputDevices)
+              (label: device.kind.label, value: device.name),
+          ],
+  ),
+  (
+    title: 'Software',
+    rows: [
+      (label: 'Operating system', value: info.osName),
+      (label: 'Kernel', value: info.kernel),
+      (label: 'Architecture', value: info.architecture),
+    ],
+  ),
+  (
+    title: 'Environment',
+    rows: [
+      (label: 'Desktop', value: info.desktop),
+      (label: 'Session', value: info.sessionType),
+      (label: 'Shell', value: info.shell),
+      (label: 'Hostname', value: info.hostname),
+      (label: 'Uptime', value: info.uptime),
+      (label: 'Booted', value: info.bootTime),
+    ],
+  ),
+];
+
+/// Every section of [info] as plain text, for pasting into a bug report or a
+/// chat: a heading per section, one `Label: value` line per row, a blank line
+/// between sections, and the page's em dash for anything not reported.
+///
+/// The labels are padded to one column across the whole text, so the values
+/// line up wherever it is pasted in a monospaced font and read no worse where
+/// it is not.
+String systemInfoPlainText(SystemInfo info) {
+  final sections = systemInfoSections(info);
+  var width = 0;
+  for (final section in sections) {
+    for (final row in section.rows) {
+      if (row.label.length > width) width = row.label.length;
+    }
+  }
+  final out = StringBuffer();
+  for (final (index, section) in sections.indexed) {
+    if (index > 0) out.writeln();
+    out.writeln(section.title);
+    for (final row in section.rows) {
+      out.writeln(
+        '  ${'${row.label}:'.padRight(width + 1)} ${row.value ?? '—'}',
+      );
+    }
+  }
+  return out.toString();
+}
+
 /// Gathers a [SystemInfo] from `/proc`, `/etc`, the environment, and a couple of
 /// best-effort shell-outs.
 ///
