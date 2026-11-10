@@ -17,7 +17,7 @@ import 'dart:math' as math;
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderView;
+import 'package:flutter/rendering.dart' show RenderProxyBox, RenderView;
 // BaseWindowController is the one piece of the SDK's windowing layer that
 // layer_shell does not re-export; both host mixins' controllers implement it.
 import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
@@ -165,6 +165,98 @@ BoxConstraints popupWindowConstraints(BoxConstraints card, EdgeInsets shadow) {
         ? card.maxHeight + shadow.vertical
         : card.maxHeight,
   );
+}
+
+/// The size a popup's surface is laid out at: [content] rounded up to whole
+/// logical pixels, inside the GTK size hints [window] becomes.
+///
+/// A popup is a *sized-to-content* view, and the engine's Linux renderer only
+/// draws a frame of such a view once the GTK allocation, times the scale, is
+/// exactly the frame's size in physical pixels. When it is not, `redraw_cb`
+/// (`fl_view_renderer_opengl.cc`) asks GTK for `frame_width / scale_factor` —
+/// integer division — and returns *without drawing*. So on a scale-2 output a
+/// card 150.7 logical pixels wide renders a 301-pixel frame, GTK is asked for
+/// 150, allocates 300, and no frame of that popup is ever drawn again: the
+/// surface keeps whatever GTK last painted while it was being resized, which is
+/// an early frame of the entrance. That was issue #236 — a context menu frozen
+/// nearly transparent partway through its fade, no hover ever showing — and why
+/// only *some* menus: an [IntrinsicWidth] card is as wide as its longest label,
+/// so whether its size came out whole was down to the text.
+///
+/// A whole number of logical pixels is a whole number of physical ones at any
+/// integer scale, which is the only kind GTK3 has. The bounds are the hints'
+/// own, truncated the way the backend truncates them (`toInt()` in
+/// `_window_linux.dart`): a size past the maximum hint is one GTK would clamp,
+/// and the frame would be the wrong size again.
+Size wholePixelPopupSize(Size content, BoxConstraints window) {
+  int whole(double extent, double min, double max) {
+    final lo = math.max(1, min.toInt());
+    final hi = max.isFinite ? math.max(lo, max.toInt()) : 0x7fffffff;
+    // Less a whisker of tolerance, so a width that is whole but for float
+    // noise is not grown by a pixel.
+    return (extent - 1e-6).ceil().clamp(lo, hi);
+  }
+
+  return Size(
+    whole(content.width, window.minWidth, window.maxWidth).toDouble(),
+    whole(content.height, window.minHeight, window.maxHeight).toDouble(),
+  );
+}
+
+/// Lays its child out as it likes and takes [wholePixelPopupSize] of it, the
+/// child at the top-left — so a popup's view is always a size the engine will
+/// draw. The odd fraction of a pixel it adds is transparent.
+class PopupWholePixelBox extends SingleChildRenderObjectWidget {
+  const PopupWholePixelBox({
+    super.key,
+    required this.window,
+    super.child,
+  });
+
+  /// The popup *window's* constraints — what [PopupWindowController] is given,
+  /// which become the GTK size hints.
+  final BoxConstraints window;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      RenderPopupWholePixelBox(window);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    RenderPopupWholePixelBox renderObject,
+  ) {
+    renderObject.window = window;
+  }
+}
+
+/// The render object behind [PopupWholePixelBox].
+class RenderPopupWholePixelBox extends RenderProxyBox {
+  RenderPopupWholePixelBox(this._window);
+
+  BoxConstraints _window;
+  set window(BoxConstraints value) {
+    if (value == _window) return;
+    _window = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    var content = Size.zero;
+    if (child != null) {
+      child.layout(constraints.loosen(), parentUsesSize: true);
+      content = child.size;
+    }
+    size = constraints.constrain(wholePixelPopupSize(content, _window));
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final content = child?.getDryLayout(constraints.loosen()) ?? Size.zero;
+    return constraints.constrain(wholePixelPopupSize(content, _window));
+  }
 }
 
 /// Computes the parent-window-local anchor rect for the widget behind [context].
@@ -937,6 +1029,8 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       popupShadowInsets(theme, attachEdge: barAnchor),
       popupAttachInsets(theme, attachEdge: attachEdge),
     );
+    final windowConstraints =
+        popupWindowConstraints(constraints, surfaceInsets);
     PopupWindowController? thisController;
     _popupController = thisController = PopupWindowController(
       parent: parentController,
@@ -960,7 +1054,7 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
       // hints capping the surface, which the shadow and the flare have just
       // grown. See [popupWindowConstraints] — the [ConstrainedBox] below still
       // holds the card to what the call site asked for.
-      constraints: popupWindowConstraints(constraints, surfaceInsets),
+      constraints: windowConstraints,
       delegate: PopupDelegate(onDestroyed: () {
         if (_popupController == thisController) {
           // The compositor has already taken the surface away, so there is
@@ -1100,31 +1194,38 @@ mixin PopupHost<T extends StatefulWidget> on State<T> {
               // passing minWidth == maxWidth (the app directory's list and
               // flyout, the sound slider, which has no intrinsic length) would
               // silently narrow rather than the window widening.
-              child: Padding(
+              //
+              // Rounded up to whole pixels around all of it, because a
+              // sized-to-content view the engine is handed at a fraction of a
+              // pixel is one it stops drawing — see [wholePixelPopupSize].
+              child: PopupWholePixelBox(
                 key: contentKey,
-                padding: surfaceInsets,
-                // The one place a popup's animation is spelled. It used to be
-                // the call site's job — fifteen of them wrapped their own card
-                // in `PopupBounceIn` — which made it something a new popup
-                // could forget, and left no way at all to play an exit: the
-                // host is what knows the popup is closing, and the card is
-                // what can animate. Inside the padding, so the card travels
-                // within the margin the shadow already claimed rather than
-                // against the surface's clip; outside the ConstrainedBox, so
-                // the transform cannot reach the size the window was mapped
-                // at.
-                child: PopupTransition(
-                  effect: resolvedEffect,
-                  duration: resolvedDuration,
-                  edge: barAnchor,
-                  closing: closing,
-                  onClosed: () => _finishOutgoing(thisController!),
-                  // Every popup is a panel's menu or the desktop's, so it
-                  // keeps the arrow whatever the call site's content asks for.
-                  child: DesktopCursor(
-                    child: ConstrainedBox(
-                      constraints: constraints,
-                      child: child,
+                window: windowConstraints,
+                child: Padding(
+                  padding: surfaceInsets,
+                  // The one place a popup's animation is spelled. It used to be
+                  // the call site's job — fifteen of them wrapped their own card
+                  // in `PopupBounceIn` — which made it something a new popup
+                  // could forget, and left no way at all to play an exit: the
+                  // host is what knows the popup is closing, and the card is
+                  // what can animate. Inside the padding, so the card travels
+                  // within the margin the shadow already claimed rather than
+                  // against the surface's clip; outside the ConstrainedBox, so
+                  // the transform cannot reach the size the window was mapped
+                  // at.
+                  child: PopupTransition(
+                    effect: resolvedEffect,
+                    duration: resolvedDuration,
+                    edge: barAnchor,
+                    closing: closing,
+                    onClosed: () => _finishOutgoing(thisController!),
+                    // Every popup is a panel's menu or the desktop's, so it
+                    // keeps the arrow whatever the call site's content asks for.
+                    child: DesktopCursor(
+                      child: ConstrainedBox(
+                        constraints: constraints,
+                        child: child,
+                      ),
                     ),
                   ),
                 ),
