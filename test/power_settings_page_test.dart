@@ -52,7 +52,7 @@ void main() {
     expect(trigger, findsOneWidget);
     expect(find.text('Power Saver'), findsNothing);
     // No TuneD on this machine: no TuneD section.
-    expect(find.text('TUNED'), findsNothing);
+    expect(find.text('TuneD'), findsNothing);
 
     await tester.tap(trigger);
     await tester.pumpAndSettle();
@@ -126,6 +126,9 @@ void main() {
     expect(find.text('Apply'), findsOneWidget);
     expect(writer.batches, isEmpty);
 
+    // Below the fold of the test's window, under the page's bottom air.
+    await tester.ensureVisible(find.text('Apply'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Apply'));
     await tester.pumpAndSettle();
     expect(writer.batches, hasLength(1));
@@ -146,7 +149,7 @@ void main() {
     );
     await pump(tester, fakePowerStore(tuned: tuned));
     // Section labels are drawn upper-case.
-    expect(find.text('TUNED'), findsOneWidget);
+    expect(find.text('TuneD'), findsOneWidget);
     expect(find.text('Let TuneD choose (balanced)'), findsOneWidget);
   });
 }

@@ -9,6 +9,7 @@ import 'package:moonswing/overlay/settings/audio/apps_tab.dart';
 import 'package:moonswing/overlay/settings/audio/input_tab.dart';
 import 'package:moonswing/overlay/settings/audio/output_tab.dart';
 import 'package:moonswing/overlay/settings/audio/profiles_tab.dart';
+import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/underline_tabs.dart';
 
@@ -70,27 +71,14 @@ class _AudioSettingsPageState extends State<AudioSettingsPage> {
     return _buildLoaded(theme);
   }
 
-  Widget _buildHeader(ThemeConfig theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-      child: Text(
-        'Audio',
-        style: TextStyle(
-          fontSize: 16,
-          fontFamily: theme.fontFamily,
-          color: theme.popupForeground,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
+  Widget _buildHeader(ThemeConfig theme) =>
+      const SettingsPageHeader(title: 'Audio');
 
   Widget _buildLoading(ThemeConfig theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(theme),
-        Container(height: 1, color: theme.divider),
         const Expanded(child: Center(child: LoadingIndicator(size: 22))),
       ],
     );
@@ -101,7 +89,6 @@ class _AudioSettingsPageState extends State<AudioSettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(theme),
-        Container(height: 1, color: theme.divider),
         Expanded(
           child: Center(
             child: Text(
@@ -123,26 +110,34 @@ class _AudioSettingsPageState extends State<AudioSettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(theme),
-        Container(height: 1, color: theme.divider),
-        SizedBox(
-          height: 40,
-          child: Row(
-            // Stretch so each tab's underline sits on the divider below the
-            // strip rather than floating at the tab's intrinsic height.
+        // The tab strip in the page's column, its rule the column's width.
+        SettingsPageColumn(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (int i = 0; i < _tabs.length; i++)
-                UnderlineTab(
-                  label: _tabs[i],
-                  selected: i == _selectedTab,
-                  fontSize: 13,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  onTap: () => setState(() => _selectedTab = i),
+              SizedBox(
+                height: 40,
+                child: Row(
+                  // Stretch so each tab's underline sits on the rule below
+                  // the strip rather than floating at the tab's intrinsic
+                  // height.
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (int i = 0; i < _tabs.length; i++)
+                      UnderlineTab(
+                        label: _tabs[i],
+                        selected: i == _selectedTab,
+                        fontSize: 13,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        onTap: () => setState(() => _selectedTab = i),
+                      ),
+                  ],
                 ),
+              ),
+              const SettingsRule(),
             ],
           ),
         ),
-        Container(height: 1, color: theme.divider),
         Expanded(child: _buildTabContent()),
       ],
     );

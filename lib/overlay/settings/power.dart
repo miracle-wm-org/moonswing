@@ -70,26 +70,12 @@ class _PowerSettingsPageState extends State<PowerSettingsPage> {
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _header(theme),
-          Container(height: 1, color: theme.divider),
+          const SettingsPageHeader(title: 'Power'),
           Expanded(child: _body(theme)),
         ],
       ),
     );
   }
-
-  Widget _header(ThemeConfig theme) => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-    child: Text(
-      'Power',
-      style: TextStyle(
-        fontSize: ShellFontSizes.title,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  );
 
   Widget _body(ThemeConfig theme) {
     if (_store.status == PowerProfilesStatus.loading &&
@@ -99,22 +85,24 @@ class _PowerSettingsPageState extends State<PowerSettingsPage> {
     }
     final tuned = _store.tuned;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_store.error.isNotEmpty) ...[
-            _banner(),
-            const SizedBox(height: 16),
+      child: SettingsPageColumn(
+        padding: kSettingsPagePadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_store.error.isNotEmpty) ...[
+              _banner(),
+              const SizedBox(height: 24),
+            ],
+            if (_store.state != null) _modeSection(theme, _store.state!),
+            if (tuned != null) ...[
+              const SizedBox(height: kSettingsSectionGap),
+              _tunedSection(theme, tuned),
+            ],
+            const SizedBox(height: kSettingsSectionGap),
+            _tuningSection(theme),
           ],
-          if (_store.state != null) _modeSection(theme, _store.state!),
-          if (tuned != null) ...[
-            const SizedBox(height: 20),
-            _tunedSection(theme, tuned),
-          ],
-          const SizedBox(height: 20),
-          _tuningSection(theme),
-        ],
+        ),
       ),
     );
   }

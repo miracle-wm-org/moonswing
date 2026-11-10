@@ -86,10 +86,9 @@ class _AppsTabState extends State<AppsTab> {
         ),
       );
     }
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
+    return SettingsPageList.separated(
       itemCount: inputs.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (_, i) =>
           _SinkInputItem(client: widget.client, input: inputs[i], sinks: sinks),
     );

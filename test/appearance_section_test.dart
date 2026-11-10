@@ -76,10 +76,10 @@ void main() {
     tester,
   ) async {
     await pump(tester);
-    // Section headings are drawn upper-case.
-    expect(find.text('EDIT MINE'), findsOneWidget);
+    // Section headings are drawn as they are spelt.
+    expect(find.text('Edit Mine'), findsOneWidget);
     for (final group in ThemeGroup.values.skip(1)) {
-      expect(find.text(group.label.toUpperCase()), findsOneWidget);
+      expect(find.text(group.label), findsOneWidget);
     }
     // Every colour is drawn, once, whichever section it is in.
     for (final colour in SettingsCatalog.themeColors) {
@@ -88,8 +88,8 @@ void main() {
     // And a row sits in its own item's section: the bar's corners come
     // after the Bar heading and before the Popups one.
     double top(Finder f) => tester.getTopLeft(f).dy;
-    final bar = top(find.text(ThemeGroup.bar.label.toUpperCase()));
-    final popups = top(find.text(ThemeGroup.popup.label.toUpperCase()));
+    final bar = top(find.text(ThemeGroup.bar.label));
+    final popups = top(find.text(ThemeGroup.popup.label));
     final radius = top(find.byKey(ValueKey('panel_radius-$slug-top_left')));
     expect(radius, greaterThan(bar));
     expect(radius, lessThan(popups));

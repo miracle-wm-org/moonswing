@@ -142,49 +142,57 @@ class _ProfilesTabState extends State<ProfilesTab> {
                         color: theme.popupForeground.withValues(alpha: 0.5)),
                   ),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
+              : SettingsPageList.separated(
                   itemCount: cards.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (_, i) => _ProfileCard(
                     card: cards[i],
                     onProfileSelected: (p) => _setProfile(cards[i], p),
                   ),
                 ),
         ),
-        Container(height: 1, color: theme.divider),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
+        // A footer under the scroller, in the page's column: its rule is the
+        // column's width, not the pane's.
+        SettingsPageColumn(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+              const SettingsRule(),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
                   children: [
-                    Text(
-                      'Mono Audio',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontFamily: theme.fontFamily,
-                          color: theme.popupForeground),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Mono Audio',
+                            style: TextStyle(
+                                fontSize: 13,
+                                fontFamily: theme.fontFamily,
+                                color: theme.popupForeground),
+                          ),
+                          Text(
+                            'Mix all channels to a single channel',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontFamily: theme.fontFamily,
+                                color: theme.muted),
+                          ),
+                        ],
+                      ),
                     ),
-                    Text(
-                      'Mix all channels to a single channel',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: theme.fontFamily,
-                          color: theme.muted),
-                    ),
+                    _togglingMono
+                        ? const LoadingIndicator(size: 18)
+                        : SettingsToggle(
+                            value: _monoEnabled,
+                            onChanged: (_) => _toggleMono(),
+                          ),
                   ],
                 ),
               ),
-              _togglingMono
-                  ? const LoadingIndicator(size: 18)
-                  : SettingsToggle(
-                      value: _monoEnabled,
-                      onChanged: (_) => _toggleMono(),
-                    ),
             ],
           ),
         ),
@@ -260,7 +268,7 @@ class _ProfileCardState extends State<_ProfileCard> {
               ],
             ),
           ),
-          Container(height: 1, color: theme.divider),
+          const SettingsRule(),
           Padding(
             padding: const EdgeInsets.all(12),
             child: Column(

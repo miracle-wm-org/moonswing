@@ -75,26 +75,12 @@ class _DefaultAppsSettingsPageState extends State<DefaultAppsSettingsPage> {
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _header(theme),
-          Container(height: 1, color: theme.divider),
+          const SettingsPageHeader(title: 'Default Apps'),
           Expanded(child: _body(context, theme)),
         ],
       ),
     );
   }
-
-  Widget _header(ThemeConfig theme) => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-    child: Text(
-      'Default Apps',
-      style: TextStyle(
-        fontSize: ShellFontSizes.title,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  );
 
   Widget _body(BuildContext context, ThemeConfig theme) {
     if (_store.status == DefaultAppsStatus.loading) {
@@ -103,8 +89,7 @@ class _DefaultAppsSettingsPageState extends State<DefaultAppsSettingsPage> {
     final types = _store.types;
     return CustomScrollView(
       slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        SliverSettingsPage(
           sliver: SliverMainAxisGroup(
             slivers: [
               // Always present, so a banner coming and going never shifts the
@@ -113,7 +98,7 @@ class _DefaultAppsSettingsPageState extends State<DefaultAppsSettingsPage> {
               SliverToBoxAdapter(child: _banner()),
               if (_store.status == DefaultAppsStatus.ready) ...[
                 SliverToBoxAdapter(child: _defaultsSection(theme)),
-                const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                const SliverSettingsSectionGap(),
                 SliverToBoxAdapter(child: _allTypesHeading(types)),
                 if (types != null)
                   _AllTypesList(store: _store, types: types, query: _query),

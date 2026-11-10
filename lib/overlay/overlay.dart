@@ -675,8 +675,10 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // No rule under the search bar across the whole panel: the
+            // sidebar's edge and the pane's own header already say where the
+            // field ends and the page begins.
             const SizedBox(height: kSettingsSearchBarHeight),
-            Container(height: 1, color: theme.divider),
             Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

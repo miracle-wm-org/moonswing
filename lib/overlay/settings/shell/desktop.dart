@@ -82,7 +82,7 @@ class _DesktopSectionState extends State<DesktopSection> {
     return SliverMainAxisGroup(
       slivers: [
         _grid(),
-        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        const SliverSettingsSectionGap(),
         // Its own section, and outside the grid's builder: the news card's
         // feeds are `[news]`, which [DesktopStore] knows nothing about.
         NewsSettingsSection(store: widget.store),

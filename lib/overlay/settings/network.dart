@@ -109,8 +109,11 @@ class _NetworkListItem extends StatelessWidget {
       enabled: canTap,
       onTap: onTap,
       builder: (context, hovered) => Container(
-        color: hovered && canTap ? theme.surfaceHover : null,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        decoration: BoxDecoration(
+          color: hovered && canTap ? theme.surfaceHover : null,
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         child: Row(
           children: [
             ShellIcon(
@@ -288,44 +291,48 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-          child: Text(
-            'Network',
-            style: TextStyle(
-              fontSize: ShellFontSizes.title,
-              fontFamily: theme.fontFamily,
-              color: theme.popupForeground,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        Container(height: 1, color: theme.divider),
+        const SettingsPageHeader(title: 'Network'),
         Expanded(
           child: CustomScrollView(
             slivers: [
-              // The VPNs first: a handful of rows at most, which a long scan
-              // list would otherwise push off the bottom of the pane.
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-                sliver: SliverToBoxAdapter(
-                  child: VpnSection(
-                    store: _vpn,
-                    onOpen: (request) => setState(() => _vpnForm = request),
-                  ),
+              SliverSettingsPage(
+                sliver: SliverMainAxisGroup(
+                  slivers: [
+                    // The VPNs first: a handful of rows at most, which a long
+                    // scan list would otherwise push off the bottom of the
+                    // pane.
+                    SliverToBoxAdapter(
+                      child: VpnSection(
+                        store: _vpn,
+                        onOpen: (request) => setState(() => _vpnForm = request),
+                      ),
+                    ),
+                    const SliverSettingsSectionGap(),
+                    SliverPadding(
+                      padding: const EdgeInsets.only(
+                        bottom: kSettingsHeadingGap,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: SettingsSectionHeading(
+                          label: 'Wi-Fi and wired',
+                          trailing: SettingsRescanButton(onTap: _scan),
+                        ),
+                      ),
+                    ),
+                    // On a card like every other section, so the list reads
+                    // as one group rather than rows running edge to edge.
+                    DecoratedSliver(
+                      decoration: settingsCardDecoration(theme),
+                      sliver: SliverPadding(
+                        padding: const EdgeInsets.all(6),
+                        sliver: SliverMainAxisGroup(
+                          slivers: _buildListBody(theme),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 16, 8),
-                sliver: SliverToBoxAdapter(
-                  child: SettingsSectionHeading(
-                    label: 'Wi-Fi and wired',
-                    trailing: SettingsRescanButton(onTap: _scan),
-                  ),
-                ),
-              ),
-              ..._buildListBody(theme),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 16)),
             ],
           ),
         ),
@@ -403,32 +410,7 @@ class _NetworkSettingsPageState extends State<NetworkSettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 24, 8),
-          child: Row(
-            children: [
-              SettingsIconButton(
-                icon: ShellGlyph.arrowLeft,
-                size: ShellFontSizes.label,
-                color: theme.popupForeground,
-                onTap: _cancelConnect,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  n.name,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(height: 1, color: theme.divider),
+        SettingsPageHeader(title: n.name, onBack: _cancelConnect),
         Expanded(
           child: Center(
             child: SizedBox(

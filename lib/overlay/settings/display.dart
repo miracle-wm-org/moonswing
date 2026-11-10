@@ -639,27 +639,14 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
     return _buildLoaded(theme);
   }
 
-  Widget _buildHeader(ThemeConfig theme) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-      child: Text(
-        'Display',
-        style: TextStyle(
-          fontSize: 16,
-          fontFamily: theme.fontFamily,
-          color: theme.popupForeground,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-    );
-  }
+  Widget _buildHeader(ThemeConfig theme) =>
+      const SettingsPageHeader(title: 'Display');
 
   Widget _buildLoading(ThemeConfig theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(theme),
-        Container(height: 1, color: theme.divider),
         const Expanded(child: Center(child: LoadingIndicator(size: 22))),
       ],
     );
@@ -670,7 +657,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(theme),
-        Container(height: 1, color: theme.divider),
         Expanded(
           child: Center(
             child: Text(
@@ -694,7 +680,6 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(theme),
-        Container(height: 1, color: theme.divider),
         Expanded(
           child: manager.heads.isEmpty
               ? Center(
@@ -709,8 +694,15 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
                 )
               : _buildScroller(theme, manager),
         ),
-        Container(height: 1, color: theme.divider),
-        _buildFooter(theme),
+        // Pinned under the scroller, in the page's column: its rule is the
+        // column's width, not the pane's.
+        SettingsPageColumn(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [const SettingsRule(), _buildFooter(theme)],
+          ),
+        ),
       ],
     );
   }
@@ -732,27 +724,31 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
         final diagramHeight = diagramHeightFor(constraints.maxHeight);
         return CustomScrollView(
           slivers: [
-            SliverToBoxAdapter(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _DisplayDiagram(
-                    heads: manager.heads,
-                    edits: _edits,
-                    height: diagramHeight,
-                    onPositionsChanged: _applyPositions,
+            SliverSettingsPage(
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  // The arrangement on a card of its own in the page's
+                  // column, set apart from the monitors' cards by the gap
+                  // under it rather than by a rule across the pane.
+                  SliverToBoxAdapter(
+                    child: Container(
+                      clipBehavior: Clip.antiAlias,
+                      decoration: settingsCardDecoration(theme),
+                      child: _DisplayDiagram(
+                        heads: manager.heads,
+                        edits: _edits,
+                        height: diagramHeight,
+                        onPositionsChanged: _applyPositions,
+                      ),
+                    ),
                   ),
-                  Container(height: 1, color: theme.divider),
+                  const SliverToBoxAdapter(child: SizedBox(height: 24)),
+                  // `SliverList` rather than a `Column`, for the per-card
+                  // repaint boundary it hands out — a hover inside one card
+                  // must not re-record the diagram above it.
+                  SliverList.list(children: _buildCards(manager)),
                 ],
               ),
-            ),
-            SliverPadding(
-              padding: const EdgeInsets.all(16),
-              // `SliverList` rather than a `Column`, for the per-card repaint
-              // boundary it hands out — a hover inside one card must not
-              // re-record the diagram above it.
-              sliver: SliverList.list(children: _buildCards(manager)),
             ),
           ],
         );
@@ -767,7 +763,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
       if (edit == null) continue;
       cards.add(
         Padding(
-          padding: EdgeInsets.only(top: cards.isEmpty ? 0.0 : 12.0),
+          padding: EdgeInsets.only(top: cards.isEmpty ? 0.0 : 16.0),
           child: _DisplayCard(
             head: head,
             edit: edit,
@@ -798,7 +794,7 @@ class _DisplaySettingsPageState extends State<DisplaySettingsPage> {
 
   Widget _buildFooter(ThemeConfig theme) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -1111,10 +1107,7 @@ class _DisplayCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildCardHeader(theme),
-          if (edit.enabled) ...[
-            Container(height: 1, color: theme.divider),
-            _buildCardBody(theme),
-          ],
+          if (edit.enabled) ...[const SettingsRule(), _buildCardBody(theme)],
         ],
       ),
     );

@@ -55,26 +55,12 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
       builder: (context, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _header(theme),
-          Container(height: 1, color: theme.divider),
+          const SettingsPageHeader(title: 'Keyboard'),
           Expanded(child: _body(theme)),
         ],
       ),
     );
   }
-
-  Widget _header(ThemeConfig theme) => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-    child: Text(
-      'Keyboard',
-      style: TextStyle(
-        fontSize: ShellFontSizes.title,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground,
-        fontWeight: FontWeight.w600,
-      ),
-    ),
-  );
 
   Widget _body(ThemeConfig theme) {
     // Only the very first read shows a loader. A *failed* read still renders
@@ -85,18 +71,20 @@ class _KeyboardSettingsPageState extends State<KeyboardSettingsPage> {
     }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_store.error.isNotEmpty) ...[
-            _banner(theme),
-            const SizedBox(height: 16),
+      child: SettingsPageColumn(
+        padding: kSettingsPagePadding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_store.error.isNotEmpty) ...[
+              _banner(theme),
+              const SizedBox(height: 24),
+            ],
+            _sourcesSection(theme),
+            const SizedBox(height: kSettingsSectionGap),
+            _activeSection(theme),
           ],
-          _sourcesSection(theme),
-          const SizedBox(height: 20),
-          _activeSection(theme),
-        ],
+        ),
       ),
     );
   }

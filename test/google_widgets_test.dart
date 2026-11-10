@@ -279,7 +279,7 @@ void main() {
       );
 
       // Headed by the account, in the section label's capitals.
-      expect(find.text('ME@EXAMPLE.COM'), findsOneWidget);
+      expect(find.text('me@example.com'), findsOneWidget);
       expect(find.text('Me (primary)'), findsOneWidget);
       expect(find.text('Team'), findsOneWidget);
       expect(
@@ -336,8 +336,8 @@ void main() {
       );
 
       // One section per account, headed by its address.
-      expect(find.text('ME@EXAMPLE.COM'), findsOneWidget);
-      expect(find.text('ME@WORK.EXAMPLE'), findsOneWidget);
+      expect(find.text('me@example.com'), findsOneWidget);
+      expect(find.text('me@work.example'), findsOneWidget);
       expect(find.text('Reload'), findsNWidgets(2));
       expect(find.text('Me (primary)'), findsOneWidget);
       expect(find.text('Work (primary)'), findsOneWidget);
@@ -374,7 +374,7 @@ void main() {
 
       // One section per server, each listing its calendar of events (and not
       // its task list), then the section saying what they are used for.
-      expect(find.text('ME ON DAV.EXAMPLE.COM'), findsNWidgets(2));
+      expect(find.text('me on dav.example.com'), findsNWidgets(2));
       expect(find.text('Home calendar'), findsNWidgets(2));
       expect(find.text('Home tasks'), findsNothing);
       expect(find.text('Show CalDAV events in the calendar'), findsOneWidget);

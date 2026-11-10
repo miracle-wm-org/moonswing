@@ -99,7 +99,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.descendant(of: card, matching: find.text('GROUP')),
+      find.descendant(of: card, matching: find.text('Group')),
       findsNothing,
     );
   });
