@@ -715,7 +715,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       case 'display':
         return const DisplaySettingsPage();
       case 'audio':
-        return const AudioSettingsPage();
+        return AudioSettingsPage(initialTab: widget.route?.audioTab);
       case 'keyboard':
         return const KeyboardSettingsPage();
       case 'power':

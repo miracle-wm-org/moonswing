@@ -98,6 +98,7 @@ Each key is an ordered array of module names. Valid module names are:
 - `"brightness"` - Display backlight level; scroll over it or open its slider to change it (hidden on machines with no backlight)
 - `"battery"` - Battery status monitor
 - `"network"` - Network connectivity (ethernet or WiFi name and IP address)
+- `"quick_settings"` - Quick settings: Wi-Fi and Bluetooth switches, the power mode, the output and input devices and their volumes, and the screen brightness, each with a way through to its full settings page, plus the log out / power off menu (see Quick Settings below)
 - `"weather"` - Weather display
 - `"notifications"` - Notification bell and the notification panel
 - `"clock"` - Date and time, each part switchable; click it for the overview (see Clock below)
@@ -679,6 +680,18 @@ best with `animation_fade = true`, since without a fade it starts with a jump.
 ### Sound Control
 
 No configurable settings.
+
+### Quick Settings
+
+No configurable settings. Add `"quick_settings"` to a panel's layout for one button that shows the connection, Bluetooth (while it is on) and the volume at a glance — scroll over it to change the volume — and opens a panel with:
+
+- **Wi-Fi** and **Bluetooth** switches. The arrow on each opens a list: the networks in range, which join with one click when they are saved or open (a new secured network needs its password typed, so that one opens Settings › Network), and the paired Bluetooth devices, which connect or disconnect with one click (pairing a new one is Settings › Bluetooth's).
+- **Power mode** — Power Saver, Balanced or Performance, through `power-profiles-daemon` (or `tuned-ppd`), as in Settings › Power.
+- **Output** and **Input** — the volume of the default speakers and microphone, a mute button on each icon, and the device's name, which opens a list to pick another default.
+- **Brightness**, on a machine with a backlight.
+- **Log out / power off…**, which opens the same menu as the power button.
+
+Every section has a ⚙ button that opens the full settings page it is a shortcut to, on the screen the panel was opened on; **All settings** opens Settings itself.
 
 ### System Monitor
 

@@ -37,6 +37,7 @@ class SettingsRoute {
     this.miracleCategory,
     this.module,
     this.panel,
+    this.audioTab,
   });
 
   /// One panel's tab in Shell › Panels & Layout, named by its `[panels.<name>]`
@@ -89,6 +90,10 @@ class SettingsRoute {
   /// tab is selected. Null, or a name no longer configured, lands on the first.
   final String? panel;
 
+  /// One of the Audio page's tabs, `output` or `input`, for a route with
+  /// [category] `audio`. Null lands on the first, Output.
+  final String? audioTab;
+
   /// Where "Change background…" on the desktop goes.
   static const SettingsRoute background =
       SettingsRoute(shellCategory: 'Wallpaper');
@@ -120,6 +125,14 @@ class SettingsRoute {
   /// one *is* the shell's — what the physical key does.
   static const SettingsRoute power = SettingsRoute(category: 'power');
 
+  /// The Audio page on its Output tab — the speakers and headphones.
+  static const SettingsRoute audioOutput =
+      SettingsRoute(category: 'audio', audioTab: 'output');
+
+  /// The Audio page on its Input tab — the microphones.
+  static const SettingsRoute audioInput =
+      SettingsRoute(category: 'audio', audioTab: 'input');
+
   /// Where anything that needs an account linked goes — the GitHub popup's
   /// "Open Accounts settings", and any module or widget signed out of the
   /// service it reads.
@@ -141,11 +154,19 @@ class SettingsRoute {
       other.shellCategory == shellCategory &&
       other.miracleCategory == miracleCategory &&
       other.module == module &&
-      other.panel == panel;
+      other.panel == panel &&
+      other.audioTab == audioTab;
 
   @override
-  int get hashCode =>
-      Object.hash(tab, category, shellCategory, miracleCategory, module, panel);
+  int get hashCode => Object.hash(
+    tab,
+    category,
+    shellCategory,
+    miracleCategory,
+    module,
+    panel,
+    audioTab,
+  );
 }
 
 /// The seam between "something deep in a surface wants the overview open at a

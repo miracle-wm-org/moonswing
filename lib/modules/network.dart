@@ -40,18 +40,22 @@ class NetworkConfig {
 /// two-monitor setup shares one poller instead of one round of D-Bus calls per
 /// bar.
 class NetworkStatusStore extends ChangeNotifier {
-  NetworkStatusStore._();
+  NetworkStatusStore._([this._query = _queryNetworkInfo]);
 
   static final NetworkStatusStore instance = NetworkStatusStore._();
 
+  /// [query] stands in for NetworkManager, so a test needs no system bus.
   @visibleForTesting
   factory NetworkStatusStore.forTesting({
     NetworkConfig config = const NetworkConfig(),
+    Future<NetworkInfo> Function()? query,
   }) {
-    final store = NetworkStatusStore._();
+    final store = NetworkStatusStore._(query ?? _queryNetworkInfo);
     store.configure(config);
     return store;
   }
+
+  final Future<NetworkInfo> Function() _query;
 
   NetworkConfig _config = const NetworkConfig();
 
@@ -91,6 +95,14 @@ class NetworkStatusStore extends ChangeNotifier {
     if (_leases == 0) _stopTimer();
   }
 
+  /// Reads the connection now rather than at the next tick — after something
+  /// in the shell joined a network or switched the radio, so the bar does not
+  /// go on naming the old one for a whole interval. A no-op with no lease.
+  Future<void> refresh() async {
+    if (_leases == 0) return;
+    await _poll();
+  }
+
   void _startTimer() {
     _timer = Timer.periodic(
       Duration(seconds: _config.pollSeconds),
@@ -107,7 +119,7 @@ class NetworkStatusStore extends ChangeNotifier {
     if (_pollInFlight) return;
     _pollInFlight = true;
     try {
-      final info = await _queryNetworkInfo();
+      final info = await _query();
       // A release can land while the D-Bus round-trips are in flight —
       // cancelling the timer does not cancel the awaits already running.
       // A released store drops the result rather than notifying listeners
