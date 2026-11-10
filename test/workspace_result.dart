@@ -11,13 +11,14 @@ WorkspaceResult workspaceResult({
   String? name,
   String output = 'DP-1',
   bool focused = true,
+  bool visible = true,
   bool urgent = false,
   String? policy,
 }) =>
     WorkspaceResult.fromJson({
       'num': num,
       'name': name,
-      'visible': true,
+      'visible': visible,
       'focused': focused,
       'urgent': urgent,
       'output': output,

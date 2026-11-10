@@ -13,6 +13,7 @@ import 'package:moonswing/miracle_manager.dart';
 import 'package:moonswing/module.dart';
 import 'package:moonswing/modules/workspace_apps.dart';
 import 'package:moonswing/modules/workspace_menu.dart';
+import 'package:moonswing/modules/workspace_pod.dart';
 import 'package:moonswing/popup.dart';
 import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/scopes.dart';
@@ -33,7 +34,8 @@ class Workspaces extends StatefulWidget {
   WorkspacesState createState() => WorkspacesState();
 }
 
-class WorkspacesState extends State<Workspaces> {
+class WorkspacesState extends State<Workspaces>
+    with SingleTickerProviderStateMixin {
   List<WorkspaceResult> _workspaces = <WorkspaceResult>[];
 
   /// Every output miracle knows about, for the right-click menu's second page.
@@ -75,6 +77,19 @@ class WorkspacesState extends State<Workspaces> {
   /// Whether this row is one of the holders of [_apps]'s lease.
   bool _leased = false;
 
+  /// The indicator's slide from one dot to the next, 0 → 1. Idle — no ticker
+  /// scheduled — except for the quarter-second after a switch; it starts
+  /// complete so the first build draws the indicator in place.
+  late final AnimationController _slide = AnimationController(
+    vsync: this,
+    duration: kWorkspaceSelectionSlide,
+    value: 1,
+  );
+
+  /// The selection [_slide] last moved to: the selected dot's index, and
+  /// whether that workspace is the focused one. Null until the first build.
+  (int?, bool)? _selection;
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +123,7 @@ class WorkspacesState extends State<Workspaces> {
     _apps.removeListener(_onAppsChanged);
     if (_leased) _apps.release();
     _events?.cancel();
+    _slide.dispose();
     super.dispose();
   }
 
@@ -430,114 +446,447 @@ class WorkspacesState extends State<Workspaces> {
 
     final visibleWorkspaces =
         _workspaces.where((ws) => ws.output == outputName).toList();
+    // Nothing on this output yet: no pod, and no gap beside it either.
+    if (visibleWorkspaces.isEmpty) return const SizedBox.shrink();
+
     final config = widget.config;
     final urgentPeriod = Duration(
         milliseconds: (config.urgentFlashSeconds * 1000).round());
-    // No inset across the bar: a button takes the bar's whole depth, as every
-    // other module's hover fill does (see [BarFill]). On a side bar the
-    // workspaces run down it, one under the next.
     final vertical = BarScope.isVerticalOf(context);
+
+    // The selection, and whether it is the *focused* workspace or only the one
+    // this monitor is showing — the indicator says the second more quietly.
+    final selected = selectedWorkspaceIndex(visibleWorkspaces);
+    final focusedHere =
+        selected != null && visibleWorkspaces[selected].focused;
+    // Restarted from build because the pod compares the same two things and
+    // starts its move from wherever it last painted the indicator, so the order
+    // of the two does not matter; see [WorkspacePod].
+    final selection = (selected, focusedHere);
+    if (_selection != null && _selection != selection) {
+      _slide.forward(from: 0);
+    }
+    _selection = selection;
+
+    final pod = WorkspacePod(
+      axis: vertical ? Axis.vertical : Axis.horizontal,
+      selected: selected,
+      indicatorColor: focusedHere
+          ? theme.accent
+          : theme.accent.withValues(alpha: theme.accent.a * 0.45),
+      background: theme.workspaceBackground,
+      progress: _slide,
+      curve: kWorkspaceSelectionCurve,
+      children: [
+        for (final (index, workspace) in visibleWorkspaces.indexed)
+          _dotFor(
+            context,
+            connection,
+            workspace,
+            selected: index == selected,
+            focusedHere: focusedHere,
+            theme: theme,
+            urgentPeriod: urgentPeriod,
+          ),
+      ],
+    );
+
     return Padding(
-        padding: vertical
-            ? const EdgeInsets.symmetric(vertical: 4.0)
-            : const EdgeInsets.symmetric(horizontal: 4.0),
-        child: BarFlex(
-          spacing: 4,
-          children: visibleWorkspaces.map((workspace) {
-            // Null for the one workspace miracle reported neither a number nor a
-            // name for: there is no selector to send, so the button switches
-            // nothing and carries no menu rather than spelling `null` into a
-            // command.
-            final selector = workspaceSelector(workspace);
-            return _WorkspaceButton(
-              key: ValueKey(workspace.num ?? workspace.name),
-              backgroundColor: workspace.focused
-                  ? theme.surfacePressed
-                  : theme.workspaceBackground,
-              hoverColor: theme.surfaceHover,
-              pressedColor: theme.surfacePressed,
-              urgent: shouldFlashWorkspace(config, workspace),
-              urgentColor: theme.accent,
-              urgentPeriod: urgentPeriod,
-              onPressed: selector == null
-                  ? null
-                  : () => unawaited(
-                        connection.run(MiracleCommand.workspace(selector)),
-                      ),
-              // The right-click menu. Built on demand rather than eagerly: a bar
-              // with eight workspaces on it would otherwise be building eight
-              // menus it will never show on every `GET_WORKSPACES` reply.
-              //
-              // `close` is called *before* the action, not after: every one of
-              // these writes through miracle and re-reads the row, which rebuilds
-              // this button — and, when the workspace leaves this output, removes
-              // it — disposing the host that owns the popup mid-callback.
-              menuBuilder: selector == null
-                  ? null
-                  : (context, close) => WorkspaceMenu(
-                        workspace: workspace,
-                        outputs: _outputs,
-                        showPolicy: shouldShowPolicyToggle(config, workspace),
-                        onSetPolicy: (policy) {
-                          close();
-                          unawaited(_setPolicy(workspace, policy));
-                        },
-                        onMoveToOutput: (outputName) {
-                          close();
-                          unawaited(_moveToOutput(workspace, outputName));
-                        },
-                        footer: ModuleMenuScope.itemsFor(context, close: close),
-                      ),
-              child: _WorkspaceLabel(
-                label: workspace.name ?? workspace.num?.toString() ?? '?',
-                appIds:
-                    config.showAppIcons ? _apps.appIdsFor(workspace) : const [],
-                config: config,
-                foreground: theme.foreground,
+      padding: vertical
+          ? const EdgeInsets.symmetric(vertical: 4.0)
+          : const EdgeInsets.symmetric(horizontal: 4.0),
+      // A bar has no repaint boundary of its own, so without this every frame
+      // of the indicator's slide would re-record the whole panel picture.
+      child: RepaintBoundary(child: pod),
+    );
+  }
+
+  Widget _dotFor(
+    BuildContext context,
+    MiracleConnection connection,
+    WorkspaceResult workspace, {
+    required bool selected,
+    required bool focusedHere,
+    required ThemeConfig theme,
+    required Duration urgentPeriod,
+  }) {
+    final config = widget.config;
+    // Null for the one workspace miracle reported neither a number nor a name
+    // for: there is no selector to send, so the dot switches nothing and
+    // carries no menu rather than spelling `null` into a command.
+    final selector = workspaceSelector(workspace);
+    return _WorkspaceDot(
+      key: ValueKey(workspace.num ?? workspace.name),
+      selected: selected,
+      label: config.showLabels
+          ? workspace.name ?? workspace.num?.toString() ?? '?'
+          : null,
+      // Handed over whether or not they are shown, so a dot folding its icons
+      // away still has them to fold.
+      appIds: config.showAppIcons ? _apps.appIdsFor(workspace) : const [],
+      showApps: showsWorkspaceApps(config, selected: selected),
+      config: config,
+      foreground: theme.foreground,
+      labelColor: selected && focusedHere ? kOnAccent : theme.foreground,
+      urgent: shouldFlashWorkspace(config, workspace),
+      urgentColor: theme.accent,
+      urgentPeriod: urgentPeriod,
+      onPressed: selector == null
+          ? null
+          : () => unawaited(
+                connection.run(MiracleCommand.workspace(selector)),
               ),
-            );
-          }).toList(),
-        ));
+      // The right-click menu. Built on demand rather than eagerly: a bar with
+      // eight workspaces on it would otherwise be building eight menus it will
+      // never show on every `GET_WORKSPACES` reply.
+      //
+      // `close` is called *before* the action, not after: every one of these
+      // writes through miracle and re-reads the row, which rebuilds this dot —
+      // and, when the workspace leaves this output, removes it — disposing the
+      // host that owns the popup mid-callback.
+      menuBuilder: selector == null
+          ? null
+          : (context, close) => WorkspaceMenu(
+                workspace: workspace,
+                outputs: _outputs,
+                showPolicy: shouldShowPolicyToggle(config, workspace),
+                onSetPolicy: (policy) {
+                  close();
+                  unawaited(_setPolicy(workspace, policy));
+                },
+                onMoveToOutput: (outputName) {
+                  close();
+                  unawaited(_moveToOutput(workspace, outputName));
+                },
+                footer: ModuleMenuScope.itemsFor(context, close: close),
+              ),
+    );
   }
 }
 
-/// One workspace button's content: its number or name, and the icons of what is
-/// open on it.
+/// How long the selection takes to slide from one dot to the next, and how
+/// long the dots take to grow, shrink and fold their icons around it — one
+/// timing, so the indicator and the dot it is heading for arrive together.
+const Duration kWorkspaceSelectionSlide = Duration(milliseconds: 240);
+
+/// The shape of that slide: quick off the mark and settling gently, so a
+/// switch reads at once and lands without a bump.
+const Curve kWorkspaceSelectionCurve = Curves.easeOutCubic;
+
+/// The smallest a dot is, either way: an empty workspace with no label.
+const double _kDotSize = 8;
+
+/// How much longer the selected dot is than it would otherwise be, along the
+/// bar.
+const double _kSelectedStretch = 12;
+
+/// A pill's corners: past half of any dot's depth, which `BoxDecoration`
+/// clamps to a stadium.
+const BorderRadius _kPill = BorderRadius.all(Radius.circular(999));
+
+/// One workspace in the pod: a dot, longer when it is the selected one, that
+/// carries the workspace's number and — while they are shown — the icons of
+/// what is open on it.
 ///
-/// The label stays whatever the rest does — it is the number the user switches
-/// by, and an empty workspace with its icons switched off has nothing else to
-/// render.
-class _WorkspaceLabel extends StatelessWidget {
-  const _WorkspaceLabel({
+/// It paints no selection of its own: the pod draws the indicator *under* the
+/// dots and slides it between them, so the selected dot's fill is clear and its
+/// label is drawn over the indicator. What it does paint is its resting tint,
+/// stronger for a bare dot (which is nothing else) than for one carrying a label
+/// or icons (whose content is what reads), plus the hover and press feedback.
+class _WorkspaceDot extends StatefulWidget {
+  const _WorkspaceDot({
+    super.key,
+    required this.selected,
     required this.label,
+    required this.appIds,
+    required this.showApps,
+    required this.config,
+    required this.foreground,
+    required this.labelColor,
+    required this.urgent,
+    required this.urgentColor,
+    required this.urgentPeriod,
+    required this.onPressed,
+    this.menuBuilder,
+  });
+
+  final bool selected;
+
+  /// The workspace's number or name, or null with `show_labels` off.
+  final String? label;
+
+  /// What is open on the workspace, shown or not.
+  final List<String> appIds;
+
+  /// Whether [appIds] are shown, or folded away.
+  final bool showApps;
+
+  final WorkspacesConfig config;
+  final Color foreground;
+
+  /// The label's colour: legible on the indicator when selected.
+  final Color labelColor;
+
+  /// Whether the dot breathes in [urgentColor] to say something on this
+  /// workspace wants looking at.
+  final bool urgent;
+  final Color urgentColor;
+  final Duration urgentPeriod;
+
+  final VoidCallback? onPressed;
+
+  /// The card a right-click opens, given a callback that closes it again.
+  ///
+  /// A builder rather than a widget so a bar full of workspaces builds the one
+  /// menu it is asked for instead of one per dot per `GET_WORKSPACES` reply,
+  /// and nullable for the one workspace miracle named nothing a command could
+  /// address.
+  final Widget Function(BuildContext context, VoidCallback close)? menuBuilder;
+
+  @override
+  State<_WorkspaceDot> createState() => _WorkspaceDotState();
+}
+
+class _WorkspaceDotState extends State<_WorkspaceDot>
+    with PopupHost<_WorkspaceDot> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  /// Whether the icons are still folding away. The dot keeps the tint of a dot
+  /// with content until they are gone, rather than flushing to a bare dot's
+  /// while it is still an icon row wide.
+  bool _appsLeaving = false;
+
+  @override
+  void didUpdateWidget(_WorkspaceDot oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.showApps) {
+      _appsLeaving = false;
+    } else if (oldWidget.showApps && oldWidget.appIds.isNotEmpty) {
+      _appsLeaving = true;
+    }
+  }
+
+  void _onFolded() {
+    if (mounted && _appsLeaving) setState(() => _appsLeaving = false);
+  }
+
+  /// Opens the right-click menu under this dot.
+  ///
+  /// [closePopup] first, because the pointer-down that got here has already
+  /// asked the coordinator to dismiss whatever was open — including this dot's
+  /// own menu, which is what makes a second right-click a re-open rather than a
+  /// second surface. The post-frame hop is the dock's, for the dock's reason:
+  /// the close is synchronous but the window it dropped is on screen for
+  /// another frame, and `openBarPopup` measures this dot's box against the
+  /// panel to place the new one.
+  void _openMenu(BuildContext context) {
+    final menuBuilder = widget.menuBuilder;
+    if (menuBuilder == null) return;
+    closePopup();
+    afterNextFrame(() {
+      if (!mounted) return;
+      openBarPopup(
+        context,
+        // Loose: the menu sizes to its content (see [DesktopMenuCard]). Tall
+        // enough for the two placement rows, the move row and a page of
+        // outputs, and for the module's own rows under them; wide enough for a
+        // connector name and a monitor's model.
+        preferredConstraints:
+            const BoxConstraints(maxWidth: 320, maxHeight: 560),
+        // The card lays out under its own FlutterView, so it carries its own
+        // theme — `ThemeScope` is an InheritedWidget and cannot span views.
+        child: ThemeProvider(
+          child: menuBuilder(context, closePopup),
+        ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    // The mixin answers the awaiting close and tears the window down; a popup
+    // outliving the dot that opened it is what [PopupHost] exists to stop.
+    closePopup();
+    super.dispose();
+  }
+
+  /// The dot's own tint over the pod, under its content.
+  Color _fill(bool carriesContent) {
+    final double alpha;
+    if (widget.selected) {
+      // Clear, so the indicator beneath shows; hover and press lay a wash over
+      // it instead.
+      alpha = _pressed ? 0.24 : (_hovered ? 0.14 : 0);
+    } else if (carriesContent) {
+      alpha = _pressed ? 0.30 : (_hovered ? 0.22 : 0.10);
+    } else {
+      alpha = _pressed ? 0.75 : (_hovered ? 0.60 : 0.35);
+    }
+    // The foreground at zero alpha rather than a transparent black, so the
+    // tween out of it does not pass through grey.
+    return widget.foreground
+        .withValues(alpha: widget.foreground.a * alpha);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final vertical = BarScope.isVerticalOf(context);
+    final label = widget.label;
+    final config = widget.config;
+    final hasApps = widget.appIds.isNotEmpty;
+
+    final content = <Widget>[
+      if (label != null)
+        Padding(
+          padding: vertical
+              ? const EdgeInsets.symmetric(vertical: 6, horizontal: 2)
+              : const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          child: TweenAnimationBuilder<Color?>(
+            tween: ColorTween(end: widget.labelColor),
+            duration: kWorkspaceSelectionSlide,
+            curve: kWorkspaceSelectionCurve,
+            // A name is fitted to a side bar's depth rather than wrapped down
+            // it; a number fits as it is.
+            builder: (context, color, _) =>
+                BarText(label, style: TextStyle(color: color)),
+          ),
+        ),
+      if (config.showAppIcons)
+        _Fold(
+          visible: widget.showApps && hasApps,
+          vertical: vertical,
+          onFolded: _onFolded,
+          child: Padding(
+            // The label's padding already sits between it and the icons.
+            padding: label == null
+                ? const EdgeInsets.all(3)
+                : vertical
+                    ? const EdgeInsets.fromLTRB(3, 0, 3, 4)
+                    : const EdgeInsets.fromLTRB(0, 3, 4, 3),
+            child: _WorkspaceApps(
+              appIds: widget.appIds,
+              config: config,
+              foreground: widget.foreground,
+            ),
+          ),
+        ),
+    ];
+
+    final fill = _fill(
+        label != null || (hasApps && (widget.showApps || _appsLeaving)));
+    final decoration = BoxDecoration(
+      color: enabled ? fill : fill.withValues(alpha: fill.a * 0.5),
+      borderRadius: _kPill,
+    );
+    // The selected dot's extra length is padding along the bar, so it is added
+    // to whatever the dot already measures — a dot carrying three icons is
+    // longer when selected, not merely as long as a bare selected dot.
+    final stretch = widget.selected ? _kSelectedStretch / 2 : 0.0;
+    final padding = vertical
+        ? EdgeInsets.symmetric(vertical: stretch)
+        : EdgeInsets.symmetric(horizontal: stretch);
+    // Centred without growing: a plain `Center` would take the pod's whole
+    // depth across the bar.
+    final body = Center(
+      widthFactor: 1,
+      heightFactor: 1,
+      child: vertical
+          ? Column(mainAxisSize: MainAxisSize.min, children: content)
+          : Row(mainAxisSize: MainAxisSize.min, children: content),
+    );
+    const minimum = BoxConstraints(minWidth: _kDotSize, minHeight: _kDotSize);
+
+    // The flash is wrapped on only while urgent, so the ticker, the extra
+    // layers and the wash exist exactly while something is asking to be looked
+    // at. The fill is handed over separately there because the wash goes
+    // *between* the two: over the dot's own colour, and under its number.
+    final Widget surface = widget.urgent
+        ? UrgencyFlash(
+            color: widget.urgentColor,
+            period: widget.urgentPeriod,
+            borderRadius: _kPill,
+            background: AnimatedContainer(
+              duration: kWorkspaceSelectionSlide,
+              curve: kWorkspaceSelectionCurve,
+              decoration: decoration,
+            ),
+            child: AnimatedContainer(
+              duration: kWorkspaceSelectionSlide,
+              curve: kWorkspaceSelectionCurve,
+              constraints: minimum,
+              padding: padding,
+              child: body,
+            ),
+          )
+        // Boundaried so the dot's own tweens — its tint, its length, its icons
+        // folding — repaint this dot alone, and the indicator sliding beneath
+        // it re-records none of the dots it passes. The urgent branch is
+        // already inside [UrgencyFlash]'s own boundary.
+        : RepaintBoundary(
+            child: AnimatedContainer(
+              duration: kWorkspaceSelectionSlide,
+              curve: kWorkspaceSelectionCurve,
+              constraints: minimum,
+              padding: padding,
+              decoration: decoration,
+              child: body,
+            ),
+          );
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        // Opaque: the pod hands every press in this dot's slot to a point
+        // inside the dot, and that point may well be over padding.
+        behavior: HitTestBehavior.opaque,
+        // On tap-*down*, the way every popup toggle in the bar opens: the same
+        // pointer-down the coordinator dismisses on, so the menu cannot be
+        // opened by a press that has yet to close what is already up.
+        onSecondaryTapDown:
+            widget.menuBuilder == null ? null : (_) => _openMenu(context),
+        onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+        onTapUp: enabled
+            ? (_) {
+                setState(() => _pressed = false);
+                widget.onPressed?.call();
+              }
+            : null,
+        onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+        child: surface,
+      ),
+    );
+  }
+}
+
+/// The icons of what is open on one workspace, capped at `max_icons` with the
+/// rest counted as `+N`.
+class _WorkspaceApps extends StatelessWidget {
+  const _WorkspaceApps({
     required this.appIds,
     required this.config,
     required this.foreground,
   });
 
-  final String label;
   final List<String> appIds;
   final WorkspacesConfig config;
   final Color foreground;
 
   @override
   Widget build(BuildContext context) {
-    // A name is fitted to a side bar's depth rather than wrapped down it; a
-    // number fits as it is.
-    final text = BarText(label, style: TextStyle(color: foreground));
-    if (appIds.isEmpty) return text;
-
     final shown = appIds.length <= config.maxIcons
         ? appIds
         : appIds.take(config.maxIcons).toList();
     final hidden = appIds.length - shown.length;
-
-    // The icons follow the label along the bar: beside it on a top bar, under
-    // it on a side one.
+    // Beside each other on a top bar, one under the next on a side one.
     return BarFlex(
       spacing: 4,
       children: [
-        text,
         for (final appId in shown)
           _WorkspaceAppIconView(
             // Keyed by app_id: the row is rebuilt whenever the tree moves, and
@@ -556,6 +905,94 @@ class _WorkspaceLabel extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Folds [child] away — shrinking it both ways from its leading edge, and
+/// fading it — when [visible] goes false, and unfolds it when it comes back.
+///
+/// Both ways, not just along the bar, so a bare dot that was carrying icons
+/// shrinks back down to a dot rather than staying an icon's depth until the
+/// last frame and then jumping.
+///
+/// The controller is idle except while it is folding, and once folded the child
+/// leaves the tree, so a workspace whose icons are hidden is not decoding them.
+/// A dot built folded starts folded and one built shown starts shown: only a
+/// *change* animates.
+class _Fold extends StatefulWidget {
+  const _Fold({
+    required this.visible,
+    required this.vertical,
+    required this.child,
+    this.onFolded,
+  });
+
+  final bool visible;
+  final bool vertical;
+  final Widget child;
+
+  /// Called once a fold has finished and [child] has left the tree.
+  final VoidCallback? onFolded;
+
+  @override
+  State<_Fold> createState() => _FoldState();
+}
+
+class _FoldState extends State<_Fold> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: kWorkspaceSelectionSlide,
+    value: widget.visible ? 1 : 0,
+  )..addStatusListener(_onStatus);
+
+  late final CurvedAnimation _curved = CurvedAnimation(
+    parent: _controller,
+    curve: kWorkspaceSelectionCurve,
+  );
+
+  @override
+  void didUpdateWidget(_Fold oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.visible == oldWidget.visible) return;
+    if (widget.visible) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
+  }
+
+  /// Rebuilds once the fold completes, which is what drops the child.
+  void _onStatus(AnimationStatus status) {
+    if (status != AnimationStatus.dismissed || !mounted) return;
+    setState(() {});
+    widget.onFolded?.call();
+  }
+
+  @override
+  void dispose() {
+    _curved.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.visible && _controller.isDismissed) {
+      return const SizedBox.shrink();
+    }
+    return ClipRect(
+      child: AnimatedBuilder(
+        animation: _curved,
+        child: FadeTransition(opacity: _curved, child: widget.child),
+        builder: (context, child) => Align(
+          alignment:
+              widget.vertical ? Alignment.topCenter : Alignment.centerLeft,
+          widthFactor: _curved.value,
+          heightFactor: _curved.value,
+          child: child,
+        ),
+      ),
     );
   }
 }
@@ -599,6 +1036,7 @@ class _MiracleRetryButton extends StatefulWidget {
 class _MiracleRetryButtonState extends State<_MiracleRetryButton>
     with PopupHost<_MiracleRetryButton> {
   bool _hovered = false;
+  bool _pressed = false;
 
   void _openTooltip(BuildContext context) {
     if (isPopupOpen) return;
@@ -623,6 +1061,11 @@ class _MiracleRetryButtonState extends State<_MiracleRetryButton>
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final color = _pressed
+        ? theme.surfacePressed
+        : _hovered
+            ? theme.surfaceHover
+            : theme.workspaceBackground;
     return MouseRegion(
       onEnter: (_) {
         setState(() => _hovered = true);
@@ -631,73 +1074,43 @@ class _MiracleRetryButtonState extends State<_MiracleRetryButton>
         });
       },
       onExit: (_) {
-        setState(() => _hovered = false);
+        setState(() {
+          _hovered = false;
+          _pressed = false;
+        });
         closePopup();
       },
-      child: _WorkspaceButton(
-        backgroundColor: theme.workspaceBackground,
-        hoverColor: theme.surfaceHover,
-        pressedColor: theme.surfacePressed,
-        onPressed: () {
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTapUp: (_) {
+          setState(() => _pressed = false);
           closePopup();
           MiracleScope.of(context).connect();
         },
-        child: ShellIcon(
-          ShellGlyph.refresh,
-          size: 10,
-          color: theme.foreground,
+        // Boundaried for the same reason as a dot: the tint tweens, and a bar
+        // has no repaint boundary of its own.
+        child: RepaintBoundary(
+          child: AnimatedContainer(
+            duration: ShellDurations.fast,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(color: color, borderRadius: _kPill),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              child: BarFill(
+                child: ShellIcon(
+                  ShellGlyph.refresh,
+                  size: 10,
+                  color: theme.foreground,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
-}
-
-class _WorkspaceButton extends StatefulWidget {
-  const _WorkspaceButton({
-    super.key,
-    required this.onPressed,
-    required this.child,
-    this.backgroundColor = const Color(0xFF3A3A3A),
-    this.hoverColor = const Color(0xFF4A4A4A),
-    this.pressedColor = const Color(0xFF2A2A2A),
-    this.urgent = false,
-    this.urgentColor = const Color(0xFF853953),
-    this.urgentPeriod = const Duration(seconds: 5),
-    this.menuBuilder,
-  });
-
-  /// Fixed, not parameters: every call site took the defaults.
-  static const EdgeInsets _padding =
-      EdgeInsets.symmetric(horizontal: 4, vertical: 4);
-  static const double _borderRadius = 6;
-
-  final VoidCallback? onPressed;
-  final Widget child;
-  final Color backgroundColor;
-  final Color hoverColor;
-  final Color pressedColor;
-
-  /// Whether the button breathes in [urgentColor] to say something on this
-  /// workspace wants looking at.
-  final bool urgent;
-
-  /// The colour it breathes to at the top of each cycle.
-  final Color urgentColor;
-
-  /// How long one breath takes.
-  final Duration urgentPeriod;
-
-  /// The card a right-click opens, given a callback that closes it again.
-  ///
-  /// A builder rather than a widget so a bar full of workspaces builds the one
-  /// menu it is asked for instead of one per button per `GET_WORKSPACES` reply,
-  /// and nullable because two of this button's users have no menu: the retry
-  /// button that stands in for the whole row, and the one workspace miracle
-  /// named nothing a command could address.
-  final Widget Function(BuildContext context, VoidCallback close)? menuBuilder;
-
-  @override
-  State<_WorkspaceButton> createState() => _WorkspaceButtonState();
 }
 
 final Module workspacesModule = Module.simple(
@@ -706,141 +1119,6 @@ final Module workspacesModule = Module.simple(
   builder: (context, config) => Workspaces(config: config),
   requiresMiracle: true,
 );
-
-class _WorkspaceButtonState extends State<_WorkspaceButton>
-    with PopupHost<_WorkspaceButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  /// Opens the right-click menu under this button.
-  ///
-  /// [closePopup] first, because the pointer-down that got here has already
-  /// asked the coordinator to dismiss whatever was open — including this
-  /// button's own menu, which is what makes a second right-click a re-open
-  /// rather than a second surface. The post-frame hop is the dock's, for the
-  /// dock's reason: the close is synchronous but the window it dropped is on
-  /// screen for another frame, and `openBarPopup` measures this button's box
-  /// against the panel to place the new one.
-  void _openMenu(BuildContext context) {
-    final menuBuilder = widget.menuBuilder;
-    if (menuBuilder == null) return;
-    closePopup();
-    afterNextFrame(() {
-      if (!mounted) return;
-      openBarPopup(
-        context,
-        // Loose: the menu sizes to its content (see [DesktopMenuCard]). Tall
-        // enough for the two placement rows, the move row and a page of
-        // outputs, and for the module's own rows under them; wide enough for a
-        // connector name and a monitor's model.
-        preferredConstraints:
-            const BoxConstraints(maxWidth: 320, maxHeight: 560),
-        // The card lays out under its own FlutterView, so it carries its own
-        // theme — `ThemeScope` is an InheritedWidget and cannot span views.
-        child: ThemeProvider(
-          child: menuBuilder(context, closePopup),
-        ),
-      );
-    });
-  }
-
-  @override
-  void dispose() {
-    // The mixin answers the awaiting close and tears the window down; a popup
-    // outliving the button that opened it is what [PopupHost] exists to stop.
-    closePopup();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bool enabled = widget.onPressed != null;
-
-    Color color = widget.backgroundColor;
-    if (!enabled) {
-      color = color.withValues(alpha: 0.5);
-    } else if (_pressed) {
-      color = widget.pressedColor;
-    } else if (_hovered) {
-      color = widget.hoverColor;
-    }
-
-    const radius =
-        BorderRadius.all(Radius.circular(_WorkspaceButton._borderRadius));
-    final decoration = BoxDecoration(color: color, borderRadius: radius);
-
-    final content = Padding(
-      padding: _WorkspaceButton._padding,
-      // A *minimum*, not a fixed square: a workspace carrying app icons is
-      // as wide as its icons, and one carrying none still reads as the
-      // 16px dot every workspace used to be. [BarFill] is what keeps it
-      // sized to its child along the bar rather than expanding to the
-      // panel's own width, while it takes the bar's whole depth.
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-        child: BarFill(child: widget.child),
-      ),
-    );
-
-    // The flash is wrapped on only while urgent, so the ticker, the extra
-    // layers and the wash exist exactly while something is asking to be looked
-    // at — an idle bar is the bar it was before this feature. The fill is
-    // handed over separately there because the wash goes *between* the two:
-    // over the button's own colour, and under its number.
-    final Widget surface = widget.urgent
-        ? UrgencyFlash(
-            color: widget.urgentColor,
-            period: widget.urgentPeriod,
-            borderRadius: radius,
-            background: AnimatedContainer(
-              duration: ShellDurations.fast,
-              decoration: decoration,
-            ),
-            child: content,
-          )
-        // Boundaried for the flash's reason, on the path that is hit far more
-        // often than the flash ever is. `AnimatedContainer` tweens the fill
-        // whenever this button gains or loses the focus ring — and under
-        // focus-follows-mouse, a pointer crossing the seam between two monitors
-        // retints a button on *each* of them, every crossing. A bar has no
-        // repaint boundary of its own, so without this each frame of that tween
-        // re-records the whole panel picture and damages the whole output; waggle
-        // the pointer across the seam and the two bars never settle. The urgent
-        // branch is already inside [UrgencyFlash]'s own boundary.
-        : RepaintBoundary(
-            child: AnimatedContainer(
-              duration: ShellDurations.fast,
-              decoration: decoration,
-              child: content,
-            ),
-          );
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        // On tap-*down*, the way every popup toggle in the bar opens: the same
-        // pointer-down the coordinator dismisses on, so the menu cannot be
-        // opened by a press that has yet to close what is already up.
-        onSecondaryTapDown:
-            widget.menuBuilder == null ? null : (_) => _openMenu(context),
-        onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
-        onTapUp: enabled
-            ? (_) {
-                setState(() => _pressed = false);
-                widget.onPressed?.call();
-              }
-            : null,
-        onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
-        child: surface,
-      ),
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // The urgency flash

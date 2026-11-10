@@ -112,7 +112,7 @@ A module omitted from all sections of all panels is disabled entirely. You can p
 
 ### Right-clicking a panel
 
-**Right-click any module** for its menu: a few of its options you can flip in place — the clock's date and seconds, the weather's unit, the clipboard's side, the bell's silence — and below them the way to the settings that configure it: its own page under Settings › Shell › Modules (or the machine's settings it is a view of, such as Sound or Keyboard), and **Panel settings…** for the panel it sits in. The menu stays open while you flip switches, and follows a change made in Settings underneath it. A module with a right-click menu of its own — a workspace button, a dock icon — keeps it, with the module's menu added at the bottom.
+**Right-click any module** for its menu: a few of its options you can flip in place — the clock's date and seconds, the weather's unit, the clipboard's side, the bell's silence — and below them the way to the settings that configure it: its own page under Settings › Shell › Modules (or the machine's settings it is a view of, such as Sound or Keyboard), and **Panel settings…** for the panel it sits in. The menu stays open while you flip switches, and follows a change made in Settings underneath it. A module with a right-click menu of its own — a workspace, a dock icon — keeps it, with the module's menu added at the bottom.
 
 **Right-click a panel's blank space** for **Panel settings…**, which opens Settings › Shell › Panels & Layout on that panel's tab, and **Settings…**. Either opens Settings on the screen you clicked.
 
@@ -267,7 +267,9 @@ max_text_width = 200.0
 
 ```toml
 [modules.workspaces]
+show_labels = true
 show_app_icons = true
+selected_apps_only = false
 icon_size = 14
 max_icons = 4
 show_policy_toggle = true
@@ -275,16 +277,30 @@ show_policy_toggle = true
 
 | Key                  | Type | Default | Description                                                           |
 | -------------------- | ---- | ------- | --------------------------------------------------------------------- |
+| `show_labels`        | bool | `true`  | Show each workspace's number (or name) in its dot                     |
 | `show_app_icons`     | bool | `true`  | Show the icons of the applications open on each workspace             |
+| `selected_apps_only` | bool | `false` | Show app icons on the selected workspace only; the others fold theirs away |
 | `icon_size`          | int  | `14`    | Icon size in pixels (8–64)                                            |
 | `max_icons`          | int  | `4`     | Icons one workspace shows before the rest collapse into a `+N` (1–16) |
 | `show_policy_toggle` | bool | `true`  | Put the tiling/floating switch in a workspace's right-click menu      |
 
-With `show_app_icons` on, each workspace button carries its number or name
-*and* the icons of what is open on it, so the buttons are no longer all the
-same width — a workspace holding three windows is wider than an empty one. The
-icons come from Miracle's window tree, and an application is drawn once however
-many of its windows are on the workspace.
+The workspaces of the bar's monitor sit together in one pill — the pod — as a
+row of dots, one per workspace. The selected one is longer than the rest, and
+the selection colour (the theme's `accent`) slides from dot to dot as you
+switch. The selected workspace is the focused one when it is on this monitor,
+and otherwise the one this monitor is showing, drawn in a fainter accent — so
+every bar says what its own screen is on, not only the bar under the focus.
+
+With `show_labels` on, each dot carries its workspace's number or name; off,
+an empty workspace is a bare dot, and the row is read by position.
+
+With `show_app_icons` on, each dot also carries the icons of what is open on
+it, so the dots are no longer all the same length — a workspace holding three
+windows is longer than an empty one. The icons come from Miracle's window
+tree, and an application is drawn once however many of its windows are on the
+workspace. With `selected_apps_only` on as well, only the selected workspace
+shows its icons: the others fold theirs away, and switching folds the old
+workspace's icons out as the new one's unfold.
 
 The tree is re-read in response to Miracle's own `window`, `workspace` and
 `output` events — never on a timer — and only the window changes that can move
@@ -292,8 +308,8 @@ a window between workspaces count, so switching focus costs nothing. Nothing
 is read at all while `show_app_icons` is off, and one reader serves every panel
 on every monitor.
 
-**Right-clicking a workspace button opens a menu** for that workspace — not the
-focused one, whichever button was clicked. It has two things on it, and under
+**Right-clicking a workspace opens a menu** for that workspace — not the
+focused one, whichever dot was clicked. It has two things on it, and under
 them the workspaces module's own menu (see
 [Right-clicking a panel](#right-clicking-a-panel)).
 
@@ -303,7 +319,7 @@ currently in marked. Choosing the other sends Miracle
 `workspace <n> policy tile|float`, which changes where the *next* window opens —
 whatever is already on the workspace stays where it is. Like the urgency flash it
 costs no extra round-trip: Miracle reports the policy on the `GET_WORKSPACES`
-entry the button is already built from, so the menu opens already knowing which
+entry the dot is already built from, so the menu opens already knowing which
 row to mark. A Miracle too old to know the command answers with a parse error,
 and the mark visibly stays where it was rather than reporting a policy nothing
 took.
@@ -1355,11 +1371,11 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `icon_pack`            | `font_awesome` | Which icon font draws the interface icons: `font_awesome`, `material_rounded`, `material_outlined`, `material_sharp`, `lucide` or `remix`. An icon a pack has no drawing for falls back to Font Awesome's. See the note below |
 | `wallpaper`            | `""`          | The desktop wallpaper this theme comes with: a path, absolute, under `~/`, a name beside the theme file, or the bare name of one the shell installs. Empty means none. Shown by a `theme = true` background entry — see [The theme's wallpaper](#the-themes-wallpaper) |
 | `blur`                 | `24.0`        | Blur applied behind the settings and launcher overlays (see the note below) |
-| `accent`               | `#853953`     | Focused workspace button, slider fill, selection highlights, chart series (see the note below) |
+| `accent`               | `#853953`     | Selected workspace, slider fill, selection highlights, chart series (see the note below) |
 | `foreground`           | `#F3F4F4`     | Primary text and icon color in the panels                                   |
 | `surface_hover`        | `#853953`     | Button background when hovered                                              |
 | `surface_pressed`      | `#612D53`     | Button background when pressed; the mid stop of the panel gradient          |
-| `workspace_background` | `#2C2C2C`     | Unfocused workspace button; the dark end of the panel gradient              |
+| `workspace_background` | `#2C2C2C`     | The workspaces pod; the dark end of the panel gradient                      |
 | `popup_background`     | `#2C2C2C`     | Background of popups, flyouts, menus, the OSD card and the overlay panel    |
 | `popup_foreground`     | `#F3F4F4`     | Text and icons inside popups                                                |
 | `control_surface`      | `#39393D`     | Cards, inputs and tiles inside popups and the settings pages                |

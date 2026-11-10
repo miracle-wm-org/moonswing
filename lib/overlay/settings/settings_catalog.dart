@@ -738,7 +738,7 @@ abstract final class SettingsCatalog {
       _color(
         'workspace_background',
         'Workspace background',
-        'The fill behind a workspace button.',
+        'The pod the workspace dots sit in.',
       ),
     ),
     ThemeColorSetting(
@@ -910,8 +910,22 @@ abstract final class SettingsCatalog {
   static final workspacesShowAppIcons = _module(
     'modules.workspaces.show_app_icons',
     'Show app icons',
-    'Draws the icons of what is open on each workspace button.',
+    'Draws the icons of what is open on each workspace.',
     const ['workspace', 'icons', 'taskbar'],
+  );
+  static final workspacesSelectedAppsOnly = _module(
+    'modules.workspaces.selected_apps_only',
+    'Only the selected workspace\'s apps',
+    'Shows app icons on the selected workspace alone; the others fold theirs '
+        'away, and switching slides one set out as the next slides in.',
+    const ['workspace', 'icons', 'focused', 'current', 'active', 'hide'],
+  );
+  static final workspacesShowLabels = _module(
+    'modules.workspaces.show_labels',
+    'Show workspace numbers',
+    'Draws each workspace\'s number or name in its dot. Off, an empty '
+        'workspace is a bare dot.',
+    const ['workspace', 'number', 'name', 'label', 'dot', 'hide'],
   );
   static final workspacesIconSize = _module(
     'modules.workspaces.icon_size',
@@ -922,13 +936,13 @@ abstract final class SettingsCatalog {
   static final workspacesMaxIcons = _module(
     'modules.workspaces.max_icons',
     'Max icons per workspace',
-    'How many app icons one workspace button will show before it stops.',
+    'How many app icons one workspace will show before it stops.',
     const ['workspace', 'icons', 'limit'],
   );
   static final workspacesFlashUrgent = _module(
     'modules.workspaces.flash_urgent',
     'Flash urgent workspaces',
-    'Breathes the accent colour in a workspace button while something on it '
+    'Breathes the accent colour in a workspace dot while something on it '
         'is demanding attention.',
     const ['workspace', 'urgent', 'attention', 'alert', 'blink', 'pulse'],
   );
@@ -942,7 +956,7 @@ abstract final class SettingsCatalog {
     'modules.workspaces.show_policy_toggle',
     'Tiling/floating toggle',
     "Puts the rows that switch a workspace between tiling and floating the "
-        "windows opened on it next in that workspace button's right-click "
+        "windows opened on it next in that workspace's right-click "
         'menu.',
     const [
       'workspace',
@@ -3355,7 +3369,9 @@ abstract final class SettingsCatalog {
   /// middle segment. `test/settings_search_test.dart` holds the two to the same
   /// rows, so a row added to a page cannot be left out of the search.
   static final List<SettingsField> moduleFields = [
+    workspacesShowLabels,
     workspacesShowAppIcons,
+    workspacesSelectedAppsOnly,
     workspacesIconSize,
     workspacesMaxIcons,
     workspacesFlashUrgent,
