@@ -40,7 +40,7 @@ class AudioDevice {
   /// What a person reads: `Built-in Audio Analog Stereo`.
   final String description;
 
-  /// 0..1, the average over the channels.
+  /// 0..1, the loudest channel — the level a balance sits under.
   final double volume;
   final bool muted;
 
