@@ -398,7 +398,6 @@ class VpnFormPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     final body = switch (request) {
       VpnAddRequest(kind: VpnKind.openvpn) => _OpenVpnForm(
         store: store,
@@ -432,39 +431,13 @@ class VpnFormPage extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 24, 8),
-          child: Row(
-            children: [
-              SettingsIconButton(
-                icon: ShellGlyph.arrowLeft,
-                size: ShellFontSizes.label,
-                color: theme.popupForeground,
-                tooltip: 'Back',
-                onTap: onClose,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.title,
-                    fontFamily: theme.fontFamily,
-                    color: theme.popupForeground,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(height: 1, color: theme.divider),
+        SettingsPageHeader(title: _title, onBack: onClose),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: body,
+            child: SettingsPageColumn(
+              padding: kSettingsPagePadding,
+              child: body,
+            ),
           ),
         ),
       ],

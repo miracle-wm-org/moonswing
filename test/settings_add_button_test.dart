@@ -62,7 +62,7 @@ void main() {
         children: const [Text('moonswing')],
       ),
     );
-    final label = tester.getRect(find.text('THEME'));
+    final label = tester.getRect(find.text('Theme'));
     final button = tester.getRect(find.text('New theme…'));
     expect(button.left, greaterThan(label.right));
     expect(button.bottom, lessThanOrEqualTo(tester

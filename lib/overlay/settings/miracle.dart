@@ -335,44 +335,18 @@ class _MiracleHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Window Manager',
-                style: TextStyle(
-                  fontSize: ShellFontSizes.title,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                store.path,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.caption,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.5),
-                ),
-              ),
-            ],
-          ),
+        SettingsPageHeader(
+          title: 'Window Manager',
+          subtitle: store.path,
+          subtitleMaxLines: 1,
         ),
-        Container(height: 1, color: theme.divider),
         Expanded(
           child: CustomScrollView(
             slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              SliverSettingsPage(
                 sliver: SliverList.list(
                   children: [
                     // What miracle could not understand in the user's file.
@@ -415,7 +389,6 @@ class _MiracleCategoryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     final target = SettingsHighlightScope.maybeOf(context)?.target;
     final jumping =
         target != null &&
@@ -424,29 +397,10 @@ class _MiracleCategoryView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
-          child: Row(
-            children: [
-              SettingsIconButton(
-                icon: ShellGlyph.arrowLeft,
-                size: 14,
-                onTap: () => Navigator.of(context).pop(),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                category.title,
-                style: TextStyle(
-                  fontSize: ShellFontSizes.title,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+        SettingsPageHeader(
+          title: category.title,
+          onBack: () => Navigator.of(context).pop(),
         ),
-        Container(height: 1, color: theme.divider),
         Expanded(
           // No `ListenableBuilder` here, deliberately — the Shell pane's rule,
           // for the same reason: the store notifies on every edit anywhere in
@@ -466,8 +420,7 @@ class _MiracleCategoryView extends StatelessWidget {
                   ? const ScrollCacheExtent.pixels(1e6)
                   : const ScrollCacheExtent.pixels(600),
               slivers: [
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+                SliverSettingsPage(
                   // Keyed on the store's revision, which is what makes Reset
                   // work. Every text field on these pages seeds its controller
                   // once and then ignores its widget's `initial` — so a Reset
@@ -563,78 +516,89 @@ class _MiracleFooter extends StatelessWidget {
       builder: (context, state) {
         final dirty = state.dirty;
         return RepaintBoundary(
-          child: Container(
-            decoration: BoxDecoration(
-              color: theme.popupBackground,
-              border: Border(top: BorderSide(color: theme.divider)),
-            ),
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (state.outcome == MiracleSaveOutcome.failed) ...[
-                  SettingsBanner(
-                    title: 'Could not write the configuration',
-                    message: state.problems.isEmpty
-                        ? 'miracle refused the save and said nothing about why.'
-                        : state.problems,
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                if (state.notice) ...[
-                  SettingsNotice(
-                    icon: ShellGlyph.rotate,
-                    title: 'Saved — now tell miracle to read it',
-                    message: _reloadMessage(),
-                    onDismiss: store.dismissReloadNotice,
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        // "Saved to" only where a save actually happened;
-                        // otherwise this is simply the file being edited, and
-                        // saying it was saved on arrival would be a lie the
-                        // user has no way to check.
-                        dirty
-                            ? 'Unsaved changes'
-                            : state.outcome == MiracleSaveOutcome.saved
-                            ? 'Saved to ${store.path}'
-                            : store.path,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: ShellFontSizes.secondary,
-                          fontFamily: theme.fontFamily,
-                          color: dirty
-                              ? theme.accentText
-                              : theme.popupForeground.withValues(alpha: 0.5),
+          // Pinned under the scroller, in the page's column: its rule is the
+          // column's width, not the pane's.
+          child: ColoredBox(
+            color: theme.popupBackground,
+            child: SettingsPageColumn(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SettingsRule(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (state.outcome == MiracleSaveOutcome.failed) ...[
+                          SettingsBanner(
+                            title: 'Could not write the configuration',
+                            message: state.problems.isEmpty
+                                ? 'miracle refused the save and said nothing about why.'
+                                : state.problems,
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        if (state.notice) ...[
+                          SettingsNotice(
+                            icon: ShellGlyph.rotate,
+                            title: 'Saved — now tell miracle to read it',
+                            message: _reloadMessage(),
+                            onDismiss: store.dismissReloadNotice,
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                // "Saved to" only where a save actually happened;
+                                // otherwise this is simply the file being edited, and
+                                // saying it was saved on arrival would be a lie the
+                                // user has no way to check.
+                                dirty
+                                    ? 'Unsaved changes'
+                                    : state.outcome == MiracleSaveOutcome.saved
+                                    ? 'Saved to ${store.path}'
+                                    : store.path,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: ShellFontSizes.secondary,
+                                  fontFamily: theme.fontFamily,
+                                  color: dirty
+                                      ? theme.accentText
+                                      : theme.popupForeground.withValues(
+                                          alpha: 0.5,
+                                        ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              width: 96,
+                              child: SettingsActionButton(
+                                label: 'Reset',
+                                onTap: () => _reset(context),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 96,
+                              child: SettingsActionButton(
+                                label: 'Save',
+                                primary: true,
+                                enabled: dirty,
+                                onTap: store.save,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 96,
-                      child: SettingsActionButton(
-                        label: 'Reset',
-                        onTap: () => _reset(context),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    SizedBox(
-                      width: 96,
-                      child: SettingsActionButton(
-                        label: 'Save',
-                        primary: true,
-                        enabled: dirty,
-                        onTap: store.save,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         );

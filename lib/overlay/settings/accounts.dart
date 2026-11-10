@@ -29,8 +29,6 @@ import 'package:moonswing/overlay/settings/accounts/github_account.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/overlay/settings/settings_catalog.dart';
 import 'package:moonswing/overlay/settings/settings_highlight.dart';
-import 'package:moonswing/scopes.dart';
-import 'package:moonswing/theme/tokens.dart';
 
 class AccountsSettingsPage extends StatefulWidget {
   const AccountsSettingsPage({
@@ -75,54 +73,33 @@ class _AccountsSettingsPageState extends State<AccountsSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Accounts',
-                style: TextStyle(
-                  fontSize: ShellFontSizes.title,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Link a service once, and every module and desktop widget '
-                'that reads it uses the same sign-in.',
-                style: TextStyle(
-                  fontSize: ShellFontSizes.secondary,
-                  fontFamily: theme.fontFamily,
-                  color: theme.popupForeground.withValues(alpha: 0.6),
-                ),
-              ),
-            ],
-          ),
+        const SettingsPageHeader(
+          title: 'Accounts',
+          subtitle:
+              'Link a service once, and every module and desktop widget '
+              'that reads it uses the same sign-in.',
         ),
-        Container(height: 1, color: theme.divider),
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ListenableBuilder(
-                  listenable: _account,
-                  builder: (context, _) =>
-                      _GoogleAccountCard(account: _account),
-                ),
-                const SizedBox(height: 28),
-                GithubAccountCard(account: _github, copy: widget.copy),
-                const SizedBox(height: 28),
-                CalDavAccountCard(account: _caldav),
-              ],
+            child: SettingsPageColumn(
+              padding: kSettingsPagePadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ListenableBuilder(
+                    listenable: _account,
+                    builder: (context, _) =>
+                        _GoogleAccountCard(account: _account),
+                  ),
+                  const SizedBox(height: kSettingsSectionGap),
+                  GithubAccountCard(account: _github, copy: widget.copy),
+                  const SizedBox(height: kSettingsSectionGap),
+                  CalDavAccountCard(account: _caldav),
+                ],
+              ),
             ),
           ),
         ),

@@ -183,8 +183,7 @@ class _OutputTabState extends State<OutputTab> {
         .toList();
     final volPct = (_volume * 100).round();
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
+    return SettingsPageList(
       children: [
         const SettingsSectionLabel('Output Device'),
         const SizedBox(height: 8),

@@ -422,20 +422,17 @@ class _MenuView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _PageHeader(title: title, canPop: canPop),
-        Container(height: 1, color: theme.divider),
         Expanded(
           // A handful of cards do not need laziness, but `SliverList` gives
           // each one its own repaint boundary for free, which is what a hover
           // on one of them needs — see [SettingsRow].
           child: CustomScrollView(
             slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              SliverSettingsPage(
                 sliver: SliverList.list(
                   children: [
                     for (final entry in entries)
@@ -465,38 +462,10 @@ class _PageHeader extends StatelessWidget {
   final bool canPop;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
-    final label = Text(
-      title,
-      style: TextStyle(
-        fontSize: 16,
-        fontFamily: theme.fontFamily,
-        color: theme.popupForeground,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-    if (!canPop) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-        child: label,
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 12, 16, 8),
-      child: Row(
-        children: [
-          SettingsIconButton(
-            icon: ShellGlyph.arrowLeft,
-            size: 14,
-            onTap: () => Navigator.of(context).pop(),
-          ),
-          const SizedBox(width: 8),
-          label,
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SettingsPageHeader(
+    title: title,
+    onBack: canPop ? () => Navigator.of(context).pop() : null,
+  );
 }
 
 /// Detail view: a back button + title header over one page of settings — a
@@ -519,7 +488,6 @@ class _SettingsPageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = ThemeScope.of(context);
     // Depends on the scope deliberately, unlike the rows and the pane above:
     // this widget's whole reaction to a jump *is* a rebuild, and it is two of
     // them — one when the target lands and one when the row clears it.
@@ -538,7 +506,6 @@ class _SettingsPageView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _PageHeader(title: title, canPop: true),
-        Container(height: 1, color: theme.divider),
         Expanded(
           // No `ListenableBuilder` here, deliberately. [ConfigStore] notifies on
           // every `set` — once per keystroke in any field on any pane — so a
@@ -572,12 +539,7 @@ class _SettingsPageView extends StatelessWidget {
             scrollCacheExtent: jumping
                 ? const ScrollCacheExtent.pixels(1e6)
                 : const ScrollCacheExtent.pixels(600),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-                sliver: sliver,
-              ),
-            ],
+            slivers: [SliverSettingsPage(sliver: sliver)],
           ),
         ),
       ],
@@ -647,14 +609,14 @@ class _CategoryCard extends StatelessWidget {
       color: theme.popupForeground.withValues(alpha: 0.4),
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 5),
       // Not inside a [SettingsRow], so it carries its own — see that class for
       // the rule.
       child: RepaintBoundary(
         child: HoverRegion(
           onTap: onTap,
           builder: (context, hovered) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
             decoration: BoxDecoration(
               color: hovered ? theme.surfaceHover : theme.controlSurface,
               borderRadius: BorderRadius.circular(ShellRadii.card),
@@ -700,10 +662,7 @@ class _RestartBanner extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-      decoration: BoxDecoration(
-        color: theme.accent.withValues(alpha: 0.12),
-        border: Border(top: BorderSide(color: theme.divider)),
-      ),
+      decoration: BoxDecoration(color: theme.accent.withValues(alpha: 0.12)),
       child: Row(
         children: [
           ShellIcon(

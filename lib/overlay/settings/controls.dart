@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart' show GestureBinding;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderSliverEdgeInsetsPadding;
 import 'package:flutter/services.dart';
 import 'package:moonswing/config.dart' show ThemeConfig;
 import 'package:moonswing/config_store.dart';
@@ -146,6 +147,319 @@ class ConfigValue<T> extends StatelessWidget {
 // Layout helpers
 // ---------------------------------------------------------------------------
 
+/// The widest a settings page's content grows.
+///
+/// A settings pane is as wide as whatever is left of the overview beside the
+/// sidebar, which on a wide output is most of the screen. Rows sized to their
+/// content left-aligned in that put every control on the left third of the pane
+/// and a field of empty fill to the right of it, so a page read as crammed into
+/// a corner. Content is a column of at most this width, centred in the pane,
+/// and the header over it is centred to the same column — so a page's title,
+/// its sections and their cards all start on one edge.
+const double kSettingsContentMaxWidth = 760;
+
+/// The pane's own inset around that column: the gutter it keeps from the
+/// sidebar and the panel's edge however narrow the pane is, and the air under
+/// the last section.
+const EdgeInsets kSettingsPagePadding = EdgeInsets.fromLTRB(32, 8, 32, 48);
+
+/// The space between one section and the next on a page.
+///
+/// Sections are told apart by their cards and the room around them, not by a
+/// rule: a gap this wide is what lets the eye find a page's groups at a
+/// glance, and a rule between them is a second way of saying it.
+const double kSettingsSectionGap = 36;
+
+/// [kSettingsSectionGap] as a sliver, for the space between two sections in a
+/// page's [SliverMainAxisGroup].
+class SliverSettingsSectionGap extends StatelessWidget {
+  const SliverSettingsSectionGap({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      const SliverToBoxAdapter(child: SizedBox(height: kSettingsSectionGap));
+}
+
+/// A settings page's body sliver, centred in the pane at no more than
+/// [kSettingsContentMaxWidth] and inset by [kSettingsPagePadding].
+///
+/// A render object of its own rather than a `SliverLayoutBuilder` working out a
+/// [SliverPadding]: a layout builder rebuilds a dirty descendant *during its own
+/// layout*, so a hover anywhere on the page would relayout the page — the trap
+/// [SettingsRow]'s layout documents. This is [SliverPadding] with its
+/// horizontal insets worked out from the viewport's width at layout, so it
+/// paints, hit-tests and reveals (`ensureVisible`, the search's jump) exactly as
+/// a padded sliver does.
+class SliverSettingsPage extends SingleChildRenderObjectWidget {
+  const SliverSettingsPage({
+    super.key,
+    this.padding = kSettingsPagePadding,
+    this.maxWidth = kSettingsContentMaxWidth,
+    required Widget sliver,
+  }) : super(child: sliver);
+
+  /// The least inset on every side. The horizontal halves grow to centre the
+  /// column once the pane is wider than [maxWidth] plus them.
+  final EdgeInsets padding;
+
+  final double maxWidth;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderSliverSettingsPage(padding: padding, maxWidth: maxWidth);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderSliverSettingsPage renderObject,
+  ) {
+    renderObject
+      ..padding = padding
+      ..maxWidth = maxWidth;
+  }
+}
+
+class _RenderSliverSettingsPage extends RenderSliverEdgeInsetsPadding {
+  _RenderSliverSettingsPage({
+    required EdgeInsets padding,
+    required double maxWidth,
+  }) : _padding = padding,
+       _maxWidth = maxWidth;
+
+  EdgeInsets get padding => _padding;
+  EdgeInsets _padding;
+  set padding(EdgeInsets value) {
+    if (value == _padding) return;
+    _padding = value;
+    markNeedsLayout();
+  }
+
+  double get maxWidth => _maxWidth;
+  double _maxWidth;
+  set maxWidth(double value) {
+    if (value == _maxWidth) return;
+    _maxWidth = value;
+    markNeedsLayout();
+  }
+
+  EdgeInsets? _resolved;
+
+  @override
+  EdgeInsets? get resolvedPadding => _resolved;
+
+  @override
+  void performLayout() {
+    // Only ever inside a vertical scroller, whose cross axis is the width; a
+    // horizontal one gets the padding as given.
+    if (constraints.axis == Axis.vertical) {
+      final extra = settingsCentringInset(
+        constraints.crossAxisExtent,
+        padding: padding,
+        maxWidth: maxWidth,
+      );
+      _resolved = padding.copyWith(
+        left: padding.left + extra,
+        right: padding.right + extra,
+      );
+    } else {
+      _resolved = padding;
+    }
+    super.performLayout();
+  }
+}
+
+/// How much further than [padding] each side is pushed in to centre a column of
+/// at most [maxWidth] in [width]. Never negative.
+@visibleForTesting
+double settingsCentringInset(
+  double width, {
+  EdgeInsets padding = kSettingsPagePadding,
+  double maxWidth = kSettingsContentMaxWidth,
+}) => math.max(0, (width - padding.horizontal - maxWidth) / 2);
+
+/// The box counterpart of [SliverSettingsPage]: [child] at the content column's
+/// width, centred, for a page — or a header — that is not a sliver.
+///
+/// [padding] defaults to the page's horizontal gutter alone; a page body passes
+/// [kSettingsPagePadding] for the vertical air too.
+class SettingsPageColumn extends StatelessWidget {
+  const SettingsPageColumn({
+    super.key,
+    this.padding = const EdgeInsets.symmetric(horizontal: 32),
+    this.maxWidth = kSettingsContentMaxWidth,
+    required this.child,
+  });
+
+  final EdgeInsets padding;
+  final double maxWidth;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: padding,
+    child: Align(
+      alignment: Alignment.topCenter,
+      // Tight to the column's width (or the pane's, if that is less), so a
+      // child sized by its content still starts on the column's left edge
+      // rather than being centred on its own.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minWidth: maxWidth, maxWidth: maxWidth),
+        child: child,
+      ),
+    ),
+  );
+}
+
+/// A page body that is one scrolling list of box children, in the content
+/// column — what a `ListView` with padding was on the pages written before the
+/// column existed.
+class SettingsPageList extends StatelessWidget {
+  const SettingsPageList({super.key, required List<Widget> this.children})
+    : itemCount = 0,
+      itemBuilder = null,
+      separatorBuilder = null;
+
+  /// `ListView.separated`'s shape.
+  const SettingsPageList.separated({
+    super.key,
+    required this.itemCount,
+    required IndexedWidgetBuilder this.itemBuilder,
+    required IndexedWidgetBuilder this.separatorBuilder,
+  }) : children = null;
+
+  final List<Widget>? children;
+  final int itemCount;
+  final IndexedWidgetBuilder? itemBuilder;
+  final IndexedWidgetBuilder? separatorBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final children = this.children;
+    return CustomScrollView(
+      slivers: [
+        SliverSettingsPage(
+          padding: kSettingsPagePadding.copyWith(top: 24),
+          sliver: children != null
+              ? SliverList.list(children: children)
+              : SliverList.separated(
+                  itemCount: itemCount,
+                  itemBuilder: itemBuilder!,
+                  separatorBuilder: separatorBuilder!,
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// A settings page's title, centred over its content column.
+///
+/// Every page used to hand-roll this: a bold 16px label tight against the
+/// pane's top-left corner over a hairline the full width of the pane. It is a
+/// quieter, larger title with room above it and no rule, because what follows
+/// it is already set apart by the cards its sections sit on.
+///
+/// [onBack] puts a back arrow before the title, for a page pushed onto a nested
+/// navigator; [subtitle] is a muted line under it — a file path, a sentence on
+/// what the page is for; [trailing] sits at the column's right edge, for a
+/// page-wide switch or action.
+class SettingsPageHeader extends StatelessWidget {
+  const SettingsPageHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.onBack,
+    this.trailing,
+    this.subtitleMaxLines,
+  });
+
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onBack;
+  final Widget? trailing;
+
+  /// Null wraps freely; a path passes 1 so it ellipsises.
+  final int? subtitleMaxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    final subtitle = this.subtitle;
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: ShellFontSizes.heading,
+            fontFamily: theme.fontFamily,
+            color: theme.popupForeground,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (subtitle != null && subtitle.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            maxLines: subtitleMaxLines,
+            overflow: subtitleMaxLines == null ? null : TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: ShellFontSizes.body,
+              fontFamily: theme.fontFamily,
+              color: theme.popupForeground.withValues(alpha: 0.55),
+            ),
+          ),
+        ],
+      ],
+    );
+    final onBack = this.onBack;
+    final trailing = this.trailing;
+    return SettingsPageColumn(
+      padding: const EdgeInsets.fromLTRB(32, 28, 32, 20),
+      child: Row(
+        children: [
+          if (onBack != null) ...[
+            SettingsIconButton(
+              icon: ShellGlyph.arrowLeft,
+              size: 14,
+              tooltip: 'Back',
+              onTap: onBack,
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(child: text),
+          if (trailing != null) ...[const SizedBox(width: 12), trailing],
+        ],
+      ),
+    );
+  }
+}
+
+/// A hairline the width of the content it separates — never the pane's.
+///
+/// For the few places a rule still earns its keep (a run of items inside one
+/// card, a footer under a scroller); between sections, [kSettingsSectionGap] is
+/// the separator.
+class SettingsRule extends StatelessWidget {
+  const SettingsRule({super.key, this.indent = 0});
+
+  /// Inset at either end, for a rule inside a card's padding.
+  final double indent;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ThemeScope.of(context);
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: indent),
+      child: Container(
+        height: 1,
+        color: theme.divider.withValues(alpha: theme.divider.a * 0.7),
+      ),
+    );
+  }
+}
+
 class SettingsSection extends StatelessWidget {
   const SettingsSection({
     super.key,
@@ -174,7 +488,7 @@ class SettingsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SettingsSectionHeading(label: label, trailing: trailing, info: info),
-        const SizedBox(height: 8),
+        const SizedBox(height: kSettingsHeadingGap),
         if (children.isNotEmpty)
           Container(
             width: double.infinity,
@@ -205,9 +519,16 @@ BoxDecoration settingsCardDecoration(ThemeConfig theme) => BoxDecoration(
 );
 
 /// The inset inside [settingsCardDecoration].
+///
+/// Wide enough that a row's label does not sit against the card's rim, and
+/// tall enough that the first and last rows are not pressed to its top and
+/// bottom — the card is the section, so it needs room to read as one.
 EdgeInsets settingsCardPadding({required bool roomy}) => roomy
-    ? const EdgeInsets.fromLTRB(16, 8, 16, 8)
-    : const EdgeInsets.fromLTRB(14, 6, 14, 6);
+    ? const EdgeInsets.fromLTRB(24, 12, 24, 12)
+    : const EdgeInsets.fromLTRB(20, 10, 20, 10);
+
+/// The space between a section's heading and its card.
+const double kSettingsHeadingGap = 12;
 
 /// The heading row [SettingsSection] and [SliverSettingsSection] share.
 ///
@@ -297,10 +618,11 @@ class SliverSettingsSection extends StatelessWidget {
     final group = _group(context, roomy);
     // A roomy pane stacks its sections straight on top of one another, so the
     // gap between them is the section's own: trailing, so the first heading
-    // stays level with the page's top padding.
+    // stays level with the page's top padding. Everywhere else a page puts a
+    // [SliverSettingsSectionGap] between its sections.
     if (!roomy) return group;
     return SliverPadding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: kSettingsSectionGap),
       sliver: group,
     );
   }
@@ -309,7 +631,7 @@ class SliverSettingsSection extends StatelessWidget {
     slivers: [
       SliverToBoxAdapter(
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: kSettingsHeadingGap),
           child: SettingsSectionHeading(
             label: label,
             trailing: trailing,
@@ -357,6 +679,14 @@ class SliverSettingsSection extends StatelessWidget {
   );
 }
 
+/// A section's heading.
+///
+/// Written as it is spelt, at the size of a row's label and a medium weight —
+/// not a small, tracked, bold capital eyebrow. Capitals in a column of them
+/// shout, and at caption size they were harder to read than the rows they
+/// named. Set slightly lighter than the rows, it tells the eye where a group
+/// begins without competing with what is in it; the card under it and the gap
+/// above it do the rest.
 class SettingsSectionLabel extends StatelessWidget {
   const SettingsSectionLabel(this.text, {super.key});
 
@@ -366,13 +696,12 @@ class SettingsSectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     return Text(
-      text.toUpperCase(),
+      text,
       style: TextStyle(
-        fontSize: ShellFontSizes.caption,
+        fontSize: ShellFontSizes.label,
         fontFamily: theme.fontFamily,
-        color: theme.popupForeground.withValues(alpha: 0.6),
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.8,
+        color: theme.popupForeground.withValues(alpha: 0.78),
+        fontWeight: FontWeight.w500,
       ),
     );
   }
@@ -401,10 +730,10 @@ class SettingsSubLabel extends StatelessWidget {
     final text = Text(
       this.text,
       style: TextStyle(
-        fontSize: 13,
+        fontSize: ShellFontSizes.body,
         fontFamily: theme.fontFamily,
-        color: theme.accentText,
-        fontWeight: FontWeight.w600,
+        color: theme.popupForeground.withValues(alpha: 0.6),
+        fontWeight: FontWeight.w500,
       ),
     );
     final info = this.info;
@@ -419,7 +748,7 @@ class SettingsSubLabel extends StatelessWidget {
           );
     final trailing = this.trailing;
     return Padding(
-      padding: const EdgeInsets.only(top: 12, bottom: 2),
+      padding: const EdgeInsets.only(top: 16, bottom: 4),
       child: trailing == null
           ? label
           : Row(
@@ -946,7 +1275,7 @@ class SettingsRow extends StatelessWidget {
         // `UrgencyFlash`'s rule, for a flash that fires once per search jump.
         searchId: searchId,
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: style.roomy ? 10 : 7),
+          padding: EdgeInsets.symmetric(vertical: style.roomy ? 12 : 9),
           child: stacked
               ? SettingsFillColumn(
                   children: [

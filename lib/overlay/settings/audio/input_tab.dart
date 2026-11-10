@@ -302,8 +302,7 @@ class _InputTabState extends State<InputTab> {
         .toList();
     final volPct = (_volume * 100).round();
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
+    return SettingsPageList(
       children: [
         const SettingsSectionLabel('Input Device'),
         const SizedBox(height: 8),

@@ -157,7 +157,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
             ),
           ],
         ),
-        const SliverToBoxAdapter(child: SizedBox(height: 20)),
+        const SliverSettingsSectionGap(),
         // The editor's structure — which rows exist, their keys, the read-only
         // state, the seed values of the self-managing fields — depends only on
         // *which* theme is active, not on the palette's current values. So it
@@ -924,7 +924,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
               slivers: [
                 for (final group in ThemeGroup.values) ...[
                   if (group != ThemeGroup.general)
-                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                    const SliverSettingsSectionGap(),
                   SliverSettingsSection(
                     // The first section carries the theme's name, so every
                     // card under it reads as that theme's.

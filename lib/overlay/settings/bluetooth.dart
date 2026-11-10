@@ -9,6 +9,7 @@ import 'package:moonswing/icons/shell_icon.dart';
 import 'package:moonswing/loading_indicator.dart';
 import 'package:moonswing/overlay/settings/controls.dart';
 import 'package:moonswing/scopes.dart';
+import 'package:moonswing/theme/tokens.dart';
 
 // ---------------------------------------------------------------------------
 // Data models
@@ -365,8 +366,11 @@ class _BluetoothDeviceItemState extends State<_BluetoothDeviceItem> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Container(
-        color: _hovered ? theme.surfaceHover : null,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+        decoration: BoxDecoration(
+          color: _hovered ? theme.surfaceHover : null,
+          borderRadius: BorderRadius.circular(ShellRadii.control),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -555,20 +559,11 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 16, 16, 8),
-          child: Row(
+        SettingsPageHeader(
+          title: 'Bluetooth',
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Text(
-                  'Bluetooth',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: theme.popupForeground,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
               if (_togglingPower)
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -583,7 +578,6 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
             ],
           ),
         ),
-        Container(height: 1, color: theme.divider),
         Expanded(child: _buildBody(theme)),
       ],
     );
@@ -668,19 +662,36 @@ class _BluetoothSettingsPageState extends State<BluetoothSettingsPage> {
       );
     }
 
-    return ListView.builder(
-      itemCount: _devices!.length,
-      itemBuilder: (_, i) {
-        final d = _devices![i];
-        final isActioning = _actioning?.address == d.address && _isActioning;
-        return _BluetoothDeviceItem(
-          device: d,
-          actioning: isActioning,
-          actionError: _actioning?.address == d.address ? _actionError : null,
-          onConnect: () => _connect(d),
-          onDisconnect: () => _disconnect(d),
-        );
-      },
+    // The devices on one card in the page's column, like a section's rows,
+    // rather than rows running the pane's full width.
+    return CustomScrollView(
+      slivers: [
+        SliverSettingsPage(
+          sliver: DecoratedSliver(
+            decoration: settingsCardDecoration(theme),
+            sliver: SliverPadding(
+              padding: const EdgeInsets.all(6),
+              sliver: SliverList.builder(
+                itemCount: _devices!.length,
+                itemBuilder: (_, i) {
+                  final d = _devices![i];
+                  final isActioning =
+                      _actioning?.address == d.address && _isActioning;
+                  return _BluetoothDeviceItem(
+                    device: d,
+                    actioning: isActioning,
+                    actionError: _actioning?.address == d.address
+                        ? _actionError
+                        : null,
+                    onConnect: () => _connect(d),
+                    onDisconnect: () => _disconnect(d),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

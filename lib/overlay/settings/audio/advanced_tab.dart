@@ -153,8 +153,7 @@ class _AdvancedTabState extends State<AdvancedTab> {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
-    return ListView(
-      padding: const EdgeInsets.all(20),
+    return SettingsPageList(
       children: [
         const SettingsSectionLabel('PipeWire Settings'),
         const SizedBox(height: 12),
@@ -203,9 +202,7 @@ class _AdvancedTabState extends State<AdvancedTab> {
             onChanged: _setQuantum,
           ),
         ],
-        const SizedBox(height: 24),
-        Container(height: 1, color: theme.divider),
-        const SizedBox(height: 16),
+        const SizedBox(height: kSettingsSectionGap),
         const SettingsSectionLabel('Audio Log'),
         const SizedBox(height: 8),
         Container(

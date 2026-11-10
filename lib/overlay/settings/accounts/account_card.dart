@@ -130,7 +130,7 @@ class AccountProviderCard extends StatelessWidget {
               ],
             ),
           ),
-          Container(height: 1, color: theme.divider),
+          const SettingsRule(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             child: Column(
