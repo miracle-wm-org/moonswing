@@ -305,24 +305,13 @@ class _MainPage extends StatelessWidget {
         const SizedBox(height: 8),
         Row(
           children: [
-            Flexible(
-              child: _FooterButton(
-                glyph: ShellGlyph.settings,
-                label: 'All settings',
-                onTap: () =>
-                    onSettings(const SettingsRoute.tab(OverviewTab.settings)),
-              ),
+            _FooterButton(
+              glyph: ShellGlyph.settings,
+              onTap: () =>
+                  onSettings(const SettingsRoute.tab(OverviewTab.settings)),
             ),
-            const SizedBox(width: 8),
             const Spacer(),
-            Flexible(
-              flex: 2,
-              child: _FooterButton(
-                glyph: ShellGlyph.power,
-                label: 'Log out / power off…',
-                onTap: onPowerMenu,
-              ),
-            ),
+            _FooterButton(glyph: ShellGlyph.power, onTap: onPowerMenu),
           ],
         ),
       ],
@@ -723,44 +712,58 @@ class _TextAction extends StatelessWidget {
   }
 }
 
+/// A footer action: a glyph and a label, or — with no [label] — a square
+/// icon of the same height.
 class _FooterButton extends StatelessWidget {
-  const _FooterButton({
-    required this.glyph,
-    required this.label,
-    required this.onTap,
-  });
+  const _FooterButton({required this.glyph, required this.onTap, this.label});
 
   final ShellGlyph glyph;
-  final String label;
+  final String? label;
   final VoidCallback onTap;
+
+  static const double height = 28;
 
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final label = this.label;
     return HoverRegion(
       onTap: onTap,
-      builder: (context, hovered) => Container(
-        height: 28,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: hovered ? theme.surfaceHover : const Color(0x00000000),
-          borderRadius: BorderRadius.circular(ShellRadii.control),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ShellIcon(
-              glyph,
-              size: ShellFontSizes.secondary,
-              color: hovered ? theme.accentText : theme.popupForeground,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
-      ),
+      builder: (context, hovered) {
+        final icon = ShellIcon(
+          glyph,
+          size: ShellFontSizes.secondary,
+          color: hovered ? theme.accentText : theme.popupForeground,
+        );
+        return Container(
+          height: height,
+          width: label == null ? height : null,
+          alignment: label == null ? Alignment.center : null,
+          padding: label == null
+              ? null
+              : const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: hovered ? theme.surfaceHover : const Color(0x00000000),
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+          ),
+          child: label == null
+              ? icon
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    icon,
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+        );
+      },
     );
   }
 }
