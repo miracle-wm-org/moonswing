@@ -153,6 +153,7 @@ final Map<String, (String, SettingsRoute)> _kRelatedSettings = {
     const SettingsRoute(shellCategory: 'Power Button'),
   ),
   'github': ('Accounts…', SettingsRoute.accounts),
+  'quick_settings': ('Settings…', SettingsRoute.tab(OverviewTab.settings)),
 };
 
 /// Every route [moduleMenuItems] can open, for the test that checks each one

@@ -383,6 +383,7 @@ const Map<String, ShellGlyph> _kModuleIcons = {
   'keybinds': ShellGlyph.keyboard,
   'keyboard_layout': ShellGlyph.language,
   'launcher': ShellGlyph.search,
+  'quick_settings': ShellGlyph.sliders,
   'scratchpad': ShellGlyph.layers,
   'sound_control': ShellGlyph.volumeHigh,
   'system': ShellGlyph.power,

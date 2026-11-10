@@ -47,6 +47,7 @@ import 'package:moonswing/modules/brightness.dart';
 import 'package:moonswing/modules/clock.dart';
 import 'package:moonswing/modules/media_player.dart';
 import 'package:moonswing/modules/network.dart';
+import 'package:moonswing/modules/quick_settings.dart';
 import 'package:moonswing/modules/notifications.dart';
 import 'package:moonswing/modules/screen_recorder.dart';
 import 'package:moonswing/modules/screenshot.dart';
@@ -190,6 +191,7 @@ void main() async {
   Module.register(todoModule);
   Module.register(stocksModule);
   Module.register(clipboardModule);
+  Module.register(quickSettingsModule);
 
   // The desktop grid's own registry, populated the same way: `[[desktop.widgets]]`
   // names a type, and lookup happens at render time. See

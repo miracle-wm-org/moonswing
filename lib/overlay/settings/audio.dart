@@ -17,7 +17,11 @@ import 'package:moonswing/underline_tabs.dart';
 // ---------------------------------------------------------------------------
 
 class AudioSettingsPage extends StatefulWidget {
-  const AudioSettingsPage({super.key});
+  const AudioSettingsPage({super.key, this.initialTab});
+
+  /// `output` or `input` — the route's `audioTab`. Null, or a name that is
+  /// not a tab, lands on Output.
+  final String? initialTab;
 
   @override
   _AudioSettingsPageState createState() => _AudioSettingsPageState();
@@ -27,7 +31,7 @@ class _AudioSettingsPageState extends State<AudioSettingsPage> {
   PulseClient? _client;
   bool _clientReady = false;
   String? _initError;
-  int _selectedTab = 0;
+  late int _selectedTab = widget.initialTab == 'input' ? 1 : 0;
 
   static const _tabs = ['Output', 'Input', 'Apps', 'Profiles', 'Advanced'];
 

@@ -13,6 +13,7 @@ import 'package:moonswing/modules/launcher.dart';
 import 'package:moonswing/modules/media_player.dart';
 import 'package:moonswing/modules/network.dart';
 import 'package:moonswing/modules/notifications.dart';
+import 'package:moonswing/modules/quick_settings.dart';
 import 'package:moonswing/modules/screen_recorder.dart';
 import 'package:moonswing/modules/scratchpad.dart';
 import 'package:moonswing/modules/screenshot.dart';
@@ -54,6 +55,7 @@ void main() {
       todoModule,
       stocksModule,
       clipboardModule,
+      quickSettingsModule,
     ];
     for (final module in modules) {
       Module.register(module);
@@ -82,6 +84,7 @@ void main() {
       'todo',
       'stocks',
       'clipboard',
+      'quick_settings',
     ];
     for (final key in expected) {
       expect(Module.lookup(key), isNotNull, reason: key);
