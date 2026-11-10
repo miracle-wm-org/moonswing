@@ -511,10 +511,10 @@ panel_gradient       = "none"
 # Read only under a "corners" gradient; spelled because a shipped theme leans
 # on no default, and spelled as the panes so that switching the shape on in a
 # copy starts from the glass this theme already has.
-panel_gradient_top_left     = "#40121722"
-panel_gradient_top_right    = "#40121722"
-panel_gradient_bottom_right = "#40121722"
-panel_gradient_bottom_left  = "#40121722"
+panel_gradient_top_left     = "#60121722"
+panel_gradient_top_right    = "#60121722"
+panel_gradient_bottom_right = "#60121722"
+panel_gradient_bottom_left  = "#60121722"
 
 # Floating: an 8px gap on every anchored edge, cut by a real gtk-layer-shell
 # margin, so nothing tiles into the gap (the compositor folds the margin into
@@ -531,24 +531,27 @@ panel_square_flush_corners = false
 panel_border         = "#40FFFFFF"
 panel_border_width   = 0.0
 
-# The panes: the glass the whole bar used to be, at its alpha, its 12px corner
-# and its 1px rim — the rim is what gives an edge to a sheet this translucent,
-# without it a pane has no boundary at all over a busy wallpaper. A 32px bar
-# leaves each pane 28px deep, so the corner is very nearly a capsule's, and the
-# 10px at either end keeps a hovered module's fill clear of the curve.
+# The panes: smoked glass with a 1px rim — the rim is what gives an edge to a
+# sheet this translucent, without it a pane has no boundary at all over a busy
+# wallpaper. The tint is #60 rather than the #40 the bar once had: at a quarter
+# alpha white text over a bright wallpaper was hard to read, and a little more
+# smoke keeps the wallpaper showing through while giving the type a ground. A
+# 32px bar leaves each pane 28px deep; a 9px corner rounds it without turning
+# it into a capsule, and the 10px at either end keeps a hovered module's fill
+# clear of the curve.
 panel_sections       = true
-panel_section_background = "#40121722"
+panel_section_background = "#60121722"
 panel_section_gradient = "none"
-panel_section_radius = 12.0
+panel_section_radius = 9.0
 panel_section_padding = 10.0
 panel_section_border = "#40FFFFFF"
 panel_section_border_width = 1.0
 
-# Popups are the panes' material: the same 12px corner and the same rim, so a
+# Popups are the panes' material: the same 9px corner and the same rim, so a
 # menu reads as a pane dropped out of the pane it came from. The rim is
 # panel_section_border rather than the softer `divider` — a card floating over a busy
 # wallpaper needs an edge, not a hairline.
-popup_radius         = 12.0
+popup_radius         = 9.0
 popup_border         = "#40FFFFFF"
 popup_border_width   = 1.0
 
@@ -556,7 +559,7 @@ popup_border_width   = 1.0
 # so a menu glued to that bar would be the only thing on screen touching
 # anything; matching the margin keeps the two gaps equal. Attaching would also
 # expose the seam a translucent card cannot avoid: popup_background is #B0 and
-# the panes are #40, so at a zero gap the two fills composite separately
+# the panes are #60, so at a zero gap the two fills composite separately
 # against the wallpaper and the join shows a step in tone — which a flare would
 # only make wider. popup_attach_radius is therefore unread here, and spelled
 # only because every theme spells every key.
