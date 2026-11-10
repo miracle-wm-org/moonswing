@@ -26,6 +26,11 @@ class PaSink {
   final String name;
   final String description;
   final bool mute;
+
+  /// The loudest channel, 1.0 being 100% — never the average. A balance is a
+  /// shape *under* this level: `pa_cvolume_set_balance` keeps the loudest side
+  /// where it is, so reading the average instead moved the volume with every
+  /// balance change, and the next write took the moved value as the volume.
   final double volume;
   final int channelCount;
   final double balance;
@@ -238,6 +243,61 @@ late int Function(
         Pointer<pa_stream>, Pointer<Char>, Pointer<pa_buffer_attr>, int)
     _connectRecord;
 
+/// A device's volume per channel and the position of each channel, held as
+/// plain Dart lists so nothing native outlives the info callback it came from.
+class _ChannelVolumes {
+  _ChannelVolumes(this.volumes, this.positions);
+
+  /// What the server reported.
+  factory _ChannelVolumes.read(
+      Pointer<pa_cvolume> v, Pointer<pa_channel_map> map) {
+    final vc = v.ref.channels.clamp(0, PA_CHANNELS_MAX);
+    final mc = map.ref.channels.clamp(0, PA_CHANNELS_MAX);
+    return _ChannelVolumes(
+      [for (var i = 0; i < vc; i++) v.ref.values[i]],
+      [for (var i = 0; i < mc; i++) map.ref.map[i]],
+    );
+  }
+
+  /// What this isolate has just sent, so a second write before the server's
+  /// echo lands composes with the first rather than undoing it. Positions are
+  /// [map]'s, else [previous]'s, since a volume write leaves them alone.
+  factory _ChannelVolumes.written(Pointer<pa_cvolume> v,
+      _ChannelVolumes? previous, [Pointer<pa_channel_map>? map]) {
+    final vc = v.ref.channels.clamp(0, PA_CHANNELS_MAX);
+    final List<int> positions;
+    if (map != null) {
+      final mc = map.ref.channels.clamp(0, PA_CHANNELS_MAX);
+      positions = [for (var i = 0; i < mc; i++) map.ref.map[i]];
+    } else {
+      positions = previous?.positions ?? const [];
+    }
+    return _ChannelVolumes(
+        [for (var i = 0; i < vc; i++) v.ref.values[i]], positions);
+  }
+
+  final List<int> volumes;
+  final List<int> positions;
+
+  void writeVolume(Pointer<pa_cvolume> v) {
+    v.ref.channels = volumes.length;
+    for (var i = 0; i < volumes.length; i++) {
+      v.ref.values[i] = volumes[i];
+    }
+  }
+
+  /// The device's own channel map, if it is as wide as [channels].
+  Pointer<pa_channel_map>? channelMap(Arena a, int channels) {
+    if (positions.isEmpty || positions.length != channels) return null;
+    final m = a<pa_channel_map>();
+    m.ref.channels = positions.length;
+    for (var i = 0; i < positions.length; i++) {
+      m.ref.map[i] = positions[i];
+    }
+    return m;
+  }
+}
+
 class _PaIsolate {
   _PaIsolate._(
     this.port,
@@ -263,14 +323,14 @@ class _PaIsolate {
   // Accumulator for list results keyed by requestId
   final accum = <int, dynamic>{};
 
-  // Channel count cache for sink inputs (index → channels)
-  final sinkInputChannels = <int, int>{};
-
-  // Channel count caches (name → channels), filled as infos arrive. A volume set
-  // must be as wide as the device: writing 2 channels to a mono or surround
-  // device sets the wrong width.
-  final sinkChannels = <String, int>{};
-  final sourceChannels = <String, int>{};
+  // Each device's per-channel volumes and channel positions (sink inputs by
+  // index, sinks and sources by name), filled as infos arrive and updated by
+  // every write. A volume set is the device's own shape scaled to the new level,
+  // never a flat one: a flat write is the wrong width on a mono or surround
+  // device, and it throws away the balance — a volume key would recentre it.
+  final sinkInputVolumes = <int, _ChannelVolumes>{};
+  final sinkVolumes = <String, _ChannelVolumes>{};
+  final sourceVolumes = <String, _ChannelVolumes>{};
 
   // Level metering stream
   Pointer<pa_stream> levelStream = nullptr;
@@ -415,9 +475,9 @@ class _PaIsolate {
       _pa.pa_operation_unref(op);
     }
     inst.accum.clear();
-    inst.sinkChannels.clear();
-    inst.sourceChannels.clear();
-    inst.sinkInputChannels.clear();
+    inst.sinkVolumes.clear();
+    inst.sourceVolumes.clear();
+    inst.sinkInputVolumes.clear();
 
     // The stream belonged to the context and does not survive it. Only unreffed,
     // never disconnected: `pa_stream_disconnect` wants a stream in READY, which
@@ -789,20 +849,20 @@ class _PaIsolate {
   static PaSink _sinkFromNative(pa_sink_info s) {
     final pVol = calloc<pa_cvolume>()..ref = s.volume;
     final pMap = calloc<pa_channel_map>()..ref = s.channel_map;
-    final avgVol = _pa.pa_cvolume_avg(pVol) / PA_VOLUME_NORM;
+    final vol = _pa.pa_cvolume_max(pVol) / PA_VOLUME_NORM;
     final ch = s.channel_map.channels;
     final balance =
         ch >= 2 ? _pa.pa_cvolume_get_balance(pVol, pMap).clamp(-1.0, 1.0) : 0.0;
+    final name = s.name.cast<Utf8>().toDartString();
+    _inst!.sinkVolumes[name] = _ChannelVolumes.read(pVol, pMap);
     calloc.free(pVol);
     calloc.free(pMap);
-    final name = s.name.cast<Utf8>().toDartString();
-    _inst!.sinkChannels[name] = ch;
     return PaSink(
       index: s.index,
       name: name,
       description: s.description.cast<Utf8>().toDartString(),
       mute: s.mute == 1,
-      volume: avgVol,
+      volume: vol,
       channelCount: ch,
       balance: balance,
     );
@@ -842,16 +902,18 @@ class _PaIsolate {
 
   static PaSource _sourceFromNative(pa_source_info s) {
     final pVol = calloc<pa_cvolume>()..ref = s.volume;
-    final avgVol = _pa.pa_cvolume_avg(pVol) / PA_VOLUME_NORM;
-    calloc.free(pVol);
+    final pMap = calloc<pa_channel_map>()..ref = s.channel_map;
+    final vol = _pa.pa_cvolume_max(pVol) / PA_VOLUME_NORM;
     final name = s.name.cast<Utf8>().toDartString();
-    _inst!.sourceChannels[name] = s.channel_map.channels;
+    _inst!.sourceVolumes[name] = _ChannelVolumes.read(pVol, pMap);
+    calloc.free(pVol);
+    calloc.free(pMap);
     return PaSource(
       index: s.index,
       name: name,
       description: s.description.cast<Utf8>().toDartString(),
       mute: s.mute == 1,
-      volume: avgVol,
+      volume: vol,
     );
   }
 
@@ -861,12 +923,9 @@ class _PaIsolate {
 
   static void _setSinkVolume(int id, String name, double vol) {
     using((Arena a) {
-      // As wide as the device: 2 hardcoded here set the wrong width on mono
-      // and surround sinks. The cache is filled by every sink-info parse.
-      final ch = _inst!.sinkChannels[name] ?? 2;
-      final pVol = a<pa_cvolume>();
-      _pa.pa_cvolume_init(pVol);
-      _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
+      final known = _inst!.sinkVolumes[name];
+      final pVol = _scaledVolume(a, known, 2, vol);
+      _inst!.sinkVolumes[name] = _ChannelVolumes.written(pVol, known);
       final op = _pa.pa_context_set_sink_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
       _register(op, () => _inst!.port.send(_Reply(id)));
@@ -876,18 +935,52 @@ class _PaIsolate {
   static void _setSinkVolumeBalance(
       int id, String name, double vol, double balance, int channelCount) {
     using((Arena a) {
-      final ch = channelCount > 0 ? channelCount : 2;
-      final pVol = a<pa_cvolume>();
-      final pMap = a<pa_channel_map>();
-      _pa.pa_cvolume_init(pVol);
-      _pa.pa_channel_map_init_auto(
-          pMap, ch, pa_channel_map_def.PA_CHANNEL_MAP_DEFAULT);
-      _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
-      _pa.pa_cvolume_set_balance(pVol, pMap, balance);
+      final known = _inst!.sinkVolumes[name];
+      final pVol =
+          _scaledVolume(a, known, channelCount > 0 ? channelCount : 2, vol);
+      final pMap = known?.channelMap(a, pVol.ref.channels) ??
+          _autoChannelMap(a, pVol.ref.channels);
+      // The balance is applied to the device's own channel map (the default one
+      // for its width is not always the same order), then the level is put back
+      // where it was asked for: set_balance keeps the louder *side*, which is not
+      // the loudest channel on a device with a centre or LFE.
+      if (pMap != null &&
+          _pa.pa_cvolume_compatible_with_channel_map(pVol, pMap) != 0) {
+        _pa.pa_cvolume_set_balance(pVol, pMap, balance.clamp(-1.0, 1.0));
+        _pa.pa_cvolume_scale(pVol, _paVolume(vol));
+      }
+      _inst!.sinkVolumes[name] = _ChannelVolumes.written(pVol, known, pMap);
       final op = _pa.pa_context_set_sink_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
       _register(op, () => _inst!.port.send(_Reply(id)));
     });
+  }
+
+  static int _paVolume(double vol) =>
+      (vol * PA_VOLUME_NORM).ceil().clamp(0, PA_VOLUME_MAX);
+
+  /// [known]'s channels scaled so the loudest is at [vol] — which keeps the
+  /// balance and every other channel's place relative to it — or, for a device
+  /// not yet seen, [fallbackChannels] all at [vol]. A device whose channels are
+  /// all at zero has no shape left to keep, and `pa_cvolume_scale` makes it flat.
+  static Pointer<pa_cvolume> _scaledVolume(
+      Arena a, _ChannelVolumes? known, int fallbackChannels, double vol) {
+    final pVol = a<pa_cvolume>();
+    _pa.pa_cvolume_init(pVol);
+    if (known != null && known.volumes.isNotEmpty) {
+      known.writeVolume(pVol);
+      _pa.pa_cvolume_scale(pVol, _paVolume(vol));
+    } else {
+      _pa.pa_cvolume_set(pVol, fallbackChannels, _paVolume(vol));
+    }
+    return pVol;
+  }
+
+  static Pointer<pa_channel_map>? _autoChannelMap(Arena a, int channels) {
+    final pMap = a<pa_channel_map>();
+    final ok = _pa.pa_channel_map_init_auto(
+        pMap, channels, pa_channel_map_def.PA_CHANNEL_MAP_DEFAULT);
+    return ok.address == 0 ? null : pMap;
   }
 
   static void _setSinkMute(int id, String name, bool mute) {
@@ -916,10 +1009,9 @@ class _PaIsolate {
 
   static void _setSourceVolume(int id, String name, double vol) {
     using((Arena a) {
-      final ch = _inst!.sourceChannels[name] ?? 2;
-      final pVol = a<pa_cvolume>();
-      _pa.pa_cvolume_init(pVol);
-      _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
+      final known = _inst!.sourceVolumes[name];
+      final pVol = _scaledVolume(a, known, 2, vol);
+      _inst!.sourceVolumes[name] = _ChannelVolumes.written(pVol, known);
       final op = _pa.pa_context_set_source_volume_by_name(_inst!.ctx,
           name.toNativeUtf8(allocator: a).cast(), pVol, nullptr, nullptr);
       _register(op, () => _inst!.port.send(_Reply(id)));
@@ -969,11 +1061,13 @@ class _PaIsolate {
     final s = info.ref;
 
     final pVol = calloc<pa_cvolume>()..ref = s.volume;
-    final avgVol = _pa.pa_cvolume_avg(pVol) / PA_VOLUME_NORM;
+    final pMap = calloc<pa_channel_map>()..ref = s.channel_map;
+    final vol = _pa.pa_cvolume_max(pVol) / PA_VOLUME_NORM;
+    _inst!.sinkInputVolumes[s.index] = _ChannelVolumes.read(pVol, pMap);
     calloc.free(pVol);
+    calloc.free(pMap);
 
     final ch = s.channel_map.channels;
-    _inst!.sinkInputChannels[s.index] = ch;
 
     String appName = '';
     String mediaName = '';
@@ -999,7 +1093,7 @@ class _PaIsolate {
       appName: appName,
       mediaName: mediaName,
       mute: s.mute == 1,
-      volume: avgVol.clamp(0.0, 2.0),
+      volume: vol.clamp(0.0, 2.0),
       corked: s.corked == 1,
       channelCount: ch,
     ));
@@ -1007,10 +1101,9 @@ class _PaIsolate {
 
   static void _setSinkInputVolume(int id, int idx, double vol) {
     using((Arena a) {
-      final ch = _inst!.sinkInputChannels[idx] ?? 2;
-      final pVol = a<pa_cvolume>();
-      _pa.pa_cvolume_init(pVol);
-      _pa.pa_cvolume_set(pVol, ch, (vol * PA_VOLUME_NORM).ceil());
+      final known = _inst!.sinkInputVolumes[idx];
+      final pVol = _scaledVolume(a, known, 2, vol);
+      _inst!.sinkInputVolumes[idx] = _ChannelVolumes.written(pVol, known);
       final op = _pa.pa_context_set_sink_input_volume(
           _inst!.ctx, idx, pVol, nullptr, nullptr);
       _register(op, () => _inst!.port.send(_Reply(id)));
