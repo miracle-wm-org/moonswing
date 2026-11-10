@@ -299,6 +299,22 @@ void spanFullOutput(LayershellWindowController controller) {
 /// `set_margin`, "the exclusive zone includes the margin", so the compositor
 /// already adds it; reserving `height + margin` would reserve it twice and leave
 /// a dead strip no window would occupy.
+///
+/// **The surface is re-stretched along the bar every time**, or a margin that
+/// shrinks leaves the bar short. Mir records the length the client last acked
+/// as though the client had asked for it (`LayerSurfaceV1::ack_configure`), and
+/// `set_margin` sends no configure of its own: so after a theme with margins at
+/// the bar's ends, switching to one without them asked for the old, shorter
+/// length plus no padding, the window manager stretched the window to the same
+/// output width it already had, and nothing told the client — the bar stayed
+/// short and centred, the old margin still showing at both ends. (A growing
+/// margin worked only because asking for more than the output is clamped.)
+/// A `set_size` of 0 along the stretched axis is what drops that recorded
+/// length and makes Mir configure on the next commit, from the window's size
+/// less the new margins; gtk-layer-shell sends one only when its cached request
+/// changes, so the bar lets go of one end's anchor and takes it again —
+/// `set_size(length)` then `set_size(0)`, both before the commit, which is the
+/// only one the compositor acts on.
 void setPanelMargin(
   LayershellWindowController controller, {
   required String anchor,
@@ -307,10 +323,22 @@ void setPanelMargin(
   for (final edge in anchorEdgesForPosition(anchor)) {
     controller.setMargin(edge, margin.of(edge.name));
   }
+  final end = panelStretchEdge(anchor);
+  controller
+    ..setAnchor(end, false)
+    ..setAnchor(end, true);
   // Once the surface is mapped a margin change only queues a resize, so a live
   // theme edit would otherwise sit unsent until something else forced a frame.
   controller.tryForceCommit();
 }
+
+/// One of the two edges a bar anchored to [anchor] is stretched between: the
+/// screen's left edge for a top or bottom bar, its top edge for a side one.
+///
+/// Which end does not matter — [setPanelMargin] releases and retakes it within
+/// one commit, only to make gtk-layer-shell send a fresh `set_size`.
+LayerShellEdge panelStretchEdge(String anchor) =>
+    isVerticalAnchor(anchor) ? LayerShellEdge.top : LayerShellEdge.left;
 
 /// Grows a panel's surface [reach] px past its bar, for what a theme hangs off
 /// the bar's inner edge, and hands that strip back to whatever is beneath it.
