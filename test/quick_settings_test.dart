@@ -711,7 +711,7 @@ void main() {
       var closed = 0;
       await pump(tester, f.services, onClose: () => closed++);
 
-      await tester.tap(find.text('Log out / power off…'));
+      await tester.tap(findGlyph(ShellGlyph.power));
       await tester.pump();
       expect(f.powerMenu.signalCount, 1);
       expect(closed, 1);
