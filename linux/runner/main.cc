@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "my_application.h"
+#include "pam_helper.h"
 
 // snapd installs every snap's desktop entries under
 // /var/lib/snapd/desktop/applications and its themed icons (`Icon=snap.<name>.…`)
@@ -34,6 +35,11 @@ static void ensure_snapd_data_dir() {
 }
 
 int main(int argc, char** argv) {
+  // The lock screen's PAM exchange, run by the shell as a child of itself
+  // (pam_helper.h says why). Before anything else, so it never starts GTK.
+  if (argc > 1 && strcmp(argv[1], kPamHelperFlag) == 0) {
+    return run_pam_helper(argc, argv);
+  }
   ensure_snapd_data_dir();
   g_autoptr(MyApplication) app = my_application_new();
   return g_application_run(G_APPLICATION(app), argc, argv);

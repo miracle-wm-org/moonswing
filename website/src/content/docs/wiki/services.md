@@ -103,10 +103,13 @@ after every mode change, so what it shows is what the kernel holds.
 `polkit-agent-helper-1` can tell polkitd that an authentication happened, and the cookie goes
 to it on **stdin, never `argv`** — that is CVE-2015-3255.
 
-PAM (`lib/lock/pam_authenticator.dart`) runs the whole exchange in `Isolate.run` with an
-`isolateLocal` conversation callback: PAM invokes it synchronously on the calling thread and
-blocks for seconds on a failure. The response array uses the C allocator, because PAM `free()`s
-it.
+PAM (`lib/lock/pam_authenticator.dart`) **never runs inside the shell's process.** The shell
+starts its own binary as a helper (`linux/runner/pam_helper.cc`), passes the password on stdin,
+and reads the verdict from the exit code. In-process, `pam_unix` forks the setuid `unix_chkpwd`
+and waits for it, but `dart:io` reaps every child of the process while any `Process` it started
+is still running, and the clipboard watcher runs all session. When `dart:io` reaped the helper
+first, `pam_unix` failed the attempt, so a correct password could read as a wrong one and the
+session would not unlock.
 
 ## Lock
 
