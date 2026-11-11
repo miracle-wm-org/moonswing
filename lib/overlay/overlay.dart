@@ -2,6 +2,7 @@
 
 import 'dart:math' as math;
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:moonswing/icons/shell_glyph.dart';
@@ -12,6 +13,7 @@ import 'package:moonswing/overlay_fade_scaffold.dart';
 import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/timers/timer_store.dart';
 import 'package:moonswing/timers/timer_widgets.dart';
+import 'package:moonswing/theme/overlay_effect.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/config.dart';
 import 'package:moonswing/overlay/calendar/calendar_tab.dart';
@@ -42,30 +44,39 @@ import 'package:moonswing/tab_focus_traversal.dart';
 import 'package:moonswing/todo/todo_board.dart';
 
 /// The panel is a share of the display rather than a fixed box, so it reads the
-/// same on a 1080p laptop and on a 4K desktop. 16:10 is a little squarer than
-/// the 16:9 of most monitors, which suits the sidebar-plus-content layout and
-/// keeps the panel clear of the screen edges on a wide display.
-const double kOverlayPanelAspect = 16 / 10;
-const double kOverlayPanelWidthFraction = 0.66;
-const double kOverlayPanelHeightFraction = 0.78;
-const Size kOverlayPanelMinSize = Size(800, 800 / kOverlayPanelAspect);
-const Size kOverlayPanelMaxSize = Size(1600, 1600 / kOverlayPanelAspect);
+/// same on a 1080p laptop and on a 4K desktop. It is a touch taller than it is
+/// wide — width over height is [kOverlayPanelAspect] — so it reads as a sheet
+/// in the middle of the screen rather than a second, smaller desktop, and on a
+/// landscape display it leaves the sides clear for the sticky notes and timers.
+const double kOverlayPanelAspect = 0.95;
+const double kOverlayPanelHeightFraction = 0.88;
+
+/// Only binding on a portrait output, where the height would ask for more
+/// width than there is.
+const double kOverlayPanelWidthFraction = 0.9;
+const Size kOverlayPanelMinSize = Size(720, 720 / kOverlayPanelAspect);
+const Size kOverlayPanelMaxSize = Size(1400, 1400 / kOverlayPanelAspect);
+
+/// The air between the panel's rim and everything inside it.
+const double kOverlayPanelPadding = 10;
 
 /// Panel size for an overlay surface of [available] logical pixels. The overlay
 /// window is anchored to all four edges, so [available] is the usable size of the
 /// monitor.
 ///
 /// Every clamp re-derives the other axis from [kOverlayPanelAspect], so the ratio
-/// survives all of them — except the last, where fitting on screen wins over the
-/// minimum size.
+/// survives all of them — except the last two: on a short screen the minimum
+/// width stands but the height still keeps to [kOverlayPanelHeightFraction], and
+/// fitting on screen wins over everything.
 Size overlayPanelSize(Size available) {
-  double width = available.width * kOverlayPanelWidthFraction;
-  double height = width / kOverlayPanelAspect;
-
   final maxHeight = available.height * kOverlayPanelHeightFraction;
-  if (height > maxHeight) {
-    height = maxHeight;
-    width = height * kOverlayPanelAspect;
+  double height = maxHeight;
+  double width = height * kOverlayPanelAspect;
+
+  final maxWidth = available.width * kOverlayPanelWidthFraction;
+  if (width > maxWidth) {
+    width = maxWidth;
+    height = width / kOverlayPanelAspect;
   }
 
   if (width > kOverlayPanelMaxSize.width) {
@@ -74,7 +85,7 @@ Size overlayPanelSize(Size available) {
   }
   if (width < kOverlayPanelMinSize.width) {
     width = kOverlayPanelMinSize.width;
-    height = width / kOverlayPanelAspect;
+    height = math.min(width / kOverlayPanelAspect, maxHeight);
   }
 
   return Size(
@@ -106,8 +117,17 @@ class _OverlayTab {
   final ShellGlyph icon;
 }
 
-/// The header's close button, and the slot that balances it.
+/// The header's close button.
 const double _kCloseButtonSize = 32;
+
+/// The space between the header's pieces, and between the header and the tab
+/// under it.
+const double kOverviewHeaderGap = 12;
+
+/// The least the header's leading slot is given, which is room for the settings
+/// search to say what it is. Reserved on every tab, so the tab strip does not
+/// move as the field comes and goes.
+const double kOverviewHeaderLeadingMinWidth = 170;
 
 const List<_OverlayTab> _tabs = [
   _OverlayTab(
@@ -267,7 +287,8 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
           // with everything else. [ShellDurations.overlayEntrance] over
           // [ShellDurations.overlayFade] is the ratio that keeps the shipped
           // themes playing exactly what they played before.
-          durationScale: ShellDurations.overlayEntrance.inMilliseconds /
+          durationScale:
+              ShellDurations.overlayEntrance.inMilliseconds /
               ShellDurations.overlayFade.inMilliseconds,
           // Moved by dragging the tab strip; see [_moveBy].
           offset: _offset,
@@ -526,6 +547,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
       height: size.height,
       child: OverlayCard(
         color: overlayPanelFill(theme),
+        padding: const EdgeInsets.all(kOverlayPanelPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -545,6 +567,9 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
                 child: _buildHeader(theme),
               ),
             ),
+            // No rule under the header: the tab strip's own track and a little
+            // air are what set the chrome apart from the workspace under it.
+            const SizedBox(height: kOverviewHeaderGap),
             // Body. An IndexedStack rather than a switch: the settings tab hosts
             // ShellSettingsPage, which owns a nested Navigator. Rebuilding the
             // body on every tab change would tear that down, dropping the user
@@ -575,64 +600,72 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
     );
   }
 
-  /// The tab strip and the close button.
+  /// The settings search, the tab strip and the close button.
   ///
-  /// The strip is centred on the panel rather than on what is left beside the
-  /// close button, so a slot of the button's width balances it on the left; and
-  /// it scales down rather than overflow when a large `font_size` makes it wider
-  /// than the narrowest panel.
+  /// The strip is centred on the panel where there is room, and it never moves
+  /// when the search comes and goes: the search's slot is reserved on every tab
+  /// (see [OverviewHeaderLayout]). It scales down rather than overflow when a
+  /// large `font_size` makes it wider than the narrowest panel.
   Widget _buildHeader(ThemeConfig theme) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: theme.divider)),
+    final searching = _selectedTab == OverviewTab.settings;
+    final fade = theme.overlayEffect == OverlayEffect.none
+        ? Duration.zero
+        : ShellDurations.fast;
+    return OverviewHeaderLayout(
+      // Only the Settings tab has anything to search, so the field is there
+      // and nowhere else. Built afresh each time the tab is shown: a query is
+      // a moment's question, not something to come back to.
+      leading: AnimatedSwitcher(
+        duration: fade,
+        layoutBuilder: (current, previous) => Stack(
+          alignment: Alignment.centerLeft,
+          children: [...previous, ?current],
+        ),
+        child: searching
+            ? SettingsSearchBar(
+                key: const ValueKey('search'),
+                focusNode: _searchFocus,
+                onJump: _jumpToSetting,
+              )
+            : const SizedBox.shrink(key: ValueKey('none')),
       ),
-      child: Row(
-        children: [
-          const SizedBox(width: _kCloseButtonSize),
-          Expanded(
-            child: Center(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                // The arrow, not the header's move cursor: these are buttons.
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.basic,
-                  child: SegmentedTabBar(
-                    tabs: [
-                      for (final tab in _tabs)
-                        SegmentedTab(label: tab.label, icon: tab.icon),
-                    ],
-                    selected: _tabs.indexWhere((t) => t.id == _selectedTab),
-                    onSelected: (i) => _selectTab(_tabs[i].id),
-                  ),
+      tabs: FittedBox(
+        fit: BoxFit.scaleDown,
+        // The arrow, not the header's move cursor: these are buttons.
+        child: MouseRegion(
+          cursor: SystemMouseCursors.basic,
+          child: SegmentedTabBar(
+            tabs: [
+              for (final tab in _tabs)
+                SegmentedTab(label: tab.label, icon: tab.icon),
+            ],
+            selected: _tabs.indexWhere((t) => t.id == _selectedTab),
+            onSelected: (i) => _selectTab(_tabs[i].id),
+          ),
+        ),
+      ),
+      trailing: HoverRegion(
+        cursor: SystemMouseCursors.basic,
+        onTap: _requestClose,
+        builder: (context, hovered) => Container(
+          width: _kCloseButtonSize,
+          height: _kCloseButtonSize,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(ShellRadii.control),
+            color: hovered ? theme.surfaceHover : const Color(0x00000000),
+          ),
+          child: Center(
+            child: Text(
+              '✕',
+              style: TextStyle(
+                fontSize: ShellFontSizes.title,
+                color: theme.popupForeground.withValues(
+                  alpha: hovered ? 0.9 : 0.6,
                 ),
               ),
             ),
           ),
-          HoverRegion(
-            cursor: SystemMouseCursors.basic,
-            onTap: _requestClose,
-            builder: (context, hovered) => Container(
-              width: _kCloseButtonSize,
-              height: _kCloseButtonSize,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(ShellRadii.control),
-                color: hovered ? theme.surfaceHover : const Color(0x00000000),
-              ),
-              child: Center(
-                child: Text(
-                  '✕',
-                  style: TextStyle(
-                    fontSize: ShellFontSizes.title,
-                    color: theme.popupForeground.withValues(
-                      alpha: hovered ? 0.9 : 0.6,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -664,46 +697,17 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
   }
 
   Widget _buildSettingsBody(ThemeConfig theme) {
-    // The search bar is a `Stack` child over the body rather than a row above
-    // it, and the body indents by [kSettingsSearchBarHeight] to make room. Two
-    // reasons, and both are about not moving what the user is reading: the
-    // results card hangs *over* the pane it is about to send them to instead
-    // of displacing it, and the panes themselves are laid out exactly as they
-    // were before the field existed.
-    return Stack(
+    // The search is the header's now (see [_buildHeader]); its results float
+    // over this body rather than displacing it.
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // No rule under the search bar across the whole panel: the
-            // sidebar's edge and the pane's own header already say where the
-            // field ends and the page begins.
-            const SizedBox(height: kSettingsSearchBarHeight),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SettingsSidebar(
-                    selectedCategory: _selectedCategory,
-                    onCategorySelected: _selectCategory,
-                  ),
-                  Container(width: 1, color: theme.divider),
-                  Expanded(child: _buildCategoryContent(_selectedCategory)),
-                ],
-              ),
-            ),
-          ],
+        SettingsSidebar(
+          selectedCategory: _selectedCategory,
+          onCategorySelected: _selectCategory,
         ),
-        // Fills the body rather than sitting in its corner: the bar draws its
-        // field at the top left and, while results are open, a dismiss barrier
-        // over everything else. It costs the panes nothing at rest — see
-        // [SettingsSearchBar].
-        Positioned.fill(
-          child: SettingsSearchBar(
-            focusNode: _searchFocus,
-            onJump: _jumpToSetting,
-          ),
-        ),
+        Container(width: 1, color: theme.divider),
+        Expanded(child: _buildCategoryContent(_selectedCategory)),
       ],
     );
   }
@@ -751,6 +755,107 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
         return const SizedBox.shrink();
     }
   }
+}
+
+/// The overview header's three pieces: [leading] (the settings search) on the
+/// left, [tabs] in the middle, [trailing] (the close button) on the right.
+///
+/// The strip is centred on the panel when that leaves the leading slot at least
+/// [kOverviewHeaderLeadingMinWidth] and the close button its own width; otherwise it
+/// slides right just far enough. Either way the slot is decided from the
+/// strip's width alone, never from whether the slot is filled, so switching to
+/// or from the Settings tab moves nothing. The strip is offered only what is
+/// left after both ends' minimums, which is where its `FittedBox` scales it.
+///
+/// A render object rather than a `Row` because neither a flex nor a `Stack`
+/// can say "centred, unless that crowds a neighbour": the centring needs the
+/// strip's measured width before the slot beside it can be sized. Public for
+/// the tests alone, as [SettingsSidebar] is.
+@visibleForTesting
+class OverviewHeaderLayout extends MultiChildRenderObjectWidget {
+  OverviewHeaderLayout({
+    super.key,
+    required Widget leading,
+    required Widget tabs,
+    required Widget trailing,
+  }) : super(children: [leading, tabs, trailing]);
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      RenderOverviewHeader();
+}
+
+@visibleForTesting
+class OverviewHeaderParentData extends ContainerBoxParentData<RenderBox> {}
+
+@visibleForTesting
+class RenderOverviewHeader extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, OverviewHeaderParentData>,
+        RenderBoxContainerDefaultsMixin<RenderBox, OverviewHeaderParentData> {
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! OverviewHeaderParentData) {
+      child.parentData = OverviewHeaderParentData();
+    }
+  }
+
+  @override
+  void performLayout() {
+    final leading = firstChild!;
+    final tabs = childAfter(leading)!;
+    final trailing = childAfter(tabs)!;
+    final width = constraints.maxWidth;
+
+    trailing.layout(BoxConstraints(maxWidth: width), parentUsesSize: true);
+    final leftReserve = kOverviewHeaderLeadingMinWidth + kOverviewHeaderGap;
+    final rightReserve = trailing.size.width + kOverviewHeaderGap;
+
+    tabs.layout(
+      BoxConstraints(
+        maxWidth: math.max(0.0, width - leftReserve - rightReserve),
+      ),
+      parentUsesSize: true,
+    );
+    final tabsWidth = tabs.size.width;
+    final tabsLeft = ((width - tabsWidth) / 2)
+        .clamp(
+          leftReserve,
+          math.max(leftReserve, width - rightReserve - tabsWidth),
+        )
+        .toDouble();
+
+    leading.layout(
+      BoxConstraints(maxWidth: math.max(0.0, tabsLeft - kOverviewHeaderGap)),
+      parentUsesSize: true,
+    );
+
+    final height = [
+      leading.size.height,
+      tabs.size.height,
+      trailing.size.height,
+    ].reduce(math.max);
+    size = constraints.constrain(Size(width, height));
+
+    void place(RenderBox child, double x) {
+      (child.parentData! as OverviewHeaderParentData).offset = Offset(
+        x,
+        (size.height - child.size.height) / 2,
+      );
+    }
+
+    place(leading, 0);
+    place(tabs, tabsLeft);
+    place(trailing, width - trailing.size.width);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) =>
+      defaultHitTestChildren(result, position: position);
 }
 
 // ---------------------------------------------------------------------------

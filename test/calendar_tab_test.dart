@@ -14,7 +14,7 @@ import 'paint_counter.dart';
 /// Directionality and text style the overlay's panel supplies.
 Future<void> pumpTab(
   WidgetTester tester, {
-  Size size = const Size(800, 456),
+  Size size = const Size(696, 456),
 }) async {
   const theme = ThemeConfig();
   await tester.pumpWidget(
@@ -109,17 +109,17 @@ void main() {
   });
 
   testWidgets('lays out without overflowing the overlay panel', (tester) async {
-    // overlayPanelSize clamps the panel to 800x500 at its smallest, and the tab
-    // gets that minus the ~44px tab header — so this is the tightest the grid
-    // and the clock column ever have to share.
+    // overlayPanelSize floors the panel at 720 wide, and the tab gets that
+    // less the rim and padding either side — so this is the tightest the grid
+    // and the clock column ever have to share. Shorter than any real panel, too.
     await pumpTab(tester);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('lays out on a pathologically short surface', (tester) async {
     // The last clamp in overlayPanelSize is against the output's own height, so
-    // a very short display produces a panel shorter than the 500 minimum.
-    await pumpTab(tester, size: const Size(800, 260));
+    // a very short display produces a panel shorter than the minimum.
+    await pumpTab(tester, size: const Size(696, 260));
     expect(tester.takeException(), isNull);
   });
 

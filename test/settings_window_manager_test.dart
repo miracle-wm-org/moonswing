@@ -85,7 +85,19 @@ Future<List<String>> _searchSections(
   final focus = FocusNode();
   addTearDown(focus.dispose);
   await tester.pumpWidget(
-    _chrome(manager, SettingsSearchBar(focusNode: focus, onJump: (_) {})),
+    _chrome(
+      manager,
+      Overlay(
+        initialEntries: [
+          OverlayEntry(
+            builder: (_) => Align(
+              alignment: Alignment.topLeft,
+              child: SettingsSearchBar(focusNode: focus, onJump: (_) {}),
+            ),
+          ),
+        ],
+      ),
+    ),
   );
   await tester.enterText(find.byType(EditableText), query);
   await tester.pump();

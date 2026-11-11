@@ -27,7 +27,12 @@ Widget _chrome({
     child: DefaultTextEditingShortcuts(
       child: DefaultTextStyle(
         style: const TextStyle(fontSize: 14),
-        child: ThemeScope(theme: const ThemeConfig(), child: child),
+        child: ThemeScope(
+          theme: const ThemeConfig(),
+          // The settings window's own `Overlay`, which the results card floats
+          // in.
+          child: Overlay(initialEntries: [OverlayEntry(builder: (_) => child)]),
+        ),
       ),
     ),
   );
@@ -42,10 +47,12 @@ Future<List<SettingsField>> _pumpBar(
 ) async {
   await tester.pumpWidget(
     _chrome(
-      // The bar fills the settings body, as `_buildSettingsBody` gives it —
-      // its field is drawn in the top-left corner and, while results are open,
-      // the rest is a dismiss barrier.
-      child: SettingsSearchBar(focusNode: focus, onJump: picked.add),
+      // In the corner, as the overview's header puts it: the field sized by
+      // its slot and the results floating under it.
+      child: Align(
+        alignment: Alignment.topLeft,
+        child: SettingsSearchBar(focusNode: focus, onJump: picked.add),
+      ),
     ),
   );
   await tester.pump();

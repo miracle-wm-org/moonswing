@@ -91,7 +91,12 @@ void main() {
 
   /// The tab's usable area inside the overlay panel, which is no longer a fixed
   /// box — it scales with the monitor between these two clamps.
-  Size tabArea(Size panel) => Size(panel.width, panel.height - 76);
+  // The panel less its rim and padding all round, and its header and the gap
+  // under it.
+  Size tabArea(Size panel) => Size(
+        panel.width - 2 * (kOverlayPanelPadding + 1.5),
+        panel.height - 2 * (kOverlayPanelPadding + 1.5) - 56,
+      );
 
   testWidgets('every card lays out without throwing', (tester) async {
     await pumpOverview(tester, await seededStore());
