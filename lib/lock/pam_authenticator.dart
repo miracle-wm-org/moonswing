@@ -1,11 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:ffi' as ffi;
 import 'dart:io';
-import 'dart:isolate';
-
-import 'package:ffi/ffi.dart';
-
-import 'package:moonswing/native/ffi_util.dart';
 
 import 'user_identity.dart';
 
@@ -22,50 +17,30 @@ enum PamResult {
   unavailable,
 }
 
-// <security/_pam_types.h>
-const int _pamSuccess = 0;
-const int _pamPromptEchoOff = 1;
-const int _pamPromptEchoOn = 2;
-const int _pamConvErr = 19;
-const int _pamMaxNumMsg = 32;
+/// Starts the PAM helper. [Process.start]'s shape, and replaceable by tests.
+typedef PamHelperStarter =
+    Future<Process> Function(String executable, List<String> arguments);
 
-// struct pam_message { int msg_style; const char *msg; }
-final class _PamMessage extends ffi.Struct {
-  @ffi.Int32()
-  external int msgStyle;
-
-  external ffi.Pointer<Utf8> msg;
-}
-
-// struct pam_response { char *resp; int resp_retcode; }
-final class _PamResponse extends ffi.Struct {
-  external ffi.Pointer<ffi.Uint8> resp;
-
-  @ffi.Int32()
-  external int respRetcode;
-}
-
-typedef _ConvNative = ffi.Int32 Function(
-  ffi.Int32 numMsg,
-  ffi.Pointer<ffi.Pointer<_PamMessage>> msg,
-  ffi.Pointer<ffi.Pointer<_PamResponse>> resp,
-  ffi.Pointer<ffi.Void> appdata,
-);
-
-// struct pam_conv { int (*conv)(...); void *appdata_ptr; }
-final class _PamConv extends ffi.Struct {
-  external ffi.Pointer<ffi.NativeFunction<_ConvNative>> conv;
-  external ffi.Pointer<ffi.Void> appdataPtr;
-}
+/// The first argument that turns the shell binary into its own PAM helper.
+/// Matches `kPamHelperFlag` in `linux/runner/pam_helper.h`.
+const String kPamHelperFlag = '--moonswing-pam-authenticate';
 
 /// Verifies the user's login password with PAM.
 ///
-/// Everything happens through `dart:ffi` rather than native runner code, and the
-/// whole blocking `pam_start` → `pam_authenticate` → `pam_end` sequence runs
-/// inside [Isolate.run] so the lock screen keeps painting while a slow PAM stack
-/// (`pam_unix` deliberately delays failures by seconds) works. The conversation
-/// callback is `isolateLocal` because PAM invokes it synchronously, on the very
-/// thread that called `pam_authenticate`.
+/// **The exchange runs in a child process, never in the shell.** `pam_unix`
+/// checks a password by forking the setuid `unix_chkpwd` and `waitpid`ing it.
+/// While any `dart:io` [Process] is running, and the clipboard history's
+/// `wl-paste --watch` runs all session, the VM's exit-code thread sits in a bare
+/// `wait()` and reaps *every* child of the process. When it gets to
+/// `unix_chkpwd` first, `pam_unix` gets `ECHILD` and answers `PAM_AUTH_ERR`, so
+/// a correct password reads as "Incorrect password", sometimes and then often,
+/// and the session cannot be unlocked. So the shell starts *itself* with
+/// [kPamHelperFlag] (`linux/runner/pam_helper.cc`), a single-threaded process
+/// whose children nothing else waits on. Being a `dart:io` child, its own exit
+/// code comes back through the same exit-code thread.
+///
+/// The password goes to the helper on **stdin, never argv**, where any process
+/// on the machine could read it from `/proc`. The verdict is the exit code.
 ///
 /// This works without the shell being root because `pam_unix` shells out to the
 /// setuid-root `unix_chkpwd` helper to read the shadow database.
@@ -99,95 +74,68 @@ class PamAuthenticator {
     final identity = UserIdentity.current();
     if (identity.username.isEmpty) return PamResult.unavailable;
 
-    final service = resolveService();
-    final username = identity.username;
-
-    try {
-      return await Isolate.run(
-        () => _authenticateSync(service, username, password),
-      );
-    } catch (_) {
-      return PamResult.unavailable;
-    }
+    return runPamHelper(
+      service: resolveService(),
+      username: identity.username,
+      password: password,
+    );
   }
 }
 
-/// The blocking PAM conversation. Runs on its own isolate.
-PamResult _authenticateSync(String service, String username, String password) {
-  final opened = openFirstLibrary(const ['libpam.so.0', 'libpam.so']);
-  if (opened == null) return PamResult.unavailable;
-  final lib = opened;
-
-  final pamStart = lib.lookupFunction<
-      ffi.Int32 Function(ffi.Pointer<Utf8>, ffi.Pointer<Utf8>,
-          ffi.Pointer<_PamConv>, ffi.Pointer<ffi.Pointer<ffi.Void>>),
-      int Function(ffi.Pointer<Utf8>, ffi.Pointer<Utf8>, ffi.Pointer<_PamConv>,
-          ffi.Pointer<ffi.Pointer<ffi.Void>>)>('pam_start');
-  final pamAuthenticate = lib.lookupFunction<
-      ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Int32),
-      int Function(ffi.Pointer<ffi.Void>, int)>('pam_authenticate');
-  final pamEnd = lib.lookupFunction<
-      ffi.Int32 Function(ffi.Pointer<ffi.Void>, ffi.Int32),
-      int Function(ffi.Pointer<ffi.Void>, int)>('pam_end');
-
-  // Answers every password prompt with the secret the user typed. PAM takes
-  // ownership of the array and each string, so they are allocated with the C
-  // allocator and deliberately not freed here.
-  int converse(
-    int numMsg,
-    ffi.Pointer<ffi.Pointer<_PamMessage>> msg,
-    ffi.Pointer<ffi.Pointer<_PamResponse>> resp,
-    ffi.Pointer<ffi.Void> appdata,
-  ) {
-    if (numMsg <= 0 || numMsg > _pamMaxNumMsg) return _pamConvErr;
-    final replies = calloc<_PamResponse>(numMsg);
-    for (var i = 0; i < numMsg; i++) {
-      final style = msg[i].ref.msgStyle;
-      if (style == _pamPromptEchoOff || style == _pamPromptEchoOn) {
-        replies[i].resp = _dupUtf8(password);
-      }
-    }
-    resp.value = replies;
-    return _pamSuccess;
-  }
-
-  final callable = ffi.NativeCallable<_ConvNative>.isolateLocal(
-    converse,
-    exceptionalReturn: _pamConvErr,
-  );
-
-  final conv = calloc<_PamConv>();
-  final handleOut = calloc<ffi.Pointer<ffi.Void>>();
-  final servicePtr = service.toNativeUtf8();
-  final userPtr = username.toNativeUtf8();
-
+/// Runs one exchange through the PAM helper and reads its verdict.
+///
+/// [executable] is the shell's own binary; the helper is started with the
+/// shell's environment unchanged, so it resolves `libpam` and the PAM modules
+/// exactly as the shell would — under the snap, the bundle's libraries are
+/// what lets it start at all.
+Future<PamResult> runPamHelper({
+  required String service,
+  required String username,
+  required String password,
+  String? executable,
+  PamHelperStarter start = Process.start,
+}) async {
+  if (password.isEmpty) return PamResult.incorrect;
+  final Process process;
   try {
-    conv.ref.conv = callable.nativeFunction;
-    conv.ref.appdataPtr = ffi.nullptr;
-
-    final startStatus = pamStart(servicePtr, userPtr, conv, handleOut);
-    if (startStatus != _pamSuccess) return PamResult.unavailable;
-
-    final handle = handleOut.value;
-    final authStatus = pamAuthenticate(handle, 0);
-    pamEnd(handle, authStatus);
-
-    return authStatus == _pamSuccess ? PamResult.success : PamResult.incorrect;
-  } catch (_) {
+    process = await start(executable ?? Platform.resolvedExecutable, [
+      kPamHelperFlag,
+      service,
+      username,
+    ]);
+  } on Object {
     return PamResult.unavailable;
-  } finally {
-    callable.close();
-    calloc.free(conv);
-    calloc.free(handleOut);
-    calloc.free(servicePtr);
-    calloc.free(userPtr);
   }
+
+  // Nothing is expected on either, but an undrained pipe that fills blocks the
+  // writer, and a PAM module is free to print.
+  unawaited(process.stdout.drain<void>().catchError((Object _) {}));
+  unawaited(process.stderr.drain<void>().catchError((Object _) {}));
+
+  // A helper that exited before reading has broken the pipe, which surfaces
+  // here rather than as an uncaught error; its exit code still says why.
+  unawaited(process.stdin.done.catchError((Object _) {}));
+  try {
+    process.stdin.add(utf8.encode(password));
+    await process.stdin.close();
+  } on Object {
+    // As above.
+  }
+
+  final int code;
+  try {
+    code = await process.exitCode;
+  } on Object {
+    return PamResult.unavailable;
+  }
+  return pamResultForExitCode(code);
 }
 
-/// `strdup` for a Dart string, using the C allocator so PAM can `free()` it.
-ffi.Pointer<ffi.Uint8> _dupUtf8(String value) {
-  final units = utf8.encode(value);
-  final ptr = calloc<ffi.Uint8>(units.length + 1);
-  ptr.asTypedList(units.length + 1).setAll(0, units);
-  return ptr;
-}
+/// The helper's exit code as a [PamResult]: `kPamHelperAccepted`,
+/// `kPamHelperRejected` and `kPamHelperUnavailable` in `pam_helper.h`, and
+/// anything else (a crash, a signal) as unavailable.
+PamResult pamResultForExitCode(int code) => switch (code) {
+  0 => PamResult.success,
+  1 => PamResult.incorrect,
+  _ => PamResult.unavailable,
+};

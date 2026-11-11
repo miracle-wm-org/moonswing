@@ -1,12 +1,13 @@
 ---
 title: Native code, FFI and capture
-description: There is no C in the repo — how the shell talks to libwayland, PipeWire and the capture protocols.
+description: All FFI, no C beyond the runner — how the shell talks to libwayland, PipeWire and the capture protocols.
 sidebar:
   order: 6
 ---
 
 `lib/native/`, `lib/wayland_ffi/`, `lib/pipewire/`, `lib/screencast/` and `lib/capture/` are
-all pure `dart:ffi`. **There is no C in the repository.** `lib/native/` holds the shared dlopen
+all pure `dart:ffi`. **There is no C in the repository** beyond the Flutter runner in
+`linux/runner/`, which also carries the lock screen's PAM helper. `lib/native/` holds the shared dlopen
 plumbing: `processLibrary`, soname fallback, `g_signal_connect_data`, `g_unix_fd_add`,
 `memfd_create`, `mmap`, `memcpy`.
 
