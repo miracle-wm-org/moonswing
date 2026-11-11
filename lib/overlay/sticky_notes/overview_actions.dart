@@ -28,10 +28,18 @@ class OverviewAction {
 /// How far the action buttons sit in from the output's top-left corner.
 const double kOverviewActionInset = 16;
 
-/// One action button's diameter.
-const double kOverviewActionSize = 40;
+/// One action button's diameter — big enough to be found at a glance in the
+/// corner of a full output, not a toolbar glyph.
+const double kOverviewActionSize = 52;
 
-const double _kActionGap = 8;
+/// The glyph inside an action button.
+const double _kActionIconSize = 22;
+
+/// The rim's width: the accent at rest, so the buttons read as buttons over
+/// the scrim rather than as decoration.
+const double _kActionRimWidth = 2;
+
+const double _kActionGap = 12;
 
 /// The box [count] action buttons cover, for anything placed around them —
 /// a new sticky note is never put under one.
@@ -81,6 +89,7 @@ class _OverviewActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
+    final shadow = popupShadow(theme);
     // Its own layer, so the hover tint repaints a button and not the output.
     return RepaintBoundary(
       child: SettingsTooltip(
@@ -98,12 +107,18 @@ class _OverviewActionButton extends StatelessWidget {
                   ? Color.alphaBlend(theme.surfaceHover, opaquePopupFill(theme))
                   : opaquePopupFill(theme),
               shape: BoxShape.circle,
-              border: Border.all(color: hovered ? theme.accent : theme.divider),
+              border: Border.all(
+                color: action.enabled ? theme.accent : theme.divider,
+                width: _kActionRimWidth,
+              ),
+              // Lifted off the scrim the way a popup is, where the theme casts
+              // a shadow at all.
+              boxShadow: shadow == null ? null : [shadow],
             ),
             child: Center(
               child: ShellIcon(
                 action.icon,
-                size: 16,
+                size: _kActionIconSize,
                 color: !action.enabled
                     ? theme.muted
                     : hovered
