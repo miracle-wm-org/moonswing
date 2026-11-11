@@ -8,30 +8,36 @@ void main() {
     expect(
       size.width / size.height,
       closeTo(kOverlayPanelAspect, 0.001),
-      reason: 'panel should keep its 16:10 ratio',
+      reason: 'panel should keep its ratio',
     );
   }
 
-  test('1080p: scales with the display width', () {
+  test('the panel is a little taller than it is wide', () {
+    expect(kOverlayPanelAspect, lessThan(1));
+    expect(kOverlayPanelAspect, greaterThan(0.85));
+  });
+
+  test('1080p: scales with the display height', () {
     final size = overlayPanelSize(const Size(1920, 1080));
-    expect(size.width, closeTo(1920 * kOverlayPanelWidthFraction, 0.001));
+    expect(size.height, closeTo(1080 * kOverlayPanelHeightFraction, 0.001));
+    expect(size.height, greaterThan(size.width));
     expectAspect(size);
   });
 
-  test('1440p and above: clamped to the maximum', () {
-    expect(overlayPanelSize(const Size(2560, 1440)), kOverlayPanelMaxSize);
+  test('4K at scale 1: clamped to the maximum', () {
     expect(overlayPanelSize(const Size(3840, 2160)), kOverlayPanelMaxSize);
   });
 
-  test('short and wide: the height fraction binds, ratio survives', () {
-    final size = overlayPanelSize(const Size(2560, 900));
-    expect(size.height, closeTo(900 * kOverlayPanelHeightFraction, 0.001));
+  test('portrait: the width fraction binds, ratio survives', () {
+    final size = overlayPanelSize(const Size(1080, 1920));
+    expect(size.width, closeTo(1080 * kOverlayPanelWidthFraction, 0.001));
     expectAspect(size);
   });
 
-  test('small display: floors at the minimum', () {
+  test('short display: the minimum width stands, the height still fits', () {
     final size = overlayPanelSize(const Size(1024, 768));
-    expect(size, kOverlayPanelMinSize);
+    expect(size.width, kOverlayPanelMinSize.width);
+    expect(size.height, closeTo(768 * kOverlayPanelHeightFraction, 0.001));
   });
 
   test('display smaller than the minimum: fits on screen anyway', () {

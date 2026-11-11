@@ -6,6 +6,9 @@
 // is called "Height" under Panels & Layout. This is the index made typeable — see
 // `settings_search.dart` for the ranking and `settings_catalog.dart` for the table.
 
+import 'dart:math' as math;
+
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -20,32 +23,39 @@ import 'package:moonswing/popup_surface.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/theme/tokens.dart';
 
-/// The height the settings body reserves for the search row.
+/// The widest the field grows in the overview's header.
 ///
-/// The bar is laid out over the body rather than above it (see
-/// [SettingsSearchBar]), so the two have to agree on this by hand.
-const double kSettingsSearchBarHeight = 52;
+/// The header gives it whatever is left beside the tab strip, which on a wide
+/// panel is more than a query needs; past this the field would only be a longer
+/// empty box.
+const double kSettingsSearchFieldMaxWidth = 300;
 
-/// How wide the field and its results card are.
+/// How wide the results card is.
 ///
-/// Wider than the 180px sidebar and narrower than the pane, because a result row
-/// is a label over a breadcrumb and a sentence: at the pane's full width the
-/// sentence is one line with two thirds of the card empty after it, and at the
-/// sidebar's it is four.
+/// Wider than the field and narrower than the pane, because a result row is a
+/// label over a breadcrumb and a sentence: at the pane's full width the sentence
+/// is one line with two thirds of the card empty after it, and at the field's it
+/// is four.
 const double kSettingsSearchWidth = 460;
 
 /// One [SettingsRow] is 25px tall and the card must not cover the pane it is
 /// searching, so the list scrolls past this.
 const double kSettingsSearchMaxResultsHeight = 340;
 
-/// A search field over the whole settings pane, and the results it opens.
+/// The gap between the field and the card hanging under it.
+const double _kResultsGap = 6;
+
+/// The settings search field, and the results it opens.
 ///
-/// **It floats; it does not push.** The widget fills the settings body and draws
-/// the field in its top-left corner, so the pane behind stays where it was — a
-/// results list that displaced the sidebar and content would move the very row
-/// the user is about to be shown. Filling the body costs nothing at rest:
-/// `RenderStack` has no `hitTestSelf`, so with no results open every click goes
-/// straight through to the page.
+/// It lives in the overview's header, on the left of the tab strip, and only
+/// while the Settings tab is showing; the field takes the width its slot gives
+/// it, up to [kSettingsSearchFieldMaxWidth].
+///
+/// **The results float; they do not push.** The card is an [OverlayPortal]
+/// child, hung under the field by a [CompositedTransformFollower], so the pane
+/// behind stays where it was — a results list that displaced the sidebar and
+/// content would move the very row the user is about to be shown. It needs an
+/// [Overlay] above it, which the settings window has.
 ///
 /// **An open card is dismissed by a barrier, not by focus** —
 /// `AnchoredSearchDropdown`'s arrangement, and for its reason: most controls here
@@ -82,6 +92,8 @@ class SettingsSearchBar extends StatefulWidget {
 class _SettingsSearchBarState extends State<SettingsSearchBar> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scroll = ScrollController();
+  final OverlayPortalController _portal = OverlayPortalController();
+  final LayerLink _link = LayerLink();
 
   List<SettingsField> _results = const [];
   int _selected = 0;
@@ -93,26 +105,33 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
     super.dispose();
   }
 
-  void _onQueryChanged(String query) {
-    final notMiracle = MiracleScope.readOf(context)?.unsupported ?? false;
-    final results = rankSettings(
-      notMiracle
-          ? SettingsCatalog.searchableWithoutMiracle
-          : SettingsCatalog.searchable,
-      query,
-    );
+  void _setResults(List<SettingsField> results) {
     setState(() {
       _results = results;
       _selected = 0;
     });
+    if (results.isEmpty) {
+      _portal.hide();
+    } else {
+      _portal.show();
+    }
+  }
+
+  void _onQueryChanged(String query) {
+    final notMiracle = MiracleScope.readOf(context)?.unsupported ?? false;
+    _setResults(
+      rankSettings(
+        notMiracle
+            ? SettingsCatalog.searchableWithoutMiracle
+            : SettingsCatalog.searchable,
+        query,
+      ),
+    );
   }
 
   void _clear() {
     _controller.clear();
-    setState(() {
-      _results = const [];
-      _selected = 0;
-    });
+    _setResults(const []);
   }
 
   void _move(int delta) {
@@ -185,61 +204,82 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
       // The field below is the Tab stop; this only hears what it declines.
       skipTraversal: true,
       onKeyEvent: _onKey,
-      child: Stack(
-        children: [
-          // Under the field in paint order, so a click on the card itself is
-          // hit-tested first and never reaches this.
-          if (_results.isNotEmpty)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _clear,
-              ),
+      child: OverlayPortal(
+        controller: _portal,
+        overlayChildBuilder: _buildResults,
+        child: CompositedTransformTarget(
+          link: _link,
+          child: LayoutBuilder(
+            builder: (context, constraints) => _buildField(
+              theme,
+              math.min(constraints.maxWidth, kSettingsSearchFieldMaxWidth),
             ),
-          Align(alignment: Alignment.topLeft, child: _buildField(theme)),
-        ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildField(ThemeConfig theme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
+  Widget _buildField(ThemeConfig theme, double width) {
+    return SettingsTextField(
+      controller: _controller,
+      focusNode: widget.focusNode,
+      width: width,
+      hint: 'Search settings (Ctrl+F)',
+      onChanged: _onQueryChanged,
+      leading: ShellIcon(
+        ShellGlyph.search,
+        size: 12,
+        color: theme.popupForeground.withValues(alpha: 0.45),
+      ),
+      // Always a widget, never null: swapping `trailing` between null and a
+      // button restructures the field around its [EditableText], which
+      // re-inflates it and drops the focus the user is typing into.
+      // [SettingsTextField] documents this.
+      trailing: _controller.text.isEmpty
+          ? const SizedBox.square(dimension: ShellSizes.iconButtonDense)
+          : SettingsIconButton(
+              icon: ShellGlyph.close,
+              size: 10,
+              box: ShellSizes.iconButtonDense,
+              onTap: _clear,
+            ),
+    );
+  }
+
+  /// Whether [global] is over the field, which the barrier must not swallow.
+  bool _overField(Offset global) {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return false;
+    return (Offset.zero & box.size).contains(box.globalToLocal(global));
+  }
+
+  /// The card under the field, over a barrier across the whole window.
+  Widget _buildResults(BuildContext context) {
+    return Stack(
       children: [
-        SizedBox(
-          height: kSettingsSearchBarHeight,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
-            child: SettingsTextField(
-              controller: _controller,
-              focusNode: widget.focusNode,
-              width: kSettingsSearchWidth,
-              hint: 'Search settings (Ctrl+F)',
-              onChanged: _onQueryChanged,
-              leading: ShellIcon(
-                ShellGlyph.search,
-                size: 12,
-                color: theme.popupForeground.withValues(alpha: 0.45),
-              ),
-              // Always a widget, never null: swapping `trailing` between null
-              // and a button restructures the field around its [EditableText],
-              // which re-inflates it and drops the focus the user is typing
-              // into. [SettingsTextField] documents this.
-              trailing: _controller.text.isEmpty
-                  ? const SizedBox.square(dimension: ShellSizes.iconButtonDense)
-                  : SettingsIconButton(
-                      icon: ShellGlyph.close,
-                      size: 10,
-                      box: ShellSizes.iconButtonDense,
-                      onTap: _clear,
-                    ),
+        // Under the card in paint order, so a click on the card itself is
+        // hit-tested first and never reaches this. The barrier is over the
+        // whole window, field included, so it lets a click on the field
+        // through: placing the caret in the query is not a dismissal.
+        Positioned.fill(
+          child: _BarrierHole(
+            passes: _overField,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _clear,
             ),
           ),
         ),
-        if (_results.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
+        CompositedTransformFollower(
+          link: _link,
+          targetAnchor: Alignment.bottomLeft,
+          followerAnchor: Alignment.topLeft,
+          offset: const Offset(0, _kResultsGap),
+          // The window's overlay has no repaint boundary of its own, so
+          // without this every hover over a row would re-record the panel
+          // beneath it.
+          child: RepaintBoundary(
             // Absorbs clicks on the card's own chrome — the gaps between rows,
             // the rim — which would otherwise fall through to the barrier
             // behind it and dismiss the list the user is aiming at.
@@ -254,8 +294,41 @@ class _SettingsSearchBarState extends State<SettingsSearchBar> {
               ),
             ),
           ),
+        ),
       ],
     );
+  }
+}
+
+/// A barrier with a hole in it: [child] is not hit where [passes] says the
+/// pointer is over something the barrier lies on top of but must leave alone.
+class _BarrierHole extends SingleChildRenderObjectWidget {
+  const _BarrierHole({required this.passes, required super.child});
+
+  final bool Function(Offset global) passes;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderBarrierHole(passes);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderBarrierHole renderObject,
+  ) {
+    renderObject.passes = passes;
+  }
+}
+
+class _RenderBarrierHole extends RenderProxyBox {
+  _RenderBarrierHole(this.passes);
+
+  bool Function(Offset global) passes;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (passes(localToGlobal(position))) return false;
+    return super.hitTest(result, position: position);
   }
 }
 

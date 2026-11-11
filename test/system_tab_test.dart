@@ -208,7 +208,10 @@ void main() {
     for (final panel in [kOverlayPanelMinSize, kOverlayPanelMaxSize]) {
       tester.view.physicalSize = panel;
       await pumpTable(tester, store,
-          size: Size(panel.width, panel.height - 76));
+          size: Size(
+            panel.width - 2 * (kOverlayPanelPadding + 1.5),
+            panel.height - 2 * (kOverlayPanelPadding + 1.5) - 56,
+          ));
 
       expect(tester.takeException(), isNull,
           reason: 'process table overflowed at $panel');
