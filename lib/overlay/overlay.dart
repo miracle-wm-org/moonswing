@@ -45,10 +45,11 @@ import 'package:moonswing/todo/todo_board.dart';
 
 /// The panel is a share of the display rather than a fixed box, so it reads the
 /// same on a 1080p laptop and on a 4K desktop. Its shape is the theme's
-/// `overlay_aspect` — width over height — and [kOverlayPanelAspect], square, is
-/// what a theme that names none gets: on a landscape display that still leaves
-/// the sides clear for the sticky notes and timers.
-const double kOverlayPanelAspect = 1.0;
+/// `overlay_aspect` — width over height — and [kOverlayPanelAspect], a landscape
+/// card half again as wide as tall, is what a theme that names none gets: on a
+/// 1080p display the width clamp binds first, which still leaves a column clear
+/// either side for the sticky notes and timers.
+const double kOverlayPanelAspect = 1.5;
 const double kOverlayPanelHeightFraction = 0.88;
 
 /// Only binding on a portrait output, where the height would ask for more

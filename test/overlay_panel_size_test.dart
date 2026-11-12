@@ -13,16 +13,22 @@ void main() {
     );
   }
 
-  test('the panel is square by default', () {
-    expect(kOverlayPanelAspect, 1.0);
+  test('the panel is half again as wide as tall by default', () {
+    expect(kOverlayPanelAspect, 1.5);
     expect(const ThemeConfig().overlayAspect, kOverlayPanelAspect);
   });
 
-  test('1080p: scales with the display height', () {
+  test('1080p: the maximum width binds, ratio survives', () {
     final size = overlayPanelSize(const Size(1920, 1080));
+    expect(size.width, kOverlayPanelMaxWidth);
+    expect(size.height, closeTo(kOverlayPanelMaxWidth / 1.5, 0.001));
+    expectAspect(size);
+  });
+
+  test('a square panel scales with the display height', () {
+    final size = overlayPanelSize(const Size(1920, 1080), aspect: 1.0);
     expect(size.height, closeTo(1080 * kOverlayPanelHeightFraction, 0.001));
     expect(size.width, closeTo(size.height, 0.001));
-    expectAspect(size);
   });
 
   test("1080p: a theme's aspect shapes the panel", () {
@@ -57,7 +63,7 @@ void main() {
   });
 
   test('short display: the minimum width stands, the height still fits', () {
-    final size = overlayPanelSize(const Size(1024, 768));
+    final size = overlayPanelSize(const Size(1024, 768), aspect: 1.0);
     expect(size.width, kOverlayPanelMinSize.width);
     expect(size.height, closeTo(768 * kOverlayPanelHeightFraction, 0.001));
   });

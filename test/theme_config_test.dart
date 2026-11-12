@@ -32,7 +32,7 @@ void main() {
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
       expect(theme.overlayRadius, 12.0);
-      expect(theme.overlayAspect, 1.0);
+      expect(theme.overlayAspect, 1.5);
     });
 
     test('overlay_aspect clamps to half and double', () {
@@ -41,7 +41,7 @@ void main() {
       expect(ThemeConfig.fromMap({'overlay_aspect': 1.25}).overlayAspect, 1.25);
       expect(
         ThemeConfig.fromMap({'overlay_aspect': double.nan}).overlayAspect,
-        1.0,
+        1.5,
       );
     });
 
