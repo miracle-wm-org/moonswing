@@ -24,6 +24,7 @@ import 'package:moonswing/popup_coordinator.dart';
 import 'package:moonswing/scopes.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
+import 'package:moonswing/todo/todo_checklist.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_board.dart';
@@ -363,17 +364,20 @@ void main() {
   testWidgets('a click opens a card\'s details, where its checklist ticks', (
     tester,
   ) async {
+    // A step among the text, as another client might have put it.
     final store = await pump(tester, [
       _item('a', TodoColumn.inProgress).copyWith(
-        checklist: const [
-          TodoCheckItem(text: 'Draft', done: true),
-          TodoCheckItem(text: 'Review'),
-          TodoCheckItem(text: 'Send'),
-        ],
+        body: '- [x] Draft\nBody of a\n\n* [ ] Review\n- [ ] Send',
       ),
     ]);
-    // The card's face carries the count beside its bar.
+    List<bool> ticks() => [
+      for (final step in parseTodoBody(store.item('a')!.body).checklist)
+        step.done,
+    ];
+    // The card's face carries the count beside its bar, and the steps are
+    // not drawn as text.
     expect(find.text('1/3'), findsOneWidget);
+    expect(find.textContaining('[ ]'), findsNothing);
 
     await tester.tap(find.text('Card a'));
     await tester.pumpAndSettle();
@@ -392,12 +396,17 @@ void main() {
     // A tick is written as it is made, and the card behind follows.
     await tester.tap(find.text('Review'));
     await tester.pumpAndSettle();
-    expect(store.item('a')!.checklist[1].done, isTrue);
+    expect(ticks(), [true, true, false]);
     expect(inDetails('67%'), findsOneWidget);
     expect(find.text('2/3'), findsOneWidget);
     await tester.tap(find.text('Draft'));
     await tester.pumpAndSettle();
-    expect(store.item('a')!.checklist.map((c) => c.done), [false, true, false]);
+    expect(ticks(), [false, true, false]);
+    // Ticked where it stands, nothing else about the body moved.
+    expect(
+      store.item('a')!.body,
+      '- [ ] Draft\nBody of a\n\n* [x] Review\n- [ ] Send',
+    );
     // The card is still where it was: a checklist is not its column.
     expect(store.item('a')!.column, TodoColumn.inProgress);
 
@@ -436,16 +445,21 @@ void main() {
     tester,
   ) async {
     final store = await pump(tester, [
-      _item('a', TodoColumn.todo).copyWith(
-        checklist: const [
-          TodoCheckItem(text: 'First', done: true),
-          TodoCheckItem(text: 'Second'),
-        ],
-      ),
+      _item(
+        'a',
+        TodoColumn.todo,
+      ).copyWith(body: 'Body of a\n\n- [x] First\n- [ ] Second'),
     ]);
     await openEditor(tester, 'Card a');
     expect(find.text('Edit item'), findsOneWidget);
     expect(find.text('1 of 2 done'), findsOneWidget);
+    // The description field holds the text alone.
+    expect(
+      tester
+          .widgetList<SettingsTextField>(find.byType(SettingsTextField))
+          .map((f) => f.controller?.text),
+      contains('Body of a'),
+    );
 
     // One more line, from the list's own adder.
     await tester.tap(find.text('Add a step'));
@@ -483,10 +497,27 @@ void main() {
 
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
-    expect(store.item('a')!.checklist, const [TodoCheckItem(text: 'Third')]);
+    // Written into the body as a task list, which is what a task list syncs.
+    expect(store.item('a')!.body, 'Body of a\n\n- [ ] Third');
     // Back on the details, which draw the new list.
     expect(detailsCard, findsOneWidget);
     expect(find.text('0 of 1 done'), findsOneWidget);
+  });
+
+  testWidgets('a save that changes neither keeps the body as it was', (
+    tester,
+  ) async {
+    const body = 'Step one first:\n- [ ] One\nthen the rest.';
+    final store = await pump(tester, [
+      _item('a', TodoColumn.todo).copyWith(body: body),
+    ]);
+    await openEditor(tester, 'Card a');
+    await tester.tap(find.text('Tomorrow'));
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(store.item('a')!.due, DateTime(2026, 9, 25));
+    expect(store.item('a')!.body, body);
   });
 
   testWidgets('a link in a card opens its address, not the card', (

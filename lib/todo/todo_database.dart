@@ -24,7 +24,10 @@ import 'package:moonswing/todo/todo_standup.dart';
 ///  4. `entries.remote`: the task a card is on the synced CalDAV task list;
 ///     `remote_tombstones`: tasks deleted here and still owed a delete there.
 ///  5. `entries.sticky`: a note's colour, size and place on the overview.
-///  6. `entries.checklist`: a card's checklist.
+///  6. Nothing. An unreleased build kept a card's checklist in a column of its
+///     own; the checklist is now a part of the body (`todo_checklist.dart`),
+///     and the version is taken so a database that build wrote still opens.
+///     Its column, where there is one, is never read.
 const int kTodoSchemaVersion = 6;
 
 /// The oldest SQLite with FTS5's `trigram` tokenizer, as
@@ -307,8 +310,7 @@ class TodoDatabase {
           history      TEXT NOT NULL DEFAULT '[]',
           external     TEXT,
           remote       TEXT,
-          sticky       TEXT,
-          checklist    TEXT
+          sticky       TEXT
         )''');
       db.execute('CREATE INDEX entries_order ON entries(kind, position)');
       // `trigram`, not the default word tokenizer: "any string" includes the
@@ -359,9 +361,6 @@ class TodoDatabase {
       }
       if (from < 5) {
         db.execute('ALTER TABLE entries ADD COLUMN sticky TEXT');
-      }
-      if (from < 6) {
-        db.execute('ALTER TABLE entries ADD COLUMN checklist TEXT');
       }
       db.userVersion = kTodoSchemaVersion;
     });
@@ -737,8 +736,8 @@ class TodoDatabase {
 const String _kInsertTodo = '''
   INSERT INTO entries(
     id, kind, position, title, body, board_column,
-    created, updated, due, recurrence, history, external, remote, checklist)
-  VALUES (?, 'todo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''';
+    created, updated, due, recurrence, history, external, remote)
+  VALUES (?, 'todo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''';
 
 const String _kUpsertTodo =
     '''
@@ -754,8 +753,7 @@ const String _kUpsertTodo =
     recurrence = excluded.recurrence,
     history = excluded.history,
     external = excluded.external,
-    remote = excluded.remote,
-    checklist = excluded.checklist''';
+    remote = excluded.remote''';
 
 const String _kUpsertNote = '''
   INSERT INTO entries(id, kind, title, body, created, updated, sticky)
@@ -795,7 +793,6 @@ List<Object?> _todoParameters(TodoItem item, int position, String updated) {
     jsonEncode(json['history']),
     item.external == null ? null : jsonEncode(json['external']),
     item.remote == null ? null : jsonEncode(json['remote']),
-    item.checklist.isEmpty ? null : jsonEncode(json['checklist']),
   ];
 }
 
@@ -813,7 +810,6 @@ TodoItem? _todoFromRow(Row row) => TodoItem.fromJson({
   'history': _decodeJson(row['history']),
   'external': _decodeJson(row['external']),
   'remote': _decodeJson(row['remote']),
-  'checklist': _decodeJson(row['checklist']),
 });
 
 NoteItem? _noteFromRow(Row row) {

@@ -38,6 +38,7 @@ import 'package:moonswing/theme/theme_config.dart';
 import 'package:moonswing/theme/tokens.dart';
 import 'package:moonswing/todo/todo_backup_panel.dart';
 import 'package:moonswing/todo/todo_caldav_sync.dart';
+import 'package:moonswing/todo/todo_checklist.dart';
 import 'package:moonswing/todo/todo_layout.dart';
 import 'package:moonswing/todo/todo_links.dart';
 import 'package:moonswing/todo/todo_model.dart';
@@ -1409,7 +1410,11 @@ class _CardFaceState extends State<_CardFace> {
   @override
   Widget build(BuildContext context) {
     final title = widget.item.title.trim();
-    final body = widget.item.body.trim();
+    // The checklist's lines are drawn as a bar here and as boxes in the
+    // details, never as text.
+    final parsed = parseTodoBody(widget.item.body);
+    final body = parsed.description;
+    final checklist = parsed.checklist;
     final titleLinks = findLinks(title);
     final bodyLinks = findLinks(body);
     _forgetAllBut([...titleLinks, ...bodyLinks]);
@@ -1418,13 +1423,30 @@ class _CardFaceState extends State<_CardFace> {
         link.url: ?parseGithubRef(link.url),
     };
     if (refs.isEmpty) {
-      return _face(context, title, body, titleLinks, bodyLinks, refs, null);
+      return _face(
+        context,
+        title,
+        body,
+        checklist,
+        titleLinks,
+        bodyLinks,
+        refs,
+        null,
+      );
     }
     final githubLinks = AccountsScope.githubLinksOf(context);
     return ListenableBuilder(
       listenable: githubLinks,
-      builder: (context, _) =>
-          _face(context, title, body, titleLinks, bodyLinks, refs, githubLinks),
+      builder: (context, _) => _face(
+        context,
+        title,
+        body,
+        checklist,
+        titleLinks,
+        bodyLinks,
+        refs,
+        githubLinks,
+      ),
     );
   }
 
@@ -1432,6 +1454,7 @@ class _CardFaceState extends State<_CardFace> {
     BuildContext context,
     String title,
     String body,
+    List<TodoCheckItem> checklist,
     List<TodoLink> titleLinks,
     List<TodoLink> bodyLinks,
     Map<String, GithubRef> refs,
@@ -1547,9 +1570,9 @@ class _CardFaceState extends State<_CardFace> {
       children: [
         titleText,
         if (body.isNotEmpty) ...[const SizedBox(height: 4), bodyText],
-        if (item.checklist.isNotEmpty) ...[
+        if (checklist.isNotEmpty) ...[
           const SizedBox(height: 8),
-          _ChecklistBar(checklist: item.checklist),
+          _ChecklistBar(checklist: checklist),
         ],
         const SizedBox(height: 6),
         facts,
@@ -2014,7 +2037,7 @@ class _TodoDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = ThemeScope.of(context);
     final editable = store.editable;
-    final checklist = item.checklist;
+    final checklist = parseTodoBody(item.body).checklist;
     return Container(
       decoration: BoxDecoration(
         color: opaquePopupFill(theme),
@@ -2278,8 +2301,11 @@ class _TodoEditorState extends State<_TodoEditor> {
   late final TextEditingController _title = TextEditingController(
     text: widget.existing?.title ?? '',
   );
+  /// The body as the card had it, split: the description goes in the field,
+  /// the checklist in the list under it, and Save puts them back together.
+  late final TodoBody _parsed = parseTodoBody(widget.existing?.body ?? '');
   late final TextEditingController _body = TextEditingController(
-    text: widget.existing?.body ?? '',
+    text: _parsed.description,
   );
   late final TextEditingController _due = TextEditingController(
     text: switch (widget.existing?.due) {
@@ -2306,7 +2332,7 @@ class _TodoEditorState extends State<_TodoEditor> {
       widget.existing?.recurrence?.unit ?? RecurrenceUnit.weeks;
 
   late final List<_DraftLine> _lines = [
-    for (final line in widget.existing?.checklist ?? const <TodoCheckItem>[])
+    for (final line in _parsed.checklist)
       _DraftLine(line.text, done: line.done),
   ];
 
@@ -2375,6 +2401,23 @@ class _TodoEditorState extends State<_TodoEditor> {
         TodoCheckItem(text: text, done: line.done),
   ];
 
+  /// The body Save writes: the description with the checklist after it.
+  ///
+  /// Neither touched, it is the body exactly as it was, so steps another
+  /// client put among the text stay where they were put rather than being
+  /// gathered at the end by an edit to the due date.
+  String _draftBody() {
+    final description = _body.text.trimRight();
+    final checklist = _draftChecklist();
+    final existing = widget.existing;
+    if (existing != null &&
+        description == _parsed.description &&
+        listEquals(checklist, _parsed.checklist)) {
+      return existing.body;
+    }
+    return composeTodoBody(description, checklist);
+  }
+
   /// The draft as the store would take it, or why it cannot be taken.
   ({String? error, DateTime? due, TodoRecurrence? recurrence}) _validate() {
     DateTime? due;
@@ -2437,20 +2480,18 @@ class _TodoEditorState extends State<_TodoEditor> {
       widget.store.add(
         _column,
         title: _title.text.trim(),
-        body: _body.text.trimRight(),
+        body: _draftBody(),
         due: draft.due,
         recurrence: draft.recurrence,
-        checklist: _draftChecklist(),
       );
     } else {
       widget.store.update(
         existing.id,
         title: _title.text.trim(),
-        body: _body.text.trimRight(),
+        body: _draftBody(),
         column: _column,
         due: draft.due,
         recurrence: draft.recurrence,
-        checklist: _draftChecklist(),
       );
     }
     widget.onDone();

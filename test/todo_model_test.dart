@@ -145,71 +145,29 @@ void main() {
       expect(spawnRecurring([_item('a')], now, newId, now: now), isNull);
     });
 
-    test('the copy takes the checklist with every line unticked', () {
+    test('the copy\'s checklist starts with every step unticked', () {
       final rule = TodoRecurrence(
         every: 1,
         unit: RecurrenceUnit.days,
         start: DateTime(2026, 9, 20),
         since: DateTime(2026, 9, 23),
       );
-      final item = _item('r', recurrence: rule).copyWith(
-        checklist: const [
-          TodoCheckItem(text: 'Water', done: true),
-          TodoCheckItem(text: 'Feed'),
-        ],
+      const body = 'Chores\n\n- [x] Water\n- [ ] Feed';
+      final item = TodoItem(
+        id: 'r',
+        title: 'Plants',
+        body: body,
+        column: TodoColumn.finished,
+        created: DateTime(2026, 9, 1, 9),
+        recurrence: rule,
       );
       final next = spawnRecurring([item], now, newId, now: now)!;
-      final copy = next.firstWhere((i) => i.id != 'r');
-      expect(copy.checklist, const [
-        TodoCheckItem(text: 'Water'),
-        TodoCheckItem(text: 'Feed'),
-      ]);
-      // The one it was copied from keeps what was ticked on it.
-      expect(next.firstWhere((i) => i.id == 'r').checklist, item.checklist);
-    });
-  });
-
-  group('checklist', () {
-    test('progress counts the ticked lines', () {
-      expect(checklistProgress(const []), (done: 0, total: 0, fraction: 0.0));
-      final p = checklistProgress(const [
-        TodoCheckItem(text: 'a', done: true),
-        TodoCheckItem(text: 'b'),
-        TodoCheckItem(text: 'c', done: true),
-        TodoCheckItem(text: 'd'),
-      ]);
-      expect(p.done, 2);
-      expect(p.total, 4);
-      expect(p.fraction, 0.5);
-    });
-
-    test('round-trips through the file, and a bad line costs that line', () {
-      final item = _item('a').copyWith(
-        checklist: const [
-          TodoCheckItem(text: 'One', done: true),
-          TodoCheckItem(text: 'Two'),
-        ],
+      expect(
+        next.firstWhere((i) => i.id != 'r').body,
+        'Chores\n\n- [ ] Water\n- [ ] Feed',
       );
-      expect(TodoItem.fromJson(item.toJson()), item);
-      // No checklist, no key: a card without one is written as before.
-      expect(_item('b').toJson().containsKey('checklist'), isFalse);
-
-      final json = item.toJson()
-        ..['checklist'] = [
-          {'text': 'Kept', 'done': true},
-          {'text': '   '},
-          {'done': true},
-          'nonsense',
-          {'text': 'Also kept', 'done': 'yes'},
-        ];
-      expect(TodoItem.fromJson(json)!.checklist, const [
-        TodoCheckItem(text: 'Kept', done: true),
-        TodoCheckItem(text: 'Also kept'),
-      ]);
-      // A checklist that is not a list costs the checklist, not the card.
-      final broken = item.toJson()..['checklist'] = 'nope';
-      expect(TodoItem.fromJson(broken)!.title, 'Item');
-      expect(TodoItem.fromJson(broken)!.checklist, isEmpty);
+      // The one it was copied from keeps what was ticked on it.
+      expect(next.firstWhere((i) => i.id == 'r').body, body);
     });
   });
 

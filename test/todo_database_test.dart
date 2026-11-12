@@ -338,7 +338,6 @@ void main() {
         raw.execute('DROP TABLE standups');
         raw.execute('ALTER TABLE entries DROP COLUMN remote');
         raw.execute('ALTER TABLE entries DROP COLUMN sticky');
-        raw.execute('ALTER TABLE entries DROP COLUMN checklist');
         raw.execute('DROP TABLE remote_tombstones');
         raw.execute(
           "INSERT INTO meta(key, value) VALUES "
@@ -379,7 +378,6 @@ void main() {
       final raw = sqlite3.open(path);
       raw.execute('ALTER TABLE entries DROP COLUMN remote');
       raw.execute('ALTER TABLE entries DROP COLUMN sticky');
-      raw.execute('ALTER TABLE entries DROP COLUMN checklist');
       raw.execute('DROP TABLE remote_tombstones');
       raw.userVersion = 3;
       raw.close();
@@ -469,7 +467,6 @@ void main() {
       // Back to schema 4 by hand.
       final raw = sqlite3.open(path);
       raw.execute('ALTER TABLE entries DROP COLUMN sticky');
-      raw.execute('ALTER TABLE entries DROP COLUMN checklist');
       raw.userVersion = 4;
       raw.close();
 
@@ -501,58 +498,33 @@ void main() {
       expect(placement.color, StickyColor.blue);
       expect([for (final h in reopened.search('befor')) h.id], ['n']);
     });
-    test('a schema-5 board gains a checklist for every card, rows kept', () {
+  });
+
+  group('schema 6', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('todo_db_six'));
+    tearDown(() => dir.deleteSync(recursive: true));
+
+    test('a database with the old checklist column still opens', () {
       final path = '${dir.path}/notes.db';
-      final old = TodoDatabase.open(path);
-      old.apply(_board([_item('a', title: 'Before')]), at: at);
-      old.close();
-      // Back to schema 5 by hand.
+      final first = TodoDatabase.open(path);
+      first.apply(_board([_item('a', title: 'Kept')]), at: at);
+      first.close();
+      // As the unreleased build left it: its own column, at schema 6.
       final raw = sqlite3.open(path);
-      raw.execute('ALTER TABLE entries DROP COLUMN checklist');
-      raw.userVersion = 5;
+      raw.execute('ALTER TABLE entries ADD COLUMN checklist TEXT');
+      raw.execute(
+        "UPDATE entries SET checklist = '[{\"text\":\"x\"}]' WHERE id = 'a'",
+      );
       raw.close();
 
       final db = TodoDatabase.open(path);
+      addTearDown(db.close);
       final card = db.readAll().todos.single;
-      expect(card.title, 'Before');
-      expect(card.checklist, isEmpty);
-      const checklist = [
-        TodoCheckItem(text: 'Draft', done: true),
-        TodoCheckItem(text: 'Send'),
-      ];
-      db.apply(_board([card.copyWith(checklist: checklist)]), at: at);
-      db.close();
-
-      final reopened = TodoDatabase.open(path);
-      addTearDown(reopened.close);
-      expect(reopened.readAll().todos.single.checklist, checklist);
+      expect(card.title, 'Kept');
+      db.apply(_board([card.copyWith(body: '- [ ] Step')]), at: at);
+      expect(db.readAll().todos.single.body, '- [ ] Step');
     });
-
-    test(
-      'a checklist that will not parse costs the checklist, not the card',
-      () {
-        final path = '${dir.path}/notes.db';
-        final first = TodoDatabase.open(path);
-        first.apply(
-          _board([
-            _item(
-              'a',
-              title: 'Kept',
-            ).copyWith(checklist: const [TodoCheckItem(text: 'Step')]),
-          ]),
-          at: at,
-        );
-        first.close();
-        final raw = sqlite3.open(path);
-        raw.execute("UPDATE entries SET checklist = '[{bad' WHERE id = 'a'");
-        raw.close();
-        final db = TodoDatabase.open(path);
-        addTearDown(db.close);
-        final card = db.readAll().todos.single;
-        expect(card.title, 'Kept');
-        expect(card.checklist, isEmpty);
-      },
-    );
   });
 
   group('query building', () {

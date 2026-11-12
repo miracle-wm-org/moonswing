@@ -8,6 +8,7 @@ import 'package:moonswing/notification_service.dart';
 import 'package:moonswing/todo/todo_backup.dart';
 import 'package:moonswing/todo/todo_calendar_sync.dart';
 import 'package:moonswing/todo/todo_caldav_map.dart';
+import 'package:moonswing/todo/todo_checklist.dart';
 import 'package:moonswing/todo/todo_database.dart';
 import 'package:moonswing/todo/todo_model.dart';
 import 'package:moonswing/todo/todo_standup.dart';
@@ -602,7 +603,6 @@ class TodoStore extends ChangeNotifier {
     String body = '',
     DateTime? due,
     TodoRecurrence? recurrence,
-    List<TodoCheckItem> checklist = const [],
   }) {
     if (!editable) return null;
     final now = _now();
@@ -615,7 +615,6 @@ class TodoStore extends ChangeNotifier {
       due: due == null ? null : dateOnly(due),
       recurrence: recurrence,
       history: [TodoMove(from: null, to: column, at: now)],
-      checklist: List.unmodifiable(checklist),
     );
     final next = [..._items];
     final firstInColumn = next.indexWhere((i) => i.column == column);
@@ -633,7 +632,6 @@ class TodoStore extends ChangeNotifier {
     required TodoColumn column,
     required DateTime? due,
     required TodoRecurrence? recurrence,
-    List<TodoCheckItem>? checklist,
   }) {
     final current = item(id);
     if (!editable || current == null) return;
@@ -642,7 +640,6 @@ class TodoStore extends ChangeNotifier {
       body: body,
       due: due == null ? null : dateOnly(due),
       recurrence: recurrence,
-      checklist: checklist == null ? null : List.unmodifiable(checklist),
     );
     if (column == current.column) {
       _commit([for (final i in _items) i.id == id ? edited : i]);
@@ -653,23 +650,19 @@ class TodoStore extends ChangeNotifier {
     _moveItem(edited, column, beforeId: _firstIdIn(column));
   }
 
-  /// Ticks (or unticks) line [index] of [id]'s checklist. Nothing else about
-  /// the card moves: finishing the last line is not finishing the card, which
-  /// is still the user's to drag to Finished.
+  /// Ticks (or unticks) step [index] of [id]'s checklist, which is a line of
+  /// its body (see `todo_checklist.dart`), so the tick is an edit to the notes
+  /// and goes to the task list as one. Nothing else about the card moves:
+  /// finishing the last step is not finishing the card, which is still the
+  /// user's to drag to Finished.
   void setChecked(String id, int index, {required bool done}) {
     final current = item(id);
     if (!editable || current == null) return;
-    final lines = current.checklist;
-    if (index < 0 || index >= lines.length || lines[index].done == done) {
-      return;
-    }
-    final edited = current.copyWith(
-      checklist: List.unmodifiable([
-        for (var i = 0; i < lines.length; i++)
-          i == index ? lines[i].copyWith(done: done) : lines[i],
-      ]),
-    );
-    _commit([for (final i in _items) i.id == id ? edited : i]);
+    final body = setCheckedInBody(current.body, index, done: done);
+    if (body == null || body == current.body) return;
+    _commit([
+      for (final i in _items) i.id == id ? i.copyWith(body: body) : i,
+    ]);
   }
 
   /// Moves [id] into [column], just above [beforeId] — or to the bottom of the
