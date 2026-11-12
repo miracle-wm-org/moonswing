@@ -160,7 +160,7 @@ popup_animation      = "sprout"
 popup_animation_duration = 240
 
 overlay_radius       = 14.0
-overlay_aspect       = 1.0
+overlay_aspect       = 1.5
 
 # The overlays lift into place, a little more slowly than the default, and
 # leave faster than they came.
@@ -321,7 +321,7 @@ popup_animation      = "sprout"
 popup_animation_duration = 240
 
 overlay_radius       = 14.0
-overlay_aspect       = 1.0
+overlay_aspect       = 1.5
 
 # The overlays drift into place and leave faster than they came.
 overlay_animation    = "rise"
@@ -425,7 +425,7 @@ popup_animation      = "slide"
 popup_animation_duration = 120
 
 overlay_radius       = 12.0
-overlay_aspect       = 1.0
+overlay_aspect       = 1.5
 
 # Overlays come towards you and settle a fraction past their resting size.
 # The overshoot is read backwards on the way out, so they dip before they
@@ -586,7 +586,7 @@ popup_animation      = "fade"
 popup_animation_duration = 120
 
 overlay_radius       = 12.0
-overlay_aspect       = 1.0
+overlay_aspect       = 1.5
 
 # Glass dissolves rather than moves: opacity alone, given a touch longer than
 # the default because a fade with nothing else in it is the one effect a short
@@ -763,7 +763,7 @@ popup_animation      = "slide"
 popup_animation_duration = 120
 
 overlay_radius       = 12.0
-overlay_aspect       = 1.0
+overlay_aspect       = 1.5
 
 # The stateliest arrival of the shipped themes, on the asymmetric curve:
 # a sharp departure into a long settle, and out again in three quarters of
@@ -968,7 +968,7 @@ popup_animation      = "slide"
 popup_animation_duration = 120
 
 overlay_radius       = 12.0
-overlay_aspect       = 1.0
+overlay_aspect       = 1.5
 
 # Overlays unfold out of their own middle, keeping their width — the
 # flat-panel counterpart to the popups this theme attaches to the bar,
@@ -1132,7 +1132,7 @@ popup_animation_duration = 100
 
 # And so did dialogs, square-cornered.
 overlay_radius       = 0.0
-overlay_aspect       = 1.0
+overlay_aspect       = 1.5
 overlay_animation    = "none"
 overlay_animation_duration = 120
 overlay_animation_exit_ratio = 1.0

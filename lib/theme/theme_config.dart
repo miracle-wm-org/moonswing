@@ -577,7 +577,8 @@ class ThemeConfig {
   final double overlayRadius;
 
   /// The overview's shape: its width over its height. `1.0` is square, below
-  /// it taller than wide, above it wider than tall.
+  /// it taller than wide, above it wider than tall. The default, `1.5`, is a
+  /// landscape card.
   ///
   /// Only the overview (the calendar, settings, board and the other tabs) is
   /// sized by it — the launcher, the emoji picker and the prompts are sized by
@@ -890,7 +891,7 @@ class ThemeConfig {
     this.popupEffect = PopupEffect.slide,
     this.popupAnimationDuration = _kDefaultPopupDurationMs,
     this.overlayRadius = 12.0,
-    this.overlayAspect = 1.0,
+    this.overlayAspect = 1.5,
     this.overlayEffect = OverlayEffect.scale,
     this.overlayAnimationDuration = _kDefaultOverlayDurationMs,
     this.overlayExitRatio = _kDefaultOverlayExitRatio,

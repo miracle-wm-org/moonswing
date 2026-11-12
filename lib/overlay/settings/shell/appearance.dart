@@ -857,7 +857,7 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                       'the ratio.',
                   control: SettingsNumberField(
                     key: ValueKey('overlay_aspect-$active'),
-                    value: current['overlay_aspect'] as num? ?? 1,
+                    value: current['overlay_aspect'] as num? ?? 1.5,
                     isInt: false,
                     onChanged: (v) => _themes.edit(
                       'overlay_aspect',
