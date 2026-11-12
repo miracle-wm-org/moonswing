@@ -13,7 +13,7 @@ import 'package:flutter/src/widgets/_window.dart' show BaseWindowController;
 import 'package:moonswing/accounts/accounts_scope.dart';
 import 'package:moonswing/app_info.dart';
 import 'package:moonswing/app_scope.dart';
-import 'package:moonswing/bar_module_row.dart';
+import 'package:moonswing/bar_module_drag.dart';
 import 'package:moonswing/caldav/caldav_service.dart';
 import 'package:moonswing/clipboard/clipboard_panel.dart';
 import 'package:moonswing/clipboard/clipboard_panel_controller.dart';
@@ -93,6 +93,7 @@ import 'package:moonswing/native/input_region.dart';
 import 'package:moonswing/native/monitor_geometry.dart';
 import 'package:moonswing/panel_background.dart';
 import 'package:moonswing/panel_join.dart';
+import 'package:moonswing/panel_layout_edit.dart' show reorderPanelSlot;
 import 'package:moonswing/panel_reach.dart';
 import 'package:moonswing/panel_rim.dart';
 import 'package:moonswing/panel_section.dart';
@@ -3286,7 +3287,7 @@ class _PanelMainState extends State<PanelMain> {
     super.dispose();
   }
 
-  Widget _buildModule(String name) {
+  Widget _buildModule(String name, {required String slot, required int index}) {
     final module = Module.lookup(name);
     if (module == null) return const SizedBox.shrink();
     // Module options are pushed imperatively and read out of `builder` at build
@@ -3299,6 +3300,11 @@ class _PanelMainState extends State<PanelMain> {
     return ModuleMenuRegion(
       moduleKey: name,
       panelName: widget.panelConfig.name,
+      // Its place in the layout, for the menu's "Remove from panel" and "Add
+      // module…": the index into the config's list, not into what was built,
+      // which may have dropped a Miracle-only module.
+      slot: slot,
+      index: index,
       child: ListenableBuilder(
         listenable: Module.configChanges,
         builder: (context, _) => module.builder(context),
@@ -3306,8 +3312,9 @@ class _PanelMainState extends State<PanelMain> {
     );
   }
 
-  Widget _buildSection(List<String> modules) {
+  Widget _buildSection(String slot, List<String> modules) {
     if (modules.isEmpty) return const SizedBox.shrink();
+    final all = [for (var i = 0; i < modules.length; i++) i];
 
     // A Miracle-only module is dropped outright on another compositor, so it
     // costs neither a control that cannot work nor the gap beside it. The
@@ -3320,31 +3327,69 @@ class _PanelMainState extends State<PanelMain> {
       return ListenableBuilder(
         listenable: miracle,
         builder: (context, _) => _buildModules(
+          slot,
+          modules,
           miracle.unsupported
               ? [
-                  for (final m in modules)
-                    if (!(Module.lookup(m)?.requiresMiracle ?? false)) m,
+                  for (final i in all)
+                    if (!(Module.lookup(modules[i])?.requiresMiracle ?? false))
+                      i,
                 ]
-              : modules,
+              : all,
         ),
       );
     }
-    return _buildModules(modules);
+    return _buildModules(slot, modules, all);
   }
 
-  Widget _buildModules(List<String> modules) {
-    if (modules.isEmpty) return const SizedBox.shrink();
+  /// [slot]'s [modules] as built: those at [shown], ascending indices into
+  /// [modules].
+  Widget _buildModules(String slot, List<String> modules, List<int> shown) {
+    if (shown.isEmpty) return const SizedBox.shrink();
 
     final bool vertical = widget.anchor == 'left' || widget.anchor == 'right';
+    // A module named twice in one section is two modules; the count keeps
+    // their keys apart.
+    final seen = <String, int>{};
+    final ids = [
+      for (final i in shown)
+        '${modules[i]}#${seen.update(modules[i], (n) => n + 1, ifAbsent: () => 0)}',
+    ];
+    final store = _layoutStore();
     // Not a Row with a spacer between each pair: a module with nothing to show
     // on this machine (no battery, no backlight, an empty tray) builds an empty
-    // box, and must cost the bar no gap either. [BarModuleRow] decides the gaps
-    // from what each module measured.
-    return BarModuleRow(
+    // box, and must cost the bar no gap either. [BarModuleRow], under the
+    // section, decides the gaps from what each module measured. A module
+    // dragged along the section is dropped into a new place in it, written
+    // once, on the drop (`bar_module_drag.dart`).
+    return ReorderableBarSection(
       axis: vertical ? Axis.vertical : Axis.horizontal,
       gap: 8,
-      children: [for (final m in modules) _buildModule(m)],
+      ids: ids,
+      onReorder: store == null
+          ? null
+          : (order) => reorderPanelSlot(
+              store,
+              panel: widget.panelConfig.name,
+              slot: slot,
+              built: modules,
+              shown: shown,
+              order: order,
+            ),
+      children: [
+        for (final i in shown) _buildModule(modules[i], slot: slot, index: i),
+      ],
     );
+  }
+
+  /// The store a drop is written to, or null where there is none — a widget
+  /// test that pumps a bar — and the section then does not drag.
+  static ConfigStore? _layoutStore() {
+    try {
+      return ConfigStore.instance;
+    } on StateError {
+      return null;
+    }
   }
 
   @override
@@ -3361,25 +3406,28 @@ class _PanelMainState extends State<PanelMain> {
     // Always wrapped, whatever the theme, so turning islands on or off moves
     // no module to a new depth.
     final islands = PanelSection.themeFor(theme);
-    Widget section(List<String> modules) => PanelSection(
+    Widget section(String slot, List<String> modules) => PanelSection(
       axis: vertical ? Axis.vertical : Axis.horizontal,
       theme: islands,
       anchor: widget.panelConfig.anchor,
-      child: _buildSection(modules),
+      child: _buildSection(slot, modules),
     );
 
     final stackChildren = <Widget>[
       if (layout.left.isNotEmpty)
         Align(
           alignment: vertical ? Alignment.topCenter : Alignment.centerLeft,
-          child: section(layout.left),
+          child: section('left', layout.left),
         ),
       if (layout.center.isNotEmpty)
-        Align(alignment: Alignment.center, child: section(layout.center)),
+        Align(
+          alignment: Alignment.center,
+          child: section('center', layout.center),
+        ),
       if (layout.right.isNotEmpty)
         Align(
           alignment: vertical ? Alignment.bottomCenter : Alignment.centerRight,
-          child: section(layout.right),
+          child: section('right', layout.right),
         ),
     ];
     final double pad = widget.panelConfig.paddingHorizontal.toDouble();

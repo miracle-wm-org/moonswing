@@ -105,9 +105,15 @@ class DesktopMenuCard extends StatelessWidget {
     required this.entries,
     this.header,
     this.onBack,
+    this.scrollable = false,
   });
 
   final List<DesktopMenuItem> entries;
+
+  /// Whether the entries scroll under the header when they are more than the
+  /// card is offered, rather than overflowing it — for a list as long as a
+  /// registry, like the modules a bar can be given.
+  final bool scrollable;
 
   /// Shown as a non-interactive title row. Used by the "Open with…" page to
   /// say what is being opened.
@@ -159,7 +165,21 @@ class DesktopMenuCard extends StatelessWidget {
                   Container(height: 1, color: theme.divider),
                   const SizedBox(height: 4),
                 ],
-                for (final item in entries) _DesktopMenuItemView(item: item),
+                if (scrollable)
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (final item in entries)
+                            _DesktopMenuItemView(item: item),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  for (final item in entries) _DesktopMenuItemView(item: item),
               ],
             ),
           ),
