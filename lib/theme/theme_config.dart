@@ -576,6 +576,18 @@ class ThemeConfig {
   /// that happen to be centred, and keep that key.
   final double overlayRadius;
 
+  /// The overview's shape: its width over its height. `1.0` is square, below
+  /// it taller than wide, above it wider than tall.
+  ///
+  /// Only the overview (the calendar, settings, board and the other tabs) is
+  /// sized by it — the launcher, the emoji picker and the prompts are sized by
+  /// their content. The panel is still a share of the output and its width is
+  /// still clamped (`overlayPanelSize`, `lib/overlay/overlay.dart`), so on a
+  /// very short or very narrow screen fitting wins over the ratio.
+  /// Not blended: a theme switch lands the new shape at once, as every other
+  /// geometry key does.
+  final double overlayAspect;
+
   /// Which animation a full-screen overlay plays as it opens, and — reversed —
   /// as it closes.
   ///
@@ -878,6 +890,7 @@ class ThemeConfig {
     this.popupEffect = PopupEffect.slide,
     this.popupAnimationDuration = _kDefaultPopupDurationMs,
     this.overlayRadius = 12.0,
+    this.overlayAspect = 1.0,
     this.overlayEffect = OverlayEffect.scale,
     this.overlayAnimationDuration = _kDefaultOverlayDurationMs,
     this.overlayExitRatio = _kDefaultOverlayExitRatio,
@@ -1018,6 +1031,10 @@ class ThemeConfig {
         min: 0.0, max: 2000.0),
     _ThemeKey('overlay_radius', _ThemeKeyKind.number, (t) => t.overlayRadius,
         min: 0.0, max: 64.0),
+    // Half as wide as tall to twice as wide: past either end the panel is a
+    // strip, and the width clamps would undo the ratio anyway.
+    _ThemeKey('overlay_aspect', _ThemeKeyKind.number, (t) => t.overlayAspect,
+        min: 0.5, max: 2.0),
     _ThemeKey(
         'overlay_animation', _ThemeKeyKind.overlayEffect, (t) => t.overlayEffect),
     _ThemeKey('overlay_animation_duration', _ThemeKeyKind.integer,
@@ -1178,6 +1195,7 @@ class ThemeConfig {
       popupEffect: v('popup_animation'),
       popupAnimationDuration: v('popup_animation_duration'),
       overlayRadius: v('overlay_radius'),
+      overlayAspect: v('overlay_aspect'),
       overlayEffect: v('overlay_animation'),
       overlayAnimationDuration: v('overlay_animation_duration'),
       overlayExitRatio: v('overlay_animation_exit_ratio'),

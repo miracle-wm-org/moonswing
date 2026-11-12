@@ -846,6 +846,25 @@ class _AppearanceSectionState extends State<AppearanceSection> {
                     ),
                   ),
                 ),
+                SettingsRow.field(
+                  SettingsCatalog.overlayAspect,
+                  info:
+                      'Width over height for the overview — the calendar, '
+                      'settings, board and the other tabs. 1 is square, 0.8 '
+                      'a sheet a little taller than wide, 1.3 a landscape '
+                      'card. It is still a share of the screen, so a very '
+                      'short or narrow display fits the panel before it keeps '
+                      'the ratio.',
+                  control: SettingsNumberField(
+                    key: ValueKey('overlay_aspect-$active'),
+                    value: current['overlay_aspect'] as num? ?? 1,
+                    isInt: false,
+                    onChanged: (v) => _themes.edit(
+                      'overlay_aspect',
+                      v.toDouble().clamp(0.5, 2.0),
+                    ),
+                  ),
+                ),
                 const SettingsSubLabel('Animation'),
                 SettingsRow.field(
                   SettingsCatalog.overlayAnimation,

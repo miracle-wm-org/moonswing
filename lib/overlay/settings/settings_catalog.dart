@@ -486,6 +486,19 @@ abstract final class SettingsCatalog {
     ],
   );
 
+  static final overlayAspect = shellField(
+    'theme.overlay_aspect',
+    'Overview shape',
+    section: 'Theme',
+    description:
+        'The overview panel\'s width over its height: 1 is square, less is '
+        'taller, more is wider.',
+    tags: const [
+      'overview', 'settings', 'calendar', 'todo', 'panel', 'aspect', 'ratio',
+      'square', 'size', 'width', 'height',
+    ],
+  );
+
   static final overlayAnimation = shellField(
     'theme.overlay_animation',
     'Overlay animation',
@@ -3226,6 +3239,7 @@ abstract final class SettingsCatalog {
     popupAnimation,
     popupAnimationDuration,
     overlayRadius,
+    overlayAspect,
     panelTexture,
     panelEndTexture,
     panelEndLength,

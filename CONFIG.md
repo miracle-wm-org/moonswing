@@ -1367,6 +1367,7 @@ popup_animation      = "slide"
 popup_animation_duration = 120
 
 overlay_radius       = 12.0
+overlay_aspect       = 1.0
 
 overlay_animation    = "scale"
 overlay_animation_duration = 130
@@ -1431,6 +1432,7 @@ Colors are hex strings in `#RRGGBB` (opaque) or `#AARRGGBB` (with alpha, where `
 | `popup_animation`      | `slide`       | How a popup arrives, and — reversed — how it leaves (see below)             |
 | `popup_animation_duration` | `120`     | How long that entrance runs, in milliseconds; the exit takes three quarters of it |
 | `overlay_radius`       | `12.0`        | Corner rounding of a full-screen overlay's card: the overview, the launcher (see below) |
+| `overlay_aspect`       | `1.0`         | The overview's width over its height: `1` is square, below it taller, above it wider (see below) |
 | `overlay_animation`    | `scale`       | How a full-screen overlay arrives, and — reversed — how it leaves (see below) |
 | `overlay_animation_duration` | `130`   | How long *that* entrance runs, in milliseconds                             |
 | `overlay_animation_exit_ratio` | `0.8` | What fraction of the entrance the overlay's exit takes                     |
@@ -1688,6 +1690,8 @@ None of them is an image file. Each is drawn once, from seeded arithmetic, as a 
 The power menu, the window switcher and the two consent prompts are drawn as popups that happen to be centred, and follow `popup_radius` along with the rest of the popup keys.
 
 Themes written before this key existed get `12.0`, which is the radius every one of those overlays drew before it could be changed.
+
+`overlay_aspect` is the overview's shape — the panel holding the calendar, settings, the board and the other tabs — as its width over its height, from `0.5` (twice as tall as wide) to `2.0` (twice as wide as tall). The default, `1.0`, is square. The launcher, the emoji picker and the prompts are sized by what is in them and ignore it. The panel is still a share of the screen — at most 88% of its height and 90% of its width, and between 720 and 1400 pixels wide — so on a display too short or too narrow for the ratio the panel fits the screen first and keeps its shape second. A theme switch lands the new shape at once rather than blending to it.
 
 ### About `popup_animation`
 

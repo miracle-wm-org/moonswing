@@ -22,6 +22,7 @@ void main() {
         'popup_radius': 'round',
         'popup_border_width': {'a': 1},
         'overlay_radius': 'round',
+        'overlay_aspect': 'square',
       });
       expect(theme.panelMargin, PanelMargins.zero);
       expect(theme.panelRadius, const PanelRadii.all(0.0));
@@ -31,6 +32,17 @@ void main() {
       expect(theme.popupRadius, 8.0);
       expect(theme.popupBorderWidth, 1.0);
       expect(theme.overlayRadius, 12.0);
+      expect(theme.overlayAspect, 1.0);
+    });
+
+    test('overlay_aspect clamps to half and double', () {
+      expect(ThemeConfig.fromMap({'overlay_aspect': 0.1}).overlayAspect, 0.5);
+      expect(ThemeConfig.fromMap({'overlay_aspect': 9}).overlayAspect, 2.0);
+      expect(ThemeConfig.fromMap({'overlay_aspect': 1.25}).overlayAspect, 1.25);
+      expect(
+        ThemeConfig.fromMap({'overlay_aspect': double.nan}).overlayAspect,
+        1.0,
+      );
     });
 
     test('a negative value clamps to zero', () {
@@ -151,6 +163,10 @@ void main() {
 
     test('overlay_radius', () {
       expect(base, isNot(const ThemeConfig(overlayRadius: 24.0)));
+    });
+
+    test('overlay_aspect', () {
+      expect(base, isNot(const ThemeConfig(overlayAspect: 0.8)));
     });
 
     test('popup_border', () {

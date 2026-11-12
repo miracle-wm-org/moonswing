@@ -44,48 +44,59 @@ import 'package:moonswing/tab_focus_traversal.dart';
 import 'package:moonswing/todo/todo_board.dart';
 
 /// The panel is a share of the display rather than a fixed box, so it reads the
-/// same on a 1080p laptop and on a 4K desktop. It is a touch taller than it is
-/// wide — width over height is [kOverlayPanelAspect] — so it reads as a sheet
-/// in the middle of the screen rather than a second, smaller desktop, and on a
-/// landscape display it leaves the sides clear for the sticky notes and timers.
-const double kOverlayPanelAspect = 0.95;
+/// same on a 1080p laptop and on a 4K desktop. Its shape is the theme's
+/// `overlay_aspect` — width over height — and [kOverlayPanelAspect], square, is
+/// what a theme that names none gets: on a landscape display that still leaves
+/// the sides clear for the sticky notes and timers.
+const double kOverlayPanelAspect = 1.0;
 const double kOverlayPanelHeightFraction = 0.88;
 
 /// Only binding on a portrait output, where the height would ask for more
 /// width than there is.
 const double kOverlayPanelWidthFraction = 0.9;
-const Size kOverlayPanelMinSize = Size(720, 720 / kOverlayPanelAspect);
-const Size kOverlayPanelMaxSize = Size(1400, 1400 / kOverlayPanelAspect);
+
+/// The narrowest and widest the panel is drawn, whatever its aspect.
+const double kOverlayPanelMinWidth = 720;
+const double kOverlayPanelMaxWidth = 1400;
+
+/// The panel's smallest and largest size at the default aspect — the extremes
+/// a tab has to lay out at.
+const Size kOverlayPanelMinSize =
+    Size(kOverlayPanelMinWidth, kOverlayPanelMinWidth / kOverlayPanelAspect);
+const Size kOverlayPanelMaxSize =
+    Size(kOverlayPanelMaxWidth, kOverlayPanelMaxWidth / kOverlayPanelAspect);
 
 /// The air between the panel's rim and everything inside it.
 const double kOverlayPanelPadding = 10;
 
-/// Panel size for an overlay surface of [available] logical pixels. The overlay
-/// window is anchored to all four edges, so [available] is the usable size of the
+/// Panel size for an overlay surface of [available] logical pixels, [aspect]
+/// (width over height) the theme's `overlay_aspect`. The overlay window is
+/// anchored to all four edges, so [available] is the usable size of the
 /// monitor.
 ///
-/// Every clamp re-derives the other axis from [kOverlayPanelAspect], so the ratio
-/// survives all of them — except the last two: on a short screen the minimum
-/// width stands but the height still keeps to [kOverlayPanelHeightFraction], and
-/// fitting on screen wins over everything.
-Size overlayPanelSize(Size available) {
+/// Every clamp re-derives the other axis from [aspect], so the ratio survives
+/// all of them — except the last two: past the minimum width the height still
+/// keeps to [kOverlayPanelHeightFraction], and fitting on screen wins over
+/// everything.
+Size overlayPanelSize(Size available, {double aspect = kOverlayPanelAspect}) {
+  if (!aspect.isFinite || aspect <= 0) aspect = kOverlayPanelAspect;
   final maxHeight = available.height * kOverlayPanelHeightFraction;
   double height = maxHeight;
-  double width = height * kOverlayPanelAspect;
+  double width = height * aspect;
 
   final maxWidth = available.width * kOverlayPanelWidthFraction;
   if (width > maxWidth) {
     width = maxWidth;
-    height = width / kOverlayPanelAspect;
+    height = width / aspect;
   }
 
-  if (width > kOverlayPanelMaxSize.width) {
-    width = kOverlayPanelMaxSize.width;
-    height = width / kOverlayPanelAspect;
+  if (width > kOverlayPanelMaxWidth) {
+    width = kOverlayPanelMaxWidth;
+    height = width / aspect;
   }
-  if (width < kOverlayPanelMinSize.width) {
-    width = kOverlayPanelMinSize.width;
-    height = math.min(width / kOverlayPanelAspect, maxHeight);
+  if (width < kOverlayPanelMinWidth) {
+    width = kOverlayPanelMinWidth;
+    height = math.min(width / aspect, maxHeight);
   }
 
   return Size(
@@ -301,7 +312,8 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
             // change, not on every animation frame.
             builder: (context, constraints) {
               final available = constraints.biggest;
-              final size = overlayPanelSize(available);
+              final size =
+                  overlayPanelSize(available, aspect: theme.overlayAspect);
               _maxOffset = Offset(
                 math.max(0.0, (available.width - size.width) / 2),
                 math.max(0.0, (available.height - size.height) / 2),
@@ -494,7 +506,22 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
     ),
   ];
 
+  /// [overlayPanelSize] at the theme's aspect, kept while the aspect is, so the
+  /// note and timer layers' delegates see the same function every build and
+  /// relayout only when the shape really moved.
+  Size Function(Size surface) _cardSizeFor(double aspect) {
+    if (_cardSizeAspect != aspect || _cardSize == null) {
+      _cardSizeAspect = aspect;
+      _cardSize = (surface) => overlayPanelSize(surface, aspect: aspect);
+    }
+    return _cardSize!;
+  }
+
+  double? _cardSizeAspect;
+  Size Function(Size surface)? _cardSize;
+
   Widget _buildForeground(BuildContext context, Animation<double> opacity) {
+    final cardSizeFor = _cardSizeFor(ThemeScope.of(context).overlayAspect);
     final actions = _actions;
     final bar = overviewActionBarRect(actions.length);
     return Stack(
@@ -513,7 +540,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
           child: StickyNoteLayer(
             key: _stickyNotes,
             offset: _offset,
-            cardSizeFor: overlayPanelSize,
+            cardSizeFor: cardSizeFor,
             opacity: opacity,
             reserved: () => [bar, ...?_timers.currentState?.occupied],
             // The keyboard comes back to the panel's listener, so Escape
@@ -527,7 +554,7 @@ class _SettingsOverlayState extends State<SettingsOverlay> {
           child: FloatingTimerLayer(
             key: _timers,
             offset: _offset,
-            cardSizeFor: overlayPanelSize,
+            cardSizeFor: cardSizeFor,
             opacity: opacity,
             reserved: () => [bar, ...?_stickyNotes.currentState?.occupied],
             onKeyboardReleased: _focusNode.requestFocus,
